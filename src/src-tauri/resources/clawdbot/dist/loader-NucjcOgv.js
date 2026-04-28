@@ -2061,7 +2061,16 @@ function mirrorBundledPluginRuntimeRoot(params) {
 			recursive: true,
 			force: true
 		});
-		fs.renameSync(stagedRoot, mirrorRoot);
+		try {
+			fs.renameSync(stagedRoot, mirrorRoot);
+		} catch (renameErr) {
+			if (renameErr.code === 'ENOTEMPTY' || renameErr.code === 'EEXIST') {
+				fs.rmSync(mirrorRoot, { recursive: true, force: true });
+				fs.renameSync(stagedRoot, mirrorRoot);
+			} else {
+				throw renameErr;
+			}
+		}
 	} finally {
 		fs.rmSync(tempDir, {
 			recursive: true,
