@@ -14,6 +14,7 @@ export type ResolvedAgentConfig = {
     skills?: AgentEntry["skills"];
     memorySearch?: AgentEntry["memorySearch"];
     humanDelay?: AgentEntry["humanDelay"];
+    tts?: AgentEntry["tts"];
     contextLimits?: AgentContextLimitsConfig;
     heartbeat?: AgentEntry["heartbeat"];
     identity?: AgentEntry["identity"];

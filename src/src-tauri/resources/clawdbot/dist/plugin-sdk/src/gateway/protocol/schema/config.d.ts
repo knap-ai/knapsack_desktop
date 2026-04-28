@@ -34,6 +34,7 @@ export declare const ConfigSchemaParamsSchema: Type.TObject<{}>;
 export declare const ConfigSchemaLookupParamsSchema: Type.TObject<{
     path: Type.TString;
 }>;
+export declare const UpdateStatusParamsSchema: Type.TObject<{}>;
 export declare const UpdateRunParamsSchema: Type.TObject<{
     sessionKey: Type.TOptional<Type.TString>;
     deliveryContext: Type.TOptional<Type.TObject<{

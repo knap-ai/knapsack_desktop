@@ -2,10 +2,9 @@ import { a as parseFeishuTargetId, i as parseFeishuDirectConversationId, n as bu
 import { n as createFeishuThreadBindingManager, r as getFeishuThreadBindingManager, t as __testing } from "./thread-bindings-BmS6TLes.js";
 import { n as handleFeishuSubagentEnded, r as handleFeishuSubagentSpawning, t as handleFeishuSubagentDeliveryTarget } from "./subagent-hooks-C3UhPVLV.js";
 import { r as listEnabledFeishuAccounts } from "./accounts-DJRdWYvk.js";
-import { a as setFeishuNamedAccountEnabled, i as feishuSetupAdapter, n as feishuSetupWizard, r as runFeishuLogin, t as feishuPlugin } from "./channel-BrSg_Wfu.js";
-import { t as getFeishuRuntime } from "./runtime-6ATtgXoM.js";
-import { a as jsonToolResult, c as createFeishuToolClient, l as resolveAnyEnabledFeishuToolsConfig, n as registerFeishuDriveTools, o as toolExecutionErrorResult, s as unknownToolActionResult, u as resolveFeishuToolAccount } from "./drive-BLrndCtZ.js";
-import { i as registerFeishuChatTools } from "./chat-CEOzvZLM.js";
+import { a as setFeishuNamedAccountEnabled, i as feishuSetupAdapter, n as feishuSetupWizard, r as runFeishuLogin, t as feishuPlugin } from "./channel-D5d1aeJk.js";
+import { t as getFeishuRuntime } from "./runtime-CG0DuRCy.js";
+import { a as jsonToolResult, d as registerFeishuChatTools, f as createFeishuToolClient, m as resolveFeishuToolAccount, n as registerFeishuDriveTools, o as toolExecutionErrorResult, p as resolveAnyEnabledFeishuToolsConfig, s as unknownToolActionResult } from "./drive-CjFT6VFS.js";
 import { normalizeLowercaseStringOrEmpty, normalizeOptionalString, readStringValue } from "openclaw/plugin-sdk/text-runtime";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";

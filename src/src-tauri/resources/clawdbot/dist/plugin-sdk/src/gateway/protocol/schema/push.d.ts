@@ -15,3 +15,33 @@ export declare const PushTestResultSchema: Type.TObject<{
     environment: Type.TString;
     transport: Type.TString;
 }>;
+export declare const WebPushVapidPublicKeyParamsSchema: Type.TObject<{}>;
+export declare const WebPushSubscribeParamsSchema: Type.TObject<{
+    endpoint: Type.TString;
+    keys: Type.TObject<{
+        p256dh: Type.TString;
+        auth: Type.TString;
+    }>;
+}>;
+export declare const WebPushUnsubscribeParamsSchema: Type.TObject<{
+    endpoint: Type.TString;
+}>;
+export declare const WebPushTestParamsSchema: Type.TObject<{
+    title: Type.TOptional<Type.TString>;
+    body: Type.TOptional<Type.TString>;
+}>;
+export type WebPushVapidPublicKeyParams = Record<string, never>;
+export type WebPushSubscribeParams = {
+    endpoint: string;
+    keys: {
+        p256dh: string;
+        auth: string;
+    };
+};
+export type WebPushUnsubscribeParams = {
+    endpoint: string;
+};
+export type WebPushTestParams = {
+    title?: string;
+    body?: string;
+};

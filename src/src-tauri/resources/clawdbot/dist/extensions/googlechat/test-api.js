@@ -1,3 +1,3 @@
-import { R as setGoogleChatRuntime } from "./runtime-api-BgIH52qG.js";
-import { t as googlechatPlugin } from "./channel-N-_VPZ5m.js";
+import { R as setGoogleChatRuntime } from "./runtime-api-K8D-zTrf.js";
+import { t as googlechatPlugin } from "./channel-Bglvxb-D.js";
 export { googlechatPlugin, setGoogleChatRuntime };

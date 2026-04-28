@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
 //#region extensions/copilot-proxy/index.ts
 const DEFAULT_BASE_URL = "http://localhost:3000/v1";
 const DEFAULT_API_KEY = "n/a";

@@ -1,12 +1,12 @@
 import { l as resolveTelegramToken } from "./accounts-q2NkR7D9.js";
 import { a as makeProxyFetch, i as shouldRetryTelegramTransportFallback, n as resolveTelegramFetch, r as resolveTelegramTransport } from "./fetch-CQWpZY-X.js";
-import { a as shouldSuppressTelegramExecApprovalForwardingFallback, c as collectTelegramUnmentionedGroupIds, i as buildTelegramExecApprovalPendingPayload, o as telegramMessageActions, r as monitorTelegramProvider, s as auditTelegramGroupMembership, t as probeTelegram } from "./probe-ChPXZhx2.js";
-import { a as editMessageTelegram, c as renameForumTopicTelegram, d as sendStickerTelegram, f as sendTypingTelegram, i as editMessageReplyMarkupTelegram, l as sendMessageTelegram, m as unpinMessageTelegram, n as deleteMessageTelegram, o as pinMessageTelegram, r as editForumTopicTelegram, s as reactMessageTelegram, t as createForumTopicTelegram, u as sendPollTelegram } from "./send-B5NZ9QZr.js";
+import { a as shouldSuppressTelegramExecApprovalForwardingFallback, c as collectTelegramUnmentionedGroupIds, i as buildTelegramExecApprovalPendingPayload, o as telegramMessageActions, r as monitorTelegramProvider, s as auditTelegramGroupMembership, t as probeTelegram } from "./probe-C01jUkbB.js";
+import { a as editMessageTelegram, c as renameForumTopicTelegram, d as sendStickerTelegram, f as sendTypingTelegram, i as editMessageReplyMarkupTelegram, l as sendMessageTelegram, m as unpinMessageTelegram, n as deleteMessageTelegram, o as pinMessageTelegram, r as editForumTopicTelegram, s as reactMessageTelegram, t as createForumTopicTelegram, u as sendPollTelegram } from "./send-PMS8bE6c.js";
 import { n as setTelegramRuntime } from "./runtime-CBuunXAQ.js";
 import { t as parseTelegramTopicConversation } from "./topic-conversation-CGdDoMFJ.js";
-import { n as buildChannelConfigSchema, t as TelegramConfigSchema } from "./config-api-DjNm1knS.js";
-import { a as setTelegramThreadBindingMaxAgeBySessionKey, i as setTelegramThreadBindingIdleTimeoutBySessionKey, n as getTelegramThreadBindingManager, r as resetTelegramThreadBindingsForTests, t as createTelegramThreadBindingManager } from "./thread-bindings-B8QaQy7Y.js";
-import { r as resolveTelegramRuntimeGroupPolicy } from "./group-access-CV6zsiTT.js";
+import { n as buildChannelConfigSchema, t as TelegramConfigSchema } from "./config-api-CrhauKGJ.js";
+import { a as setTelegramThreadBindingMaxAgeBySessionKey, i as setTelegramThreadBindingIdleTimeoutBySessionKey, n as getTelegramThreadBindingManager, r as resetTelegramThreadBindingsForTests, t as createTelegramThreadBindingManager } from "./thread-bindings-DAvCCNTH.js";
+import { r as resolveTelegramRuntimeGroupPolicy } from "./group-access-DnMNz9KB.js";
 import { t as resolveTelegramPollVisibility } from "./poll-visibility-D7pAbsnN.js";
 import { clearAccountEntryFields } from "openclaw/plugin-sdk/channel-core";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";

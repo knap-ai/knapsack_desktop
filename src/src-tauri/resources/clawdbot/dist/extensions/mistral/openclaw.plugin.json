@@ -4,6 +4,21 @@
   "providers": [
     "mistral"
   ],
+  "providerEndpoints": [
+    {
+      "endpointClass": "mistral-public",
+      "hosts": [
+        "api.mistral.ai"
+      ]
+    }
+  ],
+  "providerRequest": {
+    "providers": {
+      "mistral": {
+        "family": "mistral"
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "mistral": [
       "MISTRAL_API_KEY"

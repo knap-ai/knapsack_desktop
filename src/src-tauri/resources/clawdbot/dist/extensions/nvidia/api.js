@@ -1,2 +1,2 @@
-import { t as buildNvidiaProvider } from "../../provider-catalog-DRMzzBia2.js";
+import { t as buildNvidiaProvider } from "../../provider-catalog-DoevlcnY.js";
 export { buildNvidiaProvider };

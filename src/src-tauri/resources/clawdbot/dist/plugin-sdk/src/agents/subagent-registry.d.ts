@@ -1,5 +1,5 @@
 import type { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
-import { loadConfig } from "../config/config.js";
+import { getRuntimeConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ContextEngine } from "../context-engine/types.js";
 import { callGateway } from "../gateway/call.js";
@@ -18,7 +18,7 @@ type SubagentRegistryDeps = {
     captureSubagentCompletionReply: SubagentAnnounceModule["captureSubagentCompletionReply"];
     cleanupBrowserSessionsForLifecycleEnd: typeof cleanupBrowserSessionsForLifecycleEnd;
     getSubagentRunsSnapshotForRead: typeof getSubagentRunsSnapshotForRead;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     onAgentEvent: typeof onAgentEvent;
     persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
     resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;

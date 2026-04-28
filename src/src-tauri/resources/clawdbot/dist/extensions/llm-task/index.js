@@ -1,15 +1,13 @@
-import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
-import { f as normalizeThinkLevel, n as isThinkingLevelSupported, t as formatThinkingLevels } from "../../thinking-C1TCb8El.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../api-CDjUtQ3s.js";
+import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-WEYPFjsW.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
 import path from "node:path";
 import fs from "node:fs/promises";
-import Ajv from "ajv";
+import AjvPkg from "ajv";
 import { Type } from "typebox";
 //#region extensions/llm-task/src/llm-task-tool.ts
-const AjvCtor = Ajv;
+const AjvCtor = AjvPkg;
 function stripCodeFences(s) {
 	const trimmed = s.trim();
 	const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -25,7 +23,19 @@ function toModelKey(provider, model) {
 	if (!p || !m) return;
 	return `${p}/${m}`;
 }
-const INVALID_THINKING_LEVELS_HINT = "off, minimal, low, medium, high, adaptive, xhigh where supported, and max where supported";
+function stripDuplicateProviderPrefix(provider, model) {
+	const p = provider?.trim();
+	const m = model?.trim();
+	if (!p || !m) return m || void 0;
+	const prefix = `${p}/`;
+	return m.startsWith(prefix) ? m.slice(prefix.length) : m;
+}
+function formatThinkingPolicy(policy) {
+	return policy.levels.map((level) => level.label).join(", ");
+}
+function supportsThinkingPolicyLevel(policy, level) {
+	return !!level && policy.levels.some((entry) => entry.id === level);
+}
 function createLlmTaskTool(api) {
 	return {
 		name: "llm-task",
@@ -52,21 +62,24 @@ function createLlmTaskTool(api) {
 			const primaryProvider = typeof primary === "string" ? primary.split("/")[0] : void 0;
 			const primaryModel = typeof primary === "string" ? primary.split("/").slice(1).join("/") : void 0;
 			const provider = typeof params.provider === "string" && params.provider.trim() || typeof pluginCfg.defaultProvider === "string" && pluginCfg.defaultProvider.trim() || primaryProvider || void 0;
-			const model = typeof params.model === "string" && params.model.trim() || typeof pluginCfg.defaultModel === "string" && pluginCfg.defaultModel.trim() || primaryModel || void 0;
+			const model = stripDuplicateProviderPrefix(provider, typeof params.model === "string" && params.model.trim() || typeof pluginCfg.defaultModel === "string" && pluginCfg.defaultModel.trim() || primaryModel || void 0);
 			const authProfileId = typeof params.authProfileId === "string" && params.authProfileId.trim() || typeof pluginCfg.defaultAuthProfileId === "string" && pluginCfg.defaultAuthProfileId.trim() || void 0;
 			const modelKey = toModelKey(provider, model);
 			if (!provider || !model || !modelKey) throw new Error(`provider/model could not be resolved (provider=${provider ?? ""}, model=${model ?? ""})`);
 			const allowed = Array.isArray(pluginCfg.allowedModels) ? pluginCfg.allowedModels : void 0;
 			if (allowed && allowed.length > 0 && !allowed.includes(modelKey)) throw new Error(`Model not allowed by llm-task plugin config: ${modelKey}. Allowed models: ${allowed.join(", ")}`);
 			const thinkingRaw = typeof params.thinking === "string" && params.thinking.trim() ? params.thinking : void 0;
-			const thinkLevel = thinkingRaw ? normalizeThinkLevel(thinkingRaw) : void 0;
-			if (thinkingRaw && !thinkLevel) throw new Error(`Invalid thinking level "${thinkingRaw}". Use one of: ${INVALID_THINKING_LEVELS_HINT}.`);
-			let resolvedThinkLevel = thinkLevel;
-			if (thinkLevel && !isThinkingLevelSupported({
-				provider,
-				model,
-				level: thinkLevel
-			})) throw new Error(`Thinking level "${thinkLevel}" is not supported for ${provider}/${model}. Use one of: ${formatThinkingLevels(provider, model)}.`);
+			let thinkLevel = void 0;
+			if (thinkingRaw) {
+				const thinkingPolicy = api.runtime.agent.resolveThinkingPolicy({
+					provider,
+					model
+				});
+				const thinkingLevelsHint = formatThinkingPolicy(thinkingPolicy);
+				thinkLevel = api.runtime.agent.normalizeThinkingLevel(thinkingRaw);
+				if (!thinkLevel) throw new Error(`Invalid thinking level "${thinkingRaw}". Use one of: ${thinkingLevelsHint}.`);
+				if (!supportsThinkingPolicyLevel(thinkingPolicy, thinkLevel)) throw new Error(`Thinking level "${thinkLevel}" is not supported for ${provider}/${model}. Use one of: ${thinkingLevelsHint}.`);
+			}
 			const timeoutMs = (typeof params.timeoutMs === "number" && params.timeoutMs > 0 ? params.timeoutMs : void 0) || (typeof pluginCfg.timeoutMs === "number" && pluginCfg.timeoutMs > 0 ? pluginCfg.timeoutMs : void 0) || 3e4;
 			const streamParams = {
 				temperature: typeof params.temperature === "number" ? params.temperature : void 0,
@@ -103,7 +116,7 @@ function createLlmTaskTool(api) {
 					model,
 					authProfileId,
 					authProfileIdSource: authProfileId ? "user" : "auto",
-					thinkLevel: resolvedThinkLevel,
+					thinkLevel,
 					streamParams,
 					disableTools: true
 				});

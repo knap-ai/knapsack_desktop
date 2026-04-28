@@ -1,13 +1,13 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { AgentInternalEvent } from "./internal-events.js";
-import { callGateway, loadConfig, queueEmbeddedPiMessage, sendMessage } from "./subagent-announce-delivery.runtime.js";
+import { callGateway, getRuntimeConfig, queueEmbeddedPiMessage, sendMessage } from "./subagent-announce-delivery.runtime.js";
 import { type SubagentAnnounceDeliveryResult } from "./subagent-announce-dispatch.js";
 import { type DeliveryContext } from "./subagent-announce-origin.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
 export { resolveAnnounceOrigin } from "./subagent-announce-origin.js";
 type SubagentAnnounceDeliveryDeps = {
     callGateway: typeof callGateway;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     getRequesterSessionActivity: (requesterSessionKey: string) => {
         sessionId?: string;
         isActive: boolean;
@@ -32,10 +32,10 @@ export declare function resolveSubagentCompletionOrigin(params: {
 }): Promise<DeliveryContext | undefined>;
 export declare function loadRequesterSessionEntry(requesterSessionKey: string): {
     cfg: OpenClawConfig;
-    entry: import("openclaw/plugin-sdk/voice-call").SessionEntry;
+    entry: import("openclaw/plugin-sdk/config-types").SessionEntry;
     canonicalKey: string;
 };
-export declare function loadSessionEntryByKey(sessionKey: string): import("openclaw/plugin-sdk/voice-call").SessionEntry;
+export declare function loadSessionEntryByKey(sessionKey: string): import("openclaw/plugin-sdk/config-types").SessionEntry;
 export declare function extractThreadCompletionFallbackText(internalEvents?: AgentInternalEvent[]): string;
 export declare function deliverSubagentAnnouncement(params: {
     requesterSessionKey: string;

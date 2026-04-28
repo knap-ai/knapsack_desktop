@@ -1,5 +1,4 @@
 import type { Command } from "commander";
-import type { CommandGroupEntry } from "./register-command-groups.js";
 export type NamedCommandDescriptor = {
     name: string;
     description: string;
@@ -18,8 +17,12 @@ export type ResolvedCommandGroupEntry<TDescriptor extends NamedCommandDescriptor
     placeholders: TDescriptor[];
     register: TRegister;
 };
+type CommandGroupEntryLike = {
+    placeholders: NamedCommandDescriptor[];
+    register: (program: Command) => Promise<void> | void;
+};
 export declare function resolveCommandGroupEntries<TDescriptor extends NamedCommandDescriptor, TRegister>(descriptors: readonly TDescriptor[], specs: readonly CommandGroupDescriptorSpec<TRegister>[]): ResolvedCommandGroupEntry<TDescriptor, TRegister>[];
-export declare function buildCommandGroupEntries<TRegister>(descriptors: readonly NamedCommandDescriptor[], specs: readonly CommandGroupDescriptorSpec<TRegister>[], mapRegister: (register: TRegister) => CommandGroupEntry["register"]): CommandGroupEntry[];
+export declare function buildCommandGroupEntries<TRegister>(descriptors: readonly NamedCommandDescriptor[], specs: readonly CommandGroupDescriptorSpec<TRegister>[], mapRegister: (register: TRegister) => CommandGroupEntryLike["register"]): CommandGroupEntryLike[];
 export declare function defineImportedCommandGroupSpec<TRegisterArgs, TModule>(commandNames: readonly string[], loadModule: () => Promise<TModule>, register: (module: TModule, args: TRegisterArgs) => Promise<void> | void): CommandGroupDescriptorSpec<(args: TRegisterArgs) => Promise<void>>;
 export declare function defineImportedCommandGroupSpecs<TRegisterArgs, TModule>(definitions: readonly ImportedCommandGroupDefinition<TRegisterArgs, TModule>[]): CommandGroupDescriptorSpec<(args: TRegisterArgs) => Promise<void>>[];
 type ProgramCommandRegistrar = (program: Command) => Promise<void> | void;

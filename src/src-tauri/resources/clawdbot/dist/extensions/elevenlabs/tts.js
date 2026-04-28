@@ -1,2 +1,2 @@
-import { t as elevenLabsTTS } from "../../tts-1SCfMOSi.js";
+import { t as elevenLabsTTS } from "../../tts-bXrn_VYC.js";
 export { elevenLabsTTS };

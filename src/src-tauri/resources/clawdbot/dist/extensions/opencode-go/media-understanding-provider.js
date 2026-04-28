@@ -1,2 +1,2 @@
-import { t as opencodeGoMediaUnderstandingProvider } from "../../media-understanding-provider-DmebkDYT.js";
+import { t as opencodeGoMediaUnderstandingProvider } from "../../media-understanding-provider-XXZFM0mb.js";
 export { opencodeGoMediaUnderstandingProvider };

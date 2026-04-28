@@ -2,7 +2,7 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { CodexAppServerExtensionFactory } from "./codex-app-server-extension-types.js";
 import type { MemoryEmbeddingProviderAdapter } from "./memory-embedding-providers.js";
 import type { PluginAgentToolResultMiddlewareRegistration } from "./registry-types.js";
-import type { AnyAgentTool, AgentHarness, CliBackendPlugin, OpenClawPluginApi, ImageGenerationProviderPlugin, MediaUnderstandingProviderPlugin, MusicGenerationProviderPlugin, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, PluginTextTransformRegistration, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebFetchProviderPlugin, WebSearchProviderPlugin } from "./types.js";
+import type { AnyAgentTool, AgentHarness, CliBackendPlugin, OpenClawPluginApi, ImageGenerationProviderPlugin, MediaUnderstandingProviderPlugin, MigrationProviderPlugin, MusicGenerationProviderPlugin, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, PluginTextTransformRegistration, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebFetchProviderPlugin, WebSearchProviderPlugin } from "./types.js";
 type CapturedPluginCliRegistration = {
     register: OpenClawPluginCliRegistrar;
     commands: string[];
@@ -26,6 +26,7 @@ export type CapturedPluginRegistration = {
     musicGenerationProviders: MusicGenerationProviderPlugin[];
     webFetchProviders: WebFetchProviderPlugin[];
     webSearchProviders: WebSearchProviderPlugin[];
+    migrationProviders: MigrationProviderPlugin[];
     memoryEmbeddingProviders: MemoryEmbeddingProviderAdapter[];
     tools: AnyAgentTool[];
 };

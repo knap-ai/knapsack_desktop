@@ -5,6 +5,20 @@
     "ollama"
   ],
   "providerDiscoveryEntry": "./provider-discovery.ts",
+  "providerRequest": {
+    "providers": {
+      "ollama": {
+        "family": "ollama"
+      }
+    }
+  },
+  "modelPricing": {
+    "providers": {
+      "ollama": {
+        "external": false
+      }
+    }
+  },
   "syntheticAuthRefs": [
     "ollama"
   ],

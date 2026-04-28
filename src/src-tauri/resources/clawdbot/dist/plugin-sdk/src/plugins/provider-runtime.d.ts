@@ -2,12 +2,15 @@ import type { AuthProfileCredential, OAuthCredential } from "../agents/auth-prof
 import type { ProviderSystemPromptContribution } from "../agents/system-prompt-contribution.js";
 import type { ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { clearProviderRuntimeHookCache, prepareProviderExtraParams, resetProviderRuntimeHookCacheForTest, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn } from "./provider-hook-runtime.js";
+import { prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn } from "./provider-hook-runtime.js";
 import type { ProviderRuntimeModel } from "./provider-runtime-model.types.js";
 import type { ProviderThinkingProfile } from "./provider-thinking.types.js";
 import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderExternalAuthProfile, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderBuiltInModelSuppressionContext, ProviderCacheTtlEligibilityContext, ProviderCreateEmbeddingProviderContext, ProviderDeferSyntheticProfileAuthContext, ProviderResolveSyntheticAuthContext, ProviderCreateStreamFnContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderFailoverErrorContext, ProviderNormalizeToolSchemasContext, ProviderNormalizeConfigContext, ProviderNormalizeModelIdContext, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeTransportContext, ProviderModernModelPolicyContext, ProviderPrepareDynamicModelContext, ProviderPreferRuntimeResolvedModelContext, ProviderResolveExternalAuthProfilesContext, ProviderResolveExternalOAuthProfilesContext, ProviderPrepareRuntimeAuthContext, ProviderApplyConfigDefaultsContext, ProviderResolveConfigApiKeyContext, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderResolveDynamicModelContext, ProviderResolveTransportTurnStateContext, ProviderResolveWebSocketSessionPolicyContext, ProviderSystemPromptContributionContext, ProviderTransformSystemPromptContext, ProviderThinkingPolicyContext, ProviderTransportTurnState, ProviderValidateReplayTurnsContext, ProviderWebSocketSessionPolicy, PluginTextTransforms } from "./types.js";
 declare function resetExternalAuthFallbackWarningCacheForTest(): void;
-export { clearProviderRuntimeHookCache, prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resetProviderRuntimeHookCacheForTest, resolveProviderRuntimePlugin, wrapProviderStreamFn, };
+declare function resetCatalogHookProvidersCacheForTest(): void;
+export declare function clearProviderRuntimeHookCache(): void;
+export declare function resetProviderRuntimeHookCacheForTest(): void;
+export { prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn, };
 export declare const __testing: {
     readonly buildHookProviderCacheKey: (params: {
         config?: OpenClawConfig;
@@ -17,6 +20,8 @@ export declare const __testing: {
         env?: NodeJS.ProcessEnv;
     }) => string;
     readonly resetExternalAuthFallbackWarningCacheForTest: typeof resetExternalAuthFallbackWarningCacheForTest;
+    readonly resetCatalogHookProvidersCacheForTest: typeof resetCatalogHookProvidersCacheForTest;
+    readonly resetProviderRuntimeHookCacheForTest: typeof resetProviderRuntimeHookCacheForTest;
 };
 export declare function runProviderDynamicModel(params: {
     provider: string;
@@ -110,6 +115,7 @@ export declare function normalizeProviderConfigWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderNormalizeConfigContext;
+    allowRuntimePluginLoad?: boolean;
 }): ModelProviderConfig | undefined;
 export declare function applyProviderNativeStreamingUsageCompatWithPlugin(params: {
     provider: string;
@@ -117,6 +123,7 @@ export declare function applyProviderNativeStreamingUsageCompatWithPlugin(params
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderNormalizeConfigContext;
+    allowRuntimePluginLoad?: boolean;
 }): ModelProviderConfig | undefined;
 export declare function resolveProviderConfigApiKeyWithPlugin(params: {
     provider: string;
@@ -124,6 +131,7 @@ export declare function resolveProviderConfigApiKeyWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderResolveConfigApiKeyContext;
+    allowRuntimePluginLoad?: boolean;
 }): string | undefined;
 export declare function resolveProviderReplayPolicyWithPlugin(params: {
     provider: string;

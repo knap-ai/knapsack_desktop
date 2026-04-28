@@ -1,4 +1,4 @@
-import { resolveBedrockConfigApiKey } from "./discovery.js";
+import { resolveBedrockConfigApiKey } from "./discovery-shared.js";
 import { migrateAmazonBedrockLegacyConfig } from "./config-compat.js";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 //#region extensions/amazon-bedrock/setup-api.ts

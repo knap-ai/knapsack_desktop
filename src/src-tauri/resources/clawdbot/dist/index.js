@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { a as formatUncaughtError } from "./errors-Jbvi20TW.js";
-import { r as runFatalErrorHooks } from "./fatal-error-hooks-Dy3Y88QN.js";
-import { t as isMainModule } from "./is-main-C_eE8dOT.js";
-import { t as installUnhandledRejectionHandler } from "./unhandled-rejections-Bzjq4Io_.js";
+import { a as formatUncaughtError } from "./errors-CDFVCV9D.js";
+import { r as runFatalErrorHooks } from "./fatal-error-hooks-4xzPL8p8.js";
+import { t as isMainModule } from "./is-main-BEaTwLZn.js";
+import { o as isUncaughtExceptionHandled, t as installUnhandledRejectionHandler } from "./unhandled-rejections-CjchfgLD.js";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 //#region src/index.ts
@@ -27,7 +27,7 @@ let runExec;
 let saveSessionStore;
 let waitForever;
 async function loadLegacyCliDeps() {
-	const { runCli } = await import("./run-main-bbWXFk-0.js");
+	const { runCli } = await import("./cli/run-main.js");
 	return { runCli };
 }
 async function runLegacyCliEntry(argv = process.argv, deps) {
@@ -35,11 +35,12 @@ async function runLegacyCliEntry(argv = process.argv, deps) {
 	await runCli(argv);
 }
 const isMain = isMainModule({ currentFile: fileURLToPath(import.meta.url) });
-if (!isMain) ({applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, waitForever} = await import("./library-CsJoJUl8.js"));
+if (!isMain) ({applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, waitForever} = await import("./library-FOPW_EsU.js"));
 if (isMain) {
-	const { restoreTerminalState } = await import("./restore-Bq3mpjIz.js");
+	const { restoreTerminalState } = await import("./restore-qsU-mNJM.js");
 	installUnhandledRejectionHandler();
 	process.on("uncaughtException", (error) => {
+		if (isUncaughtExceptionHandled(error)) return;
 		console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
 		for (const message of runFatalErrorHooks({
 			reason: "uncaught_exception",

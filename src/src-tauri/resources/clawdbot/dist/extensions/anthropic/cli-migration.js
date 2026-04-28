@@ -83,12 +83,12 @@ function seedClaudeCliAllowlist(models) {
 	}
 	return next;
 }
-function selectClaudeCliRuntime(embeddedHarness) {
-	const currentRuntime = embeddedHarness?.runtime?.trim();
-	if (currentRuntime && currentRuntime !== "auto") return embeddedHarness;
+function selectClaudeCliRuntime(agentRuntime) {
+	const currentRuntime = agentRuntime?.id?.trim();
+	if (currentRuntime && currentRuntime !== "auto") return agentRuntime;
 	return {
-		...embeddedHarness,
-		runtime: CLAUDE_CLI_BACKEND_ID
+		...agentRuntime,
+		id: CLAUDE_CLI_BACKEND_ID
 	};
 }
 function hasClaudeCliAuth(options) {
@@ -126,7 +126,7 @@ function buildAnthropicCliMigrationResult(config, credential) {
 		profiles: buildClaudeCliAuthProfiles(credential),
 		configPatch: { agents: { defaults: {
 			...rewrittenModel.changed ? { model: rewrittenModel.value } : {},
-			embeddedHarness: selectClaudeCliRuntime(defaults?.embeddedHarness),
+			agentRuntime: selectClaudeCliRuntime(defaults?.agentRuntime),
 			models: nextModels
 		} } },
 		replaceDefaultModels: true,

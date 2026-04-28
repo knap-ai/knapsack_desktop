@@ -17,10 +17,24 @@ export type AgentHealthSummary = {
     heartbeat: import("../infra/heartbeat-summary.js").HeartbeatSummary;
     sessions: HealthSummary["sessions"];
 };
+export type PluginHealthErrorSummary = {
+    id: string;
+    origin: string;
+    activated: boolean;
+    activationSource?: string;
+    activationReason?: string;
+    failurePhase?: string;
+    error: string;
+};
+export type PluginHealthSummary = {
+    loaded: string[];
+    errors: PluginHealthErrorSummary[];
+};
 export type HealthSummary = {
     ok: true;
     ts: number;
     durationMs: number;
+    plugins?: PluginHealthSummary;
     channels: Record<string, ChannelHealthSummary>;
     channelOrder: string[];
     channelLabels: Record<string, string>;

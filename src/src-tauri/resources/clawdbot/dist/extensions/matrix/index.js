@@ -1,7 +1,6 @@
-import { n as registerMatrixCliMetadata } from "./cli-metadata-Y44EUHIi.js";
+import { n as registerMatrixCliMetadata } from "./cli-metadata-B17bfPbg.js";
 import { registerMatrixSubagentHooks } from "./subagent-hooks-api.js";
 import { defineBundledChannelEntry } from "openclaw/plugin-sdk/channel-entry-contract";
-import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
 //#region extensions/matrix/index.ts
 let matrixHandlersRuntimePromise = null;
 function loadMatrixHandlersRuntimeModule() {
@@ -9,13 +8,6 @@ function loadMatrixHandlersRuntimeModule() {
 	return matrixHandlersRuntimePromise;
 }
 function registerMatrixFullRuntime(api) {
-	loadMatrixHandlersRuntimeModule().then(({ ensureMatrixCryptoRuntime }) => ensureMatrixCryptoRuntime({ log: api.logger.info }).catch((err) => {
-		const message = formatErrorMessage(err);
-		api.logger.warn?.(`matrix: crypto runtime bootstrap failed: ${message}`);
-	})).catch((err) => {
-		const message = formatErrorMessage(err);
-		api.logger.warn?.(`matrix: failed loading crypto bootstrap runtime: ${message}`);
-	});
 	api.registerGatewayMethod("matrix.verify.recoveryKey", async (ctx) => {
 		const { handleVerifyRecoveryKey } = await loadMatrixHandlersRuntimeModule();
 		await handleVerifyRecoveryKey(ctx);

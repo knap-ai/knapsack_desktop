@@ -17,6 +17,8 @@ export type MemoryEmbeddingBatchOptions = {
 export type MemoryEmbeddingProviderRuntime = {
     id: string;
     cacheKeyData?: Record<string, unknown>;
+    inlineQueryTimeoutMs?: number;
+    inlineBatchTimeoutMs?: number;
     batchEmbed?: (options: MemoryEmbeddingBatchOptions) => Promise<number[][] | null>;
 };
 export type MemoryEmbeddingProvider = {
@@ -38,6 +40,9 @@ export type MemoryEmbeddingProviderCreateOptions = {
         headers?: Record<string, string>;
     };
     model: string;
+    inputType?: string;
+    queryInputType?: string;
+    documentInputType?: string;
     local?: {
         modelPath?: string;
         modelCacheDir?: string;

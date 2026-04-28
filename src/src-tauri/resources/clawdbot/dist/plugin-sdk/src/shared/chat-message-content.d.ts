@@ -10,6 +10,7 @@ export declare function encodeAssistantTextSignature(params: {
     phase?: AssistantPhase;
 }): string;
 export declare function resolveAssistantMessagePhase(message: unknown): AssistantPhase | undefined;
+export declare function resolveAssistantEventPhase(data: unknown): AssistantPhase | undefined;
 export declare function extractAssistantTextForPhase(message: unknown, options?: {
     phase?: AssistantPhase;
     sanitizeText?: (text: string) => string;

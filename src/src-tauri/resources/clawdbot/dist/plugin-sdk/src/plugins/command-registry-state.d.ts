@@ -1,3 +1,4 @@
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { OpenClawPluginCommandDefinition } from "./types.js";
 export type RegisteredPluginCommand = OpenClawPluginCommandDefinition & {
     pluginId: string;
@@ -10,8 +11,14 @@ export declare function setPluginCommandRegistryLocked(locked: boolean): void;
 export declare function clearPluginCommands(): void;
 export declare function clearPluginCommandsForPlugin(pluginId: string): void;
 export declare function listRegisteredPluginCommands(): RegisteredPluginCommand[];
+export declare function listRegisteredPluginAgentPromptGuidance(): string[];
 export declare function restorePluginCommands(commands: readonly RegisteredPluginCommand[]): void;
-export declare function getPluginCommandSpecs(provider?: string): Array<{
+export declare function getPluginCommandSpecs(provider?: string, options?: {
+    env?: NodeJS.ProcessEnv;
+    stateDir?: string;
+    workspaceDir?: string;
+    config?: OpenClawConfig;
+}): Array<{
     name: string;
     description: string;
     acceptsArgs: boolean;

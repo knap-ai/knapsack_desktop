@@ -1,8 +1,8 @@
-import { t as createSubsystemLogger } from "../../subsystem-CWI_MDy_.js";
-import { l as normalizeTrimmedStringList } from "../../string-normalization-Bvcn03I9.js";
-import { d as filterBootstrapFilesForSession, h as loadExtraBootstrapFilesWithDiagnostics } from "../../workspace-DiB6mKpP.js";
-import { a as isAgentBootstrapEvent } from "../../internal-hooks-BxzYnhn4.js";
-import { r as resolveHookConfig } from "../../config-DAN30bYQ.js";
+import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
+import { l as normalizeTrimmedStringList } from "../../string-normalization-Cz5hTdB3.js";
+import { a as isAgentBootstrapEvent } from "../../internal-hooks-BafH2tQ8.js";
+import { m as loadExtraBootstrapFilesWithDiagnostics, u as filterBootstrapFilesForSession } from "../../workspace-Ddypv-c6.js";
+import { r as resolveHookConfig } from "../../config-Der3i6yD.js";
 //#region src/hooks/bundled/bootstrap-extra-files/handler.ts
 const HOOK_KEY = "bootstrap-extra-files";
 const log = createSubsystemLogger("bootstrap-extra-files");

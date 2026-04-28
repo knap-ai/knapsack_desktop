@@ -2,6 +2,11 @@ import type { Command } from "commander";
 export type CommandGroupPlaceholder = {
     name: string;
     description: string;
+    options?: readonly CommandGroupPlaceholderOption[];
+};
+export type CommandGroupPlaceholderOption = {
+    flags: string;
+    description: string;
 };
 export type CommandGroupEntry = {
     placeholders: readonly CommandGroupPlaceholder[];

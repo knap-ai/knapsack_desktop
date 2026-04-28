@@ -1,5 +1,6 @@
 import { type NpmIntegrityDrift, type NpmSpecResolution } from "../infra/install-source-utils.js";
 import type { InstallSafetyOverrides } from "./install-security-scan.js";
+export { resolvePluginInstallDir } from "./install-paths.js";
 type PluginInstallLogger = {
     info?: (message: string) => void;
     warn?: (message: string) => void;
@@ -10,7 +11,9 @@ export declare const PLUGIN_INSTALL_ERROR_CODE: {
     readonly UNKNOWN_HOST_VERSION: "unknown_host_version";
     readonly INCOMPATIBLE_HOST_VERSION: "incompatible_host_version";
     readonly MISSING_OPENCLAW_EXTENSIONS: "missing_openclaw_extensions";
+    readonly MISSING_PLUGIN_MANIFEST: "missing_plugin_manifest";
     readonly EMPTY_OPENCLAW_EXTENSIONS: "empty_openclaw_extensions";
+    readonly INVALID_OPENCLAW_EXTENSIONS: "invalid_openclaw_extensions";
     readonly NPM_PACKAGE_NOT_FOUND: "npm_package_not_found";
     readonly PLUGIN_ID_MISMATCH: "plugin_id_mismatch";
     readonly SECURITY_SCAN_BLOCKED: "security_scan_blocked";
@@ -48,9 +51,9 @@ type PackageInstallCommonParams = InstallSafetyOverrides & {
     mode?: "install" | "update";
     dryRun?: boolean;
     expectedPluginId?: string;
+    requirePluginManifest?: boolean;
     installPolicyRequest?: PluginInstallPolicyRequest;
 };
-export declare function resolvePluginInstallDir(pluginId: string, extensionsDir?: string): string;
 export declare function installPluginFromArchive(params: {
     archivePath: string;
 } & PackageInstallCommonParams): Promise<InstallPluginResult>;
@@ -80,4 +83,3 @@ export declare function installPluginFromNpmSpec(params: InstallSafetyOverrides 
 export declare function installPluginFromPath(params: {
     path: string;
 } & PackageInstallCommonParams): Promise<InstallPluginResult>;
-export {};

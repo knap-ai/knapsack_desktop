@@ -1,13 +1,124 @@
-import { t as createSubsystemLogger } from "../../subsystem-CWI_MDy_.js";
-import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-CZrGSAU9.js";
-import { _ as ssrfPolicyFromHttpBaseUrlAllowedHostname } from "../../ssrf-MkDHylX_.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../provider-auth-B7ecZcum.js";
-import "../../ssrf-runtime-DjO5-xxH.js";
-import "../../logging-core-BqHYYeyJ.js";
-import { C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, M as LMSTUDIO_PROVIDER_LABEL, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, j as LMSTUDIO_PROVIDER_ID, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, y as resolveLmstudioInferenceBase } from "../../models.fetch-rYikvgVG.js";
-import { t as lmstudioMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-DAs0qe-O.js";
-import { streamSimple } from "@mariozechner/pi-ai";
+import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
+import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-Huk_Auss.js";
+import { _ as ssrfPolicyFromHttpBaseUrlAllowedHostname } from "../../ssrf-K8pX0Zi6.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../provider-auth-LNc11avL.js";
+import "../../ssrf-runtime-CIV6CU_8.js";
+import "../../logging-core-G5-DUS3F.js";
+import { F as LMSTUDIO_PROVIDER_LABEL, P as LMSTUDIO_PROVIDER_ID, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, y as resolveLmstudioInferenceBase } from "../../models.fetch-DQvr3ubL.js";
+import { t as lmstudioMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-CVrs5NcP.js";
+import { randomUUID } from "node:crypto";
+import { createAssistantMessageEventStream, streamSimple } from "@mariozechner/pi-ai";
+//#region extensions/lmstudio/src/plain-text-tool-calls.ts
+const END_TOOL_REQUEST = "[END_TOOL_REQUEST]";
+const MAX_PAYLOAD_CHARS = 256e3;
+function isToolNameChar(char) {
+	return Boolean(char && /[A-Za-z0-9_-]/.test(char));
+}
+function skipHorizontalWhitespace(text, start) {
+	let index = start;
+	while (index < text.length && (text[index] === " " || text[index] === "	")) index += 1;
+	return index;
+}
+function skipWhitespace(text, start) {
+	let index = start;
+	while (index < text.length && /\s/.test(text[index] ?? "")) index += 1;
+	return index;
+}
+function consumeLineBreak(text, start) {
+	if (text[start] === "\r") return text[start + 1] === "\n" ? start + 2 : start + 1;
+	if (text[start] === "\n") return start + 1;
+	return null;
+}
+function parseOpening(text, start) {
+	if (text[start] !== "[") return null;
+	let cursor = start + 1;
+	const nameStart = cursor;
+	while (isToolNameChar(text[cursor])) cursor += 1;
+	if (cursor === nameStart || text[cursor] !== "]") return null;
+	const name = text.slice(nameStart, cursor);
+	cursor += 1;
+	cursor = skipHorizontalWhitespace(text, cursor);
+	const afterLineBreak = consumeLineBreak(text, cursor);
+	if (afterLineBreak === null) return null;
+	return {
+		end: afterLineBreak,
+		name
+	};
+}
+function consumeJsonObject(text, start) {
+	const cursor = skipWhitespace(text, start);
+	if (text[cursor] !== "{") return null;
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	for (let index = cursor; index < text.length; index += 1) {
+		if (index + 1 - cursor > MAX_PAYLOAD_CHARS) return null;
+		const char = text[index];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === "\"") inString = false;
+			continue;
+		}
+		if (char === "\"") {
+			inString = true;
+			continue;
+		}
+		if (char === "{") depth += 1;
+		else if (char === "}") {
+			depth -= 1;
+			if (depth === 0) try {
+				const parsed = JSON.parse(text.slice(cursor, index + 1));
+				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+				return {
+					end: index + 1,
+					value: parsed
+				};
+			} catch {
+				return null;
+			}
+		}
+	}
+	return null;
+}
+function parseClosing(text, start, name) {
+	const cursor = skipWhitespace(text, start);
+	if (text.startsWith(END_TOOL_REQUEST, cursor)) return cursor + 18;
+	const namedClosing = `[/${name}]`;
+	if (text.startsWith(namedClosing, cursor)) return cursor + namedClosing.length;
+	return null;
+}
+function parseBlockAt(text, start, allowedToolNames) {
+	const opening = parseOpening(text, start);
+	if (!opening || !allowedToolNames.has(opening.name)) return null;
+	const payload = consumeJsonObject(text, opening.end);
+	if (!payload) return null;
+	const end = parseClosing(text, payload.end, opening.name);
+	if (end === null) return null;
+	return {
+		block: {
+			arguments: payload.value,
+			name: opening.name
+		},
+		end
+	};
+}
+function parseLmstudioPlainTextToolCalls(text, allowedToolNames) {
+	const blocks = [];
+	let cursor = skipWhitespace(text, 0);
+	while (cursor < text.length) {
+		const parsed = parseBlockAt(text, cursor, allowedToolNames);
+		if (!parsed) return null;
+		blocks.push(parsed.block);
+		cursor = skipWhitespace(text, parsed.end);
+	}
+	return blocks.length > 0 ? blocks : null;
+}
+function createLmstudioSyntheticToolCallId() {
+	return `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
+}
+//#endregion
 //#region extensions/lmstudio/src/stream.ts
 const log = createSubsystemLogger("extensions/lmstudio/stream");
 const preloadInFlight = /* @__PURE__ */ new Map();
@@ -54,6 +165,159 @@ function resolveRequestedContextLength(model) {
 function resolveModelHeaders(model) {
 	if (!model.headers || typeof model.headers !== "object" || Array.isArray(model.headers)) return;
 	return model.headers;
+}
+function toRecord(value) {
+	return value && typeof value === "object" ? value : void 0;
+}
+function resolveContextToolNames(context) {
+	const tools = context.tools;
+	if (!Array.isArray(tools)) return /* @__PURE__ */ new Set();
+	const names = tools.map((tool) => {
+		const record = toRecord(tool);
+		return typeof record?.name === "string" && record.name.trim() ? record.name : void 0;
+	}).filter((name) => Boolean(name));
+	return new Set(names);
+}
+function couldStillBePlainTextToolCall(text) {
+	if (text.length > 256e3) return false;
+	const trimmed = text.trimStart();
+	return trimmed.length === 0 || trimmed.startsWith("[");
+}
+function createLmstudioToolCallBlock(parsed) {
+	return {
+		type: "toolCall",
+		id: createLmstudioSyntheticToolCallId(),
+		name: parsed.name,
+		arguments: parsed.arguments,
+		partialArgs: JSON.stringify(parsed.arguments)
+	};
+}
+function promoteLmstudioPlainTextToolCalls(message, toolNames) {
+	const messageRecord = toRecord(message);
+	if (!messageRecord) return;
+	if (!Array.isArray(messageRecord.content)) {
+		if (typeof messageRecord.content !== "string" || !messageRecord.content.trim()) return;
+		const parsed = parseLmstudioPlainTextToolCalls(messageRecord.content, toolNames);
+		if (!parsed) return;
+		return {
+			...messageRecord,
+			content: parsed.map(createLmstudioToolCallBlock),
+			stopReason: "toolUse"
+		};
+	}
+	if (messageRecord.content.some((block) => toRecord(block)?.type === "toolCall") || messageRecord.content.length === 0) return;
+	let promoted = false;
+	const nextContent = [];
+	for (const block of messageRecord.content) {
+		const blockRecord = toRecord(block);
+		if (!blockRecord) return;
+		if (blockRecord.type !== "text") {
+			nextContent.push(blockRecord);
+			continue;
+		}
+		const text = typeof blockRecord.text === "string" ? blockRecord.text : "";
+		if (!text.trim()) continue;
+		const parsed = parseLmstudioPlainTextToolCalls(text, toolNames);
+		if (!parsed) return;
+		nextContent.push(...parsed.map(createLmstudioToolCallBlock));
+		promoted = true;
+	}
+	if (!promoted) return;
+	return {
+		...messageRecord,
+		content: nextContent,
+		stopReason: "toolUse"
+	};
+}
+function emitPromotedToolCallEvents(stream, message) {
+	(Array.isArray(message.content) ? message.content : []).forEach((block, contentIndex) => {
+		const record = toRecord(block);
+		if (record?.type !== "toolCall") return;
+		stream.push({
+			type: "toolcall_start",
+			contentIndex,
+			partial: message
+		});
+		stream.push({
+			type: "toolcall_delta",
+			contentIndex,
+			delta: typeof record.partialArgs === "string" ? record.partialArgs : "{}",
+			partial: message
+		});
+	});
+}
+function wrapLmstudioPlainTextToolCalls(source, context) {
+	const toolNames = resolveContextToolNames(context);
+	if (toolNames.size === 0) return source;
+	const output = createAssistantMessageEventStream();
+	const stream = output;
+	(async () => {
+		const bufferedTextEvents = [];
+		let bufferedText = "";
+		let ended = false;
+		const endStream = () => {
+			if (!ended) {
+				ended = true;
+				stream.end();
+			}
+		};
+		const flushBufferedTextEvents = () => {
+			for (const event of bufferedTextEvents.splice(0)) stream.push(event);
+			bufferedText = "";
+		};
+		try {
+			for await (const event of source) {
+				const record = toRecord(event);
+				const type = typeof record?.type === "string" ? record.type : "";
+				if (type === "text_start" || type === "text_delta" || type === "text_end") {
+					bufferedTextEvents.push(event);
+					if (typeof record?.delta === "string") bufferedText += record.delta;
+					else if (typeof record?.content === "string" && !bufferedText) bufferedText = record.content;
+					if (!couldStillBePlainTextToolCall(bufferedText)) flushBufferedTextEvents();
+					continue;
+				}
+				if (type === "done") {
+					const promotedMessage = promoteLmstudioPlainTextToolCalls(record?.message, toolNames);
+					if (promotedMessage) {
+						bufferedTextEvents.splice(0);
+						bufferedText = "";
+						emitPromotedToolCallEvents(stream, promotedMessage);
+						stream.push({
+							...record,
+							reason: "toolUse",
+							message: promotedMessage
+						});
+					} else {
+						flushBufferedTextEvents();
+						stream.push(event);
+					}
+					endStream();
+					return;
+				}
+				flushBufferedTextEvents();
+				stream.push(event);
+				if (type === "error") {
+					endStream();
+					return;
+				}
+			}
+			flushBufferedTextEvents();
+		} catch (error) {
+			stream.push({
+				type: "error",
+				reason: "error",
+				error: {
+					role: "assistant",
+					content: [],
+					stopReason: "error",
+					errorMessage: error instanceof Error ? error.message : String(error)
+				}
+			});
+		} finally {
+			endStream();
+		}
+	})();
+	return output;
 }
 function createPreloadKey(params) {
 	return `${params.baseUrl}::${params.modelKey}::${params.requestedContextLength ?? "default"}`;
@@ -138,7 +402,7 @@ function wrapLmstudioInferencePreload(ctx) {
 					supportsUsageInStreaming: true
 				}
 			}, context, options);
-			return stream instanceof Promise ? await stream : stream;
+			return wrapLmstudioPlainTextToolCalls(stream instanceof Promise ? await stream : stream, context);
 		})();
 	};
 }
@@ -152,7 +416,10 @@ function resolveLmstudioAugmentedCatalogEntries(config) {
 		provider: PROVIDER_ID,
 		id: entry.id,
 		name: entry.name ?? entry.id,
-		compat: { supportsUsageInStreaming: true },
+		compat: {
+			...entry.compat,
+			supportsUsageInStreaming: true
+		},
 		contextWindow: entry.contextWindow,
 		contextTokens: entry.contextTokens,
 		reasoning: entry.reasoning,
@@ -182,6 +449,7 @@ var lmstudio_default = definePluginEntry({
 				run: async (ctx) => {
 					return await (await loadProviderSetup()).promptAndConfigureLmstudioInteractive({
 						config: ctx.config,
+						agentDir: ctx.agentDir,
 						prompter: ctx.prompter,
 						secretInputMode: ctx.secretInputMode,
 						allowSecretRefPrompt: ctx.allowSecretRefPrompt

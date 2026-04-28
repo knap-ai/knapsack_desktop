@@ -5,8 +5,9 @@
  * These commands are processed before built-in commands and before agent invocation.
  */
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition } from "./command-registration.js";
+import { clearPluginCommands, clearPluginCommandsForPlugin, listProviderPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition } from "./command-registration.js";
 import { type RegisteredPluginCommand } from "./command-registry-state.js";
+import { getPluginCommandSpecs } from "./command-specs.js";
 import type { PluginCommandContext, PluginCommandResult } from "./types.js";
 export { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, registerPluginCommand, validateCommandName, validatePluginCommandDefinition, };
 /**

@@ -29,6 +29,7 @@ export type SubagentRunRecord = {
     expectsCompletionMessage?: boolean;
     announceRetryCount?: number;
     lastAnnounceRetryAt?: number;
+    lastAnnounceDeliveryError?: string;
     endedReason?: SubagentLifecycleEndedReason;
     wakeOnDescendantSettle?: boolean;
     frozenResultText?: string | null;

@@ -1,15 +1,15 @@
-import { t as createSubsystemLogger } from "../../subsystem-CWI_MDy_.js";
-import { _ as resolveStateDir } from "../../paths-BG0ad0P6.js";
-import { o as parseAgentSessionKey } from "../../session-key-utils-BT0y7mVK.js";
-import { h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey } from "../../session-key-EpIbK3Oz.js";
-import { a as resolveAgentIdByWorkspacePath, b as resolveAgentWorkspaceDir } from "../../agent-scope-_6dFncNS.js";
-import { r as hasInterSessionUserProvenance } from "../../input-provenance-IJ6YNe09.js";
-import { g as writeFileWithinRoot } from "../../fs-safe-CezDxq3P.js";
-import { t as generateSlugViaLLM } from "../../llm-slug-generator-oOTgHT47.js";
-import { r as resolveHookConfig } from "../../config-DAN30bYQ.js";
+import { _ as resolveStateDir } from "../../paths-B2cMK-wd.js";
+import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
+import { o as parseAgentSessionKey } from "../../session-key-utils-naHBWFyS.js";
+import { h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey } from "../../session-key-hxP9B3Or.js";
+import { a as resolveAgentIdByWorkspacePath, x as resolveAgentWorkspaceDir } from "../../agent-scope-i10se9ty.js";
+import { g as writeFileWithinRoot } from "../../fs-safe-CYYfKgf3.js";
+import { r as hasInterSessionUserProvenance } from "../../input-provenance-DhG5f54s.js";
+import { t as generateSlugViaLLM } from "../../llm-slug-generator-B0NB_imC.js";
+import { r as resolveHookConfig } from "../../config-Der3i6yD.js";
 import path from "node:path";
-import os from "node:os";
 import fs from "node:fs/promises";
+import os from "node:os";
 //#region src/hooks/bundled/session-memory/transcript.ts
 function extractTextMessageContent(content) {
 	if (typeof content === "string") return content;
@@ -85,6 +85,45 @@ async function findPreviousSessionFile(params) {
 * Creates a new dated memory file with LLM-generated slug
 */
 const log = createSubsystemLogger("hooks/session-memory");
+function pickDateTimePart(parts, type) {
+	return parts.find((part) => part.type === type)?.value;
+}
+function resolveLocalTimeZone() {
+	const timeZone = process.env.TZ?.trim();
+	if (!timeZone) return;
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone }).format(/* @__PURE__ */ new Date());
+		return timeZone;
+	} catch {
+		return;
+	}
+}
+function formatLocalSessionTimestamp(date) {
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone: resolveLocalTimeZone(),
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hourCycle: "h23",
+		timeZoneName: "short"
+	}).formatToParts(date);
+	const year = pickDateTimePart(parts, "year") ?? String(date.getFullYear()).padStart(4, "0");
+	const month = pickDateTimePart(parts, "month") ?? String(date.getMonth() + 1).padStart(2, "0");
+	const day = pickDateTimePart(parts, "day") ?? String(date.getDate()).padStart(2, "0");
+	const hour = pickDateTimePart(parts, "hour") ?? String(date.getHours()).padStart(2, "0");
+	const minute = pickDateTimePart(parts, "minute") ?? String(date.getMinutes()).padStart(2, "0");
+	const second = pickDateTimePart(parts, "second") ?? String(date.getSeconds()).padStart(2, "0");
+	const timeZoneName = [...parts].toReversed().find((part) => part.type === "timeZoneName")?.value?.trim();
+	return {
+		date: `${year}-${month}-${day}`,
+		time: `${hour}:${minute}:${second}`,
+		timeSlug: `${hour}${minute}`,
+		timeZoneName
+	};
+}
 function resolveDisplaySessionKey(params) {
 	if (!params.cfg || !params.workspaceDir) return params.sessionKey;
 	const workspaceAgentId = resolveAgentIdByWorkspacePath(params.cfg, params.workspaceDir);
@@ -115,8 +154,8 @@ const saveSessionToMemory = async (event) => {
 		});
 		const memoryDir = path.join(workspaceDir, "memory");
 		await fs.mkdir(memoryDir, { recursive: true });
-		const now = new Date(event.timestamp);
-		const dateStr = now.toISOString().split("T")[0];
+		const localTimestamp = formatLocalSessionTimestamp(new Date(event.timestamp));
+		const dateStr = localTimestamp.date;
 		const sessionEntry = context.previousSessionEntry || context.sessionEntry || {};
 		const currentSessionId = sessionEntry.sessionId;
 		let currentSessionFile = sessionEntry.sessionFile || void 0;
@@ -163,7 +202,7 @@ const saveSessionToMemory = async (event) => {
 			}
 		}
 		if (!slug) {
-			slug = now.toISOString().split("T")[1].split(".")[0].replace(/:/g, "").slice(0, 4);
+			slug = localTimestamp.timeSlug;
 			log.debug("Using fallback timestamp slug", { slug });
 		}
 		const filename = `${dateStr}-${slug}.md`;
@@ -172,11 +211,12 @@ const saveSessionToMemory = async (event) => {
 			filename,
 			path: memoryFilePath.replace(os.homedir(), "~")
 		});
-		const timeStr = now.toISOString().split("T")[1].split(".")[0];
+		const timeStr = localTimestamp.time;
+		const timeZoneSuffix = localTimestamp.timeZoneName ? ` ${localTimestamp.timeZoneName}` : "";
 		const sessionId = sessionEntry.sessionId || "unknown";
 		const source = context.commandSource || "unknown";
 		const entryParts = [
-			`# Session: ${dateStr} ${timeStr} UTC`,
+			`# Session: ${dateStr} ${timeStr}${timeZoneSuffix}`,
 			"",
 			`- **Session Key**: ${displaySessionKey}`,
 			`- **Session ID**: ${sessionId}`,

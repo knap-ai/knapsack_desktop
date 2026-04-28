@@ -1,4 +1,4 @@
-import { n as applyVercelAiGatewayConfig, t as VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../onboard-B-NHeWrY.js";
-import { a as VERCEL_AI_GATEWAY_DEFAULT_MODEL_ID, c as discoverVercelAiGatewayModels, i as VERCEL_AI_GATEWAY_DEFAULT_MAX_TOKENS, l as getStaticVercelAiGatewayModelCatalog, n as VERCEL_AI_GATEWAY_DEFAULT_CONTEXT_WINDOW, r as VERCEL_AI_GATEWAY_DEFAULT_COST, s as VERCEL_AI_GATEWAY_PROVIDER_ID, t as VERCEL_AI_GATEWAY_BASE_URL } from "../../models-Bymam4ax2.js";
-import { n as buildVercelAiGatewayProvider } from "../../provider-catalog-BpJ-z30G2.js";
+import { n as applyVercelAiGatewayConfig, t as VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../onboard-CFG02kEn.js";
+import { a as VERCEL_AI_GATEWAY_DEFAULT_MODEL_ID, c as discoverVercelAiGatewayModels, i as VERCEL_AI_GATEWAY_DEFAULT_MAX_TOKENS, l as getStaticVercelAiGatewayModelCatalog, n as VERCEL_AI_GATEWAY_DEFAULT_CONTEXT_WINDOW, r as VERCEL_AI_GATEWAY_DEFAULT_COST, s as VERCEL_AI_GATEWAY_PROVIDER_ID, t as VERCEL_AI_GATEWAY_BASE_URL } from "../../models-B86frDhL.js";
+import { n as buildVercelAiGatewayProvider } from "../../provider-catalog-BP_PidOY.js";
 export { VERCEL_AI_GATEWAY_BASE_URL, VERCEL_AI_GATEWAY_DEFAULT_CONTEXT_WINDOW, VERCEL_AI_GATEWAY_DEFAULT_COST, VERCEL_AI_GATEWAY_DEFAULT_MAX_TOKENS, VERCEL_AI_GATEWAY_DEFAULT_MODEL_ID, VERCEL_AI_GATEWAY_DEFAULT_MODEL_REF, VERCEL_AI_GATEWAY_PROVIDER_ID, applyVercelAiGatewayConfig, buildVercelAiGatewayProvider, discoverVercelAiGatewayModels, getStaticVercelAiGatewayModelCatalog };

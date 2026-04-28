@@ -1,5 +1,9 @@
 export declare const PROXY_ENV_KEYS: readonly ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"];
 export declare function hasProxyEnvConfigured(env?: NodeJS.ProcessEnv): boolean;
+export type EnvHttpProxyAgentProxyOptions = {
+    httpProxy?: string;
+    httpsProxy?: string;
+};
 /**
  * Match undici EnvHttpProxyAgent semantics for env-based HTTP/S proxy selection:
  * - lower-case vars take precedence over upper-case
@@ -8,6 +12,16 @@ export declare function hasProxyEnvConfigured(env?: NodeJS.ProcessEnv): boolean;
  */
 export declare function resolveEnvHttpProxyUrl(protocol: "http" | "https", env?: NodeJS.ProcessEnv): string | undefined;
 export declare function hasEnvHttpProxyConfigured(protocol?: "http" | "https", env?: NodeJS.ProcessEnv): boolean;
+/**
+ * Build explicit options for undici's EnvHttpProxyAgent.
+ *
+ * EnvHttpProxyAgent does not read ALL_PROXY itself, but it accepts explicit
+ * HTTP/HTTPS proxy overrides. Keep this helper separate from the
+ * HTTP(S)-only URL helpers so SSRF trusted-env proxy gates do not widen.
+ */
+export declare function resolveEnvHttpProxyAgentOptions(env?: NodeJS.ProcessEnv): EnvHttpProxyAgentProxyOptions | undefined;
+export declare function hasEnvHttpProxyAgentConfigured(env?: NodeJS.ProcessEnv): boolean;
+export declare function shouldUseEnvHttpProxyForUrl(targetUrl: string, env?: NodeJS.ProcessEnv): boolean;
 /**
  * Check whether a target URL should bypass the HTTP proxy per NO_PROXY env var.
  *

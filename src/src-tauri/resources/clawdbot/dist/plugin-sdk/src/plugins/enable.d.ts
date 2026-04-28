@@ -4,4 +4,6 @@ export type PluginEnableResult = {
     enabled: boolean;
     reason?: string;
 };
-export declare function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string): PluginEnableResult;
+export declare function enablePluginInConfig(cfg: OpenClawConfig, pluginId: string, options?: {
+    updateChannelConfig?: boolean;
+}): PluginEnableResult;

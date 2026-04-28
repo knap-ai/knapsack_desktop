@@ -17,6 +17,9 @@ export declare const WARNING_THRESHOLD = 10;
 export declare const UNKNOWN_TOOL_THRESHOLD = 10;
 export declare const CRITICAL_THRESHOLD = 20;
 export declare const GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 30;
+export type ToolLoopDetectionScope = {
+    runId?: string;
+};
 /**
  * Hash a tool call for pattern matching.
  * Uses tool name + deterministic JSON serialization digest of params.
@@ -26,12 +29,12 @@ export declare function hashToolCall(toolName: string, params: unknown): string;
  * Detect if an agent is stuck in a repetitive tool call loop.
  * Checks if the same tool+params combination has been called excessively.
  */
-export declare function detectToolCallLoop(state: SessionState, toolName: string, params: unknown, config?: ToolLoopDetectionConfig): LoopDetectionResult;
+export declare function detectToolCallLoop(state: SessionState, toolName: string, params: unknown, config?: ToolLoopDetectionConfig, scope?: ToolLoopDetectionScope): LoopDetectionResult;
 /**
  * Record a tool call in the session's history for loop detection.
  * Maintains sliding window of last N calls.
  */
-export declare function recordToolCall(state: SessionState, toolName: string, params: unknown, toolCallId?: string, config?: ToolLoopDetectionConfig): void;
+export declare function recordToolCall(state: SessionState, toolName: string, params: unknown, toolCallId?: string, config?: ToolLoopDetectionConfig, scope?: ToolLoopDetectionScope): void;
 /**
  * Record a completed tool call outcome so loop detection can identify no-progress repeats.
  */
@@ -42,6 +45,7 @@ export declare function recordToolCallOutcome(state: SessionState, params: {
     result?: unknown;
     error?: unknown;
     config?: ToolLoopDetectionConfig;
+    runId?: string;
 }): void;
 /**
  * Get current tool call statistics for a session (for debugging/monitoring).

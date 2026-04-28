@@ -1,4 +1,4 @@
-import { loadConfig } from "../config/io.js";
+import { getRuntimeConfig } from "../config/io.js";
 import { resolveConfigPath as resolveConfigPathFromPaths, resolveGatewayPort as resolveGatewayPortFromPaths, resolveStateDir as resolveStateDirFromPaths } from "../config/paths.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { loadOrCreateDeviceIdentity, type DeviceIdentity } from "../infra/device-identity.js";
@@ -48,7 +48,7 @@ export type CallGatewayOptions = CallGatewayBaseOptions & {
 declare const defaultCreateGatewayClient: (opts: GatewayClientOptions) => GatewayClient;
 declare const defaultGatewayCallDeps: {
     createGatewayClient: (opts: GatewayClientOptions) => GatewayClient;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     loadOrCreateDeviceIdentity: typeof loadOrCreateDeviceIdentity;
     resolveGatewayPort: typeof resolveGatewayPortFromPaths;
     resolveConfigPath: typeof resolveConfigPathFromPaths;

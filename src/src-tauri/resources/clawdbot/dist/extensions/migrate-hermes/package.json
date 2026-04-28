@@ -1,0 +1,15 @@
+{
+  "name": "@openclaw/migrate-hermes",
+  "version": "2026.4.25",
+  "private": true,
+  "description": "Hermes to OpenClaw migration provider",
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.8.3"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

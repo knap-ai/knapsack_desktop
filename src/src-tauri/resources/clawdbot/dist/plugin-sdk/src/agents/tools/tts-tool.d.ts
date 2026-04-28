@@ -4,4 +4,6 @@ import type { AnyAgentTool } from "./common.js";
 export declare function createTtsTool(opts?: {
     config?: OpenClawConfig;
     agentChannel?: GatewayMessageChannel;
+    agentId?: string;
+    agentAccountId?: string;
 }): AnyAgentTool;

@@ -1,5 +1,4 @@
-export declare function resolveDefaultAgentWorkspaceDir(env?: NodeJS.ProcessEnv, homedir?: () => string): string;
-export declare const DEFAULT_AGENT_WORKSPACE_DIR: string;
+export { DEFAULT_AGENT_WORKSPACE_DIR, resolveDefaultAgentWorkspaceDir, } from "./workspace-default.js";
 export declare const DEFAULT_AGENTS_FILENAME = "AGENTS.md";
 export declare const DEFAULT_SOUL_FILENAME = "SOUL.md";
 export declare const DEFAULT_TOOLS_FILENAME = "TOOLS.md";
@@ -57,4 +56,3 @@ export declare function loadExtraBootstrapFilesWithDiagnostics(dir: string, extr
     files: WorkspaceBootstrapFile[];
     diagnostics: ExtraBootstrapLoadDiagnostic[];
 }>;
-export {};

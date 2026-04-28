@@ -1,7 +1,6 @@
-import { mergeImplicitBedrockProvider, resolveBedrockConfigApiKey, resolveImplicitBedrockProvider } from "./discovery.js";
-import "./api.js";
+import { mergeImplicitBedrockProvider, resolveBedrockConfigApiKey } from "./discovery-shared.js";
 import { bedrockMemoryEmbeddingProviderAdapter } from "./memory-embedding-adapter.js";
-import { resolvePluginConfigObject } from "openclaw/plugin-sdk/config-runtime";
+import { resolvePluginConfigObject } from "openclaw/plugin-sdk/plugin-config-runtime";
 import { ANTHROPIC_BY_MODEL_REPLAY_HOOKS, normalizeProviderId } from "openclaw/plugin-sdk/provider-model-shared";
 import { createBedrockNoCacheWrapper, isAnthropicBedrockModel, streamWithPayloadPatch } from "openclaw/plugin-sdk/provider-stream-shared";
 //#region extensions/amazon-bedrock/register.sync.runtime.ts
@@ -86,15 +85,24 @@ function resolvedModelSupportsCaching(modelArn) {
 * the OpenClaw config region differs from the profile's home region.
 */
 const appProfileCacheEligibleCache = /* @__PURE__ */ new Map();
+let bedrockControlPlaneOverride;
 function resetBedrockAppProfileCacheEligibilityForTest() {
 	appProfileCacheEligibleCache.clear();
+}
+function setBedrockAppProfileControlPlaneForTest(controlPlane) {
+	bedrockControlPlaneOverride = controlPlane;
+	resetBedrockAppProfileCacheEligibilityForTest();
+}
+async function createBedrockControlPlane(region) {
+	if (bedrockControlPlaneOverride) return bedrockControlPlaneOverride(region);
+	const { BedrockClient, GetInferenceProfileCommand } = await import("@aws-sdk/client-bedrock");
+	const client = new BedrockClient(region ? { region } : {});
+	return { getInferenceProfile: async (input) => await client.send(new GetInferenceProfileCommand(input)) };
 }
 async function resolveAppProfileCacheEligible(modelId, fallbackRegion) {
 	if (appProfileCacheEligibleCache.has(modelId)) return appProfileCacheEligibleCache.get(modelId);
 	try {
-		const { BedrockClient, GetInferenceProfileCommand } = await import("@aws-sdk/client-bedrock");
-		const region = extractRegionFromArn(modelId) ?? fallbackRegion;
-		const models = (await new BedrockClient(region ? { region } : {}).send(new GetInferenceProfileCommand({ inferenceProfileIdentifier: modelId }))).models ?? [];
+		const models = (await (await createBedrockControlPlane(extractRegionFromArn(modelId) ?? fallbackRegion)).getInferenceProfile({ inferenceProfileIdentifier: modelId })).models ?? [];
 		const eligible = models.length > 0 && models.every((m) => resolvedModelSupportsCaching(m.modelArn ?? ""));
 		appProfileCacheEligibleCache.set(modelId, eligible);
 		return eligible;
@@ -183,6 +191,7 @@ function registerAmazonBedrockPlugin(api) {
 		catalog: {
 			order: "simple",
 			run: async (ctx) => {
+				const { resolveImplicitBedrockProvider } = await import("./discovery.js");
 				const currentPluginConfig = resolveCurrentPluginConfig(ctx.config);
 				const implicit = await resolveImplicitBedrockProvider({
 					config: ctx.config,
@@ -249,4 +258,4 @@ function registerAmazonBedrockPlugin(api) {
 	});
 }
 //#endregion
-export { registerAmazonBedrockPlugin, resetBedrockAppProfileCacheEligibilityForTest };
+export { registerAmazonBedrockPlugin, resetBedrockAppProfileCacheEligibilityForTest, setBedrockAppProfileControlPlaneForTest };

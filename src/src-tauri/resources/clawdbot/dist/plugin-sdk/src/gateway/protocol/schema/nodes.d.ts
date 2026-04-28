@@ -20,6 +20,9 @@ export declare const NodePairApproveParamsSchema: Type.TObject<{
 export declare const NodePairRejectParamsSchema: Type.TObject<{
     requestId: Type.TString;
 }>;
+export declare const NodePairRemoveParamsSchema: Type.TObject<{
+    nodeId: Type.TString;
+}>;
 export declare const NodePairVerifyParamsSchema: Type.TObject<{
     nodeId: Type.TString;
     token: Type.TString;

@@ -7,5 +7,11 @@ type ParseTtsDirectiveOptions = {
     providerConfigs?: Record<string, SpeechProviderConfig>;
     preferredProviderId?: string;
 };
+export type TtsDirectiveTextStreamCleaner = {
+    push: (text: string) => string;
+    flush: () => string;
+    hasBufferedDirectiveText: () => boolean;
+};
+export declare function createTtsDirectiveTextStreamCleaner(): TtsDirectiveTextStreamCleaner;
 export declare function parseTtsDirectives(text: string, policy: SpeechModelOverridePolicy, options?: ParseTtsDirectiveOptions): TtsDirectiveParseResult;
 export {};

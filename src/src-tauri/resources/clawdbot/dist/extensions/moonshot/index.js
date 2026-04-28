@@ -1,12 +1,12 @@
-import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-D-iKoymz.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-CNYlhjpk.js";
-import "../../provider-stream-family-DoMxNUtY.js";
-import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-DyN0NNis.js";
-import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-DvLD1RlP.js";
-import "../../api-CT-O5fGj.js";
-import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-w9xsI_Ew.js";
-import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-YSSg2RRL.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-Bqo51Ufw.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-7qasVyCl.js";
+import "../../provider-stream-family-Wl9gUeDn.js";
+import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-BJp4gaEc.js";
+import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-C0ATUL10.js";
+import "../../api-G1k882WJ.js";
+import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-BfqC_i4T.js";
+import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-CLgUhRx1.js";
 var moonshot_default = defineSingleProviderPluginEntry({
 	id: "moonshot",
 	name: "Moonshot Provider",

@@ -1,2 +1,2 @@
-import { n as synologyChatSetupWizard, t as synologyChatSetupAdapter } from "../../setup-surface-BH-ARQrO.js";
+import { n as synologyChatSetupWizard, t as synologyChatSetupAdapter } from "../../setup-surface-DNBKcIan.js";
 export { synologyChatSetupAdapter, synologyChatSetupWizard };

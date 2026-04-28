@@ -1,9 +1,11 @@
-import { x as resolveDefaultAgentId } from "../../agent-scope-_6dFncNS.js";
-import { l as jsonResult } from "../../common-B4WrK_Ib.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { n as resolveLivePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import { t as bumpSkillsSnapshotVersion } from "../../refresh-state-BnK3h63w.js";
-import "../../api-B1_e1Ym0.js";
+import { S as resolveDefaultAgentId, n as resolveAgentEffectiveModelPrimary } from "../../agent-scope-i10se9ty.js";
+import { o as resolveDefaultModelForAgent } from "../../model-selection-GlsOqTDm.js";
+import { l as jsonResult } from "../../common-C4RGIxnG.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import "../../agent-runtime-CYXcxHpR.js";
+import { t as bumpSkillsSnapshotVersion } from "../../refresh-state-CW2abCyT.js";
+import "../../api-Ctxfzvrb.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
@@ -277,6 +279,16 @@ function compactWhitespace(value) {
 const MAX_TRANSCRIPT_CHARS = 12e3;
 const MAX_SKILL_CHARS = 2e3;
 const MAX_SKILLS = 12;
+function resolveReviewerFallbackModel(params) {
+	if (resolveAgentEffectiveModelPrimary(params.api.config, params.agentId)) return resolveDefaultModelForAgent({
+		cfg: params.api.config,
+		agentId: params.agentId
+	});
+	return {
+		provider: params.api.runtime.agent.defaults.provider,
+		model: params.api.runtime.agent.defaults.model
+	};
+}
 function isRecord(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -409,6 +421,10 @@ async function reviewTranscriptForProposal(params) {
 	});
 	const sessionId = `skill-workshop-review-${randomUUID()}`;
 	const stateDir = params.api.runtime.state.resolveStateDir();
+	const fallbackModel = resolveReviewerFallbackModel({
+		api: params.api,
+		agentId: params.ctx.agentId
+	});
 	const parsed = parseReviewerJson(((await params.api.runtime.agent.runEmbeddedPiAgent({
 		sessionId,
 		sessionKey: params.ctx.sessionKey,
@@ -420,8 +436,8 @@ async function reviewTranscriptForProposal(params) {
 		agentDir: params.api.runtime.agent.resolveAgentDir(params.api.config, params.ctx.agentId),
 		config: params.api.config,
 		prompt,
-		provider: params.ctx.modelProviderId ?? params.api.runtime.agent.defaults.provider,
-		model: params.ctx.modelId ?? params.api.runtime.agent.defaults.model,
+		provider: params.ctx.modelProviderId ?? fallbackModel.provider,
+		model: params.ctx.modelId ?? fallbackModel.model,
 		timeoutMs: params.config.reviewTimeoutMs,
 		runId: sessionId,
 		trigger: "manual",
@@ -913,7 +929,7 @@ var skill_workshop_default = definePluginEntry({
 	description: "Captures repeatable workflows as workspace skills, with pending review and safe writes.",
 	register(api) {
 		const resolveCurrentConfig = () => {
-			return resolveConfig(resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "skill-workshop", api.pluginConfig));
+			return resolveConfig(resolveLivePluginConfigObject(api.runtime.config?.current ? () => api.runtime.config.current() : void 0, "skill-workshop", api.pluginConfig));
 		};
 		api.registerTool((ctx) => {
 			const config = resolveCurrentConfig();

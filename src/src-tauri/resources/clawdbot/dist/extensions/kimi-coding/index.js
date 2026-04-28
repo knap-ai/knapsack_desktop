@@ -1,15 +1,15 @@
-import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
-import { l as isRecord } from "../../utils-BMRcljdi.js";
-import { r as normalizeProviderId } from "../../provider-id-BLh32HP1.js";
-import "../../provider-model-shared-D-iKoymz.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
-import "../../provider-auth-api-key-BVwjjhIk.js";
-import { c as buildKimiCodingProvider } from "../../provider-catalog-B9V1lk3L.js";
-import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-BT8SO4GV.js";
-import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-Cy_BYNiO.js";
-import { i as wrapKimiProviderStream } from "../../stream-kP_5xN-p.js";
+import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
+import { c as isRecord } from "../../utils-DvkbxKCZ.js";
+import { r as normalizeProviderId } from "../../provider-id-DRW5WMbW.js";
+import "../../provider-model-shared-Bqo51Ufw.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { c as buildKimiCodingProvider } from "../../provider-catalog-DVVNJQDA.js";
+import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-1VMsLSwa.js";
+import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-DOC8fU8s.js";
+import { i as wrapKimiProviderStream } from "../../stream-DJpTrqhp.js";
 //#region extensions/kimi-coding/index.ts
 const PLUGIN_ID = "kimi";
 const PROVIDER_ID = "kimi";

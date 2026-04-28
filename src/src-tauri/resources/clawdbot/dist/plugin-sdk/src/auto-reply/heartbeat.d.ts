@@ -4,6 +4,7 @@ export type HeartbeatTask = {
     prompt: string;
 };
 export declare const HEARTBEAT_PROMPT = "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.";
+export declare const HEARTBEAT_TRANSCRIPT_PROMPT = "[OpenClaw heartbeat poll]";
 export declare const DEFAULT_HEARTBEAT_EVERY = "30m";
 export declare const DEFAULT_HEARTBEAT_ACK_MAX_CHARS = 300;
 /**

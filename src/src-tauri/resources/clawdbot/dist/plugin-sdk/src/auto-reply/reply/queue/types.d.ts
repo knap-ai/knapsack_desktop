@@ -90,6 +90,7 @@ export type FollowupRun = {
         enforceFinalTag?: boolean;
         skipProviderRuntimeHints?: boolean;
         silentExpected?: boolean;
+        allowEmptyAssistantReplyAsSilent?: boolean;
     };
 };
 export type ResolveQueueSettingsParams = {

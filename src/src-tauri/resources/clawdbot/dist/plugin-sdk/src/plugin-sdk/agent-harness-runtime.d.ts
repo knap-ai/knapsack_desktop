@@ -1,3 +1,4 @@
+import type { EmbeddedRunAttemptResult } from "../agents/pi-embedded-runner/run/types.js";
 export declare const TOOL_PROGRESS_OUTPUT_MAX_CHARS = 8000;
 export type { AgentHarness, AgentHarnessAttemptParams, AgentHarnessAttemptResult, AgentHarnessCompactParams, AgentHarnessCompactResult, AgentHarnessResultClassification, AgentHarnessResetParams, AgentHarnessSupport, AgentHarnessSupportContext, } from "../agents/harness/types.js";
 export type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult, } from "../agents/pi-embedded-runner/run/types.js";
@@ -31,6 +32,7 @@ export { resolveAttemptSpawnWorkspaceDir } from "../agents/pi-embedded-runner/ru
 export { buildEmbeddedAttemptToolRunContext } from "../agents/pi-embedded-runner/run/attempt.tool-run-context.js";
 export { abortEmbeddedPiRun as abortAgentHarnessRun, clearActiveEmbeddedRun, queueEmbeddedPiMessage as queueAgentHarnessMessage, setActiveEmbeddedRun, } from "../agents/pi-embedded-runner/runs.js";
 export { disposeRegisteredAgentHarnesses } from "../agents/harness/registry.js";
+export { logAgentRuntimeToolDiagnostics, normalizeAgentRuntimeTools, } from "../agents/runtime-plan/tools.js";
 export { normalizeProviderToolSchemas } from "../agents/pi-embedded-runner/tool-schema-runtime.js";
 export { resolveSandboxContext } from "../agents/sandbox.js";
 export { isSubagentSessionKey } from "../routing/session-key.js";
@@ -42,7 +44,7 @@ export { createCodexAppServerToolResultExtensionRunner } from "../agents/harness
 export { createAgentToolResultMiddlewareRunner } from "../agents/harness/tool-result-middleware.js";
 export { assembleHarnessContextEngine, bootstrapHarnessContextEngine, buildHarnessContextEngineRuntimeContext, buildHarnessContextEngineRuntimeContextFromUsage, finalizeHarnessContextEngineTurn, isActiveHarnessContextEngine, runHarnessContextEngineMaintenance, } from "../agents/harness/context-engine-lifecycle.js";
 export { runAgentHarnessAfterToolCallHook, runAgentHarnessBeforeMessageWriteHook, } from "../agents/harness/hook-helpers.js";
-export { runAgentHarnessAgentEndHook, runAgentHarnessLlmInputHook, runAgentHarnessLlmOutputHook, } from "../agents/harness/lifecycle-hook-helpers.js";
+export { runAgentHarnessBeforeAgentFinalizeHook, runAgentHarnessAgentEndHook, runAgentHarnessLlmInputHook, runAgentHarnessLlmOutputHook, } from "../agents/harness/lifecycle-hook-helpers.js";
 export { buildNativeHookRelayCommand, registerNativeHookRelay, } from "../agents/harness/native-hook-relay.js";
 /**
  * Derive the same compact user-facing tool detail that Pi uses for progress logs.
@@ -54,3 +56,20 @@ export declare function inferToolMetaFromArgs(toolName: string, args: unknown): 
 export declare function formatToolProgressOutput(output: string, options?: {
     maxChars?: number;
 }): string | undefined;
+export type AgentHarnessTerminalOutcomeInput = {
+    assistantTexts: readonly string[];
+    reasoningText?: string | null;
+    planText?: string | null;
+    promptError?: unknown;
+    turnCompleted: boolean;
+};
+export type AgentHarnessTerminalOutcomeClassification = NonNullable<EmbeddedRunAttemptResult["agentHarnessResultClassification"]>;
+/**
+ * Classify terminal harness turns that completed without assistant output that
+ * should advance fallback. Deliberate silent replies such as NO_REPLY count as
+ * intentional output, while whitespace-only text remains fallback-eligible.
+ * This is intentionally SDK-level so plugin harness adapters such as Codex
+ * preserve the same OpenClaw-owned fallback signals as the built-in PI path
+ * without re-implementing terminal-result policy.
+ */
+export declare function classifyAgentHarnessTerminalOutcome(params: AgentHarnessTerminalOutcomeInput): AgentHarnessTerminalOutcomeClassification | undefined;

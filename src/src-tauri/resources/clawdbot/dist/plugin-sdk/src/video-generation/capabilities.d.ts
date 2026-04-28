@@ -6,6 +6,7 @@ export declare function resolveVideoGenerationMode(params: {
 export declare function listSupportedVideoGenerationModes(provider: Pick<VideoGenerationProvider, "capabilities">): VideoGenerationMode[];
 export declare function resolveVideoGenerationModeCapabilities(params: {
     provider?: Pick<VideoGenerationProvider, "capabilities">;
+    model?: string;
     inputImageCount?: number;
     inputVideoCount?: number;
 }): {

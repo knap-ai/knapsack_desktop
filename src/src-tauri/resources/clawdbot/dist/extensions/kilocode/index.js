@@ -1,11 +1,11 @@
-import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BIM0n3KJ.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { n as KILOCODE_THINKING_STREAM_HOOKS } from "../../provider-stream-CNYlhjpk.js";
-import "../../provider-stream-family-DoMxNUtY.js";
-import { s as KILOCODE_DEFAULT_MODEL_REF } from "../../provider-models-HOjgXim0.js";
-import { n as buildKilocodeProviderWithDiscovery, t as buildKilocodeProvider } from "../../provider-catalog-B9xdwO-5.js";
-import { t as applyKilocodeConfig } from "../../onboard-DPGgXpnU.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-D-up-AZr.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { n as KILOCODE_THINKING_STREAM_HOOKS } from "../../provider-stream-7qasVyCl.js";
+import "../../provider-stream-family-Wl9gUeDn.js";
+import { s as KILOCODE_DEFAULT_MODEL_REF } from "../../provider-models-BtTajvaO.js";
+import { n as buildKilocodeProviderWithDiscovery, t as buildKilocodeProvider } from "../../provider-catalog-Dl7O0G9H.js";
+import { t as applyKilocodeConfig } from "../../onboard-Ch7oqJf8.js";
 //#region extensions/kilocode/index.ts
 const PROVIDER_ID = "kilocode";
 var kilocode_default = defineSingleProviderPluginEntry({

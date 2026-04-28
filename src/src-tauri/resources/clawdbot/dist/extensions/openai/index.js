@@ -1,17 +1,17 @@
-import { a as buildProviderToolCompatFamilyHooks } from "../../provider-tools-VpDDhpdz.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { r as resolvePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import { t as buildOpenAICodexCliBackend } from "../../cli-backend-JwVjPiHZ.js";
-import { t as buildOpenAIImageGenerationProvider } from "../../image-generation-provider-DCtzDaXb.js";
-import { n as openaiCodexMediaUnderstandingProvider, r as openaiMediaUnderstandingProvider } from "../../media-understanding-provider-D-CF-Ud7.js";
-import { t as openAiMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-B89PEU6k.js";
-import { t as buildOpenAICodexProviderPlugin } from "../../openai-codex-provider-CAil1DSq.js";
-import { t as buildOpenAIProvider } from "../../openai-provider-CV7ZDU34.js";
-import { i as resolveOpenAISystemPromptContribution, r as resolveOpenAIPromptOverlayMode } from "../../prompt-overlay-DBqjJVVT.js";
-import { t as buildOpenAIRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-DS6PLcFC.js";
-import { t as buildOpenAIRealtimeVoiceProvider } from "../../realtime-voice-provider-BIA7LItQ.js";
-import { t as buildOpenAISpeechProvider } from "../../speech-provider-DtEuf3jc.js";
-import { t as buildOpenAIVideoGenerationProvider } from "../../video-generation-provider-Duwz-JjX.js";
+import { a as buildProviderToolCompatFamilyHooks } from "../../provider-tools-CjZl3FJf.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import { t as buildOpenAICodexCliBackend } from "../../cli-backend-CNjcdP1x.js";
+import { t as buildOpenAIImageGenerationProvider } from "../../image-generation-provider-CP286vHO.js";
+import { n as openaiCodexMediaUnderstandingProvider, r as openaiMediaUnderstandingProvider } from "../../media-understanding-provider-VHMqV3Vg.js";
+import { t as openAiMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-CFqpi9r9.js";
+import { t as buildOpenAICodexProviderPlugin } from "../../openai-codex-provider-Bn2XPXMP.js";
+import { t as buildOpenAIProvider } from "../../openai-provider-DhFKDZ6H.js";
+import { i as resolveOpenAISystemPromptContribution, r as resolveOpenAIPromptOverlayMode } from "../../prompt-overlay-5ICTVk3X.js";
+import { t as buildOpenAIRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-89uaMP30.js";
+import { t as buildOpenAIRealtimeVoiceProvider } from "../../realtime-voice-provider-CHJJ_VX5.js";
+import { t as buildOpenAISpeechProvider } from "../../speech-provider-D4zT9eKR.js";
+import { t as buildOpenAIVideoGenerationProvider } from "../../video-generation-provider-RZ86cD9W.js";
 //#region extensions/openai/index.ts
 var openai_default = definePluginEntry({
 	id: "openai",

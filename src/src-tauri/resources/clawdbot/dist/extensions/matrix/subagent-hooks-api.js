@@ -1,8 +1,8 @@
-import { n as handleMatrixSubagentEnded, r as handleMatrixSubagentSpawning, t as handleMatrixSubagentDeliveryTarget } from "./subagent-hooks-CE_OEB6g.js";
+import { n as handleMatrixSubagentEnded, r as handleMatrixSubagentSpawning, t as handleMatrixSubagentDeliveryTarget } from "./subagent-hooks-lfpe0cON.js";
 //#region extensions/matrix/subagent-hooks-api.ts
 let matrixSubagentHooksPromise = null;
 function loadMatrixSubagentHooksModule() {
-	matrixSubagentHooksPromise ??= import("./subagent-hooks-CE_OEB6g.js").then((n) => n.i);
+	matrixSubagentHooksPromise ??= import("./subagent-hooks-lfpe0cON.js").then((n) => n.i);
 	return matrixSubagentHooksPromise;
 }
 function registerMatrixSubagentHooks(api) {

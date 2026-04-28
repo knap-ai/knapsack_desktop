@@ -1,11 +1,21 @@
-import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createOpencodeCatalogApiKeyAuthMethod } from "../../opencode-xFQq5FII.js";
-import { n as applyOpencodeGoConfig, t as OPENCODE_GO_DEFAULT_MODEL_REF } from "../../onboard-mfh8K8Lm.js";
-import { t as opencodeGoMediaUnderstandingProvider } from "../../media-understanding-provider-DmebkDYT.js";
-import { r as normalizeOpencodeGoBaseUrl } from "../../provider-catalog-B-R-t2Um.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { n as applyOpencodeGoConfig, t as OPENCODE_GO_DEFAULT_MODEL_REF } from "../../onboard-BeTEKDBY.js";
+import "../../api-UNXhF8Xp.js";
+import { t as opencodeGoMediaUnderstandingProvider } from "../../media-understanding-provider-XXZFM0mb.js";
+import { a as resolveOpencodeGoSupplementalModel, i as normalizeOpencodeGoBaseUrl, r as listOpencodeGoSupplementalModelCatalogEntries } from "../../provider-catalog-Bt-I2kg4.js";
+import { t as createOpencodeGoDeepSeekV4Wrapper } from "../../stream-DBG4wURq.js";
 //#region extensions/opencode-go/index.ts
 const PROVIDER_ID = "opencode-go";
+const OPENCODE_SHARED_PROFILE_IDS = ["opencode:default", "opencode-go:default"];
+const OPENCODE_SHARED_HINT = "Shared API key for Zen + Go catalogs";
+const OPENCODE_SHARED_WIZARD_GROUP = {
+	groupId: "opencode",
+	groupLabel: "OpenCode",
+	groupHint: OPENCODE_SHARED_HINT
+};
 var opencode_go_default = definePluginEntry({
 	id: PROVIDER_ID,
 	name: "OpenCode Go Provider",
@@ -16,20 +26,30 @@ var opencode_go_default = definePluginEntry({
 			label: "OpenCode Go",
 			docsPath: "/providers/models",
 			envVars: ["OPENCODE_API_KEY", "OPENCODE_ZEN_API_KEY"],
-			auth: [createOpencodeCatalogApiKeyAuthMethod({
+			auth: [createProviderApiKeyAuthMethod({
 				providerId: PROVIDER_ID,
+				methodId: "api-key",
 				label: "OpenCode Go catalog",
+				hint: OPENCODE_SHARED_HINT,
 				optionKey: "opencodeGoApiKey",
 				flagName: "--opencode-go-api-key",
+				envVar: "OPENCODE_API_KEY",
+				promptMessage: "Enter OpenCode API key",
+				profileIds: [...OPENCODE_SHARED_PROFILE_IDS],
 				defaultModel: OPENCODE_GO_DEFAULT_MODEL_REF,
 				applyConfig: (cfg) => applyOpencodeGoConfig(cfg),
+				expectedProviders: ["opencode", "opencode-go"],
 				noteMessage: [
 					"OpenCode uses one API key across the Zen and Go catalogs.",
 					"Go focuses on Kimi, GLM, and MiniMax coding models.",
 					"Get your API key at: https://opencode.ai/auth"
 				].join("\n"),
-				choiceId: "opencode-go",
-				choiceLabel: "OpenCode Go catalog"
+				noteTitle: "OpenCode",
+				wizard: {
+					choiceId: "opencode-go",
+					choiceLabel: "OpenCode Go catalog",
+					...OPENCODE_SHARED_WIZARD_GROUP
+				}
 			})],
 			normalizeConfig: ({ providerConfig }) => {
 				const normalizedBaseUrl = normalizeOpencodeGoBaseUrl({
@@ -61,7 +81,10 @@ var opencode_go_default = definePluginEntry({
 					baseUrl: normalizedBaseUrl
 				} : void 0;
 			},
+			resolveDynamicModel: ({ modelId }) => resolveOpencodeGoSupplementalModel(modelId),
+			augmentModelCatalog: () => listOpencodeGoSupplementalModelCatalogEntries(),
 			...PASSTHROUGH_GEMINI_REPLAY_HOOKS,
+			wrapStreamFn: (ctx) => createOpencodeGoDeepSeekV4Wrapper(ctx.streamFn, ctx.thinkingLevel),
 			isModernModelRef: () => true
 		});
 		api.registerMediaUnderstandingProvider(opencodeGoMediaUnderstandingProvider);

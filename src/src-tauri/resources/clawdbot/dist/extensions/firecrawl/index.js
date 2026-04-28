@@ -1,9 +1,9 @@
-import { f as readNumberParam, g as readStringParam, l as jsonResult, m as readStringArrayParam } from "../../common-B4WrK_Ib.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../provider-web-search-DiAvE6oC.js";
-import { i as runFirecrawlSearch, r as runFirecrawlScrape } from "../../firecrawl-client-Cptomb5t.js";
-import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-CRRp0vbN.js";
-import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-Cyj4Zl1T.js";
+import { f as readNumberParam, g as readStringParam, l as jsonResult, m as readStringArrayParam } from "../../common-C4RGIxnG.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../provider-web-search-fsZ6HXjy.js";
+import { i as runFirecrawlSearch, r as runFirecrawlScrape } from "../../firecrawl-client-BBFFscnc.js";
+import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-DzN33Qx9.js";
+import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-BQ3HRoRt.js";
 import { Type } from "typebox";
 //#region extensions/firecrawl/src/firecrawl-scrape-tool.ts
 function optionalStringEnum(values, options = {}) {

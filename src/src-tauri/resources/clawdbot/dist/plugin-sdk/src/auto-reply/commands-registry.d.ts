@@ -35,11 +35,17 @@ export declare function resolveCommandArgMenu(params: {
     command: ChatCommandDefinition;
     args?: CommandArgs;
     cfg?: OpenClawConfig;
+    provider?: string;
+    model?: string;
 }): {
     arg: CommandArgDefinition;
     choices: ResolvedCommandArgChoice[];
     title?: string;
 } | null;
+export declare function formatCommandArgMenuTitle(params: {
+    command: ChatCommandDefinition;
+    menu: NonNullable<ReturnType<typeof resolveCommandArgMenu>>;
+}): string;
 export declare function isCommandMessage(raw: string): boolean;
 export declare function isNativeCommandSurface(surface?: string): boolean;
 export declare function shouldHandleTextCommands(params: ShouldHandleTextCommandsParams): boolean;

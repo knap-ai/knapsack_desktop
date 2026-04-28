@@ -4,6 +4,11 @@
   "providers": [
     "xiaomi"
   ],
+  "contracts": {
+    "speechProviders": [
+      "xiaomi"
+    ]
+  },
   "providerAuthEnvVars": {
     "xiaomi": [
       "XIAOMI_API_KEY"

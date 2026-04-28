@@ -1,7 +1,7 @@
 import { CODEX_APP_SERVER_AUTH_MARKER, CODEX_BASE_URL, CODEX_PROVIDER_ID, FALLBACK_CODEX_MODELS, buildCodexModelDefinition, buildCodexProviderConfig } from "./provider-catalog.js";
-import { i as resolveCodexAppServerRuntimeOptions, r as readCodexPluginConfig } from "./config-BqDfPmSH.js";
+import { i as resolveCodexAppServerRuntimeOptions, r as readCodexPluginConfig } from "./config-T2qWvCZA.js";
 import { resolveCodexSystemPromptContribution } from "./prompt-overlay.js";
-import { resolvePluginConfigObject } from "openclaw/plugin-sdk/config-runtime";
+import { resolvePluginConfigObject } from "openclaw/plugin-sdk/plugin-config-runtime";
 import { createSubsystemLogger } from "openclaw/plugin-sdk/core";
 import { normalizeModelCompat } from "openclaw/plugin-sdk/provider-model-shared";
 //#region extensions/codex/provider.ts
@@ -102,7 +102,7 @@ async function listModelsBestEffort(params) {
 	}
 }
 async function listCodexAppServerModelsLazy(options) {
-	const { listCodexAppServerModels } = await import("./models-BK4iJFwS.js").then((n) => n.r);
+	const { listCodexAppServerModels } = await import("./models-B1pj8mrD.js").then((n) => n.r);
 	return listCodexAppServerModels(options);
 }
 function normalizeTimeoutMs(value) {
@@ -126,4 +126,4 @@ function isModernCodexModel(modelId) {
 	return lower === "gpt-5.5" || lower === "gpt-5.4" || lower === "gpt-5.4-mini" || lower === "gpt-5.2";
 }
 //#endregion
-export { buildCodexProvider, buildCodexProviderCatalog };
+export { buildCodexProvider, buildCodexProviderCatalog, isModernCodexModel };

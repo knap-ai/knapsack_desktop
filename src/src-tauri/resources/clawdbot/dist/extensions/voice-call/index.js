@@ -1,13 +1,13 @@
-import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
-import { c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
-import { v as sleep } from "../../utils-BMRcljdi.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../error-runtime-D8vVwCEz.js";
-import "../../api-D3GSNK7X.js";
-import { i as validateProviderConfig, r as resolveVoiceCallConfig } from "../../config-ClpQmXwG.js";
-import { a as resolveUserPath, i as setupTailscaleExposureRoute, n as cleanupTailscaleExposureRoute, r as getTailscaleSelfInfo, t as createVoiceCallRuntime } from "../../runtime-entry-L-Xdz4WH.js";
-import { i as parseVoiceCallPluginConfig, r as normalizeVoiceCallLegacyConfigInput, t as formatVoiceCallLegacyConfigWarnings } from "../../config-compat-CdfQZUWZ.js";
+import { c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../../string-coerce-Bje8XVt9.js";
+import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
+import { _ as sleep } from "../../utils-DvkbxKCZ.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../error-runtime-CrtIwOpQ.js";
+import "../../api-BpZsjPsQ.js";
+import { i as validateProviderConfig, r as resolveVoiceCallConfig } from "../../config-dq8yIvtn.js";
+import { a as resolveUserPath, i as setupTailscaleExposureRoute, n as cleanupTailscaleExposureRoute, r as getTailscaleSelfInfo, t as createVoiceCallRuntime } from "../../runtime-entry-E00TPeAl.js";
+import { i as parseVoiceCallPluginConfig, r as normalizeVoiceCallLegacyConfigInput, t as formatVoiceCallLegacyConfigWarnings } from "../../config-compat-CMK0r75q.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -850,13 +850,15 @@ var voice_call_default = definePluginEntry({
 		}), { commands: ["voicecall"] });
 		api.registerService({
 			id: "voicecall",
-			start: async () => {
+			start: () => {
 				if (!config.enabled) return;
-				try {
-					await ensureRuntime();
-				} catch (err) {
-					api.logger.error(`[voice-call] Failed to start runtime: ${formatErrorMessage(err)}`);
+				if (!validation.valid) {
+					api.logger.warn(`[voice-call] Runtime not started; setup incomplete: ${validation.errors.join("; ")}`);
+					return;
 				}
+				ensureRuntime().catch((err) => {
+					api.logger.error(`[voice-call] Failed to start runtime: ${formatErrorMessage(err)}`);
+				});
 			},
 			stop: async () => {
 				if (runtimeState[VOICE_CALL_RUNTIME_STOP_PROMISE_KEY]) {

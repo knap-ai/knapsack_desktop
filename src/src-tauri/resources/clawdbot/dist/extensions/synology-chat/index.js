@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-CXwWQle7.js";
 //#region extensions/synology-chat/index.ts
 var synology_chat_default = defineBundledChannelEntry({
 	id: "synology-chat",

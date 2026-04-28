@@ -6,9 +6,11 @@ type PersistRunSessionUsageParams = Parameters<typeof persistSessionUsageUpdate>
 type IncrementRunCompactionCountParams = Omit<Parameters<typeof incrementCompactionCount>[0], "tokensAfter"> & {
     amount?: number;
     cfg?: OpenClawConfig;
+    compactionTokensAfter?: number;
     lastCallUsage?: NormalizedUsage;
     contextTokensUsed?: number;
     newSessionId?: string;
+    newSessionFile?: string;
 };
 export declare function persistRunSessionUsage(params: PersistRunSessionUsageParams): Promise<void>;
 export declare function incrementRunCompactionCount(params: IncrementRunCompactionCountParams): Promise<number | undefined>;

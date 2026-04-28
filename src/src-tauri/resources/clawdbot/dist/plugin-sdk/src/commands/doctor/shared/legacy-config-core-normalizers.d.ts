@@ -5,6 +5,7 @@ export declare function normalizeLegacyBrowserConfig(cfg: OpenClawConfig, change
 export declare function seedMissingDefaultAccountsFromSingleAccountBase(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyRuntimeModelRefs(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyOpenAICodexModelsAddMetadata(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
+export declare function normalizeLegacyOpenAIModelProviderApi(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyNanoBananaSkill(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyCrossContextMessageConfig(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyMediaProviderOptions(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;

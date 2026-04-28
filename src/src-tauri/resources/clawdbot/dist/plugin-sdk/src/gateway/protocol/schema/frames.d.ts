@@ -93,7 +93,7 @@ export declare const HelloOkSchema: Type.TObject<{
         }>>;
     }>;
     canvasHostUrl: Type.TOptional<Type.TString>;
-    auth: Type.TOptional<Type.TObject<{
+    auth: Type.TObject<{
         deviceToken: Type.TOptional<Type.TString>;
         role: Type.TString;
         scopes: Type.TArray<Type.TString>;
@@ -104,7 +104,7 @@ export declare const HelloOkSchema: Type.TObject<{
             scopes: Type.TArray<Type.TString>;
             issuedAtMs: Type.TInteger;
         }>>>;
-    }>>;
+    }>;
     policy: Type.TObject<{
         maxPayload: Type.TInteger;
         maxBufferedBytes: Type.TInteger;

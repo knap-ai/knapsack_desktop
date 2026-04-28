@@ -59,6 +59,9 @@ export declare function rejectNodePairing(requestId: string, baseDir?: string): 
     requestId: string;
     nodeId: string;
 } | null>;
+export declare function removePairedNode(nodeId: string, baseDir?: string): Promise<{
+    nodeId: string;
+} | null>;
 export declare function verifyNodeToken(nodeId: string, token: string, baseDir?: string): Promise<{
     ok: boolean;
     node?: NodePairingPairedNode;

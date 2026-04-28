@@ -1,11 +1,11 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { t as buildMistralProvider } from "../../provider-catalog-D9Y6TgDo.js";
-import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-Cg3JR22w.js";
-import { i as applyMistralModelCompat } from "../../api-BeFLgNHs.js";
-import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-L3UWjEu3.js";
-import { t as mistralMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-T35BS745.js";
-import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-DWWrQy0s.js";
-import { n as buildMistralRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-C_smBXo2.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { t as buildMistralProvider } from "../../provider-catalog-BaoZwg1m.js";
+import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-DvCMYjPC.js";
+import { i as applyMistralModelCompat } from "../../api-CRFvkCm4.js";
+import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-CPFuq1Wd.js";
+import { t as mistralMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-Dsl7u53W.js";
+import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-jv61KEVK.js";
+import { n as buildMistralRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-D9pJncUj.js";
 //#region extensions/mistral/index.ts
 const PROVIDER_ID = "mistral";
 function buildMistralReplayPolicy() {

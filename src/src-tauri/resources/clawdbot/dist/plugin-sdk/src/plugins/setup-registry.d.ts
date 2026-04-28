@@ -46,17 +46,21 @@ export declare const __testing: {
 };
 export declare function clearPluginSetupRegistryCache(): void;
 export declare function resolvePluginSetupRegistry(params?: {
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     pluginIds?: readonly string[];
 }): PluginSetupRegistry;
 export declare function resolvePluginSetupProvider(params: {
     provider: string;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    pluginIds?: readonly string[];
 }): ProviderPlugin | undefined;
 export declare function resolvePluginSetupCliBackend(params: {
     backend: string;
+    config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
 }): SetupCliBackendEntry | undefined;

@@ -10,7 +10,7 @@ export declare function withFullRuntimeReplyConfig<T extends OpenClawConfig>(con
 export declare function isCompleteReplyConfig(config: unknown): config is OpenClawConfig;
 export declare function usesFullReplyRuntime(config: unknown): boolean;
 export declare function resolveGetReplyConfig(params: {
-    loadConfig: () => OpenClawConfig;
+    getRuntimeConfig: () => OpenClawConfig;
     isFastTestEnv: boolean;
     configOverride?: OpenClawConfig;
 }): OpenClawConfig;

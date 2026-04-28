@@ -1,0 +1,44 @@
+import { a as withTrustedEnvProxyGuardedFetchMode, i as withStrictGuardedFetchMode, n as fetchWithSsrFGuard } from "./fetch-guard-8smVA_M-.js";
+//#region src/agents/tools/web-guarded-fetch.ts
+const WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY = {
+	dangerouslyAllowPrivateNetwork: true,
+	allowRfc2544BenchmarkRange: true
+};
+function resolveTimeoutMs(params) {
+	if (typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)) return params.timeoutMs;
+	if (typeof params.timeoutSeconds === "number" && Number.isFinite(params.timeoutSeconds)) return params.timeoutSeconds * 1e3;
+}
+async function fetchWithWebToolsNetworkGuard(params) {
+	const { timeoutSeconds, useEnvProxy, ...rest } = params;
+	const resolved = {
+		...rest,
+		timeoutMs: resolveTimeoutMs({
+			timeoutMs: rest.timeoutMs,
+			timeoutSeconds
+		})
+	};
+	return fetchWithSsrFGuard(useEnvProxy ? withTrustedEnvProxyGuardedFetchMode(resolved) : withStrictGuardedFetchMode(resolved));
+}
+async function withWebToolsNetworkGuard(params, run) {
+	const { response, finalUrl, release } = await fetchWithWebToolsNetworkGuard(params);
+	try {
+		return await run({
+			response,
+			finalUrl
+		});
+	} finally {
+		await release();
+	}
+}
+async function withTrustedWebToolsEndpoint(params, run) {
+	return await withWebToolsNetworkGuard({
+		...params,
+		policy: WEB_TOOLS_TRUSTED_NETWORK_SSRF_POLICY,
+		useEnvProxy: true
+	}, run);
+}
+async function withStrictWebToolsEndpoint(params, run) {
+	return await withWebToolsNetworkGuard(params, run);
+}
+//#endregion
+export { withStrictWebToolsEndpoint as n, withTrustedWebToolsEndpoint as r, fetchWithWebToolsNetworkGuard as t };

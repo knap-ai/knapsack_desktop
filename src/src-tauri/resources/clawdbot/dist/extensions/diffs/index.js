@@ -1,11 +1,11 @@
-import { t as api_exports } from "./api.js";
+import { definePluginEntry, resolvePreferredOpenClawTmpDir } from "./api.js";
 import { resolveRequestClientIp } from "./runtime-api.js";
 import { createRequire } from "node:module";
-import { mapPluginConfigIssues } from "openclaw/plugin-sdk/extension-shared";
 import { buildPluginConfigSchema } from "openclaw/plugin-sdk/plugin-entry";
+import { mapPluginConfigIssues } from "openclaw/plugin-sdk/extension-shared";
 import { z } from "openclaw/plugin-sdk/zod";
 import path from "node:path";
-import { resolveLivePluginConfigObject } from "openclaw/plugin-sdk/config-runtime";
+import { resolveLivePluginConfigObject } from "openclaw/plugin-sdk/plugin-config-runtime";
 import { normalizeLowercaseStringOrEmpty, normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -2021,12 +2021,12 @@ var PluginToolInputError = class extends Error {
 //#region extensions/diffs/src/plugin.ts
 function registerDiffsPlugin(api) {
 	const store = new DiffArtifactStore({
-		rootDir: path.join((0, api_exports.resolvePreferredOpenClawTmpDir)(), "openclaw-diffs"),
+		rootDir: path.join(resolvePreferredOpenClawTmpDir(), "openclaw-diffs"),
 		logger: api.logger
 	});
-	const resolveCurrentPluginConfig = () => resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "diffs", api.pluginConfig) ?? {};
+	const resolveCurrentPluginConfig = () => resolveLivePluginConfigObject(api.runtime.config?.current ? () => api.runtime.config.current() : void 0, "diffs", api.pluginConfig) ?? {};
 	const resolveCurrentAccessConfig = () => {
-		const currentConfig = api.runtime.config?.loadConfig?.() ?? api.config;
+		const currentConfig = api.runtime.config?.current?.() ?? api.config;
 		return {
 			allowRemoteViewer: resolveDiffsPluginSecurity(resolveCurrentPluginConfig()).allowRemoteViewer,
 			trustedProxies: currentConfig.gateway?.trustedProxies,
@@ -2061,7 +2061,7 @@ function registerDiffsPlugin(api) {
 }
 //#endregion
 //#region extensions/diffs/index.ts
-var diffs_default = (0, api_exports.definePluginEntry)({
+var diffs_default = definePluginEntry({
 	id: "diffs",
 	name: "Diffs",
 	description: "Read-only diff viewer and PNG/PDF renderer for agents.",

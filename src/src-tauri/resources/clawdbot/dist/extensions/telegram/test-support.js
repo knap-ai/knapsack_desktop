@@ -1,6 +1,6 @@
 import { o as resolveTelegramAccount } from "./accounts-q2NkR7D9.js";
-import { i as telegramConfigAdapter } from "./shared-OkW04SMA.js";
-import { t as telegramApprovalCapability } from "./approval-native-B2oemr78.js";
+import { i as telegramConfigAdapter } from "./shared-B7TJRFQe.js";
+import { t as telegramApprovalCapability } from "./approval-native-BjkDUUjD.js";
 import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
 import { getChatChannelMeta } from "openclaw/plugin-sdk/channel-plugin-common";
 //#region extensions/telegram/test-support.ts

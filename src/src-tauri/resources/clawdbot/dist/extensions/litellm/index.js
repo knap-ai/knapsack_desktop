@@ -1,6 +1,7 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { i as applyLitellmConfig, r as LITELLM_DEFAULT_MODEL_REF } from "../../onboard-Zp348PIY.js";
-import { t as buildLitellmProvider } from "../../provider-catalog-DoHAEoou.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { i as applyLitellmConfig, r as LITELLM_DEFAULT_MODEL_REF } from "../../onboard-BTnx7hPL.js";
+import { t as buildLitellmImageGenerationProvider } from "../../image-generation-provider-DUR9B6a7.js";
+import { t as buildLitellmProvider } from "../../provider-catalog-D8E7QNM_.js";
 var litellm_default = defineSingleProviderPluginEntry({
 	id: "litellm",
 	name: "LiteLLM Provider",
@@ -30,6 +31,9 @@ var litellm_default = defineSingleProviderPluginEntry({
 			buildProvider: buildLitellmProvider,
 			allowExplicitBaseUrl: true
 		}
+	},
+	register(api) {
+		api.registerImageGenerationProvider(buildLitellmImageGenerationProvider());
 	}
 });
 //#endregion

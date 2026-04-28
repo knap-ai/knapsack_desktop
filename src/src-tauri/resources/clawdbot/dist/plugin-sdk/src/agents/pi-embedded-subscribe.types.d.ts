@@ -1,6 +1,6 @@
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type { ReplyPayload } from "../auto-reply/reply-payload.js";
-import type { ReasoningLevel, VerboseLevel } from "../auto-reply/thinking.js";
+import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { HookRunner } from "../plugins/hooks.js";
 import type { AgentInternalEvent } from "./internal-events.js";
@@ -15,6 +15,7 @@ export type SubscribeEmbeddedPiSessionParams = {
     hookRunner?: HookRunner;
     verboseLevel?: VerboseLevel;
     reasoningMode?: ReasoningLevel;
+    thinkingLevel?: ThinkLevel;
     toolResultFormat?: ToolResultFormat;
     shouldEmitToolResult?: () => boolean;
     shouldEmitToolOutput?: () => boolean;

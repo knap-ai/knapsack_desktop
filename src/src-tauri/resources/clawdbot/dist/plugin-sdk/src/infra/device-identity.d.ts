@@ -4,6 +4,7 @@ export type DeviceIdentity = {
     privateKeyPem: string;
 };
 export declare function loadOrCreateDeviceIdentity(filePath?: string): DeviceIdentity;
+export declare function loadDeviceIdentityIfPresent(filePath?: string): DeviceIdentity | null;
 export declare function signDevicePayload(privateKeyPem: string, payload: string): string;
 export declare function normalizeDevicePublicKeyBase64Url(publicKey: string): string | null;
 export declare function deriveDeviceIdFromPublicKey(publicKey: string): string | null;

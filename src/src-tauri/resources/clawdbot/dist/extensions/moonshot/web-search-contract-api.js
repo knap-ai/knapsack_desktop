@@ -1,4 +1,4 @@
-import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-SYSI7qZL.js";
+import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-N2y5_TqN.js";
 //#region extensions/moonshot/web-search-contract-api.ts
 function createKimiWebSearchProvider() {
 	const credentialPath = "plugins.entries.moonshot.config.webSearch.apiKey";

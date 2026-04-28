@@ -17,6 +17,16 @@ export declare function buildDirectChatContext(params: {
     silentReplyRewrite?: boolean;
     silentToken: string;
 }): string;
+export declare function resolveGroupSilentReplyBehavior(params: {
+    sessionEntry?: SessionEntry;
+    defaultActivation: "always" | "mention";
+    silentReplyPolicy?: SilentReplyPolicy;
+    silentReplyRewrite?: boolean;
+}): {
+    activation: "always" | "mention";
+    canUseSilentReply: boolean;
+    allowEmptyAssistantReplyAsSilent: boolean;
+};
 export declare function buildGroupIntro(params: {
     cfg: OpenClawConfig;
     sessionCtx: TemplateContext;

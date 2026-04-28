@@ -1,4 +1,4 @@
-import { r as loadBundledEntryExportSync, t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { r as loadBundledEntryExportSync, t as defineBundledChannelEntry } from "../../channel-entry-contract-CXwWQle7.js";
 //#region extensions/zalouser/index.ts
 function createZalouserTool(context) {
 	return loadBundledEntryExportSync(import.meta.url, {

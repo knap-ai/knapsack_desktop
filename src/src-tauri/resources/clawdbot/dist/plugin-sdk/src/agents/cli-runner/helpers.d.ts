@@ -22,6 +22,7 @@ export declare function buildSystemPrompt(params: {
     ownerNumbers?: string[];
     heartbeatPrompt?: string;
     docsPath?: string;
+    sourcePath?: string;
     tools: AgentTool[];
     contextFiles?: EmbeddedContextFile[];
     skillsPrompt?: string;

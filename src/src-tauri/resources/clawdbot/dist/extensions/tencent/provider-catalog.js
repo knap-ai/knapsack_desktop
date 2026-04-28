@@ -1,2 +1,2 @@
-import { t as buildTokenHubProvider } from "../../provider-catalog-DucD49zL.js";
+import { t as buildTokenHubProvider } from "../../provider-catalog-D3A3bKWD.js";
 export { buildTokenHubProvider };

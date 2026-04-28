@@ -68,6 +68,7 @@ export type EmbeddedRunAttemptResult = {
         handled?: false;
     };
     sessionIdUsed: string;
+    sessionFileUsed?: string;
     diagnosticTrace?: DiagnosticTraceContext;
     agentHarnessId?: string;
     agentHarnessResultClassification?: "empty" | "reasoning-only" | "planning-only";
@@ -96,6 +97,7 @@ export type EmbeddedRunAttemptResult = {
     attemptUsage?: NormalizedUsage;
     promptCache?: ContextEnginePromptCacheInfo;
     compactionCount?: number;
+    compactionTokensAfter?: number;
     /** Client tool call detected (OpenResponses hosted tools). */
     clientToolCall?: {
         name: string;

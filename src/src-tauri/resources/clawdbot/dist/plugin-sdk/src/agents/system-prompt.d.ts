@@ -35,12 +35,17 @@ export declare function buildAgentSystemPrompt(params: {
     skillsPrompt?: string;
     heartbeatPrompt?: string;
     docsPath?: string;
+    sourcePath?: string;
     workspaceNotes?: string[];
     ttsHint?: string;
     /** Controls which hardcoded sections to include. Defaults to "full". */
     promptMode?: PromptMode;
     /** Whether ACP-specific routing guidance should be included. Defaults to true. */
     acpEnabled?: boolean;
+    /** Registered runtime slash/native command names such as `codex`. */
+    nativeCommandNames?: string[];
+    /** Plugin-owned prompt guidance for registered native slash commands. */
+    nativeCommandGuidanceLines?: string[];
     runtimeInfo?: {
         agentId?: string;
         host?: string;

@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/senseaudio-provider",
+  "version": "2026.4.25",
+  "private": true,
+  "description": "OpenClaw SenseAudio media-understanding provider",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

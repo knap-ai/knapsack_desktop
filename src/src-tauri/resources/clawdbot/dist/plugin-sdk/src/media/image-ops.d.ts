@@ -26,7 +26,7 @@ export declare function convertHeicToJpeg(buffer: Buffer): Promise<Buffer>;
 export declare function hasAlphaChannel(buffer: Buffer): Promise<boolean>;
 /**
  * Resizes an image to PNG format, preserving alpha channel (transparency).
- * Falls back to sharp only (no sips fallback for PNG with alpha).
+ * Falls back to the media attachments plugin only (no sips fallback for PNG with alpha).
  */
 export declare function resizeToPng(params: {
     buffer: Buffer;

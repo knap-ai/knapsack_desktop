@@ -15,6 +15,11 @@ export type PluginManifestChannelConfig = {
     label?: string;
     description?: string;
     preferOver?: string[];
+    commands?: PluginManifestChannelCommandDefaults;
+};
+export type PluginManifestChannelCommandDefaults = {
+    nativeCommandsAutoEnabled?: boolean;
+    nativeSkillsAutoEnabled?: boolean;
 };
 export type PluginManifestModelSupport = {
     /**
@@ -38,6 +43,33 @@ export type PluginManifestModelCatalogProvider = ModelCatalogProvider;
 export type PluginManifestModelCatalogAlias = ModelCatalogAlias;
 export type PluginManifestModelCatalogSuppression = ModelCatalogSuppression;
 export type PluginManifestModelCatalog = ModelCatalog;
+export type PluginManifestModelPricingModelIdTransform = "version-dots";
+export type PluginManifestModelPricingSource = {
+    provider?: string;
+    passthroughProviderModel?: boolean;
+    modelIdTransforms?: PluginManifestModelPricingModelIdTransform[];
+};
+export type PluginManifestModelPricingProvider = {
+    external?: boolean;
+    openRouter?: PluginManifestModelPricingSource | false;
+    liteLLM?: PluginManifestModelPricingSource | false;
+};
+export type PluginManifestModelPricing = {
+    providers?: Record<string, PluginManifestModelPricingProvider>;
+};
+export type PluginManifestModelIdPrefixRule = {
+    modelPrefix: string;
+    prefix: string;
+};
+export type PluginManifestModelIdNormalizationProvider = {
+    aliases?: Record<string, string>;
+    stripPrefixes?: string[];
+    prefixWhenBare?: string;
+    prefixWhenBareAfterAliasStartsWith?: PluginManifestModelIdPrefixRule[];
+};
+export type PluginManifestModelIdNormalization = {
+    providers?: Record<string, PluginManifestModelIdNormalizationProvider>;
+};
 export type PluginManifestProviderEndpoint = {
     /**
      * Core endpoint class this plugin-owned endpoint should map to. Core must
@@ -46,8 +78,24 @@ export type PluginManifestProviderEndpoint = {
     endpointClass: string;
     /** Hostnames that should resolve to this endpoint class. */
     hosts?: string[];
+    /** Host suffixes that should resolve to this endpoint class. */
+    hostSuffixes?: string[];
     /** Exact normalized base URLs that should resolve to this endpoint class. */
     baseUrls?: string[];
+    /** Static Google Vertex region metadata for exact global hosts. */
+    googleVertexRegion?: string;
+    /** Host suffix whose prefix should be exposed as the Google Vertex region. */
+    googleVertexRegionHostSuffix?: string;
+};
+export type PluginManifestProviderRequestProvider = {
+    family?: string;
+    compatibilityFamily?: "moonshot";
+    openAICompletions?: {
+        supportsStreamingUsage?: boolean;
+    };
+};
+export type PluginManifestProviderRequest = {
+    providers?: Record<string, PluginManifestProviderRequestProvider>;
 };
 export type PluginManifestActivationCapability = "provider" | "channel" | "tool" | "hook";
 export type PluginManifestActivation = {
@@ -64,6 +112,8 @@ export type PluginManifestActivation = {
     onChannels?: string[];
     /** Route kinds that should include this plugin in activation/load plans. */
     onRoutes?: string[];
+    /** Root-relative config paths that should include this plugin in startup/load plans. */
+    onConfigPaths?: string[];
     /** Broad capability hints for activation/load plans. Prefer narrower ownership metadata. */
     onCapabilities?: PluginManifestActivationCapability[];
 };
@@ -166,8 +216,14 @@ export type PluginManifest = {
      * onboarding, and model picker surfaces before provider runtime loads.
      */
     modelCatalog?: PluginManifestModelCatalog;
+    /** Manifest-owned external pricing lookup policy for provider refs. */
+    modelPricing?: PluginManifestModelPricing;
+    /** Manifest-owned model-id normalization used before provider runtime loads. */
+    modelIdNormalization?: PluginManifestModelIdNormalization;
     /** Cheap provider endpoint metadata used before provider runtime loads. */
     providerEndpoints?: PluginManifestProviderEndpoint[];
+    /** Cheap provider request metadata used before provider runtime loads. */
+    providerRequest?: PluginManifestProviderRequest;
     /** Cheap startup activation lookup for plugin-owned CLI inference backends. */
     cliBackends?: string[];
     /**
@@ -245,6 +301,7 @@ export type PluginManifestContracts = {
     webContentExtractors?: string[];
     webFetchProviders?: string[];
     webSearchProviders?: string[];
+    migrationProviders?: string[];
     tools?: string[];
 };
 export type PluginManifestMediaUnderstandingCapability = "image" | "audio" | "video";
@@ -296,7 +353,7 @@ export type PluginManifestLoadResult = {
     manifestPath: string;
 };
 export declare function resolvePluginManifestPath(rootDir: string): string;
-export declare function loadPluginManifest(rootDir: string, rejectHardlinks?: boolean): PluginManifestLoadResult;
+export declare function loadPluginManifest(rootDir: string, rejectHardlinks?: boolean, rootRealPath?: string): PluginManifestLoadResult;
 export type PluginPackageChannel = {
     id?: string;
     label?: string;
@@ -323,6 +380,7 @@ export type PluginPackageChannel = {
     quickstartAllowFrom?: boolean;
     forceAccountBinding?: boolean;
     preferSessionLookupForAnnounceTarget?: boolean;
+    commands?: PluginManifestChannelCommandDefaults;
     configuredState?: {
         specifier?: string;
         exportName?: string;

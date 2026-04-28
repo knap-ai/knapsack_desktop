@@ -1,0 +1,2 @@
+import { a as formatUninstallActionLabels, l as resolveUninstallChannelConfigKeys, n as applyPluginUninstallDirectoryRemoval, o as formatUninstallSlotResetPreview, s as planPluginUninstall, t as UNINSTALL_ACTION_LABELS } from "./uninstall-BR1Z044v.js";
+export { UNINSTALL_ACTION_LABELS, applyPluginUninstallDirectoryRemoval, formatUninstallActionLabels, formatUninstallSlotResetPreview, planPluginUninstall, resolveUninstallChannelConfigKeys };

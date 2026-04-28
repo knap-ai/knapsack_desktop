@@ -52,7 +52,7 @@ function buildAnthropicCliBackend() {
 			sessionArg: "--session-id",
 			sessionMode: "always",
 			sessionIdFields: [...CLAUDE_CLI_SESSION_ID_FIELDS],
-			systemPromptArg: "--append-system-prompt",
+			systemPromptFileArg: "--append-system-prompt-file",
 			systemPromptMode: "append",
 			systemPromptWhen: "first",
 			clearEnv: [...CLAUDE_CLI_CLEAR_ENV],

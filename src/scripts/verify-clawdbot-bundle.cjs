@@ -141,7 +141,6 @@ const CRITICAL_PACKAGES = [
   'yaml',
   'zod',
   'dotenv',
-  'express',
   'undici',
   'ajv',
   'croner',
@@ -149,19 +148,17 @@ const CRITICAL_PACKAGES = [
   'tar',
   'jszip',
   'https-proxy-agent',
-  'cli-highlight',
   'markdown-it',
-  '@anthropic-ai/vertex-sdk',
   '@mariozechner/pi-coding-agent',
-  // typebox renamed from @sinclair/typebox in openclaw 2026.4.24+
   'typebox',
   '@clack/prompts',
   '@modelcontextprotocol/sdk',
-  '@slack/web-api',
   'file-type',
   // jiti is used by gateway dist chunks for plugin loading.  Must be v2+
   // (v2 exports createJiti; v1 does not, causing a runtime SyntaxError).
   'jiti',
+  // added in openclaw 2026.4.26
+  'web-push',
 ];
 
 // Packages that must be a specific minimum major version.

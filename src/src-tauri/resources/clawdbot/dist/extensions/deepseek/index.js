@@ -1,9 +1,9 @@
-import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-D-iKoymz.js";
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BIM0n3KJ.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { t as buildDeepSeekProvider } from "../../provider-catalog-DXv0pK8e.js";
-import { t as createDeepSeekV4ThinkingWrapper } from "../../stream-BUfum08N.js";
-import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-Cu6zM9DK.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-Bqo51Ufw.js";
+import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-D-up-AZr.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { t as buildDeepSeekProvider } from "../../provider-catalog-yZgqgv-E.js";
+import { t as createDeepSeekV4ThinkingWrapper } from "../../stream-B1I6UjNm.js";
+import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-Bk3uEFij.js";
 //#region extensions/deepseek/index.ts
 const PROVIDER_ID = "deepseek";
 var deepseek_default = defineSingleProviderPluginEntry({

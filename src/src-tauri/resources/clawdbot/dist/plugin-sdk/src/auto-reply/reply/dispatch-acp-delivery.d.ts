@@ -13,6 +13,8 @@ export type AcpDispatchDeliveryCoordinator = {
     deliver: (kind: ReplyDispatchKind, payload: ReplyPayload, meta?: AcpDispatchDeliveryMeta) => Promise<boolean>;
     getBlockCount: () => number;
     getAccumulatedBlockText: () => string;
+    getAccumulatedVisibleBlockText: () => string;
+    getAccumulatedBlockTtsText: () => string;
     settleVisibleText: () => Promise<void>;
     hasDeliveredFinalReply: () => boolean;
     hasDeliveredVisibleText: () => boolean;
@@ -22,6 +24,7 @@ export type AcpDispatchDeliveryCoordinator = {
 };
 export declare function createAcpDispatchDeliveryCoordinator(params: {
     cfg: OpenClawConfig;
+    agentId?: string;
     ctx: FinalizedMsgContext;
     dispatcher: ReplyDispatcher;
     inboundAudio: boolean;

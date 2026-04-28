@@ -1,11 +1,11 @@
-import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
-import { n as asNullableRecord } from "../../record-coerce-BpObaVhi.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as note } from "../../note-D_Kkgdi2.js";
-import "../../browser-setup-tools-9t-AQFbh.js";
-import { t as resolveBrowserConfig } from "../../config-M802LKai.js";
-import "../../record-shared-_bRL1BgQ.js";
-import { i as resolveGoogleChromeExecutableForPlatform, n as readBrowserVersion, r as resolveBrowserExecutableForPlatform, t as parseBrowserMajorVersion } from "../../chrome.executables-D4vvPgJr.js";
+import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
+import { n as asNullableRecord } from "../../record-coerce-BJUjz44D.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as note } from "../../note-B6LXIgud.js";
+import "../../browser-setup-tools-CWwKc94y.js";
+import { n as resolveBrowserConfig } from "../../config-B0K_3bA1.js";
+import { i as resolveGoogleChromeExecutableForPlatform, n as readBrowserVersion, r as resolveBrowserExecutableForPlatform, t as parseBrowserMajorVersion } from "../../chrome.executables-BBSgAn9Y.js";
+import "../../record-shared-bCZHBhQa.js";
 //#region extensions/browser/src/doctor-browser.ts
 const CHROME_MCP_MIN_MAJOR = 144;
 const REMOTE_DEBUGGING_PAGES = [

@@ -6,7 +6,13 @@
  *
  * This gives child processes a chance to clean up (close connections, remove
  * temp files, terminate their own children) before being hard-killed.
+ *
+ * When the child was spawned with `detached: false` (e.g. service-managed
+ * runtime under launchd/systemd), pass `detached: false` to skip the Unix
+ * `process.kill(-pid, ...)` group-kill — it would otherwise target the
+ * gateway's own process group and SIGTERM the gateway itself. (#71662)
  */
 export declare function killProcessTree(pid: number, opts?: {
     graceMs?: number;
+    detached?: boolean;
 }): void;

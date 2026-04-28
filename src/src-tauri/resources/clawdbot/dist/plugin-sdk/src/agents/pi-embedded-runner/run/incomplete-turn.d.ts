@@ -1,9 +1,11 @@
+import { SILENT_REPLY_TOKEN } from "../../../auto-reply/tokens.js";
 import type { EmbeddedPiExecutionContract } from "../../../config/types.agent-defaults.js";
 import type { EmbeddedRunLivenessState } from "../types.js";
 import type { EmbeddedRunAttemptResult } from "./types.js";
 type ReplayMetadataAttempt = Pick<EmbeddedRunAttemptResult, "toolMetas" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "successfulCronAdds">;
 type IncompleteTurnAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCall" | "currentAttemptAssistant" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "lastToolError" | "lastAssistant" | "replayMetadata" | "promptErrorSource" | "timedOutDuringCompaction">;
 type PlanningOnlyAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCall" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "lastToolError" | "lastAssistant" | "itemLifecycle" | "replayMetadata" | "toolMetas">;
+type SilentToolResultAttempt = Pick<EmbeddedRunAttemptResult, "clientToolCall" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "lastToolError" | "messagesSnapshot" | "toolMetas">;
 type RunLivenessAttempt = Pick<EmbeddedRunAttemptResult, "lastAssistant" | "promptErrorSource" | "replayMetadata" | "timedOutDuringCompaction">;
 export declare function isIncompleteTerminalAssistantTurn(params: {
     hasAssistantVisibleText: boolean;
@@ -24,12 +26,24 @@ export type PlanningOnlyPlanDetails = {
 };
 export declare function hasCommittedUserVisibleToolDelivery(attempt: Pick<EmbeddedRunAttemptResult, "messagingToolSentTexts" | "messagingToolSentMediaUrls">): boolean;
 export declare function buildAttemptReplayMetadata(params: ReplayMetadataAttempt): EmbeddedRunAttemptResult["replayMetadata"];
+export declare function resolveAttemptReplayMetadata(attempt: {
+    replayMetadata?: EmbeddedRunAttemptResult["replayMetadata"] | null;
+}): EmbeddedRunAttemptResult["replayMetadata"];
 export declare function resolveIncompleteTurnPayloadText(params: {
     payloadCount: number;
     aborted: boolean;
     timedOut: boolean;
     attempt: IncompleteTurnAttempt;
 }): string | null;
+export declare function resolveSilentToolResultReplyPayload(params: {
+    isCronTrigger: boolean;
+    payloadCount: number;
+    aborted: boolean;
+    timedOut: boolean;
+    attempt: SilentToolResultAttempt;
+}): {
+    text: typeof SILENT_REPLY_TOKEN;
+} | null;
 export declare function resolveReplayInvalidFlag(params: {
     attempt: RunLivenessAttempt;
     incompleteTurnText?: string | null;
@@ -42,9 +56,17 @@ export declare function resolveRunLivenessState(params: {
     incompleteTurnText?: string | null;
 }): EmbeddedRunLivenessState;
 export declare function isReasoningOnlyAssistantTurn(message: unknown): boolean;
+export declare function shouldTreatEmptyAssistantReplyAsSilent(params: {
+    allowEmptyAssistantReplyAsSilent?: boolean;
+    payloadCount: number;
+    aborted: boolean;
+    timedOut: boolean;
+    attempt: IncompleteTurnAttempt;
+}): boolean;
 export declare function resolveReasoningOnlyRetryInstruction(params: {
     provider?: string;
     modelId?: string;
+    modelApi?: string;
     executionContract?: string;
     aborted: boolean;
     timedOut: boolean;
@@ -53,6 +75,7 @@ export declare function resolveReasoningOnlyRetryInstruction(params: {
 export declare function resolveEmptyResponseRetryInstruction(params: {
     provider?: string;
     modelId?: string;
+    modelApi?: string;
     executionContract?: string;
     payloadCount: number;
     aborted: boolean;

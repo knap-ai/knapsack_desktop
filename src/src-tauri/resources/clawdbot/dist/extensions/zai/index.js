@@ -1,22 +1,20 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CkOd5v2f.js";
-import { a as normalizeModelCompat } from "../../provider-model-compat-C_Djlg3U.js";
-import { i as upsertAuthProfile } from "../../profiles-RuCKjoVP.js";
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
-import { s as defaultToolStreamExtraParams } from "../../provider-stream-shared-BYe_GyIX.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-BHhtM4mz.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-BIVX-4NW.js";
-import "../../provider-auth-api-key-BVwjjhIk.js";
-import { s as TOOL_STREAM_DEFAULT_ON_HOOKS } from "../../provider-stream-CNYlhjpk.js";
-import "../../provider-stream-family-DoMxNUtY.js";
-import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-CcKpxFl6.js";
-import { t as fetchZaiUsage } from "../../provider-usage-Bi4CRsxy.js";
-import { t as detectZaiEndpoint } from "../../detect-BF4J9cVR.js";
-import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-DZujcgL5.js";
-import { c as buildZaiModelDefinition } from "../../model-definitions-DQoIKn0X.js";
-import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-B-SYmGNq.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
+import { a as normalizeModelCompat } from "../../provider-model-compat-K3Q805Kl.js";
+import { i as upsertAuthProfile } from "../../profiles-CrHNjqxk.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
+import { c as defaultToolStreamExtraParams, o as createPayloadPatchStreamWrapper, y as createToolStreamWrapper } from "../../provider-stream-shared-C_b_e9Jg.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-DHREnmQa.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-byAcxGN1.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-DbAk3IUd.js";
+import { t as fetchZaiUsage } from "../../provider-usage-BKrKiEp4.js";
+import { t as detectZaiEndpoint } from "../../detect-DPhNFXyg.js";
+import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-CboZI2Ua.js";
+import { c as buildZaiModelDefinition } from "../../model-definitions-u8pD6g7b.js";
+import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-CXQDd9vH.js";
 //#region extensions/zai/index.ts
 const PROVIDER_ID = "zai";
 const GLM5_TEMPLATE_MODEL_ID = "glm-4.7";
@@ -42,6 +40,32 @@ function resolveGlm5ForwardCompatModel(ctx) {
 }
 function resolveZaiDefaultModel(modelIdOverride) {
 	return modelIdOverride ? `zai/${modelIdOverride}` : ZAI_DEFAULT_MODEL_REF;
+}
+function isTrueParam(value) {
+	return value === true;
+}
+function shouldPreserveZaiThinking(extraParams) {
+	return isTrueParam(extraParams?.preserveThinking) || isTrueParam(extraParams?.preserve_thinking);
+}
+function isDisabledThinkingLevel(thinkingLevel) {
+	return thinkingLevel === "off";
+}
+function wrapZaiStreamFn(ctx) {
+	let streamFn = createToolStreamWrapper(ctx.streamFn, ctx.extraParams?.tool_stream !== false);
+	const preserveThinking = shouldPreserveZaiThinking(ctx.extraParams);
+	if (!isDisabledThinkingLevel(ctx.thinkingLevel) && !preserveThinking) return streamFn;
+	streamFn = createPayloadPatchStreamWrapper(streamFn, ({ payload, model }) => {
+		if (model.api !== "openai-completions" || model.provider !== PROVIDER_ID) return;
+		if (isDisabledThinkingLevel(ctx.thinkingLevel)) {
+			payload.thinking = { type: "disabled" };
+			return;
+		}
+		if (preserveThinking) payload.thinking = {
+			type: "enabled",
+			clear_thinking: false
+		};
+	});
+	return streamFn;
 }
 async function promptForZaiEndpoint(ctx) {
 	return await ctx.prompter.select({
@@ -216,7 +240,7 @@ var zai_default = definePluginEntry({
 			resolveDynamicModel: (ctx) => resolveGlm5ForwardCompatModel(ctx),
 			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
 			prepareExtraParams: (ctx) => defaultToolStreamExtraParams(ctx.extraParams),
-			...TOOL_STREAM_DEFAULT_ON_HOOKS,
+			wrapStreamFn: (ctx) => wrapZaiStreamFn(ctx),
 			resolveThinkingProfile: () => ({
 				levels: [{
 					id: "off",

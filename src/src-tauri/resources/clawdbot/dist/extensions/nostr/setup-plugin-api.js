@@ -1,4 +1,4 @@
-import { i as buildChannelConfigSchema, t as NostrConfigSchema } from "./config-schema-BHVpbt7_.js";
+import { i as buildChannelConfigSchema, t as NostrConfigSchema } from "./config-schema-Qic9jiJu.js";
 import { t as DEFAULT_RELAYS } from "./default-relays-DLwdWOTu.js";
 import { describeAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
 import { patchTopLevelChannelConfigSection } from "openclaw/plugin-sdk/setup";
@@ -105,7 +105,7 @@ const nostrSetupAdapter = {
 };
 const nostrSetupWizard = createDelegatedSetupWizardProxy({
 	channel,
-	loadWizard: async () => (await import("./setup-surface-GW7xrEvH.js").then((n) => n.r)).nostrSetupWizard,
+	loadWizard: async () => (await import("./setup-surface-DxAaUTyC.js").then((n) => n.r)).nostrSetupWizard,
 	status: { ...createStandardChannelSetupStatus$1({
 		channelLabel: "Nostr",
 		configuredLabel: "configured",

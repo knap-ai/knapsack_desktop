@@ -1,8 +1,8 @@
-import { callGateway, loadConfig } from "./subagent-announce.runtime.js";
+import { callGateway, getRuntimeConfig } from "./subagent-announce.runtime.js";
 import { readLatestAssistantReply } from "./tools/agent-step.js";
 type SubagentAnnounceOutputDeps = {
     callGateway: typeof callGateway;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     readLatestAssistantReply: typeof readLatestAssistantReply;
 };
 export type AgentWaitResult = {

@@ -51,6 +51,7 @@ export declare function buildEmbeddedRunBaseParams(params: {
     senderIsOwner: boolean | undefined;
     enforceFinalTag: boolean;
     silentExpected: boolean | undefined;
+    allowEmptyAssistantReplyAsSilent: boolean | undefined;
     provider: string;
     model: string;
     thinkLevel: import("./directives.ts").ThinkLevel | undefined;
@@ -190,6 +191,7 @@ export declare function buildEmbeddedRunExecutionParams(params: {
         senderIsOwner: boolean | undefined;
         enforceFinalTag: boolean;
         silentExpected: boolean | undefined;
+        allowEmptyAssistantReplyAsSilent: boolean | undefined;
         provider: string;
         model: string;
         thinkLevel: import("./directives.ts").ThinkLevel | undefined;

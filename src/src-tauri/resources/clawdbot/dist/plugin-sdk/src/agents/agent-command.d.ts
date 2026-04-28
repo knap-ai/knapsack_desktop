@@ -11,7 +11,7 @@ declare function prepareAgentCommandExecution(opts: AgentCommandOpts & {
     transcriptBody: string;
     cfg: import("openclaw/plugin-sdk").OpenClawConfig;
     normalizedSpawned: import("./spawned-context.js").NormalizedSpawnedRunMetadata;
-    agentCfg: import("../config/types.agent-defaults.ts").AgentDefaultsConfig | undefined;
+    agentCfg: import("openclaw/plugin-sdk/config-types").AgentDefaultsConfig | undefined;
     thinkOverride: import("../auto-reply/thinking.shared.ts").ThinkLevel | undefined;
     thinkOnce: import("../auto-reply/thinking.shared.ts").ThinkLevel | undefined;
     verboseOverride: VerboseLevel | undefined;
@@ -34,11 +34,11 @@ declare function prepareAgentCommandExecution(opts: AgentCommandOpts & {
 }>;
 export declare function agentCommand(opts: AgentCommandOpts, runtime?: RuntimeEnv, deps?: CliDeps): Promise<{
     payloads: import("../infra/outbound/payloads.ts").OutboundPayloadJson[];
-    meta: import("./pi-embedded-runner.ts").EmbeddedPiRunMeta;
+    meta: import("./pi-embedded.ts").EmbeddedPiRunMeta & import("./command/types.js").AgentCommandResultMetaOverrides;
 }>;
 export declare function agentCommandFromIngress(opts: AgentCommandIngressOpts, runtime?: RuntimeEnv, deps?: CliDeps): Promise<{
     payloads: import("../infra/outbound/payloads.ts").OutboundPayloadJson[];
-    meta: import("./pi-embedded-runner.ts").EmbeddedPiRunMeta;
+    meta: import("./pi-embedded.ts").EmbeddedPiRunMeta & import("./command/types.js").AgentCommandResultMetaOverrides;
 }>;
 export declare const __testing: {
     resolveAgentRuntimeConfig: typeof resolveAgentRuntimeConfig;

@@ -1,2 +1,2 @@
-import { a as resolveTelegramCustomCommands, i as normalizeTelegramCommandName, n as getTelegramCommandNamePattern, r as normalizeTelegramCommandDescription, t as TELEGRAM_COMMAND_NAME_PATTERN } from "../telegram-command-config-Cr50D_Uq.js";
+import { a as resolveTelegramCustomCommands, i as normalizeTelegramCommandName, n as getTelegramCommandNamePattern, r as normalizeTelegramCommandDescription, t as TELEGRAM_COMMAND_NAME_PATTERN } from "../telegram-command-config-D6dPiADx.js";
 export { TELEGRAM_COMMAND_NAME_PATTERN, getTelegramCommandNamePattern, normalizeTelegramCommandDescription, normalizeTelegramCommandName, resolveTelegramCustomCommands };

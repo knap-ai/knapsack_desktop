@@ -1,4 +1,4 @@
-import { a as buildMoonshotProvider } from "../../provider-catalog-DyN0NNis.js";
+import { a as buildMoonshotProvider } from "../../provider-catalog-BJp4gaEc.js";
 //#region extensions/moonshot/provider-discovery.ts
 const moonshotProviderDiscovery = {
 	id: "moonshot",

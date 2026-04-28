@@ -1,2 +1,2 @@
-import { n as stripOpencodeDisabledResponsesReasoningPayload, t as opencodeMediaUnderstandingProvider } from "../../media-understanding-provider-D4vZ56oJ.js";
+import { n as stripOpencodeDisabledResponsesReasoningPayload, t as opencodeMediaUnderstandingProvider } from "../../media-understanding-provider-Bf2_7P-o.js";
 export { opencodeMediaUnderstandingProvider, stripOpencodeDisabledResponsesReasoningPayload };

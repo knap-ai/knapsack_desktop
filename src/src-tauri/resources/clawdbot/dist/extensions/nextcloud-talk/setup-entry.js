@@ -1,4 +1,4 @@
-import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-CXwWQle7.js";
 //#region extensions/nextcloud-talk/setup-entry.ts
 var setup_entry_default = defineBundledChannelSetupEntry({
 	importMetaUrl: import.meta.url,

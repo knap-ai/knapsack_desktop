@@ -4,6 +4,23 @@
   "providers": [
     "vllm"
   ],
+  "providerRequest": {
+    "providers": {
+      "vllm": {
+        "family": "vllm",
+        "openAICompletions": {
+          "supportsStreamingUsage": true
+        }
+      }
+    }
+  },
+  "modelPricing": {
+    "providers": {
+      "vllm": {
+        "external": false
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "vllm": [
       "VLLM_API_KEY"

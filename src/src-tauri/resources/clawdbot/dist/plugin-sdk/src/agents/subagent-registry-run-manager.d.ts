@@ -1,4 +1,4 @@
-import { loadConfig } from "../config/config.js";
+import { getRuntimeConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
 import type { DeliveryContext } from "../utils/delivery-context.types.js";
@@ -31,7 +31,7 @@ export declare function createSubagentRunManager(params: {
     endedHookInFlightRunIds: Set<string>;
     persist(): void;
     callGateway: typeof callGateway;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoadedFn | ((args: {
         config: OpenClawConfig;
         workspaceDir?: string;

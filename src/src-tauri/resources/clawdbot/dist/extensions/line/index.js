@@ -1,10 +1,10 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-CXwWQle7.js";
 //#region extensions/line/index.ts
 let lineCardCommandPromise = null;
 async function loadLineCardCommand(api) {
 	lineCardCommandPromise ??= (async () => {
 		let registered = null;
-		const { registerLineCardCommand } = await import("../../card-command-CJhAlnyT.js");
+		const { registerLineCardCommand } = await import("../../card-command-AVHSDp5w.js");
 		registerLineCardCommand({
 			...api,
 			registerCommand(command) {

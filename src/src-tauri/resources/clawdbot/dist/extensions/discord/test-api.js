@@ -1,6 +1,6 @@
-import { t as discordPlugin } from "./channel-CGp7scNs.js";
-import { n as discordOutbound } from "./outbound-adapter-BYJSnkBS.js";
-import { t as __testing } from "./thread-bindings.manager-CruIzjJd.js";
+import { t as discordPlugin } from "./channel-X3RGyhDp.js";
+import { n as discordOutbound } from "./outbound-adapter-dmgRi1Sw.js";
+import { t as __testing } from "./thread-bindings.manager-B1hSb-ko.js";
 import { n as buildDiscordInboundAccessContext } from "./inbound-context-BauDdPGn.js";
 import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-dispatch-runtime";
 //#region extensions/discord/src/monitor/inbound-context.test-helpers.ts

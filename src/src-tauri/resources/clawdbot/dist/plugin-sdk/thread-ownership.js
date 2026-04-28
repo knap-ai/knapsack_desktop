@@ -1,5 +1,4 @@
-import { n as fetchWithSsrFGuard } from "../fetch-guard-DKbwHPzH.js";
-import { t as definePluginEntry } from "../plugin-entry-oWwpQhIC.js";
-import { d as ssrfPolicyFromDangerouslyAllowPrivateNetwork, u as ssrfPolicyFromAllowPrivateNetwork } from "../ssrf-policy-fyM1MW87.js";
-import "../thread-ownership-Cix_yTAf.js";
+import { n as fetchWithSsrFGuard } from "../fetch-guard-8smVA_M-.js";
+import { t as definePluginEntry } from "../plugin-entry-BBPiA0af.js";
+import { d as ssrfPolicyFromDangerouslyAllowPrivateNetwork, u as ssrfPolicyFromAllowPrivateNetwork } from "../ssrf-policy-BMzLPvV8.js";
 export { definePluginEntry, fetchWithSsrFGuard, ssrfPolicyFromAllowPrivateNetwork, ssrfPolicyFromDangerouslyAllowPrivateNetwork };

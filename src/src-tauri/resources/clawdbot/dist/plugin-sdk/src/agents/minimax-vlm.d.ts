@@ -6,4 +6,5 @@ export declare function minimaxUnderstandImage(params: {
     imageDataUrl: string;
     apiHost?: string;
     modelBaseUrl?: string;
+    timeoutMs?: number;
 }): Promise<string>;

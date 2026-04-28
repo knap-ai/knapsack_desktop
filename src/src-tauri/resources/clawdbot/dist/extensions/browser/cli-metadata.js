@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
 //#region extensions/browser/cli-metadata.ts
 var cli_metadata_default = definePluginEntry({
 	id: "browser",
@@ -6,7 +6,7 @@ var cli_metadata_default = definePluginEntry({
 	description: "Default browser tool plugin",
 	register(api) {
 		api.registerCli(async ({ program }) => {
-			const { registerBrowserCli } = await import("./runtime-api.js");
+			const { registerBrowserCli } = await import("../../browser-cli-CuyStFKE.js");
 			registerBrowserCli(program);
 		}, { commands: ["browser"] });
 	}

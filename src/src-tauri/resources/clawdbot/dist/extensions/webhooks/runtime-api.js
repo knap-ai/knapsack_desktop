@@ -1,3 +1,3 @@
 import { WEBHOOK_IN_FLIGHT_DEFAULTS, WEBHOOK_RATE_LIMIT_DEFAULTS, createFixedWindowRateLimiter, createWebhookInFlightLimiter, normalizeWebhookPath, readJsonWebhookBodyOrReject, resolveRequestClientIp, resolveWebhookTargetWithAuthOrReject, resolveWebhookTargetWithAuthOrRejectSync, withResolvedWebhookRequestPipeline } from "openclaw/plugin-sdk/webhook-ingress";
-import { resolveConfiguredSecretInputString } from "openclaw/plugin-sdk/config-runtime";
+import { resolveConfiguredSecretInputString } from "openclaw/plugin-sdk/secret-input-runtime";
 export { WEBHOOK_IN_FLIGHT_DEFAULTS, WEBHOOK_RATE_LIMIT_DEFAULTS, createFixedWindowRateLimiter, createWebhookInFlightLimiter, normalizeWebhookPath, readJsonWebhookBodyOrReject, resolveConfiguredSecretInputString, resolveRequestClientIp, resolveWebhookTargetWithAuthOrReject, resolveWebhookTargetWithAuthOrRejectSync, withResolvedWebhookRequestPipeline };

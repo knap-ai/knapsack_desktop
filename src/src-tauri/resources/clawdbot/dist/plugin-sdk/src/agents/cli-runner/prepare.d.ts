@@ -10,7 +10,10 @@ declare const prepareDeps: {
     getActiveMcpLoopbackRuntime: typeof getActiveMcpLoopbackRuntime;
     ensureMcpLoopbackServer: typeof ensureMcpLoopbackServer;
     createMcpLoopbackServerConfig: typeof createMcpLoopbackServerConfig;
-    resolveOpenClawDocsPath: (params: Parameters<typeof import("../docs-path.js").resolveOpenClawDocsPath>[0]) => Promise<string | null>;
+    resolveOpenClawReferencePaths: (params: Parameters<typeof import("../docs-path.js").resolveOpenClawReferencePaths>[0]) => Promise<{
+        docsPath: string | null;
+        sourcePath: string | null;
+    }>;
 };
 export declare function setCliRunnerPrepareTestDeps(overrides: Partial<typeof prepareDeps>): void;
 export declare function shouldSkipLocalCliCredentialEpoch(params: {

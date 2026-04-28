@@ -1,2 +1,2 @@
-import { t as resolveMattermostGatewayAuthBypassPaths } from "../../gateway-auth-bypass-Cc9-5Os8.js";
+import { t as resolveMattermostGatewayAuthBypassPaths } from "../../gateway-auth-bypass-D2QXpKX4.js";
 export { resolveMattermostGatewayAuthBypassPaths as resolveGatewayAuthBypassPaths };

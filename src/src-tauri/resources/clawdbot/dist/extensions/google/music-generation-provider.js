@@ -1,5 +1,5 @@
 import { createGoogleMusicGenerationProviderMetadata } from "./generation-provider-metadata.js";
-import { normalizeGoogleApiBaseUrl } from "./provider-policy.js";
+import { resolveGoogleGenerativeAiApiOrigin } from "./provider-policy.js";
 import { createGoogleGenAI } from "./google-genai-runtime.js";
 import "./api.js";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
@@ -9,7 +9,7 @@ import { extensionForMime } from "openclaw/plugin-sdk/media-mime";
 const DEFAULT_TIMEOUT_MS = 18e4;
 function resolveConfiguredGoogleMusicBaseUrl(req) {
 	const configured = normalizeOptionalString(req.cfg?.models?.providers?.google?.baseUrl);
-	return configured ? normalizeGoogleApiBaseUrl(configured) : void 0;
+	return configured ? resolveGoogleGenerativeAiApiOrigin(configured) : void 0;
 }
 function buildMusicPrompt(req) {
 	const parts = [req.prompt.trim()];

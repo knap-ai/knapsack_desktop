@@ -1,6 +1,6 @@
-import { i as resolveMatrixAccount } from "./accounts-BQVKwQa7.js";
-import { r as matrixConfigAdapter, t as MatrixConfigSchema } from "./config-schema-C83hF5qw.js";
-import { n as matrixSetupAdapter, t as createMatrixSetupWizardProxy } from "./setup-core-C_wQ1-v5.js";
+import { i as resolveMatrixAccount } from "./accounts-CvjaPPER.js";
+import { r as matrixConfigAdapter, t as MatrixConfigSchema } from "./config-schema-BK-hmF1h.js";
+import { n as matrixSetupAdapter, t as createMatrixSetupWizardProxy } from "./setup-core-vUjse8DF.js";
 import { describeAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
 import { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-config-primitives";
 const matrixSetupPlugin = {
@@ -15,7 +15,7 @@ const matrixSetupPlugin = {
 		order: 70,
 		quickstartAllowFrom: true
 	},
-	setupWizard: createMatrixSetupWizardProxy(async () => ({ matrixSetupWizard: (await import("./setup-surface-CDSiT3BY.js").then((n) => n.t)).matrixSetupWizard })),
+	setupWizard: createMatrixSetupWizardProxy(async () => ({ matrixSetupWizard: (await import("./setup-surface-N3Equur_.js").then((n) => n.t)).matrixSetupWizard })),
 	setup: matrixSetupAdapter,
 	capabilities: {
 		chatTypes: [

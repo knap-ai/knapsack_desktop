@@ -1,14 +1,12 @@
-import { n as __reExport, t as __exportAll } from "./rolldown-runtime-RkAeH_Qm.js";
-import { t as runtime_api_exports } from "./runtime-api.js";
-import { n as NostrProfileSchema } from "./config-schema-BHVpbt7_.js";
-import { a as setNostrRuntime, i as getNostrRuntime, n as nostrPlugin, o as contentToProfile, r as publishNostrProfile, t as getNostrProfileState } from "./channel-BxBnNF0E.js";
-import { o as resolveNostrAccount } from "./setup-surface-GW7xrEvH.js";
+import { o as resolveNostrAccount } from "./setup-surface-DxAaUTyC.js";
+import { getPluginRuntimeGatewayRequestScope } from "./runtime-api.js";
+import { n as NostrProfileSchema } from "./config-schema-Qic9jiJu.js";
+import { a as setNostrRuntime, i as getNostrRuntime, n as nostrPlugin, o as contentToProfile, r as publishNostrProfile, t as getNostrProfileState } from "./channel-BoDXVtc4.js";
 import { z } from "openclaw/plugin-sdk/zod";
 import { SimplePool, verifyEvent } from "nostr-tools";
 import { readJsonBodyWithLimit, requestBodyErrorToText } from "openclaw/plugin-sdk/webhook-request-guards";
 import { createFixedWindowRateLimiter } from "openclaw/plugin-sdk/webhook-ingress";
 import { isBlockedHostnameOrIp } from "openclaw/plugin-sdk/ssrf-runtime";
-export * from "openclaw/plugin-sdk/nostr";
 //#region extensions/nostr/src/nostr-profile-url-safety.ts
 function validateUrlSafety(urlStr) {
 	try {
@@ -332,7 +330,7 @@ function enforceLoopbackMutationGuards(ctx, req, res) {
 	return true;
 }
 function enforceGatewayMutationScope(ctx, accountId, res) {
-	const runtimeScopes = (0, runtime_api_exports.getPluginRuntimeGatewayRequestScope)()?.client?.connect?.scopes;
+	const runtimeScopes = getPluginRuntimeGatewayRequestScope()?.client?.connect?.scopes;
 	if ((Array.isArray(runtimeScopes) ? runtimeScopes : []).includes(PROFILE_MUTATION_SCOPE)) return true;
 	ctx.log?.warn?.(`[${accountId}] Rejected profile mutation missing ${PROFILE_MUTATION_SCOPE}`);
 	sendJson(res, 403, {
@@ -530,12 +528,5 @@ async function handleImportProfile(accountId, ctx, req, res) {
 	});
 	return true;
 }
-__reExport(/* @__PURE__ */ __exportAll({
-	createNostrProfileHttpHandler: () => createNostrProfileHttpHandler,
-	getNostrRuntime: () => getNostrRuntime,
-	nostrPlugin: () => nostrPlugin,
-	resolveNostrAccount: () => resolveNostrAccount,
-	setNostrRuntime: () => setNostrRuntime
-}), runtime_api_exports);
 //#endregion
-export { createNostrProfileHttpHandler, getNostrRuntime, nostrPlugin, resolveNostrAccount, setNostrRuntime };
+export { createNostrProfileHttpHandler, getNostrRuntime, getPluginRuntimeGatewayRequestScope, nostrPlugin, resolveNostrAccount, setNostrRuntime };

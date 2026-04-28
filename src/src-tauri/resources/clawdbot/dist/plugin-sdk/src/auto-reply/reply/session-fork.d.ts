@@ -9,3 +9,7 @@ export declare function forkSessionFromParent(params: {
     sessionId: string;
     sessionFile: string;
 } | null>;
+export declare function resolveParentForkTokenCount(params: {
+    parentEntry: SessionEntry;
+    storePath: string;
+}): Promise<number | undefined>;

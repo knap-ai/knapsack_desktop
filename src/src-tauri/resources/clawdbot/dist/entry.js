@@ -1,26 +1,68 @@
 #!/usr/bin/env node
-import { t as isMainModule } from "./is-main-C_eE8dOT.js";
-import { I as isRootHelpInvocation, L as isRootVersionInvocation } from "./logger-x0IvPL2B.js";
-import { t as resolveCliArgvInvocation } from "./argv-invocation-BgdldYWV.js";
-import { a as parseCliContainerArgs, n as applyCliProfileEnv, o as resolveCliContainerTarget, r as parseCliProfileArgs, t as normalizeWindowsArgv } from "./windows-argv-EWRb4fAz.js";
-import { t as resolveNodeStartupTlsEnvironment } from "./node-startup-env-BRa4mYVi.js";
-import { i as normalizeEnv, t as isTruthyEnvValue } from "./env-BgREcPbG.js";
-import { t as ensureOpenClawExecMarkerOnProcess } from "./openclaw-exec-env-B_Z1z9iZ.js";
-import { t as installProcessWarningFilter } from "./warning-filter-w4E2lbpW.js";
-import { t as attachChildProcessBridge } from "./child-process-bridge-nB7wOx7V.js";
+import { d as isRootHelpInvocation, f as isRootVersionInvocation, r as getCommandPositionalsWithRootOptions } from "./argv-Bh2LLxMT.js";
+import { t as isMainModule } from "./is-main-BEaTwLZn.js";
+import { t as resolveCliArgvInvocation } from "./argv-invocation-C0QUafZn.js";
+import { a as parseCliContainerArgs, n as applyCliProfileEnv, o as resolveCliContainerTarget, r as parseCliProfileArgs, t as normalizeWindowsArgv } from "./windows-argv-LT6IiqDq.js";
+import { t as resolveNodeStartupTlsEnvironment } from "./node-startup-env-Cg_zR9VI.js";
+import { i as normalizeEnv, t as isTruthyEnvValue } from "./env-BAymvSVL.js";
+import { t as ensureOpenClawExecMarkerOnProcess } from "./openclaw-exec-env-DOC4eAq6.js";
+import { t as installProcessWarningFilter } from "./warning-filter-BArCOGlQ.js";
+import { t as attachChildProcessBridge } from "./child-process-bridge-BMx3So6b.js";
 import { enableCompileCache } from "node:module";
 import process$1 from "node:process";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { spawn } from "node:child_process";
 //#region src/cli/respawn-policy.ts
+const GATEWAY_RUN_BOOLEAN_FLAGS = [
+	"--allow-unconfigured",
+	"--claude-cli-logs",
+	"--cli-backend-logs",
+	"--compact",
+	"--dev",
+	"--force",
+	"--raw-stream",
+	"--reset",
+	"--tailscale-reset-on-exit",
+	"--verbose"
+];
+const GATEWAY_RUN_VALUE_FLAGS = [
+	"--auth",
+	"--bind",
+	"--password",
+	"--password-file",
+	"--port",
+	"--raw-stream-path",
+	"--tailscale",
+	"--token",
+	"--ws-log"
+];
+function isForegroundGatewayRunArgv(argv) {
+	const positionals = getCommandPositionalsWithRootOptions(argv, {
+		commandPath: ["gateway"],
+		booleanFlags: GATEWAY_RUN_BOOLEAN_FLAGS,
+		valueFlags: GATEWAY_RUN_VALUE_FLAGS
+	});
+	if (!positionals) return false;
+	return positionals.length === 0 || positionals.length === 1 && positionals[0] === "run";
+}
 function shouldSkipRespawnForArgv(argv) {
-	return resolveCliArgvInvocation(argv).hasHelpOrVersion;
+	const invocation = resolveCliArgvInvocation(argv);
+	return invocation.hasHelpOrVersion || invocation.primary === "gateway" && isForegroundGatewayRunArgv(argv);
 }
 //#endregion
 //#region src/entry.respawn.ts
 const EXPERIMENTAL_WARNING_FLAG = "--disable-warning=ExperimentalWarning";
 const OPENCLAW_NODE_OPTIONS_READY = "OPENCLAW_NODE_OPTIONS_READY";
 const OPENCLAW_NODE_EXTRA_CA_CERTS_READY = "OPENCLAW_NODE_EXTRA_CA_CERTS_READY";
+function pathModuleForPlatform(platform) {
+	return platform === "win32" ? path.win32 : path.posix;
+}
+function resolveCliRespawnCommand(params) {
+	const basename = pathModuleForPlatform(params.platform ?? process.platform).basename(params.execPath).toLowerCase();
+	if (basename === "volta-shim" || basename === "volta-shim.exe") return "node";
+	return params.execPath;
+}
 function hasExperimentalWarningSuppressed(params = {}) {
 	const env = params.env ?? process.env;
 	const execArgv = params.execArgv ?? process.execArgv;
@@ -33,7 +75,9 @@ function buildCliRespawnPlan(params = {}) {
 	const env = params.env ?? process.env;
 	const execArgv = params.execArgv ?? process.execArgv;
 	const execPath = params.execPath ?? process.execPath;
+	const platform = params.platform ?? process.platform;
 	if (shouldSkipRespawnForArgv(argv) || isTruthyEnvValue(env.OPENCLAW_NO_RESPAWN)) return null;
+	if (platform === "win32") return null;
 	const childEnv = { ...env };
 	const childExecArgv = [...execArgv];
 	let needsRespawn = false;
@@ -57,6 +101,10 @@ function buildCliRespawnPlan(params = {}) {
 	}
 	if (!needsRespawn) return null;
 	return {
+		command: resolveCliRespawnCommand({
+			execPath,
+			platform
+		}),
 		argv: [...childExecArgv, ...argv.slice(1)],
 		env: childEnv
 	};
@@ -73,7 +121,7 @@ function tryHandleRootVersionFastPath(argv, deps = {}) {
 		process.exitCode = 1;
 	});
 	(deps.resolveVersion ?? (async () => {
-		const [{ VERSION }, { resolveCommitHash }] = await Promise.all([import("./version-LMlsBH_W.js"), import("./git-commit-Dp6P7NY7.js")]);
+		const [{ VERSION }, { resolveCommitHash }] = await Promise.all([import("./version-CADiJ9_Z.js"), import("./git-commit-B2RwgVZk.js")]);
 		return {
 			VERSION,
 			resolveCommitHash
@@ -118,7 +166,7 @@ if (!isMainModule({
 	function ensureCliRespawnReady() {
 		const plan = buildCliRespawnPlan();
 		if (!plan) return false;
-		const child = spawn(process$1.execPath, plan.argv, {
+		const child = spawn(plan.command, plan.argv, {
 			stdio: "inherit",
 			env: plan.env
 		});
@@ -156,33 +204,40 @@ if (!isMainModule({
 			applyCliProfileEnv({ profile: parsed.profile });
 			process$1.argv = parsed.argv;
 		}
-		if (!tryHandleRootVersionFastPath(process$1.argv)) runMainOrRootHelp(process$1.argv);
+		if (!tryHandleRootVersionFastPath(process$1.argv)) await runMainOrRootHelp(process$1.argv);
 	}
 }
-function tryHandleRootHelpFastPath(argv, deps = {}) {
+async function tryHandleRootHelpFastPath(argv, deps = {}) {
 	if (resolveCliContainerTarget(argv, deps.env)) return false;
 	if (!isRootHelpInvocation(argv)) return false;
 	const handleError = deps.onError ?? ((error) => {
 		console.error("[openclaw] Failed to display help:", error instanceof Error ? error.stack ?? error.message : error);
 		process$1.exitCode = 1;
 	});
-	if (deps.outputRootHelp) {
-		Promise.resolve().then(() => deps.outputRootHelp?.()).catch(handleError);
+	try {
+		if (deps.outputRootHelp) {
+			await deps.outputRootHelp();
+			return true;
+		}
+		if (!(deps.outputPrecomputedRootHelpText ?? (await import("./root-help-metadata-DK0ege7M.js")).outputPrecomputedRootHelpText)()) {
+			const { outputRootHelp } = await import("./root-help-CcutKxHf.js");
+			await outputRootHelp();
+		}
+		return true;
+	} catch (error) {
+		handleError(error);
 		return true;
 	}
-	import("./root-help-metadata-DIazjtzI.js").then(async ({ outputPrecomputedRootHelpText }) => {
-		if (outputPrecomputedRootHelpText()) return;
-		const { outputRootHelp } = await import("./root-help-id3SfIWm.js");
-		await outputRootHelp();
-	}).catch(handleError);
-	return true;
 }
-function runMainOrRootHelp(argv) {
-	if (tryHandleRootHelpFastPath(argv)) return;
-	import("./run-main-bbWXFk-0.js").then(({ runCli }) => runCli(argv)).catch((error) => {
+async function runMainOrRootHelp(argv) {
+	if (await tryHandleRootHelpFastPath(argv)) return;
+	try {
+		const { runCli } = await import("./cli/run-main.js");
+		await runCli(argv);
+	} catch (error) {
 		console.error("[openclaw] Failed to start CLI:", error instanceof Error ? error.stack ?? error.message : error);
 		process$1.exitCode = 1;
-	});
+	}
 }
 //#endregion
 export { tryHandleRootHelpFastPath };

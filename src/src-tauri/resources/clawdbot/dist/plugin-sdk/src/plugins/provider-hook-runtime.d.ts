@@ -18,12 +18,20 @@ export declare function resolveProviderPluginsForHooks(params: {
     env?: NodeJS.ProcessEnv;
     onlyPluginIds?: string[];
     providerRefs?: string[];
+    applyAutoEnable?: boolean;
+    bundledProviderAllowlistCompat?: boolean;
+    bundledProviderVitestCompat?: boolean;
+    installBundledRuntimeDeps?: boolean;
 }): ProviderPlugin[];
 export declare function resolveProviderRuntimePlugin(params: {
     provider: string;
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    applyAutoEnable?: boolean;
+    bundledProviderAllowlistCompat?: boolean;
+    bundledProviderVitestCompat?: boolean;
+    installBundledRuntimeDeps?: boolean;
 }): ProviderPlugin | undefined;
 export declare function resolveProviderHookPlugin(params: {
     provider: string;

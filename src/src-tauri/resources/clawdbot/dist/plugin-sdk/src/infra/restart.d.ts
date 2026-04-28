@@ -8,6 +8,12 @@ export type RestartAuditInfo = {
     clientIp?: string;
     changedPaths?: string[];
 };
+export declare function writeGatewayRestartIntentSync(opts: {
+    env?: NodeJS.ProcessEnv;
+    targetPid?: number;
+}): boolean;
+export declare function clearGatewayRestartIntentSync(env?: NodeJS.ProcessEnv): void;
+export declare function consumeGatewayRestartIntentSync(env?: NodeJS.ProcessEnv, now?: number): boolean;
 /**
  * Register a callback that scheduleGatewaySigusr1Restart checks before emitting SIGUSR1.
  * The callback should return the number of pending items (0 = safe to restart).
@@ -19,12 +25,13 @@ export declare function setPreRestartDeferralCheck(fn: () => number): void;
  * Both scheduleGatewaySigusr1Restart and the config watcher should use this
  * to ensure only one restart fires.
  */
-export declare function emitGatewayRestart(): boolean;
+export declare function emitGatewayRestart(reasonOverride?: string): boolean;
 export declare function setGatewaySigusr1RestartPolicy(opts?: {
     allowExternal?: boolean;
 }): void;
 export declare function isGatewaySigusr1RestartExternallyAllowed(): boolean;
 export declare function consumeGatewaySigusr1RestartAuthorization(): boolean;
+export declare function peekGatewaySigusr1RestartReason(): string | undefined;
 /**
  * Mark the currently emitted SIGUSR1 restart cycle as consumed by the run loop.
  * This explicitly advances the cycle state instead of resetting emit guards inside
@@ -33,6 +40,7 @@ export declare function consumeGatewaySigusr1RestartAuthorization(): boolean;
 export declare function markGatewaySigusr1RestartHandled(): void;
 export type RestartDeferralHooks = {
     onDeferring?: (pending: number) => void;
+    onStillPending?: (pending: number, elapsedMs: number) => void;
     onReady?: () => void;
     onTimeout?: (pending: number, elapsedMs: number) => void;
     onCheckError?: (err: unknown) => void;
@@ -42,7 +50,8 @@ export type RestartEmitHooks = {
     afterEmitRejected?: () => Promise<void>;
 };
 /**
- * Poll pending work until it drains (or times out), then emit one restart signal.
+ * Poll pending work until it drains, then emit one restart signal.
+ * A positive maxWaitMs keeps the old capped behavior for explicit configs.
  * Shared by both the direct RPC restart path and the config watcher path.
  */
 export declare function deferGatewayRestartUntilIdle(opts: {
@@ -51,6 +60,7 @@ export declare function deferGatewayRestartUntilIdle(opts: {
     emitHooks?: RestartEmitHooks;
     pollMs?: number;
     maxWaitMs?: number;
+    reason?: string;
 }): void;
 export declare function triggerOpenClawRestart(): RestartAttempt;
 export type ScheduledRestart = {

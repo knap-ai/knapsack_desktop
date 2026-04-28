@@ -1,17 +1,22 @@
-import { r as describeImagesWithModel, t as describeImageWithModel } from "../../image-runtime-tqu_Maks.js";
-import "../../media-understanding-CQEEIK7j.js";
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { n as buildApiKeyCredential } from "../../provider-auth-helpers-BIVX-4NW.js";
-import "../../provider-auth-B7ecZcum.js";
-import { r as resolvePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import { r as buildOllamaProvider } from "../../provider-models-13s6KSAW.js";
-import { i as promptAndConfigureOllama, n as configureOllamaNonInteractive, r as ensureOllamaModelPulled } from "../../setup-BRcVshwu.js";
-import { d as resolveConfiguredOllamaProviderConfig, l as isOllamaCompatProvider, o as createConfiguredOllamaCompatStreamWrapper, s as createConfiguredOllamaStreamFn } from "../../stream-T_wlRoVr.js";
-import "../../api-D8UaXZCp.js";
-import { i as resolveOllamaDiscoveryResult, n as OLLAMA_PROVIDER_ID, r as hasMeaningfulExplicitOllamaConfig, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-HsqYWuXT.js";
-import { n as createOllamaEmbeddingProvider, t as DEFAULT_OLLAMA_EMBEDDING_MODEL } from "../../embedding-provider-Cq3fKadr.js";
-import { t as createOllamaWebSearchProvider } from "../../web-search-provider-BwRr1riq.js";
+import { n as isWSL2Sync } from "../../wsl-C4GCiuy8.js";
+import { r as describeImagesWithModel, t as describeImageWithModel } from "../../image-runtime-WuEL-GZW.js";
+import "../../media-understanding-BkzEkGaw.js";
+import { b as buildOpenAICompatibleReplayPolicy, r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { n as buildApiKeyCredential } from "../../provider-auth-helpers-byAcxGN1.js";
+import "../../provider-auth-LNc11avL.js";
+import "../../runtime-env-CnUCUUx1.js";
+import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import { i as buildOllamaProvider, t as readProviderBaseUrl } from "../../provider-base-url-DttoVyCf.js";
+import { i as promptAndConfigureOllama, n as configureOllamaNonInteractive, r as ensureOllamaModelPulled } from "../../setup-DhUe8mAT.js";
+import { d as resolveConfiguredOllamaProviderConfig, l as isOllamaCompatProvider, o as createConfiguredOllamaCompatStreamWrapper, s as createConfiguredOllamaStreamFn } from "../../stream-DqtY6hzn.js";
+import "../../api-B-f2-bMd.js";
+import { i as shouldUseSyntheticOllamaAuth, n as OLLAMA_PROVIDER_ID, r as resolveOllamaDiscoveryResult, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-DpKWxumG.js";
+import { n as createOllamaEmbeddingProvider, t as DEFAULT_OLLAMA_EMBEDDING_MODEL } from "../../embedding-provider-D2H_gTZY.js";
+import { t as createOllamaWebSearchProvider } from "../../web-search-provider-BVmhoR1c.js";
+import { access } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 //#region extensions/ollama/src/media-understanding-provider.ts
 const ollamaMediaUnderstandingProvider = {
 	id: OLLAMA_PROVIDER_ID,
@@ -36,6 +41,7 @@ const ollamaMemoryEmbeddingProviderAdapter = {
 			provider,
 			runtime: {
 				id: "ollama",
+				inlineBatchTimeoutMs: 10 * 6e4,
 				cacheKeyData: {
 					provider: "ollama",
 					model: client.model
@@ -44,6 +50,66 @@ const ollamaMemoryEmbeddingProviderAdapter = {
 		};
 	}
 };
+//#endregion
+//#region extensions/ollama/src/wsl2-crash-loop-check.ts
+const execFileAsync = promisify(execFile);
+const SYSTEMCTL_TIMEOUT_MS = 5e3;
+const WSL_CUDA_MARKERS = [
+	"/dev/dxg",
+	"/usr/lib/wsl/lib/nvidia-smi",
+	"/usr/lib/wsl/lib/libcuda.so.1",
+	"/usr/local/cuda"
+];
+function parseSystemctlShowProperties(stdout) {
+	const properties = /* @__PURE__ */ new Map();
+	for (const line of stdout.split(/\r?\n/u)) {
+		const separator = line.indexOf("=");
+		if (separator <= 0) continue;
+		properties.set(line.slice(0, separator), line.slice(separator + 1));
+	}
+	return properties;
+}
+async function isOllamaEnabledWithRestartAlways() {
+	try {
+		const { stdout } = await execFileAsync("systemctl", [
+			"show",
+			"ollama.service",
+			"--property=UnitFileState,Restart",
+			"--no-pager"
+		], { timeout: SYSTEMCTL_TIMEOUT_MS });
+		const properties = parseSystemctlShowProperties(stdout);
+		return properties.get("UnitFileState") === "enabled" && properties.get("Restart") === "always";
+	} catch {
+		return false;
+	}
+}
+async function hasWslCuda() {
+	for (const marker of WSL_CUDA_MARKERS) try {
+		await access(marker);
+		return true;
+	} catch {}
+	return false;
+}
+async function checkWsl2CrashLoopRisk(logger) {
+	try {
+		if (!isWSL2Sync()) return;
+		if (!await isOllamaEnabledWithRestartAlways()) return;
+		if (!await hasWslCuda()) return;
+		logger.warn([
+			"[ollama] WSL2 crash-loop risk: ollama.service is enabled with Restart=always and CUDA is visible.",
+			"On WSL2, GPU-backed Ollama can pin host memory while loading a model.",
+			"Hyper-V memory reclaim cannot always reclaim those pinned pages, so Windows can terminate and restart the WSL2 VM.",
+			"",
+			"Common evidence: repeated WSL2 reboots, high CPU in app.slice at startup, and SIGTERM from systemd rather than the Linux OOM killer.",
+			"See: https://github.com/ollama/ollama/issues/11317",
+			"",
+			"Mitigation:",
+			"  1. Disable autostart: sudo systemctl disable ollama",
+			"  2. Add [experimental] autoMemoryReclaim=disabled to %USERPROFILE%\\.wslconfig on Windows, then run wsl --shutdown",
+			"  3. Set OLLAMA_KEEP_ALIVE=5m in the Ollama service environment or start ollama serve manually when needed"
+		].join("\n"));
+	} catch {}
+}
 //#endregion
 //#region extensions/ollama/index.ts
 function usesOllamaOpenAICompatTransport(model) {
@@ -58,6 +124,7 @@ var ollama_default = definePluginEntry({
 	name: "Ollama Provider",
 	description: "Bundled Ollama provider plugin",
 	register(api) {
+		if (api.registrationMode === "full") checkWsl2CrashLoopRisk(api.logger);
 		api.registerMemoryEmbeddingProvider(ollamaMemoryEmbeddingProviderAdapter);
 		api.registerMediaUnderstandingProvider(ollamaMediaUnderstandingProvider);
 		const startupPluginConfig = api.pluginConfig ?? {};
@@ -148,21 +215,33 @@ var ollama_default = definePluginEntry({
 			createStreamFn: ({ config, model, provider }) => {
 				return createConfiguredOllamaStreamFn({
 					model,
-					providerBaseUrl: resolveConfiguredOllamaProviderConfig({
+					providerBaseUrl: readProviderBaseUrl(resolveConfiguredOllamaProviderConfig({
 						config,
 						providerId: provider
-					})?.baseUrl
+					}))
 				});
 			},
 			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
+			buildReplayPolicy: (ctx) => ctx.modelApi === "ollama" ? buildOpenAICompatibleReplayPolicy("openai-completions") : buildOpenAICompatibleReplayPolicy(ctx.modelApi),
 			contributeResolvedModelCompat: ({ model }) => usesOllamaOpenAICompatTransport(model) ? { supportsUsageInStreaming: true } : void 0,
 			resolveReasoningOutputMode: () => "native",
+			resolveThinkingProfile: ({ reasoning }) => ({
+				levels: reasoning === true ? [
+					{ id: "off" },
+					{ id: "low" },
+					{ id: "medium" },
+					{ id: "high" },
+					{ id: "max" }
+				] : [{ id: "off" }],
+				defaultLevel: "off"
+			}),
 			wrapStreamFn: createConfiguredOllamaCompatStreamWrapper,
-			createEmbeddingProvider: async ({ config, model, remote }) => {
+			createEmbeddingProvider: async ({ config, model, provider: embeddingProvider, remote }) => {
 				const { provider, client } = await createOllamaEmbeddingProvider({
 					config,
 					remote,
-					model: model || "nomic-embed-text"
+					model: model || "nomic-embed-text",
+					provider: embeddingProvider || "ollama"
 				});
 				return {
 					...provider,
@@ -170,11 +249,11 @@ var ollama_default = definePluginEntry({
 				};
 			},
 			matchesContextOverflowError: ({ errorMessage }) => /\bollama\b.*(?:context length|too many tokens|context window)/i.test(errorMessage) || /\btruncating input\b.*\btoo long\b/i.test(errorMessage),
-			resolveSyntheticAuth: ({ providerConfig }) => {
-				if (!hasMeaningfulExplicitOllamaConfig(providerConfig)) return;
+			resolveSyntheticAuth: ({ provider, providerConfig }) => {
+				if (!shouldUseSyntheticOllamaAuth(providerConfig)) return;
 				return {
 					apiKey: OLLAMA_DEFAULT_API_KEY,
-					source: "models.providers.ollama (synthetic local key)",
+					source: `models.providers.${provider ?? "ollama"} (synthetic local key)`,
 					mode: "api-key"
 				};
 			},

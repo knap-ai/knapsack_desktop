@@ -1,10 +1,11 @@
-import { a as recordMessageReply, c as sendCronMessage, d as sendPhoto, f as sendProactiveMessage, h as sendVoice, l as sendDocument, m as sendVideoMsg, n as getMessageReplyConfig, o as registerOutboundAudioAdapter, p as sendText, r as getMessageReplyStats, s as registerOutboundAudioAdapterFactory, t as checkMessageReplyLimit, u as sendMedia } from "./outbound-CNhvemR8.js";
-import { n as getBridgeLogger } from "./bootstrap-DP2UpEF-.js";
-import { a as resolveQQBotAccount, i as resolveDefaultQQBotAccountId, n as applyQQBotAccountConfig, r as listQQBotAccountIds, t as DEFAULT_ACCOUNT_ID } from "./config--Jdei9fe.js";
-import { t as qqbotPlugin } from "./channel-IJ1hgwOJ.js";
-import { O as formatErrorMessage, T as debugLog, o as getAccessToken, w as debugError } from "./sender-BZ_TJkxQ.js";
-import { t as qqbotSetupPlugin } from "./channel.setup-CW7WojiA.js";
-import { r as getFrameworkCommands, t as getRequestContext } from "./request-context-DM5_RNBD.js";
+import { C as recordMessageReply, E as setOutboundAudioPort, S as getMessageReplyStats, T as OUTBOUND_ERROR_CODES, _ as sendVoice, a as sendText, b as checkMessageReplyLimit, d as buildMediaTarget, f as parseTarget, g as sendVideoMsg, h as sendPhoto, i as sendProactiveMessage, m as sendDocument, n as sendCronMessage, p as resolveOutboundMediaPath, r as sendMedia, v as resolveUserFacingMediaError, w as DEFAULT_MEDIA_SEND_ERROR, x as getMessageReplyConfig, y as MESSAGE_REPLY_LIMIT } from "./outbound-Bf1CsgyS.js";
+import { u as getBridgeLogger } from "./resolve-D_06fV6-.js";
+import { a as resolveQQBotAccount, i as resolveDefaultQQBotAccountId, n as applyQQBotAccountConfig, r as listQQBotAccountIds, t as DEFAULT_ACCOUNT_ID } from "./config-GjAYYmNH.js";
+import { t as qqbotPlugin } from "./channel-DmZ1hKve.js";
+import { C as debugLog, L as formatErrorMessage, S as debugError, o as getAccessToken } from "./sender-C4B08bDl.js";
+import { t as qqbotSetupPlugin } from "./channel.setup-Cg9ouT-g.js";
+import { r as getFrameworkCommands, t as getRequestContext } from "./request-context-CMzqY91g.js";
+import { callGatewayTool } from "openclaw/plugin-sdk/agent-harness-runtime";
 //#region extensions/qqbot/src/engine/tools/channel-api.ts
 /**
 * QQ Channel API proxy tool core logic.
@@ -402,68 +403,122 @@ function json(data) {
 		details: data
 	};
 }
-/**
-* Execute the reminder tool logic.
-* 执行提醒工具逻辑。
-*
-* Validates params, parses time, and returns a structured result
-* containing cron job params that the framework shell passes back
-* as the tool output.
-*
-* When the AI omits `to` / `accountId`, the bridge layer can supply
-* `ctx.fallbackTo` / `ctx.fallbackAccountId` (typically resolved from
-* the request-scoped AsyncLocalStorage) to fill them in.
-*/
-function executeRemind(params, ctx = {}) {
-	if (params.action === "list") return json({
-		_instruction: "Use the cron tool immediately with the following parameters.",
-		cronParams: { action: "list" }
-	});
+function formatSchedulerError(error) {
+	return error instanceof Error ? error.message : String(error);
+}
+function prepareRemindCronAction(params, ctx = {}) {
+	if (params.action === "list") return {
+		ok: true,
+		action: "list",
+		cronAction: { action: "list" }
+	};
 	if (params.action === "remove") {
-		if (!params.jobId) return json({ error: "jobId is required when action=remove. Use action=list first." });
-		return json({
-			_instruction: "Use the cron tool immediately with the following parameters.",
-			cronParams: {
+		if (!params.jobId) return {
+			ok: false,
+			error: "jobId is required when action=remove. Use action=list first."
+		};
+		return {
+			ok: true,
+			action: "remove",
+			cronAction: {
 				action: "remove",
 				jobId: params.jobId
 			}
+		};
+	}
+	if (!params.content) return {
+		ok: false,
+		error: "content is required when action=add"
+	};
+	const resolvedTo = params.to || ctx.fallbackTo;
+	if (!resolvedTo) return {
+		ok: false,
+		error: "Unable to determine delivery target for action=add. The reminder can only be scheduled from within an active conversation."
+	};
+	if (!params.time) return {
+		ok: false,
+		error: "time is required when action=add"
+	};
+	const resolvedAccountId = ctx.fallbackAccountId || "default";
+	if (isCronExpression(params.time)) return {
+		ok: true,
+		action: "add",
+		cronAction: buildCronJob(params, resolvedTo, resolvedAccountId),
+		summary: `⏰ Recurring reminder: "${params.content}" (${params.time}, tz=${params.timezone || "Asia/Shanghai"})`
+	};
+	const delayMs = parseRelativeTime(params.time);
+	if (delayMs == null) return {
+		ok: false,
+		error: `Could not parse time format: ${params.time}. Use values like 5m, 1h, 1h30m, or a cron expression.`
+	};
+	if (delayMs < 3e4) return {
+		ok: false,
+		error: "Reminder delay must be at least 30 seconds"
+	};
+	return {
+		ok: true,
+		action: "add",
+		cronAction: buildOnceJob(params, delayMs, resolvedTo, resolvedAccountId),
+		summary: `⏰ Reminder in ${formatDelay(delayMs)}: "${params.content}"`
+	};
+}
+async function executeScheduledRemind(params, ctx, scheduler) {
+	const plan = prepareRemindCronAction(params, ctx);
+	if (!plan.ok) return json({ error: plan.error });
+	try {
+		const cronResult = await scheduler(plan.cronAction);
+		return json({
+			ok: true,
+			action: plan.action,
+			summary: plan.summary,
+			cronResult
+		});
+	} catch (error) {
+		return json({
+			error: `Failed to run Gateway cron action: ${formatSchedulerError(error)}`,
+			action: plan.action
 		});
 	}
-	if (!params.content) return json({ error: "content is required when action=add" });
-	const resolvedTo = params.to || ctx.fallbackTo;
-	if (!resolvedTo) return json({ error: "Unable to determine delivery target for action=add. The reminder can only be scheduled from within an active conversation." });
-	if (!params.time) return json({ error: "time is required when action=add" });
-	const resolvedAccountId = ctx.fallbackAccountId || "default";
-	if (isCronExpression(params.time)) return json({
-		_instruction: "Use the cron tool immediately with the following parameters. Pass cronParams verbatim — do not modify or omit any field, especially delivery.accountId — then tell the user the reminder has been scheduled.",
-		cronParams: buildCronJob(params, resolvedTo, resolvedAccountId),
-		summary: `⏰ Recurring reminder: "${params.content}" (${params.time}, tz=${params.timezone || "Asia/Shanghai"})`
-	});
-	const delayMs = parseRelativeTime(params.time);
-	if (delayMs == null) return json({ error: `Could not parse time format: ${params.time}. Use values like 5m, 1h, 1h30m, or a cron expression.` });
-	if (delayMs < 3e4) return json({ error: "Reminder delay must be at least 30 seconds" });
-	return json({
-		_instruction: "Use the cron tool immediately with the following parameters. Pass cronParams verbatim — do not modify or omit any field, especially delivery.accountId — then tell the user the reminder has been scheduled.",
-		cronParams: buildOnceJob(params, delayMs, resolvedTo, resolvedAccountId),
-		summary: `⏰ Reminder in ${formatDelay(delayMs)}: "${params.content}"`
-	});
 }
 //#endregion
 //#region extensions/qqbot/src/bridge/tools/remind.ts
-function registerRemindTool(api) {
-	api.registerTool({
+const DEFAULT_GATEWAY_TIMEOUT_MS = 6e4;
+function unexpectedCronParams(params) {
+	throw new Error(`Unsupported reminder cron action: ${JSON.stringify(params)}`);
+}
+const defaultDeps = { callCron: async (params) => {
+	switch (params.action) {
+		case "list": return await callGatewayTool("cron.list", { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, {});
+		case "remove": return await callGatewayTool("cron.remove", { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, { jobId: params.jobId });
+		case "add": return await callGatewayTool("cron.add", { timeoutMs: DEFAULT_GATEWAY_TIMEOUT_MS }, { job: params.job });
+	}
+	return unexpectedCronParams(params);
+} };
+function createRemindTool(toolContext = {}, deps = defaultDeps) {
+	return {
 		name: "qqbot_remind",
 		label: "QQBot Reminder",
-		description: "Create, list, and remove QQ reminders. Use simple parameters without manually building cron JSON.\nCreate: action=add, content=message, time=schedule (to is optional, resolved automatically from the current conversation)\nList: action=list\nRemove: action=remove, jobId=job id from list\nTime examples: \"5m\", \"1h\", \"0 8 * * *\"",
+		ownerOnly: true,
+		description: "Create, list, and remove QQ reminders. This tool schedules Gateway cron jobs directly; do not call the cron tool after it succeeds.\nCreate: action=add, content=message, time=schedule (to is optional, resolved automatically from the current conversation)\nList: action=list\nRemove: action=remove, jobId=job id from list\nTime examples: \"5m\", \"1h\", \"0 8 * * *\"",
 		parameters: RemindSchema,
 		async execute(_toolCallId, params) {
+			if (toolContext.senderIsOwner !== true) return {
+				content: [{
+					type: "text",
+					text: JSON.stringify({ error: "QQ reminders require an owner-authorized sender." })
+				}],
+				details: { error: "QQ reminders require an owner-authorized sender." }
+			};
 			const ctx = getRequestContext();
-			return executeRemind(params, {
-				fallbackTo: ctx?.target,
-				fallbackAccountId: ctx?.accountId
-			});
+			return await executeScheduledRemind(params, {
+				fallbackTo: ctx?.target ?? toolContext.deliveryContext?.to,
+				fallbackAccountId: ctx?.accountId ?? toolContext.deliveryContext?.accountId
+			}, deps.callCron);
 		}
-	}, { name: "qqbot_remind" });
+	};
+}
+function registerRemindTool(api) {
+	api.registerTool((ctx) => createRemindTool(ctx), { name: "qqbot_remind" });
 }
 //#endregion
 //#region extensions/qqbot/src/bridge/tools/index.ts
@@ -545,7 +600,7 @@ const UNEXPECTED_RESULT_TEXT = "⚠️ 命令返回了意外结果。";
 function hasFilePath(value) {
 	return typeof value === "object" && value !== null && "filePath" in value && typeof value.filePath === "string";
 }
-function buildMediaTarget(account, from) {
+function buildMediaTarget$1(account, from) {
 	return {
 		targetType: from.targetType,
 		targetId: from.targetId,
@@ -555,7 +610,7 @@ function buildMediaTarget(account, from) {
 async function dispatchFrameworkSlashResult({ result, account, from, logger }) {
 	if (typeof result === "string") return { text: result };
 	if (hasFilePath(result)) {
-		const mediaCtx = buildMediaTarget(account, from);
+		const mediaCtx = buildMediaTarget$1(account, from);
 		try {
 			await sendDocument(mediaCtx, result.filePath, { allowQQBotDataDownloads: true });
 		} catch (err) {
@@ -598,4 +653,4 @@ function registerQQBotFull(api) {
 	registerQQBotFrameworkCommands(api);
 }
 //#endregion
-export { DEFAULT_ACCOUNT_ID, applyQQBotAccountConfig, checkMessageReplyLimit, getFrameworkCommands, getMessageReplyConfig, getMessageReplyStats, listQQBotAccountIds, qqbotPlugin, qqbotSetupPlugin, recordMessageReply, registerChannelTool, registerOutboundAudioAdapter, registerOutboundAudioAdapterFactory, registerQQBotFull, registerQQBotTools, registerRemindTool, resolveDefaultQQBotAccountId, resolveQQBotAccount, sendCronMessage, sendDocument, sendMedia, sendPhoto, sendProactiveMessage, sendText, sendVideoMsg, sendVoice };
+export { DEFAULT_ACCOUNT_ID, DEFAULT_MEDIA_SEND_ERROR, MESSAGE_REPLY_LIMIT, OUTBOUND_ERROR_CODES, applyQQBotAccountConfig, buildMediaTarget, checkMessageReplyLimit, getFrameworkCommands, getMessageReplyConfig, getMessageReplyStats, listQQBotAccountIds, parseTarget, qqbotPlugin, qqbotSetupPlugin, recordMessageReply, registerChannelTool, registerQQBotFull, registerQQBotTools, registerRemindTool, resolveDefaultQQBotAccountId, resolveOutboundMediaPath, resolveQQBotAccount, resolveUserFacingMediaError, sendCronMessage, sendDocument, sendMedia, sendPhoto, sendProactiveMessage, sendText, sendVideoMsg, sendVoice, setOutboundAudioPort };

@@ -1,10 +1,10 @@
-import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
-import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
-import { et as resolveActiveTalkProviderConfig } from "../../io-Dv_xNAZB.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../error-runtime-D8vVwCEz.js";
-import "../../config-runtime-Dutm3Ah0.js";
+import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-Bje8XVt9.js";
+import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
+import { i as resolveActiveTalkProviderConfig } from "../../talk-DUMWf2rB.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../error-runtime-CrtIwOpQ.js";
+import "../../talk-config-runtime-Bl3811FS.js";
 //#region extensions/talk-voice/index.ts
 function mask(s, keep = 6) {
 	const trimmed = s.trim();
@@ -91,7 +91,7 @@ var talk_voice_default = definePluginEntry({
 				const commandLabel = resolveCommandLabel(ctx.channel);
 				const tokens = (ctx.args?.trim() ?? "").split(/\s+/).filter(Boolean);
 				const action = normalizeLowercaseStringOrEmpty(tokens[0] ?? "status");
-				const cfg = api.runtime.config.loadConfig();
+				const cfg = api.runtime.config.current();
 				const active = resolveActiveTalkProviderConfig(cfg.talk);
 				if (!active) return { text: "Talk voice is not configured.\n\nMissing: talk.provider and talk.providers.<provider>.\nSet it on the gateway, then retry." };
 				const providerId = active.provider;
@@ -146,7 +146,10 @@ var talk_voice_default = definePluginEntry({
 							...providerId === "elevenlabs" ? { voiceId: chosen.id } : {}
 						}
 					};
-					await api.runtime.config.writeConfigFile(nextConfig);
+					await api.runtime.config.replaceConfigFile({
+						nextConfig,
+						afterWrite: { mode: "auto" }
+					});
 					return { text: `✅ ${providerLabel} Talk voice set to ${(chosen.name ?? "").trim() || "(unnamed)"}\n${chosen.id}` };
 				}
 				return { text: [

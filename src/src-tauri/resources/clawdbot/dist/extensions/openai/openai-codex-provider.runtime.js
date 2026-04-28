@@ -1,14 +1,29 @@
-import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-KzKcGOUY.js";
-import "../../runtime-env-BIRphFQj.js";
+import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-CDAQsjZ7.js";
+import "../../runtime-env-CnUCUUx1.js";
 import { getOAuthApiKey as getOAuthApiKey$1, refreshOpenAICodexToken as refreshOpenAICodexToken$1 } from "@mariozechner/pi-ai/oauth";
 //#region extensions/openai/openai-codex-provider.runtime.ts
+function createOpenAICodexProviderRuntime(deps) {
+	return {
+		async getOAuthApiKey(...args) {
+			deps.ensureGlobalUndiciEnvProxyDispatcher();
+			return await deps.getOAuthApiKey(...args);
+		},
+		async refreshOpenAICodexToken(...args) {
+			deps.ensureGlobalUndiciEnvProxyDispatcher();
+			return await deps.refreshOpenAICodexToken(...args);
+		}
+	};
+}
+const runtime = createOpenAICodexProviderRuntime({
+	ensureGlobalUndiciEnvProxyDispatcher,
+	getOAuthApiKey: getOAuthApiKey$1,
+	refreshOpenAICodexToken: refreshOpenAICodexToken$1
+});
 async function getOAuthApiKey(...args) {
-	ensureGlobalUndiciEnvProxyDispatcher();
-	return await getOAuthApiKey$1(...args);
+	return await runtime.getOAuthApiKey(...args);
 }
 async function refreshOpenAICodexToken(...args) {
-	ensureGlobalUndiciEnvProxyDispatcher();
-	return await refreshOpenAICodexToken$1(...args);
+	return await runtime.refreshOpenAICodexToken(...args);
 }
 //#endregion
-export { getOAuthApiKey, refreshOpenAICodexToken };
+export { createOpenAICodexProviderRuntime, getOAuthApiKey, refreshOpenAICodexToken };

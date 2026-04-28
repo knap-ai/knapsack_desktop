@@ -6,7 +6,7 @@ import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { registerInternalHook } from "../hooks/internal-hooks.js";
 import type { PluginDiagnostic } from "./manifest-types.js";
 import type { PluginHttpRouteRegistration as RegistryTypesPluginHttpRouteRegistration, PluginRecord, PluginRegistry, PluginRegistryParams, PluginTextTransformsRegistration } from "./registry-types.js";
-import type { CliBackendPlugin, ImageGenerationProviderPlugin, MusicGenerationProviderPlugin, OpenClawPluginApi, OpenClawPluginChannelRegistration, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, OpenClawPluginCommandDefinition, OpenClawPluginGatewayRuntimeScopeSurface, OpenClawPluginHookOptions, OpenClawPluginNodeHostCommand, OpenClawPluginReloadRegistration, OpenClawPluginSecurityAuditCollector, MediaUnderstandingProviderPlugin, OpenClawPluginService, OpenClawPluginToolFactory, PluginHookHandlerMap, PluginHookName, PluginRegistrationMode, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebSearchProviderPlugin } from "./types.js";
+import type { CliBackendPlugin, ImageGenerationProviderPlugin, MusicGenerationProviderPlugin, OpenClawPluginApi, OpenClawPluginChannelRegistration, OpenClawPluginCliCommandDescriptor, OpenClawPluginCliRegistrar, OpenClawPluginCommandDefinition, OpenClawPluginGatewayRuntimeScopeSurface, OpenClawPluginHookOptions, OpenClawPluginNodeHostCommand, OpenClawPluginReloadRegistration, OpenClawPluginSecurityAuditCollector, MediaUnderstandingProviderPlugin, MigrationProviderPlugin, OpenClawPluginService, OpenClawPluginToolFactory, PluginHookHandlerMap, PluginHookName, PluginRegistrationMode, ProviderPlugin, RealtimeTranscriptionProviderPlugin, RealtimeVoiceProviderPlugin, SpeechProviderPlugin, VideoGenerationProviderPlugin, WebSearchProviderPlugin } from "./types.js";
 export type PluginHttpRouteRegistration = RegistryTypesPluginHttpRouteRegistration & {
     gatewayRuntimeScopeSurface?: OpenClawPluginGatewayRuntimeScopeSurface;
 };
@@ -44,6 +44,7 @@ export declare function createPluginRegistry(registryParams: PluginRegistryParam
     registerVideoGenerationProvider: (record: PluginRecord, provider: VideoGenerationProviderPlugin) => void;
     registerMusicGenerationProvider: (record: PluginRecord, provider: MusicGenerationProviderPlugin) => void;
     registerWebSearchProvider: (record: PluginRecord, provider: WebSearchProviderPlugin) => void;
+    registerMigrationProvider: (record: PluginRecord, provider: MigrationProviderPlugin) => void;
     registerGatewayMethod: (record: PluginRecord, method: string, handler: GatewayRequestHandler, opts?: {
         scope?: OperatorScope;
     }) => void;

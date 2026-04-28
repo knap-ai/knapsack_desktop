@@ -13,6 +13,7 @@ export declare function resolveLlmIdleTimeoutMs(params?: {
     cfg?: OpenClawConfig;
     trigger?: EmbeddedRunTrigger;
     runTimeoutMs?: number;
+    modelRequestTimeoutMs?: number;
 }): number;
 /**
  * Wraps a stream function with idle timeout detection.

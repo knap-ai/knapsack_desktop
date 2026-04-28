@@ -1,7 +1,7 @@
 //#region extensions/discord/subagent-hooks-api.ts
 let discordSubagentHooksPromise = null;
 function loadDiscordSubagentHooksModule() {
-	discordSubagentHooksPromise ??= import("./subagent-hooks-BJ7pe8E_.js").then((n) => n.i);
+	discordSubagentHooksPromise ??= import("./subagent-hooks-C96jMPbe.js").then((n) => n.i);
 	return discordSubagentHooksPromise;
 }
 function registerDiscordSubagentHooks(api) {

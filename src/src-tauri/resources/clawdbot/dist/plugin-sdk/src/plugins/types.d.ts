@@ -7,7 +7,6 @@ import type { ApiKeyCredential, AuthProfileCredential, OAuthCredential, AuthProf
 import type { AgentHarness } from "../agents/harness/types.js";
 import type { ModelCatalogEntry } from "../agents/model-catalog.types.js";
 import type { FailoverReason } from "../agents/pi-embedded-helpers/types.js";
-import type { ModelProviderRequestTransportOverrides } from "../agents/provider-request-config.js";
 import type { ProviderSystemPromptContribution } from "../agents/system-prompt-contribution.js";
 import type { PromptMode } from "../agents/system-prompt.types.js";
 import type { AnyAgentTool } from "../agents/tools/common.js";
@@ -22,6 +21,7 @@ import type { OperatorScope } from "../gateway/operator-scopes.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import type { InternalHookHandler } from "../hooks/internal-hook-types.js";
 import type { ImageGenerationProvider } from "../image-generation/types.js";
+import type { DiagnosticEventInput, DiagnosticEventMetadata, DiagnosticEventPayload } from "../infra/diagnostic-events.js";
 import type { ProviderUsageSnapshot } from "../infra/provider-usage.types.js";
 import type { MediaUnderstandingProvider } from "../media-understanding/types.js";
 import type { MusicGenerationProvider } from "../music-generation/types.js";
@@ -30,7 +30,7 @@ import type { RealtimeVoiceBridge, RealtimeVoiceBrowserSession, RealtimeVoiceBro
 import type { RuntimeEnv } from "../runtime.js";
 import type { SecurityAuditFinding } from "../security/audit.types.js";
 import type { JsonSchemaObject } from "../shared/json-schema.types.js";
-import type { SpeechDirectiveTokenParseContext, SpeechDirectiveTokenParseResult, SpeechProviderConfiguredContext, SpeechProviderConfig, SpeechProviderResolveConfigContext, SpeechProviderResolveTalkConfigContext, SpeechProviderResolveTalkOverridesContext, SpeechListVoicesRequest, SpeechProviderId, SpeechSynthesisRequest, SpeechSynthesisResult, SpeechTelephonySynthesisRequest, SpeechTelephonySynthesisResult, SpeechVoiceOption } from "../tts/provider-types.js";
+import type { SpeechDirectiveTokenParseContext, SpeechDirectiveTokenParseResult, SpeechProviderConfiguredContext, SpeechProviderConfig, SpeechProviderResolveConfigContext, SpeechProviderResolveTalkConfigContext, SpeechProviderResolveTalkOverridesContext, SpeechListVoicesRequest, SpeechProviderPrepareSynthesisContext, SpeechProviderPreparedSynthesis, SpeechProviderId, SpeechSynthesisRequest, SpeechSynthesisResult, SpeechTelephonySynthesisRequest, SpeechTelephonySynthesisResult, SpeechVoiceOption } from "../tts/provider-types.js";
 import type { VideoGenerationProvider } from "../video-generation/types.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { AgentToolResultMiddleware, AgentToolResultMiddlewareOptions } from "./agent-tool-result-middleware-types.js";
@@ -49,6 +49,7 @@ import type { ProviderDefaultThinkingPolicyContext, ProviderThinkingProfile, Pro
 import type { PluginRuntime } from "./runtime/types.js";
 import type { OpenClawPluginHookOptions, OpenClawPluginToolFactory, OpenClawPluginToolOptions } from "./tool-types.js";
 import type { WebFetchProviderPlugin, WebSearchProviderPlugin } from "./web-provider-types.js";
+type ModelProviderRequestTransportOverrides = import("../agents/provider-request-config.js").ModelProviderRequestTransportOverrides;
 export type { PluginRuntime } from "./runtime/types.js";
 export type { PluginOrigin } from "./plugin-origin.types.js";
 export type { PluginBundleFormat, PluginConfigUiHint, PluginDiagnostic, PluginFormat, } from "./manifest-types.js";
@@ -510,6 +511,7 @@ export type ProviderReplayPolicy = {
         includeCamelCase?: boolean;
     };
     dropThinkingBlocks?: boolean;
+    dropReasoningFromHistory?: boolean;
     repairToolUseResultPairing?: boolean;
     applyAssistantFirstOrderingFix?: boolean;
     validateGeminiTurns?: boolean;
@@ -701,6 +703,9 @@ export type ProviderCreateEmbeddingProviderContext = {
         headers?: Record<string, string>;
     };
     providerApiKey?: string;
+    inputType?: string;
+    queryInputType?: string;
+    documentInputType?: string;
     outputDimensionality?: number;
     taskType?: string;
 };
@@ -747,11 +752,11 @@ export type ProviderBuildUnknownModelHintContext = {
     baseUrl?: string;
 };
 /**
- * Built-in model suppression hook.
+ * Built-in model suppression hook context.
  *
- * Use this when a provider/plugin needs to hide stale upstream catalog rows or
- * replace them with a vendor-specific hint. This hook is consulted by model
- * resolution, model listing, and catalog loading.
+ * @deprecated Use manifest `modelCatalog.suppressions` for static suppression
+ * rules. Runtime suppression hooks remain as compatibility fallback for
+ * plugins that cannot express a rule declaratively yet.
  */
 export type ProviderBuiltInModelSuppressionContext = {
     config?: OpenClawConfig;
@@ -1196,6 +1201,10 @@ export type ProviderPlugin = {
      * Return `{ suppress: true }` to hide a stale upstream row. Include
      * `errorMessage` when OpenClaw should surface a provider-specific hint for
      * direct model resolution failures.
+     *
+     * @deprecated Use manifest `modelCatalog.suppressions` for static suppression
+     * rules. Runtime suppression hooks remain as compatibility fallback for
+     * plugins that cannot express a rule declaratively yet.
      */
     suppressBuiltInModel?: (ctx: ProviderBuiltInModelSuppressionContext) => ProviderBuiltInModelSuppressionResult | null | undefined;
     /**
@@ -1406,6 +1415,7 @@ export type SpeechProviderPlugin = {
     parseDirectiveToken?: (ctx: SpeechDirectiveTokenParseContext) => SpeechDirectiveTokenParseResult;
     resolveTalkConfig?: (ctx: SpeechProviderResolveTalkConfigContext) => SpeechProviderConfig;
     resolveTalkOverrides?: (ctx: SpeechProviderResolveTalkOverridesContext) => SpeechProviderConfig | undefined;
+    prepareSynthesis?: (ctx: SpeechProviderPrepareSynthesisContext) => SpeechProviderPreparedSynthesis | undefined | Promise<SpeechProviderPreparedSynthesis | undefined>;
     isConfigured: (ctx: SpeechProviderConfiguredContext) => boolean;
     synthesize: (req: SpeechSynthesisRequest) => Promise<SpeechSynthesisResult>;
     synthesizeTelephony?: (req: SpeechTelephonySynthesisRequest) => Promise<SpeechTelephonySynthesisResult>;
@@ -1523,6 +1533,8 @@ export type OpenClawPluginCommandDefinition = {
     };
     /** Description shown in /help and command menus */
     description: string;
+    /** Optional system-prompt guidance for agents when this command is registered. */
+    agentPromptGuidance?: readonly string[];
     /** Whether this command accepts arguments */
     acceptsArgs?: boolean;
     /** Whether only authorized senders can use this command (default: true) */
@@ -1612,6 +1624,10 @@ export type OpenClawPluginServiceContext = {
     workspaceDir?: string;
     stateDir: string;
     logger: PluginLogger;
+    internalDiagnostics?: {
+        emit: (event: DiagnosticEventInput) => void;
+        onEvent: (listener: (event: DiagnosticEventPayload, metadata: DiagnosticEventMetadata) => void) => () => void;
+    };
 };
 /** Background service registered by a plugin during `register(api)`. */
 export type OpenClawPluginService = {
@@ -1655,6 +1671,72 @@ export type PluginConfigMigration = (config: OpenClawConfig) => {
     config: OpenClawConfig;
     changes: string[];
 } | null | undefined;
+export type MigrationItemStatus = "planned" | "migrated" | "skipped" | "conflict" | "error";
+export type MigrationItemKind = "config" | "secret" | "memory" | "skill" | "workspace" | "session" | "file" | "archive" | "manual";
+export type MigrationItemAction = "copy" | "create" | "update" | "merge" | "append" | "archive" | "skip" | "manual";
+export type MigrationItem = {
+    id: string;
+    kind: MigrationItemKind | (string & {});
+    action: MigrationItemAction | (string & {});
+    status: MigrationItemStatus;
+    source?: string;
+    target?: string;
+    message?: string;
+    reason?: string;
+    sensitive?: boolean;
+    details?: Record<string, unknown>;
+};
+export type MigrationSummary = {
+    total: number;
+    planned: number;
+    migrated: number;
+    skipped: number;
+    conflicts: number;
+    errors: number;
+    sensitive: number;
+};
+export type MigrationDetection = {
+    found: boolean;
+    source?: string;
+    label?: string;
+    confidence?: "low" | "medium" | "high";
+    message?: string;
+};
+export type MigrationPlan = {
+    providerId: string;
+    source: string;
+    target?: string;
+    summary: MigrationSummary;
+    items: MigrationItem[];
+    warnings?: string[];
+    nextSteps?: string[];
+    metadata?: Record<string, unknown>;
+};
+export type MigrationApplyResult = MigrationPlan & {
+    backupPath?: string;
+    reportDir?: string;
+};
+export type MigrationProviderContext = {
+    config: OpenClawConfig;
+    runtime?: PluginRuntime;
+    logger: PluginLogger;
+    stateDir: string;
+    source?: string;
+    includeSecrets?: boolean;
+    overwrite?: boolean;
+    backupPath?: string;
+    reportDir?: string;
+    signal?: AbortSignal;
+};
+/** Migration source implemented by a plugin and orchestrated by `openclaw migrate`. */
+export type MigrationProviderPlugin = {
+    id: string;
+    label: string;
+    description?: string;
+    detect?: (ctx: MigrationProviderContext) => MigrationDetection | Promise<MigrationDetection>;
+    plan: (ctx: MigrationProviderContext) => MigrationPlan | Promise<MigrationPlan>;
+    apply: (ctx: MigrationProviderContext, plan?: MigrationPlan) => MigrationApplyResult | Promise<MigrationApplyResult>;
+};
 export type PluginSetupAutoEnableContext = {
     config: OpenClawConfig;
     env: NodeJS.ProcessEnv;
@@ -1718,6 +1800,8 @@ export type OpenClawPluginApi = {
     registerTextTransforms: (transforms: PluginTextTransformRegistration) => void;
     /** Register a lightweight config migration that can run before plugin runtime loads. */
     registerConfigMigration: (migrate: PluginConfigMigration) => void;
+    /** Register an importer for `openclaw migrate` (migration capability). */
+    registerMigrationProvider: (provider: MigrationProviderPlugin) => void;
     /** Register a lightweight config probe that can auto-enable this plugin generically. */
     registerAutoEnableProbe: (probe: PluginSetupAutoEnableProbe) => void;
     /** Register a native model/provider plugin (text inference capability). */

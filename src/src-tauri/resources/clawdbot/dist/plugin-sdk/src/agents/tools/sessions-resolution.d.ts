@@ -19,6 +19,10 @@ export declare function resolveInternalSessionKey(params: {
     mainKey: string;
     requesterInternalKey?: string;
 }): string;
+export declare function resolveCurrentSessionClientAlias(params: {
+    key: string;
+    requesterInternalKey?: string;
+}): string | undefined;
 export { listSpawnedSessionKeys };
 export declare function isRequesterSpawnedSessionVisible(params: {
     requesterSessionKey: string;

@@ -8,7 +8,7 @@ export type ConfiguredProviderCatalogEntry = {
     provider: string;
     contextWindow?: number;
     reasoning?: boolean;
-    input?: Array<"text" | "image" | "document">;
+    input?: Array<"text" | "image" | "audio" | "video" | "document">;
 };
 export declare function readConfiguredProviderCatalogEntries(params: {
     config?: OpenClawConfig;

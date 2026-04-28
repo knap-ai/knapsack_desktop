@@ -1,32 +1,32 @@
-import { i as formatErrorMessage } from "../../errors-Jbvi20TW.js";
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
-import { n as asNullableRecord } from "../../record-coerce-BpObaVhi.js";
-import { o as parseAgentSessionKey } from "../../session-key-utils-BT0y7mVK.js";
-import { p as resolveSessionAgentId } from "../../agent-scope-_6dFncNS.js";
-import { n as parseNonNegativeByteSize } from "../../zod-schema-Q-_hlOBD.js";
-import { F as resolveMemoryDeepDreamingConfig, I as resolveMemoryDreamingConfig, P as resolveMemoryCorePluginConfig$1, z as resolveMemoryDreamingWorkspaces } from "../../dreaming-K8xreO0H.js";
-import { l as listMemoryCorpusSupplements } from "../../memory-state-I5DhT9-V.js";
-import { t as loadCombinedSessionStoreForGateway } from "../../combined-store-gateway-qDHoxMjQ.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-C_v_J0E7.js";
-import "../../pi-settings-DnGbeiAj.js";
-import { f as readNumberParam, g as readStringParam, i as asToolParamsRecord, l as jsonResult } from "../../common-B4WrK_Ib.js";
-import { a as resolveEffectiveSessionToolsVisibility, r as createSessionVisibilityGuard, t as createAgentToAgentPolicy } from "../../session-visibility-BaId4y0g.js";
-import { n as resolveCronStyleNow } from "../../current-time-GUMQXnlj.js";
-import { t as resolveMemorySearchConfig } from "../../memory-search--kG5KoFE.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../error-runtime-D8vVwCEz.js";
-import { n as resolveTranscriptStemToSessionKeys, t as extractTranscriptStemFromSessionsMemoryHit } from "../../session-transcript-hit-Dwum7uxE.js";
-import "../../memory-core-host-runtime-core-DbLpPUqA.js";
-import { i as resolveMemoryHostEventLogPath } from "../../events-D_R_jQEz.js";
-import "../../memory-core-host-events-6AXBMagt.js";
-import "../../memory-core-host-status-BfwKpmnZ.js";
-import { c as recordShortTermRecalls } from "../../short-term-promotion-CI1S22E7.js";
-import "../../dreaming-shared-CkfGe3lS.js";
-import { t as registerMemoryCli } from "../../cli-L6RFqFT9.js";
-import { n as resolveShortTermPromotionDreamingConfig, t as registerShortTermPromotionDreaming } from "../../dreaming-DugQEpYx.js";
-import { o as registerBuiltInMemoryEmbeddingProviders } from "../../manager-Cjkvk5xb.js";
-import { t as memoryRuntime } from "../../runtime-provider-Ovf31eiI.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
+import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
+import { o as parseAgentSessionKey } from "../../session-key-utils-naHBWFyS.js";
+import { p as resolveSessionAgentId } from "../../agent-scope-i10se9ty.js";
+import { n as asNullableRecord } from "../../record-coerce-BJUjz44D.js";
+import { n as parseNonNegativeByteSize } from "../../zod-schema-DjRHIl0Z.js";
+import { G as resolveMemoryDreamingConfig, J as resolveMemoryDreamingWorkspaces, U as resolveMemoryCorePluginConfig$1, W as resolveMemoryDeepDreamingConfig } from "../../dreaming-B_EmO0tQ.js";
+import { l as listMemoryCorpusSupplements } from "../../memory-state-DRkxUnJQ.js";
+import { t as loadCombinedSessionStoreForGateway } from "../../combined-store-gateway-IXcczRzK.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-D3yEVrkk.js";
+import "../../pi-settings-BIyj5b9L.js";
+import { f as readNumberParam, g as readStringParam, i as asToolParamsRecord, l as jsonResult } from "../../common-C4RGIxnG.js";
+import { a as resolveEffectiveSessionToolsVisibility, r as createSessionVisibilityGuard, t as createAgentToAgentPolicy } from "../../session-visibility-DUIfu36I.js";
+import { n as resolveCronStyleNow } from "../../current-time-CNz0_Ppu.js";
+import { t as resolveMemorySearchConfig } from "../../memory-search-BkPKyCZS.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../error-runtime-CrtIwOpQ.js";
+import { n as resolveTranscriptStemToSessionKeys, t as extractTranscriptStemFromSessionsMemoryHit } from "../../session-transcript-hit-B4W7Q06S.js";
+import "../../memory-core-host-runtime-core-BsWPAkin.js";
+import { i as resolveMemoryHostEventLogPath } from "../../events-ZT31JuP2.js";
+import "../../memory-core-host-events-MsPuZvfr.js";
+import "../../memory-core-host-status-DkRuy0l5.js";
+import { l as recordShortTermRecalls } from "../../short-term-promotion-BVtAvwJ3.js";
+import "../../dreaming-shared-De0YN-Rb.js";
+import { t as registerMemoryCli } from "../../cli-CiHSc09r.js";
+import { n as resolveShortTermPromotionDreamingConfig, t as registerShortTermPromotionDreaming } from "../../dreaming-IJthLYjI.js";
+import { o as registerBuiltInMemoryEmbeddingProviders } from "../../manager-ICKYl3BU.js";
+import { t as memoryRuntime } from "../../runtime-provider-DBC2jp8c.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { Type } from "typebox";
@@ -106,14 +106,17 @@ function registerDreamingCommand(api) {
 		acceptsArgs: true,
 		handler: async (ctx) => {
 			const [firstToken = ""] = (ctx.args?.trim() ?? "").split(/\s+/).filter(Boolean).map((token) => normalizeLowercaseStringOrEmpty(token));
-			const currentConfig = api.runtime.config.loadConfig();
+			const currentConfig = api.runtime.config.current();
 			if (!firstToken || firstToken === "help" || firstToken === "options" || firstToken === "phases") return { text: formatUsage(formatStatus(currentConfig)) };
 			if (firstToken === "status") return { text: formatStatus(currentConfig) };
 			if (firstToken === "on" || firstToken === "off") {
 				if (requiresAdminToMutateDreaming(ctx.gatewayClientScopes)) return { text: "⚠️ /dreaming on|off requires operator.admin for gateway clients." };
 				const enabled = firstToken === "on";
 				const nextConfig = updateDreamingEnabledInConfig(currentConfig, enabled);
-				await api.runtime.config.writeConfigFile(nextConfig);
+				await api.runtime.config.replaceConfigFile({
+					nextConfig,
+					afterWrite: { mode: "auto" }
+				});
 				return { text: [
 					`Dreaming ${enabled ? "enabled" : "disabled"}.`,
 					"",
@@ -394,7 +397,7 @@ function deriveChatTypeFromSessionKey(sessionKey) {
 //#region extensions/memory-core/src/tools.shared.ts
 let memoryToolRuntimePromise = null;
 async function loadMemoryToolRuntime() {
-	memoryToolRuntimePromise ??= import("../../tools.runtime-B_ugF814.js");
+	memoryToolRuntimePromise ??= import("../../tools.runtime-D7wH-zLj.js");
 	return await memoryToolRuntimePromise;
 }
 const MemorySearchSchema = Type.Object({
@@ -419,7 +422,7 @@ const MemoryGetSchema = Type.Object({
 	]))
 });
 function resolveMemoryToolContext(options) {
-	const cfg = options.config;
+	const cfg = options.getConfig?.() ?? options.config;
 	if (!cfg) return null;
 	const agentId = resolveSessionAgentId({
 		sessionKey: options.agentSessionKey,
@@ -454,7 +457,10 @@ function createMemoryTool(params) {
 		name: params.name,
 		description: params.description,
 		parameters: params.parameters,
-		execute: params.execute(ctx)
+		execute: async (toolCallId, toolParams) => {
+			const latestCtx = resolveMemoryToolContext(params.options) ?? ctx;
+			return await params.execute(latestCtx)(toolCallId, toolParams);
+		}
 	};
 }
 function buildMemorySearchUnavailableResult(error) {
@@ -780,15 +786,23 @@ var memory_core_default = definePluginEntry({
 			runtime: memoryRuntime,
 			publicArtifacts: { listArtifacts: listMemoryCorePublicArtifacts }
 		});
-		api.registerTool((ctx) => createMemorySearchTool({
-			config: ctx.config,
-			agentSessionKey: ctx.sessionKey,
-			sandboxed: ctx.sandboxed
-		}), { names: ["memory_search"] });
-		api.registerTool((ctx) => createMemoryGetTool({
-			config: ctx.config,
-			agentSessionKey: ctx.sessionKey
-		}), { names: ["memory_get"] });
+		api.registerTool((ctx) => {
+			const getConfig = () => ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
+			return createMemorySearchTool({
+				config: getConfig(),
+				getConfig,
+				agentSessionKey: ctx.sessionKey,
+				sandboxed: ctx.sandboxed
+			});
+		}, { names: ["memory_search"] });
+		api.registerTool((ctx) => {
+			const getConfig = () => ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
+			return createMemoryGetTool({
+				config: getConfig(),
+				getConfig,
+				agentSessionKey: ctx.sessionKey
+			});
+		}, { names: ["memory_get"] });
 		api.registerCli(({ program }) => {
 			registerMemoryCli(program);
 		}, { descriptors: [{

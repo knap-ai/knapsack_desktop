@@ -1,6 +1,6 @@
-import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-C1IzJjqi.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-Bje8XVt9.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 //#region extensions/phone-control/index.ts
@@ -116,7 +116,7 @@ async function disarmNow(params) {
 		restored: [],
 		removed: []
 	};
-	const cfg = api.runtime.config.loadConfig();
+	const cfg = api.runtime.config.current();
 	const allow = new Set(normalizeAllowList(cfg));
 	const deny = new Set(normalizeDenyList(cfg));
 	const removed = [];
@@ -138,7 +138,10 @@ async function disarmNow(params) {
 			allowCommands: uniqSorted([...allow]),
 			denyCommands: uniqSorted([...deny])
 		});
-		await api.runtime.config.writeConfigFile(next);
+		await api.runtime.config.replaceConfigFile({
+			nextConfig: next,
+			afterWrite: { mode: "auto" }
+		});
 	}
 	await writeArmState(statePath, null);
 	api.logger.info(`phone-control: disarmed (${reason}) stateDir=${stateDir}`);
@@ -246,7 +249,7 @@ var phone_control_default = definePluginEntry({
 					const durationMs = parseDurationMs(tokens[2]) ?? 10 * 6e4;
 					const expiresAtMs = Date.now() + durationMs;
 					const commands = resolveCommandsForGroup(group);
-					const cfg = api.runtime.config.loadConfig();
+					const cfg = api.runtime.config.current();
 					const allowSet = new Set(normalizeAllowList(cfg));
 					const denySet = new Set(normalizeDenyList(cfg));
 					const addedToAllow = [];
@@ -262,7 +265,10 @@ var phone_control_default = definePluginEntry({
 						allowCommands: uniqSorted([...allowSet]),
 						denyCommands: uniqSorted([...denySet])
 					});
-					await api.runtime.config.writeConfigFile(next);
+					await api.runtime.config.replaceConfigFile({
+						nextConfig: next,
+						afterWrite: { mode: "auto" }
+					});
 					await writeArmState(statePath, {
 						version: STATE_VERSION,
 						armedAtMs: Date.now(),

@@ -19,5 +19,7 @@ export declare function resolvePluginConfigContractsById(params: {
     env?: NodeJS.ProcessEnv;
     cache?: boolean;
     fallbackToBundledMetadata?: boolean;
+    fallbackToBundledMetadataForResolvedBundled?: boolean;
+    fallbackBundledPluginIds?: readonly string[];
     pluginIds: readonly string[];
 }): ReadonlyMap<string, PluginConfigContractMetadata>;

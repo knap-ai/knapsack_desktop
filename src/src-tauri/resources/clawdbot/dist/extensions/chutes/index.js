@@ -1,15 +1,15 @@
-import { c as normalizeOptionalString, f as readStringValue } from "../../string-coerce-C1IzJjqi.js";
-import { _ as resolveOAuthApiKeyMarker } from "../../model-auth-markers-CZrGSAU9.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
-import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-BxJ0mvCl.js";
-import "../../provider-auth-B7ecZcum.js";
-import "../../provider-auth-api-key-BVwjjhIk.js";
-import { n as loginChutes } from "../../provider-auth-login-CRY7Rv8w.js";
-import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-Bm8RwzUh.js";
-import { r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard--IypoO0_.js";
-import { n as buildStaticChutesProvider, t as buildChutesProvider } from "../../provider-catalog-Ciyeiyue.js";
+import { c as normalizeOptionalString, f as readStringValue } from "../../string-coerce-Bje8XVt9.js";
+import { _ as resolveOAuthApiKeyMarker } from "../../model-auth-markers-Huk_Auss.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
+import { t as buildOauthProviderAuthResult } from "../../provider-auth-result-BFQYR7ZD.js";
+import "../../provider-auth-LNc11avL.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { n as loginChutes } from "../../provider-auth-login-DfqBjAYS.js";
+import { r as CHUTES_DEFAULT_MODEL_REF } from "../../models-Bu3KJiZ2.js";
+import { r as applyChutesProviderConfig, t as applyChutesApiKeyConfig } from "../../onboard-DrTqQpja.js";
+import { n as buildStaticChutesProvider, t as buildChutesProvider } from "../../provider-catalog-BGQoBdqP.js";
 //#region extensions/chutes/index.ts
 const PROVIDER_ID = "chutes";
 async function runChutesOAuth(ctx) {

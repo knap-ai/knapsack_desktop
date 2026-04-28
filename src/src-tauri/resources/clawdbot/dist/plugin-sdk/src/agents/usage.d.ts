@@ -75,6 +75,11 @@ export declare function derivePromptTokens(usage?: {
     cacheRead?: number;
     cacheWrite?: number;
 }): number | undefined;
+export declare function deriveContextPromptTokens(params: {
+    lastCallUsage?: NormalizedUsage;
+    promptTokens?: number;
+    usage?: NormalizedUsage;
+}): number | undefined;
 export declare function deriveSessionTotalTokens(params: {
     usage?: {
         input?: number;

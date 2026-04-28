@@ -17,6 +17,9 @@
       "groupId": "alibaba",
       "groupLabel": "Alibaba Model Studio",
       "groupHint": "DashScope / Model Studio API key",
+      "onboardingScopes": [
+        "image-generation"
+      ],
       "optionKey": "alibabaModelStudioApiKey",
       "cliFlag": "--alibaba-model-studio-api-key",
       "cliOption": "--alibaba-model-studio-api-key <key>",

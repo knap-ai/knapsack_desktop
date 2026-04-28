@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createExaWebSearchProvider } from "../../exa-web-search-provider-CPN-Ht5w.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createExaWebSearchProvider } from "../../exa-web-search-provider-DJ-JdDrL.js";
 //#region extensions/exa/index.ts
 var exa_default = definePluginEntry({
 	id: "exa",

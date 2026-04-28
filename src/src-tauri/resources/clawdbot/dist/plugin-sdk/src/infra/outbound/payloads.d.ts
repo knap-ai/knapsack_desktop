@@ -44,6 +44,7 @@ type OutboundPayloadPlanContext = {
      * (see `pending-spawn-query.ts`).
      */
     hasPendingSpawnedChildren?: boolean;
+    extractMarkdownImages?: boolean;
 };
 export type OutboundPayloadMirror = {
     text: string;

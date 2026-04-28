@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/azure-speech",
+  "version": "2026.4.16",
+  "private": true,
+  "description": "OpenClaw Azure Speech plugin",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.js"
+    ]
+  }
+}

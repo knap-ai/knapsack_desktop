@@ -18,4 +18,9 @@ export declare function parseDiagnosticTraceparent(traceparent: string | undefin
 export declare function formatDiagnosticTraceparent(context: DiagnosticTraceContext | undefined): string | undefined;
 export declare function createDiagnosticTraceContext(input?: DiagnosticTraceContextInput): DiagnosticTraceContext;
 export declare function createChildDiagnosticTraceContext(parent: DiagnosticTraceContext, input?: Omit<DiagnosticTraceContextInput, "traceId" | "traceparent">): DiagnosticTraceContext;
+export declare function createDiagnosticTraceContextFromActiveScope(input?: Omit<DiagnosticTraceContextInput, "traceId" | "traceparent">): DiagnosticTraceContext;
 export declare function freezeDiagnosticTraceContext(context: DiagnosticTraceContext): DiagnosticTraceContext;
+export declare function getActiveDiagnosticTraceContext(): DiagnosticTraceContext | undefined;
+export declare function runWithDiagnosticTraceContext<T>(trace: DiagnosticTraceContext, callback: () => T): T;
+export declare function runWithNewDiagnosticTraceContext<T>(input: DiagnosticTraceContextInput, callback: () => T): T;
+export declare function resetDiagnosticTraceContextForTest(): void;

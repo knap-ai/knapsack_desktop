@@ -1,6 +1,7 @@
 export type { DiagnosticEventPayload } from "../infra/diagnostic-events.js";
+export type { DiagnosticEventMetadata } from "../infra/diagnostic-events.js";
 export type { DiagnosticTraceContext } from "../infra/diagnostic-trace-context.js";
-export { emitDiagnosticEvent, onDiagnosticEvent, onInternalDiagnosticEvent, } from "../infra/diagnostic-events.js";
+export { emitDiagnosticEvent, onDiagnosticEvent } from "../infra/diagnostic-events.js";
 export { createChildDiagnosticTraceContext, createDiagnosticTraceContext, formatDiagnosticTraceparent, isValidDiagnosticSpanId, isValidDiagnosticTraceFlags, isValidDiagnosticTraceId, parseDiagnosticTraceparent, } from "../infra/diagnostic-trace-context.js";
 export { redactSensitiveText } from "../logging/redact.js";
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";

@@ -1,3 +1,3 @@
-import { n as fetchWithRuntimeDispatcherOrMockedGlobal, r as isMockedFetch, t as fetchWithRuntimeDispatcher } from "../runtime-fetch-BIYI5ugS.js";
-import "../runtime-fetch-CDrTG4KH.js";
+import { n as fetchWithRuntimeDispatcherOrMockedGlobal, r as isMockedFetch, t as fetchWithRuntimeDispatcher } from "../runtime-fetch-CTAh1Igd.js";
+import "../runtime-fetch-CHEDbLga.js";
 export { fetchWithRuntimeDispatcher, fetchWithRuntimeDispatcherOrMockedGlobal, isMockedFetch };

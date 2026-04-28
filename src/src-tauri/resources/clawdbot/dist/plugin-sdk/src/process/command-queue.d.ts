@@ -59,11 +59,12 @@ export declare function getActiveTaskCount(): number;
 /**
  * Wait for all currently active tasks across all lanes to finish.
  * Polls at a short interval; resolves when no tasks are active or
- * when `timeoutMs` elapses (whichever comes first).
+ * when `timeoutMs` elapses (whichever comes first). If no timeout is passed,
+ * waits indefinitely for the active set captured at call time.
  *
  * New tasks enqueued after this call are ignored — only tasks that are
  * already executing are waited on.
  */
-export declare function waitForActiveTasks(timeoutMs: number): Promise<{
+export declare function waitForActiveTasks(timeoutMs?: number): Promise<{
     drained: boolean;
 }>;
