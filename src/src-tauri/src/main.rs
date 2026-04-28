@@ -252,6 +252,16 @@ fn setup_handler(
       .block_on(library_curator::run_curator_forever());
   });
 
+  // Memory monitor: samples our process tree's RSS and reports outliers
+  // to Sentry. Required after a Windows tester reported the app sitting
+  // at ~590 MB with no per-user telemetry to identify whether the
+  // condition is widespread.
+  std::thread::spawn(|| {
+    tokio::runtime::Runtime::new()
+      .unwrap()
+      .block_on(utils::memory_monitor::start_memory_monitor_loop());
+  });
+
   info!(
     "setup_handler: app_local_data_dir: {}",
     app_handle

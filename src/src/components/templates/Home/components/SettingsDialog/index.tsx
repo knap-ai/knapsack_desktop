@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
+import { invoke } from '@tauri-apps/api/tauri'
 
 import {
   Connection,
@@ -173,6 +174,58 @@ const UpdateSection = () => {
         {updateState.status === 'downloading' && (
           <span className="text-sm text-gray-400 animate-pulse">Installing…</span>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── Support section ──────────────────────────────────────────────────────────
+
+function SupportSection() {
+  const [logPath, setLogPath] = useState<string>('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    invoke<string>('kn_get_log_path').then(setLogPath).catch(() => {})
+  }, [])
+
+  const handleOpenLogsFolder = useCallback(async () => {
+    if (!logPath) return
+    try {
+      await invoke('kn_open_file_as_app', { path: logPath })
+    } catch {
+      // folder may not exist yet before first log write; that's fine
+    }
+  }, [logPath])
+
+  const handleCopyLogPath = useCallback(async () => {
+    if (!logPath) return
+    await navigator.clipboard.writeText(logPath)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [logPath])
+
+  return (
+    <div className="p-6 flex flex-col gap-4">
+      <Typography weight={TypographyWeight.medium}>Support</Typography>
+      <Typography className="text-zinc-500 text-sm">
+        Share your log folder with Knapsack support to help diagnose issues.
+      </Typography>
+      <div className="flex gap-3">
+        <button
+          className="px-3 py-1.5 rounded border border-zinc-300 text-sm hover:bg-zinc-100 transition-colors"
+          onClick={handleOpenLogsFolder}
+          disabled={!logPath}
+        >
+          Open logs folder
+        </button>
+        <button
+          className="px-3 py-1.5 rounded border border-zinc-300 text-sm hover:bg-zinc-100 transition-colors"
+          onClick={handleCopyLogPath}
+          disabled={!logPath}
+        >
+          {copied ? 'Copied!' : 'Copy log path'}
+        </button>
       </div>
     </div>
   )
@@ -1182,6 +1235,8 @@ export const SettingsDialog = ({
             </div>
           </div>
         </div>
+        <hr className="border-zinc-200" />
+        <SupportSection />
       </div>
     </Dialog>
   )
