@@ -13,7 +13,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAWDBOT_DIR="$(cd "$SCRIPT_DIR/../src-tauri/resources/clawdbot" && pwd)"
 PORT=28789
-TIMEOUT_S=90
+# Browser plugin downloads playwright-core (~30 MB) on cold start; allow enough
+# headroom for a slow CI network while keeping the overall bound reasonable.
+TIMEOUT_S=180
 
 STATE_DIR=""
 LOG_FILE=""
@@ -50,6 +52,7 @@ run_pass() {
   (cd "$CLAWDBOT_DIR" && node dist/entry.js gateway run \
     --allow-unconfigured \
     --verbose \
+    --force \
     --bind loopback \
     --auth token \
     --token "$GW_TOKEN" \
@@ -80,6 +83,9 @@ run_pass() {
   kill "$GW_PID" 2>/dev/null || true
   wait "$GW_PID" 2>/dev/null || true
   GW_PID=""
+
+  # Brief pause to ensure the port is fully released before the next pass.
+  sleep 2
 
   if grep -qF "plugin failed during register" "$LOG_FILE"; then
     echo "[smoke-test] FAIL: $pass_name — plugin registration errors:"
