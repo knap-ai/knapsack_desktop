@@ -46,6 +46,10 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Smoke-test gateway plugin registration
+        working-directory: src
+        run: bash scripts/smoke-test-gateway-plugins.sh
+
       - name: Run prebuild scripts
         working-directory: src
         env:
