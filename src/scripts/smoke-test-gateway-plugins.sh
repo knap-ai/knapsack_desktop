@@ -49,6 +49,7 @@ run_pass() {
   echo "[smoke-test] $pass_name: starting gateway..."
   (cd "$CLAWDBOT_DIR" && node dist/entry.js gateway run \
     --allow-unconfigured \
+    --verbose \
     --bind loopback \
     --auth token \
     --token "$GW_TOKEN" \
