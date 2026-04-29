@@ -111,4 +111,27 @@ for (const dir of clawdbotDirs) {
   }
 }
 
+// Step 3: ensure the openclaw self-link exists in each clawdbot dir so that
+// bundled extensions can resolve `openclaw/plugin-sdk/*` imports at runtime.
+for (const dir of clawdbotDirs) {
+  if (!fs.existsSync(dir)) continue;
+  const selfLinkPath = path.join(dir, 'node_modules', 'openclaw');
+  if (!fs.existsSync(selfLinkPath)) {
+    try {
+      const isWindows = process.platform === 'win32';
+      fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true });
+      fs.symlinkSync(
+        isWindows ? dir : '..',
+        selfLinkPath,
+        isWindows ? 'junction' : 'dir',
+      );
+      console.log(`[ensure-clawdbot-deps] Created openclaw self-link in ${path.relative(path.join(__dirname, '..'), dir)}/node_modules/openclaw`);
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        console.warn(`[ensure-clawdbot-deps] WARNING: could not create openclaw self-link: ${err.message}`);
+      }
+    }
+  }
+}
+
 console.log('[ensure-clawdbot-deps] Done.');

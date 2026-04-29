@@ -129,6 +129,9 @@ if (fs.existsSync(buildInfoPath)) {
 // These are the packages required by the gateway startup path — if any are missing
 // the gateway crashes immediately with ERR_MODULE_NOT_FOUND.
 const CRITICAL_PACKAGES = [
+  // Self-link: the clawdbot package IS openclaw; extensions import openclaw/plugin-sdk/*
+  // via this symlink (node_modules/openclaw -> ..).  Missing = plugins crash on load.
+  'openclaw',
   'chalk',
   'commander',
   'chokidar',
