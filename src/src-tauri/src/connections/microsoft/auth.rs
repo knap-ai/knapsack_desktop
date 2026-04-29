@@ -307,8 +307,7 @@ pub async fn refresh_user_connection(user_connection: UserConnection, email: Str
   ).await {
     Ok(response) => response,
     Err(err) => {
-      knap_log_error("Failed to refresh connection token".to_string(), Some(err), None);
-      return Err(Error::KSError(format!("Invalid refresh token")))
+      return Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
     }
   };
   let updated_user_connection = UserConnection {

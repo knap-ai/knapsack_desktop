@@ -134,18 +134,37 @@ if (missingFromRoot.length === 0) {
   process.exit(0);
 }
 
+// Read root package.json overrides — packages listed there cannot be installed
+// as direct deps (npm throws EOVERRIDE).  Skip them; they're already managed.
+let rootOverrides = new Set();
+try {
+  const rootPkg = JSON.parse(fs.readFileSync(path.join(CLAWDBOT_DIR, 'package.json'), 'utf8'));
+  for (const key of Object.keys(rootPkg.overrides || {})) rootOverrides.add(key);
+  for (const key of Object.keys(rootPkg.pnpm?.overrides || {})) rootOverrides.add(key);
+} catch { /* ignore */ }
+
 console.log(
   `[install-bundled-plugin-deps] Pass 2: installing ${missingFromRoot.length} dep(s) into root node_modules: ${missingFromRoot.join(', ')}...`,
 );
-try {
-  execSync(
-    `npm install ${missingFromRoot.join(' ')} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`,
-    { cwd: CLAWDBOT_DIR, stdio: 'inherit' },
-  );
-  console.log('[install-bundled-plugin-deps] Pass 2: done.');
-} catch (err) {
-  console.warn(`[install-bundled-plugin-deps] WARNING: Pass 2 root npm install failed: ${err.message}`);
+let pass2Installed = 0;
+let pass2Skipped = 0;
+for (const dep of missingFromRoot) {
+  if (rootOverrides.has(dep)) {
+    console.log(`[install-bundled-plugin-deps] Pass 2: skipping ${dep} (managed by overrides)`);
+    pass2Skipped++;
+    continue;
+  }
+  try {
+    execSync(
+      `npm install ${dep} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`,
+      { cwd: CLAWDBOT_DIR, stdio: 'inherit' },
+    );
+    pass2Installed++;
+  } catch (err) {
+    console.warn(`[install-bundled-plugin-deps] WARNING: Pass 2 install failed for ${dep}: ${err.message.split('\n')[0]}`);
+  }
 }
+console.log(`[install-bundled-plugin-deps] Pass 2: done (installed=${pass2Installed} skipped=${pass2Skipped}).`);
 
 // Create a self-referencing symlink so that bundled extensions can resolve
 // `openclaw/plugin-sdk/*` imports.  The clawdbot package IS the openclaw
