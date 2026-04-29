@@ -587,6 +587,17 @@ impl WorkspaceDocument {
         Ok(docs)
     }
 
+    /// Count documents whose `auto_tags` is null — used to detect first-run scenarios.
+    pub fn count_untagged() -> Result<i64, Error> {
+        let connection = get_db_conn();
+        let count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM workspace_documents WHERE auto_tags IS NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
     /// Update tags for a document.
     pub fn update_tags(id: u64, tags: Option<String>) -> Result<(), Error> {
         let connection = get_db_conn();

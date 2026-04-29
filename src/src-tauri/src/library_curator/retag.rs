@@ -16,7 +16,15 @@ use crate::error::Error;
 use crate::llm::types::{Message as LlmMessage, MessageSender};
 use crate::llm::use_cases::complete::multi_provider_completion;
 
+/// Normal per-pass cap.
 const MAX_PER_PASS: i64 = 25;
+/// Reduced cap when many untagged docs exist (first-run / large initial sync).
+/// Spreads the work across curator intervals instead of blasting the API at launch.
+const MAX_PER_PASS_FIRST_RUN: i64 = 5;
+/// If more than this many docs need tagging we treat it as a first-run scenario.
+const FIRST_RUN_THRESHOLD: i64 = 10;
+/// Pause between LLM calls to avoid rate-limit bursts.
+const INTER_CALL_DELAY_MS: u64 = 500;
 const MAX_BODY_CHARS: usize = 4_000;
 
 #[derive(Debug, Deserialize)]
@@ -28,7 +36,18 @@ struct TagResponse {
 }
 
 pub async fn retag_stale() -> Result<(), Error> {
-    let docs = WorkspaceDocument::find_untagged(MAX_PER_PASS)?;
+    let total_untagged = WorkspaceDocument::count_untagged().unwrap_or(0);
+    let limit = if total_untagged > FIRST_RUN_THRESHOLD {
+        log::info!(
+            "[library_curator/retag] {} untagged docs — first-run mode, capping at {}",
+            total_untagged, MAX_PER_PASS_FIRST_RUN
+        );
+        MAX_PER_PASS_FIRST_RUN
+    } else {
+        MAX_PER_PASS
+    };
+
+    let docs = WorkspaceDocument::find_untagged(limit)?;
     if docs.is_empty() {
         log::info!("[library_curator/retag] no stale documents");
         return Ok(());
@@ -63,6 +82,7 @@ pub async fn retag_stale() -> Result<(), Error> {
                 // On failure, leave auto_tags NULL so we retry next pass.
             }
         }
+        tokio::time::sleep(tokio::time::Duration::from_millis(INTER_CALL_DELAY_MS)).await;
     }
     Ok(())
 }
