@@ -314,6 +314,24 @@ fn is_retryable_status(status: reqwest::StatusCode) -> bool {
     || status == reqwest::StatusCode::GATEWAY_TIMEOUT
 }
 
+/// Parse the wait time from a 429 response body.
+/// Providers embed text like "Please try again in 4.183s" or "retry in 60 seconds".
+/// Falls back to exponential backoff when the body doesn't contain a clear value.
+fn parse_retry_after(text: &str, attempt: u32) -> f64 {
+  let patterns = ["try again in ", "retry in ", "wait "];
+  for pattern in patterns {
+    if let Some(idx) = text.find(pattern) {
+      let rest = &text[idx + pattern.len()..];
+      let num_str: String = rest.chars().take_while(|c| c.is_numeric() || *c == '.').collect();
+      if let Ok(secs) = num_str.parse::<f64>() {
+        return (secs + 1.0).max(1.0); // small buffer above the stated window
+      }
+    }
+  }
+  // Default: exponential backoff capped at 60s
+  (2u64.pow(attempt + 1) as f64).min(60.0)
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
 /// Retries up to 3 times on transient failures with exponential backoff.
 async fn openai_compatible_completion(
@@ -377,9 +395,9 @@ async fn openai_compatible_completion(
       Err(e) => {
         last_error = format!("{} request failed: {}", provider.name, e);
         if attempt < max_retries - 1 {
-          let wait = 2u64.pow(attempt as u32 + 1);
-          log::warn!("[completion] {} (attempt {}/{}), retrying in {}s...", last_error, attempt + 1, max_retries, wait);
-          tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+          let wait = parse_retry_after(&last_error, attempt as u32);
+          log::warn!("[completion] {} (attempt {}/{}), retrying in {:.1}s...", last_error, attempt + 1, max_retries, wait);
+          tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
           continue;
         }
         return Err(LLMError::ChatCompletionFailed(last_error));
@@ -415,12 +433,12 @@ async fn openai_compatible_completion(
 
     // Retry on transient errors (429, 500, 502, 503, 504)
     if is_retryable_status(status) && attempt < max_retries - 1 {
-      let wait = 2u64.pow(attempt as u32 + 1);
+      let wait = parse_retry_after(&text, attempt as u32);
       log::warn!(
-        "[completion] {} error {} (attempt {}/{}), retrying in {}s...",
+        "[completion] {} error {} (attempt {}/{}), retrying in {:.1}s...",
         provider.name, status, attempt + 1, max_retries, wait
       );
-      tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+      tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
       last_error = format!("{} error ({}): {}", provider.name, status, text);
       continue;
     }
@@ -493,9 +511,9 @@ async fn anthropic_completion(
       Err(e) => {
         last_error = format!("Anthropic request failed: {}", e);
         if attempt < max_retries - 1 {
-          let wait = 2u64.pow(attempt as u32 + 1);
-          log::warn!("[completion] {} (attempt {}/{}), retrying in {}s...", last_error, attempt + 1, max_retries, wait);
-          tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+          let wait = parse_retry_after(&last_error, attempt as u32);
+          log::warn!("[completion] {} (attempt {}/{}), retrying in {:.1}s...", last_error, attempt + 1, max_retries, wait);
+          tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
           continue;
         }
         return Err(LLMError::ChatCompletionFailed(last_error));
@@ -531,12 +549,12 @@ async fn anthropic_completion(
 
     // Retry on transient errors
     if is_retryable_status(status) && attempt < max_retries - 1 {
-      let wait = 2u64.pow(attempt as u32 + 1);
+      let wait = parse_retry_after(&text, attempt as u32);
       log::warn!(
-        "[completion] Anthropic error {} (attempt {}/{}), retrying in {}s...",
+        "[completion] Anthropic error {} (attempt {}/{}), retrying in {:.1}s...",
         status, attempt + 1, max_retries, wait
       );
-      tokio::time::sleep(tokio::time::Duration::from_secs(wait)).await;
+      tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
       last_error = format!("Anthropic error ({}): {}", status, text);
       continue;
     }

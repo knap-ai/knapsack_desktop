@@ -21,9 +21,10 @@ use crate::error::Error;
 /// How often the curator wakes up to look for new data to ingest.
 const CURATOR_INTERVAL_SECS: u64 = 30 * 60; // 30 minutes
 
-/// How long to wait after app startup before the first run, so we don't fight
-/// the sync pipeline for connections that are still authenticating.
-const CURATOR_STARTUP_DELAY_SECS: u64 = 60;
+/// How long to wait after app startup before the first run. 120s gives email
+/// sync time to settle before the curator's LLM calls begin, avoiding overlap
+/// that would cause rate-limit errors on first launch.
+const CURATOR_STARTUP_DELAY_SECS: u64 = 120;
 
 /// Drive the curator forever from a dedicated tokio runtime. Call this from
 /// inside `Runtime::block_on(...)` on a worker thread spawned at startup.

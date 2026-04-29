@@ -831,7 +831,7 @@ export function useFeed(
         const batch = newMessages.slice(i, i + BATCH_SIZE)
         executeClassification(batch)
 
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
 
       setTimeout(() => {
