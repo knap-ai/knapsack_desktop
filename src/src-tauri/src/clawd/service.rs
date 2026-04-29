@@ -538,6 +538,10 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     }
   }
 
+  // Always recreate the openclaw self-symlink regardless of whether any deps
+  // need installing — it must survive app updates where the bundle is replaced.
+  ensure_openclaw_self_link(&root_nm);
+
   if missing_root.is_empty() {
     return;
   }
@@ -581,12 +585,6 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     ),
   }
 
-  // Pass 3: Recreate the openclaw self-symlink (node_modules/openclaw -> ..).
-  // prune-clawdbot.cjs removes this symlink before the Tauri build to prevent
-  // Tauri's resources/clawdbot/**/* glob from following the cycle and looping
-  // forever.  Bundled extensions import 'openclaw/plugin-sdk/*' at runtime, so
-  // the symlink must exist in the deployed node_modules directory.
-  ensure_openclaw_self_link(&root_nm);
 }
 
 /// Create `node_modules/openclaw -> ..` (or a junction on Windows) so that
