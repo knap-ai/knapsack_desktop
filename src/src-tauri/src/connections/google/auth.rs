@@ -628,8 +628,7 @@ pub async fn refresh_connection_token(email: String, user_connection: UserConnec
   match google_refresh_token(email, user_connection.clone().token).await {
     Ok(access_token) => Ok(access_token),
     Err(err) => {
-      knap_log_error("Failed to refresh connection token".to_string(), Some(err), None);
-      Err(Error::KSError(format!("Invalid refresh token")))
+      Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
     }
   }
 }

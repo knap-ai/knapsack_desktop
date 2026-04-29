@@ -4610,29 +4610,35 @@ pub async fn set_service_enabled(
         }
       }
 
-      // Run "openclaw doctor --fix" to auto-migrate config for the new
-      // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
+      // Run "openclaw doctor --fix" in a background thread — same reason as
+      // macOS: Node.js can hang on DNS failure, which would block the HTTP
+      // response and cause WebKit to report "TypeError: Load failed".
       {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW_DOCTOR: u32 = 0x08000000;
-        let mut doctor_cmd = std::process::Command::new(&setup.program_args[0]);
-        doctor_cmd
-          .arg(&setup.program_args[1])
-          .args(["doctor", "--fix"])
-          .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-          .current_dir(&setup.working_dir)
-          .creation_flags(CREATE_NO_WINDOW_DOCTOR);
-        match doctor_cmd.output() {
-          Ok(out) => {
-            if !out.status.success() {
-              let stderr = String::from_utf8_lossy(&out.stderr);
-              eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
-            } else {
-              eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+        let doctor_args = setup.program_args.clone();
+        let doctor_env_map: Vec<(String, String)> = setup.env.clone();
+        let doctor_dir = setup.working_dir.clone();
+        std::thread::spawn(move || {
+          let mut doctor_cmd = std::process::Command::new(&doctor_args[0]);
+          doctor_cmd
+            .arg(&doctor_args[1])
+            .args(["doctor", "--fix"])
+            .envs(doctor_env_map.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+            .current_dir(&doctor_dir)
+            .creation_flags(CREATE_NO_WINDOW_DOCTOR);
+          match doctor_cmd.output() {
+            Ok(out) => {
+              if !out.status.success() {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
+              } else {
+                eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+              }
             }
+            Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
           }
-          Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
-        }
+        });
       }
 
       // Spawn the gateway process
@@ -5695,29 +5701,36 @@ pub async fn set_service_enabled(
       // Save for plist regeneration when the API key changes later.
       *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((program_args.clone(), env.clone()));
 
-      // Run "openclaw doctor --fix" to auto-migrate config for the new
-      // version (e.g. WhatsApp allowFrom validation, Telegram streaming rename).
-      // This is a quick, idempotent command that exits immediately.
+      // Run "openclaw doctor --fix" in a background thread so it never blocks
+      // the HTTP response.  On machines with DNS issues Node.js can hang for
+      // 30+ seconds while the runtime attempts an update check, which would
+      // cause WebKit to drop the connection and report "TypeError: Load failed".
+      // Doctor is idempotent; the gateway takes a few seconds to start, so
+      // any config migration it writes will be in place before the first read.
       {
+        let doctor_node = node_path.clone();
+        let doctor_entry = clawdbot_entry.clone();
         let doctor_env: Vec<(String, String)> = env.clone();
-        let mut doctor_cmd = std::process::Command::new(node_path.as_os_str());
-        doctor_cmd
-          .arg(clawdbot_entry.as_os_str())
-          .args(["doctor", "--fix"]);
-        for (k, v) in &doctor_env {
-          doctor_cmd.env(k, v);
-        }
-        match doctor_cmd.output() {
-          Ok(out) => {
-            if !out.status.success() {
-              let stderr = String::from_utf8_lossy(&out.stderr);
-              eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
-            } else {
-              eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
-            }
+        std::thread::spawn(move || {
+          let mut doctor_cmd = std::process::Command::new(doctor_node.as_os_str());
+          doctor_cmd
+            .arg(doctor_entry.as_os_str())
+            .args(["doctor", "--fix"]);
+          for (k, v) in &doctor_env {
+            doctor_cmd.env(k, v);
           }
-          Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
-        }
+          match doctor_cmd.output() {
+            Ok(out) => {
+              if !out.status.success() {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("[clawd/service] openclaw doctor --fix exited with {}: {}", out.status, stderr.chars().take(500).collect::<String>());
+              } else {
+                eprintln!("[clawd/service] openclaw doctor --fix completed successfully");
+              }
+            }
+            Err(e) => eprintln!("[clawd/service] WARNING: failed to run openclaw doctor --fix: {}", e),
+          }
+        });
       }
 
       // Kill any stale Chrome processes from a previous clawdbot session so
