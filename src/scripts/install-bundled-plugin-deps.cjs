@@ -146,3 +146,28 @@ try {
 } catch (err) {
   console.warn(`[install-bundled-plugin-deps] WARNING: Pass 2 root npm install failed: ${err.message}`);
 }
+
+// Create a self-referencing symlink so that bundled extensions can resolve
+// `openclaw/plugin-sdk/*` imports.  The clawdbot package IS the openclaw
+// package (same package.json name), so node_modules/openclaw -> .. lets
+// Node.js find it via normal package resolution without npm link at runtime.
+const selfLinkPath = path.join(CLAWDBOT_DIR, 'node_modules', 'openclaw');
+if (!fs.existsSync(selfLinkPath)) {
+  try {
+    // Windows needs an absolute target for junctions (no admin required).
+    // Unix uses a relative symlink which is more portable.
+    const isWindows = process.platform === 'win32';
+    fs.symlinkSync(
+      isWindows ? CLAWDBOT_DIR : '..',
+      selfLinkPath,
+      isWindows ? 'junction' : 'dir',
+    );
+    console.log('[install-bundled-plugin-deps] Created openclaw self-link in node_modules/openclaw');
+  } catch (err) {
+    if (err.code !== 'EEXIST') {
+      console.warn(`[install-bundled-plugin-deps] WARNING: could not create openclaw self-link: ${err.message}`);
+    }
+  }
+} else {
+  console.log('[install-bundled-plugin-deps] openclaw self-link already present');
+}
