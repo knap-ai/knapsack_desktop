@@ -580,6 +580,53 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       e
     ),
   }
+
+  // Pass 3: Recreate the openclaw self-symlink (node_modules/openclaw -> ..).
+  // prune-clawdbot.cjs removes this symlink before the Tauri build to prevent
+  // Tauri's resources/clawdbot/**/* glob from following the cycle and looping
+  // forever.  Bundled extensions import 'openclaw/plugin-sdk/*' at runtime, so
+  // the symlink must exist in the deployed node_modules directory.
+  ensure_openclaw_self_link(&root_nm);
+}
+
+/// Create `node_modules/openclaw -> ..` (or a junction on Windows) so that
+/// bundled extensions can resolve `openclaw/plugin-sdk/*` imports at runtime.
+/// This symlink is removed by prune-clawdbot.cjs before the Tauri build (to
+/// avoid an infinite glob cycle), so it must be recreated here at startup.
+fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
+  let link_path = root_nm.join("openclaw");
+  if link_path.exists() || link_path.symlink_metadata().is_ok() {
+    return; // already present
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    // Use mklink /J to create a directory junction — no elevation required.
+    // Symlinks (mklink /D) require SeCreateSymbolicLinkPrivilege; junctions don't.
+    let parent = root_nm.parent().unwrap_or(root_nm);
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let status = std::process::Command::new("cmd")
+      .args(["/c", "mklink", "/J"])
+      .arg(&link_path)
+      .arg(parent)
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    match status {
+      Ok(s) if s.success() => eprintln!("[clawd/service] Created openclaw junction in node_modules"),
+      Ok(s) => eprintln!("[clawd/service] WARNING: mklink /J for openclaw exited {}", s),
+      Err(e) => eprintln!("[clawd/service] WARNING: mklink /J for openclaw failed: {}", e),
+    }
+  }
+
+  #[cfg(not(target_os = "windows"))]
+  {
+    match std::os::unix::fs::symlink("..", &link_path) {
+      Ok(()) => eprintln!("[clawd/service] Created openclaw self-link in node_modules"),
+      Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+      Err(e) => eprintln!("[clawd/service] WARNING: could not create openclaw self-link: {}", e),
+    }
+  }
 }
 
 /// Check if the gateway Node.js binary or the bundled clawdbot directory is

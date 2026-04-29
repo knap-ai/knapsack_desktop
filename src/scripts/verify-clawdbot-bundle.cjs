@@ -129,9 +129,11 @@ if (fs.existsSync(buildInfoPath)) {
 // These are the packages required by the gateway startup path — if any are missing
 // the gateway crashes immediately with ERR_MODULE_NOT_FOUND.
 const CRITICAL_PACKAGES = [
-  // Self-link: the clawdbot package IS openclaw; extensions import openclaw/plugin-sdk/*
-  // via this symlink (node_modules/openclaw -> ..).  Missing = plugins crash on load.
-  'openclaw',
+  // NOTE: 'openclaw' self-symlink is intentionally absent.  It is created by
+  // install-bundled-plugin-deps.cjs for the CI smoke test, but prune-clawdbot.cjs
+  // removes it before the Tauri build to prevent Tauri's resources/clawdbot/**/*
+  // glob from following the cycle (openclaw -> ..) and spinning forever.
+  // service.rs recreates it at runtime after resource extraction.
   'chalk',
   'commander',
   'chokidar',

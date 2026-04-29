@@ -240,8 +240,24 @@ if (fs.existsSync(distExtensionsDir)) {
   } catch { /* skip */ }
 }
 
-// Step 5: Report results
-console.log('[prune-clawdbot] 5/5 Computing final sizes...');
+// Step 5: Remove the openclaw self-symlink before Tauri resource bundling.
+// install-bundled-plugin-deps.cjs creates node_modules/openclaw -> .. so the
+// CI smoke test (which runs before prune) can resolve 'openclaw/plugin-sdk/*'
+// imports.  But 'openclaw -> ..' is a cycle: Tauri's 'resources/clawdbot/**/*'
+// glob follows it and recurses into clawdbot/ infinitely, causing the macOS
+// build to spin for hours before failing.  Remove it here; service.rs recreates
+// it at runtime after Tauri has already copied resources to their final location.
+const openclawLink = path.join(nodeModules, 'openclaw');
+try {
+  const linkStat = fs.lstatSync(openclawLink);
+  if (linkStat.isSymbolicLink()) {
+    fs.unlinkSync(openclawLink);
+    console.log('[prune-clawdbot] Removed openclaw self-symlink (prevents Tauri glob cycle)');
+  }
+} catch { /* not present — nothing to do */ }
+
+// Step 6: Report results
+console.log('[prune-clawdbot] 6/6 Computing final sizes...');
 const afterNM = getDirSizeMB(nodeModules);
 const afterExt = getDirSizeMB(extensionsDir);
 const totalSaved = (beforeNM + beforeExt) - (afterNM + afterExt);
