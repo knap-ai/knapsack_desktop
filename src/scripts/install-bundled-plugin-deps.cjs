@@ -96,3 +96,53 @@ for (const entry of entries) {
 console.log(
   `[install-bundled-plugin-deps] Finished. installed=${installed} already-present=${alreadyPresent} skipped=${skipped}`,
 );
+
+// Pass 2: Install plugin runtime deps into the root clawdbot node_modules so
+// they are resolvable via NODE_PATH for CJS require() calls.  Shared gateway
+// chunks load plugins and may require() these packages from a call site whose
+// directory traversal doesn't reach the per-plugin node_modules installed
+// above.  service.rs tries the same install at runtime but cannot write to
+// C:\Program Files\ on Windows, so we must do it at build time.
+const ROOT_NM = path.join(CLAWDBOT_DIR, 'node_modules');
+if (!fs.existsSync(ROOT_NM)) {
+  console.log('[install-bundled-plugin-deps] Root node_modules not found — skipping Pass 2.');
+  process.exit(0);
+}
+
+const missingFromRoot = [];
+for (const entry of entries) {
+  if (!entry.isDirectory()) continue;
+  const pluginName = entry.name;
+  if (SKIP_PLUGINS.has(pluginName)) continue;
+
+  const pkgPath = path.join(EXTENSIONS_DIR, pluginName, 'package.json');
+  if (!fs.existsSync(pkgPath)) continue;
+
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { continue; }
+  if (pkg?.openclaw?.bundle?.stageRuntimeDependencies !== true) continue;
+
+  for (const dep of Object.keys(pkg.dependencies || {})) {
+    if (!fs.existsSync(path.join(ROOT_NM, dep)) && !missingFromRoot.includes(dep)) {
+      missingFromRoot.push(dep);
+    }
+  }
+}
+
+if (missingFromRoot.length === 0) {
+  console.log('[install-bundled-plugin-deps] Pass 2: all plugin runtime deps already in root node_modules.');
+  process.exit(0);
+}
+
+console.log(
+  `[install-bundled-plugin-deps] Pass 2: installing ${missingFromRoot.length} dep(s) into root node_modules: ${missingFromRoot.join(', ')}...`,
+);
+try {
+  execSync(
+    `npm install ${missingFromRoot.join(' ')} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`,
+    { cwd: CLAWDBOT_DIR, stdio: 'inherit' },
+  );
+  console.log('[install-bundled-plugin-deps] Pass 2: done.');
+} catch (err) {
+  console.warn(`[install-bundled-plugin-deps] WARNING: Pass 2 root npm install failed: ${err.message}`);
+}

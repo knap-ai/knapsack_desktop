@@ -390,6 +390,18 @@ jobs:
             fi
           done
 
+          # Find the Windows NSIS setup exe (exclude the lightweight web-setup stub).
+          # This URL is used by the stub installer to download the full installer
+          # directly, without relying on the nsis.zip URL which may not always exist.
+          WIN_EXE_NAME=""
+          for f in artifacts/windows-artifacts/**/*-setup.exe artifacts/windows-artifacts/*-setup.exe; do
+            name=$(basename "$f")
+            if [ -f "$f" ] && [ "$name" != "Knapsack-web-setup.exe" ]; then
+              WIN_EXE_NAME="$name"
+              break
+            fi
+          done
+
           # Build latest.json
           cat > artifacts/latest.json <<EOF
           {
@@ -407,7 +419,8 @@ jobs:
               },
               "windows-x86_64": {
                 "url": "$RELEASE_URL/$WIN_ZIP_NAME",
-                "signature": "$WIN_SIG"
+                "signature": "$WIN_SIG",
+                "setupUrl": "$RELEASE_URL/$WIN_EXE_NAME"
               }
             }
           }
