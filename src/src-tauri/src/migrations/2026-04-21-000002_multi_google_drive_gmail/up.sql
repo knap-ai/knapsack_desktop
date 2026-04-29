@@ -1,6 +1,27 @@
 -- Add account_email to drive_documents so files from multiple Google accounts
--- can coexist without collision.
-ALTER TABLE drive_documents ADD COLUMN account_email TEXT NOT NULL DEFAULT '';
+-- can coexist without collision.  We recreate the table (no ALTER TABLE ADD
+-- COLUMN) so this migration is idempotent for databases where the column
+-- already exists.
+CREATE TABLE drive_documents_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  drive_id VARCHAR(100) NOT NULL,
+  filename TEXT NOT NULL,
+  file_size INT NOT NULL,
+  date_modified INT NOT NULL,
+  date_created INT NOT NULL,
+  summary TEXT,
+  checksum TEXT,
+  url TEXT NOT NULL,
+  timestamp INTEGER DEFAULT (strftime('%s','now')),
+  account_email TEXT NOT NULL DEFAULT ''
+);
+
+INSERT INTO drive_documents_new (id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email)
+  SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, ''
+  FROM drive_documents;
+
+DROP TABLE drive_documents;
+ALTER TABLE drive_documents_new RENAME TO drive_documents;
 
 -- Recreate emails with account_email and a composite unique constraint so that
 -- the same email_uid can appear for two different Google accounts.
