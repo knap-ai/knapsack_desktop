@@ -591,17 +591,32 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
   let root_result = {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    std::process::Command::new(&npm)
-      .args(&root_args)
-      .current_dir(&clawdbot_root)
-      .creation_flags(CREATE_NO_WINDOW)
-      .status()
+    match &npm_runner {
+      NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+        .arg(npm_cli)
+        .args(&root_args)
+        .current_dir(&clawdbot_root)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status(),
+      NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+        .args(&root_args)
+        .current_dir(&clawdbot_root)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status(),
+    }
   };
   #[cfg(not(target_os = "windows"))]
-  let root_result = std::process::Command::new(&npm)
-    .args(&root_args)
-    .current_dir(&clawdbot_root)
-    .status();
+  let root_result = match &npm_runner {
+    NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+      .arg(npm_cli)
+      .args(&root_args)
+      .current_dir(&clawdbot_root)
+      .status(),
+    NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+      .args(&root_args)
+      .current_dir(&clawdbot_root)
+      .status(),
+  };
 
   match root_result {
     Ok(s) if s.success() => eprintln!("[clawd/service] Root plugin runtime deps installed"),
