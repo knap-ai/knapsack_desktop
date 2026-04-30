@@ -401,16 +401,30 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     return;
   }
 
-  // Locate npm: prefer sibling of the node binary, fall back to PATH.
-  let npm: PathBuf = if let Some(node_dir) = node_path.parent() {
-    let candidate = if cfg!(target_os = "windows") {
-      node_dir.join("npm.cmd")
+  // Locate npm.  Resolution order:
+  //   1. node_modules/npm/bin/npm-cli.js next to the node binary — this is
+  //      the form bundled by prepare-node.cjs (Windows & future cross-platform).
+  //      Invoked as: node.exe <npm-cli.js> install ...
+  //   2. npm / npm.cmd sibling of the node binary (classic layout).
+  //   3. System npm on PATH (last resort; may not exist on Windows).
+  enum NpmRunner {
+    NpmCli(PathBuf),   // node.exe + npm-cli.js
+    NpmBin(PathBuf),   // npm / npm.cmd directly
+  }
+  let npm_runner: NpmRunner = if let Some(node_dir) = node_path.parent() {
+    let npm_cli = node_dir.join("node_modules").join("npm").join("bin").join("npm-cli.js");
+    if npm_cli.exists() {
+      NpmRunner::NpmCli(npm_cli)
     } else {
-      node_dir.join("npm")
-    };
-    if candidate.exists() { candidate } else { PathBuf::from("npm") }
+      let bin = if cfg!(target_os = "windows") {
+        node_dir.join("npm.cmd")
+      } else {
+        node_dir.join("npm")
+      };
+      NpmRunner::NpmBin(if bin.exists() { bin } else { PathBuf::from("npm") })
+    }
   } else {
-    PathBuf::from("npm")
+    NpmRunner::NpmBin(PathBuf::from("npm"))
   };
 
   let entries = match fs::read_dir(extensions_dir) {
@@ -466,21 +480,37 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       plugin_name
     );
 
+    let npm_args = ["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"];
     #[cfg(target_os = "windows")]
     let result = {
       use std::os::windows::process::CommandExt;
       const CREATE_NO_WINDOW: u32 = 0x08000000;
-      std::process::Command::new(&npm)
-        .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
-        .current_dir(&plugin_dir)
-        .creation_flags(CREATE_NO_WINDOW)
-        .status()
+      match &npm_runner {
+        NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+          .arg(npm_cli)
+          .args(npm_args)
+          .current_dir(&plugin_dir)
+          .creation_flags(CREATE_NO_WINDOW)
+          .status(),
+        NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+          .args(npm_args)
+          .current_dir(&plugin_dir)
+          .creation_flags(CREATE_NO_WINDOW)
+          .status(),
+      }
     };
     #[cfg(not(target_os = "windows"))]
-    let result = std::process::Command::new(&npm)
-      .args(["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"])
-      .current_dir(&plugin_dir)
-      .status();
+    let result = match &npm_runner {
+      NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+        .arg(npm_cli)
+        .args(npm_args)
+        .current_dir(&plugin_dir)
+        .status(),
+      NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+        .args(npm_args)
+        .current_dir(&plugin_dir)
+        .status(),
+    };
 
     match result {
       Ok(s) if s.success() => eprintln!(
@@ -561,17 +591,32 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
   let root_result = {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    std::process::Command::new(&npm)
-      .args(&root_args)
-      .current_dir(&clawdbot_root)
-      .creation_flags(CREATE_NO_WINDOW)
-      .status()
+    match &npm_runner {
+      NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+        .arg(npm_cli)
+        .args(&root_args)
+        .current_dir(&clawdbot_root)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status(),
+      NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+        .args(&root_args)
+        .current_dir(&clawdbot_root)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status(),
+    }
   };
   #[cfg(not(target_os = "windows"))]
-  let root_result = std::process::Command::new(&npm)
-    .args(&root_args)
-    .current_dir(&clawdbot_root)
-    .status();
+  let root_result = match &npm_runner {
+    NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+      .arg(npm_cli)
+      .args(&root_args)
+      .current_dir(&clawdbot_root)
+      .status(),
+    NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+      .args(&root_args)
+      .current_dir(&clawdbot_root)
+      .status(),
+  };
 
   match root_result {
     Ok(s) if s.success() => eprintln!("[clawd/service] Root plugin runtime deps installed"),

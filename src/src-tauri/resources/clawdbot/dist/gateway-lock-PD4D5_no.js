@@ -153,7 +153,7 @@ async function resolveGatewayOwnerStatus(pid, payload, platform, port, readCmdli
 		}
 	}
 	const args = (readCmdline ?? ((p) => defaultReadProcessCmdline(p, platform)))(pid);
-	if (!args) return platform === "linux" ? "unknown" : "alive";
+	if (!args) return "unknown";
 	return isGatewayArgv(args) ? "alive" : "dead";
 }
 async function readLockPayload(lockPath) {

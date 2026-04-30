@@ -184,6 +184,33 @@ if (fs.existsSync(nodeModulesDir)) {
   errors++;
 }
 
+// Verify bundled Node.js toolchain in resources/node/
+// On Windows: node.exe must exist AND node_modules/npm/bin/npm-cli.js must
+// be present so plugins can stage their bundled runtime deps at first run.
+// Missing npm was the root cause of all five plugins failing on Windows with
+// "Unable to resolve a safe npm executable on Windows".
+const NODE_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'node');
+const isWindows = process.platform === 'win32';
+const nodeBin = path.join(NODE_DIR, isWindows ? 'node.exe' : 'node');
+
+if (!fs.existsSync(nodeBin)) {
+  console.error(`[verify-clawdbot] MISSING: resources/node/${isWindows ? 'node.exe' : 'node'} — run: node scripts/prepare-node.cjs`);
+  errors++;
+} else {
+  console.log(`[verify-clawdbot] node binary: resources/node/${isWindows ? 'node.exe' : 'node'} ✓`);
+}
+
+if (isWindows) {
+  const npmCliPath = path.join(NODE_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (!fs.existsSync(npmCliPath)) {
+    console.error('[verify-clawdbot] MISSING: resources/node/node_modules/npm/bin/npm-cli.js');
+    console.error('[verify-clawdbot]   Plugin runtime deps will fail on Windows. Run: node scripts/prepare-node.cjs');
+    errors++;
+  } else {
+    console.log('[verify-clawdbot] npm toolchain: resources/node/node_modules/npm/bin/npm-cli.js ✓');
+  }
+}
+
 if (errors > 0) {
   console.error(`\n[verify-clawdbot] ❌ FAILED: ${errors} issue(s) found. Fix before building.`);
   process.exit(1);
