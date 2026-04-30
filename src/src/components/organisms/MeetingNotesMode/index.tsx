@@ -148,6 +148,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       setPersonWorkspaces(map)
     }).catch(() => {})
   }, [])
+  const [showLiveBanner, setShowLiveBanner] = useState(false)
   const [isTitleSet, setIsTitleSet] = useState(thread.subtitle !== 'Untitled Meeting')
   const [isEditingTitle, setIsEditingTitle] = useState(
     !thread.recorded && thread.subtitle === 'Untitled Meeting',
@@ -605,6 +606,34 @@ Output only the 3 sentences, nothing else.`,
         getEventUrl(meeting),
         isStart,
       )
+      // Show the live recording banner on first start
+      setShowLiveBanner(true)
+      // Auto-attach to the calendar event that best overlaps with the current time
+      if (!meeting && feed.meetings && feedItemId != null) {
+        const nowMs = Date.now()
+        const WINDOW_MS = 15 * 60 * 1000
+        let bestMatch: Meeting | null = null
+        let bestDist = Infinity
+        for (const m of Object.values(feed.meetings)) {
+          const startMs = m.start * 1000
+          const endMs = m.end * 1000
+          if (nowMs >= startMs - WINDOW_MS && nowMs <= endMs + WINDOW_MS) {
+            const dist = Math.abs(startMs - nowMs)
+            if (dist < bestDist) {
+              bestDist = dist
+              bestMatch = m
+            }
+          }
+        }
+        if (bestMatch) {
+          feed.attachNotesToCalendarEvent(feedItemId, bestMatch)
+          if (!isTitleSet) {
+            feed.renameMeeting(thread.id, bestMatch.title, feedItemId)
+            setEditableTitle(bestMatch.title)
+            setIsTitleSet(true)
+          }
+        }
+      }
     } catch (err: any) {
       const msg: string = err?.message || ''
       const isPermissionIssue = msg.includes('permission') || msg.includes('Permission') || msg.includes('Recording requires')
@@ -748,9 +777,9 @@ Output only the 3 sentences, nothing else.`,
                   />
                 ) : (
                   <h1
-                    className="notetaker-note__title"
-                    onClick={!thread.recorded ? () => { setIsEditingTitle(true) } : undefined}
-                    style={!thread.recorded ? { cursor: 'text' } : undefined}
+                    className="notetaker-note__title notetaker-note__title--editable"
+                    onClick={() => { setIsEditingTitle(true) }}
+                    title="Click to edit title"
                   >
                     {thread.subtitle}
                   </h1>
@@ -985,9 +1014,9 @@ Be direct, specific, and concise. No filler text.`
                 />
               ) : (
                 <h1
-                  className="notetaker-note__title"
-                  onClick={!thread.recorded ? () => { setIsEditingTitle(true) } : undefined}
-                  style={!thread.recorded ? { cursor: 'text' } : undefined}
+                  className="notetaker-note__title notetaker-note__title--editable"
+                  onClick={() => { setIsEditingTitle(true) }}
+                  title="Click to edit title"
                 >
                   {thread.subtitle}
                 </h1>
@@ -1106,6 +1135,37 @@ Be direct, specific, and concise. No filler text.`
         {/* Recording notice */}
         {recordingHandlers.isRecording(thread.id) && (
           <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+        )}
+
+        {/* Live recording welcome banner */}
+        {recordingHandlers.isRecording(thread.id) && showLiveBanner && (
+          <div className="notetaker-note__live-banner">
+            <div className="notetaker-note__live-banner-title">Live meeting</div>
+            <p className="notetaker-note__live-banner-line">
+              <span className="notetaker-note__live-banner-waveform" aria-hidden="true">
+                <span style={{animationDelay: '0ms'}} />
+                <span style={{animationDelay: '150ms'}} />
+                <span style={{animationDelay: '300ms'}} />
+                <span style={{animationDelay: '450ms'}} />
+              </span>
+              Knapsack is <span className="notetaker-note__live-banner-em">transcribing</span> your meeting.
+            </p>
+            <p className="notetaker-note__live-banner-line">
+              Write notes as you normally would. When the meeting ends, Knapsack will{' '}
+              <span className="notetaker-note__live-banner-em">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" style={{display:'inline',verticalAlign:'middle',marginRight:2}}>
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                </svg>
+                enhance your notes
+              </span>.
+            </p>
+            <button
+              className="notetaker-note__live-banner-ok"
+              onClick={() => setShowLiveBanner(false)}
+            >
+              Okay
+            </button>
+          </div>
         )}
 
         {/* Attach-to-calendar-event prompt */}

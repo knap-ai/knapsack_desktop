@@ -276,6 +276,14 @@ html, body {
   line-height: 1.3;
 }
 
+.notetaker-note__title--editable {
+  cursor: text;
+}
+
+.notetaker-note__title--editable:hover {
+  color: #555555;
+}
+
 .notetaker-note__title-input {
   font-family: 'Lora', serif;
   font-size: 24px;
@@ -938,4 +946,82 @@ html, body {
   color: #2C3A6E;
   line-height: 1.55;
   margin: 0;
+}
+
+/* Live recording welcome banner */
+.notetaker-note__live-banner {
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  padding: 28px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.notetaker-note__live-banner-title {
+  font-family: 'Lora', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 2px;
+}
+
+.notetaker-note__live-banner-line {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #444444;
+  line-height: 1.55;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.notetaker-note__live-banner-em {
+  color: #6474AC;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.notetaker-note__live-banner-waveform {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.notetaker-note__live-banner-waveform span {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: #6474AC;
+  animation: waveform-bounce 1.2s ease-in-out infinite;
+}
+
+.notetaker-note__live-banner-ok {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 8px 22px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  background: #f7f7f7;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333333;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.notetaker-note__live-banner-ok:hover {
+  background: #eeeeee;
+  border-color: #bbbbbb;
 }
