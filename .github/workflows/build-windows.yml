@@ -51,6 +51,28 @@ jobs:
           node scripts/prepare-node.cjs
           node scripts/prune-clawdbot.cjs
 
+      - name: Verify bundled Node.js toolchain
+        working-directory: src
+        shell: pwsh
+        run: |
+          $nodeExe = "src-tauri\resources\node\node.exe"
+          $npmCli  = "src-tauri\resources\node\node_modules\npm\bin\npm-cli.js"
+          $ok = $true
+          if (-not (Test-Path $nodeExe)) {
+            Write-Error "MISSING: $nodeExe — run: node scripts/prepare-node.cjs"
+            $ok = $false
+          } else {
+            $v = & ".\$nodeExe" --version 2>&1
+            Write-Host "node.exe version: $v ✓"
+          }
+          if (-not (Test-Path $npmCli)) {
+            Write-Error "MISSING: $npmCli — plugin runtime deps will fail on Windows"
+            $ok = $false
+          } else {
+            Write-Host "npm-cli.js present ✓"
+          }
+          if (-not $ok) { exit 1 }
+
       - name: Verify clawdbot bundle integrity
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
