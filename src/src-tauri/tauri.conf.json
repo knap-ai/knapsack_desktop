@@ -172,7 +172,7 @@
       "resources": [
         "resources/signin_success.html",
         "resources/signin_error.html",
-        "resources/node/*",
+        "resources/node/**/*",
         "resources/clawdbot/**/*"
       ],
       "shortDescription": "Knapsack Desktop",

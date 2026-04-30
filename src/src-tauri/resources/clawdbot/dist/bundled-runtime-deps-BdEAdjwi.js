@@ -402,6 +402,22 @@ function resolveBundledRuntimeDepsNpmRunner(params) {
 			command: npmExePath,
 			args: params.npmArgs
 		};
+		const npmCmdPath = pathImpl.resolve(nodeDir, "npm.cmd");
+		if (existsSync(npmCmdPath)) {
+			const comSpec = env.ComSpec || "cmd.exe";
+			const UNSAFE_CMD_RE = /[&|<>%\r\n]/;
+			const escapeArg = (arg) => {
+				if (UNSAFE_CMD_RE.test(arg)) throw new Error(`unsafe cmd.exe argument: ${JSON.stringify(arg)}`);
+				const escaped = arg.replace(/\^/g, "^^");
+				return !escaped.includes(" ") && !escaped.includes('"') ? escaped : `"${escaped.replace(/"/g, '""')}"`;
+			};
+			const cmdLine = [npmCmdPath, ...params.npmArgs].map(escapeArg).join(" ");
+			return {
+				command: comSpec,
+				args: ["/d", "/s", "/c", cmdLine],
+				windowsVerbatimArguments: true
+			};
+		}
 		throw new Error("Unable to resolve a safe npm executable on Windows");
 	}
 	const pathKey = resolvePathEnvKey(env, platform);
@@ -582,7 +598,8 @@ function installBundledRuntimeDeps(params) {
 			cwd: installExecutionRoot,
 			encoding: "utf8",
 			env: npmRunner.env ?? installEnv,
-			stdio: "pipe"
+			stdio: "pipe",
+			...(npmRunner.windowsVerbatimArguments ? { windowsVerbatimArguments: true } : {})
 		});
 		if (result.status !== 0 || result.error) {
 			const output = [

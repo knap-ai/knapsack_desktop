@@ -89,8 +89,13 @@ async function main() {
           }
           console.log('[prepare-node] Found single-arch binary, need universal — re-downloading.');
         } else {
-          console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
-          return;
+          const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+          if (osName === 'win' && !fs.existsSync(npmPkgDest)) {
+            console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
+          } else {
+            console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
+            return;
+          }
         }
       } else {
         console.log(`[prepare-node] Found ${currentVersion}, need v${NODE_VERSION} — re-downloading.`);
@@ -141,8 +146,16 @@ async function main() {
       const prefix = `node-v${NODE_VERSION}-${osName}-${arch}`;
 
       if (osName === 'win') {
-        execSync(`tar -xf "${archivePath}" -C "${tmpDir}" "${prefix}/node.exe"`, { stdio: 'inherit' });
+        execSync(`tar -xf "${archivePath}" -C "${tmpDir}" "${prefix}/node.exe" "${prefix}/node_modules/npm"`, { stdio: 'inherit' });
         fs.copyFileSync(path.join(tmpDir, prefix, 'node.exe'), targetBin);
+        const npmPkgSrc = path.join(tmpDir, prefix, 'node_modules', 'npm');
+        const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm');
+        if (fs.existsSync(npmPkgSrc)) {
+          fs.cpSync(npmPkgSrc, npmPkgDest, { recursive: true });
+          console.log(`[prepare-node] ✓ npm package installed at ${npmPkgDest}`);
+        } else {
+          console.warn('[prepare-node] Warning: node_modules/npm not found in Node.js archive — plugin runtime deps may fail on Windows');
+        }
       } else {
         execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
         fs.copyFileSync(path.join(tmpDir, prefix, 'bin', 'node'), targetBin);
