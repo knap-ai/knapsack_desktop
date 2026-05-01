@@ -389,6 +389,45 @@ fn remove_stale_standalone_gateway() {
   // No-op on other platforms
 }
 
+/// Remove stale `.openclaw-runtime-deps.lock` directories left behind when a
+/// previous gateway process was killed (e.g. via `launchctl bootout` or SIGTERM)
+/// while holding the lock during plugin runtime-deps installation.
+///
+/// The JS lock code uses `process.kill(pid, 0)` to detect live owners.  On macOS
+/// PIDs are recycled aggressively, so the old gateway's PID may be reused by
+/// another process before the new gateway starts, making the stale lock appear
+/// live.  The 5-minute timeout then fires for every plugin simultaneously.
+///
+/// It is safe to call this unconditionally before the gateway starts: any lock
+/// present at that point is by definition stale (no gateway is running yet).
+fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
+  const LOCK_DIR_NAME: &str = ".openclaw-runtime-deps.lock";
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let lock_dir = entry.path().join(LOCK_DIR_NAME);
+    if lock_dir.is_dir() {
+      match fs::remove_dir_all(&lock_dir) {
+        Ok(_) => eprintln!(
+          "[clawd/service] Removed stale plugin runtime deps lock: {}",
+          lock_dir.display()
+        ),
+        Err(e) => eprintln!(
+          "[clawd/service] WARNING: Failed to remove plugin runtime deps lock {}: {}",
+          lock_dir.display(),
+          e
+        ),
+      }
+    }
+  }
+}
+
 /// Install runtime dependencies for bundled plugins that declare
 /// `openclaw.bundle.stageRuntimeDependencies: true` (e.g. telegram needs grammy).
 ///
@@ -4655,6 +4694,10 @@ pub async fn set_service_enabled(
         }
       }
 
+      // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
+      // 5 minutes for a lock left by a previous crashed/killed process.
+      remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(&app_handle));
+
       // Run "openclaw doctor --fix" in a background thread — same reason as
       // macOS: Node.js can hang on DNS failure, which would block the HTTP
       // response and cause WebKit to report "TypeError: Load failed".
@@ -5825,6 +5868,10 @@ pub async fn set_service_enabled(
         }
       }
 
+      // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
+      // 5 minutes for a lock left by a previous crashed/killed process.
+      remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+
       let boot = std::process::Command::new("launchctl")
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
         .status();
@@ -6753,6 +6800,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       }
     }
   }
+
+  // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
+  // 5 minutes for a lock left by a previous crashed/killed process.
+  remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
 
   let boot = std::process::Command::new("launchctl")
     .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
