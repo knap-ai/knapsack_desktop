@@ -32,6 +32,7 @@ import { RecordingContextProps } from '../MeetingNotesMode/RecordingContext'
 import Mic from '/assets/images/icons/mic-white.svg'
 import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import { logError } from 'src/utils/errorHandling'
+import { markdownToEmailHtml } from 'src/utils/emails'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 
@@ -362,10 +363,8 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                           .map(p => p.email)
                           .join(', ')
                         const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
-                        const escapedNotes = notesMarkdown
-                          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                          .replace(/\n/g, '<br>')
-                        const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p><p>${escapedNotes}</p><p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                        const notesHtml = markdownToEmailHtml(notesMarkdown)
+                        const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p>${notesHtml}<p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
                         feed.setComposedEmailDraft({ to: toEmails, subject, body })
                       }}
                     />

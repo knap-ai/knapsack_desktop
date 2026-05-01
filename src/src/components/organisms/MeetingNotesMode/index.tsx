@@ -758,6 +758,7 @@ Output only the 3 sentences, nothing else.`,
   if (!editor || isInitialLoading) {
     return (
       <div className="notetaker-note">
+        <div className="notetaker-note__scroll-area">
         <div className="notetaker-note__container">
           <div className="w-full flex flex-col gap-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -866,6 +867,7 @@ Output only the 3 sentences, nothing else.`,
           {recordingHandlers.isRecording(thread.id) && (
             <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
           )}
+        </div>
         </div>
         {/* Bottom bar stop button available even during loading */}
         {recordingHandlers.isRecording(thread.id) && (
@@ -995,6 +997,7 @@ Be direct, specific, and concise. No filler text.`
 
   return (
     <div className="notetaker-note">
+      <div className="notetaker-note__scroll-area">
       <div className="notetaker-note__container">
         <div className="w-full flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1487,6 +1490,7 @@ Be direct, specific, and concise. No filler text.`
             </div>
           )}
 
+      </div>
       </div>
 
       {/* Notetaker bottom bar */}

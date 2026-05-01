@@ -4,11 +4,10 @@ interface GitHubConnectProps {
   activeRepo?: string
 }
 
-interface SkillStatus {
+interface SkillCatalogEntry {
   name: string
-  installed: boolean
-  enabled: boolean
-  ready: boolean
+  enabled?: boolean
+  eligible?: boolean
 }
 
 const API_BASE = 'http://127.0.0.1:8897'
@@ -29,15 +28,13 @@ export default function GitHubConnect({ activeRepo }: GitHubConnectProps) {
     try {
       const resp = await fetch(`${API_BASE}/api/clawd/skills/status`)
       const data = await resp.json()
-      const skills: SkillStatus[] = data?.skills || []
-      const gh = skills.find((s: SkillStatus) => s.name === 'github')
+      const skills: SkillCatalogEntry[] = data?.skills || []
+      const gh = skills.find((s: SkillCatalogEntry) => s.name === 'github')
 
-      if (!gh || !gh.installed) {
-        setStatus('not_installed')
-      } else if (gh.ready) {
+      if (gh?.enabled) {
         setStatus('ready')
       } else {
-        setStatus('installed')
+        setStatus('not_installed')
       }
     } catch {
       setStatus('error')
@@ -57,13 +54,13 @@ export default function GitHubConnect({ activeRepo }: GitHubConnectProps) {
       const resp = await fetch(`${API_BASE}/api/clawd/skills/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill: 'github' }),
+        body: JSON.stringify({ name: 'github' }),
       })
       const data = await resp.json()
-      if (data.ok) {
+      if (data.success) {
         setStatus('ready')
       } else {
-        setError(data.message || 'Install failed')
+        setError(data.error || data.message || 'Install failed')
       }
     } catch {
       setError('Network error during install')
