@@ -843,6 +843,40 @@ async function fetchEmailCalendarContext(): Promise<string> {
   return contextParts.join('\n')
 }
 
+// Maps skill names to keywords that indicate the skill would be useful.
+// Checked against each user message; the first match whose skill isn't yet
+// installed is surfaced as an inline suggestion below the AI response.
+const SKILL_KEYWORD_MAP: Array<{ skill: string; keywords: string[] }> = [
+  { skill: 'Persistent Memory', keywords: ['remember this', 'remember for next time', 'forget', 'recall from last', 'previous session', 'context across sessions', 'store this for later'] },
+  { skill: 'Code Review',       keywords: ['code review', 'review my code', 'review this code', 'check my code', 'code quality', 'find bugs', 'analyze this code'] },
+  { skill: 'Data Analyst',      keywords: ['analyze data', 'csv', 'dataset', 'dataframe', 'statistical', 'statistics', 'eda', 'data analysis', 'visualize data', 'plot this data', 'pandas'] },
+  { skill: 'PDF Extractor',     keywords: ['from this pdf', 'extract pdf', 'parse pdf', 'pdf content', 'pdf file', 'from the pdf', 'in this pdf'] },
+  { skill: 'Web Scraper',       keywords: ['scrape', 'web scraping', 'extract from website', 'extract data from', 'crawl the', 'harvest data'] },
+  { skill: 'Market Research',   keywords: ['market research', 'competitor analysis', 'competitive analysis', 'swot analysis', 'market sizing', 'market analysis', 'competitive landscape'] },
+  { skill: 'GitHub PR Review',  keywords: ['pr review', 'pull request review', 'review this pr', 'review the pr', 'review pull request', 'github code review'] },
+  { skill: 'Database Ops',      keywords: ['sql query', 'write a query', 'database query', 'query the db', 'database schema', 'database migration', 'postgres', 'mysql', 'sqlite'] },
+  { skill: 'Security Scanner',  keywords: ['security scan', 'vulnerability scan', 'find vulnerabilities', 'security audit', 'security check', 'cve', 'penetration test'] },
+  { skill: 'Image Generation',  keywords: ['generate an image', 'create an image', 'make an image', 'generate a picture', 'create a picture', 'ai image', 'image generation', 'create visual'] },
+  { skill: 'notion',            keywords: ['add to notion', 'save to notion', 'notion page', 'notion database', 'update notion'] },
+  { skill: 'slack',             keywords: ['send to slack', 'post to slack', 'slack message', 'slack channel', 'notify slack'] },
+  { skill: 'github',            keywords: ['open a pr', 'create pr', 'create a pull request', 'push to github', 'github issue', 'open github'] },
+  { skill: 'obsidian',          keywords: ['obsidian vault', 'obsidian note', 'add to obsidian'] },
+  { skill: 'summarize',         keywords: ['summarize this article', 'summarize this url', 'youtube video summary', 'tl;dr', 'tldr this'] },
+  { skill: 'gemini',            keywords: ['entire codebase', 'million tokens', 'very long document', 'large context'] },
+]
+
+function findRelevantSkill(text: string, skills: SkillInfo[], dismissed: Set<string>): SkillInfo | null {
+  const lower = text.toLowerCase()
+  const candidates = skills.filter(s => !s.eligible && !dismissed.has(s.name))
+  for (const { skill: skillName, keywords } of SKILL_KEYWORD_MAP) {
+    if (keywords.some(kw => lower.includes(kw))) {
+      const match = candidates.find(s => s.name === skillName)
+      if (match) return match
+    }
+  }
+  return null
+}
+
 // Static skills catalog — used as fallback when gateway/backend is unreachable
 const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"Web Search",emoji:"🔍",description:"Search the web",source:"built-in",eligible:true,enabled:true},
@@ -1648,6 +1682,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
+  const [skillSuggestion, setSkillSuggestion] = useState<SkillInfo | null>(null)
+  const [dismissedSkillNames, setDismissedSkillNames] = useState<Set<string>>(new Set())
+  const pendingSkillSuggestionRef = useRef<SkillInfo | null>(null)
 
   // Channels removed - gateway-based messaging not available in this version
 
@@ -3115,6 +3152,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => el.removeEventListener('scroll', handleChatScroll)
   }, [handleChatScroll])
 
+  // When the AI finishes responding, surface any pending skill suggestion.
+  const prevThinkingRef = useRef<string | null>(null)
+  useEffect(() => {
+    const wasThinking = prevThinkingRef.current
+    prevThinkingRef.current = thinkingMessage
+    if (wasThinking && !thinkingMessage && pendingSkillSuggestionRef.current) {
+      setSkillSuggestion(pendingSkillSuggestionRef.current)
+      pendingSkillSuggestionRef.current = null
+    }
+  }, [thinkingMessage])
+
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
     if (chatBodyRef.current) {
@@ -3273,6 +3321,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
+    // Detect a relevant not-yet-installed skill from the user's message.
+    // Stored in a ref so the post-response effect can read the latest value.
+    const allSkills = skills.length > 0 ? skills : FALLBACK_SKILLS
+    pendingSkillSuggestionRef.current = findRelevantSkill(text, allSkills, dismissedSkillNames)
   }
 
   // Stop current generation
@@ -4862,6 +4914,46 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </svg>
           New messages
         </button>
+      )}
+
+      {/* Inline skill suggestion — appears after an AI response when a relevant
+          not-yet-installed skill was detected in the user's message */}
+      {skillSuggestion && (
+        <div className="ClawdSkillNudge">
+          <span className="ClawdSkillNudgeEmoji">{skillSuggestion.emoji || '💡'}</span>
+          <div className="ClawdSkillNudgeBody">
+            <span className="ClawdSkillNudgeName">{skillSuggestion.name}</span>
+            <span className="ClawdSkillNudgeDesc">{skillSuggestion.description}</span>
+          </div>
+          {skillSuggestion.homepage ? (
+            <a
+              className="ClawdSkillNudgeAction"
+              href={skillSuggestion.homepage}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setSkillSuggestion(null)}
+            >
+              {skillSuggestion.source === 'Anthropic' ? 'Learn more' : 'Get skill'}
+            </a>
+          ) : (
+            <button
+              className="ClawdSkillNudgeAction"
+              onClick={() => { setShowSkillsPanel(true); setSkillSuggestion(null) }}
+            >
+              View skills
+            </button>
+          )}
+          <button
+            className="ClawdSkillNudgeDismiss"
+            onClick={() => {
+              setDismissedSkillNames(prev => new Set([...prev, skillSuggestion.name]))
+              setSkillSuggestion(null)
+            }}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
 
       <ChatInputBar
