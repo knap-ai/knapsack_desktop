@@ -1005,14 +1005,33 @@ const TerminalView: React.FC = () => {
     unlisteners.push(
       listen<{ sessionId: string; data: string }>('pty-output', event => {
         const { sessionId, data } = event.payload
+        // The Rust backend emits each raw read() chunk as one event, which
+        // may be a partial line. Split on \n and append the first fragment to
+        // the last stdout line so chunks within the same physical line merge
+        // correctly rather than each becoming its own display row.
+        const clean = stripAnsi(data).replace(/\r/g, '')
+        const parts = clean.split('\n')
         setSessions(prev => {
           const exists = prev.find(s => s.id === sessionId)
           if (!exists) return prev
-          return prev.map(s =>
-            s.id === sessionId
-              ? { ...s, lines: [...s.lines, { type: 'stdout' as const, text: stripAnsi(data), timestamp: new Date() }] }
-              : s,
-          )
+          return prev.map(s => {
+            if (s.id !== sessionId) return s
+            const lines = [...s.lines]
+            const [first, ...rest] = parts
+            // Append first fragment to last stdout line if one exists
+            const last = lines[lines.length - 1]
+            if (last && last.type === 'stdout') {
+              lines[lines.length - 1] = { ...last, text: last.text + first }
+            } else if (first) {
+              lines.push({ type: 'stdout' as const, text: first, timestamp: new Date() })
+            }
+            // Remaining parts each start a new line (last may be empty trailing newline)
+            for (let i = 0; i < rest.length; i++) {
+              if (i === rest.length - 1 && rest[i] === '') continue
+              lines.push({ type: 'stdout' as const, text: rest[i], timestamp: new Date() })
+            }
+            return { ...s, lines }
+          })
         })
       }),
     )

@@ -3449,7 +3449,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (panelWasClosed && onToggleActivityRef.current) {
         onToggleActivityRef.current()
       }
+      // Strip comment lines before sending — shells may not treat # as
+      // a comment in all modes, and markdown headings (## Step N) cause
+      // "command not found: #" errors.
       const command = codeText.trim()
+        .split('\n')
+        .filter(line => !line.trimStart().startsWith('#'))
+        .join('\n')
+        .trim()
       const dispatchRun = () => window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command } }))
       // If the panel just opened, its useEffect listener hasn't mounted yet.
       // Delay dispatch one frame so the panel can register before the event fires.
