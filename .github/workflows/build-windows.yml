@@ -7,9 +7,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel the redundant push-triggered build when a pull_request build for the
+# same branch is already running (or vice versa). Without this, every commit on
+# a claude/* branch launches TWO parallel Windows builds (push + pull_request),
+# which compete for runner resources and causes "runner lost communication".
+concurrency:
+  group: build-windows-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     runs-on: windows-2022
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v5
 
