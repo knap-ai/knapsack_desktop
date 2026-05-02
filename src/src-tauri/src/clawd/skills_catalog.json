@@ -56,5 +56,8 @@
   {"name":"clawhub","emoji":"🏪","description":"Discover and install skills from ClawHub","source":"OpenClaw","eligible":false},
   {"name":"healthcheck","emoji":"🔒","description":"Security hardening and auditing","source":"OpenClaw","eligible":false},
   {"name":"session-logs","emoji":"📜","description":"Search past conversations","source":"OpenClaw","eligible":false},
-  {"name":"model-usage","emoji":"📊","description":"AI model cost tracking and analytics","source":"OpenClaw","eligible":false}
+  {"name":"model-usage","emoji":"📊","description":"AI model cost tracking and analytics","source":"OpenClaw","eligible":false},
+
+  {"name":"Claude Code","emoji":"🤖","description":"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git","source":"Anthropic","eligible":false,"externalApi":true,"homepage":"https://claude.ai/code"},
+  {"name":"Claude API","emoji":"✨","description":"Use Claude models directly in your own apps and scripts via the Anthropic API","source":"Anthropic","eligible":false,"externalApi":true,"homepage":"https://console.anthropic.com"}
 ]

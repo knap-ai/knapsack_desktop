@@ -870,6 +870,8 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"weather",emoji:"🌤️",description:"Weather forecasts (no API key required)",source:"OpenClaw",eligible:false},
   {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
+  {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
+  {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
 ]
 
 // Map file extension to MIME type (used by Tauri file-drop handler)
@@ -4897,6 +4899,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <>
               <div className="ClawdSkillsSummary">
                 {skills.filter(s => s.eligible).length} skills ready
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length > 0 &&
+                  `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length} from Anthropic`}
                 {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length > 0 &&
                   `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length} available from OpenClaw`}
                 {skills.filter(s => !s.eligible && s.installOptions?.length).length > 0 &&
@@ -4959,6 +4963,36 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               {opt.label || 'Install'}
                             </button>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Available from Anthropic */}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length > 0 && (
+                  <div className="ClawdSkillsGroup">
+                    <h4>Available from Anthropic</h4>
+                    {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').map(skill => (
+                      <div className="ClawdSkillCard ClawdSkillCard--available" key={skill.name}>
+                        <div className="ClawdSkillStatus available" />
+                        <div className="ClawdSkillEmoji">{skill.emoji || '🔧'}</div>
+                        <div className="ClawdSkillInfo">
+                          <div className="ClawdSkillName">{skill.name}</div>
+                          {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          <div className="ClawdSkillMeta">
+                            <span className="ClawdSkillSource">Anthropic</span>
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
+                        </div>
+                        <div className="ClawdSkillActions">
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href={skill.homepage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Learn more
+                          </a>
                         </div>
                       </div>
                     ))}
