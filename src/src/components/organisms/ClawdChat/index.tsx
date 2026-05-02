@@ -872,6 +872,16 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
   {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
   {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
+  {name:"Persistent Memory",emoji:"🧠",description:"Remember decisions, context, and past work across sessions with semantic search",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
+  {name:"Code Review",emoji:"🔎",description:"Severity-ranked AI code review with security, performance, and architecture findings",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
+  {name:"Data Analyst",emoji:"📊",description:"End-to-end data processing — cleaning, statistical analysis, EDA, and visual reports",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/data-analyst"},
+  {name:"PDF Extractor",emoji:"📑",description:"Transform complex PDFs into structured markdown — text, tables, and images",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/pdf-extractor-analyzer"},
+  {name:"Web Scraper",emoji:"🕷️",description:"Extract structured data from any website at scale with intelligent parsing",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/web-scraping-data-collection"},
+  {name:"Market Research",emoji:"📈",description:"Automated competitive intelligence — trend analysis, SWOT, and market sizing",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/market-research-orchestrator"},
+  {name:"GitHub PR Review",emoji:"🐙",description:"Multi-agent AI swarm for exhaustive GitHub PR analysis — security, perf, architecture",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/github-ai-code-review-swarm-2"},
+  {name:"Database Ops",emoji:"🗄️",description:"Natural-language SQL queries, schema management, and database migrations",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/database-management"},
+  {name:"Security Scanner",emoji:"🔒",description:"Automated static analysis, CVE detection, and vulnerability remediation guidance",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/security-testing"},
+  {name:"Image Generation",emoji:"🎨",description:"Create professional visual assets with AI image models and brand-specific context",source:"MCP Market",eligible:false,externalApi:true,homepage:"https://mcpmarket.com/tools/skills/image-generation"},
 ]
 
 // Map file extension to MIME type (used by Tauri file-drop handler)
@@ -4908,6 +4918,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 {skills.filter(s => s.eligible).length} skills ready
                 {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length > 0 &&
                   `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length} from Anthropic`}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length > 0 &&
+                  `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length} from MCP Market`}
                 {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length > 0 &&
                   `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length} available from OpenClaw`}
                 {skills.filter(s => !s.eligible && s.installOptions?.length).length > 0 &&
@@ -4999,6 +5011,39 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                             rel="noopener noreferrer"
                           >
                             Learn more
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Available from MCP Market */}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length > 0 && (
+                  <div className="ClawdSkillsGroup">
+                    <h4>Available from MCP Market</h4>
+                    <div className="ClawdSkillsDisclaimer">
+                      Provided by <a href="https://mcpmarket.com/tools/skills" target="_blank" rel="noopener noreferrer">MCP Market</a> — community-maintained Claude Code skills.
+                    </div>
+                    {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').map(skill => (
+                      <div className="ClawdSkillCard ClawdSkillCard--available" key={skill.name}>
+                        <div className="ClawdSkillStatus available" />
+                        <div className="ClawdSkillEmoji">{skill.emoji || '🔧'}</div>
+                        <div className="ClawdSkillInfo">
+                          <div className="ClawdSkillName">{skill.name}</div>
+                          {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          <div className="ClawdSkillMeta">
+                            <a className="ClawdSkillSource ClawdSkillSource--link" href="https://mcpmarket.com/tools/skills" target="_blank" rel="noopener noreferrer">MCP Market</a>
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
+                        </div>
+                        <div className="ClawdSkillActions">
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href={skill.homepage || 'https://mcpmarket.com/tools/skills'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Get skill
                           </a>
                         </div>
                       </div>

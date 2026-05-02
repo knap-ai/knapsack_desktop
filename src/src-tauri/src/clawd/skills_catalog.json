@@ -59,5 +59,16 @@
   {"name":"model-usage","emoji":"📊","description":"AI model cost tracking and analytics","source":"OpenClaw","eligible":false},
 
   {"name":"Claude Code","emoji":"🤖","description":"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git","source":"Anthropic","eligible":false,"externalApi":true,"homepage":"https://claude.ai/code"},
-  {"name":"Claude API","emoji":"✨","description":"Use Claude models directly in your own apps and scripts via the Anthropic API","source":"Anthropic","eligible":false,"externalApi":true,"homepage":"https://console.anthropic.com"}
+  {"name":"Claude API","emoji":"✨","description":"Use Claude models directly in your own apps and scripts via the Anthropic API","source":"Anthropic","eligible":false,"externalApi":true,"homepage":"https://console.anthropic.com"},
+
+  {"name":"Persistent Memory","emoji":"🧠","description":"Remember decisions, context, and past work across sessions with semantic search","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
+  {"name":"Code Review","emoji":"🔎","description":"Severity-ranked AI code review with security, performance, and architecture findings","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
+  {"name":"Data Analyst","emoji":"📊","description":"End-to-end data processing — cleaning, statistical analysis, EDA, and visual reports","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/data-analyst"},
+  {"name":"PDF Extractor","emoji":"📑","description":"Transform complex PDFs into structured markdown — text, tables, and images","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/pdf-extractor-analyzer"},
+  {"name":"Web Scraper","emoji":"🕷️","description":"Extract structured data from any website at scale with intelligent parsing","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/categories/web-scraping-data-collection"},
+  {"name":"Market Research","emoji":"📈","description":"Automated competitive intelligence — trend analysis, SWOT, and market sizing","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/market-research-orchestrator"},
+  {"name":"GitHub PR Review","emoji":"🐙","description":"Multi-agent AI swarm for exhaustive GitHub PR analysis — security, perf, architecture","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/github-ai-code-review-swarm-2"},
+  {"name":"Database Ops","emoji":"🗄️","description":"Natural-language SQL queries, schema management, and database migrations","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/categories/database-management"},
+  {"name":"Security Scanner","emoji":"🔒","description":"Automated static analysis, CVE detection, and vulnerability remediation guidance","source":"MCP Market","eligible":false,"homepage":"https://mcpmarket.com/tools/skills/categories/security-testing"},
+  {"name":"Image Generation","emoji":"🎨","description":"Create professional visual assets with AI image models and brand-specific context","source":"MCP Market","eligible":false,"externalApi":true,"homepage":"https://mcpmarket.com/tools/skills/image-generation"}
 ]
