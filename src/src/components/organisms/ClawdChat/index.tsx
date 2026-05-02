@@ -1683,6 +1683,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
   const [skillSuggestion, setSkillSuggestion] = useState<SkillInfo | null>(null)
+  const skillSuggestionRef = useRef<SkillInfo | null>(null)
   const [dismissedSkillNames, setDismissedSkillNames] = useState<Set<string>>(new Set())
   const pendingSkillSuggestionRef = useRef<SkillInfo | null>(null)
 
@@ -2102,6 +2103,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  const handleSkillInstallRef = useRef<(skillName: string, installId: string) => Promise<void>>(async () => {})
   const handleSkillInstall = useCallback(async (skillName: string, installId: string) => {
     try {
       pushAssistant(`Installing ${skillName}...`)
@@ -2116,6 +2118,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       pushAssistant(`Could not install ${skillName}. OpenClaw skills require the ClawdBot gateway to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
+  handleSkillInstallRef.current = handleSkillInstall
 
   const handleSkillToggle = useCallback(async (skillKey: string, enabled: boolean) => {
     try {
@@ -3159,9 +3162,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     prevThinkingRef.current = thinkingMessage
     if (wasThinking && !thinkingMessage && pendingSkillSuggestionRef.current) {
       setSkillSuggestion(pendingSkillSuggestionRef.current)
+      skillSuggestionRef.current = pendingSkillSuggestionRef.current
       pendingSkillSuggestionRef.current = null
     }
   }, [thinkingMessage])
+
+  // Keep ref in sync so the stable handleSendWithText callback can read it.
+  useEffect(() => {
+    skillSuggestionRef.current = skillSuggestion
+  }, [skillSuggestion])
 
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
@@ -3404,6 +3413,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string, srcMsgId?: string) => {
     if (!text.trim()) return
+
+    // If a skill nudge is showing and the user types a short affirmative, install it.
+    const AFFIRMATIVES = new Set(['yes', 'yep', 'yeah', 'sure', 'ok', 'okay', 'do it', 'install it', 'install', 'go ahead', 'sounds good', 'yes please'])
+    if (skillSuggestionRef.current && AFFIRMATIVES.has(text.trim().toLowerCase())) {
+      const skill = skillSuggestionRef.current
+      setSkillSuggestion(null)
+      pendingSkillSuggestionRef.current = null
+      if (skill.source === 'OpenClaw') {
+        pushUser(text)
+        await handleSkillInstallRef.current(skill.name, skill.installOptions?.[0]?.id ?? 'default')
+      } else if (skill.homepage) {
+        // External skills (Anthropic, MCP Market) can't be auto-installed — open the page
+        pushUser(text)
+        pushAssistantRef.current?.(`I can't install **${skill.name}** automatically — it's hosted externally. [Click here to get it](${skill.homepage})`)
+      }
+      return
+    }
 
     // Handle "open provider settings" action — opens the AI provider sidebar directly
     if (text === '__open_provider_settings__') {
@@ -4925,7 +4951,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <span className="ClawdSkillNudgeName">{skillSuggestion.name}</span>
             <span className="ClawdSkillNudgeDesc">{skillSuggestion.description}</span>
           </div>
-          {skillSuggestion.homepage ? (
+          {skillSuggestion.source === 'OpenClaw' ? (
+            <button
+              className="ClawdSkillNudgeAction"
+              onClick={async () => {
+                const skill = skillSuggestion
+                setSkillSuggestion(null)
+                await handleSkillInstall(skill.name, skill.installOptions?.[0]?.id ?? 'default')
+              }}
+            >
+              Install
+            </button>
+          ) : skillSuggestion.homepage ? (
             <a
               className="ClawdSkillNudgeAction"
               href={skillSuggestion.homepage}
