@@ -14,6 +14,9 @@
     "ws": "^8.20.0"
   },
   "openclaw": {
+    "bundle": {
+      "stageRuntimeDependencies": true
+    },
     "extensions": [
       "./index.js"
     ]

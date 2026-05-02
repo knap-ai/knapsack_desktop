@@ -242,6 +242,17 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ onClose }) => {
    LOGS VIEW
    ========================================================= */
 
+// Lines that repeat on a timer during normal gateway operation — not actionable by users.
+function isRoutineLogNoise(line: string): boolean {
+  const l = line.toLowerCase()
+  return l.includes('[diagnostic] stuck session')
+    || l.includes('bonjour: watchdog detected non-announced service')
+    || l.includes('bonjour: gateway name conflict resolved')
+    || l.includes('bonjour: gateway hostname conflict resolved')
+    || l.includes('unhandled promise rejection: ciao')
+    || (l.includes('security warning') && l.includes('allowinsecureauth'))
+}
+
 const LogsView: React.FC = () => {
   const [logs, setLogs] = useState<string[]>([])
   const [logType, setLogType] = useState<'all' | 'error'>('all')
@@ -283,9 +294,11 @@ const LogsView: React.FC = () => {
   }, [logs])
 
   const filteredLogs = useMemo(() => {
-    if (!filterText) return logs
-    const lower = filterText.toLowerCase()
-    return logs.filter(line => line.toLowerCase().includes(lower))
+    if (filterText) {
+      const lower = filterText.toLowerCase()
+      return logs.filter(line => line.toLowerCase().includes(lower))
+    }
+    return logs.filter(line => !isRoutineLogNoise(line))
   }, [logs, filterText])
 
   const getLogLevel = (line: string): string => {
