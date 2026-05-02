@@ -255,13 +255,17 @@ html, body {
   height: 100%;
 }
 
+.notetaker-note__scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .notetaker-note__container {
   width: 100%;
   max-width: 45rem;
   margin: 0 auto;
   padding: 32px 40px 16px;
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;

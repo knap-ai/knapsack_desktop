@@ -281,6 +281,88 @@
   }
 }
 
+.ClawdSkillNudge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  background: #f0f4ff;
+  border: 1px solid #c7d4f8;
+  border-radius: 10px;
+  font-size: 13px;
+  animation: nudge-in 0.2s ease;
+
+  @keyframes nudge-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .ClawdSkillNudgeEmoji {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .ClawdSkillNudgeBody {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .ClawdSkillNudgeName {
+    font-weight: 600;
+    color: #2a3a8a;
+  }
+
+  .ClawdSkillNudgeDesc {
+    color: #555;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ClawdSkillNudgeAction {
+    flex-shrink: 0;
+    padding: 4px 12px;
+    border-radius: 6px;
+    background: #3b5bdb;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      background: #2f4cc4;
+    }
+  }
+
+  .ClawdSkillNudgeDismiss {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &:hover {
+      background: rgba(0,0,0,0.07);
+      color: #444;
+    }
+  }
+}
+
 .ClawdMsg {
   display: flex;
   margin-bottom: 10px;
@@ -509,7 +591,7 @@
   max-width: 720px;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  overflow: hidden;
+  overflow: visible;
   font-size: 14px;
   line-height: 1.5;
   padding: 10px 14px;

@@ -843,6 +843,40 @@ async function fetchEmailCalendarContext(): Promise<string> {
   return contextParts.join('\n')
 }
 
+// Maps skill names to keywords that indicate the skill would be useful.
+// Checked against each user message; the first match whose skill isn't yet
+// installed is surfaced as an inline suggestion below the AI response.
+const SKILL_KEYWORD_MAP: Array<{ skill: string; keywords: string[] }> = [
+  { skill: 'Persistent Memory', keywords: ['remember this', 'remember for next time', 'forget', 'recall from last', 'previous session', 'context across sessions', 'store this for later'] },
+  { skill: 'Code Review',       keywords: ['code review', 'review my code', 'review this code', 'check my code', 'code quality', 'find bugs', 'analyze this code'] },
+  { skill: 'Data Analyst',      keywords: ['analyze data', 'csv', 'dataset', 'dataframe', 'statistical', 'statistics', 'eda', 'data analysis', 'visualize data', 'plot this data', 'pandas'] },
+  { skill: 'PDF Extractor',     keywords: ['from this pdf', 'extract pdf', 'parse pdf', 'pdf content', 'pdf file', 'from the pdf', 'in this pdf'] },
+  { skill: 'Web Scraper',       keywords: ['scrape', 'web scraping', 'extract from website', 'extract data from', 'crawl the', 'harvest data'] },
+  { skill: 'Market Research',   keywords: ['market research', 'competitor analysis', 'competitive analysis', 'swot analysis', 'market sizing', 'market analysis', 'competitive landscape'] },
+  { skill: 'GitHub PR Review',  keywords: ['pr review', 'pull request review', 'review this pr', 'review the pr', 'review pull request', 'github code review'] },
+  { skill: 'Database Ops',      keywords: ['sql query', 'write a query', 'database query', 'query the db', 'database schema', 'database migration', 'postgres', 'mysql', 'sqlite'] },
+  { skill: 'Security Scanner',  keywords: ['security scan', 'vulnerability scan', 'find vulnerabilities', 'security audit', 'security check', 'cve', 'penetration test'] },
+  { skill: 'Image Generation',  keywords: ['generate an image', 'create an image', 'make an image', 'generate a picture', 'create a picture', 'ai image', 'image generation', 'create visual'] },
+  { skill: 'notion',            keywords: ['add to notion', 'save to notion', 'notion page', 'notion database', 'update notion'] },
+  { skill: 'slack',             keywords: ['send to slack', 'post to slack', 'slack message', 'slack channel', 'notify slack'] },
+  { skill: 'github',            keywords: ['open a pr', 'create pr', 'create a pull request', 'push to github', 'github issue', 'open github'] },
+  { skill: 'obsidian',          keywords: ['obsidian vault', 'obsidian note', 'add to obsidian'] },
+  { skill: 'summarize',         keywords: ['summarize this article', 'summarize this url', 'youtube video summary', 'tl;dr', 'tldr this'] },
+  { skill: 'gemini',            keywords: ['entire codebase', 'million tokens', 'very long document', 'large context'] },
+]
+
+function findRelevantSkill(text: string, skills: SkillInfo[], dismissed: Set<string>): SkillInfo | null {
+  const lower = text.toLowerCase()
+  const candidates = skills.filter(s => !s.eligible && !dismissed.has(s.name))
+  for (const { skill: skillName, keywords } of SKILL_KEYWORD_MAP) {
+    if (keywords.some(kw => lower.includes(kw))) {
+      const match = candidates.find(s => s.name === skillName)
+      if (match) return match
+    }
+  }
+  return null
+}
+
 // Static skills catalog — used as fallback when gateway/backend is unreachable
 const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"Web Search",emoji:"🔍",description:"Search the web",source:"built-in",eligible:true,enabled:true},
@@ -870,6 +904,18 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"weather",emoji:"🌤️",description:"Weather forecasts (no API key required)",source:"OpenClaw",eligible:false},
   {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
+  {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
+  {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
+  {name:"Persistent Memory",emoji:"🧠",description:"Remember decisions, context, and past work across sessions with semantic search",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
+  {name:"Code Review",emoji:"🔎",description:"Severity-ranked AI code review with security, performance, and architecture findings",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
+  {name:"Data Analyst",emoji:"📊",description:"End-to-end data processing — cleaning, statistical analysis, EDA, and visual reports",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/data-analyst"},
+  {name:"PDF Extractor",emoji:"📑",description:"Transform complex PDFs into structured markdown — text, tables, and images",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/pdf-extractor-analyzer"},
+  {name:"Web Scraper",emoji:"🕷️",description:"Extract structured data from any website at scale with intelligent parsing",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/web-scraping-data-collection"},
+  {name:"Market Research",emoji:"📈",description:"Automated competitive intelligence — trend analysis, SWOT, and market sizing",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/market-research-orchestrator"},
+  {name:"GitHub PR Review",emoji:"🐙",description:"Multi-agent AI swarm for exhaustive GitHub PR analysis — security, perf, architecture",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/github-ai-code-review-swarm-2"},
+  {name:"Database Ops",emoji:"🗄️",description:"Natural-language SQL queries, schema management, and database migrations",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/database-management"},
+  {name:"Security Scanner",emoji:"🔒",description:"Automated static analysis, CVE detection, and vulnerability remediation guidance",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/categories/security-testing"},
+  {name:"Image Generation",emoji:"🎨",description:"Create professional visual assets with AI image models and brand-specific context",source:"MCP Market",eligible:false,externalApi:true,homepage:"https://mcpmarket.com/tools/skills/image-generation"},
 ]
 
 // Map file extension to MIME type (used by Tauri file-drop handler)
@@ -1636,6 +1682,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
+  const [skillSuggestion, setSkillSuggestion] = useState<SkillInfo | null>(null)
+  const skillSuggestionRef = useRef<SkillInfo | null>(null)
+  const [dismissedSkillNames, setDismissedSkillNames] = useState<Set<string>>(new Set())
+  const pendingSkillSuggestionRef = useRef<SkillInfo | null>(null)
 
   // Channels removed - gateway-based messaging not available in this version
 
@@ -2053,6 +2103,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  const handleSkillInstallRef = useRef<(skillName: string, installId: string) => Promise<void>>(async () => {})
   const handleSkillInstall = useCallback(async (skillName: string, installId: string) => {
     try {
       pushAssistant(`Installing ${skillName}...`)
@@ -2067,6 +2118,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       pushAssistant(`Could not install ${skillName}. OpenClaw skills require the ClawdBot gateway to be running — check the Activity panel for status.`)
     }
   }, [fetchSkills])
+  handleSkillInstallRef.current = handleSkillInstall
 
   const handleSkillToggle = useCallback(async (skillKey: string, enabled: boolean) => {
     try {
@@ -3103,6 +3155,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return () => el.removeEventListener('scroll', handleChatScroll)
   }, [handleChatScroll])
 
+  // When the AI finishes responding, surface any pending skill suggestion.
+  const prevThinkingRef = useRef<string | null>(null)
+  useEffect(() => {
+    const wasThinking = prevThinkingRef.current
+    prevThinkingRef.current = thinkingMessage
+    if (wasThinking && !thinkingMessage && pendingSkillSuggestionRef.current) {
+      setSkillSuggestion(pendingSkillSuggestionRef.current)
+      skillSuggestionRef.current = pendingSkillSuggestionRef.current
+      pendingSkillSuggestionRef.current = null
+    }
+  }, [thinkingMessage])
+
+  // Keep ref in sync so the stable handleSendWithText callback can read it.
+  useEffect(() => {
+    skillSuggestionRef.current = skillSuggestion
+  }, [skillSuggestion])
+
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
     if (chatBodyRef.current) {
@@ -3261,6 +3330,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
+    // Detect a relevant not-yet-installed skill from the user's message.
+    // Stored in a ref so the post-response effect can read the latest value.
+    const allSkills = skills.length > 0 ? skills : FALLBACK_SKILLS
+    pendingSkillSuggestionRef.current = findRelevantSkill(text, allSkills, dismissedSkillNames)
   }
 
   // Stop current generation
@@ -3340,6 +3413,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string, srcMsgId?: string) => {
     if (!text.trim()) return
+
+    // If a skill nudge is showing and the user types a short affirmative, install it.
+    const AFFIRMATIVES = new Set(['yes', 'yep', 'yeah', 'sure', 'ok', 'okay', 'do it', 'install it', 'install', 'go ahead', 'sounds good', 'yes please'])
+    if (skillSuggestionRef.current && AFFIRMATIVES.has(text.trim().toLowerCase())) {
+      const skill = skillSuggestionRef.current
+      setSkillSuggestion(null)
+      pendingSkillSuggestionRef.current = null
+      if (skill.source === 'OpenClaw') {
+        pushUser(text)
+        await handleSkillInstallRef.current(skill.name, skill.installOptions?.[0]?.id ?? 'default')
+      } else if (skill.homepage) {
+        // External skills (Anthropic, MCP Market) can't be auto-installed — open the page
+        pushUser(text)
+        pushAssistantRef.current?.(`I can't install **${skill.name}** automatically — it's hosted externally. [Click here to get it](${skill.homepage})`)
+      }
+      return
+    }
 
     // Handle "open provider settings" action — opens the AI provider sidebar directly
     if (text === '__open_provider_settings__') {
@@ -3447,7 +3537,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (panelWasClosed && onToggleActivityRef.current) {
         onToggleActivityRef.current()
       }
+      // Strip comment lines before sending — shells may not treat # as
+      // a comment in all modes, and markdown headings (## Step N) cause
+      // "command not found: #" errors.
       const command = codeText.trim()
+        .split('\n')
+        .filter(line => !line.trimStart().startsWith('#'))
+        .join('\n')
+        .trim()
       const dispatchRun = () => window.dispatchEvent(new CustomEvent('run-in-terminal', { detail: { command } }))
       // If the panel just opened, its useEffect listener hasn't mounted yet.
       // Delay dispatch one frame so the panel can register before the event fires.
@@ -4845,6 +4942,57 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         </button>
       )}
 
+      {/* Inline skill suggestion — appears after an AI response when a relevant
+          not-yet-installed skill was detected in the user's message */}
+      {skillSuggestion && (
+        <div className="ClawdSkillNudge">
+          <span className="ClawdSkillNudgeEmoji">{skillSuggestion.emoji || '💡'}</span>
+          <div className="ClawdSkillNudgeBody">
+            <span className="ClawdSkillNudgeName">{skillSuggestion.name}</span>
+            <span className="ClawdSkillNudgeDesc">{skillSuggestion.description}</span>
+          </div>
+          {skillSuggestion.source === 'OpenClaw' ? (
+            <button
+              className="ClawdSkillNudgeAction"
+              onClick={async () => {
+                const skill = skillSuggestion
+                setSkillSuggestion(null)
+                await handleSkillInstall(skill.name, skill.installOptions?.[0]?.id ?? 'default')
+              }}
+            >
+              Install
+            </button>
+          ) : skillSuggestion.homepage ? (
+            <a
+              className="ClawdSkillNudgeAction"
+              href={skillSuggestion.homepage}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setSkillSuggestion(null)}
+            >
+              {skillSuggestion.source === 'Anthropic' ? 'Learn more' : 'Get skill'}
+            </a>
+          ) : (
+            <button
+              className="ClawdSkillNudgeAction"
+              onClick={() => { setShowSkillsPanel(true); setSkillSuggestion(null) }}
+            >
+              View skills
+            </button>
+          )}
+          <button
+            className="ClawdSkillNudgeDismiss"
+            onClick={() => {
+              setDismissedSkillNames(prev => new Set([...prev, skillSuggestion.name]))
+              setSkillSuggestion(null)
+            }}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <ChatInputBar
         busy={busy}
         hasQueuedMessage={hasQueuedMessage}
@@ -4897,6 +5045,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <>
               <div className="ClawdSkillsSummary">
                 {skills.filter(s => s.eligible).length} skills ready
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length > 0 &&
+                  `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length} from Anthropic`}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length > 0 &&
+                  `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length} from MCP Market`}
                 {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length > 0 &&
                   `, ${skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'OpenClaw').length} available from OpenClaw`}
                 {skills.filter(s => !s.eligible && s.installOptions?.length).length > 0 &&
@@ -4959,6 +5111,69 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                               {opt.label || 'Install'}
                             </button>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Available from Anthropic */}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').length > 0 && (
+                  <div className="ClawdSkillsGroup">
+                    <h4>Available from Anthropic</h4>
+                    {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'Anthropic').map(skill => (
+                      <div className="ClawdSkillCard ClawdSkillCard--available" key={skill.name}>
+                        <div className="ClawdSkillStatus available" />
+                        <div className="ClawdSkillEmoji">{skill.emoji || '🔧'}</div>
+                        <div className="ClawdSkillInfo">
+                          <div className="ClawdSkillName">{skill.name}</div>
+                          {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          <div className="ClawdSkillMeta">
+                            <span className="ClawdSkillSource">Anthropic</span>
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
+                        </div>
+                        <div className="ClawdSkillActions">
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href={skill.homepage}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Learn more
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Available from MCP Market */}
+                {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').length > 0 && (
+                  <div className="ClawdSkillsGroup">
+                    <h4>Available from MCP Market</h4>
+                    <div className="ClawdSkillsDisclaimer">
+                      Provided by <a href="https://mcpmarket.com/tools/skills" target="_blank" rel="noopener noreferrer">MCP Market</a> — community-maintained Claude Code skills.
+                    </div>
+                    {skills.filter(s => !s.eligible && !s.installOptions?.length && s.source === 'MCP Market').map(skill => (
+                      <div className="ClawdSkillCard ClawdSkillCard--available" key={skill.name}>
+                        <div className="ClawdSkillStatus available" />
+                        <div className="ClawdSkillEmoji">{skill.emoji || '🔧'}</div>
+                        <div className="ClawdSkillInfo">
+                          <div className="ClawdSkillName">{skill.name}</div>
+                          {skill.description && <div className="ClawdSkillDesc">{skill.description}</div>}
+                          <div className="ClawdSkillMeta">
+                            <a className="ClawdSkillSource ClawdSkillSource--link" href="https://mcpmarket.com/tools/skills" target="_blank" rel="noopener noreferrer">MCP Market</a>
+                            {skill.externalApi && <span className="ClawdSkillExternalBadge">External API</span>}
+                          </div>
+                        </div>
+                        <div className="ClawdSkillActions">
+                          <a
+                            className="ClawdSkillInstallLink"
+                            href={skill.homepage || 'https://mcpmarket.com/tools/skills'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Get skill
+                          </a>
                         </div>
                       </div>
                     ))}

@@ -109,3 +109,42 @@ export function decodeEmailSubject(subject: string): string {
 
   return decoded
 }
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+export function markdownToEmailHtml(markdown: string): string {
+  const lines = markdown.split('\n')
+  const out: string[] = []
+  let inList = false
+
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false } }
+
+  for (const line of lines) {
+    const t = line.trim()
+    if (t.startsWith('### ')) {
+      closeList(); out.push(`<h4 style="margin:8px 0 4px">${escHtml(t.slice(4))}</h4>`)
+    } else if (t.startsWith('## ')) {
+      closeList(); out.push(`<h3 style="margin:10px 0 4px">${escHtml(t.slice(3))}</h3>`)
+    } else if (t.startsWith('# ')) {
+      closeList(); out.push(`<h2 style="margin:12px 0 6px">${escHtml(t.slice(2))}</h2>`)
+    } else if (/^-\s+\[[xX]\]\s+/.test(t)) {
+      if (!inList) { out.push('<ul style="margin:4px 0;padding-left:20px">'); inList = true }
+      out.push(`<li>&#9746; ${escHtml(t.replace(/^-\s+\[[xX]\]\s+/, ''))}</li>`)
+    } else if (/^-\s+\[ \]\s+/.test(t)) {
+      if (!inList) { out.push('<ul style="margin:4px 0;padding-left:20px">'); inList = true }
+      out.push(`<li>&#9744; ${escHtml(t.replace(/^-\s+\[ \]\s+/, ''))}</li>`)
+    } else if (t.startsWith('- ') || t.startsWith('* ')) {
+      if (!inList) { out.push('<ul style="margin:4px 0;padding-left:20px">'); inList = true }
+      out.push(`<li>${escHtml(t.slice(2))}</li>`)
+    } else if (t === '') {
+      closeList()
+    } else {
+      closeList()
+      out.push(`<p style="margin:6px 0">${escHtml(t)}</p>`)
+    }
+  }
+  closeList()
+  return out.join('')
+}

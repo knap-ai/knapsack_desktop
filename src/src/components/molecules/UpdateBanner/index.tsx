@@ -15,7 +15,7 @@ export function UpdateBanner() {
   if (!visible) return null
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 text-sm bg-red-600 text-white z-50">
+    <div className="flex items-center justify-center px-4 py-2 text-sm bg-red-600 text-white z-50">
       <div className="flex items-center gap-2">
         {(state.status === 'available' || state.status === 'ready') && (
           <>

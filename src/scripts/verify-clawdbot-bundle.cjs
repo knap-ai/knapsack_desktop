@@ -211,6 +211,39 @@ if (isWindows) {
   }
 }
 
+// Verify that critical plugins with non-trivial runtime dependencies have
+// stageRuntimeDependencies: true.  Without this flag the Tauri service.rs
+// runtime dep installer skips the plugin, leaving deps uninstalled.
+// This check exists because the flag was previously missing from the browser
+// plugin, causing playwright-core to never be installed → browser tool
+// failures → stuck sessions → gateway reconnection loop.
+const REQUIRED_STAGE_RUNTIME_DEPS_PLUGINS = [
+  'browser',   // playwright-core — core browser/navigate tool
+];
+
+if (fs.existsSync(extensionsDir)) {
+  for (const pluginName of REQUIRED_STAGE_RUNTIME_DEPS_PLUGINS) {
+    const pkgPath = path.join(extensionsDir, pluginName, 'package.json');
+    if (!fs.existsSync(pkgPath)) {
+      console.error(`[verify-clawdbot] MISSING PLUGIN: dist/extensions/${pluginName}/package.json — required plugin not found`);
+      errors++;
+      continue;
+    }
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    const hasFlag = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true;
+    if (!hasFlag) {
+      console.error(
+        `[verify-clawdbot] MISSING FLAG: dist/extensions/${pluginName}/package.json` +
+        ` is missing openclaw.bundle.stageRuntimeDependencies=true — ` +
+        `runtime deps (e.g. playwright-core) will not be installed on user machines.`
+      );
+      errors++;
+    } else {
+      console.log(`[verify-clawdbot] plugin ${pluginName}: stageRuntimeDependencies ✓`);
+    }
+  }
+}
+
 if (errors > 0) {
   console.error(`\n[verify-clawdbot] ❌ FAILED: ${errors} issue(s) found. Fix before building.`);
   process.exit(1);

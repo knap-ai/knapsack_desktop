@@ -24,6 +24,7 @@ interface Skill {
   eligible: boolean
   enabled?: boolean
   externalApi?: boolean
+  homepage?: string
 }
 
 type ViewMode = 'all' | 'skills' | 'mcp'
@@ -48,7 +49,7 @@ const SkillCard: React.FC<{
           <div>
             <div className="font-medium text-sm text-gray-900">{skill.name}</div>
             <div className="text-xs text-gray-400">
-              {isBuiltIn ? 'Built-in' : `OpenClaw`}
+              {isBuiltIn ? 'Built-in' : skill.source === 'Anthropic' ? 'Anthropic' : skill.source === 'MCP Market' ? 'MCP Market' : 'OpenClaw'}
               {skill.externalApi && ' \u00b7 Requires API key'}
             </div>
           </div>
@@ -64,6 +65,15 @@ const SkillCard: React.FC<{
           <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
             Installed
           </span>
+        ) : (skill.source === 'Anthropic' || skill.source === 'MCP Market') && skill.homepage ? (
+          <a
+            href={skill.homepage}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium px-3 py-1 rounded-md bg-gray-900 text-white hover:bg-gray-800 transition-colors"
+          >
+            {skill.source === 'MCP Market' ? 'Get skill' : 'Learn more'}
+          </a>
         ) : (
           <button
             onClick={() => onInstall(skill.name)}

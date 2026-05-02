@@ -53,6 +53,7 @@ import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import { Workspace } from 'src/api/workspaces'
+import { markdownToEmailHtml } from 'src/utils/emails'
 
 export interface ToastrState {
   message?: ReactElement
@@ -659,10 +660,8 @@ function Home({
                       .map(p => p.email)
                       .join(', ')
                     const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
-                    const escapedNotes = notesMarkdown
-                      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                      .replace(/\n/g, '<br>')
-                    const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p><p>${escapedNotes}</p><p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                    const notesHtml = markdownToEmailHtml(notesMarkdown)
+                    const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p>${notesHtml}<p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
                     feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}
                 />

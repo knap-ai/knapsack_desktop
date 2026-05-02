@@ -2049,11 +2049,21 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let log_content = std::fs::read_to_string(&err_path)
         .or_else(|_| std::fs::read_to_string(&legacy_err_path));
       if let Ok(content) = log_content {
-        let tail: Vec<&str> = content.lines().rev().take(25).collect();
+        // Strip known-noisy lines that appear during normal gateway operation
+        // and would only confuse users when shown as a diagnostic.
+        let is_noise = |line: &str| {
+          let l = line.to_ascii_lowercase();
+          l.contains("bonjour: watchdog detected non-announced service")
+            || l.contains("bonjour: gateway name conflict resolved")
+            || l.contains("bonjour: gateway hostname conflict resolved")
+            || l.contains("unhandled promise rejection: ciao")
+            || (l.contains("security warning") && l.contains("allowinsecureauth"))
+        };
+        let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
+        let start = all_filtered.len().saturating_sub(25);
+        let tail: Vec<&str> = all_filtered[start..].to_vec();
         if !tail.is_empty() {
-          let mut tail_lines: Vec<&str> = tail.into_iter().collect();
-          tail_lines.reverse();
-          let tail_text = tail_lines.join("\n");
+          let tail_text = tail.join("\n");
 
           // Classify crash from log tail — overrides plist-based type when log evidence is stronger.
           let crash_class = classify_gateway_crash(&tail_text);
@@ -4199,7 +4209,6 @@ async fn prepare_gateway_config(
           }
           cfg_val.pointer_mut("/gateway/controlUi").unwrap().as_object_mut().unwrap()
             .insert("allowInsecureAuth".to_string(), serde_json::json!(true));
-          eprintln!("[clawd/service] Patched gateway.controlUi.allowInsecureAuth to true");
           patched = true;
         }
 
