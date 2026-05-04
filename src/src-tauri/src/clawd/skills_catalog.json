@@ -52,6 +52,15 @@
   {"name":"goplaces","emoji":"📍","description":"Google Places search and discovery","source":"OpenClaw","eligible":false},
   {"name":"gifgrep","emoji":"🎞️","description":"GIF search and download","source":"OpenClaw","eligible":false},
 
+  {"name":"linear","emoji":"📐","description":"Linear issue tracking — create, update, and search issues and projects","source":"OpenClaw","eligible":false},
+  {"name":"sentry","emoji":"🚨","description":"Sentry error monitoring — view issues, stack traces, and release health","source":"OpenClaw","eligible":false},
+  {"name":"figma","emoji":"🎨","description":"Figma design — read files, generate designs, and implement components","source":"OpenClaw","eligible":false},
+  {"name":"jupyter-notebook","emoji":"📓","description":"Create and run Jupyter notebooks for data science and analysis","source":"OpenClaw","eligible":false},
+  {"name":"playwright","emoji":"🎭","description":"Browser automation and end-to-end testing with Playwright","source":"OpenClaw","eligible":false},
+  {"name":"vercel-deploy","emoji":"▲","description":"Deploy and manage projects on Vercel","source":"OpenClaw","eligible":false},
+  {"name":"netlify-deploy","emoji":"🌐","description":"Deploy and manage sites on Netlify","source":"OpenClaw","eligible":false},
+  {"name":"cloudflare-deploy","emoji":"🔶","description":"Deploy Workers, Pages, and resources on Cloudflare","source":"OpenClaw","eligible":false},
+
   {"name":"skill-creator","emoji":"🛠️","description":"Create custom skills","source":"OpenClaw","eligible":false},
   {"name":"clawhub","emoji":"🏪","description":"Discover and install skills from ClawHub","source":"OpenClaw","eligible":false},
   {"name":"healthcheck","emoji":"🔒","description":"Security hardening and auditing","source":"OpenClaw","eligible":false},
