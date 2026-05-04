@@ -159,7 +159,16 @@ const CRITICAL_PACKAGES = [
   '@modelcontextprotocol/sdk',
   '@slack/web-api',
   'file-type',
+  // jiti is used by gateway dist chunks for plugin loading.  Must be v2+
+  // (v2 exports createJiti; v1 does not, causing a runtime SyntaxError).
+  'jiti',
 ];
+
+// Packages that must be a specific minimum major version.
+// A wrong-major install (e.g. jiti v1 when v2 is required) is as bad as missing.
+const REQUIRED_MAJOR_VERSIONS = {
+  jiti: 2,
+};
 
 const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
 if (fs.existsSync(nodeModulesDir)) {
@@ -168,6 +177,21 @@ if (fs.existsSync(nodeModulesDir)) {
     const pkgJson = path.join(nodeModulesDir, pkg, 'package.json');
     if (!fs.existsSync(pkgJson)) {
       missing.push(pkg);
+      continue;
+    }
+    // Check minimum major version when required.
+    const minMajor = REQUIRED_MAJOR_VERSIONS[pkg];
+    if (minMajor !== undefined) {
+      try {
+        const installed = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
+        const installedMajor = parseInt((installed.version || '0').split('.')[0], 10);
+        if (installedMajor < minMajor) {
+          console.error(
+            `[verify-clawdbot] WRONG VERSION: node_modules/${pkg} is v${installed.version} — need v${minMajor}+`
+          );
+          errors++;
+        }
+      } catch { /* unreadable package.json — already caught as missing above */ }
     }
   }
   if (missing.length > 0) {

@@ -39,8 +39,23 @@ function needsMainInstall(clawdbotDir) {
   if (!fs.existsSync(nodeModules)) return true;
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(clawdbotDir, 'package.json'), 'utf8'));
-    const deps = Object.keys(pkg.dependencies || {});
-    return deps.some(dep => !fs.existsSync(path.join(nodeModules, dep)));
+    const deps = pkg.dependencies || {};
+    return Object.entries(deps).some(([dep, requiredVersion]) => {
+      const depDir = path.join(nodeModules, dep);
+      if (!fs.existsSync(depDir)) return true; // missing
+      // Check for major-version mismatch on ^-ranges (e.g. jiti@^2 installed as v1).
+      // npm install will correct it; we just need to detect it here.
+      const caretMatch = requiredVersion.match(/^\^(\d+)\./);
+      if (caretMatch) {
+        try {
+          const installed = JSON.parse(fs.readFileSync(path.join(depDir, 'package.json'), 'utf8'));
+          const installedMajor = parseInt((installed.version || '0').split('.')[0], 10);
+          const requiredMajor = parseInt(caretMatch[1], 10);
+          if (installedMajor !== requiredMajor) return true; // wrong major version
+        } catch { /* can't read version — leave it */ }
+      }
+      return false;
+    });
   } catch {
     return true;
   }
