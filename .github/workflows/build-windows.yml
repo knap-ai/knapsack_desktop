@@ -45,7 +45,17 @@ jobs:
         working-directory: src
         run: Copy-Item .env.example .env
 
+      - name: Cache clawdbot node_modules
+        id: cache-clawdbot-nm
+        uses: actions/cache@v4
+        with:
+          path: src/src-tauri/resources/clawdbot/node_modules
+          key: clawdbot-nm-windows-${{ hashFiles('src/src-tauri/resources/clawdbot/package-lock.json') }}
+          restore-keys: |
+            clawdbot-nm-windows-
+
       - name: Install clawdbot dependencies
+        if: steps.cache-clawdbot-nm.outputs.cache-hit != 'true'
         working-directory: src/src-tauri/resources/clawdbot
         run: npm ci --ignore-scripts
 

@@ -11,6 +11,7 @@ const path = require('path');
 
 const SCRIPT_DIR = __dirname;
 const CLAWDBOT_DIR = path.join(SCRIPT_DIR, '..', 'src-tauri', 'resources', 'clawdbot');
+const IS_WIN = process.platform === 'win32';
 
 if (!fs.existsSync(path.join(CLAWDBOT_DIR, 'node_modules'))) {
   console.log('[prune-clawdbot] No node_modules found — skipping.');
@@ -18,6 +19,9 @@ if (!fs.existsSync(path.join(CLAWDBOT_DIR, 'node_modules'))) {
 }
 
 function getDirSizeMB(dir) {
+  // Per-file statSync over thousands of files is extremely slow on Windows NTFS.
+  // Size reporting is informational only; skip it on Windows.
+  if (IS_WIN) return -1;
   if (!fs.existsSync(dir)) return 0;
   let size = 0;
   try {
@@ -34,6 +38,10 @@ function getDirSizeMB(dir) {
   return Math.round(size / (1024 * 1024));
 }
 
+function sizeStr(mb) {
+  return mb < 0 ? 'N/A' : `${mb} MB`;
+}
+
 function rmDir(dir) {
   if (fs.existsSync(dir)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -48,7 +56,7 @@ const distExtensionsDir = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
 
 const beforeNM = getDirSizeMB(nodeModules);
 const beforeExt = getDirSizeMB(extensionsDir);
-console.log(`[prune-clawdbot] Pruning clawdbot bundle (node_modules: ${beforeNM} MB, extensions: ${beforeExt} MB)...`);
+console.log(`[prune-clawdbot] Pruning clawdbot bundle (node_modules: ${sizeStr(beforeNM)}, extensions: ${sizeStr(beforeExt)})...`);
 
 // Step 1: Remove unused extensions (source and compiled dist)
 const UNUSED_EXTENSIONS = [
@@ -115,9 +123,9 @@ for (const pkg of UNUSED_PACKAGES) {
   const target = path.join(nodeModules, pkg);
   if (fs.existsSync(target)) {
     const size = getDirSizeMB(target);
-    saved += size;
+    if (size >= 0) saved += size;
     rmDir(target);
-    console.log(`[prune-clawdbot]     removed ${pkg} (${size} MB)`);
+    console.log(`[prune-clawdbot]     removed ${pkg}${size >= 0 ? ` (${size} MB)` : ''}`);
   }
 }
 
@@ -153,8 +161,10 @@ for (const relDir of SPECIFIC_DIRS_TO_REMOVE) {
   }
 }
 
-// Step 4: Clean up .cache, docs, source maps, and other non-runtime files
-console.log('[prune-clawdbot] 4/5 Cleaning up ancillary files...');
+// Step 4: Clean up .cache, docs, source maps, and other non-runtime files.
+// On Windows, individual file stat/unlink across thousands of entries is extremely
+// slow on NTFS (can take 2+ hours). node_modules gets tarred before WiX anyway,
+// so the per-file savings don't affect installer build time or file count — skip it.
 
 // Exact filenames (case-insensitive) that are legal/doc text, never needed at runtime
 const REMOVE_EXACT_NAMES = new Set([
@@ -206,7 +216,12 @@ function pruneArtifacts(dir) {
   });
 }
 
-pruneArtifacts(nodeModules);
+if (IS_WIN) {
+  console.log('[prune-clawdbot] 4/5 Skipping ancillary file cleanup on Windows (node_modules will be tarred).');
+} else {
+  console.log('[prune-clawdbot] 4/5 Cleaning up ancillary files...');
+  pruneArtifacts(nodeModules);
+}
 
 // Also clean up extension-level node_modules (installed by install-bundled-plugin-deps.cjs).
 // These can contain test artifacts like __image_snapshots__ with deeply-nested paths that
@@ -228,7 +243,7 @@ if (fs.existsSync(distExtensionsDir)) {
       const extNodeModules = path.join(distExtensionsDir, extEntry.name, 'node_modules');
       if (fs.existsSync(extNodeModules)) {
         console.log(`[prune-clawdbot]     cleaning extension node_modules: ${extEntry.name}`);
-        pruneArtifacts(extNodeModules);
+        if (!IS_WIN) pruneArtifacts(extNodeModules);
         for (const subdir of LONG_PATH_PACKAGE_SUBDIRS) {
           const target = path.join(extNodeModules, subdir);
           if (rmDir(target)) {
@@ -257,9 +272,13 @@ try {
 } catch { /* not present — nothing to do */ }
 
 // Step 6: Report results
-console.log('[prune-clawdbot] 6/6 Computing final sizes...');
-const afterNM = getDirSizeMB(nodeModules);
-const afterExt = getDirSizeMB(extensionsDir);
-const totalSaved = (beforeNM + beforeExt) - (afterNM + afterExt);
-console.log(`[prune-clawdbot] Pruned: node_modules ${beforeNM} MB -> ${afterNM} MB, extensions ${beforeExt} MB -> ${afterExt} MB`);
-console.log(`[prune-clawdbot] Total saved: ~${totalSaved} MB`);
+if (!IS_WIN) {
+  console.log('[prune-clawdbot] 6/6 Computing final sizes...');
+  const afterNM = getDirSizeMB(nodeModules);
+  const afterExt = getDirSizeMB(extensionsDir);
+  const totalSaved = (beforeNM + beforeExt) - (afterNM + afterExt);
+  console.log(`[prune-clawdbot] Pruned: node_modules ${sizeStr(beforeNM)} -> ${sizeStr(afterNM)}, extensions ${sizeStr(beforeExt)} -> ${sizeStr(afterExt)}`);
+  console.log(`[prune-clawdbot] Total saved: ~${totalSaved} MB`);
+} else {
+  console.log('[prune-clawdbot] 6/6 Done (size reporting skipped on Windows).');
+}
