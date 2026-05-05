@@ -39,30 +39,30 @@ pub async fn build_user_message(
   let mut user_prompt: String = prompt.clone();
   let mut total_doc_knowledge = "".to_string();
 
-  // let max_context_length: u64 = get_max_context_length();
-  // let maybe_locked_semantic_service = semantic_service.lock().await;
-  // let locked_semantic_service = maybe_locked_semantic_service.as_ref().unwrap();
-  // let mut ss_results = Vec::new();
-  // if semantic_search_query.is_some() {
-  //   ss_results = match locked_semantic_service
-  //     .semantic_search(
-  //       semantic_search_query.unwrap(),
-  //       5,
-  //       None,
-  //       None,
-  //       Some(false),
-  //       Some(false),
-  //       filter_documents.clone(),
-  //     )
-  //     .await
-  //   {
-  //     Ok(ss) => ss,
-  //     Err(e) => {
-  //       log::error!("------------- ss fail: {:?}", e);
-  //       Vec::new()
-  //     }
-  //   };
-  // }
+  let mut ss_results = Vec::new();
+  if let Some(query) = semantic_search_query {
+    let maybe_locked_semantic_service = semantic_service.lock().await;
+    if let Some(locked_semantic_service) = maybe_locked_semantic_service.as_ref() {
+      ss_results = match locked_semantic_service
+        .semantic_search(
+          query,
+          5,
+          None,
+          None,
+          Some(false),
+          Some(false),
+          filter_documents.clone(),
+        )
+        .await
+      {
+        Ok(ss) => ss,
+        Err(e) => {
+          log::error!("------------- ss fail: {:?}", e);
+          Vec::new()
+        }
+      };
+    }
+  }
 
   for additional_document in additional_documents.unwrap_or(vec![]) {
     // println!("############# ADDITIONAL DOC: {:?}", additional_document);
@@ -74,21 +74,21 @@ pub async fn build_user_message(
     ));
   }
 
-  // for ss_result in &ss_results {
-  //   let knowledge = convert_ids_to_knowledge(
-  //     ss_result.document_id,
-  //     Some(ss_result.chunk_ids.clone()),
-  //     Some(ss_result.payloads.clone()),
-  //   )
-  //   .unwrap_or_else(|_| {
-  //     log::error!(
-  //       "Could not convert ids to knowledge for document_id: {}",
-  //       ss_result.document_id
-  //     );
-  //     String::new()
-  //   });
-  //   total_doc_knowledge.push_str(&knowledge);
-  // }
+  for ss_result in &ss_results {
+    let knowledge = convert_ids_to_knowledge(
+      ss_result.document_id,
+      Some(ss_result.chunk_ids.clone()),
+      Some(ss_result.payloads.clone()),
+    )
+    .unwrap_or_else(|_| {
+      log::error!(
+        "Could not convert ids to knowledge for document_id: {}",
+        ss_result.document_id
+      );
+      String::new()
+    });
+    total_doc_knowledge.push_str(&knowledge);
+  }
 
   if total_doc_knowledge.len() > 0 {
     user_prompt = format!(

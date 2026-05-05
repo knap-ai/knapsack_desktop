@@ -1698,6 +1698,20 @@ pub async fn chat(
     .trim()
     .to_string();
 
+  // Agent memory: previous-run summaries sent by the frontend from localStorage.
+  // Format: [{ timestamp: string, summary: string }, ...]
+  let memory_notes: Vec<String> = body
+    .get("memoryNotes")
+    .and_then(|v| v.as_array())
+    .map(|arr| {
+      arr.iter().filter_map(|entry| {
+        let ts = entry.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
+        let summary = entry.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+        if summary.is_empty() { None } else { Some(format!("- {}: {}", ts, summary)) }
+      }).collect()
+    })
+    .unwrap_or_default();
+
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
 
@@ -3072,6 +3086,16 @@ pub async fn chat(
     .entry(session_id.clone())
     .or_insert_with(|| load_history_from_transcript(&session_id, 20));
 
+  // Memory section — inject persistent notes from previous sessions.
+  let memory_section = if !memory_notes.is_empty() {
+    format!(
+      "\n\n## MEMORY FROM PREVIOUS SESSIONS\nThe following are summaries of previous conversations. Use them for context but do not repeat them verbatim:\n{}\n",
+      memory_notes.join("\n")
+    )
+  } else {
+    String::new()
+  };
+
   // System prompt - build with tone if provided
   let tone_section = if !tone_prompt.is_empty() {
     format!("\n\n## COMMUNICATION STYLE\n{}\n", tone_prompt)
@@ -3382,7 +3406,7 @@ No email account is directly connected via the send_email tool. However, you CAN
 
   let system_content = format!(
     r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -3799,7 +3823,8 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
     advanced_section,
     skills_section,
     platform_section,
-    email_section
+    email_section,
+    memory_section
   );
 
   let system = chat_agent::OaiMessage::System {
@@ -3974,7 +3999,31 @@ These links are rendered as red clickable buttons in the UI. Include them whenev
       history.push(assistant_msg);
       if history.len() > 20 {
         let drain = history.len() - 20;
-        history.drain(0..drain);
+        let dropped: Vec<_> = history.drain(0..drain).collect();
+        // Summarize dropped messages so the model knows what was discussed,
+        // rather than silently losing that context.
+        let summary_lines: Vec<String> = dropped.iter().filter_map(|msg| match msg {
+          chat_agent::OaiMessage::User { content, .. } => {
+            let snip = if content.len() > 200 { format!("{}…", &content[..200]) } else { content.clone() };
+            Some(format!("User: {}", snip))
+          }
+          chat_agent::OaiMessage::Assistant { content, .. } => {
+            content.as_ref().map(|c| {
+              let snip = if c.len() > 200 { format!("{}…", &c[..200]) } else { c.clone() };
+              format!("Assistant: {}", snip)
+            })
+          }
+          _ => None,
+        }).collect();
+        if !summary_lines.is_empty() {
+          history.insert(0, chat_agent::OaiMessage::System {
+            content: format!(
+              "[Earlier conversation ({} messages, now summarized):\n{}]",
+              summary_lines.len(),
+              summary_lines.join("\n")
+            ),
+          });
+        }
       }
       return HttpResponse::Ok().json(serde_json::json!({"ok": true, "reply": reply}));
     }

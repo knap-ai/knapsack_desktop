@@ -18,6 +18,7 @@ import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
 import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
 import { detectBuildIntent, extractProjectDescription } from 'src/utils/devIntentDetector'
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
+import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -4067,6 +4068,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
+          memoryNotes: getAgentMemory('knapsack-chat'), // Persistent cross-session context
         }
 
         // Add attachments if present
@@ -4206,6 +4208,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+              // Persist a summary so future sessions have cross-session context.
+              saveAgentMemory('knapsack-chat', out.reply)
             } else {
               pushAssistant(friendlyError(out.message || out.error || 'No reply', activeModelAtSend))
             }
