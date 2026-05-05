@@ -1267,6 +1267,7 @@ async fn main() {
     emails: knapsack_gmail_indexing_progress.clone(),
   };
   let recording_state = RecordingState::default();
+  let recording_is_active = Arc::clone(&recording_state.is_recording);
 
   let context = tauri::generate_context!();
 
@@ -1536,6 +1537,8 @@ async fn main() {
         connections_data,
       );
       setup_logger(app).expect("Failed to setup logger");
+
+      audio::mic_monitor::start_mic_monitor(app.handle(), recording_is_active);
 
       Ok(())
     })
