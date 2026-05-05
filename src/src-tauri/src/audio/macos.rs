@@ -79,6 +79,15 @@ extern "C" {
 #[cfg(target_os = "macos")]
 const K_AUDIO_TAP_PROPERTY_FORMAT: u32 = u32::from_be_bytes(*b"tfmt");
 
+// kAudioDevicePropertyStreams — list of stream IDs for a given scope
+const K_AUDIO_DEVICE_PROPERTY_STREAMS: u32 = u32::from_be_bytes(*b"stm#");
+// kAudioObjectPropertyScopeInput — filter to input (microphone) streams only
+const K_AUDIO_OBJECT_PROPERTY_SCOPE_INPUT: u32 = u32::from_be_bytes(*b"inpt");
+// kAudioObjectPropertyName — human-readable device name (returns CFStringRef, caller must release)
+const K_AUDIO_OBJECT_PROPERTY_NAME: u32 = u32::from_be_bytes(*b"lnam");
+// Name we give our own CoreAudio tap aggregate; excluded from mic counts
+const KNAPSACK_AGGREGATE_NAME: &str = "KnapsackAudioTapAggregate";
+
 use crate::error::Error;
 
 pub fn set_output_file(filename: &str) {
@@ -475,6 +484,128 @@ pub async fn record_speaker_output(
   }
 }
 
+/// Returns the human-readable name of a CoreAudio device, or None on failure.
+/// The caller does not need to manage memory — CoreAudio returns a +1 retained
+/// CFStringRef which we convert to a Rust String and release immediately.
+fn get_device_name(device_id: AudioDeviceID) -> Option<String> {
+  let address = AudioObjectPropertyAddress {
+    mSelector: K_AUDIO_OBJECT_PROPERTY_NAME,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+
+  // AudioObjectGetPropertyData returns a CFStringRef (retained, caller must release)
+  let mut cfstr_ptr: *mut libc::c_void = ptr::null_mut();
+  let mut size = mem::size_of::<*mut libc::c_void>() as u32;
+  let status = unsafe {
+    AudioObjectGetPropertyData(
+      device_id,
+      &address,
+      0,
+      ptr::null(),
+      &mut size,
+      &mut cfstr_ptr as *mut *mut libc::c_void as *mut _,
+    )
+  };
+
+  if status != 0 || cfstr_ptr.is_null() {
+    return None;
+  }
+
+  // CFString and NSString are toll-free bridged; use NSString's UTF8String method
+  // to convert to a C string, then release the CFString.
+  let name = unsafe {
+    use objc2::runtime::AnyObject;
+    let ns_str = &*(cfstr_ptr as *const AnyObject);
+    let utf8: *const libc::c_char = objc2::msg_send![ns_str, UTF8String];
+    let name = if utf8.is_null() {
+      String::new()
+    } else {
+      std::ffi::CStr::from_ptr(utf8).to_str().unwrap_or("").to_string()
+    };
+    // Release the +1 retain from AudioObjectGetPropertyData
+    core_foundation::base::CFRelease(cfstr_ptr as *const libc::c_void);
+    name
+  };
+
+  Some(name)
+}
+
+/// Enumerates all audio input devices (those with at least one input stream) that
+/// are currently being used by another process, excluding Knapsack's own tap aggregate.
+///
+/// Call this BEFORE opening the notetaker's own mic stream so the results reflect
+/// what other apps (e.g. Zoom, Teams) are using — not the notetaker itself.
+pub fn get_active_input_device_names() -> Vec<String> {
+  let devices_address = AudioObjectPropertyAddress {
+    mSelector: kAudioHardwarePropertyDevices,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+
+  let mut size = 0u32;
+  if unsafe {
+    AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &devices_address, 0, ptr::null(), &mut size)
+  } != 0 || size == 0 {
+    return vec![];
+  }
+
+  let num_devices = size as usize / mem::size_of::<AudioDeviceID>();
+  let mut devices: Vec<AudioDeviceID> = Vec::with_capacity(num_devices);
+  if unsafe {
+    AudioObjectGetPropertyData(kAudioObjectSystemObject, &devices_address, 0, ptr::null(), &mut size, devices.as_mut_ptr() as *mut _)
+  } != 0 {
+    return vec![];
+  }
+  unsafe { devices.set_len(num_devices); }
+
+  let input_streams_address = AudioObjectPropertyAddress {
+    mSelector: K_AUDIO_DEVICE_PROPERTY_STREAMS,
+    mScope: K_AUDIO_OBJECT_PROPERTY_SCOPE_INPUT,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+  let running_address = AudioObjectPropertyAddress {
+    mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+
+  let mut names = Vec::new();
+  for &device_id in &devices {
+    // Must have input streams (is a microphone)
+    let mut streams_size = 0u32;
+    if unsafe {
+      AudioObjectGetPropertyDataSize(device_id, &input_streams_address, 0, ptr::null(), &mut streams_size)
+    } != 0 || streams_size == 0 {
+      continue;
+    }
+
+    // Must be actively used by some process
+    let mut in_use: u32 = 0;
+    let mut prop_size = mem::size_of::<u32>() as u32;
+    if unsafe {
+      AudioObjectGetPropertyData(device_id, &running_address, 0, ptr::null(), &mut prop_size, &mut in_use as *mut u32 as *mut _)
+    } != 0 || in_use == 0 {
+      continue;
+    }
+
+    if let Some(name) = get_device_name(device_id) {
+      if name != KNAPSACK_AGGREGATE_NAME {
+        names.push(name);
+      }
+    }
+  }
+
+  names
+}
+
+/// Counts the number of external input devices (microphones) currently in use by
+/// another process.  Unlike the old implementation this:
+///   - Filters to INPUT-only devices (ignores external speakers / monitor outputs)
+///   - Excludes Knapsack's own CoreAudio tap aggregate device
+///
+/// Should be called BEFORE the notetaker opens its own mic stream so the count
+/// reflects only OTHER processes (meeting apps), not Knapsack itself.
 pub fn count_microphone_users() -> u64 {
   let address = AudioObjectPropertyAddress {
     mSelector: kAudioHardwarePropertyDevices,
@@ -520,7 +651,13 @@ pub fn count_microphone_users() -> u64 {
     devices.set_len(num_devices);
   }
 
-  let address_in_use = AudioObjectPropertyAddress {
+  let input_streams_address = AudioObjectPropertyAddress {
+    mSelector: K_AUDIO_DEVICE_PROPERTY_STREAMS,
+    mScope: K_AUDIO_OBJECT_PROPERTY_SCOPE_INPUT,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+
+  let running_address = AudioObjectPropertyAddress {
     mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMain,
@@ -529,13 +666,26 @@ pub fn count_microphone_users() -> u64 {
   let count = devices
     .iter()
     .filter(|&&device_id| {
+      // Only count devices with input streams (microphones, not speakers)
+      let mut streams_size = 0u32;
+      if unsafe {
+        AudioObjectGetPropertyDataSize(device_id, &input_streams_address, 0, ptr::null(), &mut streams_size)
+      } != 0 || streams_size == 0 {
+        return false;
+      }
+
+      // Exclude Knapsack's own tap aggregate so it doesn't skew the baseline
+      if get_device_name(device_id).as_deref() == Some(KNAPSACK_AGGREGATE_NAME) {
+        return false;
+      }
+
+      // Device must be actively used by some process
       let mut in_use: u32 = 0;
       let mut prop_size = mem::size_of::<u32>() as u32;
-
       let status_in_use = unsafe {
         AudioObjectGetPropertyData(
           device_id,
-          &address_in_use,
+          &running_address,
           0,
           ptr::null(),
           &mut prop_size,
