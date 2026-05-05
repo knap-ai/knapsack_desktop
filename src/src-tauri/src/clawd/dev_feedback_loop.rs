@@ -352,6 +352,13 @@ pub fn evaluate_dev_state(state: &DevState) -> FeedbackResult {
 // Feedback Loop
 // ---------------------------------------------------------------------------
 
+/// Summary of what was tried and what errors remained after a single iteration.
+struct PriorAttempt {
+    iteration: u32,
+    what_was_tried: String,
+    errors: String,
+}
+
 /// Run the full feedback loop: agent_run → capture → evaluate → repeat.
 ///
 /// `shared_state` is used to expose progress to the frontend via polling.
@@ -367,7 +374,9 @@ pub async fn run_with_feedback(
 ) -> FeedbackLoopResult {
     let profile = "openclaw";
     let mut iteration_history: Vec<LoopIteration> = Vec::new();
-    let mut accumulated_feedback = String::new();
+    // Rolling record of what was tried and what broke — passed to the model each iteration
+    // so it doesn't repeat approaches that already failed.
+    let mut prior_attempts: Vec<PriorAttempt> = Vec::new();
     let mut last_agent_reply = String::new();
     let mut last_dev_state = DevState {
         screenshot_base64: None,
@@ -379,20 +388,33 @@ pub async fn run_with_feedback(
     };
 
     for iteration in 1..=max_iterations {
-        // Build the prompt: original task + accumulated feedback
-        let full_prompt = if accumulated_feedback.is_empty() {
+        // Build the prompt: original task + full prior-attempt history so the model
+        // can avoid repeating approaches that already failed.
+        let full_prompt = if prior_attempts.is_empty() {
             task_prompt.to_string()
         } else {
+            let history_text = prior_attempts
+                .iter()
+                .map(|a| {
+                    format!(
+                        "Attempt {} of {}:\n  What was done: {}\n  Errors that remained: {}",
+                        a.iteration, max_iterations, a.what_was_tried, a.errors
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            let current_errors = &prior_attempts.last().unwrap().errors;
+            let remaining = max_iterations - iteration + 1;
             format!(
-                "{}\n\n--- FEEDBACK FROM PREVIOUS ITERATION ({}/{}) ---\n\n{}",
-                task_prompt,
-                iteration - 1,
-                max_iterations,
-                accumulated_feedback
+                "{}\n\n=== PREVIOUS ATTEMPT HISTORY ===\n{}\n\n=== CURRENT TASK ===\nYou have {} of {} attempt(s) remaining. Fix these errors without repeating previous approaches:\n{}",
+                task_prompt, history_text, remaining, max_iterations, current_errors
             )
         };
 
         // Update shared state
+        let last_feedback_preview = prior_attempts
+            .last()
+            .map(|a| truncate(&a.errors, 500));
         if let Some(ref state) = shared_state {
             let mut guard = state.lock().await;
             guard.insert(
@@ -402,11 +424,7 @@ pub async fn run_with_feedback(
                     status: LoopStatus::Running,
                     current_iteration: iteration,
                     max_iterations,
-                    last_feedback: if accumulated_feedback.is_empty() {
-                        None
-                    } else {
-                        Some(truncate(&accumulated_feedback, 500))
-                    },
+                    last_feedback: last_feedback_preview,
                     last_screenshot_base64: None,
                     error_count: 0,
                     agent_id: agent_id.to_string(),
@@ -564,8 +582,12 @@ pub async fn run_with_feedback(
             };
         }
 
-        // 5. Append feedback for next iteration
-        accumulated_feedback = feedback.feedback_prompt.clone();
+        // 5. Record this attempt so future iterations know what was already tried.
+        prior_attempts.push(PriorAttempt {
+            iteration,
+            what_was_tried: truncate(&agent_reply, 500),
+            errors: feedback.feedback_prompt.clone(),
+        });
     }
 
     // Max iterations reached
