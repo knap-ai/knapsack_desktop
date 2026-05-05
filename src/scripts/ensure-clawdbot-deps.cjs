@@ -27,11 +27,15 @@ const SOURCE_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources',
 const TARGET_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'target', 'debug', 'resources', 'clawdbot');
 
 function runNpmInstall(cwd, label) {
-  console.log(`[ensure-clawdbot-deps] npm install in ${label}...`);
-  execSync('npm install --omit=dev --ignore-scripts --no-audit --no-fund', {
-    cwd,
-    stdio: 'inherit',
-  });
+  // Prefer `npm ci` when a lockfile is present — it does a clean install from the
+  // lockfile and catches version mismatches that `npm install` silently ignores.
+  // Falls back to `npm install` when no lockfile exists (e.g. target debug dir).
+  const hasLockfile = fs.existsSync(path.join(cwd, 'package-lock.json'));
+  const cmd = hasLockfile
+    ? 'npm ci --ignore-scripts --no-audit --no-fund'
+    : 'npm install --omit=dev --ignore-scripts --no-audit --no-fund';
+  console.log(`[ensure-clawdbot-deps] ${hasLockfile ? 'npm ci' : 'npm install'} in ${label}...`);
+  execSync(cmd, { cwd, stdio: 'inherit' });
 }
 
 function needsMainInstall(clawdbotDir) {
