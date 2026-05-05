@@ -163,6 +163,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [isEditingTitle])
 
+  // Keep editableTitle in sync with the prop when not actively editing (handles
+  // external changes like auto-title from notes synthesis or calendar auto-attach)
+  useEffect(() => {
+    if (!isEditingTitle) {
+      setEditableTitle(thread.subtitle || '')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread.subtitle])
+
   const saveTitleEdit = () => {
     const trimmed = editableTitle.trim()
     if (trimmed && trimmed !== thread.subtitle) {
@@ -772,7 +781,7 @@ Output only the 3 sentences, nothing else.`,
                     onBlur={saveTitleEdit}
                     onKeyDown={e => {
                       if (e.key === 'Enter') { e.preventDefault(); saveTitleEdit() }
-                      else if (e.key === 'Escape') setIsEditingTitle(false)
+                      else if (e.key === 'Escape') { setEditableTitle(thread.subtitle || ''); setIsEditingTitle(false) }
                     }}
                     placeholder="Meeting title..."
                   />
@@ -782,7 +791,7 @@ Output only the 3 sentences, nothing else.`,
                     onClick={() => { setIsEditingTitle(true) }}
                     title="Click to edit title"
                   >
-                    {thread.subtitle}
+                    {editableTitle || thread.subtitle}
                   </h1>
                 )}
                 <div className="notetaker-note__meta">
@@ -1011,7 +1020,7 @@ Be direct, specific, and concise. No filler text.`
                   onBlur={saveTitleEdit}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); saveTitleEdit() }
-                    else if (e.key === 'Escape') setIsEditingTitle(false)
+                    else if (e.key === 'Escape') { setEditableTitle(thread.subtitle || ''); setIsEditingTitle(false) }
                   }}
                   placeholder="Meeting title..."
                 />
@@ -1021,7 +1030,7 @@ Be direct, specific, and concise. No filler text.`
                   onClick={() => { setIsEditingTitle(true) }}
                   title="Click to edit title"
                 >
-                  {thread.subtitle}
+                  {editableTitle || thread.subtitle}
                 </h1>
               )}
               {/* Metadata row */}
