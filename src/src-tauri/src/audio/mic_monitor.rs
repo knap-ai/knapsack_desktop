@@ -2,7 +2,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// Start monitoring the default audio input device.
 /// Emits `mic-activated` to the main window whenever the microphone turns on
