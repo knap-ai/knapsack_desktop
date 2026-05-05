@@ -1,5 +1,5 @@
 ; Knapsack Web Installer (stub)
-; Downloads the full NSIS installer from the latest GitHub release at runtime.
+; Downloads the full MSI installer from the latest GitHub release at runtime.
 ; The compiled stub is ~400 KB vs the full installer (100+ MB), giving users
 ; a fast initial download while the real payload streams in the background.
 
@@ -59,7 +59,7 @@ Section "Install" SecMain
   FileWrite $R0 'try { [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials } catch {}$\r$\n'
   FileWrite $R0 '$ProgressPreference = "SilentlyContinue"$\r$\n'
   FileWrite $R0 '$ErrorActionPreference = "Stop"$\r$\n'
-  FileWrite $R0 '$dest   = Join-Path $env:TEMP "knapsack-setup-full.exe"$\r$\n'
+  FileWrite $R0 '$dest   = Join-Path $env:TEMP "knapsack-setup-full.msi"$\r$\n'
   FileWrite $R0 '$errLog = Join-Path $env:TEMP "knapsack-dl-error.txt"$\r$\n'
   FileWrite $R0 '$ua     = "Knapsack-Installer/1.0"$\r$\n'
   FileWrite $R0 'if (Test-Path $dest) { Remove-Item $dest -Force -ErrorAction SilentlyContinue }$\r$\n'
@@ -86,20 +86,20 @@ Section "Install" SecMain
   FileWrite $R0 '  $plat    = $meta.platforms."windows-x86_64"$\r$\n'
   FileWrite $R0 '  if (-not $plat) { throw "latest.json has no windows-x86_64 entry" }$\r$\n'
   FileWrite $R0 '  $version = $meta.version$\r$\n'
-  FileWrite $R0 '  # Prefer setupUrl (direct exe link added in release workflow).$\r$\n'
-  FileWrite $R0 '  # Fall back to deriving the exe name from the nsis.zip URL.$\r$\n'
+  FileWrite $R0 '  # Prefer setupUrl (direct MSI link added in release workflow).$\r$\n'
+  FileWrite $R0 '  # Fall back to deriving the MSI name from the msi.zip URL.$\r$\n'
   FileWrite $R0 '  if ($plat.setupUrl -and $plat.setupUrl -notmatch "/$") {$\r$\n'
-  FileWrite $R0 '    $exeUrl = $plat.setupUrl$\r$\n'
+  FileWrite $R0 '    $msiUrl = $plat.setupUrl$\r$\n'
   FileWrite $R0 '  } elseif ($plat.url -and $plat.url -notmatch "/$") {$\r$\n'
   FileWrite $R0 '    $zipUrl = $plat.url$\r$\n'
-  FileWrite $R0 '    # nsis.zip name: Knapsack_X.Y.Z_en-US.nsis.zip -> Knapsack_X.Y.Z_x64-setup.exe$\r$\n'
-  FileWrite $R0 '    $exeUrl = $zipUrl -replace "_en-US\.nsis\.zip$", "_x64-setup.exe"$\r$\n'
-  FileWrite $R0 '    if ($exeUrl -eq $zipUrl) { throw "Could not derive setup exe URL from: $zipUrl" }$\r$\n'
+  FileWrite $R0 '    # msi.zip name: Knapsack_X.Y.Z_en-US.msi.zip -> Knapsack_X.Y.Z_en-US.msi$\r$\n'
+  FileWrite $R0 '    $msiUrl = $zipUrl -replace "\.zip$", ""$\r$\n'
+  FileWrite $R0 '    if ($msiUrl -eq $zipUrl) { throw "Could not derive MSI URL from: $zipUrl" }$\r$\n'
   FileWrite $R0 '  } else {$\r$\n'
   FileWrite $R0 '    throw "latest.json windows-x86_64 entry has no usable URL"$\r$\n'
   FileWrite $R0 '  }$\r$\n'
   FileWrite $R0 '  Write-Host "Downloading Knapsack $version ..."$\r$\n'
-  FileWrite $R0 '  Write-Host "URL: $exeUrl"$\r$\n'
+  FileWrite $R0 '  Write-Host "URL: $msiUrl"$\r$\n'
 
   ; Prefer curl.exe (ships with Windows 10 1803+). It has built-in retry,
   ; picks up system proxy env vars automatically, and is far more reliable
@@ -108,11 +108,11 @@ Section "Install" SecMain
   FileWrite $R0 '  $curl = Join-Path $env:SystemRoot "System32\curl.exe"$\r$\n'
   FileWrite $R0 '  if (Test-Path $curl) {$\r$\n'
   FileWrite $R0 '    Write-Host "Using curl.exe"$\r$\n'
-  FileWrite $R0 '    & $curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 30 --max-time 1800 -A $ua -o $dest $exeUrl$\r$\n'
+  FileWrite $R0 '    & $curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 30 --max-time 1800 -A $ua -o $dest $msiUrl$\r$\n'
   FileWrite $R0 '    if ($LASTEXITCODE -ne 0) { throw "curl.exe failed (exit $LASTEXITCODE)" }$\r$\n'
   FileWrite $R0 '  } else {$\r$\n'
   FileWrite $R0 '    Write-Host "curl.exe not found, using Invoke-WebRequest"$\r$\n'
-  FileWrite $R0 '    Invoke-WithRetry -Label "Download" -Block { Invoke-WebRequest -Uri $exeUrl -OutFile $dest -UseBasicParsing -TimeoutSec 1800 -Headers @{ "User-Agent" = $ua } }$\r$\n'
+  FileWrite $R0 '    Invoke-WithRetry -Label "Download" -Block { Invoke-WebRequest -Uri $msiUrl -OutFile $dest -UseBasicParsing -TimeoutSec 1800 -Headers @{ "User-Agent" = $ua } }$\r$\n'
   FileWrite $R0 '  }$\r$\n'
 
   ; Validate. GitHub occasionally serves a tiny HTML redirect/error page
@@ -165,8 +165,8 @@ Section "Install" SecMain
   ${EndIf}
 
   DetailPrint "Launching installer..."
-  ExecWait '"$TEMP\knapsack-setup-full.exe"' $0
-  Delete "$TEMP\knapsack-setup-full.exe"
+  ExecWait 'msiexec /i "$TEMP\knapsack-setup-full.msi"' $0
+  Delete "$TEMP\knapsack-setup-full.msi"
 
   ${If} $0 != 0
     MessageBox MB_OK|MB_ICONEXCLAMATION \

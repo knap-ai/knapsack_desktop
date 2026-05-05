@@ -231,9 +231,11 @@ if (IS_WIN) {
 // fails with LGHT0103 on these. List the subdir to remove (not the whole package,
 // so the CJS dist/ entry point remains usable at runtime).
 const LONG_PATH_PACKAGE_SUBDIRS = [
-  // @mistralai/mistralai ESM operation files have ~100-char filenames that push
-  // the full path past 260 chars. The CJS dist/ tree is unaffected and sufficient.
+  // @mistralai/mistralai ESM and src TypeScript operation files have ~100-char
+  // filenames that push the full path past 260 chars on Windows. The CJS dist/
+  // tree is unaffected and sufficient at runtime.
   path.join('@mistralai', 'mistralai', 'esm'),
+  path.join('@mistralai', 'mistralai', 'src'),
 ];
 
 if (fs.existsSync(distExtensionsDir)) {
