@@ -3681,12 +3681,13 @@ async fn prepare_gateway_config(
       bundled_node.clone(),
     ]
   } else {
-    vec![
-      bundled_node.clone(),
-      PathBuf::from("/opt/homebrew/bin/node"),
-      PathBuf::from("/usr/local/bin/node"),
-      PathBuf::from("/usr/bin/node"),
-    ]
+    // Production (macOS/Linux): use the bundled node only — never fall back to
+    // Homebrew or system Node.js.  Mixing the app's bundled JS (with its own
+    // node_modules snapshot) against a foreign Node.js binary causes version /
+    // ABI mismatches and is exactly what "openclaw doctor" flags when it sees
+    // /opt/homebrew/... as the gateway entrypoint.  A corrupt bundle is a
+    // reinstall signal, not a silent Homebrew fallback.
+    vec![bundled_node.clone()]
   };
 
   let bundled_node_path = resource_path(app_handle, if cfg!(target_os = "windows") {
@@ -4416,7 +4417,12 @@ async fn prepare_gateway_config(
       }
     }
   } else {
-    for p in &["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+    // Standard system paths first, Homebrew last.  The bundled node directory
+    // was prepended above, so putting /opt/homebrew/bin at the end prevents
+    // Homebrew's node / npm from shadowing the bundled binary in any subprocess
+    // the gateway spawns.  Homebrew tools that have no bundled equivalent (e.g.
+    // signal-cli) are still discoverable via the trailing entry.
+    for p in &["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"] {
       let s = p.to_string();
       if !path_parts.contains(&s) {
         path_parts.push(s);
@@ -4914,13 +4920,9 @@ pub async fn set_service_enabled(
           bundled_node,
         ]
       } else {
-        // Production: prefer bundled node, fall back to system
-        vec![
-          bundled_node,
-          PathBuf::from("/opt/homebrew/bin/node"),
-          PathBuf::from("/usr/local/bin/node"),
-          PathBuf::from("/usr/bin/node"),
-        ]
+        // Production (macOS/Linux): bundled node only — no Homebrew / system
+        // fallback.  See comment in the synchronous path above for rationale.
+        vec![bundled_node]
       };
 
       let bundled_node_path = resource_path(&app_handle, "resources/node/node");
@@ -5619,7 +5621,9 @@ pub async fn set_service_enabled(
       if !node_dir.is_empty() {
         path_parts.push(node_dir);
       }
-      for p in &["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+      // Standard system paths first, Homebrew last — same rationale as the
+      // synchronous PATH builder above.
+      for p in &["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin", "/opt/homebrew/bin"] {
         let s = p.to_string();
         if !path_parts.contains(&s) {
           path_parts.push(s);
