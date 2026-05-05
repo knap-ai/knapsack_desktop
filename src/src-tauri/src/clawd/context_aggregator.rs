@@ -159,47 +159,51 @@ pub async fn aggregate_context(
 // Source fetchers
 // ---------------------------------------------------------------------------
 
-async fn fetch_meeting_context(keywords: &[String], time_range_hours: u32) -> Vec<MeetingContext> {
+async fn fetch_meeting_context(_keywords: &[String], time_range_hours: u32) -> Vec<MeetingContext> {
     let mut meetings = Vec::new();
 
     let days = (time_range_hours / 24).max(1);
-    let search_term = keywords.first().map(|s| s.as_str());
 
-    let meeting_list = crate::clawd::meeting_context::list_meetings(days, search_term).await;
+    // Fetch all recent meetings without keyword filtering — passing a single keyword
+    // as search term caused list_meetings to search ALL transcripts by title match,
+    // which excluded almost everything. Time-based fetching is more useful here.
+    let meeting_list = crate::clawd::meeting_context::list_meetings(days, None).await;
     if let Some(arr) = meeting_list.as_array() {
         for meeting in arr.iter().take(20) {
+            let thread_id = meeting.get("thread_id").and_then(|v| v.as_u64());
             let title = meeting
-                .get("summary")
-                .or_else(|| meeting.get("title"))
+                .get("title")
                 .and_then(|v| v.as_str())
                 .unwrap_or("Untitled")
                 .to_string();
             let date = meeting
-                .get("start")
-                .or_else(|| meeting.get("date"))
+                .get("date")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            // "participants" is a comma-separated string produced by extract_participant_names
             let participants = meeting
-                .get("attendees")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|a| {
-                            a.get("email")
-                                .or_else(|| a.get("displayName"))
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string())
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            let summary = meeting
-                .get("description")
-                .or_else(|| meeting.get("notes"))
+                .get("participants")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
-                .to_string();
+                .split(", ")
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+            // Fetch a short transcript snippet for the summary
+            let summary = if let Some(tid) = thread_id {
+                tokio::task::spawn_blocking(move || {
+                    crate::clawd::meeting_context::get_transcript_content(tid)
+                        .unwrap_or_default()
+                })
+                .await
+                .unwrap_or_default()
+                .chars()
+                .take(400)
+                .collect()
+            } else {
+                String::new()
+            };
 
             meetings.push(MeetingContext {
                 title,
@@ -272,57 +276,69 @@ async fn fetch_email_context(keywords: &[String], _time_range_hours: u32) -> Vec
 
 async fn fetch_workspace_docs(description: &str) -> Vec<WorkspaceDocContext> {
     let mut docs = Vec::new();
+    let keywords = extract_keywords(description);
 
-    // Use the semantic search HTTP endpoint (same server, localhost)
-    let search_body = serde_json::json!({
-        "query": description,
-        "top": 10,
-    });
+    // The semantic search endpoint is currently disabled (implementation commented out).
+    // Fall back to keyword-searching user-written meeting notes, which are the primary
+    // local doc store. Notes are small files so loading up to 50 is fast.
+    let meeting_list = crate::clawd::meeting_context::list_meetings(30, None).await;
+    if let Some(arr) = meeting_list.as_array() {
+        for meeting in arr.iter().take(50) {
+            let thread_id = match meeting.get("thread_id").and_then(|v| v.as_u64()) {
+                Some(tid) => tid,
+                None => continue,
+            };
+            let title = meeting
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Untitled")
+                .to_string();
+            let date = meeting
+                .get("date")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
 
-    match reqwest::Client::new()
-        .post("http://127.0.0.1:8897/api/knapsack/semantic_search")
-        .json(&search_body)
-        .send()
-        .await
-    {
-        Ok(resp) => {
-            if let Ok(data) = resp.json::<JsonValue>().await {
-                if let Some(results) = data.get("results").and_then(|v| v.as_array()) {
-                    for result in results.iter().take(10) {
-                        docs.push(WorkspaceDocContext {
-                            title: result
-                                .get("title")
-                                .or_else(|| result.get("name"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Untitled")
-                                .to_string(),
-                            source: result
-                                .get("source")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown")
-                                .to_string(),
-                            snippet: result
-                                .get("content")
-                                .or_else(|| result.get("text"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .chars()
-                                .take(500)
-                                .collect(),
-                            relevance_score: result
-                                .get("score")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0) as f32,
-                        });
-                    }
+            let notes = tokio::task::spawn_blocking(move || {
+                crate::clawd::meeting_context::get_notes_content(thread_id)
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default()
+            })
+            .await
+            .unwrap_or_default();
+
+            if notes.is_empty() {
+                continue;
+            }
+
+            let notes_lower = notes.to_lowercase();
+            let title_lower = title.to_lowercase();
+            let match_count = keywords
+                .iter()
+                .filter(|kw| notes_lower.contains(kw.as_str()) || title_lower.contains(kw.as_str()))
+                .count();
+
+            if match_count > 0 || keywords.is_empty() {
+                let relevance = match_count as f32 / keywords.len().max(1) as f32;
+                docs.push(WorkspaceDocContext {
+                    title: format!("{} ({})", title, date),
+                    source: "meeting_notes".to_string(),
+                    snippet: notes.chars().take(500).collect(),
+                    relevance_score: relevance,
+                });
+                if docs.len() >= 10 {
+                    break;
                 }
             }
         }
-        Err(e) => {
-            eprintln!("[context_aggregator] Semantic search failed: {}", e);
-        }
     }
 
+    docs.sort_by(|a, b| {
+        b.relevance_score
+            .partial_cmp(&a.relevance_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     docs
 }
 
