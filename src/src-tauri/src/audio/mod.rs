@@ -4,6 +4,7 @@ pub mod permission;
 pub mod encode;
 pub mod transcribe;
 pub mod microphone;
+pub mod mic_monitor;
 
 #[cfg(target_os = "macos")]
 pub mod macos;

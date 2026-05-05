@@ -1048,6 +1048,31 @@ function App() {
     }
   }, [])
 
+  // Listen for mic-activated events emitted by the Rust mic monitor.
+  // Show a "Take Notes" prompt when any app activates the mic (unscheduled calls).
+  useEffect(() => {
+    const unlistenPromise = listen('mic-activated', async () => {
+      if (isAnyRecordingRef.current) return
+      try {
+        await openNotificationWindow(
+          undefined,
+          [
+            { buttonText: 'Take Notes', buttonHandler: 'mic_take_notes_handler' },
+            { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+          ],
+          'Mic activated',
+          "You're on a call",
+        )
+      } catch (error) {
+        console.error('Error showing mic activation notification:', error)
+      }
+    })
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [openNotificationWindow])
+
   // Listen for notes_synthesized event to trigger post-meeting follow-up notifications
   useEffect(() => {
     const unlistenPromise = listen(
@@ -1181,6 +1206,7 @@ function App() {
     (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
   >(() => Promise.resolve())
   const stopMeetingNotificationRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const isAnyRecordingRef = useRef(isAnyRecording)
 
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
@@ -1247,6 +1273,7 @@ function App() {
     getPendingFollowupSuggestedActionRef.current = getPendingFollowupSuggestedAction
     startMeetingNotificationRef.current = startMeetingNotification
     stopMeetingNotificationRef.current = stopMeetingNotification
+    isAnyRecordingRef.current = isAnyRecording
   })
 
   // Notification strategies use refs so the listener below (which mounts
@@ -1351,6 +1378,10 @@ function App() {
     },
     dismiss_notification_handler: async (_meetingId: string | null) => {
       await invoke('close_notification_window')
+    },
+    mic_take_notes_handler: async (_meetingId: string | null) => {
+      await invoke('close_notification_window')
+      await startMeetingNotificationRef.current(null, false, true)
     },
   }
 
