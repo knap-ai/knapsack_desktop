@@ -248,6 +248,7 @@ function App() {
     generateNotes,
     hasSynthesized,
   } = useRecording()
+  const isAnyRecordingRef = useRef(isAnyRecording)
 
   useEffect(() => {
     const email = auth.profile?.email ?? ''
@@ -1206,7 +1207,6 @@ function App() {
     (meetingId: string | null, openUrl: boolean, startRecord: boolean) => Promise<void>
   >(() => Promise.resolve())
   const stopMeetingNotificationRef = useRef<() => Promise<void>>(() => Promise.resolve())
-  const isAnyRecordingRef = useRef(isAnyRecording)
 
   const { LLMBar: llmBar } = useLLMBar(addToLLMQueue, setChatStream, feed, handleError, userEmail)
 
