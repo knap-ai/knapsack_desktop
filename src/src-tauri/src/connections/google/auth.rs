@@ -260,6 +260,7 @@ fn create_connections_from_scopes(
       let user_connection_creation_result = create_user_connection(
         email.clone(),
         refresh_token.clone(),
+        None,
         String::from(*scope_key),
         calendar_account_email,
       );
@@ -285,13 +286,31 @@ fn create_connections_from_scopes(
 /// to decide which connection types to create (calendar, drive, gmail).
 /// `primary_user_email` identifies the existing user; `new_account_email` is
 /// the email of the newly authorised Google account.
+/// `refresh_internal` is the knap.ai internal refresh token for the secondary
+/// account — stored as `refresh_token` so we can use it to get API access
+/// tokens on behalf of that account when refreshing its Google OAuth tokens.
 fn create_additional_connections(
   primary_user_email: String,
   new_account_email: String,
   raw_scopes: String,
   refresh_token: String,
+  refresh_internal: Option<String>,
 ) -> Result<Vec<String>, Error> {
   let scopes = raw_scopes.split(' ').collect::<Vec<&str>>();
+
+  // Also create/update the knap.ai API connection for the secondary account so
+  // we can obtain its API access token when refreshing Google OAuth tokens.
+  if let Some(ref ri) = refresh_internal {
+    // Ensure the secondary account user row exists (may be first time linking).
+    if User::find_by_email(new_account_email.clone()).is_err() {
+      let _ = User {
+        id: None,
+        email: new_account_email.clone(),
+        uuid: None,
+      }.create();
+    }
+    create_knapsack_api_connection(new_account_email.clone(), ri.as_str());
+  }
 
   let scope_map: &[(&str, &[&str])] = &[
     (GOOGLE_CALENDAR_SCOPE, &["https://www.googleapis.com/auth/calendar.readonly"]),
@@ -308,6 +327,7 @@ fn create_additional_connections(
     create_user_connection(
       primary_user_email.clone(),
       refresh_token.clone(),
+      refresh_internal.clone(),
       String::from(*scope_key),
       new_account_email.clone(),
     )?;
@@ -461,6 +481,7 @@ async fn complete_google_signin(
       calendar_email.clone(),
       raw_scopes.clone(),
       response.refresh_token.clone(),
+      response.refresh_internal.clone(),
     ) {
       Ok(created_keys) => {
         log::info!("Linked additional account {} to user {} for scopes {:?}", calendar_email, primary_email, created_keys);
@@ -605,7 +626,8 @@ async fn focus(app_handle: Data<tauri::AppHandle>) -> impl Responder {
 
 pub fn create_user_connection(
   email: String,
-  refresh_token: String,
+  google_refresh_token_val: String,
+  refresh_internal: Option<String>,
   scope: String,
   calendar_account_email: String,
 ) -> Result<(), Error> {
@@ -615,8 +637,13 @@ pub fn create_user_connection(
     id: None,
     user_id: user.id.expect("User has no ID"),
     connection_id: connection.id.expect("Connection has no ID"),
-    token: refresh_token.clone(),
-    refresh_token: Some(refresh_token.clone()),
+    token: google_refresh_token_val.clone(),
+    // For secondary accounts, store the knap.ai internal refresh token so
+    // token refresh can use the secondary account's own API credentials.
+    // For primary accounts without refresh_internal, fall back to the Google
+    // refresh token (legacy behaviour — refresh_token_via_backend will use the
+    // primary user's knapsack_access_key connection instead).
+    refresh_token: Some(refresh_internal.unwrap_or(google_refresh_token_val)),
     connection: None,
     last_synced: None,
     calendar_account_email,
@@ -625,7 +652,18 @@ pub fn create_user_connection(
 }
 
 pub async fn refresh_connection_token(email: String, user_connection: UserConnection) -> Result<String, Error> {
-  match google_refresh_token(email, user_connection.clone().token).await {
+  // For secondary Google accounts, `calendar_account_email` differs from `email`
+  // (the primary user). Use the secondary account's own identity for the backend
+  // token refresh so the correct API credentials are used.
+  let effective_email = if !user_connection.calendar_account_email.is_empty()
+    && user_connection.calendar_account_email != email
+  {
+    user_connection.calendar_account_email.clone()
+  } else {
+    email
+  };
+
+  match google_refresh_token(effective_email, user_connection.clone().token).await {
     Ok(access_token) => Ok(access_token),
     Err(err) => {
       Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))

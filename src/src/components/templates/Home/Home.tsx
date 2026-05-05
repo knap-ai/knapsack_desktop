@@ -186,6 +186,14 @@ function Home({
     }
   }, [])
 
+  // Refresh connections from DB each time the settings dialog opens so newly
+  // authorized accounts (calendar, drive, gmail) appear immediately.
+  useEffect(() => {
+    if (isSettingsDialogOpened && userEmail) {
+      fetchConnections(userEmail)
+    }
+  }, [isSettingsDialogOpened])
+
   // Listen for AI email draft ready — only when email is connected natively in the desktop app
   useEffect(() => {
     const handleEmailDraftReady = (e: Event) => {
