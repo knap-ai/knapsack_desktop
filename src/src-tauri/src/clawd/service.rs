@@ -607,6 +607,28 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     }
   }
 
+  // Ensure jiti v2 is present — it is externalized from the dist bundle and
+  // required at runtime for dynamic TypeScript plugin loading.  Unlike chalk
+  // (committed to git as a shim), jiti is installed by npm.  A missing install
+  // or a stale v1 copy causes "createJiti is not a named export" on gateway
+  // startup, preventing all plugin loading.
+  {
+    let jiti_dir = root_nm.join("jiti");
+    let installed_jiti_major: u64 = fs::read_to_string(jiti_dir.join("package.json"))
+      .ok()
+      .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+      .and_then(|v| v.get("version").and_then(|vv| vv.as_str()).map(|s| s.to_string()))
+      .and_then(|ver| ver.split('.').next().and_then(|m| m.parse::<u64>().ok()))
+      .unwrap_or(0);
+    if installed_jiti_major < 2 && !missing_root.iter().any(|s| s.starts_with("jiti")) {
+      eprintln!(
+        "[clawd/service] jiti v{} installed (need v2+) — queuing jiti@^2.0.0 for install",
+        installed_jiti_major
+      );
+      missing_root.push("jiti@^2.0.0".to_string());
+    }
+  }
+
   // Always recreate the openclaw self-symlink regardless of whether any deps
   // need installing — it must survive app updates where the bundle is replaced.
   ensure_openclaw_self_link(&root_nm);
