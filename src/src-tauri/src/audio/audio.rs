@@ -193,6 +193,36 @@ fn write_audio_data<T, U>(
   }
 }
 
+/// On macOS, checks whether a meeting app has opened a non-default microphone
+/// and returns that device if found.  Falls back to the system default input.
+///
+/// This matters when the user has selected an external headset or monitor mic
+/// in their meeting app (Zoom, Teams) without changing the macOS system default.
+/// Must be called BEFORE opening the notetaker's own mic stream.
+#[cfg(target_os = "macos")]
+fn get_best_input_device(host: &cpal::Host) -> Option<cpal::Device> {
+  let default = host.default_input_device();
+  let default_name = default
+    .as_ref()
+    .and_then(|d| d.name().ok())
+    .unwrap_or_default();
+
+  // Find an input device that is already running (used by a meeting app) and
+  // is different from the system default.  When found, prefer it over the
+  // default so Knapsack captures the same mic as the meeting app.
+  let active_names = crate::audio::macos::get_active_input_device_names();
+  if let Some(preferred_name) = active_names.into_iter().find(|n| n != &default_name) {
+    log::info!("[recording] Preferring actively-used non-default mic: {}", preferred_name);
+    if let Ok(mut devices) = host.input_devices() {
+      if let Some(dev) = devices.find(|d| d.name().map(|n| n == preferred_name).unwrap_or(false)) {
+        return Some(dev);
+      }
+    }
+  }
+
+  default
+}
+
 fn setup_audio_device(
   host: &cpal::Host,
   device_name: &str,
@@ -211,7 +241,14 @@ fn setup_audio_device(
 
   let device = if device_name == "default" {
     if is_input {
-      host.default_input_device()
+      #[cfg(target_os = "macos")]
+      {
+        get_best_input_device(host)
+      }
+      #[cfg(not(target_os = "macos"))]
+      {
+        host.default_input_device()
+      }
     } else {
       host.default_output_device()
     }
@@ -1125,9 +1162,12 @@ async fn stream_audio(
     sample_format => return Err(format!("Unsupported sample format '{sample_format}'")),
   };
 
+  // Count BEFORE play() so we measure only OTHER processes (meeting apps),
+  // not the notetaker's own mic stream.  External speakers/monitors are no
+  // longer counted because count_microphone_users() filters to input-only.
+  let mic_users_beginning = count_microphone_users();
   stream.play().map_err(|e| format!("Failed to start audio stream: {}", e))?;
   let start_time = Utc::now();
-  let mic_users_beginning = count_microphone_users();
   let mut mic_users_after_connections = 0;
 
   let mut in_meeting = false;
@@ -1281,8 +1321,12 @@ fn should_stop_recording(
   let current_mic_users = count_microphone_users();
 
   let meeting_was_already_running = (mic_users_beginning == mic_users_after_connections);
-  let ended_if_already_running =
-    (current_mic_users < mic_users_after_connections) || (current_mic_users == 1);
+
+  // Meeting ended when the active-input count drops below what it was during
+  // the meeting.  The old `|| current == 1` shortcut is removed: with
+  // input-only counting it would fire at count=1 even when a meeting is still
+  // in progress, causing premature auto-stop whenever audio went briefly quiet.
+  let ended_if_already_running = current_mic_users < mic_users_after_connections;
 
   let ended_if_new_meeting =
     (current_mic_users < mic_users_after_connections) || (current_mic_users == mic_users_beginning);
