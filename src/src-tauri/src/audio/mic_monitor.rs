@@ -32,7 +32,9 @@ async fn run_monitor(app: AppHandle, is_knapsack_recording: Arc<AtomicBool>) {
     loop {
         sleep(Duration::from_millis(500)).await;
 
-        let active = is_default_input_active();
+        // count_microphone_users() checks all audio devices for IsRunningSomewhere.
+        // A non-zero count means at least one mic is in use by some process.
+        let active = super::macos::count_microphone_users() > 0;
 
         if active && !was_active {
             let knapsack_recording = is_knapsack_recording.load(Ordering::Relaxed);
@@ -48,60 +50,4 @@ async fn run_monitor(app: AppHandle, is_knapsack_recording: Arc<AtomicBool>) {
 
         was_active = active;
     }
-}
-
-/// Query whether the system's default audio input device is currently in use
-/// by any process (including Knapsack itself — the caller must filter that).
-#[cfg(target_os = "macos")]
-fn is_default_input_active() -> bool {
-    use coreaudio_sys::{
-        kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioObjectPropertyElementMain,
-        kAudioObjectPropertyScopeGlobal, kAudioObjectSystemObject, AudioDeviceID,
-        AudioObjectGetPropertyData, AudioObjectPropertyAddress,
-    };
-    use std::{mem, ptr};
-
-    // FourCC for kAudioHardwarePropertyDefaultInputDevice = 'dIn '
-    const K_DEFAULT_INPUT_DEVICE: u32 = u32::from_be_bytes(*b"dIn ");
-
-    let addr = AudioObjectPropertyAddress {
-        mSelector: K_DEFAULT_INPUT_DEVICE,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain,
-    };
-
-    let mut device_id: AudioDeviceID = 0;
-    let mut size = mem::size_of::<AudioDeviceID>() as u32;
-    let status = unsafe {
-        AudioObjectGetPropertyData(
-            kAudioObjectSystemObject,
-            &addr,
-            0,
-            ptr::null(),
-            &mut size,
-            &mut device_id as *mut AudioDeviceID as *mut _,
-        )
-    };
-    if status != 0 || device_id == 0 {
-        return false;
-    }
-
-    let running_addr = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMain,
-    };
-    let mut in_use: u32 = 0;
-    let mut prop_size = mem::size_of::<u32>() as u32;
-    let status = unsafe {
-        AudioObjectGetPropertyData(
-            device_id,
-            &running_addr,
-            0,
-            ptr::null(),
-            &mut prop_size,
-            &mut in_use as *mut u32 as *mut _,
-        )
-    };
-    status == 0 && in_use != 0
 }
