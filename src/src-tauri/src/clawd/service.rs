@@ -6368,10 +6368,52 @@ pub fn cleanup_gateway_on_exit() {
 
 /// Return built-in skills catalog (static JSON file, no gateway dependency)
 #[get("/api/clawd/skills/status")]
-pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
-  let catalog: serde_json::Value = serde_json::from_str(
+pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let catalog: Vec<serde_json::Value> = serde_json::from_str(
     include_str!("skills_catalog.json")
   ).unwrap_or_default();
+
+  // Try to get live enabled state from the gateway and merge it into the catalog.
+  // If the gateway is unavailable or doesn't support skills.list, fall back to
+  // the static catalog (built-in skills already carry enabled:true there).
+  if let Ok(tokens) = load_or_create_tokens(&app_handle) {
+    if let Ok(result) = super::gateway_client::gateway_request_pooled(
+      "skills.list",
+      None,
+      &tokens.gateway_token,
+    ).await {
+      if let Some(live_skills) = result.as_array() {
+        let mut enabled_map: std::collections::HashMap<String, bool> =
+          std::collections::HashMap::new();
+        for skill in live_skills {
+          if let (Some(name), Some(enabled)) = (
+            skill.get("name").and_then(|n| n.as_str()),
+            skill.get("enabled").and_then(|e| e.as_bool()),
+          ) {
+            enabled_map.insert(name.to_string(), enabled);
+          }
+        }
+        let merged: Vec<serde_json::Value> = catalog
+          .into_iter()
+          .map(|mut entry| {
+            if let Some(name) = entry
+              .get("name")
+              .and_then(|n| n.as_str())
+              .map(|s| s.to_string())
+            {
+              if let Some(&enabled) = enabled_map.get(&name) {
+                entry["enabled"] = serde_json::json!(enabled);
+              }
+            }
+            entry
+          })
+          .collect();
+        return HttpResponse::Ok()
+          .json(serde_json::json!({"success": true, "skills": merged}));
+      }
+    }
+  }
+
   HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": catalog}))
 }
 
