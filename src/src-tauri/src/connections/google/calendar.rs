@@ -75,7 +75,6 @@ pub async fn fetch_calendar(
   let access_token = match refresh_connection_token(email.clone(), user_connection.clone()).await {
     Ok(token) => token,
     Err(error) => {
-      log::error!("Failed to refresh access token: {:?}", error);
       let msg = format!(
         "Failed to refresh access token for calendar {} (user {})",
         calendar_account_email, email
@@ -286,7 +285,7 @@ async fn fetch_google_calendar_api(
       FetchGoogleCalendarResponse { success: true, message: "Fetching calendar data".to_string() }
     ),
     Err(error) => {
-      log::error!("Fetch calendar failed: {:?}", error);
+      log::warn!("Fetch calendar failed: {:?}", error);
       let error_msg = format!("Fetch calendar failed: {:?}", error);
       HttpResponse::BadRequest().json(
         FetchGoogleCalendarResponse { success: false, message: error_msg }

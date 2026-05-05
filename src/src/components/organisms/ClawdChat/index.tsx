@@ -235,7 +235,7 @@ function friendlyError(raw: string, activeModel?: string): string {
   }
   // Network / connection errors
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return `🌐 **Request too large** (active: \`${activeModel}\`). The image attachment may be too large to send. Try a smaller image or send without the attachment.`
+    return `🌐 **Request too large** (active: \`${activeModel}\`). The message or attachment was too large to send. Try removing any image attachments, or start a new conversation to reduce context size.`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
