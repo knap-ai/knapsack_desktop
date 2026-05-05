@@ -1746,7 +1746,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     channelStatus.genericChannels.irc?.configured ||
     channelStatus.genericChannels.googlechat?.configured
   )
-  const showChannelBanner = msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+  const showChannelBanner = hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
 
   // Build channel status tooltip and button color class
   const channelButtonInfo = useMemo(() => {
@@ -4729,6 +4729,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             </div>
           </div>
         )}
+        {/* API key setup banner — shown on first launch until an API key is saved */}
+        {!hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && (
+          <div className="ClawdMsg ClawdMsg-assistant">
+            <div className="ClawdBubble ClawdApiKeyBanner">
+              <p className="ClawdApiKeyBannerTitle">One more step to get started</p>
+              <p className="ClawdApiKeyBannerDesc">
+                Add an API key from Anthropic, OpenAI, Gemini, or another provider to start chatting. Your key is stored locally and never shared.
+              </p>
+              <button
+                className="ClawdApiKeyBannerBtn"
+                onClick={() => { setShowKeyPrompt(true); setShowSkillsPanel(false); setShowChannelsPanel(false) }}
+              >
+                Add API Key
+              </button>
+            </div>
+          </div>
+        )}
         {/* Channel connection banner — shown in welcome area when no channels are connected */}
         {showChannelBanner && (
           <div className="ClawdMsg ClawdMsg-assistant">
@@ -4761,8 +4778,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </div>
         )}
         {/* Gateway troubleshooting banner — shown only after grace period (3 polls × 3 s = 9 s)
-            so brief restarts and sleep/wake blips don't surface a scary error. */}
-        {health && !health.gateway_ok && gatewayDownPolls >= 3 && !channelStatus.gatewayStarting && (
+            so brief restarts and sleep/wake blips don't surface a scary error.
+            Suppressed entirely until an API key is saved — the gateway status is
+            irrelevant and alarming when the user hasn't set up a key yet. */}
+        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= 3 && !channelStatus.gatewayStarting && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">Gateway connectivity issue</p>
@@ -4796,7 +4815,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           </div>
         )}
         {/* Browser-only issue banner — gateway OK but browser not responding for 60s+ */}
-        {health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= 20 && (
+        {hasCompletedOnboarding && health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= 20 && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner ClawdGatewayBanner--warn">
               <p className="ClawdGatewayBannerTitle">Browser is not responding</p>
