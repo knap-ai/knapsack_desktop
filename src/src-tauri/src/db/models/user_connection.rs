@@ -40,7 +40,7 @@ impl UserConnection {
     connection.execute(
       "INSERT INTO user_connections (user_id, connection_id, token, refresh_token, calendar_account_email) \
        VALUES (?1, ?2, ?3, ?4, ?5) \
-       ON CONFLICT (user_id, connection_id, calendar_account_email) DO UPDATE SET token = ?3",
+       ON CONFLICT (user_id, connection_id, calendar_account_email) DO UPDATE SET token = ?3, refresh_token = ?4",
       (&self.user_id, &self.connection_id, &self.token, &self.refresh_token, &self.calendar_account_email),
     )?;
     Ok(())
