@@ -20,7 +20,8 @@ pub fn start_mic_monitor(_app: AppHandle, _is_knapsack_recording: Arc<AtomicBool
 
 #[cfg(target_os = "macos")]
 async fn run_monitor(app: AppHandle, is_knapsack_recording: Arc<AtomicBool>) {
-    use tokio::time::{sleep, Duration, Instant};
+    use std::time::{Duration, Instant};
+    use tokio::time::sleep;
 
     let cooldown = Duration::from_secs(30);
     let mut was_active = false;
