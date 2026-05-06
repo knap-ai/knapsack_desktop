@@ -216,6 +216,23 @@ function pruneArtifacts(dir) {
   });
 }
 
+// Directory-only pruning (no per-file stat/unlink). Fast enough to run on Windows.
+// Recursively removes directories whose name is in dirNameSet, never touches individual files.
+function pruneDirectoriesOnly(dir, dirNameSet) {
+  if (!fs.existsSync(dir)) return;
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (dirNameSet.has(entry.name)) {
+        rmDir(fullPath);
+      } else {
+        pruneDirectoriesOnly(fullPath, dirNameSet);
+      }
+    }
+  } catch { /* skip */ }
+}
+
 if (IS_WIN) {
   console.log('[prune-clawdbot] 4/5 Skipping ancillary file cleanup on Windows (node_modules will be tarred).');
 } else {
@@ -225,7 +242,10 @@ if (IS_WIN) {
 
 // Also clean up extension-level node_modules (installed by install-bundled-plugin-deps.cjs).
 // These can contain test artifacts like __image_snapshots__ with deeply-nested paths that
-// exceed the Windows MAX_PATH limit and cause NSIS bundling to fail.
+// exceed the Windows MAX_PATH limit and cause WiX LGHT0103 errors.
+// On non-Windows: full pruneArtifacts (dirs + per-file cleanup).
+// On Windows: pruneDirectoriesOnly (dirs only, fast) + LONG_PATH_PACKAGE_SUBDIRS for known
+// packages whose filenames themselves are too long even without test-artifact dirs.
 // Subdirectories of packages whose filenames exceed Windows MAX_PATH (260 chars)
 // when placed under the full extension node_modules install path. WiX light.exe
 // fails with LGHT0103 on these. List the subdir to remove (not the whole package,
@@ -245,7 +265,11 @@ if (fs.existsSync(distExtensionsDir)) {
       const extNodeModules = path.join(distExtensionsDir, extEntry.name, 'node_modules');
       if (fs.existsSync(extNodeModules)) {
         console.log(`[prune-clawdbot]     cleaning extension node_modules: ${extEntry.name}`);
-        if (!IS_WIN) pruneArtifacts(extNodeModules);
+        if (IS_WIN) {
+          pruneDirectoriesOnly(extNodeModules, REMOVE_DIRS);
+        } else {
+          pruneArtifacts(extNodeModules);
+        }
         for (const subdir of LONG_PATH_PACKAGE_SUBDIRS) {
           const target = path.join(extNodeModules, subdir);
           if (rmDir(target)) {
