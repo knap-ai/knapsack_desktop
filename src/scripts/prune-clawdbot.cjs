@@ -246,6 +246,10 @@ if (IS_WIN) {
 // On non-Windows: full pruneArtifacts (dirs + per-file cleanup).
 // On Windows: pruneDirectoriesOnly (dirs only, fast) + LONG_PATH_PACKAGE_SUBDIRS for known
 // packages whose filenames themselves are too long even without test-artifact dirs.
+// After pruning on Windows, each extension's node_modules is tar-packed into a single
+// node_modules.tar. This keeps WiX under its 65535-file CAB limit (LGHT0306): large dep
+// trees (@jimp, @aws-sdk, @discordjs, @slack, etc.) across all extensions can collectively
+// exceed this limit. service.rs extracts each tar at gateway startup.
 // Subdirectories of packages whose filenames exceed Windows MAX_PATH (260 chars)
 // when placed under the full extension node_modules install path. WiX light.exe
 // fails with LGHT0103 on these. List the subdir to remove (not the whole package,
@@ -274,6 +278,31 @@ if (fs.existsSync(distExtensionsDir)) {
           const target = path.join(extNodeModules, subdir);
           if (rmDir(target)) {
             console.log(`[prune-clawdbot]     removed long-path subdir: ${extEntry.name}/node_modules/${subdir.replace(/\\/g, '/')}`);
+          }
+        }
+
+        // On Windows: tar-pack extension node_modules to stay under WiX's 65535-file
+        // CAB limit (LGHT0306). Large dep trees (e.g. @jimp, @aws-sdk, @slack,
+        // @discordjs) across all extensions easily exceed this limit.
+        // Packing into one tar per extension reduces thousands of files to one.
+        // service.rs extracts each tar at gateway startup before launching Node.js.
+        if (IS_WIN) {
+          const extDir = path.join(distExtensionsDir, extEntry.name);
+          try {
+            const { spawnSync } = require('child_process');
+            const result = spawnSync('tar', ['-cf', 'node_modules.tar', 'node_modules'], {
+              cwd: extDir,
+              stdio: 'pipe',
+            });
+            if (result.status === 0) {
+              fs.rmSync(extNodeModules, { recursive: true, force: true });
+              console.log(`[prune-clawdbot]     tarred extension node_modules: ${extEntry.name}`);
+            } else {
+              const err = result.stderr ? result.stderr.toString().trim() : 'unknown error';
+              console.warn(`[prune-clawdbot]     WARNING: tar failed for ${extEntry.name}: ${err}`);
+            }
+          } catch (e) {
+            console.warn(`[prune-clawdbot]     WARNING: could not tar ${extEntry.name}: ${e.message}`);
           }
         }
       }
