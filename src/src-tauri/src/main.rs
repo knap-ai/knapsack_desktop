@@ -765,6 +765,66 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
     Ok(lines[start..].to_vec())
 }
 
+/// Streaming variant for live log tailing.  Returns only the bytes after
+/// `since_offset` (a byte position in the file) plus the new file size so the
+/// caller can pass it back on the next poll.  If the file has been rotated
+/// (new size < since_offset), we reset and return the full tail instead.
+#[tauri::command]
+async fn kn_read_logs_since(
+    app: AppHandle,
+    log_type: String,
+    since_offset: u64,
+) -> Result<(Vec<String>, u64), String> {
+    let log_dir = app
+        .path_resolver()
+        .app_log_dir()
+        .ok_or("Could not resolve log directory")?;
+
+    let log_path = match log_type.as_str() {
+        "error" => log_dir.join("ks_error.log"),
+        "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
+        "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
+        _ => log_dir.join("ks.log"),
+    };
+
+    let metadata = std::fs::metadata(&log_path)
+        .map_err(|e| format!("Failed to stat log file: {}", e))?;
+    let file_size = metadata.len();
+
+    // When since_offset exceeds the file size (first poll uses a large sentinel,
+    // or the file was rotated/truncated), start from a reasonable tail so we
+    // show recent context without dumping the whole file.
+    let read_from = if since_offset > file_size {
+        file_size.saturating_sub(32 * 1024) // last 32 KB
+    } else {
+        since_offset
+    };
+
+    if read_from >= file_size {
+        return Ok((vec![], file_size));
+    }
+
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(&log_path)
+        .map_err(|e| format!("Failed to open log file: {}", e))?;
+    f.seek(SeekFrom::Start(read_from))
+        .map_err(|e| format!("Seek failed: {}", e))?;
+
+    let mut buf = String::new();
+    f.read_to_string(&mut buf)
+        .map_err(|e| format!("Read failed: {}", e))?;
+
+    // If we seeked into the middle of a line, skip to the first newline.
+    let content = if read_from > 0 {
+        buf.find('\n').map(|i| &buf[i + 1..]).unwrap_or("")
+    } else {
+        &buf
+    };
+
+    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    Ok((lines, file_size))
+}
+
 #[tauri::command]
 async fn kn_get_openclaw_version(app: AppHandle) -> Result<String, String> {
     let pkg_path = app
@@ -1571,6 +1631,7 @@ async fn main() {
       update_tray_menu,
       update_tray_title,
       kn_read_logs,
+      kn_read_logs_since,
       kn_get_log_path,
       kn_get_openclaw_version,
       kn_execute_command,

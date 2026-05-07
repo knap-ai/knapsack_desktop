@@ -870,7 +870,8 @@ const TerminalView: React.FC = () => {
 
   // Live log streaming state
   const [liveLogsSession, setLiveLogsSession] = useState<string | null>(null)
-  const lastLogLineCountRef = useRef<number>(0)
+  const lastLogOffsetRef = useRef<number>(0)
+  const lastGwOffsetRef = useRef<number>(0)
   const clawdbotInitRef = useRef(false)
 
   // Auto-fetch backend status when Clawdbot session first opens
@@ -902,18 +903,42 @@ const TerminalView: React.FC = () => {
     fetchStatus()
   }, [sessions, addLine])
 
-  // Live log polling
+  // Live log polling — uses byte-offset tracking so we only fetch new content
+  // on each poll.  The old line-count approach broke once the count hit maxLines
+  // (500): lines.slice(500) was always [] and no new lines ever appeared.
+  //
+  // Number.MAX_SAFE_INTEGER is used as the sentinel for the first poll,
+  // which tells the Rust side to start from the last 32 KB of the file
+  // (recent context without dumping the whole file).
   useEffect(() => {
     if (!liveLogsSession) return
-    lastLogLineCountRef.current = 0
+    // Large sentinel → Rust will start from the last 32 KB of each file,
+    // giving recent context without dumping the full history.
+    lastLogOffsetRef.current = Number.MAX_SAFE_INTEGER
+    lastGwOffsetRef.current = Number.MAX_SAFE_INTEGER
 
     const poll = async () => {
       try {
-        const lines: string[] = await invoke('kn_read_logs', { logType: 'all', maxLines: 500 })
-        const newLines = lines.slice(lastLogLineCountRef.current)
-        if (newLines.length > 0) {
-          lastLogLineCountRef.current = lines.length
-          newLines.forEach(line => addLine(liveLogsSession, 'stdout', line))
+        // Poll app log and gateway stderr in parallel; interleave results.
+        const [appResult, gwResult] = await Promise.allSettled([
+          invoke<[string[], number]>('kn_read_logs_since', {
+            logType: 'all',
+            sinceOffset: lastLogOffsetRef.current,
+          }),
+          invoke<[string[], number]>('kn_read_logs_since', {
+            logType: 'clawdbot_err',
+            sinceOffset: lastGwOffsetRef.current,
+          }),
+        ])
+        if (appResult.status === 'fulfilled') {
+          const [lines, newOffset] = appResult.value
+          lines.forEach(line => addLine(liveLogsSession, 'stdout', `[app] ${line}`))
+          lastLogOffsetRef.current = newOffset
+        }
+        if (gwResult.status === 'fulfilled') {
+          const [lines, newOffset] = gwResult.value
+          lines.forEach(line => addLine(liveLogsSession, 'stderr', `[gw] ${line}`))
+          lastGwOffsetRef.current = newOffset
         }
       } catch {
         // Log reading may fail if files don't exist yet
