@@ -1257,6 +1257,7 @@ function App() {
         meetingId: meetingId,
       })
       await invoke('activate_main_window')
+      window.dispatchEvent(new CustomEvent('clawd-open-meeting'))
       try {
         await startRecordingExistingMeeting(meetingId, openUrl, startRecord)
       } catch (error) {

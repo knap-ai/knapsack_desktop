@@ -205,11 +205,17 @@ function Home({
       setCurrentTab(TabChoices.Openclaw)
     }
     const handleFocusChat = () => setCurrentTab(TabChoices.Openclaw)
+    const handleOpenMeeting = () => {
+      setCurrentTab(TabChoices.Meeting)
+      setMeetingSubView('meetings')
+    }
     window.addEventListener('clawd-email-draft-ready', handleEmailDraftReady)
     window.addEventListener('clawd-focus-chat', handleFocusChat)
+    window.addEventListener('clawd-open-meeting', handleOpenMeeting)
     return () => {
       window.removeEventListener('clawd-email-draft-ready', handleEmailDraftReady)
       window.removeEventListener('clawd-focus-chat', handleFocusChat)
+      window.removeEventListener('clawd-open-meeting', handleOpenMeeting)
     }
   }, [feed.loggedEmailAutopilot, feed.setComposedEmailDraft])
 
