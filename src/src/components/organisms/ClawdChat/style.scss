@@ -2668,6 +2668,47 @@
   }
 }
 
+// API key setup banner — shown on first launch before a key is saved
+.ClawdApiKeyBanner {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  border: 1px solid #c4b5fd;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.ClawdApiKeyBannerTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: #4c1d95;
+  margin: 0 0 4px;
+}
+
+.ClawdApiKeyBannerDesc {
+  font-size: 13px;
+  color: #5b21b6;
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.ClawdApiKeyBannerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: #6d28d9;
+  }
+}
+
 // Gateway troubleshooting banner — shown when gateway or browser is down
 .ClawdGatewayBanner {
   background: linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%);
