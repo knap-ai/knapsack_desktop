@@ -428,6 +428,68 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
   }
 }
 
+/// Remove plugin-runtime-deps directories whose version prefix doesn't match
+/// `current_version`. This prevents WhatsApp (and other plugins) from crashing
+/// the gateway with ENOENT when they try to migrate their auth-store from an
+/// old `openclaw-{old}-{hash}` dir that no longer exists.
+fn remove_stale_plugin_runtime_deps_versions(clawdbot_home: &std::path::Path, current_version: &str) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    // Keep the directory if it matches the current version.
+    // Format: openclaw-{version}-{hash}
+    // Match on `openclaw-{current_version}-` prefix so we preserve the right hash.
+    let expected_prefix = format!("openclaw-{}-", current_version);
+    if !current_version.is_empty() && dir_name.starts_with(&expected_prefix) {
+      continue;
+    }
+    match fs::remove_dir_all(entry.path()) {
+      Ok(_) => eprintln!(
+        "[clawd/service] Removed stale plugin runtime deps dir: {} (current version: {})",
+        entry.path().display(),
+        current_version
+      ),
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: Failed to remove stale plugin runtime deps dir {}: {}",
+        entry.path().display(),
+        e
+      ),
+    }
+  }
+}
+
+/// Read the bundled clawdbot version string from its package.json.
+/// Returns an empty string if the file can't be read or has no version field.
+fn read_clawdbot_bundle_version(clawdbot_dir: &std::path::Path) -> String {
+  let pkg_path = clawdbot_dir.join("package.json");
+  let content = match fs::read_to_string(&pkg_path) {
+    Ok(s) => s,
+    Err(_) => return String::new(),
+  };
+  let json: serde_json::Value = match serde_json::from_str(&content) {
+    Ok(v) => v,
+    Err(_) => return String::new(),
+  };
+  json.get("version")
+    .and_then(|v| v.as_str())
+    .map(|s| s.trim().to_string())
+    .unwrap_or_default()
+}
+
+fn clawdbot_bundle_dir(app_handle: &tauri::AppHandle) -> PathBuf {
+  resource_path(app_handle, "resources/clawdbot")
+}
+
 /// Install runtime dependencies for bundled plugins that declare
 /// `openclaw.bundle.stageRuntimeDependencies: true` (e.g. telegram needs grammy).
 ///
@@ -4825,6 +4887,13 @@ pub async fn set_service_enabled(
       // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
       // 5 minutes for a lock left by a previous crashed/killed process.
       remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(&app_handle));
+      // Remove stale versioned plugin-runtime-deps dirs to prevent WhatsApp
+      // (and other plugins) from crashing the gateway with ENOENT during
+      // auth-store migration from old→new version staging directories.
+      {
+        let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+        remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(&app_handle), &ver);
+      }
 
       // Run "openclaw doctor --fix" in a background thread — same reason as
       // macOS: Node.js can hang on DNS failure, which would block the HTTP
@@ -6002,6 +6071,13 @@ pub async fn set_service_enabled(
       // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
       // 5 minutes for a lock left by a previous crashed/killed process.
       remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+      // Remove stale versioned plugin-runtime-deps dirs to prevent WhatsApp
+      // (and other plugins) from crashing the gateway with ENOENT during
+      // auth-store migration from old→new version staging directories.
+      if let Some(bundle_dir) = clawdbot_entry.parent().and_then(|p| p.parent()) {
+        let ver = read_clawdbot_bundle_version(bundle_dir);
+        remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &ver);
+      }
 
       let boot = std::process::Command::new("launchctl")
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
@@ -6944,6 +7020,13 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
   // 5 minutes for a lock left by a previous crashed/killed process.
   remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
+  // Remove stale versioned plugin-runtime-deps dirs to prevent WhatsApp
+  // (and other plugins) from crashing the gateway with ENOENT during
+  // auth-store migration from old→new version staging directories.
+  {
+    let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+    remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
+  }
 
   let boot = std::process::Command::new("launchctl")
     .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
