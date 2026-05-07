@@ -460,7 +460,22 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       } else {
         node_dir.join("npm")
       };
-      NpmRunner::NpmBin(if bin.exists() { bin } else { PathBuf::from("npm") })
+      if bin.exists() {
+        NpmRunner::NpmBin(bin)
+      } else {
+        // LaunchAgent environments have a stripped PATH that excludes Homebrew and nvm.
+        // Search well-known npm locations before falling back to bare "npm".
+        let fallback_npm = [
+          "/opt/homebrew/bin/npm",
+          "/usr/local/bin/npm",
+          "/usr/bin/npm",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .find(|p| p.exists())
+        .unwrap_or_else(|| PathBuf::from("npm"));
+        NpmRunner::NpmBin(fallback_npm)
+      }
     }
   } else {
     NpmRunner::NpmBin(PathBuf::from("npm"))
