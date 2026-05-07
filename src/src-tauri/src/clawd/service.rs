@@ -460,7 +460,22 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       } else {
         node_dir.join("npm")
       };
-      NpmRunner::NpmBin(if bin.exists() { bin } else { PathBuf::from("npm") })
+      if bin.exists() {
+        NpmRunner::NpmBin(bin)
+      } else {
+        // LaunchAgent environments have a stripped PATH that excludes Homebrew and nvm.
+        // Search well-known npm locations before falling back to bare "npm".
+        let fallback_npm = [
+          "/opt/homebrew/bin/npm",
+          "/usr/local/bin/npm",
+          "/usr/bin/npm",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .find(|p| p.exists())
+        .unwrap_or_else(|| PathBuf::from("npm"));
+        NpmRunner::NpmBin(fallback_npm)
+      }
     }
   } else {
     NpmRunner::NpmBin(PathBuf::from("npm"))
@@ -632,6 +647,14 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       );
       missing_root.push("jiti@^2.0.0".to_string());
     }
+  }
+
+  // Ensure `ignore` is present — used by the openclaw CLI for .gitignore-style
+  // file filtering.  Like jiti, it is not committed to the repo and must be
+  // npm-installed at runtime.
+  if !root_nm.join("ignore").exists() && !missing_root.iter().any(|s| s.starts_with("ignore")) {
+    eprintln!("[clawd/service] `ignore` package missing — queuing ignore@^7.0.0 for install");
+    missing_root.push("ignore@^7.0.0".to_string());
   }
 
   // Always recreate the openclaw self-symlink regardless of whether any deps
@@ -6829,6 +6852,15 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       .map(|s| s.success())
       .unwrap_or(false);
     if is_loaded {
+      // Gateway is already running — still apply the allowlist auto-heal so
+      // that a bad config (e.g. WhatsApp dmPolicy="allowlist" with no senders)
+      // is fixed on disk before the *next* gateway restart.
+      let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+      sanitize_config_file_allowlist(&config_path);
+      // Also remove any stale standalone OpenClaw plist — it could be competing
+      // on port 18789 and causing the connect/disconnect instability even though
+      // our own service is "loaded."
+      remove_stale_standalone_gateway();
       return;
     }
     eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");

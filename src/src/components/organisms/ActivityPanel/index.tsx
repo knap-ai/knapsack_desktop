@@ -870,7 +870,8 @@ const TerminalView: React.FC = () => {
 
   // Live log streaming state
   const [liveLogsSession, setLiveLogsSession] = useState<string | null>(null)
-  const lastLogLineCountRef = useRef<number>(0)
+  const lastLogOffsetRef = useRef<number>(0)
+  const lastGwOffsetRef = useRef<number>(0)
   const clawdbotInitRef = useRef(false)
 
   // Auto-fetch backend status when Clawdbot session first opens
@@ -902,18 +903,42 @@ const TerminalView: React.FC = () => {
     fetchStatus()
   }, [sessions, addLine])
 
-  // Live log polling
+  // Live log polling — uses byte-offset tracking so we only fetch new content
+  // on each poll.  The old line-count approach broke once the count hit maxLines
+  // (500): lines.slice(500) was always [] and no new lines ever appeared.
+  //
+  // Number.MAX_SAFE_INTEGER is used as the sentinel for the first poll,
+  // which tells the Rust side to start from the last 32 KB of the file
+  // (recent context without dumping the whole file).
   useEffect(() => {
     if (!liveLogsSession) return
-    lastLogLineCountRef.current = 0
+    // Large sentinel → Rust will start from the last 32 KB of each file,
+    // giving recent context without dumping the full history.
+    lastLogOffsetRef.current = Number.MAX_SAFE_INTEGER
+    lastGwOffsetRef.current = Number.MAX_SAFE_INTEGER
 
     const poll = async () => {
       try {
-        const lines: string[] = await invoke('kn_read_logs', { logType: 'all', maxLines: 500 })
-        const newLines = lines.slice(lastLogLineCountRef.current)
-        if (newLines.length > 0) {
-          lastLogLineCountRef.current = lines.length
-          newLines.forEach(line => addLine(liveLogsSession, 'stdout', line))
+        // Poll app log and gateway stderr in parallel; interleave results.
+        const [appResult, gwResult] = await Promise.allSettled([
+          invoke<[string[], number]>('kn_read_logs_since', {
+            logType: 'all',
+            sinceOffset: lastLogOffsetRef.current,
+          }),
+          invoke<[string[], number]>('kn_read_logs_since', {
+            logType: 'clawdbot_err',
+            sinceOffset: lastGwOffsetRef.current,
+          }),
+        ])
+        if (appResult.status === 'fulfilled') {
+          const [lines, newOffset] = appResult.value
+          lines.forEach(line => addLine(liveLogsSession, 'stdout', `[app] ${line}`))
+          lastLogOffsetRef.current = newOffset
+        }
+        if (gwResult.status === 'fulfilled') {
+          const [lines, newOffset] = gwResult.value
+          lines.forEach(line => addLine(liveLogsSession, 'stderr', `[gw] ${line}`))
+          lastGwOffsetRef.current = newOffset
         }
       } catch {
         // Log reading may fail if files don't exist yet
@@ -1133,6 +1158,7 @@ const TerminalView: React.FC = () => {
       const session = sessions.find(s => s.id === sessionId)
       if (!session) return
       const trimmed = command.trim()
+      const cmd = trimmed.toLowerCase()
 
       // For PTY sessions, always forward Enter (even when empty) so that
       // interactive TUI prompts (e.g. Claude Code selection menus) receive
@@ -1152,12 +1178,12 @@ const TerminalView: React.FC = () => {
       }))
       addLine(sessionId, 'command', `$ ${trimmed}`)
 
-      if (trimmed === 'clear') {
+      if (cmd === 'clear') {
         updateSession(sessionId, s => ({ ...s, lines: [] }))
         return
       }
 
-      if (trimmed === 'help') {
+      if (cmd === 'help') {
         addLine(sessionId, 'system', [
           'Built-in commands:',
           '  clear              Clear terminal output',
@@ -1178,7 +1204,7 @@ const TerminalView: React.FC = () => {
       }
 
       // Live logs toggle command
-      if (trimmed === 'live logs' || trimmed === 'logs' || trimmed === 'live' || trimmed === 'tail') {
+      if (cmd === 'live logs' || cmd === 'logs' || cmd === 'live' || cmd === 'tail') {
         if (liveLogsSession === sessionId) {
           setLiveLogsSession(null)
           addLine(sessionId, 'system', 'Live log streaming stopped.')
@@ -1190,7 +1216,7 @@ const TerminalView: React.FC = () => {
       }
 
       // Service status command
-      if (trimmed === 'status' || trimmed === 'service status') {
+      if (cmd === 'status' || cmd === 'service status') {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           const [statusRes, healthRes] = await Promise.all([
@@ -1213,8 +1239,8 @@ const TerminalView: React.FC = () => {
       }
 
       // enable / disable — register or remove the LaunchAgent
-      if (trimmed === 'enable' || trimmed === 'disable') {
-        const enabling = trimmed === 'enable'
+      if (cmd === 'enable' || cmd === 'disable') {
+        const enabling = cmd === 'enable'
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         addLine(sessionId, 'system', enabling ? 'Registering LaunchAgent and starting gateway...' : 'Stopping gateway and removing LaunchAgent...')
         try {
@@ -1249,10 +1275,10 @@ const TerminalView: React.FC = () => {
 
       // gateway restart — re-run enable to restart the gateway LaunchAgent
       if (
-        trimmed === 'gateway restart' ||
-        trimmed === 'restart' ||
-        trimmed === 'openclaw gateway restart' ||
-        trimmed === 'openclaw restart'
+        cmd === 'gateway restart' ||
+        cmd === 'restart' ||
+        cmd === 'openclaw gateway restart' ||
+        cmd === 'openclaw restart'
       ) {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         addLine(sessionId, 'system', 'Restarting gateway (re-registering LaunchAgent)...')
@@ -1282,18 +1308,18 @@ const TerminalView: React.FC = () => {
       }
 
       // openclaw install — openclaw is embedded; guide user to enable/doctor instead
-      if (trimmed === 'openclaw install' || trimmed === 'openclaw setup') {
+      if (cmd === 'openclaw install' || cmd === 'openclaw setup') {
         addLine(sessionId, 'system', 'openclaw is bundled inside Knapsack — no separate install needed.\nTry: "enable" to start the gateway, or "doctor" to diagnose issues.')
         return
       }
 
       // Skills CLI commands — intercept and call the backend API
-      if (trimmed === 'skills' || trimmed === 'skills help') {
+      if (cmd === 'skills' || cmd === 'skills help') {
         addLine(sessionId, 'system', 'Usage: skills <command>\n\n  skills list       List all skills with status\n  skills install    Install a skill (e.g. skills install GitHub)\n  skills enable     Enable a skill (e.g. skills enable GitHub)\n  skills disable    Disable a skill (e.g. skills disable GitHub)\n  skills help       Show this help')
         return
       }
 
-      if (trimmed === 'skills list' || trimmed === 'skills status' || trimmed === 'skills check') {
+      if (cmd === 'skills list' || cmd === 'skills status' || cmd === 'skills check') {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           const resp = await fetch('http://127.0.0.1:8897/api/clawd/skills/status')
@@ -1414,7 +1440,7 @@ const TerminalView: React.FC = () => {
 
       // ── Legacy pipe-based execution (non-PTY fallback) ──
 
-      if (trimmed.startsWith('cd ')) {
+      if (cmd.startsWith('cd ')) {
         const dir = trimmed.slice(3).trim()
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
@@ -1437,18 +1463,18 @@ const TerminalView: React.FC = () => {
 
       // openclaw doctor — run as a streaming process for real-time self-heal output
       if (
-        trimmed === 'doctor' ||
-        trimmed === 'doctor --fix' ||
-        trimmed === 'openclaw doctor' ||
-        trimmed === 'openclaw doctor --fix'
+        cmd === 'doctor' ||
+        cmd === 'doctor --fix' ||
+        cmd === 'openclaw doctor' ||
+        cmd === 'openclaw doctor --fix'
       ) {
-        const isFixMode = trimmed.includes('--fix')
-        const cmd = isFixMode ? 'openclaw doctor --fix' : 'openclaw doctor'
+        const isFixMode = cmd.includes('--fix')
+        const doctorCmd = isFixMode ? 'openclaw doctor --fix' : 'openclaw doctor'
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           addLine(sessionId, 'system', isFixMode ? 'Running openclaw doctor --fix...' : 'Running openclaw doctor...')
           const processId: string = await invoke('kn_spawn_streaming_command', {
-            command: cmd,
+            command: doctorCmd,
             cwd: session.cwd || undefined,
             sessionId,
           })
@@ -1461,7 +1487,7 @@ const TerminalView: React.FC = () => {
       }
 
       // Claude Code CLI — run as a streaming process so output appears in real-time
-      if (trimmed === 'claude' || trimmed.startsWith('claude ')) {
+      if (cmd === 'claude' || cmd.startsWith('claude ')) {
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           addLine(sessionId, 'system', 'Starting Claude Code...')
@@ -1624,7 +1650,8 @@ const TerminalView: React.FC = () => {
             updateSession(activeSession.id, s => ({ ...s, lines: [] }))
             if (liveLogsSession === activeSession.id) {
               setLiveLogsSession(null)
-              lastLogLineCountRef.current = 0
+              lastLogOffsetRef.current = 0
+              lastGwOffsetRef.current = 0
             }
           }}
         >

@@ -2898,7 +2898,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         pushAssistant(`Great! I'm all set up with ${providerInfo?.name || selectedProvider} (${modelName}) and ready to help. Try asking me to browse a website!`)
       } catch (e: any) {
         pushAssistant(
-          'API key saved! You can now enable the browser assistant using the Enable button above.',
+          'API key saved! You can now enable the browser assistant using the Enable button below.',
         )
       }
     } catch (e: any) {
