@@ -503,6 +503,11 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
       .map(|m| m.keys().cloned().collect())
       .unwrap_or_default();
 
+    // On Windows CI builds the extension node_modules is packed into
+    // node_modules.tar to keep WiX under its 65535-file CAB limit.
+    // Extract it now so the dep-presence check below finds the packages.
+    ensure_node_modules_extracted(&plugin_dir);
+
     let nm_dir = plugin_dir.join("node_modules");
     let all_present = !deps.is_empty() && deps.iter().all(|dep| nm_dir.join(dep).exists());
     if all_present {
@@ -691,6 +696,60 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     ),
   }
 
+}
+
+/// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
+/// `node_modules.tar` (one file) so WiX stays under its 65535-file CAB limit
+/// (LGHT0306).  This function extracts the tar back to `node_modules/` at
+/// gateway startup so Node.js can resolve bundled packages from that directory.
+///
+/// Extraction is attempted in-place (same `dir` that contains the tar).  This
+/// works for per-user Tauri MSI installs (LOCALAPPDATA — writable).  For
+/// per-machine installs (C:\Program Files\ — read-only), tar.exe will fail;
+/// the error is logged and we fall through — the gateway will then fail to
+/// resolve any package externalized from the dist bundle (e.g. chalk, jiti).
+///
+/// On non-Windows platforms there is no tar (macOS/Linux use the real
+/// node_modules directory); the early-exit `!tar_path.exists()` guard handles
+/// that transparently.
+fn ensure_node_modules_extracted(dir: &std::path::Path) {
+  let tar_path = dir.join("node_modules.tar");
+  if !tar_path.exists() {
+    return; // No tar — dev build or macOS/Linux (uses real node_modules dir).
+  }
+
+  let nm_path = dir.join("node_modules");
+  if nm_path.is_dir() {
+    // Already extracted — check if the tar is newer (app was updated in-place).
+    let tar_mtime = fs::metadata(&tar_path).and_then(|m| m.modified()).ok();
+    let nm_mtime  = fs::metadata(&nm_path).and_then(|m| m.modified()).ok();
+    match (tar_mtime, nm_mtime) {
+      (Some(t), Some(n)) if t <= n => return, // tar is not newer — skip
+      (Some(_), Some(_)) => {
+        eprintln!("[clawd/service] node_modules.tar is newer than extracted node_modules — re-extracting in {}", dir.display());
+        let _ = fs::remove_dir_all(&nm_path);
+      }
+      _ => return, // Can't stat both — assume OK.
+    }
+  }
+
+  eprintln!("[clawd/service] Extracting node_modules.tar in {}...", dir.display());
+
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let result = std::process::Command::new("tar")
+      .args(["-xf", "node_modules.tar"])
+      .current_dir(dir)
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    match result {
+      Ok(s) if s.success() => eprintln!("[clawd/service] node_modules.tar extracted in {}", dir.display()),
+      Ok(s) => eprintln!("[clawd/service] WARNING: node_modules.tar extraction exited {} in {}", s, dir.display()),
+      Err(e) => eprintln!("[clawd/service] WARNING: Failed to run tar for node_modules.tar in {}: {}", dir.display(), e),
+    }
+  }
 }
 
 /// Create `node_modules/openclaw -> ..` (or a junction on Windows) so that
@@ -4622,6 +4681,15 @@ async fn prepare_gateway_config(
   let app_version = app_handle.package_info().version.to_string();
   let os_info = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
 
+  // On Windows CI/release builds the main clawdbot node_modules is packed into
+  // node_modules.tar to stay under WiX's 65535-file CAB limit.  Extract it now
+  // so NODE_PATH points at real files and gateway modules (e.g. chalk, jiti)
+  // resolve correctly.  The clawdbot root is two directories above entry.js
+  // (dist/entry.js → dist/ → clawdbot/).
+  if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
+    ensure_node_modules_extracted(clawdbot_root);
+  }
+
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
@@ -5006,6 +5074,11 @@ pub async fn set_service_enabled(
       // OPENCLAW_BUNDLED_PLUGINS_DIR env var and for cleaning up stale
       // plugins.load.paths entries from older configs.
       let bundled_plugins_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
+
+      // Extract node_modules.tar if present (Windows CI/release builds only).
+      if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
+        ensure_node_modules_extracted(clawdbot_root);
+      }
 
       // Install runtime deps for bundled plugins (e.g. grammy for telegram).
       install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
