@@ -649,6 +649,14 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
     }
   }
 
+  // Ensure `ignore` is present — used by the openclaw CLI for .gitignore-style
+  // file filtering.  Like jiti, it is not committed to the repo and must be
+  // npm-installed at runtime.
+  if !root_nm.join("ignore").exists() && !missing_root.iter().any(|s| s.starts_with("ignore")) {
+    eprintln!("[clawd/service] `ignore` package missing — queuing ignore@^7.0.0 for install");
+    missing_root.push("ignore@^7.0.0".to_string());
+  }
+
   // Always recreate the openclaw self-symlink regardless of whether any deps
   // need installing — it must survive app updates where the bundle is replaced.
   ensure_openclaw_self_link(&root_nm);
@@ -6844,6 +6852,11 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       .map(|s| s.success())
       .unwrap_or(false);
     if is_loaded {
+      // Gateway is already running — still apply the allowlist auto-heal so
+      // that a bad config (e.g. WhatsApp dmPolicy="allowlist" with no senders)
+      // is fixed on disk before the *next* gateway restart.
+      let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+      sanitize_config_file_allowlist(&config_path);
       return;
     }
     eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");
