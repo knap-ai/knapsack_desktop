@@ -6857,6 +6857,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       // is fixed on disk before the *next* gateway restart.
       let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
       sanitize_config_file_allowlist(&config_path);
+      // Also remove any stale standalone OpenClaw plist — it could be competing
+      // on port 18789 and causing the connect/disconnect instability even though
+      // our own service is "loaded."
+      remove_stale_standalone_gateway();
       return;
     }
     eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");
