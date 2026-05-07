@@ -249,6 +249,7 @@ function App() {
     hasSynthesized,
   } = useRecording()
   const isAnyRecordingRef = useRef(isAnyRecording)
+  const suppressMicNotificationRef = useRef(false)
 
   useEffect(() => {
     const email = auth.profile?.email ?? ''
@@ -1049,11 +1050,21 @@ function App() {
     }
   }, [])
 
+  // Suppress mic-activated notification briefly when the user explicitly starts a quick note,
+  // so the "You're on a call" popup doesn't appear redundantly alongside the recording UI.
+  useEffect(() => {
+    const unlistenPromise = listen('create_quick_note', () => {
+      suppressMicNotificationRef.current = true
+      setTimeout(() => { suppressMicNotificationRef.current = false }, 10000)
+    })
+    return () => { unlistenPromise.then(unlisten => unlisten()) }
+  }, [])
+
   // Listen for mic-activated events emitted by the Rust mic monitor.
   // Show a "Take Notes" prompt when any app activates the mic (unscheduled calls).
   useEffect(() => {
     const unlistenPromise = listen('mic-activated', async () => {
-      if (isAnyRecordingRef.current) return
+      if (isAnyRecordingRef.current || suppressMicNotificationRef.current) return
       try {
         await openNotificationWindow(
           undefined,
