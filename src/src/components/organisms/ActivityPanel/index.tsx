@@ -1650,7 +1650,8 @@ const TerminalView: React.FC = () => {
             updateSession(activeSession.id, s => ({ ...s, lines: [] }))
             if (liveLogsSession === activeSession.id) {
               setLiveLogsSession(null)
-              lastLogLineCountRef.current = 0
+              lastLogOffsetRef.current = 0
+              lastGwOffsetRef.current = 0
             }
           }}
         >
