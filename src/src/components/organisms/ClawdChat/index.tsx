@@ -220,6 +220,14 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('model_not_found') || lower.includes('does not exist') || lower.includes('no access')) {
     return `⚠️ **Model not available** (active: \`${activeModel}\`). Your API key may not have access to this model. Try switching to a different model in Settings.\n\n${switchProviderAction}`
   }
+  // Playwright / snapshot not available in gateway build
+  if (lower.includes('playwright') || lower.includes('snapshot() is unsupported') || lower.includes('not available in this gateway build')) {
+    return '📸 **Screenshot unavailable.** The browser screenshot feature (Playwright) is not installed in the current gateway build. Reinstall Knapsack to get the latest gateway version, then try again.'
+  }
+  // Context / prompt too large for model
+  if (lower.includes('context overflow') || lower.includes('prompt too large') || (lower.includes('too large') && lower.includes('model'))) {
+    return `⚠️ **Context overflow** (active: \`${activeModel}\`). The conversation is too long for this model. Start a new conversation to reduce context size, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
+  }
   // Browser automation errors
   if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
     return '🌐 **Browser not available.** The browser assistant is not running. Go to Settings and enable Clawd, then try again.'
