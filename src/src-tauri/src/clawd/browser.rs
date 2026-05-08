@@ -3087,10 +3087,25 @@ pub async fn chat(
     .or_insert_with(|| load_history_from_transcript(&session_id, 20));
 
   // Memory section — inject persistent notes from previous sessions.
+  // Cap to the 10 most-recent notes and 2 000 chars total to prevent context overflow.
+  // Notes arrive oldest-first from the frontend; take from the end to get the most recent.
+  const MEMORY_MAX_NOTES: usize = 10;
+  const MEMORY_MAX_CHARS: usize = 2000;
   let memory_section = if !memory_notes.is_empty() {
+    let recent: Vec<&String> = memory_notes.iter().rev().take(MEMORY_MAX_NOTES).collect::<Vec<_>>().into_iter().rev().collect();
+    let joined = recent.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n");
+    // Truncate by chars (not bytes) to avoid splitting UTF-8 sequences.
+    let char_count = joined.chars().count();
+    let capped = if char_count > MEMORY_MAX_CHARS {
+      let tail: String = joined.chars().skip(char_count - MEMORY_MAX_CHARS).collect();
+      // Drop any partial first line produced by the truncation.
+      tail.find('\n').map(|i| tail[i + 1..].to_string()).unwrap_or(tail)
+    } else {
+      joined
+    };
     format!(
       "\n\n## MEMORY FROM PREVIOUS SESSIONS\nThe following are summaries of previous conversations. Use them for context but do not repeat them verbatim:\n{}\n",
-      memory_notes.join("\n")
+      capped
     )
   } else {
     String::new()
