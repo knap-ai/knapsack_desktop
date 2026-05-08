@@ -4610,6 +4610,11 @@ async fn prepare_gateway_config(
     ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(), bundled_plugins_dir_str),
     ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+    // Prevents the clawdbot gateway's doctor/inspect flow from classifying this
+    // plist as a legacy "clawdbot" service and moving it to Trash.  The inspector
+    // checks for these two keys to recognise a plist as a current openclaw gateway.
+    ("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()),
+    ("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()),
     // Ensure Node.js resolves packages from the bundled flat node_modules
     // directory.  Without this, stale nested node_modules can cause
     // ERR_PACKAGE_PATH_NOT_EXPORTED errors.
@@ -5846,6 +5851,11 @@ pub async fn set_service_enabled(
         // The gateway logs this on every config read; setting this env var tells it to
         // log the warning only once on startup instead of on every read cycle.
         ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
+        // Prevents the clawdbot gateway's doctor/inspect flow from classifying this
+        // plist as a legacy "clawdbot" service and moving it to Trash.  The inspector
+        // checks for these two keys to recognise a plist as a current openclaw gateway.
+        ("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()),
+        ("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()),
         // Ensure Node.js resolves packages from the bundled flat node_modules
         // directory. Without this, stale nested node_modules (e.g. created by
         // a local pnpm install) can cause ERR_PACKAGE_PATH_NOT_EXPORTED errors
