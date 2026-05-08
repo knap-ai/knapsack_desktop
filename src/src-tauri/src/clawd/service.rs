@@ -1980,6 +1980,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       // Pre-compute paths before the spawn (app_handle can't cross async boundaries cheaply).
       let restart_clawdbot_home = app_clawdbot_home(&app_handle);
       let restart_bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+      let restart_node_path = resource_path(&app_handle, if cfg!(target_os = "windows") {
+        "resources/node/node.exe"
+      } else {
+        "resources/node/node"
+      });
+      let restart_extensions_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
       eprintln!("[clawd/service] gateway not reachable — attempting background restart");
       tokio::spawn(async move {
         // Kill stale managed Chrome processes before restarting the gateway.
@@ -2092,6 +2098,14 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // fail their npm install on every subsequent gateway start.
         remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
         remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+
+        // Re-run plugin dep installs for any extension whose node_modules are
+        // missing (fast no-op when all deps are already present).  This is how
+        // playwright-core for the browser extension gets installed — if the
+        // initial enable-time install failed (ENOTEMPTY, npm unavailable, etc.)
+        // the gateway silently starts without it and every snapshot() call
+        // returns "Playwright is not available in this gateway build".
+        install_bundled_plugin_runtime_deps(&restart_node_path, &restart_extensions_dir);
 
         // Sentry: record that a self-heal cycle ran so we can see frequency in
         // the dashboard even when the gateway ultimately recovers cleanly.
