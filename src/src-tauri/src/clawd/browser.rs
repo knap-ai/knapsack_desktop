@@ -3087,25 +3087,11 @@ pub async fn chat(
     .or_insert_with(|| load_history_from_transcript(&session_id, 20));
 
   // Memory section — inject persistent notes from previous sessions.
-  // Cap to the 10 most-recent notes and 2 000 chars total to prevent context overflow.
-  // Notes arrive oldest-first from the frontend; take from the end to get the most recent.
-  const MEMORY_MAX_NOTES: usize = 10;
-  const MEMORY_MAX_CHARS: usize = 2000;
+  // The frontend already caps this at 10 entries × 500 chars each (agentMemory.ts).
   let memory_section = if !memory_notes.is_empty() {
-    let recent: Vec<&String> = memory_notes.iter().rev().take(MEMORY_MAX_NOTES).collect::<Vec<_>>().into_iter().rev().collect();
-    let joined = recent.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n");
-    // Truncate by chars (not bytes) to avoid splitting UTF-8 sequences.
-    let char_count = joined.chars().count();
-    let capped = if char_count > MEMORY_MAX_CHARS {
-      let tail: String = joined.chars().skip(char_count - MEMORY_MAX_CHARS).collect();
-      // Drop any partial first line produced by the truncation.
-      tail.find('\n').map(|i| tail[i + 1..].to_string()).unwrap_or(tail)
-    } else {
-      joined
-    };
     format!(
       "\n\n## MEMORY FROM PREVIOUS SESSIONS\nThe following are summaries of previous conversations. Use them for context but do not repeat them verbatim:\n{}\n",
-      capped
+      memory_notes.join("\n")
     )
   } else {
     String::new()
@@ -4020,18 +4006,21 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         let dropped: Vec<_> = history.drain(0..drain).collect();
         // Summarize dropped messages so the model knows what was discussed,
         // rather than silently losing that context.
-        let summary_lines: Vec<String> = dropped.iter().filter_map(|msg| match msg {
-          chat_agent::OaiMessage::User { content, .. } => {
-            let snip = if content.len() > 200 { format!("{}…", &content[..200]) } else { content.clone() };
-            Some(format!("User: {}", snip))
+        let summary_lines: Vec<String> = dropped.iter().filter_map(|msg| {
+          // Truncate by char count, not byte length, to avoid panicking on
+          // multi-byte UTF-8 characters (emoji, CJK, etc.).
+          fn snip200(s: &str) -> String {
+            let mut chars = s.chars();
+            let head: String = chars.by_ref().take(200).collect();
+            if chars.next().is_some() { format!("{}…", head) } else { head }
           }
-          chat_agent::OaiMessage::Assistant { content, .. } => {
-            content.as_ref().map(|c| {
-              let snip = if c.len() > 200 { format!("{}…", &c[..200]) } else { c.clone() };
-              format!("Assistant: {}", snip)
-            })
+          match msg {
+            chat_agent::OaiMessage::User { content, .. } =>
+              Some(format!("User: {}", snip200(content))),
+            chat_agent::OaiMessage::Assistant { content, .. } =>
+              content.as_ref().map(|c| format!("Assistant: {}", snip200(c))),
+            _ => None,
           }
-          _ => None,
         }).collect();
         if !summary_lines.is_empty() {
           history.insert(0, chat_agent::OaiMessage::System {
