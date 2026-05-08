@@ -318,57 +318,80 @@ fn kill_stale_clawdbot_chromes() {
   }
 }
 
-/// Stop and remove the standalone OpenClaw gateway LaunchAgent if present.
+/// Boot out and delete any LaunchAgent plist that competes with our gateway on
+/// port 18789.  Returns the list of labels that were evicted.
 ///
-/// When a user previously installed standalone OpenClaw (`ai.openclaw.gateway`)
-/// and then switches to Knapsack Desktop (`ai.knap.knapsack.clawdbot`), both
-/// services compete for port 18789.  The standalone gateway may also use a
-/// different device token, causing "device token mismatch" errors.
+/// Catches two cases:
+///   1. Known labels (fast path): `ai.openclaw.gateway` (standalone openclaw
+///      CLI) and other variants seen in the wild.
+///   2. Dynamic scan: any `*.plist` in ~/Library/LaunchAgents whose filename
+///      contains "openclaw" or "clawdbot" but is NOT our own label.  This
+///      catches old Knapsack betas, future label renames, and unknown forks.
 ///
-/// This function is best-effort: if the plist doesn't exist or bootout fails,
-/// we silently continue.
+/// Called during initial enable/auto_enable AND during background auto-restart
+/// so that a competing service cannot prevent recovery after a gateway crash.
 #[cfg(target_os = "macos")]
-fn remove_stale_standalone_gateway() {
-  const STANDALONE_LABEL: &str = "ai.openclaw.gateway";
-  let home = match dirs::home_dir() {
-    Some(h) => h,
-    None => return,
-  };
-  let plist_path = home
-    .join("Library")
-    .join("LaunchAgents")
-    .join(format!("{}.plist", STANDALONE_LABEL));
+fn evict_competing_gateway_plists() -> Vec<String> {
+  const KNOWN_COMPETING_LABELS: &[&str] = &[
+    "ai.openclaw.gateway",
+    "com.openclaw.gateway",
+    "ai.knap.openclaw.gateway",
+    "ai.knap.knapsack.gateway",
+  ];
 
-  if !plist_path.exists() {
-    return;
-  }
-
-  eprintln!(
-    "[clawd/service] Found standalone OpenClaw gateway plist at {}; removing to avoid port conflict",
-    plist_path.display()
-  );
-
+  let home = match dirs::home_dir() { Some(h) => h, None => return vec![] };
+  let agents_dir = home.join("Library").join("LaunchAgents");
   let uid = unsafe { libc::getuid() };
   let domain = format!("gui/{}", uid);
+  let mut evicted: Vec<String> = Vec::new();
 
-  // Try to unload the service first
-  let _ = std::process::Command::new("launchctl")
-    .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
-    .status();
+  // Inner closure can't borrow `evicted` mutably while captured immutably,
+  // so we collect candidates first and process them in a loop.
+  let mut candidates: Vec<(String, std::path::PathBuf)> = Vec::new();
 
-  // Remove the plist file so it doesn't get reloaded on login
-  if let Err(e) = std::fs::remove_file(&plist_path) {
-    eprintln!(
-      "[clawd/service] Failed to remove standalone plist {}: {}",
-      plist_path.display(),
-      e
-    );
-  } else {
-    eprintln!("[clawd/service] Removed standalone OpenClaw gateway plist");
+  for label in KNOWN_COMPETING_LABELS {
+    let plist = agents_dir.join(format!("{}.plist", label));
+    if plist.exists() {
+      candidates.push((label.to_string(), plist));
+    }
+  }
+  if let Ok(entries) = std::fs::read_dir(&agents_dir) {
+    for entry in entries.flatten() {
+      let fname = entry.file_name().to_string_lossy().to_string();
+      if !fname.ends_with(".plist") { continue; }
+      let lower = fname.to_lowercase();
+      if !lower.contains("openclaw") && !lower.contains("clawdbot") { continue; }
+      let label = fname.trim_end_matches(".plist").to_string();
+      if label == LAUNCH_AGENT_LABEL { continue; }
+      if candidates.iter().any(|(l, _)| l == &label) { continue; }
+      candidates.push((label, entry.path()));
+    }
   }
 
-  // Give the old gateway a moment to exit
-  std::thread::sleep(std::time::Duration::from_millis(1000));
+  for (label, plist) in &candidates {
+    eprintln!(
+      "[clawd/service] evicting competing gateway plist (label={} path={})",
+      label, plist.display()
+    );
+    let _ = std::process::Command::new("launchctl")
+      .args(["bootout", &domain, plist.to_string_lossy().as_ref()])
+      .status();
+    match std::fs::remove_file(plist) {
+      Ok(_) => {
+        eprintln!("[clawd/service] removed competing plist: {}", plist.display());
+        evicted.push(label.clone());
+      }
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: could not remove competing plist {}: {}",
+        plist.display(), e
+      ),
+    }
+  }
+
+  if !evicted.is_empty() {
+    std::thread::sleep(std::time::Duration::from_millis(800));
+  }
+  evicted
 }
 
 #[cfg(target_os = "windows")]
@@ -385,8 +408,13 @@ fn kill_stale_clawdbot_chromes() {
 }
 
 #[cfg(not(target_os = "macos"))]
+fn evict_competing_gateway_plists() -> Vec<String> {
+  vec![]
+}
+
+/// Thin shim kept for existing call sites that don't need the return value.
 fn remove_stale_standalone_gateway() {
-  // No-op on other platforms
+  evict_competing_gateway_plists();
 }
 
 /// Remove stale `.openclaw-runtime-deps.lock` directories left behind when a
@@ -2030,6 +2058,26 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             return;
           }
           eprintln!("[clawd/service] Windows background restart: no saved setup — use Enable in UI");
+        }
+
+        // Evict any competing openclaw/clawdbot LaunchAgent plists before
+        // clearing the port.  A competing plist (standalone openclaw CLI,
+        // old Knapsack beta, etc.) re-launches a new process on port 18789
+        // immediately after kill_process_on_port, causing an instant EADDRINUSE
+        // on kickstart.  Removing the plist + booting out the service first
+        // prevents that race.
+        #[cfg(not(target_os = "windows"))]
+        {
+          let evicted = evict_competing_gateway_plists();
+          if !evicted.is_empty() {
+            sentry::with_scope(
+              |scope| scope.set_tag("competing_labels", &evicted.join(",")),
+              || sentry::capture_message(
+                &format!("[gateway] auto-restart: evicted competing plist(s): {:?}", evicted),
+                sentry::Level::Warning,
+              ),
+            );
+          }
         }
 
         // macOS: clear any zombie process holding port 18789.
