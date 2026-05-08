@@ -5,11 +5,11 @@
 # Runs automatically via the npm `prebuild` hook (before `tsc && vite build`),
 # so every `tauri build` gets the right binary without manual intervention.
 #
-# Override the version:  NODE_VERSION=22.15.0 bash scripts/prepare-node.sh
+# Override the version:  NODE_VERSION=22.19.0 bash scripts/prepare-node.sh
 #
 set -euo pipefail
 
-NODE_VERSION="${NODE_VERSION:-22.14.0}"
+NODE_VERSION="${NODE_VERSION:-22.19.0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
