@@ -502,6 +502,11 @@ function App() {
               // Refresh the connections list so the new account appears.
               fetchConnections(pendingFlow.primaryEmail).then(updatedConnections => {
                 syncConnections(pendingFlow.primaryEmail, updatedConnections)
+                setIsSignInDialogOpened(false)
+                cleanReconnectKeys()
+                reconnectDismissedRef.current = false
+                reconnectDismissCheckDone.current = false
+                KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
               })
             })
             .catch(error => {

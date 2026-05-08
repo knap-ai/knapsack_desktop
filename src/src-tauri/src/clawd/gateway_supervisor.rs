@@ -40,7 +40,12 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
   };
 
   match client.get(gateway_health_url()).bearer_auth(token).send().await {
-    Ok(resp) => resp.status().is_success() || resp.status().as_u16() == 404,
+    // Any HTTP response (200, 401, 404, 500 …) means the gateway process is
+    // listening on the port.  Only a connection error means it is truly down.
+    // Treating 401 as "unhealthy" caused a restart loop: the supervisor would
+    // kickstart the gateway even though it was running, and the new instance
+    // would fail with EADDRINUSE.
+    Ok(_) => true,
     Err(_) => false,
   }
 }
