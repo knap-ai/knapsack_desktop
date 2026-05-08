@@ -8,7 +8,9 @@ export type ReplyDirectiveParseResult = {
     audioAsVoice?: boolean;
     isSilent: boolean;
 };
-export declare function parseReplyDirectives(raw: string, options?: {
+export type ReplyDirectiveParseOptions = {
     currentMessageId?: string;
     silentToken?: string;
-}): ReplyDirectiveParseResult;
+    extractMarkdownImages?: boolean;
+};
+export declare function parseReplyDirectives(raw: string, options?: ReplyDirectiveParseOptions): ReplyDirectiveParseResult;

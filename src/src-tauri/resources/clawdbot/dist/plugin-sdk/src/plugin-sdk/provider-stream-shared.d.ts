@@ -11,7 +11,26 @@ export declare function createHtmlEntityToolCallArgumentDecodingWrapper(baseStre
 export declare function createPayloadPatchStreamWrapper(baseStreamFn: StreamFn | undefined, patchPayload: (params: {
     payload: Record<string, unknown>;
     model: Parameters<StreamFn>[0];
-}) => void): StreamFn;
+    context: Parameters<StreamFn>[1];
+    options: Parameters<StreamFn>[2];
+}) => void, wrapperOptions?: {
+    shouldPatch?: (params: {
+        model: Parameters<StreamFn>[0];
+        context: Parameters<StreamFn>[1];
+        options: Parameters<StreamFn>[2];
+    }) => boolean;
+}): StreamFn;
+export type OpenAICompatibleThinkingLevel = ProviderWrapStreamFnContext["thinkingLevel"];
+export declare function isOpenAICompatibleThinkingEnabled(params: {
+    thinkingLevel: OpenAICompatibleThinkingLevel;
+    options: Parameters<StreamFn>[2];
+}): boolean;
+export type DeepSeekV4ThinkingLevel = ProviderWrapStreamFnContext["thinkingLevel"];
+export declare function createDeepSeekV4OpenAICompatibleThinkingWrapper(params: {
+    baseStreamFn: StreamFn | undefined;
+    thinkingLevel: DeepSeekV4ThinkingLevel;
+    shouldPatchModel: (model: Parameters<StreamFn>[0]) => boolean;
+}): StreamFn | undefined;
 export type GoogleThinkingLevel = "MINIMAL" | "LOW" | "MEDIUM" | "HIGH";
 export type GoogleThinkingInputLevel = "off" | "minimal" | "low" | "medium" | "adaptive" | "high" | "max" | "xhigh";
 export declare function isGoogleThinkingRequiredModel(modelId: string): boolean;

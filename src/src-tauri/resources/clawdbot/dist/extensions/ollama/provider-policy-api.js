@@ -1,4 +1,4 @@
-import { n as OLLAMA_DEFAULT_BASE_URL } from "../../defaults-DOKD5eTO.js";
+import { n as OLLAMA_DEFAULT_BASE_URL } from "../../defaults-BVi8bELI.js";
 //#region extensions/ollama/provider-policy-api.ts
 /**
 * Provider policy surface for Ollama: normalize provider configs used by

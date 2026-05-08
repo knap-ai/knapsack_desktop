@@ -11,7 +11,8 @@ export type GeneratedImageAsset = {
 export type ImageGenerationResolution = "1K" | "2K" | "4K";
 export type ImageGenerationQuality = "low" | "medium" | "high" | "auto";
 export type ImageGenerationOutputFormat = "png" | "jpeg" | "webp";
-export type ImageGenerationOpenAIBackground = "transparent" | "opaque" | "auto";
+export type ImageGenerationBackground = "transparent" | "opaque" | "auto";
+export type ImageGenerationOpenAIBackground = ImageGenerationBackground;
 export type ImageGenerationOpenAIModeration = "low" | "auto";
 export type ImageGenerationOpenAIOptions = {
     background?: ImageGenerationOpenAIBackground;
@@ -22,7 +23,7 @@ export type ImageGenerationOpenAIOptions = {
 export type ImageGenerationProviderOptions = {
     openai?: ImageGenerationOpenAIOptions;
 };
-export type ImageGenerationIgnoredOverrideKey = "size" | "aspectRatio" | "resolution" | "quality" | "outputFormat";
+export type ImageGenerationIgnoredOverrideKey = "size" | "aspectRatio" | "resolution" | "quality" | "outputFormat" | "background";
 export type ImageGenerationIgnoredOverride = {
     key: ImageGenerationIgnoredOverrideKey;
     value: string;
@@ -51,6 +52,7 @@ export type ImageGenerationRequest = {
     resolution?: ImageGenerationResolution;
     quality?: ImageGenerationQuality;
     outputFormat?: ImageGenerationOutputFormat;
+    background?: ImageGenerationBackground;
     inputImages?: ImageGenerationSourceImage[];
     providerOptions?: ImageGenerationProviderOptions;
 };
@@ -77,6 +79,7 @@ export type ImageGenerationGeometryCapabilities = {
 export type ImageGenerationOutputCapabilities = {
     qualities?: ImageGenerationQuality[];
     formats?: ImageGenerationOutputFormat[];
+    backgrounds?: ImageGenerationBackground[];
 };
 export type ImageGenerationNormalization = {
     size?: MediaNormalizationEntry<string>;

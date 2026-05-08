@@ -244,6 +244,12 @@ export type ChannelGroupContext = {
     senderUsername?: string | null;
     senderE164?: string | null;
 };
+/** TTS voice delivery behavior advertised by a channel plugin. */
+export type ChannelTtsVoiceDeliveryCapabilities = {
+    synthesisTarget: "audio-file" | "voice-note";
+    transcodesAudio?: boolean;
+    audioFileFormats?: readonly string[];
+};
 /** Static capability flags advertised by a channel plugin. */
 export type ChannelCapabilities = {
     chatTypes: Array<ChatType | "thread">;
@@ -256,6 +262,9 @@ export type ChannelCapabilities = {
     groupManagement?: boolean;
     threads?: boolean;
     media?: boolean;
+    tts?: {
+        voice?: ChannelTtsVoiceDeliveryCapabilities;
+    };
     nativeCommands?: boolean;
     blockStreaming?: boolean;
 };

@@ -9,6 +9,7 @@ export declare function resolveSilentReplyFallbackText(params: {
 }): string;
 export declare function consumePendingToolMediaIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia">, payload: BlockReplyPayload): BlockReplyPayload;
 export declare function consumePendingToolMediaReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia">): BlockReplyPayload | null;
+export declare function readPendingToolMediaReply(state: Pick<EmbeddedPiSubscribeState, "pendingToolMediaUrls" | "pendingToolAudioAsVoice" | "pendingToolTrustedLocalMedia">): BlockReplyPayload | null;
 export declare function recordPendingAssistantReplyDirectives(state: Pick<EmbeddedPiSubscribeState, "pendingAssistantReplyDirectives">, parsed: ReplyDirectiveParseResult | null | undefined): void;
 export declare function consumePendingAssistantReplyDirectivesIntoReply(state: Pick<EmbeddedPiSubscribeState, "pendingAssistantReplyDirectives">, payload: BlockReplyPayload): BlockReplyPayload;
 export declare function hasAssistantVisibleReply(params: {

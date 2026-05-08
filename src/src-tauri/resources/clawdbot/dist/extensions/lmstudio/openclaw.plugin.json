@@ -4,6 +4,23 @@
   "providers": [
     "lmstudio"
   ],
+  "providerRequest": {
+    "providers": {
+      "lmstudio": {
+        "family": "lmstudio",
+        "openAICompletions": {
+          "supportsStreamingUsage": true
+        }
+      }
+    }
+  },
+  "modelPricing": {
+    "providers": {
+      "lmstudio": {
+        "external": false
+      }
+    }
+  },
   "nonSecretAuthMarkers": [
     "lmstudio-local"
   ],

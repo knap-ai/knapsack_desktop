@@ -1,12 +1,15 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { type BundledRuntimeDepsInstallParams } from "./bundled-runtime-deps.js";
 import { type PluginActivationConfigSource } from "./config-state.js";
+import { toSafeImportPath } from "./import-specifier.js";
 import { type PluginRegistry } from "./registry.js";
 import type { CreatePluginRuntimeOptions } from "./runtime/types.js";
 import { buildPluginLoaderAliasMap, buildPluginLoaderJitiOptions, listPluginSdkAliasCandidates, listPluginSdkExportedSubpaths, type PluginSdkResolutionPreference, resolveExtensionApiAlias, resolvePluginSdkAliasCandidateOrder, resolvePluginSdkAliasFile, resolvePluginRuntimeModulePath, resolvePluginSdkScopedAliasMap, shouldPreferNativeJiti } from "./sdk-alias.js";
 import type { PluginLogger } from "./types.js";
 export type PluginLoadResult = PluginRegistry;
+export { PluginLoadReentryError } from "./loader-cache-state.js";
 export type PluginLoadOptions = {
     config?: OpenClawConfig;
     activationSourceConfig?: OpenClawConfig;
@@ -15,6 +18,7 @@ export type PluginLoadOptions = {
     env?: NodeJS.ProcessEnv;
     logger?: PluginLogger;
     coreGatewayHandlers?: Record<string, GatewayRequestHandler>;
+    coreGatewayMethodNames?: readonly string[];
     runtimeOptions?: CreatePluginRuntimeOptions;
     pluginSdkResolution?: PluginSdkResolutionPreference;
     cache?: boolean;
@@ -39,21 +43,7 @@ export declare class PluginLoadFailureError extends Error {
     readonly registry: PluginRegistry;
     constructor(registry: PluginRegistry);
 }
-export declare class PluginLoadReentryError extends Error {
-    readonly cacheKey: string;
-    constructor(cacheKey: string);
-}
 export declare function clearPluginLoaderCache(): void;
-/**
- * On Windows, the Node.js ESM loader requires absolute paths to be expressed
- * as file:// URLs (e.g. file:///C:/Users/...). Raw drive-letter paths like
- * C:\... are rejected with ERR_UNSUPPORTED_ESM_URL_SCHEME because the loader
- * mistakes the drive letter for an unknown URL scheme.
- *
- * This helper converts Windows absolute import specifiers to file:// URLs and
- * leaves everything else unchanged.
- */
-declare function toSafeImportPath(specifier: string): string;
 declare function ensureOpenClawPluginSdkAlias(distRoot: string): void;
 export declare const __testing: {
     buildPluginLoaderJitiOptions: typeof buildPluginLoaderJitiOptions;
@@ -90,6 +80,9 @@ declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
     shouldLoadModules: boolean;
     shouldInstallBundledRuntimeDeps: boolean;
     runtimeSubagentMode: "default" | "explicit" | "gateway-bindable";
+    installRecords: {
+        [x: string]: PluginInstallRecord;
+    };
     cacheKey: string;
 };
 declare function getCompatibleActivePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
@@ -107,4 +100,3 @@ declare function shouldLoadChannelPluginInSetupRuntime(params: {
 }): boolean;
 export declare function loadOpenClawPlugins(options?: PluginLoadOptions): PluginRegistry;
 export declare function loadOpenClawPluginCliRegistry(options?: PluginLoadOptions): Promise<PluginRegistry>;
-export {};

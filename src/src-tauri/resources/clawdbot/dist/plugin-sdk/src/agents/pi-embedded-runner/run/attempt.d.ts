@@ -1,3 +1,4 @@
+import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { EmbeddedContextFile } from "../../pi-embedded-helpers.js";
 import { resetEmbeddedAgentBaseStreamFnCacheForTest, resolveEmbeddedAgentBaseStreamFn, resolveEmbeddedAgentStreamFn } from "../stream-resolution.js";
 export { buildContextEnginePromptCacheInfo } from "./attempt.context-engine-helpers.js";
@@ -22,6 +23,7 @@ export declare function remapInjectedContextFilesToWorkspace(params: {
 export declare function applyEmbeddedAttemptToolsAllow<T extends {
     name: string;
 }>(tools: T[], toolsAllow?: string[]): T[];
+export declare function normalizeMessagesForLlmBoundary(messages: AgentMessage[]): AgentMessage[];
 export declare function shouldCreateBundleMcpRuntimeForAttempt(params: {
     toolsEnabled: boolean;
     disableTools?: boolean;

@@ -1,2 +1,2 @@
-import { t as buildVydraVideoGenerationProvider } from "../../video-generation-provider-DWQK2XAT.js";
+import { t as buildVydraVideoGenerationProvider } from "../../video-generation-provider-CgYSGxHy.js";
 export { buildVydraVideoGenerationProvider };

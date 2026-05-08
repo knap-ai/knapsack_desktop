@@ -2,6 +2,8 @@ export type BundledPluginSource = {
     pluginId: string;
     localPath: string;
     npmSpec?: string;
+    configSchema?: Record<string, unknown>;
+    requiresConfig?: boolean;
 };
 export type BundledPluginLookup = {
     kind: "npmSpec";

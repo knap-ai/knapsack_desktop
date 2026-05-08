@@ -1,7 +1,9 @@
 import type { ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginMetadataSnapshot } from "./plugin-metadata-snapshot.js";
+import { type LoadPluginRegistryParams, type PluginRegistrySnapshot } from "./plugin-registry.js";
 import type { ProviderDiscoveryOrder, ProviderPlugin } from "./types.js";
-export declare function resolvePluginDiscoveryProviders(params: {
+export type ResolveRuntimePluginDiscoveryProvidersParams = {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
@@ -9,7 +11,14 @@ export declare function resolvePluginDiscoveryProviders(params: {
     includeUntrustedWorkspacePlugins?: boolean;
     requireCompleteDiscoveryEntryCoverage?: boolean;
     discoveryEntriesOnly?: boolean;
-}): Promise<ProviderPlugin[]>;
+    pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry">;
+};
+export type ResolveInstalledPluginProviderContributionIdsParams = LoadPluginRegistryParams & {
+    index?: PluginRegistrySnapshot;
+    includeDisabled?: boolean;
+};
+export declare function resolveInstalledPluginProviderContributionIds(params?: ResolveInstalledPluginProviderContributionIdsParams): string[];
+export declare function resolveRuntimePluginDiscoveryProviders(params: ResolveRuntimePluginDiscoveryProvidersParams): Promise<ProviderPlugin[]>;
 export declare function groupPluginDiscoveryProvidersByOrder(providers: ProviderPlugin[]): Record<ProviderDiscoveryOrder, ProviderPlugin[]>;
 export declare function normalizePluginDiscoveryResult(params: {
     provider: ProviderPlugin;

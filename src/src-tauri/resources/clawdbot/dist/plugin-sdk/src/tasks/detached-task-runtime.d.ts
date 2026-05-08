@@ -1,4 +1,5 @@
-import type { DetachedTaskRecoveryAttemptParams, DetachedTaskRecoveryAttemptResult, DetachedTaskLifecycleRuntime, DetachedTaskLifecycleRuntimeRegistration } from "./detached-task-runtime-contract.js";
+import type { DetachedTaskRecoveryAttemptParams, DetachedTaskRecoveryAttemptResult, DetachedTaskFinalizeParams, DetachedTaskLifecycleRuntime, DetachedTaskLifecycleRuntimeRegistration } from "./detached-task-runtime-contract.js";
+import type { TaskRecord } from "./task-registry.types.js";
 export type { DetachedTaskLifecycleRuntime, DetachedTaskLifecycleRuntimeRegistration };
 export declare function getDetachedTaskLifecycleRuntime(): DetachedTaskLifecycleRuntime;
 export declare function getDetachedTaskLifecycleRuntimeRegistration(): DetachedTaskLifecycleRuntimeRegistration | undefined;
@@ -9,6 +10,7 @@ export declare function createQueuedTaskRun(...args: Parameters<DetachedTaskLife
 export declare function createRunningTaskRun(...args: Parameters<DetachedTaskLifecycleRuntime["createRunningTaskRun"]>): ReturnType<DetachedTaskLifecycleRuntime["createRunningTaskRun"]>;
 export declare function startTaskRunByRunId(...args: Parameters<DetachedTaskLifecycleRuntime["startTaskRunByRunId"]>): ReturnType<DetachedTaskLifecycleRuntime["startTaskRunByRunId"]>;
 export declare function recordTaskRunProgressByRunId(...args: Parameters<DetachedTaskLifecycleRuntime["recordTaskRunProgressByRunId"]>): ReturnType<DetachedTaskLifecycleRuntime["recordTaskRunProgressByRunId"]>;
+export declare function finalizeTaskRunByRunId(params: DetachedTaskFinalizeParams): TaskRecord[];
 export declare function completeTaskRunByRunId(...args: Parameters<DetachedTaskLifecycleRuntime["completeTaskRunByRunId"]>): ReturnType<DetachedTaskLifecycleRuntime["completeTaskRunByRunId"]>;
 export declare function failTaskRunByRunId(...args: Parameters<DetachedTaskLifecycleRuntime["failTaskRunByRunId"]>): ReturnType<DetachedTaskLifecycleRuntime["failTaskRunByRunId"]>;
 export declare function setDetachedTaskDeliveryStatusByRunId(...args: Parameters<DetachedTaskLifecycleRuntime["setDetachedTaskDeliveryStatusByRunId"]>): ReturnType<DetachedTaskLifecycleRuntime["setDetachedTaskDeliveryStatusByRunId"]>;

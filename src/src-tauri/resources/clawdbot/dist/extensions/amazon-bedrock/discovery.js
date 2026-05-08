@@ -1,8 +1,7 @@
-import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from "@aws-sdk/client-bedrock";
+import { resolveBedrockConfigApiKey } from "./discovery-shared.js";
+import { normalizeLowercaseStringOrEmpty, normalizeOptionalLowercaseString } from "openclaw/plugin-sdk/text-runtime";
 import { createSubsystemLogger } from "openclaw/plugin-sdk/core";
 import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
-import { resolveAwsSdkEnvVarName } from "openclaw/plugin-sdk/provider-auth-runtime";
-import { normalizeLowercaseStringOrEmpty, normalizeOptionalLowercaseString } from "openclaw/plugin-sdk/text-runtime";
 //#region extensions/amazon-bedrock/discovery.ts
 const log = createSubsystemLogger("bedrock-discovery");
 const DEFAULT_REFRESH_INTERVAL_SECONDS = 3600;
@@ -98,6 +97,33 @@ const DEFAULT_COST = {
 	cacheRead: 0,
 	cacheWrite: 0
 };
+async function loadBedrockDiscoverySdk() {
+	const { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } = await import("@aws-sdk/client-bedrock");
+	return {
+		createClient: (region) => new BedrockClient({ region }),
+		createListFoundationModelsCommand: () => new ListFoundationModelsCommand({}),
+		createListInferenceProfilesCommand: (input) => new ListInferenceProfilesCommand(input)
+	};
+}
+function createInjectedClientDiscoverySdk() {
+	class ListFoundationModelsCommand {
+		constructor(input = {}) {
+			this.input = input;
+		}
+	}
+	class ListInferenceProfilesCommand {
+		constructor(input = {}) {
+			this.input = input;
+		}
+	}
+	return {
+		createClient() {
+			throw new Error("clientFactory is required for injected Bedrock discovery commands");
+		},
+		createListFoundationModelsCommand: () => new ListFoundationModelsCommand({}),
+		createListInferenceProfilesCommand: (input) => new ListInferenceProfilesCommand(input)
+	};
+}
 const discoveryCache = /* @__PURE__ */ new Map();
 let hasLoggedBedrockError = false;
 function normalizeProviderFilter(filter) {
@@ -191,12 +217,12 @@ function resolveBaseModelId(profile) {
 * Handles pagination. Best-effort: silently returns empty array if IAM lacks
 * bedrock:ListInferenceProfiles permission.
 */
-async function fetchInferenceProfileSummaries(client) {
+async function fetchInferenceProfileSummaries(client, createListInferenceProfilesCommand) {
 	try {
 		const profiles = [];
 		let nextToken;
 		do {
-			const response = await client.send(new ListInferenceProfilesCommand({ nextToken }));
+			const response = await client.send(createListInferenceProfilesCommand({ nextToken }));
 			for (const summary of response.inferenceProfileSummaries ?? []) profiles.push(summary);
 			nextToken = response.nextToken;
 		} while (nextToken);
@@ -247,9 +273,6 @@ function resetBedrockDiscoveryCacheForTest() {
 	discoveryCache.clear();
 	hasLoggedBedrockError = false;
 }
-function resolveBedrockConfigApiKey(env = process.env) {
-	return resolveAwsSdkEnvVarName(env);
-}
 async function discoverBedrockModels(params) {
 	const refreshIntervalSeconds = Math.max(0, Math.floor(params.config?.refreshInterval ?? DEFAULT_REFRESH_INTERVAL_SECONDS));
 	const providerFilter = normalizeProviderFilter(params.config?.providerFilter);
@@ -268,9 +291,11 @@ async function discoverBedrockModels(params) {
 		if (cached?.value && cached.expiresAt > now) return cached.value;
 		if (cached?.inFlight) return cached.inFlight;
 	}
-	const client = (params.clientFactory ?? ((region) => new BedrockClient({ region })))(params.region);
+	const sdk = params.clientFactory ? createInjectedClientDiscoverySdk() : await loadBedrockDiscoverySdk();
+	const client = (params.clientFactory ?? ((region) => sdk.createClient(region)))(params.region);
 	const discoveryPromise = (async () => {
-		const [foundationResponse, profileSummaries] = await Promise.all([client.send(new ListFoundationModelsCommand({})), fetchInferenceProfileSummaries(client)]);
+		const [rawFoundationResponse, profileSummaries] = await Promise.all([client.send(sdk.createListFoundationModelsCommand()), fetchInferenceProfileSummaries(client, (input) => sdk.createListInferenceProfilesCommand(input))]);
+		const foundationResponse = rawFoundationResponse;
 		const discovered = [];
 		const seenIds = /* @__PURE__ */ new Set();
 		const foundationModels = /* @__PURE__ */ new Map();
@@ -330,7 +355,7 @@ async function resolveImplicitBedrockProvider(params) {
 		...params.pluginConfig?.discovery
 	};
 	const enabled = discoveryConfig?.enabled;
-	const hasAwsCreds = resolveAwsSdkEnvVarName(env) !== void 0;
+	const hasAwsCreds = resolveBedrockConfigApiKey(env) !== void 0;
 	if (enabled === false) return null;
 	if (enabled !== true && !hasAwsCreds) return null;
 	const region = discoveryConfig?.region ?? env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? "us-east-1";
@@ -347,14 +372,5 @@ async function resolveImplicitBedrockProvider(params) {
 		models
 	};
 }
-function mergeImplicitBedrockProvider(params) {
-	const { existing, implicit } = params;
-	if (!existing) return implicit;
-	return {
-		...implicit,
-		...existing,
-		models: Array.isArray(existing.models) && existing.models.length > 0 ? existing.models : implicit.models
-	};
-}
 //#endregion
-export { discoverBedrockModels, mergeImplicitBedrockProvider, resetBedrockDiscoveryCacheForTest, resolveBedrockConfigApiKey, resolveImplicitBedrockProvider };
+export { discoverBedrockModels, resetBedrockDiscoveryCacheForTest, resolveImplicitBedrockProvider };

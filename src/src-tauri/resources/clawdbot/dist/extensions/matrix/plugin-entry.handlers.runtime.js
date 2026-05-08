@@ -1,16 +1,16 @@
-import { t as formatMatrixErrorMessage } from "./errors-MCQHf07j.js";
+import { t as formatMatrixErrorMessage } from "./errors-BpHgvm2o.js";
 import { normalizeOptionalString } from "openclaw/plugin-sdk/string-coerce-runtime";
 //#region extensions/matrix/src/plugin-entry.runtime.ts
 let matrixVerificationRuntimePromise;
 function loadMatrixVerificationRuntime() {
-	matrixVerificationRuntimePromise ??= import("./verification-B9q00n0N.js").then((n) => n.y);
+	matrixVerificationRuntimePromise ??= import("./verification-ChEDFxLb.js").then((n) => n.y);
 	return matrixVerificationRuntimePromise;
 }
 function sendError(respond, err) {
 	respond(false, { error: formatMatrixErrorMessage(err) });
 }
 async function ensureMatrixCryptoRuntime(...args) {
-	const { ensureMatrixCryptoRuntime: ensureRuntime } = await import("./deps-BMnYy1T3.js").then((n) => n.t);
+	const { ensureMatrixCryptoRuntime: ensureRuntime } = await import("./deps-Dp9cpROI.js").then((n) => n.t);
 	await ensureRuntime(...args);
 }
 async function handleVerifyRecoveryKey({ params, respond }) {

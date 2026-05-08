@@ -1,2 +1,2 @@
-import { t as discordSetupPlugin } from "./channel.setup-Bd-KpSzd.js";
+import { t as discordSetupPlugin } from "./channel.setup-FdJ92Mpr.js";
 export { discordSetupPlugin };

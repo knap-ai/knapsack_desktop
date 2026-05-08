@@ -15,6 +15,7 @@ export type SkillScanSummary = {
     findings: SkillScanFinding[];
 };
 export type SkillScanOptions = {
+    excludeTestFiles?: boolean;
     includeFiles?: string[];
     maxFiles?: number;
     maxFileBytes?: number;

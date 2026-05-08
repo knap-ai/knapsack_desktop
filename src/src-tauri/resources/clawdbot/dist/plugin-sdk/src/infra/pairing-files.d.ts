@@ -1,4 +1,4 @@
-export { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
+export { createAsyncLock, readDurableJsonFile, readJsonFile, writeJsonAtomic, } from "./json-files.js";
 export declare function resolvePairingPaths(baseDir: string | undefined, subdir: string): {
     dir: string;
     pendingPath: string;

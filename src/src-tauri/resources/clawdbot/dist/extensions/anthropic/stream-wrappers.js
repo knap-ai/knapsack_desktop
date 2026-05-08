@@ -12,6 +12,30 @@ const PI_AI_OAUTH_ANTHROPIC_BETAS = [
 	"oauth-2025-04-20",
 	...PI_AI_DEFAULT_ANTHROPIC_BETAS
 ];
+function isAnthropicThinkingEnabled(payloadObj) {
+	const thinking = payloadObj.thinking;
+	if (!thinking || typeof thinking !== "object") return false;
+	return thinking.type !== "disabled";
+}
+function assistantMessageHasToolUse(message) {
+	if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) return true;
+	const content = message.content;
+	if (!Array.isArray(content)) return false;
+	return content.some((block) => block && typeof block === "object" && (block.type === "tool_use" || block.type === "toolCall"));
+}
+function stripTrailingAssistantPrefillWhenThinking(payloadObj) {
+	if (!isAnthropicThinkingEnabled(payloadObj) || !Array.isArray(payloadObj.messages)) return 0;
+	let stripped = 0;
+	while (payloadObj.messages.length > 0) {
+		const last = payloadObj.messages[payloadObj.messages.length - 1];
+		if (!last || typeof last !== "object") break;
+		const message = last;
+		if (message.role !== "assistant" || assistantMessageHasToolUse(message)) break;
+		payloadObj.messages.pop();
+		stripped += 1;
+	}
+	return stripped;
+}
 function isAnthropic1MModel(modelId) {
 	const normalized = normalizeLowercaseStringOrEmpty(modelId);
 	return ANTHROPIC_1M_MODEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
@@ -82,6 +106,13 @@ function createAnthropicServiceTierWrapper(baseStreamFn, serviceTier) {
 		return streamWithPayloadPatch(underlying, model, context, options, (payloadObj) => applyAnthropicPayloadPolicyToParams(payloadObj, payloadPolicy));
 	};
 }
+function createAnthropicThinkingPrefillWrapper(baseStreamFn) {
+	const underlying = baseStreamFn ?? streamSimple;
+	return (model, context, options) => streamWithPayloadPatch(underlying, model, context, options, (payloadObj) => {
+		const stripped = stripTrailingAssistantPrefillWhenThinking(payloadObj);
+		if (stripped > 0) log.warn(`removed ${stripped} trailing assistant prefill message${stripped === 1 ? "" : "s"} because Anthropic extended thinking requires conversations to end with a user turn`);
+	});
+}
 function resolveAnthropicFastMode(extraParams) {
 	return normalizeFastMode(extraParams?.fastMode ?? extraParams?.fast_mode);
 }
@@ -98,8 +129,11 @@ function wrapAnthropicProviderStream(ctx) {
 	const anthropicBetas = resolveAnthropicBetas(ctx.extraParams, ctx.modelId);
 	const serviceTier = resolveAnthropicServiceTier(ctx.extraParams);
 	const fastMode = resolveAnthropicFastMode(ctx.extraParams);
-	return composeProviderStreamWrappers(ctx.streamFn, anthropicBetas?.length ? (streamFn) => createAnthropicBetaHeadersWrapper(streamFn, anthropicBetas) : void 0, serviceTier ? (streamFn) => createAnthropicServiceTierWrapper(streamFn, serviceTier) : void 0, fastMode !== void 0 ? (streamFn) => createAnthropicFastModeWrapper(streamFn, fastMode) : void 0);
+	return composeProviderStreamWrappers(ctx.streamFn, anthropicBetas?.length ? (streamFn) => createAnthropicBetaHeadersWrapper(streamFn, anthropicBetas) : void 0, serviceTier ? (streamFn) => createAnthropicServiceTierWrapper(streamFn, serviceTier) : void 0, fastMode !== void 0 ? (streamFn) => createAnthropicFastModeWrapper(streamFn, fastMode) : void 0, (streamFn) => createAnthropicThinkingPrefillWrapper(streamFn));
 }
-const __testing = { log };
+const __testing = {
+	log,
+	stripTrailingAssistantPrefillWhenThinking
+};
 //#endregion
-export { __testing, createAnthropicBetaHeadersWrapper, createAnthropicFastModeWrapper, createAnthropicServiceTierWrapper, resolveAnthropicBetas, resolveAnthropicFastMode, resolveAnthropicServiceTier, wrapAnthropicProviderStream };
+export { __testing, createAnthropicBetaHeadersWrapper, createAnthropicFastModeWrapper, createAnthropicServiceTierWrapper, createAnthropicThinkingPrefillWrapper, resolveAnthropicBetas, resolveAnthropicFastMode, resolveAnthropicServiceTier, wrapAnthropicProviderStream };

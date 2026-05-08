@@ -25,6 +25,7 @@ export declare function buildAssistantMessageWithZeroUsage(params: {
     stopReason: StopReason;
     timestamp?: number;
 }): AssistantMessage;
+export declare const STREAM_ERROR_FALLBACK_TEXT = "[assistant turn failed before producing content]";
 export declare function buildStreamErrorAssistantMessage(params: {
     model: StreamModelDescriptor;
     errorMessage: string;

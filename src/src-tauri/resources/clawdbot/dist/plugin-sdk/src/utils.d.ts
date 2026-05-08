@@ -1,4 +1,5 @@
 import { isPlainObject } from "./infra/plain-object.js";
+export { escapeRegExp } from "./shared/regexp.js";
 export declare function ensureDir(dir: string): Promise<void>;
 /**
  * Check if a file or directory exists at the given path.
@@ -8,10 +9,6 @@ export declare function clampNumber(value: number, min: number, max: number): nu
 export declare function clampInt(value: number, min: number, max: number): number;
 /** Alias for clampNumber (shorter, more common name) */
 export declare const clamp: typeof clampNumber;
-/**
- * Escapes special regex characters in a string so it can be used in a RegExp constructor.
- */
-export declare function escapeRegExp(value: string): string;
 /**
  * Safely parse JSON, returning null on error instead of throwing.
  */

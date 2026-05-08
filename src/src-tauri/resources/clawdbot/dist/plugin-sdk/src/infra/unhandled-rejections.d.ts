@@ -1,4 +1,5 @@
 type UnhandledRejectionHandler = (reason: unknown) => boolean;
+type UncaughtExceptionHandler = (error: unknown) => boolean;
 /**
  * Checks if an error is an AbortError.
  * These are typically intentional cancellations (e.g., during shutdown) and shouldn't crash.
@@ -13,5 +14,7 @@ export declare function isTransientSqliteError(err: unknown): boolean;
 export declare function isTransientUnhandledRejectionError(err: unknown): boolean;
 export declare function registerUnhandledRejectionHandler(handler: UnhandledRejectionHandler): () => void;
 export declare function isUnhandledRejectionHandled(reason: unknown): boolean;
+export declare function registerUncaughtExceptionHandler(handler: UncaughtExceptionHandler): () => void;
+export declare function isUncaughtExceptionHandled(error: unknown): boolean;
 export declare function installUnhandledRejectionHandler(): void;
 export {};

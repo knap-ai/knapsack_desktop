@@ -1,4 +1,4 @@
-import { i as loadBundledPluginPublicSurfaceModuleSync } from "../facade-loader-2P4UQTnv.js";
+import { i as loadBundledPluginPublicSurfaceModuleSync } from "../facade-loader-BAtcmKGO.js";
 //#region src/plugin-sdk/matrix-runtime-heavy.ts
 function loadFacadeModule() {
 	return loadBundledPluginPublicSurfaceModuleSync({

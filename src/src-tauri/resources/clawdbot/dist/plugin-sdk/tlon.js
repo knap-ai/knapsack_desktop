@@ -1,16 +1,16 @@
-import { t as formatDocsLink } from "../links-rWevNMpC.js";
-import { r as buildChannelConfigSchema } from "../config-schema-BEuj464I.js";
-import { n as normalizeAccountId, t as DEFAULT_ACCOUNT_ID } from "../account-id-C3j_3_su.js";
-import { t as createDedupeCache } from "../dedupe-CjwkdrbQ.js";
-import { c as isBlockedHostnameOrIp, t as SsrFBlockedError } from "../ssrf-MkDHylX_.js";
-import { n as fetchWithSsrFGuard } from "../fetch-guard-DKbwHPzH.js";
-import { n as emptyPluginConfigSchema } from "../config-schema-BDzJIh_2.js";
-import { l as patchScopedAccountConfig, t as applyAccountNameToChannelSection } from "../setup-helpers-CErkrrS9.js";
-import { t as createChannelReplyPipeline } from "../channel-reply-pipeline-zp0MNhbR.js";
-import { r as buildComputedAccountStatusSnapshot } from "../status-helpers-Jbf-oZqp.js";
-import { t as createLoggerBackedRuntime } from "../runtime-logger-Dbec5-lc.js";
-import "../runtime-DovlAEyp.js";
-import { t as createOptionalChannelSetupSurface } from "../channel-setup-ByPYNtWa.js";
+import { t as formatDocsLink } from "../links-BszRQhGa.js";
+import { n as normalizeAccountId, t as DEFAULT_ACCOUNT_ID } from "../account-id-DhSD7lhD.js";
+import { r as buildChannelConfigSchema } from "../config-schema-Di5PBhdS.js";
+import { t as createDedupeCache } from "../dedupe-pCHVfTe7.js";
+import { c as isBlockedHostnameOrIp, t as SsrFBlockedError } from "../ssrf-K8pX0Zi6.js";
+import { n as fetchWithSsrFGuard } from "../fetch-guard-8smVA_M-.js";
+import { n as emptyPluginConfigSchema } from "../config-schema-CBtJ4osk.js";
+import { l as patchScopedAccountConfig, t as applyAccountNameToChannelSection } from "../setup-helpers-CWjxgWew.js";
+import { t as createChannelReplyPipeline } from "../channel-reply-pipeline-BYR66qkC.js";
+import { r as buildComputedAccountStatusSnapshot } from "../status-helpers-C00ai5Oy.js";
+import { t as createLoggerBackedRuntime } from "../runtime-logger-DeGpnr7K.js";
+import "../runtime-o2QCXshQ.js";
+import { t as createOptionalChannelSetupSurface } from "../channel-setup-DXcxitmF.js";
 //#region src/plugin-sdk/tlon.ts
 const tlonSetup = createOptionalChannelSetupSurface({
 	channel: "tlon",

@@ -15,6 +15,7 @@ export type BundledPluginContractSnapshot = {
     webContentExtractorIds: string[];
     webFetchProviderIds: string[];
     webSearchProviderIds: string[];
+    migrationProviderIds: string[];
     toolNames: string[];
 };
 export type BundledCapabilityManifest = Pick<PluginManifest, "id" | "autoEnableWhenConfiguredProviders" | "cliBackends" | "contracts" | "legacyPluginIds" | "providerAuthEnvVars" | "providers">;

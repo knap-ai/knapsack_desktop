@@ -22,7 +22,7 @@ export declare function supportsXHighThinking(provider?: string | null, model?: 
 export declare function listThinkingLevels(provider?: string | null, model?: string | null): ThinkLevel[];
 export declare function listThinkingLevelOptions(provider?: string | null, model?: string | null): ThinkingLevelOption[];
 export declare function listThinkingLevelLabels(provider?: string | null, model?: string | null): string[];
-export declare function formatThinkingLevels(provider?: string | null, model?: string | null, separator?: string): string;
+export declare function formatThinkingLevels(provider?: string | null, model?: string | null, separator?: string, catalog?: ThinkingCatalogEntry[]): string;
 export declare function resolveThinkingDefaultForModel(params: {
     provider: string;
     model: string;
@@ -33,9 +33,11 @@ export declare function isThinkingLevelSupported(params: {
     provider?: string | null;
     model?: string | null;
     level: ThinkLevel;
+    catalog?: ThinkingCatalogEntry[];
 }): boolean;
 export declare function resolveSupportedThinkingLevel(params: {
     provider?: string | null;
     model?: string | null;
     level: ThinkLevel;
+    catalog?: ThinkingCatalogEntry[];
 }): ThinkLevel;

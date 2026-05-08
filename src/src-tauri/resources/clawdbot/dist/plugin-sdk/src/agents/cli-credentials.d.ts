@@ -29,6 +29,15 @@ export type MiniMaxCliCredential = {
     refresh: string;
     expires: number;
 };
+export type GeminiCliCredential = {
+    type: "oauth";
+    provider: "google-gemini-cli";
+    access: string;
+    refresh: string;
+    expires: number;
+    accountId?: string;
+    email?: string;
+};
 type ClaudeCliFileOptions = {
     homeDir?: string;
 };
@@ -72,4 +81,8 @@ export declare function readMiniMaxCliCredentialsCached(options?: {
     ttlMs?: number;
     homeDir?: string;
 }): MiniMaxCliCredential | null;
+export declare function readGeminiCliCredentialsCached(options?: {
+    ttlMs?: number;
+    homeDir?: string;
+}): GeminiCliCredential | null;
 export {};

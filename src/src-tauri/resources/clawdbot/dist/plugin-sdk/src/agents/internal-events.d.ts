@@ -17,3 +17,4 @@ export type AgentTaskCompletionInternalEvent = {
 export type AgentInternalEvent = AgentTaskCompletionInternalEvent;
 export { INTERNAL_RUNTIME_CONTEXT_BEGIN, INTERNAL_RUNTIME_CONTEXT_END };
 export declare function formatAgentInternalEventsForPrompt(events?: AgentInternalEvent[]): string;
+export declare function formatAgentInternalEventsForPlainPrompt(events?: AgentInternalEvent[]): string;

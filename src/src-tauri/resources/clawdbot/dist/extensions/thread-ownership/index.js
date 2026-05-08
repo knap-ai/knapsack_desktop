@@ -1,10 +1,10 @@
-import { c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
-import { n as fetchWithSsrFGuard } from "../../fetch-guard-DKbwHPzH.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { n as resolveLivePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import { d as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../../ssrf-policy-fyM1MW87.js";
-import "../../api-BSZsm0Pu.js";
+import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
+import { n as fetchWithSsrFGuard } from "../../fetch-guard-8smVA_M-.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import { d as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../../ssrf-policy-BMzLPvV8.js";
+import "../../api-CmmA-O9S.js";
 //#region extensions/thread-ownership/index.ts
 const mentionedThreads = /* @__PURE__ */ new Map();
 const MENTION_TTL_MS = 300 * 1e3;
@@ -50,8 +50,8 @@ var thread_ownership_default = definePluginEntry({
 	description: "Slack thread claim coordination for multi-agent setups",
 	register(api) {
 		const resolveCurrentState = () => {
-			const currentConfig = api.runtime.config?.loadConfig?.() ?? api.config;
-			const livePluginCfg = resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "thread-ownership", isThreadOwnershipConfig(api.pluginConfig) ? api.pluginConfig : void 0);
+			const currentConfig = api.runtime.config?.current?.() ?? api.config;
+			const livePluginCfg = resolveLivePluginConfigObject(api.runtime.config?.current ? () => api.runtime.config.current() : void 0, "thread-ownership", isThreadOwnershipConfig(api.pluginConfig) ? api.pluginConfig : void 0);
 			const pluginCfg = isThreadOwnershipConfig(livePluginCfg) ? livePluginCfg : {};
 			return {
 				currentConfig,

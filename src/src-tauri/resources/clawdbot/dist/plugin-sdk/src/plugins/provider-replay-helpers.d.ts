@@ -2,6 +2,7 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { ProviderReasoningOutputMode, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderSanitizeReplayHistoryContext } from "./types.js";
 export declare function buildOpenAICompatibleReplayPolicy(modelApi: string | null | undefined, options?: {
     sanitizeToolCallIds?: boolean;
+    modelId?: string | null;
 }): ProviderReplayPolicy | undefined;
 export declare function buildStrictAnthropicReplayPolicy(options?: {
     dropThinkingBlocks?: boolean;

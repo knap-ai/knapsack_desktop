@@ -13,6 +13,8 @@ export declare function resolvePluginProviders(params: {
     modelRefs?: readonly string[];
     activate?: boolean;
     cache?: boolean;
+    applyAutoEnable?: boolean;
+    installBundledRuntimeDeps?: boolean;
     pluginSdkResolution?: PluginLoadOptions["pluginSdkResolution"];
     mode?: "runtime" | "setup";
     includeUntrustedWorkspacePlugins?: boolean;

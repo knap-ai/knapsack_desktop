@@ -1,7 +1,7 @@
-import { s as normalizeStringEntries } from "../string-normalization-Bvcn03I9.js";
-import { t as collectProviderDangerousNameMatchingScopes } from "../dangerous-name-matching-wQgGIYE0.js";
-import { n as formatPluginInstallPathIssue, t as detectPluginInstallPathIssue } from "../plugin-install-path-warnings-D4XV4arg.js";
-import { t as removePluginFromConfig } from "../uninstall-D4E4tLKL.js";
+import { s as normalizeStringEntries } from "../string-normalization-Cz5hTdB3.js";
+import { t as collectProviderDangerousNameMatchingScopes } from "../dangerous-name-matching-BixRCsA4.js";
+import { n as formatPluginInstallPathIssue, t as detectPluginInstallPathIssue } from "../plugin-install-path-warnings-BSTk7XUz.js";
+import { c as removePluginFromConfig } from "../uninstall-BR1Z044v.js";
 //#region src/config/channel-compat-normalization.ts
 function asObjectRecord(value) {
 	return value && typeof value === "object" && !Array.isArray(value) ? value : null;

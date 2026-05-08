@@ -1,2 +1,2 @@
-import { t as buildMicrosoftSpeechProvider } from "../../speech-provider-MQL46F8o.js";
+import { t as buildMicrosoftSpeechProvider } from "../../speech-provider-DjXk_QHc.js";
 export { buildMicrosoftSpeechProvider };

@@ -28,13 +28,72 @@ export declare const TalkRealtimeSessionParamsSchema: Type.TObject<{
     model: Type.TOptional<Type.TString>;
     voice: Type.TOptional<Type.TString>;
 }>;
-export declare const TalkRealtimeSessionResultSchema: Type.TObject<{
+export declare const TalkRealtimeRelayAudioParamsSchema: Type.TObject<{
+    relaySessionId: Type.TString;
+    audioBase64: Type.TString;
+    timestamp: Type.TOptional<Type.TNumber>;
+}>;
+export declare const TalkRealtimeRelayMarkParamsSchema: Type.TObject<{
+    relaySessionId: Type.TString;
+    markName: Type.TOptional<Type.TString>;
+}>;
+export declare const TalkRealtimeRelayStopParamsSchema: Type.TObject<{
+    relaySessionId: Type.TString;
+}>;
+export declare const TalkRealtimeRelayToolResultParamsSchema: Type.TObject<{
+    relaySessionId: Type.TString;
+    callId: Type.TString;
+    result: Type.TUnknown;
+}>;
+export declare const TalkRealtimeRelayOkResultSchema: Type.TObject<{
+    ok: Type.TBoolean;
+}>;
+export declare const TalkRealtimeSessionResultSchema: Type.TUnion<[Type.TObject<{
     provider: Type.TString;
+    transport: Type.TOptional<Type.TLiteral<"webrtc-sdp">>;
     clientSecret: Type.TString;
+    offerUrl: Type.TOptional<Type.TString>;
     model: Type.TOptional<Type.TString>;
     voice: Type.TOptional<Type.TString>;
     expiresAt: Type.TOptional<Type.TNumber>;
-}>;
+}>, Type.TObject<{
+    provider: Type.TString;
+    transport: Type.TLiteral<"json-pcm-websocket">;
+    protocol: Type.TString;
+    clientSecret: Type.TString;
+    websocketUrl: Type.TString;
+    audio: Type.TObject<{
+        inputEncoding: Type.TUnion<[Type.TLiteral<"pcm16">, Type.TLiteral<"g711_ulaw">]>;
+        inputSampleRateHz: Type.TInteger;
+        outputEncoding: Type.TUnion<[Type.TLiteral<"pcm16">, Type.TLiteral<"g711_ulaw">]>;
+        outputSampleRateHz: Type.TInteger;
+    }>;
+    initialMessage: Type.TOptional<Type.TUnknown>;
+    model: Type.TOptional<Type.TString>;
+    voice: Type.TOptional<Type.TString>;
+    expiresAt: Type.TOptional<Type.TNumber>;
+}>, Type.TObject<{
+    provider: Type.TString;
+    transport: Type.TLiteral<"gateway-relay">;
+    relaySessionId: Type.TString;
+    audio: Type.TObject<{
+        inputEncoding: Type.TUnion<[Type.TLiteral<"pcm16">, Type.TLiteral<"g711_ulaw">]>;
+        inputSampleRateHz: Type.TInteger;
+        outputEncoding: Type.TUnion<[Type.TLiteral<"pcm16">, Type.TLiteral<"g711_ulaw">]>;
+        outputSampleRateHz: Type.TInteger;
+    }>;
+    model: Type.TOptional<Type.TString>;
+    voice: Type.TOptional<Type.TString>;
+    expiresAt: Type.TOptional<Type.TNumber>;
+}>, Type.TObject<{
+    provider: Type.TString;
+    transport: Type.TLiteral<"managed-room">;
+    roomUrl: Type.TString;
+    token: Type.TOptional<Type.TString>;
+    model: Type.TOptional<Type.TString>;
+    voice: Type.TOptional<Type.TString>;
+    expiresAt: Type.TOptional<Type.TNumber>;
+}>]>;
 export declare const TalkConfigResultSchema: Type.TObject<{
     config: Type.TObject<{
         talk: Type.TOptional<Type.TObject<{
@@ -72,6 +131,7 @@ export declare const TalkConfigResultSchema: Type.TObject<{
                     }>]>]>>;
                 }>;
             }>;
+            speechLocale: Type.TOptional<Type.TString>;
             interruptOnSpeech: Type.TOptional<Type.TBoolean>;
             silenceTimeoutMs: Type.TOptional<Type.TInteger>;
         }>>;

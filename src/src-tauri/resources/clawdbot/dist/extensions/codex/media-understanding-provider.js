@@ -1,7 +1,7 @@
 import { CODEX_PROVIDER_ID, FALLBACK_CODEX_MODELS } from "./provider-catalog.js";
-import { i as resolveCodexAppServerRuntimeOptions } from "./config-BqDfPmSH.js";
+import { i as resolveCodexAppServerRuntimeOptions } from "./config-T2qWvCZA.js";
 import { a as readCodexErrorNotification, c as readCodexTurnCompletedNotification, n as assertCodexThreadStartResponse, r as assertCodexTurnStartResponse } from "./protocol-validators-Cpopom3_.js";
-import { i as readModelListResult } from "./models-BK4iJFwS.js";
+import { i as readModelListResult } from "./models-B1pj8mrD.js";
 import { t as isJsonObject } from "./protocol-C9UWI98H.js";
 //#region extensions/codex/media-understanding-provider.ts
 const DEFAULT_CODEX_IMAGE_MODEL = FALLBACK_CODEX_MODELS.find((model) => model.inputModalities.includes("image"))?.id ?? FALLBACK_CODEX_MODELS[0]?.id;
@@ -37,7 +37,7 @@ async function describeCodexImages(req, options) {
 	const appServer = resolveCodexAppServerRuntimeOptions({ pluginConfig: options.pluginConfig });
 	const timeoutMs = Math.max(100, req.timeoutMs);
 	const ownsClient = !options.clientFactory;
-	const client = options.clientFactory ? await options.clientFactory(appServer.start, req.profile) : await import("./shared-client-C3NXWlxU.js").then((n) => n.r).then(({ createIsolatedCodexAppServerClient }) => createIsolatedCodexAppServerClient({
+	const client = options.clientFactory ? await options.clientFactory(appServer.start, req.profile) : await import("./shared-client-MLSTUxlJ.js").then((n) => n.r).then(({ createIsolatedCodexAppServerClient }) => createIsolatedCodexAppServerClient({
 		startOptions: appServer.start,
 		timeoutMs,
 		authProfileId: req.profile
@@ -56,7 +56,7 @@ async function describeCodexImages(req, options) {
 			model,
 			modelProvider: "openai",
 			cwd: req.agentDir || process.cwd(),
-			approvalPolicy: "never",
+			approvalPolicy: "on-request",
 			sandbox: "read-only",
 			serviceName: "OpenClaw",
 			developerInstructions: "You are OpenClaw's bounded image-understanding worker. Describe only the provided image content. Do not call tools, edit files, or ask follow-up questions.",
@@ -70,6 +70,7 @@ async function describeCodexImages(req, options) {
 		}));
 		const collector = createCodexImageTurnCollector(thread.thread.id);
 		const cleanup = client.addNotificationHandler(collector.handleNotification);
+		const requestCleanup = client.addRequestHandler(denyCodexImageApprovalRequest);
 		try {
 			const turn = assertCodexTurnStartResponse(await client.request("turn/start", {
 				threadId: thread.thread.id,
@@ -82,7 +83,7 @@ async function describeCodexImages(req, options) {
 					url: `data:${image.mime ?? "image/png"};base64,${image.buffer.toString("base64")}`
 				}))],
 				cwd: req.agentDir || process.cwd(),
-				approvalPolicy: "never",
+				approvalPolicy: "on-request",
 				model,
 				effort: "low"
 			}, {
@@ -97,12 +98,28 @@ async function describeCodexImages(req, options) {
 				model
 			};
 		} finally {
+			requestCleanup();
 			cleanup();
 		}
 	} finally {
 		clearTimeout(timeout);
 		if (ownsClient) client.close();
 	}
+}
+function denyCodexImageApprovalRequest(request) {
+	if (request.method === "item/commandExecution/requestApproval" || request.method === "item/fileChange/requestApproval") return {
+		decision: "decline",
+		reason: "OpenClaw Codex image understanding does not grant tool or file approvals."
+	};
+	if (request.method === "item/permissions/requestApproval") return {
+		permissions: {},
+		scope: "turn"
+	};
+	if (request.method.includes("requestApproval")) return {
+		decision: "decline",
+		reason: "OpenClaw Codex image understanding does not grant native approvals."
+	};
+	if (request.method === "mcpServer/elicitation/request") return { action: "decline" };
 }
 async function assertCodexModelSupportsImage(params) {
 	const match = readModelListResult(await params.client.request("model/list", {

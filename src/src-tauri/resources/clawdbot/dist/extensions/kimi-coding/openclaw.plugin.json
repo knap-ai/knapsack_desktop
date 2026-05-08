@@ -5,6 +5,38 @@
     "kimi",
     "kimi-coding"
   ],
+  "providerRequest": {
+    "providers": {
+      "kimi": {
+        "family": "moonshot",
+        "compatibilityFamily": "moonshot"
+      },
+      "kimi-coding": {
+        "family": "moonshot",
+        "compatibilityFamily": "moonshot"
+      }
+    }
+  },
+  "modelPricing": {
+    "providers": {
+      "kimi": {
+        "openRouter": {
+          "provider": "moonshotai"
+        },
+        "liteLLM": {
+          "provider": "moonshot"
+        }
+      },
+      "kimi-coding": {
+        "openRouter": {
+          "provider": "moonshotai"
+        },
+        "liteLLM": {
+          "provider": "moonshot"
+        }
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "kimi": [
       "KIMI_API_KEY",

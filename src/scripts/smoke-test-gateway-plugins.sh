@@ -59,11 +59,15 @@ run_pass() {
     --port "$PORT") >>"$LOG_FILE" 2>&1 &
   GW_PID=$!
 
-  # Poll until "ready (" appears (emitted by server-startup-log after plugin
-  # registration completes and the WS server is listening), or bail on timeout/exit.
+  # Poll until the gateway ready sentinel appears in the log, then bail on
+  # timeout or early exit.
+  # openclaw <=2026.4.24 emits "ready (…)"; 2026.4.25+ emits
+  # "http server listening (…)".  Accept either so this script works across
+  # the version boundary.
   local ticks=0
   local max_ticks=$(( TIMEOUT_S * 2 ))
-  while ! grep -qF "ready (" "$LOG_FILE" 2>/dev/null; do
+  while ! grep -qF "ready (" "$LOG_FILE" 2>/dev/null && \
+        ! grep -qF "http server listening (" "$LOG_FILE" 2>/dev/null; do
     if ! kill -0 "$GW_PID" 2>/dev/null; then
       echo "[smoke-test] FAIL: $pass_name — gateway exited before reaching ready state"
       echo "--- gateway output ---" >&2

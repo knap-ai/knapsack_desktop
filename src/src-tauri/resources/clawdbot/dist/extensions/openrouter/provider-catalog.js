@@ -1,2 +1,2 @@
-import { n as buildOpenrouterProvider, r as normalizeOpenRouterBaseUrl, t as OPENROUTER_BASE_URL } from "../../provider-catalog-CAICBflG.js";
-export { OPENROUTER_BASE_URL, buildOpenrouterProvider, normalizeOpenRouterBaseUrl };
+import { i as normalizeOpenRouterBaseUrl, n as buildOpenrouterProvider, r as isOpenRouterProxyReasoningUnsupportedModel, t as OPENROUTER_BASE_URL } from "../../provider-catalog-DM2joWwF.js";
+export { OPENROUTER_BASE_URL, buildOpenrouterProvider, isOpenRouterProxyReasoningUnsupportedModel, normalizeOpenRouterBaseUrl };

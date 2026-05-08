@@ -1,5 +1,5 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { t as buildNvidiaProvider } from "../../provider-catalog-DRMzzBia2.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { t as buildNvidiaProvider } from "../../provider-catalog-DoevlcnY.js";
 var nvidia_default = defineSingleProviderPluginEntry({
 	id: "nvidia",
 	name: "NVIDIA Provider",

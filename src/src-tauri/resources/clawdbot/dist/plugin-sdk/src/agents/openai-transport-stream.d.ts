@@ -1,5 +1,6 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import { type Api, type Context, type Model } from "@mariozechner/pi-ai";
+import OpenAI, { AzureOpenAI } from "openai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions.js";
 import type { FunctionTool, ResponseCreateParamsStreaming, ResponseInput } from "openai/resources/responses/responses.js";
 import type { ModelCompatConfig } from "../config/types.models.js";
@@ -30,8 +31,11 @@ type OpenAICompletionsOptions = BaseStreamOptions & {
     reasoning?: OpenAIReasoningEffort;
     reasoningEffort?: OpenAIReasoningEffort;
 };
+type OpenAIModeCompatInput = Omit<ModelCompatConfig, "thinkingFormat"> & {
+    thinkingFormat?: string;
+};
 type OpenAIModeModel = Omit<Model<Api>, "compat"> & {
-    compat?: ModelCompatConfig;
+    compat?: OpenAIModeCompatInput | null;
 };
 type MutableAssistantOutput = {
     role: "assistant";
@@ -60,9 +64,16 @@ type MutableAssistantOutput = {
 };
 export { sanitizeTransportPayloadText } from "./transport-stream-shared.js";
 export declare function resolveAzureOpenAIApiVersion(env?: NodeJS.ProcessEnv): string;
+declare function buildOpenAISdkRequestOptions(model: Model<Api>, signal?: AbortSignal): {
+    signal?: AbortSignal;
+    timeout?: number;
+} | undefined;
+declare function createOpenAIResponsesClient(model: Model<Api>, context: Context, apiKey: string, optionHeaders?: Record<string, string>, turnHeaders?: Record<string, string>): OpenAI;
 export declare function createOpenAIResponsesTransportStreamFn(): StreamFn;
 export declare function buildOpenAIResponsesParams(model: Model<Api>, context: Context, options: OpenAIResponsesOptions | undefined, metadata?: Record<string, string>): OpenAIResponsesRequestParams;
 export declare function createAzureOpenAIResponsesTransportStreamFn(): StreamFn;
+declare function createAzureOpenAIClient(model: Model<Api>, context: Context, apiKey: string, optionHeaders?: Record<string, string>, turnHeaders?: Record<string, string>): AzureOpenAI;
+declare function createOpenAICompletionsClient(model: Model<Api>, context: Context, apiKey: string, optionHeaders?: Record<string, string>): OpenAI;
 declare function buildOpenAICompletionsClientConfig(model: Model<Api>, context: Context, optionHeaders?: Record<string, string>): {
     baseURL: string;
     defaultHeaders: Record<string, string>;
@@ -76,6 +87,7 @@ type OpenAIResponsesRequestParams = {
     model: string;
     input: ResponseInput;
     stream: true;
+    instructions?: string;
     prompt_cache_key?: string;
     prompt_cache_retention?: "24h";
     metadata?: Record<string, string>;
@@ -108,6 +120,10 @@ export declare function parseTransportChunkUsage(rawUsage: NonNullable<ChatCompl
     };
 };
 export declare const __testing: {
+    buildOpenAISdkRequestOptions: typeof buildOpenAISdkRequestOptions;
+    createAzureOpenAIClient: typeof createAzureOpenAIClient;
+    createOpenAICompletionsClient: typeof createOpenAICompletionsClient;
+    createOpenAIResponsesClient: typeof createOpenAIResponsesClient;
     buildOpenAICompletionsClientConfig: typeof buildOpenAICompletionsClientConfig;
     processOpenAICompletionsStream: typeof processOpenAICompletionsStream;
 };

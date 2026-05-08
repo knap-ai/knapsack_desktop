@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../core-C7AkvHZx.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../core-Dd3gimuF.js";
 //#region extensions/memory-core/cli-metadata.ts
 var cli_metadata_default = definePluginEntry({
 	id: "memory-core",
@@ -7,7 +7,7 @@ var cli_metadata_default = definePluginEntry({
 	description: "File-backed memory search tools and CLI",
 	register(api) {
 		api.registerCli(async ({ program }) => {
-			const { registerMemoryCli } = await import("../../cli-D4AggRdr.js");
+			const { registerMemoryCli } = await import("../../cli-BWXpAOEZ.js");
 			registerMemoryCli(program);
 		}, { descriptors: [{
 			name: "memory",

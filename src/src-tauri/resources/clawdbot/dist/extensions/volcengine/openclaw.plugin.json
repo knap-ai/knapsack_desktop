@@ -9,6 +9,12 @@
   "providerAuthEnvVars": {
     "volcengine": [
       "VOLCANO_ENGINE_API_KEY"
+    ],
+    "volcengine-tts": [
+      "VOLCENGINE_TTS_API_KEY",
+      "BYTEPLUS_SEED_SPEECH_API_KEY",
+      "VOLCENGINE_TTS_APPID",
+      "VOLCENGINE_TTS_TOKEN"
     ]
   },
   "providerAuthAliases": {
@@ -33,5 +39,10 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {}
+  },
+  "contracts": {
+    "speechProviders": [
+      "volcengine"
+    ]
   }
 }

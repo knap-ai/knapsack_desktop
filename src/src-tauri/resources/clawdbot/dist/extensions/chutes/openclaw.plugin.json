@@ -4,6 +4,21 @@
   "providers": [
     "chutes"
   ],
+  "providerEndpoints": [
+    {
+      "endpointClass": "chutes-native",
+      "hosts": [
+        "llm.chutes.ai"
+      ]
+    }
+  ],
+  "providerRequest": {
+    "providers": {
+      "chutes": {
+        "family": "chutes"
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "chutes": [
       "CHUTES_API_KEY",

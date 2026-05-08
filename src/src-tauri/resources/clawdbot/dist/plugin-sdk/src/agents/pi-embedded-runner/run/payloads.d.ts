@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@mariozechner/pi-ai";
-import type { ReasoningLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
+import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { ToolResultFormat } from "../../pi-embedded-subscribe.shared-types.js";
 import { type ToolErrorSummary } from "../../tool-error-summary.js";
@@ -19,6 +19,7 @@ export declare function buildEmbeddedRunPayloads(params: {
     model?: string;
     verboseLevel?: VerboseLevel;
     reasoningLevel?: ReasoningLevel;
+    thinkingLevel?: ThinkLevel;
     toolResultFormat?: ToolResultFormat;
     suppressToolErrorWarnings?: boolean;
     inlineToolResultsAllowed: boolean;

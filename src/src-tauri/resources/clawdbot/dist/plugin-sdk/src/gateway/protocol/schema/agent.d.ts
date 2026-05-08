@@ -116,9 +116,12 @@ export declare const AgentParamsSchema: Type.TObject<{
     bestEffortDeliver: Type.TOptional<Type.TBoolean>;
     lane: Type.TOptional<Type.TString>;
     cleanupBundleMcpOnRunEnd: Type.TOptional<Type.TBoolean>;
+    modelRun: Type.TOptional<Type.TBoolean>;
+    promptMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"full">, Type.TLiteral<"minimal">, Type.TLiteral<"none">]>>;
     extraSystemPrompt: Type.TOptional<Type.TString>;
     bootstrapContextMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"full">, Type.TLiteral<"lightweight">]>>;
     bootstrapContextRunKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"default">, Type.TLiteral<"heartbeat">, Type.TLiteral<"cron">]>>;
+    acpTurnSource: Type.TOptional<Type.TLiteral<"manual_spawn">>;
     internalEvents: Type.TOptional<Type.TArray<Type.TObject<{
         type: Type.TLiteral<"task_completion">;
         source: Type.TString;
@@ -140,6 +143,7 @@ export declare const AgentParamsSchema: Type.TObject<{
         sourceChannel: Type.TOptional<Type.TString>;
         sourceTool: Type.TOptional<Type.TString>;
     }>>;
+    voiceWakeTrigger: Type.TOptional<Type.TString>;
     idempotencyKey: Type.TString;
     label: Type.TOptional<Type.TString>;
 }>;
@@ -151,6 +155,9 @@ export declare const AgentIdentityResultSchema: Type.TObject<{
     agentId: Type.TString;
     name: Type.TOptional<Type.TString>;
     avatar: Type.TOptional<Type.TString>;
+    avatarSource: Type.TOptional<Type.TString>;
+    avatarStatus: Type.TOptional<Type.TString>;
+    avatarReason: Type.TOptional<Type.TString>;
     emoji: Type.TOptional<Type.TString>;
 }>;
 export declare const AgentWaitParamsSchema: Type.TObject<{

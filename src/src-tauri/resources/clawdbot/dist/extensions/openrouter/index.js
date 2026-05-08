@@ -1,16 +1,16 @@
-import "../../defaults-DM8yIn8C.js";
-import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-D-iKoymz.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
-import "../../provider-auth-api-key-BVwjjhIk.js";
-import { l as getOpenRouterModelCapabilities, u as loadOpenRouterModelCapabilities } from "../../provider-stream-CNYlhjpk.js";
-import "../../provider-stream-family-DoMxNUtY.js";
-import { n as buildOpenrouterProvider, r as normalizeOpenRouterBaseUrl, t as OPENROUTER_BASE_URL } from "../../provider-catalog-CAICBflG.js";
-import { t as buildOpenRouterImageGenerationProvider } from "../../image-generation-provider-LPNIEqIV.js";
-import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-By27N0V5.js";
-import { n as applyOpenrouterConfig, t as OPENROUTER_DEFAULT_MODEL_REF } from "../../onboard-CH5C6cgg.js";
-import { t as buildOpenRouterSpeechProvider } from "../../speech-provider-DblB4P2a.js";
-import { t as wrapOpenRouterProviderStream } from "../../stream-Dd4u-SFN.js";
+import "../../defaults-CRz26M83.js";
+import { i as PASSTHROUGH_GEMINI_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { l as getOpenRouterModelCapabilities, u as loadOpenRouterModelCapabilities } from "../../provider-stream-7qasVyCl.js";
+import "../../provider-stream-family-Wl9gUeDn.js";
+import { i as normalizeOpenRouterBaseUrl, n as buildOpenrouterProvider, r as isOpenRouterProxyReasoningUnsupportedModel, t as OPENROUTER_BASE_URL } from "../../provider-catalog-DM2joWwF.js";
+import { t as buildOpenRouterImageGenerationProvider } from "../../image-generation-provider-DPaw6NIo.js";
+import { t as openrouterMediaUnderstandingProvider } from "../../media-understanding-provider-CvdDFfr7.js";
+import { n as applyOpenrouterConfig, t as OPENROUTER_DEFAULT_MODEL_REF } from "../../onboard-Cp65tySl.js";
+import { t as buildOpenRouterSpeechProvider } from "../../speech-provider-95RL7ODk.js";
+import { t as wrapOpenRouterProviderStream } from "../../stream-DMRSHg7v.js";
 //#region extensions/openrouter/index.ts
 const PROVIDER_ID = "openrouter";
 const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
@@ -23,10 +23,12 @@ const OPENROUTER_CACHE_TTL_MODEL_PREFIXES = [
 ];
 function normalizeOpenRouterResolvedModel(model) {
 	const normalizedBaseUrl = normalizeOpenRouterBaseUrl(model.baseUrl);
-	if (!normalizedBaseUrl || normalizedBaseUrl === model.baseUrl) return;
+	const reasoning = isOpenRouterProxyReasoningUnsupportedModel(model.id) ? false : model.reasoning;
+	if ((!normalizedBaseUrl || normalizedBaseUrl === model.baseUrl) && reasoning === model.reasoning) return;
 	return {
 		...model,
-		baseUrl: normalizedBaseUrl
+		...normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {},
+		reasoning
 	};
 }
 var openrouter_default = definePluginEntry({
@@ -42,7 +44,7 @@ var openrouter_default = definePluginEntry({
 				api: "openai-completions",
 				provider: PROVIDER_ID,
 				baseUrl: OPENROUTER_BASE_URL,
-				reasoning: capabilities?.reasoning ?? false,
+				reasoning: (capabilities?.reasoning ?? false) && !isOpenRouterProxyReasoningUnsupportedModel(ctx.modelId),
 				input: capabilities?.input ?? ["text"],
 				cost: capabilities?.cost ?? {
 					input: 0,

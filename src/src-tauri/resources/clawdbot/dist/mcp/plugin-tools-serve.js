@@ -1,10 +1,10 @@
-import { i as formatErrorMessage } from "../errors-Jbvi20TW.js";
-import { c as routeLogsToStderr } from "../subsystem-CWI_MDy_.js";
-import { n as VERSION } from "../version-DZq9J0ei.js";
-import { a as loadConfig } from "../io-Dv_xNAZB.js";
-import "../config-yDDhhyz6.js";
-import { r as resolvePluginTools } from "../tools-CZr3orc0.js";
-import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-Tbtq2-gG.js";
+import { i as formatErrorMessage } from "../errors-CDFVCV9D.js";
+import { n as VERSION } from "../version-vQIvyCe_.js";
+import { a as routeLogsToStderr } from "../console-D6VW2Y3e.js";
+import { i as getRuntimeConfig } from "../io-CFdEhZuM.js";
+import "../config--k_1dtUP.js";
+import { r as resolvePluginTools } from "../tools-DHEGJXyc.js";
+import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-CW1QN3SP.js";
 import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -108,14 +108,14 @@ function resolveTools(config) {
 	});
 }
 function createPluginToolsMcpServer(params = {}) {
-	const cfg = params.config ?? loadConfig();
+	const cfg = params.config ?? getRuntimeConfig();
 	return createToolsMcpServer({
 		name: "openclaw-plugin-tools",
 		tools: params.tools ?? resolveTools(cfg)
 	});
 }
 async function servePluginToolsMcp() {
-	const config = loadConfig();
+	const config = getRuntimeConfig();
 	const tools = resolveTools(config);
 	const server = createPluginToolsMcpServer({
 		config,

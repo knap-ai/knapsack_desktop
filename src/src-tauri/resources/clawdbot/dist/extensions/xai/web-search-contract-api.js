@@ -1,4 +1,4 @@
-import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-SYSI7qZL.js";
+import { t as createBaseWebSearchProviderContractFields } from "../../provider-web-search-contract-fields-N2y5_TqN.js";
 //#region extensions/xai/web-search-contract-api.ts
 function createXaiWebSearchProvider() {
 	const credentialPath = "plugins.entries.xai.config.webSearch.apiKey";

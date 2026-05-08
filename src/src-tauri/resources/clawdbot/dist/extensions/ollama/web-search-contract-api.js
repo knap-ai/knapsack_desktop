@@ -1,4 +1,4 @@
-import { t as createWebSearchProviderContractFields } from "../../provider-web-search-contract-TmT6tVtk.js";
+import { t as createWebSearchProviderContractFields } from "../../provider-web-search-contract-CrnPrTFW.js";
 //#region extensions/ollama/web-search-contract-api.ts
 function createOllamaWebSearchProvider() {
 	return {

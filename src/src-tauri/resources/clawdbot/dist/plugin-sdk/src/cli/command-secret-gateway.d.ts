@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { resolveManifestContractOwnerPluginId } from "../plugins/manifest-registry.js";
+import { resolveManifestContractOwnerPluginId } from "../plugins/plugin-registry.js";
 import { analyzeCommandSecretAssignmentsFromSnapshot } from "../secrets/command-config.js";
 import { collectConfigAssignments } from "../secrets/runtime-config-collectors.js";
 import { resolveRuntimeWebTools } from "../secrets/runtime-web-tools.js";

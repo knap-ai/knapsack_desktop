@@ -33,13 +33,23 @@ export type DeviceAuthTokenSummary = {
     revokedAtMs?: number;
     lastUsedAtMs?: number;
 };
-export type RotateDeviceTokenDenyReason = "unknown-device-or-role" | "missing-approved-scope-baseline" | "scope-outside-approved-baseline";
+export type RotateDeviceTokenDenyReason = "unknown-device-or-role" | "missing-approved-scope-baseline" | "scope-outside-approved-baseline" | "caller-missing-scope";
 export type RotateDeviceTokenResult = {
     ok: true;
     entry: DeviceAuthToken;
 } | {
     ok: false;
     reason: RotateDeviceTokenDenyReason;
+    scope?: string;
+};
+export type RevokeDeviceTokenDenyReason = "unknown-device-or-role" | "caller-missing-scope";
+export type RevokeDeviceTokenResult = {
+    ok: true;
+    entry: DeviceAuthToken;
+} | {
+    ok: false;
+    reason: RevokeDeviceTokenDenyReason;
+    scope?: string;
 };
 export type PairedDevice = {
     deviceId: string;
@@ -121,11 +131,13 @@ export declare function rotateDeviceToken(params: {
     deviceId: string;
     role: string;
     scopes?: string[];
+    callerScopes?: readonly string[];
     baseDir?: string;
 }): Promise<RotateDeviceTokenResult>;
 export declare function revokeDeviceToken(params: {
     deviceId: string;
     role: string;
+    callerScopes?: readonly string[];
     baseDir?: string;
-}): Promise<DeviceAuthToken | null>;
+}): Promise<RevokeDeviceTokenResult>;
 export declare function clearDevicePairing(deviceId: string, baseDir?: string): Promise<boolean>;

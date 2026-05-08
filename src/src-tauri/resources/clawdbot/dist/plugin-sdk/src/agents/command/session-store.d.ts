@@ -13,8 +13,15 @@ export declare function updateSessionStoreAfterAgentRun(params: {
     fallbackProvider?: string;
     fallbackModel?: string;
     result: RunResult;
+    touchInteraction?: boolean;
 }): Promise<void>;
 export declare function clearCliSessionInStore(params: {
+    provider: string;
+    sessionKey: string;
+    sessionStore: Record<string, SessionEntry>;
+    storePath: string;
+}): Promise<SessionEntry | undefined>;
+export declare function recordCliCompactionInStore(params: {
     provider: string;
     sessionKey: string;
     sessionStore: Record<string, SessionEntry>;

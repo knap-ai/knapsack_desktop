@@ -29,4 +29,6 @@ export declare function incrementCompactionCount(params: {
     tokensAfter?: number;
     /** Session id after compaction, when the runtime rotated transcripts. */
     newSessionId?: string;
+    /** Session file after compaction, when the runtime rotated transcripts. */
+    newSessionFile?: string;
 }): Promise<number | undefined>;

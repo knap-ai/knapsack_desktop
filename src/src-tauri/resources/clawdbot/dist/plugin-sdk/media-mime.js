@@ -1,3 +1,3 @@
-import { h as mediaKindFromMime, l as normalizeMimeType, n as extensionForMime, r as getFileExtension, t as detectMime } from "../mime-Zn7U6BSf.js";
-import "../media-mime-Clmdz3AL.js";
+import { _ as mediaKindFromMime, i as getFileExtension, n as detectMime, r as extensionForMime, u as normalizeMimeType } from "../mime-B-vvNIo6.js";
+import "../media-mime-Bt3Chgzq.js";
 export { detectMime, extensionForMime, getFileExtension, mediaKindFromMime, normalizeMimeType };

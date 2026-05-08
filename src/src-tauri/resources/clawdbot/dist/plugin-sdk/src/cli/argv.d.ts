@@ -1,4 +1,5 @@
 export declare function hasHelpOrVersion(argv: string[]): boolean;
+export declare function isHelpOrVersionInvocation(argv: string[]): boolean;
 export declare function hasFlag(argv: string[], name: string): boolean;
 export declare function hasRootVersionAlias(argv: string[]): boolean;
 export declare function isRootVersionInvocation(argv: string[]): boolean;

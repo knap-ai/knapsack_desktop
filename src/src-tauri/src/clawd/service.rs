@@ -1742,6 +1742,7 @@ fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
     .unwrap_or_else(|| PathBuf::from(rel))
 }
 
+
 fn generate_plist(program_args: &[String], env: &[(String, String)]) -> String {
   let mut env_xml = String::new();
   for (k, v) in env {

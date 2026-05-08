@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 export type ArchiveKind = "tar" | "zip";
 export type ArchiveLogger = {
     info?: (message: string) => void;
@@ -25,12 +26,26 @@ export declare const DEFAULT_MAX_ENTRIES = 50000;
 export declare const DEFAULT_MAX_EXTRACTED_BYTES: number;
 /** @internal */
 export declare const DEFAULT_MAX_ENTRY_BYTES: number;
+export declare const ARCHIVE_LIMIT_ERROR_CODE: {
+    readonly ARCHIVE_SIZE_EXCEEDS_LIMIT: "archive-size-exceeds-limit";
+    readonly ENTRY_COUNT_EXCEEDS_LIMIT: "archive-entry-count-exceeds-limit";
+    readonly ENTRY_EXTRACTED_SIZE_EXCEEDS_LIMIT: "archive-entry-extracted-size-exceeds-limit";
+    readonly EXTRACTED_SIZE_EXCEEDS_LIMIT: "archive-extracted-size-exceeds-limit";
+};
+export type ArchiveLimitErrorCode = (typeof ARCHIVE_LIMIT_ERROR_CODE)[keyof typeof ARCHIVE_LIMIT_ERROR_CODE];
+export declare class ArchiveLimitError extends Error {
+    readonly code: ArchiveLimitErrorCode;
+    constructor(code: ArchiveLimitErrorCode);
+}
 export declare function resolveArchiveKind(filePath: string): ArchiveKind | null;
 type ResolvePackedRootDirOptions = {
     rootMarkers?: string[];
 };
 export declare function resolvePackedRootDir(extractDir: string, options?: ResolvePackedRootDirOptions): Promise<string>;
 export declare function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T>;
+/** @internal */
+export declare function readZipCentralDirectoryEntryCount(buffer: Buffer | Uint8Array): number | null;
+export declare function loadZipArchiveWithPreflight(buffer: Buffer | Uint8Array, limits?: ArchiveExtractLimits): Promise<JSZip>;
 export type TarEntryInfo = {
     path: string;
     type: string;

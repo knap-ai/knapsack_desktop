@@ -1,7 +1,10 @@
-import { t as formatCliCommand } from "../command-format-BFuugklF.js";
-import { a as resolveBinaryVersion, c as resolveUsableRuntimeVersion, i as readVersionFromPackageJsonForModuleUrl, l as resolveVersionFromModuleUrl, n as VERSION, o as resolveCompatibilityHostVersion, r as readVersionFromBuildInfoForModuleUrl, s as resolveRuntimeServiceVersion, t as RUNTIME_SERVICE_VERSION_FALLBACK } from "../version-DZq9J0ei.js";
-import { t as parseDurationMs } from "../parse-duration-DH3x5y_9.js";
-import { r as stylePromptTitle } from "../prompt-style-sjYmJy2m.js";
-import { t as waitForever } from "../wait-CLzt-_cD.js";
-import "../cli-runtime-DjBQPAMx.js";
-export { RUNTIME_SERVICE_VERSION_FALLBACK, VERSION, formatCliCommand, parseDurationMs, readVersionFromBuildInfoForModuleUrl, readVersionFromPackageJsonForModuleUrl, resolveBinaryVersion, resolveCompatibilityHostVersion, resolveRuntimeServiceVersion, resolveUsableRuntimeVersion, resolveVersionFromModuleUrl, stylePromptTitle, waitForever };
+import { t as resolveCliArgvInvocation } from "../argv-invocation-C0QUafZn.js";
+import { t as formatCliCommand } from "../command-format-BORwwHyH.js";
+import { a as resolveBinaryVersion, c as resolveUsableRuntimeVersion, i as readVersionFromPackageJsonForModuleUrl, l as resolveVersionFromModuleUrl, n as VERSION, o as resolveCompatibilityHostVersion, r as readVersionFromBuildInfoForModuleUrl, s as resolveRuntimeServiceVersion, t as RUNTIME_SERVICE_VERSION_FALLBACK } from "../version-vQIvyCe_.js";
+import { t as parseDurationMs } from "../parse-duration-D7zSmneY.js";
+import { t as shouldEagerRegisterSubcommands } from "../command-registration-policy-vjojuaYv.js";
+import { r as stylePromptTitle } from "../prompt-style-rocPqVSR.js";
+import { i as registerCommandGroups } from "../register-command-groups-DKI4xdVx.js";
+import { t as waitForever } from "../wait-C4MkS6hq.js";
+import "../cli-runtime-Bf2NeLwa.js";
+export { RUNTIME_SERVICE_VERSION_FALLBACK, VERSION, formatCliCommand, parseDurationMs, readVersionFromBuildInfoForModuleUrl, readVersionFromPackageJsonForModuleUrl, registerCommandGroups, resolveBinaryVersion, resolveCliArgvInvocation, resolveCompatibilityHostVersion, resolveRuntimeServiceVersion, resolveUsableRuntimeVersion, resolveVersionFromModuleUrl, shouldEagerRegisterSubcommands, stylePromptTitle, waitForever };

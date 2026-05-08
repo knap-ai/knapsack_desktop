@@ -1,2 +1,2 @@
-import { n as nostrSetupWizard, t as nostrSetupAdapter } from "./setup-surface-GW7xrEvH.js";
+import { n as nostrSetupWizard, t as nostrSetupAdapter } from "./setup-surface-DxAaUTyC.js";
 export { nostrSetupAdapter, nostrSetupWizard };

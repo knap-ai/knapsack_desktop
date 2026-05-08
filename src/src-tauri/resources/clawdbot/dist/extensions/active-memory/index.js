@@ -1,11 +1,13 @@
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
-import "../../defaults-DM8yIn8C.js";
-import { b as resolveAgentWorkspaceDir, n as resolveAgentEffectiveModelPrimary, y as resolveAgentDir } from "../../agent-scope-_6dFncNS.js";
-import { x as parseModelRef } from "../../model-selection-shared-grYiFZof.js";
-import { l as resolveSessionStoreEntry, o as updateSessionStore } from "../../store-Bm25Mivo.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { n as resolveLivePluginConfigObject, r as resolvePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import "../../agent-runtime-Bs8dyc1J.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-WEYPFjsW.js";
+import { b as resolveAgentDir, n as resolveAgentEffectiveModelPrimary, x as resolveAgentWorkspaceDir } from "../../agent-scope-i10se9ty.js";
+import { r as DEFAULT_PROVIDER } from "../../defaults-CRz26M83.js";
+import { b as parseModelRef } from "../../model-selection-shared-VQV3de71.js";
+import { o as resolveDefaultModelForAgent } from "../../model-selection-GlsOqTDm.js";
+import { l as resolveSessionStoreEntry, o as updateSessionStore } from "../../store-CR7YmZjp.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { n as resolveLivePluginConfigObject, r as resolvePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import "../../agent-runtime-CYXcxHpR.js";
+import "../../session-store-runtime-BvF6xU2w.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -846,23 +848,28 @@ function extractRecentTurns(messages) {
 	}
 	return turns;
 }
-function parseModelCandidate(modelRef) {
+function parseModelCandidate(modelRef, defaultProvider = DEFAULT_PROVIDER) {
 	if (!modelRef) return;
-	return parseModelRef(modelRef, "openai") ?? {
-		provider: "openai",
+	return parseModelRef(modelRef, defaultProvider) ?? {
+		provider: defaultProvider,
 		model: modelRef
 	};
 }
 function getModelRef(api, agentId, config, ctx) {
 	const currentRunModel = ctx?.modelProviderId && ctx?.modelId ? `${ctx.modelProviderId}/${ctx.modelId}` : void 0;
+	const configuredDefaultModel = resolveAgentEffectiveModelPrimary(api.config, agentId) ? resolveDefaultModelForAgent({
+		cfg: api.config,
+		agentId
+	}) : void 0;
+	const defaultProvider = configuredDefaultModel?.provider ?? "openai";
 	const candidates = [
 		config.model,
 		currentRunModel,
-		resolveAgentEffectiveModelPrimary(api.config, agentId),
+		configuredDefaultModel ? `${configuredDefaultModel.provider}/${configuredDefaultModel.model}` : void 0,
 		config.modelFallback
 	];
 	for (const candidate of candidates) {
-		const parsed = parseModelCandidate(candidate);
+		const parsed = parseModelCandidate(candidate, defaultProvider);
 		if (parsed) return parsed;
 	}
 }
@@ -930,6 +937,7 @@ async function runRecallSubagent(params) {
 			thinkLevel: params.config.thinking,
 			reasoningLevel: "off",
 			silentExpected: true,
+			authProfileFailurePolicy: "local",
 			cleanupBundleMcpOnRunEnd: true,
 			abortSignal: params.abortSignal
 		});
@@ -990,16 +998,44 @@ async function maybeResolveActiveRecall(params) {
 	}
 	if (params.config.logging) params.api.logger.info?.(`${logPrefix} start timeoutMs=${String(params.config.timeoutMs)} queryChars=${String(params.query.length)}`);
 	const controller = new AbortController();
+	const TIMEOUT_SENTINEL = Symbol("timeout");
 	const timeoutId = setTimeout(() => {
 		controller.abort(/* @__PURE__ */ new Error(`active-memory timeout after ${params.config.timeoutMs}ms`));
 	}, params.config.timeoutMs);
 	timeoutId.unref?.();
+	const timeoutPromise = new Promise((resolve) => {
+		controller.signal.addEventListener("abort", () => {
+			resolve(TIMEOUT_SENTINEL);
+		}, { once: true });
+	});
 	try {
-		const { rawReply, transcriptPath, searchDebug } = await runRecallSubagent({
+		const subagentPromise = runRecallSubagent({
 			...params,
 			modelRef: resolvedModelRef,
 			abortSignal: controller.signal
 		});
+		subagentPromise.catch(() => void 0);
+		const raceResult = await Promise.race([subagentPromise, timeoutPromise]);
+		if (raceResult === TIMEOUT_SENTINEL) {
+			const result = {
+				status: "timeout",
+				elapsedMs: Date.now() - startedAt,
+				summary: null
+			};
+			if (params.config.logging) params.api.logger.info?.(`${logPrefix} done status=${result.status} elapsedMs=${String(result.elapsedMs)} summaryChars=0`);
+			await persistPluginStatusLines({
+				api: params.api,
+				agentId: params.agentId,
+				sessionKey: params.sessionKey,
+				statusLine: buildPluginStatusLine({
+					result,
+					config: params.config
+				}),
+				searchDebug: result.searchDebug
+			});
+			return result;
+		}
+		const { rawReply, transcriptPath, searchDebug } = raceResult;
 		const summary = truncateSummary(normalizeActiveSummary(rawReply) ?? "", params.config.maxSummaryChars);
 		if (params.config.logging && transcriptPath) params.api.logger.info?.(`${logPrefix} transcript=${transcriptPath}`);
 		const result = summary.length > 0 ? {
@@ -1081,7 +1117,7 @@ var active_memory_default = definePluginEntry({
 		};
 		warnDeprecatedModelFallbackPolicy(api.pluginConfig);
 		const refreshLiveConfigFromRuntime = () => {
-			const livePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "active-memory", api.pluginConfig);
+			const livePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.current ? () => api.runtime.config.current() : void 0, "active-memory", api.pluginConfig);
 			config = normalizePluginConfig(livePluginConfig ?? { enabled: false });
 			if (livePluginConfig) warnDeprecatedModelFallbackPolicy(livePluginConfig);
 		};
@@ -1095,17 +1131,23 @@ var active_memory_default = definePluginEntry({
 				const action = (tokens.find((token) => token !== "--global") ?? "status").toLowerCase();
 				if (action === "help") return { text: formatActiveMemoryCommandHelp() };
 				if (isGlobal) {
-					const currentConfig = api.runtime.config.loadConfig();
+					const currentConfig = api.runtime.config.current();
 					if (action === "status") return { text: `Active Memory: ${isActiveMemoryGloballyEnabled(currentConfig) ? "on" : "off"} globally.` };
 					if (action === "on" || action === "enable" || action === "enabled") {
 						const nextConfig = updateActiveMemoryGlobalEnabledInConfig(currentConfig, true);
-						await api.runtime.config.writeConfigFile(nextConfig);
+						await api.runtime.config.replaceConfigFile({
+							nextConfig,
+							afterWrite: { mode: "auto" }
+						});
 						refreshLiveConfigFromRuntime();
 						return { text: "Active Memory: on globally." };
 					}
 					if (action === "off" || action === "disable" || action === "disabled") {
 						const nextConfig = updateActiveMemoryGlobalEnabledInConfig(currentConfig, false);
-						await api.runtime.config.writeConfigFile(nextConfig);
+						await api.runtime.config.replaceConfigFile({
+							nextConfig,
+							afterWrite: { mode: "auto" }
+						});
 						refreshLiveConfigFromRuntime();
 						return { text: "Active Memory: off globally." };
 					}

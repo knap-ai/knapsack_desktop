@@ -45,6 +45,7 @@ export declare const CronFailureAlertSchema: Type.TObject<{
     channel: Type.TOptional<Type.TUnion<[Type.TLiteral<"last">, Type.TString]>>;
     to: Type.TOptional<Type.TString>;
     cooldownMs: Type.TOptional<Type.TInteger>;
+    includeSkipped: Type.TOptional<Type.TBoolean>;
     mode: Type.TOptional<Type.TUnion<[Type.TLiteral<"announce">, Type.TLiteral<"webhook">]>>;
     accountId: Type.TOptional<Type.TString>;
 }>;
@@ -111,9 +112,10 @@ export declare const CronJobStateSchema: Type.TObject<{
     lastRunStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
     lastStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
     lastError: Type.TOptional<Type.TString>;
-    lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"unknown">]>>;
+    lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"empty_response">, Type.TLiteral<"no_error_details">, Type.TLiteral<"unclassified">, Type.TLiteral<"unknown">]>>;
     lastDurationMs: Type.TOptional<Type.TInteger>;
     consecutiveErrors: Type.TOptional<Type.TInteger>;
+    consecutiveSkipped: Type.TOptional<Type.TInteger>;
     lastDelivered: Type.TOptional<Type.TBoolean>;
     lastDeliveryStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"delivered">, Type.TLiteral<"not-delivered">, Type.TLiteral<"unknown">, Type.TLiteral<"not-requested">]>>;
     lastDeliveryError: Type.TOptional<Type.TString>;
@@ -200,6 +202,7 @@ export declare const CronJobSchema: Type.TObject<{
         channel: Type.TOptional<Type.TUnion<[Type.TLiteral<"last">, Type.TString]>>;
         to: Type.TOptional<Type.TString>;
         cooldownMs: Type.TOptional<Type.TInteger>;
+        includeSkipped: Type.TOptional<Type.TBoolean>;
         mode: Type.TOptional<Type.TUnion<[Type.TLiteral<"announce">, Type.TLiteral<"webhook">]>>;
         accountId: Type.TOptional<Type.TString>;
     }>]>>;
@@ -210,9 +213,10 @@ export declare const CronJobSchema: Type.TObject<{
         lastRunStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
         lastStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
         lastError: Type.TOptional<Type.TString>;
-        lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"unknown">]>>;
+        lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"empty_response">, Type.TLiteral<"no_error_details">, Type.TLiteral<"unclassified">, Type.TLiteral<"unknown">]>>;
         lastDurationMs: Type.TOptional<Type.TInteger>;
         consecutiveErrors: Type.TOptional<Type.TInteger>;
+        consecutiveSkipped: Type.TOptional<Type.TInteger>;
         lastDelivered: Type.TOptional<Type.TBoolean>;
         lastDeliveryStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"delivered">, Type.TLiteral<"not-delivered">, Type.TLiteral<"unknown">, Type.TLiteral<"not-requested">]>>;
         lastDeliveryError: Type.TOptional<Type.TString>;
@@ -307,6 +311,7 @@ export declare const CronAddParamsSchema: Type.TObject<{
         channel: Type.TOptional<Type.TUnion<[Type.TLiteral<"last">, Type.TString]>>;
         to: Type.TOptional<Type.TString>;
         cooldownMs: Type.TOptional<Type.TInteger>;
+        includeSkipped: Type.TOptional<Type.TBoolean>;
         mode: Type.TOptional<Type.TUnion<[Type.TLiteral<"announce">, Type.TLiteral<"webhook">]>>;
         accountId: Type.TOptional<Type.TString>;
     }>]>>;
@@ -365,6 +370,7 @@ export declare const CronJobPatchSchema: Type.TObject<{
         channel: Type.TOptional<Type.TUnion<[Type.TLiteral<"last">, Type.TString]>>;
         to: Type.TOptional<Type.TString>;
         cooldownMs: Type.TOptional<Type.TInteger>;
+        includeSkipped: Type.TOptional<Type.TBoolean>;
         mode: Type.TOptional<Type.TUnion<[Type.TLiteral<"announce">, Type.TLiteral<"webhook">]>>;
         accountId: Type.TOptional<Type.TString>;
     }>]>>;
@@ -375,9 +381,10 @@ export declare const CronJobPatchSchema: Type.TObject<{
         lastRunStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
         lastStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"ok">, Type.TLiteral<"error">, Type.TLiteral<"skipped">]>>;
         lastError: Type.TOptional<Type.TString>;
-        lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"unknown">]>>;
+        lastErrorReason: Type.TOptional<Type.TUnion<[Type.TLiteral<"auth">, Type.TLiteral<"format">, Type.TLiteral<"rate_limit">, Type.TLiteral<"billing">, Type.TLiteral<"timeout">, Type.TLiteral<"model_not_found">, Type.TLiteral<"empty_response">, Type.TLiteral<"no_error_details">, Type.TLiteral<"unclassified">, Type.TLiteral<"unknown">]>>;
         lastDurationMs: Type.TOptional<Type.TInteger>;
         consecutiveErrors: Type.TOptional<Type.TInteger>;
+        consecutiveSkipped: Type.TOptional<Type.TInteger>;
         lastDelivered: Type.TOptional<Type.TBoolean>;
         lastDeliveryStatus: Type.TOptional<Type.TUnion<[Type.TLiteral<"delivered">, Type.TLiteral<"not-delivered">, Type.TLiteral<"unknown">, Type.TLiteral<"not-requested">]>>;
         lastDeliveryError: Type.TOptional<Type.TString>;

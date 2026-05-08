@@ -1,24 +1,25 @@
 import { n as resolveWebCredsBackupPath, r as resolveWebCredsPath, t as hasWebCredsSync } from "./creds-files-_2V8jzQa.js";
-import { n as whatsAppActionRuntime, t as handleWhatsAppAction } from "./action-runtime-D3x1s4JS.js";
+import { n as whatsAppActionRuntime, t as handleWhatsAppAction } from "./action-runtime-D-0L4yk5.js";
 import { n as getStatusCode, t as formatError } from "./session-errors-Ut-kDLfx.js";
-import { i as sendTypingWhatsApp, n as sendPollWhatsApp, r as sendReactionWhatsApp, t as sendMessageWhatsApp } from "./send-CsXEtdbz.js";
+import { i as sendTypingWhatsApp, n as sendPollWhatsApp, r as sendReactionWhatsApp, t as sendMessageWhatsApp } from "./send-DcMGZ9qO.js";
 import { startWebLoginWithQr, waitForWebLogin } from "./login-qr-runtime.js";
 import { t as createWhatsAppLoginTool } from "./agent-tools-login-DYKYW5Nh.js";
-import { r as setWhatsAppRuntime, t as resolveWhatsAppHeartbeatRecipients } from "./heartbeat-recipients-C-TF0zZz.js";
-import { C as waitForCredsSaveQueueWithTimeout, S as waitForCredsSaveQueue, _ as readWebSelfIdentityForDecision, a as getWebAuthAgeMs, b as webAuthExists, c as pickWebChannel, d as readWebAuthExistsForDecision, f as readWebAuthSnapshot, g as readWebSelfIdentity, h as readWebSelfId, i as formatWhatsAppWebAuthStatusState, l as readCredsJsonRaw, m as readWebAuthState, n as WHATSAPP_AUTH_UNSTABLE_CODE, o as logWebSelfId, p as readWebAuthSnapshotBestEffort, r as WhatsAppAuthUnstableError, s as logoutWeb, t as WA_WEB_AUTH_DIR, u as readWebAuthExistsBestEffort, v as resolveDefaultWebAuthDir, w as writeCredsJsonAtomically, y as restoreCredsFromBackupIfNeeded } from "./auth-store-Dt6dXsn-.js";
+import { r as setWhatsAppRuntime, t as resolveWhatsAppHeartbeatRecipients } from "./heartbeat-recipients-BDYalAOD.js";
+import { C as waitForCredsSaveQueueWithTimeout, S as waitForCredsSaveQueue, _ as readWebSelfIdentityForDecision, a as getWebAuthAgeMs, b as webAuthExists, c as pickWebChannel, d as readWebAuthExistsForDecision, f as readWebAuthSnapshot, g as readWebSelfIdentity, h as readWebSelfId, i as formatWhatsAppWebAuthStatusState, l as readCredsJsonRaw, m as readWebAuthState, n as WHATSAPP_AUTH_UNSTABLE_CODE, o as logWebSelfId, p as readWebAuthSnapshotBestEffort, r as WhatsAppAuthUnstableError, s as logoutWeb, t as WA_WEB_AUTH_DIR, u as readWebAuthExistsBestEffort, v as resolveDefaultWebAuthDir, w as writeCredsJsonAtomically, y as restoreCredsFromBackupIfNeeded } from "./auth-store-Da7U_n_T.js";
 import { t as DEFAULT_WEB_MEDIA_BYTES } from "./constants-w1BoViXF.js";
-import "./runtime-api-hCCQAzxB.js";
+import "./runtime-api-Dg-_xJkJ.js";
 import { n as resolveWebAccountId, t as getActiveWebListener } from "./active-listener-DTbKS-j-.js";
-import { c as waitForWaConnection, d as newConnectionId$1, o as createWaSocket, s as newConnectionId } from "./connection-controller-Cxgtxfr6.js";
-import { S as whatsappHeartbeatLog, _ as resolveSessionKey$1, a as loadWebMediaRaw, b as resolveStorePath$1, c as monitorWebInbox, d as extractMediaPlaceholder, f as extractText, g as resolveChannelResetConfig, h as loadSessionStore$1, i as loadWebMedia, l as extractContactContext, m as evaluateSessionFreshness, n as LocalMediaAccessError, o as optimizeImageToJpeg, p as resetWebInboundDedupe, r as getDefaultLocalRoots, s as optimizeImageToPng, t as monitorWebChannel, u as extractLocationData, v as resolveSessionResetPolicy, x as resolveThreadFlag, y as resolveSessionResetType } from "./monitor-BifLJ1dl.js";
-import { t as loginWeb } from "./login-BBSBIqTM.js";
+import { c as waitForWaConnection, d as newConnectionId$1, o as createWaSocket, s as newConnectionId } from "./connection-controller-BwKWE-K2.js";
+import { S as whatsappHeartbeatLog, _ as resolveSessionKey$1, a as loadWebMediaRaw, b as resolveStorePath$1, c as monitorWebInbox, d as extractMediaPlaceholder, f as extractText, g as resolveChannelResetConfig, h as loadSessionStore$1, i as loadWebMedia, l as extractContactContext, m as evaluateSessionFreshness, n as LocalMediaAccessError, o as optimizeImageToJpeg, p as resetWebInboundDedupe, r as getDefaultLocalRoots, s as optimizeImageToPng, t as monitorWebChannel, u as extractLocationData, v as resolveSessionResetPolicy, x as resolveThreadFlag, y as resolveSessionResetType } from "./monitor-CDmWxvsU.js";
+import { t as loginWeb } from "./login-D-9V0MWK.js";
 import { normalizeOptionalLowercaseString, redactIdentifier } from "openclaw/plugin-sdk/text-runtime";
-import { canonicalizeMainSessionAlias, loadConfig as loadConfig$1, loadSessionStore, resolveSessionKey, resolveStorePath, updateSessionStore as updateSessionStore$1 } from "openclaw/plugin-sdk/config-runtime";
 import { getChildLogger as getChildLogger$2 } from "openclaw/plugin-sdk/runtime-env";
 import { hasOutboundReplyContent, resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
+import { canonicalizeMainSessionAlias, loadSessionStore, resolveSessionKey, resolveStorePath, updateSessionStore as updateSessionStore$1 } from "openclaw/plugin-sdk/session-store-runtime";
 import { normalizeMainKey, normalizeMainKey as normalizeMainKey$1 } from "openclaw/plugin-sdk/routing";
 import { DEFAULT_HEARTBEAT_ACK_MAX_CHARS, HEARTBEAT_PROMPT, HEARTBEAT_TOKEN, HEARTBEAT_TOKEN as HEARTBEAT_TOKEN$1, SILENT_REPLY_TOKEN, getReplyFromConfig, resolveHeartbeatPrompt, resolveHeartbeatReplyPayload, stripHeartbeatToken, stripHeartbeatToken as stripHeartbeatToken$1 } from "openclaw/plugin-sdk/reply-runtime";
 import { appendCronStyleCurrentTimeLine } from "openclaw/plugin-sdk/agent-runtime";
+import { getRuntimeConfig as getRuntimeConfig$1 } from "openclaw/plugin-sdk/runtime-config-snapshot";
 import { emitHeartbeatEvent, resolveHeartbeatVisibility, resolveIndicatorType } from "openclaw/plugin-sdk/infra-runtime";
 //#region extensions/whatsapp/src/auto-reply/session-snapshot.ts
 function getSessionSnapshot(cfg, from, _isHeartbeat = false, ctx) {
@@ -83,7 +84,7 @@ async function runWebHeartbeatOnce(opts) {
 		runId,
 		to: redactedTo
 	});
-	const cfg = cfgOverride ?? loadConfig$1();
+	const cfg = cfgOverride ?? getRuntimeConfig$1();
 	const visibility = resolveHeartbeatVisibility({
 		cfg,
 		channel: "whatsapp"

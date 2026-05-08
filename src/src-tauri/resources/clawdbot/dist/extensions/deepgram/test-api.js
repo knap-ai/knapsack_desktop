@@ -1,3 +1,3 @@
-import { t as deepgramMediaUnderstandingProvider } from "../../media-understanding-provider-D_l1L3Bl.js";
-import { n as buildDeepgramRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-mF_moAck.js";
+import { t as deepgramMediaUnderstandingProvider } from "../../media-understanding-provider-BzBudbvb.js";
+import { n as buildDeepgramRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-PctRArU8.js";
 export { buildDeepgramRealtimeTranscriptionProvider, deepgramMediaUnderstandingProvider };

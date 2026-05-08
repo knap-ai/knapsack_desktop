@@ -1,2 +1,2 @@
-import { n as collectRuntimeConfigAssignments, r as secretTargetRegistryEntries, t as channelSecrets } from "../../secret-contract-B-AppuUx.js";
+import { n as collectRuntimeConfigAssignments, r as secretTargetRegistryEntries, t as channelSecrets } from "../../secret-contract-DyVZCJTR.js";
 export { channelSecrets, collectRuntimeConfigAssignments, secretTargetRegistryEntries };

@@ -10,8 +10,12 @@ export type InlineProviderConfig = {
     baseUrl?: string;
     api?: ModelDefinitionConfig["api"];
     models?: ModelDefinitionConfig[];
+    contextWindow?: ModelProviderConfig["contextWindow"];
+    contextTokens?: ModelProviderConfig["contextTokens"];
+    maxTokens?: ModelProviderConfig["maxTokens"];
     headers?: unknown;
     authHeader?: boolean;
+    timeoutSeconds?: ModelProviderConfig["timeoutSeconds"];
     request?: ModelProviderConfig["request"];
 };
 export declare function normalizeResolvedTransportApi(api: unknown): ModelDefinitionConfig["api"] | undefined;

@@ -1,10 +1,11 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
-import { i as applyXaiModelCompat } from "../../provider-tools-VpDDhpdz.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-CSjDQ74B.js";
-import { t as buildVeniceProvider } from "../../provider-catalog-BZCHXQ06.js";
-import { t as applyVeniceConfig } from "../../onboard-D97vAVfb.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
+import { i as applyXaiModelCompat } from "../../provider-tools-CjZl3FJf.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-ntl9WtnV.js";
+import { t as buildVeniceProvider } from "../../provider-catalog-CxK3Qt8-.js";
+import { t as applyVeniceConfig } from "../../onboard-Cw0RKaZw.js";
+import { t as createVeniceDeepSeekV4Wrapper } from "../../stream-BXRJeoMq.js";
 //#region extensions/venice/index.ts
 const PROVIDER_ID = "venice";
 function isXaiBackedVeniceModel(modelId) {
@@ -36,7 +37,8 @@ var venice_default = defineSingleProviderPluginEntry({
 			wizard: { groupLabel: "Venice AI" }
 		}],
 		catalog: { buildProvider: buildVeniceProvider },
-		normalizeResolvedModel: ({ modelId, model }) => isXaiBackedVeniceModel(modelId) ? applyXaiModelCompat(model) : void 0
+		normalizeResolvedModel: ({ modelId, model }) => isXaiBackedVeniceModel(modelId) ? applyXaiModelCompat(model) : void 0,
+		wrapStreamFn: (ctx) => createVeniceDeepSeekV4Wrapper(ctx.streamFn, ctx.thinkingLevel)
 	}
 });
 //#endregion

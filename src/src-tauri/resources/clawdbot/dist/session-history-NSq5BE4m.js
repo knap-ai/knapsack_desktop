@@ -1,0 +1,116 @@
+import { m as resolveSessionAgentIds } from "./agent-scope-i10se9ty.js";
+import { a as resolveSessionFilePathOptions, i as resolveSessionFilePath } from "./paths-CHP3g1Fg.js";
+import fs from "node:fs";
+import path from "node:path";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
+function limitAgentHookHistoryMessages(messages, maxMessages = 100) {
+	if (maxMessages <= 0) return [];
+	return messages.slice(-maxMessages);
+}
+function buildAgentHookConversationMessages(params) {
+	return [...limitAgentHookHistoryMessages(params.historyMessages ?? []), ...params.currentTurnMessages ?? []];
+}
+const MAX_CLI_SESSION_HISTORY_MESSAGES = 100;
+function coerceHistoryText(content) {
+	if (typeof content === "string") return content.trim();
+	if (!Array.isArray(content)) return "";
+	return content.flatMap((block) => {
+		if (!block || typeof block !== "object") return [];
+		const text = block.text;
+		return typeof text === "string" && text.trim().length > 0 ? [text.trim()] : [];
+	}).join("\n").trim();
+}
+function buildCliSessionHistoryPrompt(params) {
+	const maxHistoryChars = params.maxHistoryChars ?? 12288;
+	const renderedHistoryRaw = params.messages.flatMap((message) => {
+		if (!message || typeof message !== "object") return [];
+		const entry = message;
+		const role = entry.role === "assistant" ? "Assistant" : entry.role === "user" ? "User" : entry.role === "compactionSummary" ? "Compaction summary" : void 0;
+		if (!role) return [];
+		const text = entry.role === "compactionSummary" && typeof entry.summary === "string" ? entry.summary.trim() : coerceHistoryText(entry.content);
+		return text ? [`${role}: ${text}`] : [];
+	}).join("\n\n").trim();
+	const renderedHistory = renderedHistoryRaw.length > maxHistoryChars ? `${renderedHistoryRaw.slice(0, maxHistoryChars).trimEnd()}\n[OpenClaw reseed history truncated]` : renderedHistoryRaw;
+	if (!renderedHistory) return;
+	return [
+		"Continue this conversation using the OpenClaw transcript below as prior session history.",
+		"Treat it as authoritative context for this fresh CLI session.",
+		"",
+		"<conversation_history>",
+		renderedHistory,
+		"</conversation_history>",
+		"",
+		"<next_user_message>",
+		params.prompt,
+		"</next_user_message>"
+	].join("\n");
+}
+function safeRealpathSync(filePath) {
+	try {
+		return fs.realpathSync(filePath);
+	} catch {
+		return;
+	}
+}
+function isPathWithinBase(basePath, targetPath) {
+	const relative = path.relative(basePath, targetPath);
+	return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+function resolveSafeCliSessionFile(params) {
+	const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
+		sessionKey: params.sessionKey,
+		config: params.config,
+		agentId: params.agentId
+	});
+	const pathOptions = resolveSessionFilePathOptions({
+		agentId: sessionAgentId ?? defaultAgentId,
+		storePath: params.config?.session?.store
+	});
+	const sessionFile = resolveSessionFilePath(params.sessionId, { sessionFile: params.sessionFile }, pathOptions);
+	return {
+		sessionFile,
+		sessionsDir: pathOptions?.sessionsDir ?? path.dirname(sessionFile)
+	};
+}
+function loadCliSessionEntries(params) {
+	try {
+		const { sessionFile, sessionsDir } = resolveSafeCliSessionFile(params);
+		const entryStat = fs.lstatSync(sessionFile);
+		if (!entryStat.isFile() || entryStat.isSymbolicLink()) return [];
+		const realSessionsDir = safeRealpathSync(sessionsDir) ?? path.resolve(sessionsDir);
+		const realSessionFile = safeRealpathSync(sessionFile);
+		if (!realSessionFile || !isPathWithinBase(realSessionsDir, realSessionFile)) return [];
+		const stat = fs.statSync(realSessionFile);
+		if (!stat.isFile() || stat.size > 5242880) return [];
+		return SessionManager.open(realSessionFile).getEntries();
+	} catch {
+		return [];
+	}
+}
+function loadCliSessionHistoryMessages(params) {
+	return limitAgentHookHistoryMessages(loadCliSessionEntries(params).flatMap((entry) => {
+		const candidate = entry;
+		return candidate.type === "message" ? [candidate.message] : [];
+	}), MAX_CLI_SESSION_HISTORY_MESSAGES);
+}
+function loadCliSessionReseedMessages(params) {
+	const entries = loadCliSessionEntries(params);
+	const latestCompactionIndex = entries.findLastIndex((entry) => {
+		const candidate = entry;
+		return candidate.type === "compaction" && typeof candidate.summary === "string";
+	});
+	if (latestCompactionIndex < 0) return [];
+	const compaction = entries[latestCompactionIndex];
+	const summary = typeof compaction.summary === "string" ? compaction.summary.trim() : "";
+	if (!summary) return [];
+	const tailMessages = entries.slice(latestCompactionIndex + 1).flatMap((entry) => {
+		const candidate = entry;
+		return candidate.type === "message" ? [candidate.message] : [];
+	});
+	return [{
+		role: "compactionSummary",
+		summary
+	}, ...limitAgentHookHistoryMessages(tailMessages, MAX_CLI_SESSION_HISTORY_MESSAGES - 1)];
+}
+//#endregion
+export { buildAgentHookConversationMessages as i, loadCliSessionHistoryMessages as n, loadCliSessionReseedMessages as r, buildCliSessionHistoryPrompt as t };

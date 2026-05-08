@@ -63,7 +63,7 @@ function isAnthropicCacheRetentionTarget(parsed) {
 	return Boolean(parsed && (parsed.provider === "anthropic" || parsed.provider === "amazon-bedrock" && normalizeLowercaseStringOrEmpty(parsed.model).includes("anthropic.claude")));
 }
 function usesClaudeCliModelSelection(config) {
-	if (config.agents?.defaults?.embeddedHarness?.runtime === "claude-cli") return true;
+	if (config.agents?.defaults?.agentRuntime?.id === "claude-cli") return true;
 	const primary = resolveModelPrimaryValue(config.agents?.defaults?.model);
 	if ((primary ? parseProviderModelRef(primary, "anthropic") : null)?.provider === "claude-cli") return true;
 	return Object.keys(config.agents?.defaults?.models ?? {}).some((key) => {

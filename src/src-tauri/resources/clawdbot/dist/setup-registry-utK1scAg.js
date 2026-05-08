@@ -1,0 +1,2 @@
+import { a as resolvePluginSetupProvider, i as resolvePluginSetupCliBackend, n as clearPluginSetupRegistryCache, o as resolvePluginSetupRegistry, r as resolvePluginSetupAutoEnableReasons, s as runPluginSetupConfigMigrations, t as __testing } from "./setup-registry-CAkjagL1.js";
+export { __testing, clearPluginSetupRegistryCache, resolvePluginSetupAutoEnableReasons, resolvePluginSetupCliBackend, resolvePluginSetupProvider, resolvePluginSetupRegistry, runPluginSetupConfigMigrations };

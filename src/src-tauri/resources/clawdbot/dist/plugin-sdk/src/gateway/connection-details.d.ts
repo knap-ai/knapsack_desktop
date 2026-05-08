@@ -7,7 +7,7 @@ export type GatewayConnectionDetails = {
     message: string;
 };
 type GatewayConnectionDetailResolvers = {
-    loadConfig?: () => OpenClawConfig;
+    getRuntimeConfig?: () => OpenClawConfig;
     resolveConfigPath?: (env: NodeJS.ProcessEnv) => string;
     resolveGatewayPort?: (cfg?: OpenClawConfig, env?: NodeJS.ProcessEnv) => number;
 };

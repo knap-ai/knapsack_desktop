@@ -1,4 +1,4 @@
-import { t as createDuckDuckGoWebSearchProviderBase } from "../../ddg-search-provider.shared-C-GO-wWO.js";
+import { t as createDuckDuckGoWebSearchProviderBase } from "../../ddg-search-provider.shared-BNIp-Zkl.js";
 //#region extensions/duckduckgo/web-search-contract-api.ts
 function createDuckDuckGoWebSearchProvider() {
 	return {

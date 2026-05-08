@@ -1,10 +1,11 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { A as isQwenCodingPlanBaseUrl, h as QWEN_DEFAULT_MODEL_REF, u as QWEN_36_PLUS_MODEL_ID, x as applyQwenNativeStreamingUsageCompat } from "../../models-DYI7E3Ba.js";
-import { n as buildQwenProvider } from "../../provider-catalog-BWJdGWPk.js";
-import "../../api-fzYiU8UR.js";
-import { t as buildQwenMediaUnderstandingProvider } from "../../media-understanding-provider-Bs7wZfay.js";
-import { l as applyQwenConfig, m as applyQwenStandardConfigCn, p as applyQwenStandardConfig, u as applyQwenConfigCn } from "../../onboard-BIpLmCrE.js";
-import { t as buildQwenVideoGenerationProvider } from "../../video-generation-provider-Ci4Fejxj2.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { A as isQwenCodingPlanBaseUrl, h as QWEN_DEFAULT_MODEL_REF, u as QWEN_36_PLUS_MODEL_ID, x as applyQwenNativeStreamingUsageCompat } from "../../models-zRV0dNbA.js";
+import { n as buildQwenProvider } from "../../provider-catalog-Cg3WPYEQ.js";
+import { n as wrapQwenProviderStream } from "../../stream-DvLxF2HR.js";
+import "../../api-DlswLU4s.js";
+import { t as buildQwenMediaUnderstandingProvider } from "../../media-understanding-provider-ClaH94sM.js";
+import { l as applyQwenConfig, m as applyQwenStandardConfigCn, p as applyQwenStandardConfig, u as applyQwenConfigCn } from "../../onboard-BvoerUtO2.js";
+import { t as buildQwenVideoGenerationProvider } from "../../video-generation-provider-jV19Fx9T.js";
 //#region extensions/qwen/index.ts
 const PROVIDER_ID = "qwen";
 const LEGACY_PROVIDER_ID = "modelstudio";
@@ -23,6 +24,14 @@ function resolveConfiguredQwenBaseUrl(config) {
 }
 function isQwen36PlusUnsupportedForConfig(params) {
 	return isQwenCodingPlanBaseUrl(params.baseUrl ?? resolveConfiguredQwenBaseUrl(params.config));
+}
+function hasExactForeignApiOwner(params) {
+	const providers = params.config?.models?.providers;
+	if (!providers) return false;
+	const provider = normalizeProviderId(params.provider);
+	const exact = Object.entries(providers).find(([providerId]) => normalizeProviderId(providerId) === provider)?.[1];
+	const api = normalizeProviderId(exact?.api ?? "");
+	return !!api && api !== PROVIDER_ID && api !== LEGACY_PROVIDER_ID;
 }
 var qwen_default = defineSingleProviderPluginEntry({
 	id: PROVIDER_ID,
@@ -135,6 +144,7 @@ var qwen_default = defineSingleProviderPluginEntry({
 			} };
 		} },
 		applyNativeStreamingUsageCompat: ({ providerConfig }) => applyQwenNativeStreamingUsageCompat(providerConfig),
+		wrapStreamFn: wrapQwenProviderStream,
 		normalizeConfig: ({ providerConfig }) => {
 			if (!isQwenCodingPlanBaseUrl(providerConfig.baseUrl)) return;
 			const models = providerConfig.models?.filter((model) => model.id !== QWEN_36_PLUS_MODEL_ID);
@@ -145,7 +155,10 @@ var qwen_default = defineSingleProviderPluginEntry({
 		},
 		suppressBuiltInModel: (ctx) => {
 			const provider = normalizeProviderId(ctx.provider);
-			if (provider !== PROVIDER_ID && provider !== LEGACY_PROVIDER_ID || ctx.modelId !== "qwen3.6-plus" || !isQwen36PlusUnsupportedForConfig({
+			if (provider !== PROVIDER_ID && provider !== LEGACY_PROVIDER_ID || hasExactForeignApiOwner({
+				provider: ctx.provider,
+				config: ctx.config
+			}) || ctx.modelId !== "qwen3.6-plus" || !isQwen36PlusUnsupportedForConfig({
 				config: ctx.config,
 				baseUrl: ctx.baseUrl
 			})) return;

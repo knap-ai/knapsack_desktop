@@ -24,6 +24,7 @@ export type GatewayClient = {
     isDeviceTokenAuth?: boolean;
     internal?: {
         allowModelOverride?: boolean;
+        pluginRuntimeOwnerId?: string;
     };
 };
 export type RespondFn = (ok: boolean, payload?: unknown, error?: ErrorShape, meta?: Record<string, unknown>) => void;
@@ -31,12 +32,14 @@ export type GatewayRequestContext = {
     deps: CliDeps;
     cron: CronServiceContract;
     cronStorePath: string;
+    getRuntimeConfig: () => OpenClawConfig;
     execApprovalManager?: ExecApprovalManager;
     pluginApprovalManager?: ExecApprovalManager<PluginApprovalRequestPayload>;
     loadGatewayModelCatalog: () => Promise<ModelCatalogEntry[]>;
     getHealthCache: () => HealthSummary | null;
     refreshHealthSnapshot: (opts?: {
         probe?: boolean;
+        includeSensitive?: boolean;
     }) => Promise<HealthSummary>;
     logHealth: {
         error: (message: string) => void;
@@ -90,6 +93,7 @@ export type GatewayRequestContext = {
     markChannelLoggedOut: (channelId: import("../../channels/plugins/types.public.js").ChannelId, cleared: boolean, accountId?: string) => void;
     wizardRunner: (opts: import("../../commands/onboard-types.js").OnboardOptions, runtime: import("../../runtime.js").RuntimeEnv, prompter: import("../../wizard/prompts.js").WizardPrompter) => Promise<void>;
     broadcastVoiceWakeChanged: (triggers: string[]) => void;
+    broadcastVoiceWakeRoutingChanged: (config: import("../../infra/voicewake-routing.js").VoiceWakeRoutingConfig) => void;
     unavailableGatewayMethods?: ReadonlySet<string>;
 };
 export type GatewayRequestOptions = {

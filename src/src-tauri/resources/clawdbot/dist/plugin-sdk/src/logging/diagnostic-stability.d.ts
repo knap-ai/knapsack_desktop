@@ -17,11 +17,16 @@ export type DiagnosticStabilityEventRecord = {
     mode?: string;
     level?: string;
     detector?: string;
+    deliveryKind?: string;
     toolName?: string;
     pairedToolName?: string;
     provider?: string;
     model?: string;
     durationMs?: number;
+    requestBytes?: number;
+    responseBytes?: number;
+    timeToFirstByteMs?: number;
+    resultCount?: number;
     commandLength?: number;
     exitCode?: number;
     timedOut?: boolean;
@@ -36,6 +41,7 @@ export type DiagnosticStabilityEventRecord = {
     queueDepth?: number;
     queueSize?: number;
     waitMs?: number;
+    failureKind?: string;
     active?: number;
     waiting?: number;
     queued?: number;

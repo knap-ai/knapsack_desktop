@@ -1,7 +1,8 @@
-import type { ModelCatalog, NormalizedModelCatalogRow } from "./types.js";
+import type { ModelCatalog, ModelCatalogDiscovery, NormalizedModelCatalogRow } from "./types.js";
 export type ManifestModelCatalogPlugin = {
     id: string;
-    modelCatalog?: Pick<ModelCatalog, "providers">;
+    providers?: readonly string[];
+    modelCatalog?: Pick<ModelCatalog, "providers" | "aliases" | "suppressions" | "discovery">;
 };
 export type ManifestModelCatalogRegistry = {
     plugins: readonly ManifestModelCatalogPlugin[];
@@ -9,6 +10,7 @@ export type ManifestModelCatalogRegistry = {
 export type ManifestModelCatalogPlanEntry = {
     pluginId: string;
     provider: string;
+    discovery?: ModelCatalogDiscovery;
     rows: readonly NormalizedModelCatalogRow[];
 };
 export type ManifestModelCatalogConflict = {
@@ -24,7 +26,22 @@ export type ManifestModelCatalogPlan = {
     entries: readonly ManifestModelCatalogPlanEntry[];
     conflicts: readonly ManifestModelCatalogConflict[];
 };
+export type ManifestModelCatalogSuppressionEntry = {
+    pluginId: string;
+    provider: string;
+    model: string;
+    mergeKey: string;
+    reason?: string;
+};
+export type ManifestModelCatalogSuppressionPlan = {
+    suppressions: readonly ManifestModelCatalogSuppressionEntry[];
+};
 export declare function planManifestModelCatalogRows(params: {
     registry: ManifestModelCatalogRegistry;
     providerFilter?: string;
 }): ManifestModelCatalogPlan;
+export declare function planManifestModelCatalogSuppressions(params: {
+    registry: ManifestModelCatalogRegistry;
+    providerFilter?: string;
+    modelFilter?: string;
+}): ManifestModelCatalogSuppressionPlan;

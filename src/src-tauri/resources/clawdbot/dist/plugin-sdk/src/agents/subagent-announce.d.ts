@@ -1,10 +1,11 @@
 import { type DeliveryContext } from "../utils/delivery-context.js";
+import type { SubagentAnnounceDeliveryResult } from "./subagent-announce-dispatch.js";
 import { type SubagentRunOutcome } from "./subagent-announce-output.js";
-import { callGateway, loadConfig } from "./subagent-announce.runtime.js";
+import { callGateway, getRuntimeConfig } from "./subagent-announce.runtime.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
 type SubagentAnnounceDeps = {
     callGateway: typeof callGateway;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     loadSubagentRegistryRuntime: typeof loadSubagentRegistryRuntime;
 };
 declare function loadSubagentRegistryRuntime(): Promise<typeof import("./subagent-announce.registry.runtime.js")>;
@@ -38,6 +39,7 @@ export declare function runSubagentAnnounceFlow(params: {
     wakeOnDescendantSettle?: boolean;
     signal?: AbortSignal;
     bestEffortDeliver?: boolean;
+    onDeliveryResult?: (delivery: SubagentAnnounceDeliveryResult) => void;
 }): Promise<boolean>;
 export declare const __testing: {
     setDepsForTest(overrides?: Partial<SubagentAnnounceDeps>): void;

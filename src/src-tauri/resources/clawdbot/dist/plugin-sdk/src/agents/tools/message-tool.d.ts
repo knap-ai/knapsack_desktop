@@ -8,7 +8,7 @@ type MessageToolOptions = {
     agentSessionKey?: string;
     sessionId?: string;
     config?: OpenClawConfig;
-    loadConfig?: () => OpenClawConfig;
+    getRuntimeConfig?: () => OpenClawConfig;
     getScopedChannelsCommandSecretTargets?: typeof getScopedChannelsCommandSecretTargets;
     resolveCommandSecretRefsViaGateway?: typeof resolveCommandSecretRefsViaGateway;
     runMessageAction?: typeof runMessageAction;

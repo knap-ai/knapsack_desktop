@@ -1,5 +1,16 @@
 import type { PluginLoadOptions } from "./loader.js";
 import { type PluginManifestRegistry } from "./manifest-registry.js";
+import { type PluginRegistrySnapshot } from "./plugin-registry.js";
+type ProviderManifestLoadParams = {
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+    registry?: PluginRegistrySnapshot;
+    manifestRegistry?: PluginManifestRegistry;
+};
+type ProviderRegistryLoadParams = ProviderManifestLoadParams & {
+    onlyPluginIds?: readonly string[];
+};
 export declare function withBundledProviderVitestCompat(params: {
     config: PluginLoadOptions["config"];
     pluginIds: readonly string[];
@@ -11,12 +22,7 @@ export declare function resolveBundledProviderCompatPluginIds(params: {
     env?: PluginLoadOptions["env"];
     onlyPluginIds?: readonly string[];
 }): string[];
-export declare function resolveEnabledProviderPluginIds(params: {
-    config?: PluginLoadOptions["config"];
-    workspaceDir?: string;
-    env?: PluginLoadOptions["env"];
-    onlyPluginIds?: readonly string[];
-}): string[];
+export declare function resolveEnabledProviderPluginIds(params: ProviderRegistryLoadParams): string[];
 export declare function resolveExternalAuthProfileProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
@@ -32,6 +38,8 @@ export declare function resolveDiscoveredProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
+    registry?: PluginRegistrySnapshot;
+    manifestRegistry?: PluginManifestRegistry;
     onlyPluginIds?: readonly string[];
     includeUntrustedWorkspacePlugins?: boolean;
 }): string[];
@@ -59,6 +67,7 @@ export declare const __testing: {
     readonly resolveBundledProviderCompatPluginIds: typeof resolveBundledProviderCompatPluginIds;
     readonly withBundledProviderVitestCompat: typeof withBundledProviderVitestCompat;
 };
+export declare function resetProviderOwnerPluginIdsCacheForTest(): void;
 export declare function resolveOwningPluginIdsForProvider(params: {
     provider: string;
     config?: PluginLoadOptions["config"];
@@ -72,6 +81,7 @@ export declare function resolveOwningPluginIdsForModelRef(params: {
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
     manifestRegistry?: PluginManifestRegistry;
+    registry?: PluginRegistrySnapshot;
 }): string[] | undefined;
 export declare function resolveOwningPluginIdsForModelRefs(params: {
     models: readonly string[];
@@ -90,3 +100,4 @@ export declare function resolveCatalogHookProviderPluginIds(params: {
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
 }): string[];
+export {};

@@ -66,7 +66,7 @@ function buildGoogleGeminiCliProvider() {
 						expires: result.expires,
 						email: result.email,
 						configPatch: { agents: { defaults: {
-							embeddedHarness: { runtime: PROVIDER_ID },
+							agentRuntime: { id: PROVIDER_ID },
 							models: { [DEFAULT_MODEL]: {} }
 						} } },
 						...result.projectId ? { credentialExtra: { projectId: result.projectId } } : {},

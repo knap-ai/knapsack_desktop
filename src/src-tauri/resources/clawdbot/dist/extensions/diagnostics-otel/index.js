@@ -1,11 +1,9 @@
 import { a as __require, n as __esmMin, o as __toCommonJS, r as __exportAll, s as __toESM, t as __commonJSMin } from "../../chunk-A-jGZS85.js";
-import { r as redactSensitiveText } from "../../redact-Bl2deF7j.js";
-import { a as onInternalDiagnosticEvent } from "../../diagnostic-events-Cz86_awm.js";
-import { a as isValidDiagnosticSpanId, o as isValidDiagnosticTraceFlags, s as isValidDiagnosticTraceId } from "../../diagnostic-trace-context-D6vXBN1-.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { a as diag, c as TraceFlags, i as metrics, n as init_esm$2, o as context, r as trace, s as SpanStatusCode, t as esm_exports$2 } from "../../esm-D5DxKKFd.js";
-import { t as require_src$29 } from "../../src-CHt9-aM1.js";
-import "../../api-7H14Blnm.js";
+import { r as redactSensitiveText } from "../../redact-Cv5sPU4g.js";
+import { g as isValidDiagnosticTraceId, h as isValidDiagnosticTraceFlags, m as isValidDiagnosticSpanId } from "../../diagnostic-events-B5Jlu4QM.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { a as diag, c as TraceFlags, i as metrics, n as init_esm$2, o as context, r as trace, s as SpanStatusCode, t as esm_exports$2 } from "../../esm-BgJ6FoeP.js";
+import "../../api-Be517zx8.js";
 import * as zlib$2 from "zlib";
 import { Readable } from "stream";
 import * as fs$5 from "fs";
@@ -2580,7 +2578,7 @@ var require_sdk_info = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/core/build/src/platform/node/index.js
-var require_node$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$12 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.otperformance = exports.SDK_INFO = exports._globalThis = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = void 0;
 	var environment_1 = require_environment$1();
@@ -2632,7 +2630,7 @@ var require_node$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getStringFromEnv = exports.getBooleanFromEnv = exports.otperformance = exports._globalThis = exports.SDK_INFO = void 0;
-	var node_1 = require_node$11();
+	var node_1 = require_node$12();
 	Object.defineProperty(exports, "SDK_INFO", {
 		enumerable: true,
 		get: function() {
@@ -3482,7 +3480,7 @@ var require_exporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/core/build/src/index.js
-var require_src$28 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$29 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.internal = exports.diagLogLevelFromString = exports.BindOnceFuture = exports.urlMatches = exports.isUrlIgnored = exports.callWithTimeout = exports.TimeoutError = exports.merge = exports.TraceState = exports.unsuppressTracing = exports.suppressTracing = exports.isTracingSuppressed = exports.setRPCMetadata = exports.getRPCMetadata = exports.deleteRPCMetadata = exports.RPCType = exports.parseTraceParent = exports.W3CTraceContextPropagator = exports.TRACE_STATE_HEADER = exports.TRACE_PARENT_HEADER = exports.CompositePropagator = exports.otperformance = exports.getStringListFromEnv = exports.getNumberFromEnv = exports.getBooleanFromEnv = exports.getStringFromEnv = exports._globalThis = exports.SDK_INFO = exports.parseKeyPairsIntoRecord = exports.ExportResultCode = exports.unrefTimer = exports.timeInputToHrTime = exports.millisToHrTime = exports.isTimeInputHrTime = exports.isTimeInput = exports.hrTimeToTimeStamp = exports.hrTimeToNanoseconds = exports.hrTimeToMilliseconds = exports.hrTimeToMicroseconds = exports.hrTimeDuration = exports.hrTime = exports.getTimeOrigin = exports.addHrTimes = exports.loggingErrorHandler = exports.setGlobalErrorHandler = exports.globalErrorHandler = exports.sanitizeAttributes = exports.isAttributeValue = exports.AnchoredClock = exports.W3CBaggagePropagator = void 0;
 	var W3CBaggagePropagator_1 = require_W3CBaggagePropagator();
@@ -3829,7 +3827,7 @@ function createOtlpExportDelegate(components, settings) {
 }
 var import_src$10, OTLPExportDelegate;
 var init_otlp_export_delegate = __esmMin((() => {
-	import_src$10 = require_src$28();
+	import_src$10 = require_src$29();
 	init_types();
 	init_logging_response_handler();
 	init_esm$2();
@@ -4394,7 +4392,7 @@ var require_logs$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/api-logs/build/src/index.js
-var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$28 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.logs = exports.NoopLogger = exports.NOOP_LOGGER = exports.SeverityNumber = void 0;
 	var LogRecord_1 = require_LogRecord();
@@ -4615,7 +4613,7 @@ var require_logs_serializer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.serializeLogsExportRequest = void 0;
 	const protobuf_writer_1 = require_protobuf_writer();
 	const hex_to_binary_1 = require_hex_to_binary();
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const common_serializer_1 = require_common_serializer();
 	const protobuf_size_estimator_1 = require_protobuf_size_estimator();
 	/**
@@ -18072,7 +18070,7 @@ var require_LastValue = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LastValueAggregator = exports.LastValueAccumulation = void 0;
 	const types_1 = require_types$4();
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const MetricData_1 = require_MetricData();
 	var LastValueAccumulation = class {
 		startTime;
@@ -18559,7 +18557,7 @@ var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((expo
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PeriodicExportingMetricReader = void 0;
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const MetricReader_1 = require_MetricReader();
 	const utils_1 = require_utils$8();
 	const MetricData_1 = require_MetricData();
@@ -18654,7 +18652,7 @@ var require_PeriodicExportingMetricReader = /* @__PURE__ */ __commonJSMin(((expo
 var require_InMemoryMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemoryMetricExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* In-memory Metrics Exporter is a Push Metric Exporter
 	* which accumulates metrics data in the local memory and
@@ -18706,7 +18704,7 @@ var require_InMemoryMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) =>
 var require_ConsoleMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleMetricExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const AggregationSelector_1 = require_AggregationSelector();
 	exports.ConsoleMetricExporter = class ConsoleMetricExporter {
 		_shutdown = false;
@@ -18784,7 +18782,7 @@ var require_ResourceImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.defaultResource = exports.emptyResource = exports.resourceFromDetectedResource = exports.resourceFromAttributes = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const default_service_name_1 = require_default_service_name();
 	const utils_1 = require_utils$7();
@@ -18923,7 +18921,7 @@ var require_EnvDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.envDetector = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* EnvDetector can be used to detect the presence of and create a Resource
 	* from the OTEL_RESOURCE_ATTRIBUTES environment variable.
@@ -19323,19 +19321,19 @@ var require_getMachineId = /* @__PURE__ */ __commonJSMin(((exports) => {
 	async function getMachineId() {
 		if (!getMachineIdImpl) switch (process$1.platform) {
 			case "darwin":
-				getMachineIdImpl = (await import("../../getMachineId-darwin-CnKUZ_H0.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-darwin-CY243k9X.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "linux":
-				getMachineIdImpl = (await import("../../getMachineId-linux-DPAGKhGp.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-linux-BKsleyQ4.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "freebsd":
-				getMachineIdImpl = (await import("../../getMachineId-bsd-Bgr8_OW-.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-bsd-C5Rehn7F.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			case "win32":
-				getMachineIdImpl = (await import("../../getMachineId-win-BamPY2qA.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-win-CC8QqGjd.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 			default:
-				getMachineIdImpl = (await import("../../getMachineId-unsupported-Gd3Ywl_5.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
+				getMachineIdImpl = (await import("../../getMachineId-unsupported-_uV0HdZT.js").then((m) => /* @__PURE__ */ __toESM(m.default))).getMachineId;
 				break;
 		}
 		return getMachineIdImpl();
@@ -19418,7 +19416,7 @@ var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.processDetector = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const semconv_1 = require_semconv$3();
-	const os$2 = __require("os");
+	const os$3 = __require("os");
 	/**
 	* ProcessDetector will be used to detect the resources related current process running
 	* and being instrumented from the NodeJS Process module.
@@ -19440,7 +19438,7 @@ var require_ProcessDetector = /* @__PURE__ */ __commonJSMin(((exports) => {
 			};
 			if (process.argv.length > 1) attributes[semconv_1.ATTR_PROCESS_COMMAND] = process.argv[1];
 			try {
-				const userInfo = os$2.userInfo();
+				const userInfo = os$3.userInfo();
 				attributes[semconv_1.ATTR_PROCESS_OWNER] = userInfo.username;
 			} catch (e) {
 				api_1.diag.debug(`error obtaining process owner: ${e}`);
@@ -19472,7 +19470,7 @@ var require_ServiceInstanceIdDetector = /* @__PURE__ */ __commonJSMin(((exports)
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/detectors/platform/node/index.js
-var require_node$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = void 0;
 	var HostDetector_1 = require_HostDetector();
@@ -19509,7 +19507,7 @@ var require_node$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = void 0;
-	var node_1 = require_node$10();
+	var node_1 = require_node$11();
 	Object.defineProperty(exports, "hostDetector", {
 		enumerable: true,
 		get: function() {
@@ -19595,7 +19593,7 @@ var require_detectors = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/resources/build/src/index.js
-var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$27 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.defaultServiceName = exports.emptyResource = exports.defaultResource = exports.resourceFromAttributes = exports.serviceInstanceIdDetector = exports.processDetector = exports.osDetector = exports.hostDetector = exports.envDetector = exports.detectResources = void 0;
 	var detect_resources_1 = require_detect_resources();
@@ -19733,7 +19731,7 @@ var require_Instruments = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.isObservableInstrument = exports.ObservableUpDownCounterInstrument = exports.ObservableGaugeInstrument = exports.ObservableCounterInstrument = exports.ObservableInstrument = exports.HistogramInstrument = exports.GaugeInstrument = exports.CounterInstrument = exports.UpDownCounterInstrument = exports.SyncInstrument = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	var SyncInstrument = class {
 		_writableMetricStorage;
 		_descriptor;
@@ -20811,7 +20809,7 @@ var require_MeterProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports) 
 var require_MetricCollector = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MetricCollector = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* An internal opaque interface that the MetricReader receives as
 	* MetricProducer. It acts as the storage key to the internal metric stream
@@ -21083,7 +21081,7 @@ var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MeterProvider = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const resources_1 = require_src$26();
+	const resources_1 = require_src$27();
 	const MeterProviderSharedState_1 = require_MeterProviderSharedState();
 	const MetricCollector_1 = require_MetricCollector();
 	const View_1 = require_View();
@@ -21151,7 +21149,7 @@ var require_MeterProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-metrics/build/src/index.js
-var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$26 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TimeoutError = exports.createDenyListAttributesProcessor = exports.createAllowListAttributesProcessor = exports.AggregationType = exports.MeterProvider = exports.ConsoleMetricExporter = exports.InMemoryMetricExporter = exports.PeriodicExportingMetricReader = exports.MetricReader = exports.InstrumentType = exports.DataPointType = exports.AggregationTemporality = void 0;
 	var AggregationTemporality_1 = require_AggregationTemporality();
@@ -21373,7 +21371,7 @@ var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createExportMetricsServiceRequest = exports.toMetric = exports.toScopeMetrics = exports.toResourceMetrics = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const sdk_metrics_1 = require_src$25();
+	const sdk_metrics_1 = require_src$26();
 	const internal_types_1 = require_internal_types();
 	const internal_1 = require_internal$3();
 	function toResourceMetrics(resourceMetrics, encoder) {
@@ -21504,7 +21502,7 @@ var require_internal$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_utils$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JSON_ENCODER = exports.PROTOBUF_ENCODER = exports.encodeAsString = exports.encodeAsLongBits = exports.toLongBits = exports.hrTimeToNanos = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const hex_to_binary_1 = require_hex_to_binary();
 	function hrTimeToNanos(hrTime) {
 		const NANOSECONDS = BigInt(1e9);
@@ -21931,7 +21929,7 @@ var require_json = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/otlp-transformer/build/src/index.js
-var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$25 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JsonTraceSerializer = exports.JsonMetricsSerializer = exports.JsonLogsSerializer = exports.ProtobufTraceSerializer = exports.ProtobufMetricsSerializer = exports.ProtobufLogsSerializer = void 0;
 	var protobuf_1 = require_protobuf$2();
@@ -22366,7 +22364,7 @@ function getSharedConfigurationFromEnvironment(signalIdentifier) {
 }
 var import_src$9;
 var init_shared_env_configuration = __esmMin((() => {
-	import_src$9 = require_src$28();
+	import_src$9 = require_src$29();
 	init_esm$2();
 }));
 //#endregion
@@ -22456,7 +22454,7 @@ function getNodeHttpConfigurationFromEnvironment(signalIdentifier, signalResourc
 }
 var import_src$8;
 var init_otlp_node_http_env_configuration = __esmMin((() => {
-	import_src$8 = require_src$28();
+	import_src$8 = require_src$29();
 	init_esm$2();
 	init_shared_env_configuration();
 	init_shared_configuration();
@@ -22529,7 +22527,7 @@ var require_OTLPLogExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* OTLP Log Protobuf Exporter for Node.js
@@ -22543,7 +22541,7 @@ var require_OTLPLogExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/platform/node/index.js
-var require_node$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$10 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	var OTLPLogExporter_1 = require_OTLPLogExporter$2();
@@ -22559,7 +22557,7 @@ var require_node$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
-	var node_1 = require_node$9();
+	var node_1 = require_node$10();
 	Object.defineProperty(exports, "OTLPLogExporter", {
 		enumerable: true,
 		get: function() {
@@ -22569,7 +22567,7 @@ var require_platform$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-logs-otlp-proto/build/src/index.js
-var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$24 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	var platform_1 = require_platform$9();
@@ -22596,8 +22594,8 @@ var require_OTLPMetricExporterOptions = /* @__PURE__ */ __commonJSMin(((exports)
 var require_OTLPMetricExporterBase = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = void 0;
-	const core_1 = require_src$28();
-	const sdk_metrics_1 = require_src$25();
+	const core_1 = require_src$29();
+	const sdk_metrics_1 = require_src$26();
 	const OTLPMetricExporterOptions_1 = require_OTLPMetricExporterOptions();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
@@ -22670,7 +22668,7 @@ var require_OTLPMetricExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	const OTLPMetricExporterBase_1 = require_OTLPMetricExporterBase();
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* OTLP Metric Exporter for Node.js
@@ -22684,7 +22682,7 @@ var require_OTLPMetricExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/platform/node/index.js
-var require_node$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$9 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	var OTLPMetricExporter_1 = require_OTLPMetricExporter$2();
@@ -22700,7 +22698,7 @@ var require_node$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	var node_1 = require_node$8();
+	var node_1 = require_node$9();
 	Object.defineProperty(exports, "OTLPMetricExporter", {
 		enumerable: true,
 		get: function() {
@@ -22710,7 +22708,7 @@ var require_platform$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-http/build/src/index.js
-var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$23 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporterBase = exports.LowMemoryTemporalitySelector = exports.DeltaTemporalitySelector = exports.CumulativeTemporalitySelector = exports.AggregationTemporalityPreference = exports.OTLPMetricExporter = void 0;
 	var platform_1 = require_platform$8();
@@ -22758,8 +22756,8 @@ var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_OTLPMetricExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	const exporter_metrics_otlp_http_1 = require_src$22();
-	const otlp_transformer_1 = require_src$24();
+	const exporter_metrics_otlp_http_1 = require_src$23();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	var OTLPMetricExporter = class extends exporter_metrics_otlp_http_1.OTLPMetricExporterBase {
 		constructor(config) {
@@ -22770,7 +22768,7 @@ var require_OTLPMetricExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/platform/node/index.js
-var require_node$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$8 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	var OTLPMetricExporter_1 = require_OTLPMetricExporter$1();
@@ -22786,7 +22784,7 @@ var require_node$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	var node_1 = require_node$7();
+	var node_1 = require_node$8();
 	Object.defineProperty(exports, "OTLPMetricExporter", {
 		enumerable: true,
 		get: function() {
@@ -22796,7 +22794,7 @@ var require_platform$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-metrics-otlp-proto/build/src/index.js
-var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$22 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
 	var platform_1 = require_platform$7();
@@ -22813,7 +22811,7 @@ var require_OTLPTraceExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Trace Exporter for Node with protobuf
@@ -22827,7 +22825,7 @@ var require_OTLPTraceExporter$2 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/platform/node/index.js
-var require_node$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$7 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	var OTLPTraceExporter_1 = require_OTLPTraceExporter$2();
@@ -22843,7 +22841,7 @@ var require_node$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
-	var node_1 = require_node$6();
+	var node_1 = require_node$7();
 	Object.defineProperty(exports, "OTLPTraceExporter", {
 		enumerable: true,
 		get: function() {
@@ -22853,7 +22851,7 @@ var require_platform$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/exporter-trace-otlp-proto/build/src/index.js
-var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$21 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	var platform_1 = require_platform$6();
@@ -22906,7 +22904,7 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LogRecordImpl = void 0;
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const validation_1 = require_validation();
 	var LogRecordImpl = class {
@@ -23080,7 +23078,7 @@ var require_LogRecordImpl = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_Logger = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Logger = void 0;
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const LogRecordImpl_1 = require_LogRecordImpl();
 	var Logger = class {
@@ -23172,7 +23170,7 @@ var require_NoopLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =>
 var require_MultiLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MultiLogRecordProcessor = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* Implementation of the {@link LogRecordProcessor} that simply forwards all
 	* received events to a list of {@link LogRecordProcessor}s.
@@ -23265,7 +23263,7 @@ var require_LoggerProviderSharedState = /* @__PURE__ */ __commonJSMin(((exports)
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProviderSharedState = exports.DEFAULT_LOGGER_CONFIGURATOR = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const NoopLogRecordProcessor_1 = require_NoopLogRecordProcessor();
 	const MultiLogRecordProcessor_1 = require_MultiLogRecordProcessor();
 	const utils_1 = require_utils$4();
@@ -23329,9 +23327,9 @@ var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.LoggerProvider = exports.DEFAULT_LOGGER_NAME = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$27();
-	const resources_1 = require_src$26();
-	const core_1 = require_src$28();
+	const api_logs_1 = require_src$28();
+	const resources_1 = require_src$27();
+	const core_1 = require_src$29();
 	const Logger_1 = require_Logger();
 	const LoggerProviderSharedState_1 = require_LoggerProviderSharedState();
 	exports.DEFAULT_LOGGER_NAME = "unknown";
@@ -23407,7 +23405,7 @@ var require_LoggerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_ConsoleLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleLogRecordExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* This is implementation of {@link LogRecordExporter} that prints LogRecords to the
 	* console. This class can be used for diagnostic purposes.
@@ -23468,7 +23466,7 @@ var require_ConsoleLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) 
 var require_SimpleLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SimpleLogRecordProcessor = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* An implementation of the {@link LogRecordProcessor} interface that exports
 	* each {@link LogRecord} as it is emitted.
@@ -23517,7 +23515,7 @@ var require_SimpleLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) 
 var require_InMemoryLogRecordExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemoryLogRecordExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* This class can be used for testing purposes. It stores the exported LogRecords
 	* in a list in memory that can be retrieved using the `getFinishedLogRecords()`
@@ -23558,7 +23556,7 @@ var require_BatchLogRecordProcessorBase = /* @__PURE__ */ __commonJSMin(((export
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessorBase = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* Waits for all pending async resources in the log records to be resolved.
 	*/
@@ -23763,7 +23761,7 @@ var require_BatchLogRecordProcessor = /* @__PURE__ */ __commonJSMin(((exports) =
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-logs/build/src/platform/node/index.js
-var require_node$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$6 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessor = void 0;
 	var BatchLogRecordProcessor_1 = require_BatchLogRecordProcessor();
@@ -23779,7 +23777,7 @@ var require_node$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchLogRecordProcessor = void 0;
-	var node_1 = require_node$5();
+	var node_1 = require_node$6();
 	Object.defineProperty(exports, "BatchLogRecordProcessor", {
 		enumerable: true,
 		get: function() {
@@ -23799,7 +23797,7 @@ var require_LoggerConfigurators = /* @__PURE__ */ __commonJSMin(((exports) => {
 	*/
 	const DEFAULT_LOGGER_CONFIG = {
 		disabled: false,
-		minimumSeverity: require_src$27().SeverityNumber.UNSPECIFIED,
+		minimumSeverity: require_src$28().SeverityNumber.UNSPECIFIED,
 		traceBased: false
 	};
 	/**
@@ -23854,7 +23852,7 @@ var require_LoggerConfigurators = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-logs/build/src/index.js
-var require_src$19 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$20 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.createLoggerConfigurator = exports.BatchLogRecordProcessor = exports.InMemoryLogRecordExporter = exports.SimpleLogRecordProcessor = exports.ConsoleLogRecordExporter = exports.LoggerProvider = void 0;
 	var LoggerProvider_1 = require_LoggerProvider();
@@ -24172,7 +24170,7 @@ var require_AsyncLocalStorageContextManager = /* @__PURE__ */ __commonJSMin(((ex
 }));
 //#endregion
 //#region node_modules/@opentelemetry/context-async-hooks/build/src/index.js
-var require_src$18 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$19 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.AsyncLocalStorageContextManager = exports.AsyncHooksContextManager = void 0;
 	var AsyncHooksContextManager_1 = require_AsyncHooksContextManager();
@@ -24203,7 +24201,7 @@ var require_Span = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SpanImpl = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const enums_1 = require_enums();
 	/**
@@ -24543,7 +24541,7 @@ var require_ParentBasedSampler = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ParentBasedSampler = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const AlwaysOffSampler_1 = require_AlwaysOffSampler();
 	const AlwaysOnSampler_1 = require_AlwaysOnSampler();
 	/**
@@ -24626,7 +24624,7 @@ var require_config = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.buildSamplerFromEnv = exports.loadDefaultConfig = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const AlwaysOffSampler_1 = require_AlwaysOffSampler();
 	const AlwaysOnSampler_1 = require_AlwaysOnSampler();
 	const ParentBasedSampler_1 = require_ParentBasedSampler();
@@ -24703,7 +24701,7 @@ var require_utility = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.reconfigureLimits = exports.mergeConfig = exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = void 0;
 	const config_1 = require_config();
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	exports.DEFAULT_ATTRIBUTE_COUNT_LIMIT = 128;
 	exports.DEFAULT_ATTRIBUTE_VALUE_LENGTH_LIMIT = Infinity;
 	/**
@@ -24744,7 +24742,7 @@ var require_BatchSpanProcessorBase = /* @__PURE__ */ __commonJSMin(((exports) =>
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BatchSpanProcessorBase = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* Implementation of the {@link SpanProcessor} that batches spans exported by
 	* the SDK then pushes them to the exporter pipeline.
@@ -24929,7 +24927,7 @@ var require_RandomIdGenerator = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-trace-base/build/src/platform/node/index.js
-var require_node$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_node$5 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RandomIdGenerator = exports.BatchSpanProcessor = void 0;
 	var BatchSpanProcessor_1 = require_BatchSpanProcessor();
@@ -24952,7 +24950,7 @@ var require_node$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_platform$4 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.RandomIdGenerator = exports.BatchSpanProcessor = void 0;
-	var node_1 = require_node$4();
+	var node_1 = require_node$5();
 	Object.defineProperty(exports, "BatchSpanProcessor", {
 		enumerable: true,
 		get: function() {
@@ -25063,7 +25061,7 @@ var require_Tracer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.Tracer = void 0;
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const Span_1 = require_Span();
 	const utility_1 = require_utility();
 	const platform_1 = require_platform$4();
@@ -25192,7 +25190,7 @@ var require_Tracer = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_MultiSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.MultiSpanProcessor = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* Implementation of the {@link SpanProcessor} that simply forwards all
 	* received events to a list of {@link SpanProcessor}s.
@@ -25240,8 +25238,8 @@ var require_MultiSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_BasicTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.BasicTracerProvider = exports.ForceFlushState = void 0;
-	const core_1 = require_src$28();
-	const resources_1 = require_src$26();
+	const core_1 = require_src$29();
+	const resources_1 = require_src$27();
 	const Tracer_1 = require_Tracer();
 	const config_1 = require_config();
 	const MultiSpanProcessor_1 = require_MultiSpanProcessor();
@@ -25319,7 +25317,7 @@ var require_BasicTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_ConsoleSpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ConsoleSpanExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* This is implementation of {@link SpanExporter} that prints spans to the
 	* console. This class can be used for diagnostic purposes.
@@ -25387,7 +25385,7 @@ var require_ConsoleSpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_InMemorySpanExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InMemorySpanExporter = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* This class can be used for testing purposes. It stores the exported spans
 	* in a list in memory that can be retrieved using the `getFinishedSpans()`
@@ -25434,7 +25432,7 @@ var require_SimpleSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SimpleSpanProcessor = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	/**
 	* An implementation of the {@link SpanProcessor} that converts the {@link Span}
 	* to {@link ReadableSpan} and passes it to the configured exporter.
@@ -25498,7 +25496,7 @@ var require_NoopSpanProcessor = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-trace-base/build/src/index.js
-var require_src$17 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$18 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.SamplingDecision = exports.TraceIdRatioBasedSampler = exports.ParentBasedSampler = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NoopSpanProcessor = exports.SimpleSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.RandomIdGenerator = exports.BatchSpanProcessor = exports.BasicTracerProvider = void 0;
 	var BasicTracerProvider_1 = require_BasicTracerProvider();
@@ -25590,10 +25588,10 @@ var require_src$17 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_NodeTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NodeTracerProvider = void 0;
-	const context_async_hooks_1 = require_src$18();
-	const sdk_trace_base_1 = require_src$17();
+	const context_async_hooks_1 = require_src$19();
+	const sdk_trace_base_1 = require_src$18();
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	function setupContextManager(contextManager) {
 		if (contextManager === null) return;
 		if (contextManager === void 0) {
@@ -25641,7 +25639,7 @@ var require_NodeTracerProvider = /* @__PURE__ */ __commonJSMin(((exports) => {
 }));
 //#endregion
 //#region node_modules/@opentelemetry/sdk-trace-node/build/src/index.js
-var require_src$16 = /* @__PURE__ */ __commonJSMin(((exports) => {
+var require_src$17 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.TraceIdRatioBasedSampler = exports.SimpleSpanProcessor = exports.SamplingDecision = exports.RandomIdGenerator = exports.ParentBasedSampler = exports.NoopSpanProcessor = exports.InMemorySpanExporter = exports.ConsoleSpanExporter = exports.BatchSpanProcessor = exports.BasicTracerProvider = exports.AlwaysOnSampler = exports.AlwaysOffSampler = exports.NodeTracerProvider = void 0;
 	var NodeTracerProvider_1 = require_NodeTracerProvider();
@@ -25651,7 +25649,7 @@ var require_src$16 = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return NodeTracerProvider_1.NodeTracerProvider;
 		}
 	});
-	var sdk_trace_base_1 = require_src$17();
+	var sdk_trace_base_1 = require_src$18();
 	Object.defineProperty(exports, "AlwaysOffSampler", {
 		enumerable: true,
 		get: function() {
@@ -25761,7 +25759,7 @@ var require_autoLoader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.registerInstrumentations = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const autoLoaderUtils_1 = require_autoLoaderUtils();
 	/**
 	* It will register instrumentations and plugins
@@ -26152,7 +26150,7 @@ var require_instrumentation$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.InstrumentationAbstract = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const shimmer = require_shimmer();
 	/**
 	* Base abstract internal class for instrumenting node and web plugins
@@ -26260,6 +26258,817 @@ var require_instrumentation$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.InstrumentationAbstract = InstrumentationAbstract;
 }));
 //#endregion
+//#region node_modules/ms/index.js
+var require_ms = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/**
+	* Helpers.
+	*/
+	var s = 1e3;
+	var m = s * 60;
+	var h = m * 60;
+	var d = h * 24;
+	var w = d * 7;
+	var y = d * 365.25;
+	/**
+	* Parse or format the given `val`.
+	*
+	* Options:
+	*
+	*  - `long` verbose formatting [false]
+	*
+	* @param {String|Number} val
+	* @param {Object} [options]
+	* @throws {Error} throw an error if val is not a non-empty string or a number
+	* @return {String|Number}
+	* @api public
+	*/
+	module.exports = function(val, options) {
+		options = options || {};
+		var type = typeof val;
+		if (type === "string" && val.length > 0) return parse(val);
+		else if (type === "number" && isFinite(val)) return options.long ? fmtLong(val) : fmtShort(val);
+		throw new Error("val is not a non-empty string or a valid number. val=" + JSON.stringify(val));
+	};
+	/**
+	* Parse the given `str` and return milliseconds.
+	*
+	* @param {String} str
+	* @return {Number}
+	* @api private
+	*/
+	function parse(str) {
+		str = String(str);
+		if (str.length > 100) return;
+		var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(str);
+		if (!match) return;
+		var n = parseFloat(match[1]);
+		switch ((match[2] || "ms").toLowerCase()) {
+			case "years":
+			case "year":
+			case "yrs":
+			case "yr":
+			case "y": return n * y;
+			case "weeks":
+			case "week":
+			case "w": return n * w;
+			case "days":
+			case "day":
+			case "d": return n * d;
+			case "hours":
+			case "hour":
+			case "hrs":
+			case "hr":
+			case "h": return n * h;
+			case "minutes":
+			case "minute":
+			case "mins":
+			case "min":
+			case "m": return n * m;
+			case "seconds":
+			case "second":
+			case "secs":
+			case "sec":
+			case "s": return n * s;
+			case "milliseconds":
+			case "millisecond":
+			case "msecs":
+			case "msec":
+			case "ms": return n;
+			default: return;
+		}
+	}
+	/**
+	* Short format for `ms`.
+	*
+	* @param {Number} ms
+	* @return {String}
+	* @api private
+	*/
+	function fmtShort(ms) {
+		var msAbs = Math.abs(ms);
+		if (msAbs >= d) return Math.round(ms / d) + "d";
+		if (msAbs >= h) return Math.round(ms / h) + "h";
+		if (msAbs >= m) return Math.round(ms / m) + "m";
+		if (msAbs >= s) return Math.round(ms / s) + "s";
+		return ms + "ms";
+	}
+	/**
+	* Long format for `ms`.
+	*
+	* @param {Number} ms
+	* @return {String}
+	* @api private
+	*/
+	function fmtLong(ms) {
+		var msAbs = Math.abs(ms);
+		if (msAbs >= d) return plural(ms, msAbs, d, "day");
+		if (msAbs >= h) return plural(ms, msAbs, h, "hour");
+		if (msAbs >= m) return plural(ms, msAbs, m, "minute");
+		if (msAbs >= s) return plural(ms, msAbs, s, "second");
+		return ms + " ms";
+	}
+	/**
+	* Pluralization helper.
+	*/
+	function plural(ms, msAbs, n, name) {
+		var isPlural = msAbs >= n * 1.5;
+		return Math.round(ms / n) + " " + name + (isPlural ? "s" : "");
+	}
+}));
+//#endregion
+//#region node_modules/debug/src/common.js
+var require_common$2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/**
+	* This is the common logic for both the Node.js and web browser
+	* implementations of `debug()`.
+	*/
+	function setup(env) {
+		createDebug.debug = createDebug;
+		createDebug.default = createDebug;
+		createDebug.coerce = coerce;
+		createDebug.disable = disable;
+		createDebug.enable = enable;
+		createDebug.enabled = enabled;
+		createDebug.humanize = require_ms();
+		createDebug.destroy = destroy;
+		Object.keys(env).forEach((key) => {
+			createDebug[key] = env[key];
+		});
+		/**
+		* The currently active debug mode names, and names to skip.
+		*/
+		createDebug.names = [];
+		createDebug.skips = [];
+		/**
+		* Map of special "%n" handling functions, for the debug "format" argument.
+		*
+		* Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
+		*/
+		createDebug.formatters = {};
+		/**
+		* Selects a color for a debug namespace
+		* @param {String} namespace The namespace string for the debug instance to be colored
+		* @return {Number|String} An ANSI color code for the given namespace
+		* @api private
+		*/
+		function selectColor(namespace) {
+			let hash = 0;
+			for (let i = 0; i < namespace.length; i++) {
+				hash = (hash << 5) - hash + namespace.charCodeAt(i);
+				hash |= 0;
+			}
+			return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+		}
+		createDebug.selectColor = selectColor;
+		/**
+		* Create a debugger with the given `namespace`.
+		*
+		* @param {String} namespace
+		* @return {Function}
+		* @api public
+		*/
+		function createDebug(namespace) {
+			let prevTime;
+			let enableOverride = null;
+			let namespacesCache;
+			let enabledCache;
+			function debug(...args) {
+				if (!debug.enabled) return;
+				const self = debug;
+				const curr = Number(/* @__PURE__ */ new Date());
+				self.diff = curr - (prevTime || curr);
+				self.prev = prevTime;
+				self.curr = curr;
+				prevTime = curr;
+				args[0] = createDebug.coerce(args[0]);
+				if (typeof args[0] !== "string") args.unshift("%O");
+				let index = 0;
+				args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+					if (match === "%%") return "%";
+					index++;
+					const formatter = createDebug.formatters[format];
+					if (typeof formatter === "function") {
+						const val = args[index];
+						match = formatter.call(self, val);
+						args.splice(index, 1);
+						index--;
+					}
+					return match;
+				});
+				createDebug.formatArgs.call(self, args);
+				(self.log || createDebug.log).apply(self, args);
+			}
+			debug.namespace = namespace;
+			debug.useColors = createDebug.useColors();
+			debug.color = createDebug.selectColor(namespace);
+			debug.extend = extend;
+			debug.destroy = createDebug.destroy;
+			Object.defineProperty(debug, "enabled", {
+				enumerable: true,
+				configurable: false,
+				get: () => {
+					if (enableOverride !== null) return enableOverride;
+					if (namespacesCache !== createDebug.namespaces) {
+						namespacesCache = createDebug.namespaces;
+						enabledCache = createDebug.enabled(namespace);
+					}
+					return enabledCache;
+				},
+				set: (v) => {
+					enableOverride = v;
+				}
+			});
+			if (typeof createDebug.init === "function") createDebug.init(debug);
+			return debug;
+		}
+		function extend(namespace, delimiter) {
+			const newDebug = createDebug(this.namespace + (typeof delimiter === "undefined" ? ":" : delimiter) + namespace);
+			newDebug.log = this.log;
+			return newDebug;
+		}
+		/**
+		* Enables a debug mode by namespaces. This can include modes
+		* separated by a colon and wildcards.
+		*
+		* @param {String} namespaces
+		* @api public
+		*/
+		function enable(namespaces) {
+			createDebug.save(namespaces);
+			createDebug.namespaces = namespaces;
+			createDebug.names = [];
+			createDebug.skips = [];
+			const split = (typeof namespaces === "string" ? namespaces : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
+			for (const ns of split) if (ns[0] === "-") createDebug.skips.push(ns.slice(1));
+			else createDebug.names.push(ns);
+		}
+		/**
+		* Checks if the given string matches a namespace template, honoring
+		* asterisks as wildcards.
+		*
+		* @param {String} search
+		* @param {String} template
+		* @return {Boolean}
+		*/
+		function matchesTemplate(search, template) {
+			let searchIndex = 0;
+			let templateIndex = 0;
+			let starIndex = -1;
+			let matchIndex = 0;
+			while (searchIndex < search.length) if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === "*")) if (template[templateIndex] === "*") {
+				starIndex = templateIndex;
+				matchIndex = searchIndex;
+				templateIndex++;
+			} else {
+				searchIndex++;
+				templateIndex++;
+			}
+			else if (starIndex !== -1) {
+				templateIndex = starIndex + 1;
+				matchIndex++;
+				searchIndex = matchIndex;
+			} else return false;
+			while (templateIndex < template.length && template[templateIndex] === "*") templateIndex++;
+			return templateIndex === template.length;
+		}
+		/**
+		* Disable debug output.
+		*
+		* @return {String} namespaces
+		* @api public
+		*/
+		function disable() {
+			const namespaces = [...createDebug.names, ...createDebug.skips.map((namespace) => "-" + namespace)].join(",");
+			createDebug.enable("");
+			return namespaces;
+		}
+		/**
+		* Returns true if the given mode name is enabled, false otherwise.
+		*
+		* @param {String} name
+		* @return {Boolean}
+		* @api public
+		*/
+		function enabled(name) {
+			for (const skip of createDebug.skips) if (matchesTemplate(name, skip)) return false;
+			for (const ns of createDebug.names) if (matchesTemplate(name, ns)) return true;
+			return false;
+		}
+		/**
+		* Coerce `val`.
+		*
+		* @param {Mixed} val
+		* @return {Mixed}
+		* @api private
+		*/
+		function coerce(val) {
+			if (val instanceof Error) return val.stack || val.message;
+			return val;
+		}
+		/**
+		* XXX DO NOT USE. This is a temporary stub function.
+		* XXX It WILL be removed in the next major release.
+		*/
+		function destroy() {
+			console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+		}
+		createDebug.enable(createDebug.load());
+		return createDebug;
+	}
+	module.exports = setup;
+}));
+//#endregion
+//#region node_modules/debug/src/browser.js
+var require_browser = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/**
+	* This is the web browser implementation of `debug()`.
+	*/
+	exports.formatArgs = formatArgs;
+	exports.save = save;
+	exports.load = load;
+	exports.useColors = useColors;
+	exports.storage = localstorage();
+	exports.destroy = (() => {
+		let warned = false;
+		return () => {
+			if (!warned) {
+				warned = true;
+				console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+			}
+		};
+	})();
+	/**
+	* Colors.
+	*/
+	exports.colors = [
+		"#0000CC",
+		"#0000FF",
+		"#0033CC",
+		"#0033FF",
+		"#0066CC",
+		"#0066FF",
+		"#0099CC",
+		"#0099FF",
+		"#00CC00",
+		"#00CC33",
+		"#00CC66",
+		"#00CC99",
+		"#00CCCC",
+		"#00CCFF",
+		"#3300CC",
+		"#3300FF",
+		"#3333CC",
+		"#3333FF",
+		"#3366CC",
+		"#3366FF",
+		"#3399CC",
+		"#3399FF",
+		"#33CC00",
+		"#33CC33",
+		"#33CC66",
+		"#33CC99",
+		"#33CCCC",
+		"#33CCFF",
+		"#6600CC",
+		"#6600FF",
+		"#6633CC",
+		"#6633FF",
+		"#66CC00",
+		"#66CC33",
+		"#9900CC",
+		"#9900FF",
+		"#9933CC",
+		"#9933FF",
+		"#99CC00",
+		"#99CC33",
+		"#CC0000",
+		"#CC0033",
+		"#CC0066",
+		"#CC0099",
+		"#CC00CC",
+		"#CC00FF",
+		"#CC3300",
+		"#CC3333",
+		"#CC3366",
+		"#CC3399",
+		"#CC33CC",
+		"#CC33FF",
+		"#CC6600",
+		"#CC6633",
+		"#CC9900",
+		"#CC9933",
+		"#CCCC00",
+		"#CCCC33",
+		"#FF0000",
+		"#FF0033",
+		"#FF0066",
+		"#FF0099",
+		"#FF00CC",
+		"#FF00FF",
+		"#FF3300",
+		"#FF3333",
+		"#FF3366",
+		"#FF3399",
+		"#FF33CC",
+		"#FF33FF",
+		"#FF6600",
+		"#FF6633",
+		"#FF9900",
+		"#FF9933",
+		"#FFCC00",
+		"#FFCC33"
+	];
+	/**
+	* Currently only WebKit-based Web Inspectors, Firefox >= v31,
+	* and the Firebug extension (any Firefox version) are known
+	* to support "%c" CSS customizations.
+	*
+	* TODO: add a `localStorage` variable to explicitly enable/disable colors
+	*/
+	function useColors() {
+		if (typeof window !== "undefined" && window.process && (window.process.type === "renderer" || window.process.__nwjs)) return true;
+		if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) return false;
+		let m;
+		return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || typeof navigator !== "undefined" && navigator.userAgent && (m = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m[1], 10) >= 31 || typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
+	}
+	/**
+	* Colorize log arguments if enabled.
+	*
+	* @api public
+	*/
+	function formatArgs(args) {
+		args[0] = (this.useColors ? "%c" : "") + this.namespace + (this.useColors ? " %c" : " ") + args[0] + (this.useColors ? "%c " : " ") + "+" + module.exports.humanize(this.diff);
+		if (!this.useColors) return;
+		const c = "color: " + this.color;
+		args.splice(1, 0, c, "color: inherit");
+		let index = 0;
+		let lastC = 0;
+		args[0].replace(/%[a-zA-Z%]/g, (match) => {
+			if (match === "%%") return;
+			index++;
+			if (match === "%c") lastC = index;
+		});
+		args.splice(lastC, 0, c);
+	}
+	/**
+	* Invokes `console.debug()` when available.
+	* No-op when `console.debug` is not a "function".
+	* If `console.debug` is not available, falls back
+	* to `console.log`.
+	*
+	* @api public
+	*/
+	exports.log = console.debug || console.log || (() => {});
+	/**
+	* Save `namespaces`.
+	*
+	* @param {String} namespaces
+	* @api private
+	*/
+	function save(namespaces) {
+		try {
+			if (namespaces) exports.storage.setItem("debug", namespaces);
+			else exports.storage.removeItem("debug");
+		} catch (error) {}
+	}
+	/**
+	* Load `namespaces`.
+	*
+	* @return {String} returns the previously persisted debug modes
+	* @api private
+	*/
+	function load() {
+		let r;
+		try {
+			r = exports.storage.getItem("debug") || exports.storage.getItem("DEBUG");
+		} catch (error) {}
+		if (!r && typeof process !== "undefined" && "env" in process) r = process.env.DEBUG;
+		return r;
+	}
+	/**
+	* Localstorage attempts to return the localstorage.
+	*
+	* This is necessary because safari throws
+	* when a user disables cookies/localstorage
+	* and you attempt to access it.
+	*
+	* @return {LocalStorage}
+	* @api private
+	*/
+	function localstorage() {
+		try {
+			return localStorage;
+		} catch (error) {}
+	}
+	module.exports = require_common$2()(exports);
+	const { formatters } = module.exports;
+	/**
+	* Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
+	*/
+	formatters.j = function(v) {
+		try {
+			return JSON.stringify(v);
+		} catch (error) {
+			return "[UnexpectedJSONParseError]: " + error.message;
+		}
+	};
+}));
+//#endregion
+//#region node_modules/has-flag/index.js
+var require_has_flag = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	module.exports = (flag, argv = process.argv) => {
+		const prefix = flag.startsWith("-") ? "" : flag.length === 1 ? "-" : "--";
+		const position = argv.indexOf(prefix + flag);
+		const terminatorPosition = argv.indexOf("--");
+		return position !== -1 && (terminatorPosition === -1 || position < terminatorPosition);
+	};
+}));
+//#endregion
+//#region node_modules/supports-color/index.js
+var require_supports_color = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	const os$2 = __require("os");
+	const tty$1 = __require("tty");
+	const hasFlag = require_has_flag();
+	const { env } = process;
+	let forceColor;
+	if (hasFlag("no-color") || hasFlag("no-colors") || hasFlag("color=false") || hasFlag("color=never")) forceColor = 0;
+	else if (hasFlag("color") || hasFlag("colors") || hasFlag("color=true") || hasFlag("color=always")) forceColor = 1;
+	if ("FORCE_COLOR" in env) if (env.FORCE_COLOR === "true") forceColor = 1;
+	else if (env.FORCE_COLOR === "false") forceColor = 0;
+	else forceColor = env.FORCE_COLOR.length === 0 ? 1 : Math.min(parseInt(env.FORCE_COLOR, 10), 3);
+	function translateLevel(level) {
+		if (level === 0) return false;
+		return {
+			level,
+			hasBasic: true,
+			has256: level >= 2,
+			has16m: level >= 3
+		};
+	}
+	function supportsColor(haveStream, streamIsTTY) {
+		if (forceColor === 0) return 0;
+		if (hasFlag("color=16m") || hasFlag("color=full") || hasFlag("color=truecolor")) return 3;
+		if (hasFlag("color=256")) return 2;
+		if (haveStream && !streamIsTTY && forceColor === void 0) return 0;
+		const min = forceColor || 0;
+		if (env.TERM === "dumb") return min;
+		if (process.platform === "win32") {
+			const osRelease = os$2.release().split(".");
+			if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) return Number(osRelease[2]) >= 14931 ? 3 : 2;
+			return 1;
+		}
+		if ("CI" in env) {
+			if ([
+				"TRAVIS",
+				"CIRCLECI",
+				"APPVEYOR",
+				"GITLAB_CI",
+				"GITHUB_ACTIONS",
+				"BUILDKITE"
+			].some((sign) => sign in env) || env.CI_NAME === "codeship") return 1;
+			return min;
+		}
+		if ("TEAMCITY_VERSION" in env) return /^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0;
+		if (env.COLORTERM === "truecolor") return 3;
+		if ("TERM_PROGRAM" in env) {
+			const version = parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+			switch (env.TERM_PROGRAM) {
+				case "iTerm.app": return version >= 3 ? 3 : 2;
+				case "Apple_Terminal": return 2;
+			}
+		}
+		if (/-256(color)?$/i.test(env.TERM)) return 2;
+		if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) return 1;
+		if ("COLORTERM" in env) return 1;
+		return min;
+	}
+	function getSupportLevel(stream) {
+		return translateLevel(supportsColor(stream, stream && stream.isTTY));
+	}
+	module.exports = {
+		supportsColor: getSupportLevel,
+		stdout: translateLevel(supportsColor(true, tty$1.isatty(1))),
+		stderr: translateLevel(supportsColor(true, tty$1.isatty(2)))
+	};
+}));
+//#endregion
+//#region node_modules/debug/src/node.js
+var require_node$4 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/**
+	* Module dependencies.
+	*/
+	const tty = __require("tty");
+	const util$1 = __require("util");
+	/**
+	* This is the Node.js implementation of `debug()`.
+	*/
+	exports.init = init;
+	exports.log = log;
+	exports.formatArgs = formatArgs;
+	exports.save = save;
+	exports.load = load;
+	exports.useColors = useColors;
+	exports.destroy = util$1.deprecate(() => {}, "Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+	/**
+	* Colors.
+	*/
+	exports.colors = [
+		6,
+		2,
+		3,
+		4,
+		5,
+		1
+	];
+	try {
+		const supportsColor = require_supports_color();
+		if (supportsColor && (supportsColor.stderr || supportsColor).level >= 2) exports.colors = [
+			20,
+			21,
+			26,
+			27,
+			32,
+			33,
+			38,
+			39,
+			40,
+			41,
+			42,
+			43,
+			44,
+			45,
+			56,
+			57,
+			62,
+			63,
+			68,
+			69,
+			74,
+			75,
+			76,
+			77,
+			78,
+			79,
+			80,
+			81,
+			92,
+			93,
+			98,
+			99,
+			112,
+			113,
+			128,
+			129,
+			134,
+			135,
+			148,
+			149,
+			160,
+			161,
+			162,
+			163,
+			164,
+			165,
+			166,
+			167,
+			168,
+			169,
+			170,
+			171,
+			172,
+			173,
+			178,
+			179,
+			184,
+			185,
+			196,
+			197,
+			198,
+			199,
+			200,
+			201,
+			202,
+			203,
+			204,
+			205,
+			206,
+			207,
+			208,
+			209,
+			214,
+			215,
+			220,
+			221
+		];
+	} catch (error) {}
+	/**
+	* Build up the default `inspectOpts` object from the environment variables.
+	*
+	*   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
+	*/
+	exports.inspectOpts = Object.keys(process.env).filter((key) => {
+		return /^debug_/i.test(key);
+	}).reduce((obj, key) => {
+		const prop = key.substring(6).toLowerCase().replace(/_([a-z])/g, (_, k) => {
+			return k.toUpperCase();
+		});
+		let val = process.env[key];
+		if (/^(yes|on|true|enabled)$/i.test(val)) val = true;
+		else if (/^(no|off|false|disabled)$/i.test(val)) val = false;
+		else if (val === "null") val = null;
+		else val = Number(val);
+		obj[prop] = val;
+		return obj;
+	}, {});
+	/**
+	* Is stdout a TTY? Colored output is enabled when `true`.
+	*/
+	function useColors() {
+		return "colors" in exports.inspectOpts ? Boolean(exports.inspectOpts.colors) : tty.isatty(process.stderr.fd);
+	}
+	/**
+	* Adds ANSI color escape codes if enabled.
+	*
+	* @api public
+	*/
+	function formatArgs(args) {
+		const { namespace: name, useColors } = this;
+		if (useColors) {
+			const c = this.color;
+			const colorCode = "\x1B[3" + (c < 8 ? c : "8;5;" + c);
+			const prefix = `  ${colorCode};1m${name} \u001B[0m`;
+			args[0] = prefix + args[0].split("\n").join("\n" + prefix);
+			args.push(colorCode + "m+" + module.exports.humanize(this.diff) + "\x1B[0m");
+		} else args[0] = getDate() + name + " " + args[0];
+	}
+	function getDate() {
+		if (exports.inspectOpts.hideDate) return "";
+		return (/* @__PURE__ */ new Date()).toISOString() + " ";
+	}
+	/**
+	* Invokes `util.formatWithOptions()` with the specified arguments and writes to stderr.
+	*/
+	function log(...args) {
+		return process.stderr.write(util$1.formatWithOptions(exports.inspectOpts, ...args) + "\n");
+	}
+	/**
+	* Save `namespaces`.
+	*
+	* @param {String} namespaces
+	* @api private
+	*/
+	function save(namespaces) {
+		if (namespaces) process.env.DEBUG = namespaces;
+		else delete process.env.DEBUG;
+	}
+	/**
+	* Load `namespaces`.
+	*
+	* @return {String} returns the previously persisted debug modes
+	* @api private
+	*/
+	function load() {
+		return process.env.DEBUG;
+	}
+	/**
+	* Init logic for `debug` instances.
+	*
+	* Create a new `inspectOpts` object in case `useColors` is set
+	* differently for a particular `debug` instance.
+	*/
+	function init(debug) {
+		debug.inspectOpts = {};
+		const keys = Object.keys(exports.inspectOpts);
+		for (let i = 0; i < keys.length; i++) debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
+	}
+	module.exports = require_common$2()(exports);
+	const { formatters } = module.exports;
+	/**
+	* Map %o to `util.inspect()`, all on a single line.
+	*/
+	formatters.o = function(v) {
+		this.inspectOpts.colors = this.useColors;
+		return util$1.inspect(v, this.inspectOpts).split("\n").map((str) => str.trim()).join(" ");
+	};
+	/**
+	* Map %O to `util.inspect()`, allowing multiple lines if needed.
+	*/
+	formatters.O = function(v) {
+		this.inspectOpts.colors = this.useColors;
+		return util$1.inspect(v, this.inspectOpts);
+	};
+}));
+//#endregion
+//#region node_modules/debug/src/index.js
+var require_src$16 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/**
+	* Detect Electron renderer / nwjs process, which is node, but we should
+	* treat as a browser.
+	*/
+	if (typeof process === "undefined" || process.type === "renderer" || process.browser === true || process.__nwjs) module.exports = require_browser();
+	else module.exports = require_node$4();
+}));
+//#endregion
 //#region node_modules/module-details-from-path/index.js
 var require_module_details_from_path = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var sep = __require("path").sep;
@@ -26291,7 +27100,7 @@ var require_module_details_from_path = /* @__PURE__ */ __commonJSMin(((exports, 
 var require_require_in_the_middle = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const path$5 = __require("path");
 	const Module = __require("module");
-	const debug = require_src$29()("require-in-the-middle");
+	const debug = require_src$16()("require-in-the-middle");
 	const moduleDetailsFromPath = require_module_details_from_path();
 	module.exports = Hook;
 	module.exports.Hook = Hook;
@@ -27343,7 +28152,7 @@ var require_OTLPLogExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Logs Exporter for Node
@@ -33448,6 +34257,12 @@ var require_type$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		this._ctor = null;
 	}
 	Object.defineProperties(Type.prototype, {
+		/**
+		* Message fields by id.
+		* @name Type#fieldsById
+		* @type {Object.<number,Field>}
+		* @readonly
+		*/
 		fieldsById: { get: function() {
 			/* istanbul ignore if */
 			if (this._fieldsById) return this._fieldsById;
@@ -33460,12 +34275,30 @@ var require_type$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			}
 			return this._fieldsById;
 		} },
+		/**
+		* Fields of this message as an array for iteration.
+		* @name Type#fieldsArray
+		* @type {Field[]}
+		* @readonly
+		*/
 		fieldsArray: { get: function() {
 			return this._fieldsArray || (this._fieldsArray = util.toArray(this.fields));
 		} },
+		/**
+		* Oneofs of this message as an array for iteration.
+		* @name Type#oneofsArray
+		* @type {OneOf[]}
+		* @readonly
+		*/
 		oneofsArray: { get: function() {
 			return this._oneofsArray || (this._oneofsArray = util.toArray(this.oneofs));
 		} },
+		/**
+		* The registered constructor, if any registered, otherwise a generic constructor.
+		* Assigning a function replaces the internal constructor. If the function does not extend {@link Message} yet, its prototype will be setup accordingly and static methods will be populated. If it already extends {@link Message}, it will just replace the internal constructor.
+		* @name Type#ctor
+		* @type {Constructor<{}>}
+		*/
 		ctor: {
 			get: function() {
 				return this._ctor || (this.ctor = Type.generateConstructor(this)());
@@ -35101,11 +35934,23 @@ var require_object = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		this.filename = null;
 	}
 	Object.defineProperties(ReflectionObject.prototype, {
+		/**
+		* Reference to the root namespace.
+		* @name ReflectionObject#root
+		* @type {Root}
+		* @readonly
+		*/
 		root: { get: function() {
 			var ptr = this;
 			while (ptr.parent !== null) ptr = ptr.parent;
 			return ptr;
 		} },
+		/**
+		* Full name including leading dot.
+		* @name ReflectionObject#fullName
+		* @type {string}
+		* @readonly
+		*/
 		fullName: { get: function() {
 			var path = [this.name], ptr = this.parent;
 			while (ptr) {
@@ -36593,7 +37438,16 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		}
 		common[name] = json;
 	}
-	common("any", { Any: { fields: {
+	common("any", { 
+	/**
+	* Properties of a google.protobuf.Any message.
+	* @interface IAny
+	* @type {Object}
+	* @property {string} [typeUrl]
+	* @property {Uint8Array} [bytes]
+	* @memberof common
+	*/
+Any: { fields: {
 		type_url: {
 			type: "string",
 			id: 1
@@ -36604,7 +37458,16 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		}
 	} } });
 	var timeType;
-	common("duration", { Duration: timeType = { fields: {
+	common("duration", { 
+	/**
+	* Properties of a google.protobuf.Duration message.
+	* @interface IDuration
+	* @type {Object}
+	* @property {number|Long} [seconds]
+	* @property {number} [nanos]
+	* @memberof common
+	*/
+Duration: timeType = { fields: {
 		seconds: {
 			type: "int64",
 			id: 1
@@ -36614,14 +37477,49 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			id: 2
 		}
 	} } });
-	common("timestamp", { Timestamp: timeType });
-	common("empty", { Empty: { fields: {} } });
+	common("timestamp", { 
+	/**
+	* Properties of a google.protobuf.Timestamp message.
+	* @interface ITimestamp
+	* @type {Object}
+	* @property {number|Long} [seconds]
+	* @property {number} [nanos]
+	* @memberof common
+	*/
+Timestamp: timeType });
+	common("empty", { 
+	/**
+	* Properties of a google.protobuf.Empty message.
+	* @interface IEmpty
+	* @memberof common
+	*/
+Empty: { fields: {} } });
 	common("struct", {
+		/**
+		* Properties of a google.protobuf.Struct message.
+		* @interface IStruct
+		* @type {Object}
+		* @property {Object.<string,IValue>} [fields]
+		* @memberof common
+		*/
 		Struct: { fields: { fields: {
 			keyType: "string",
 			type: "Value",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.Value message.
+		* @interface IValue
+		* @type {Object}
+		* @property {string} [kind]
+		* @property {0} [nullValue]
+		* @property {number} [numberValue]
+		* @property {string} [stringValue]
+		* @property {boolean} [boolValue]
+		* @property {IStruct} [structValue]
+		* @property {IListValue} [listValue]
+		* @memberof common
+		*/
 		Value: {
 			oneofs: { kind: { oneof: [
 				"nullValue",
@@ -36659,6 +37557,13 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			}
 		},
 		NullValue: { values: { NULL_VALUE: 0 } },
+		/**
+		* Properties of a google.protobuf.ListValue message.
+		* @interface IListValue
+		* @type {Object}
+		* @property {Array.<IValue>} [values]
+		* @memberof common
+		*/
 		ListValue: { fields: { values: {
 			rule: "repeated",
 			type: "Value",
@@ -36666,44 +37571,115 @@ var require_common$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		} } }
 	});
 	common("wrappers", {
+		/**
+		* Properties of a google.protobuf.DoubleValue message.
+		* @interface IDoubleValue
+		* @type {Object}
+		* @property {number} [value]
+		* @memberof common
+		*/
 		DoubleValue: { fields: { value: {
 			type: "double",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.FloatValue message.
+		* @interface IFloatValue
+		* @type {Object}
+		* @property {number} [value]
+		* @memberof common
+		*/
 		FloatValue: { fields: { value: {
 			type: "float",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.Int64Value message.
+		* @interface IInt64Value
+		* @type {Object}
+		* @property {number|Long} [value]
+		* @memberof common
+		*/
 		Int64Value: { fields: { value: {
 			type: "int64",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.UInt64Value message.
+		* @interface IUInt64Value
+		* @type {Object}
+		* @property {number|Long} [value]
+		* @memberof common
+		*/
 		UInt64Value: { fields: { value: {
 			type: "uint64",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.Int32Value message.
+		* @interface IInt32Value
+		* @type {Object}
+		* @property {number} [value]
+		* @memberof common
+		*/
 		Int32Value: { fields: { value: {
 			type: "int32",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.UInt32Value message.
+		* @interface IUInt32Value
+		* @type {Object}
+		* @property {number} [value]
+		* @memberof common
+		*/
 		UInt32Value: { fields: { value: {
 			type: "uint32",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.BoolValue message.
+		* @interface IBoolValue
+		* @type {Object}
+		* @property {boolean} [value]
+		* @memberof common
+		*/
 		BoolValue: { fields: { value: {
 			type: "bool",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.StringValue message.
+		* @interface IStringValue
+		* @type {Object}
+		* @property {string} [value]
+		* @memberof common
+		*/
 		StringValue: { fields: { value: {
 			type: "string",
 			id: 1
 		} } },
+		/**
+		* Properties of a google.protobuf.BytesValue message.
+		* @interface IBytesValue
+		* @type {Object}
+		* @property {Uint8Array} [value]
+		* @memberof common
+		*/
 		BytesValue: { fields: { value: {
 			type: "bytes",
 			id: 1
 		} } }
 	});
-	common("field_mask", { FieldMask: { fields: { paths: {
+	common("field_mask", { 
+	/**
+	* Properties of a google.protobuf.FieldMask message.
+	* @interface IDoubleValue
+	* @type {Object}
+	* @property {number} [value]
+	* @memberof common
+	*/
+FieldMask: { fields: { paths: {
 		rule: "repeated",
 		type: "string",
 		id: 1
@@ -49876,9 +50852,23 @@ var require_src$11 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	});
 	/**** Client Credentials ****/
 	exports.credentials = {
+		/**
+		* Combine a ChannelCredentials with any number of CallCredentials into a
+		* single ChannelCredentials object.
+		* @param channelCredentials The ChannelCredentials object.
+		* @param callCredentials Any number of CallCredentials objects.
+		* @return The resulting ChannelCredentials object.
+		*/
 		combineChannelCredentials: (channelCredentials, ...callCredentials) => {
 			return callCredentials.reduce((acc, other) => acc.compose(other), channelCredentials);
 		},
+		/**
+		* Combine any number of CallCredentials into a single CallCredentials
+		* object.
+		* @param first The first CallCredentials object.
+		* @param additional Any number of additional CallCredentials objects.
+		* @return The resulting CallCredentials object.
+		*/
 		combineCallCredentials: (first, ...additional) => {
 			return additional.reduce((acc, other) => acc.compose(other), first);
 		},
@@ -50190,7 +51180,7 @@ var require_otlp_grpc_configuration = /* @__PURE__ */ __commonJSMin(((exports) =
 var require_otlp_grpc_env_configuration = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getOtlpGrpcConfigurationFromEnv = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const grpc_exporter_transport_1 = require_grpc_exporter_transport();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	const fs$1 = __require("fs");
@@ -50376,7 +51366,7 @@ var require_OTLPLogExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPLogExporter = void 0;
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	/**
 	* OTLP Logs Exporter for Node
@@ -50407,8 +51397,8 @@ var require_PrometheusSerializer = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusSerializer = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const sdk_metrics_1 = require_src$25();
-	const core_1 = require_src$28();
+	const sdk_metrics_1 = require_src$26();
+	const core_1 = require_src$29();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
 	const ATTR_OTEL_SCOPE_SCHEMA_URL = "otel.scope.schema_url";
 	function escapeString(str) {
@@ -50605,8 +51595,8 @@ var require_PrometheusExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.PrometheusExporter = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
-	const sdk_metrics_1 = require_src$25();
+	const core_1 = require_src$29();
+	const sdk_metrics_1 = require_src$26();
 	const http_1 = __require("http");
 	const PrometheusSerializer_1 = require_PrometheusSerializer();
 	/** Node.js v8.x compat */
@@ -50769,7 +51759,7 @@ var require_OTLPTraceExporter$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const node_http_1 = (init_index_node_http(), __toCommonJS(index_node_http_exports));
 	/**
 	* Collector Trace Exporter for Node
@@ -50826,7 +51816,7 @@ var require_OTLPTraceExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPTraceExporter = void 0;
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
 	/**
 	* OTLP Trace Exporter for Node
@@ -50857,7 +51847,7 @@ var require_util = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.prepareSend = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const http = __require("http");
 	const https = __require("https");
 	/**
@@ -50957,7 +51947,7 @@ var require_transform = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports._toZipkinAnnotations = exports._toZipkinTags = exports.toZipkinSpan = exports.defaultStatusErrorTagName = exports.defaultStatusCodeTagName = void 0;
 	const api = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const zipkinTypes = require_types$1();
 	const ZIPKIN_SPAN_KIND_MAPPING = {
 		[api.SpanKind.CLIENT]: zipkinTypes.SpanKind.CLIENT,
@@ -51029,7 +52019,7 @@ var require_zipkin = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.ZipkinExporter = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const index_1 = require_platform();
 	const transform_1 = require_transform();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
@@ -51170,7 +52160,7 @@ var require_B3MultiPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3MultiPropagator = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const common_1 = require_common();
 	const constants_1 = require_constants();
 	const VALID_SAMPLED_VALUES = new Set([
@@ -51262,7 +52252,7 @@ var require_B3SinglePropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3SinglePropagator = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const common_1 = require_common();
 	const constants_1 = require_constants();
 	const B3_CONTEXT_REGEX = /((?:[0-9a-f]{16}){1,2})-([0-9a-f]{16})(?:-([01d](?![0-9a-f])))?(?:-([0-9a-f]{16}))?/;
@@ -51327,7 +52317,7 @@ var require_types = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_B3Propagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.B3Propagator = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const B3MultiPropagator_1 = require_B3MultiPropagator();
 	const B3SinglePropagator_1 = require_B3SinglePropagator();
 	const constants_1 = require_constants();
@@ -51431,7 +52421,7 @@ var require_JaegerPropagator = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.JaegerPropagator = exports.UBER_BAGGAGE_HEADER_PREFIX = exports.UBER_TRACE_ID_HEADER = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	exports.UBER_TRACE_ID_HEADER = "uber-trace-id";
 	exports.UBER_BAGGAGE_HEADER_PREFIX = "uberctx";
 	/**
@@ -51546,9 +52536,9 @@ var require_src$3 = /* @__PURE__ */ __commonJSMin(((exports) => {
 var require_OTLPMetricExporter = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.OTLPMetricExporter = void 0;
-	const exporter_metrics_otlp_http_1 = require_src$22();
+	const exporter_metrics_otlp_http_1 = require_src$23();
 	const otlp_grpc_exporter_base_1 = require_src$10();
-	const otlp_transformer_1 = require_src$24();
+	const otlp_transformer_1 = require_src$25();
 	/**
 	* OTLP-gRPC metric exporter
 	*/
@@ -51578,25 +52568,25 @@ var require_utils$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getInstanceID = exports.getMeterViewsFromConfiguration = exports.getAggregationType = exports.getInstrumentType = exports.getMeterReadersFromConfiguration = exports.getLogRecordProcessorsFromConfiguration = exports.getLogRecordExporter = exports.getBatchLogRecordProcessorFromEnv = exports.getBatchLogRecordProcessorConfigFromEnv = exports.getLoggerProviderConfigFromEnv = exports.getPeriodicMetricReaderFromConfiguration = exports.getOtlpMetricExporterFromEnv = exports.getPeriodicExportingMetricReaderFromEnv = exports.getNonNegativeNumberFromEnv = exports.getKeyListFromObjectArray = exports.setupPropagator = exports.setupContextManager = exports.getPropagatorFromConfiguration = exports.getPropagatorFromEnv = exports.getSpanProcessorsFromEnv = exports.getOtlpProtocolFromEnv = exports.getResourceDetectorsFromConfiguration = exports.getResourceDetectorsFromEnv = exports.getResourceFromConfiguration = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
-	const exporter_trace_otlp_proto_1 = require_src$20();
+	const core_1 = require_src$29();
+	const exporter_trace_otlp_proto_1 = require_src$21();
 	const exporter_trace_otlp_http_1 = require_src$7();
 	const exporter_trace_otlp_grpc_1 = require_src$6();
 	const exporter_zipkin_1 = require_src$5();
-	const resources_1 = require_src$26();
-	const sdk_trace_base_1 = require_src$17();
+	const resources_1 = require_src$27();
+	const sdk_trace_base_1 = require_src$18();
 	const propagator_b3_1 = require_src$4();
 	const propagator_jaeger_1 = require_src$3();
-	const context_async_hooks_1 = require_src$18();
+	const context_async_hooks_1 = require_src$19();
 	const exporter_logs_otlp_http_1 = require_src$14();
 	const exporter_logs_otlp_grpc_1 = require_src$9();
-	const exporter_logs_otlp_proto_1 = require_src$23();
+	const exporter_logs_otlp_proto_1 = require_src$24();
 	const otlp_exporter_base_1 = (init_esm(), __toCommonJS(esm_exports));
-	const sdk_metrics_1 = require_src$25();
+	const sdk_metrics_1 = require_src$26();
 	const exporter_metrics_otlp_grpc_1 = require_src$2();
-	const exporter_metrics_otlp_http_1 = require_src$22();
-	const exporter_metrics_otlp_proto_1 = require_src$21();
-	const sdk_logs_1 = require_src$19();
+	const exporter_metrics_otlp_http_1 = require_src$23();
+	const exporter_metrics_otlp_proto_1 = require_src$22();
+	const sdk_logs_1 = require_src$20();
 	const RESOURCE_DETECTOR_ENVIRONMENT = "env";
 	const RESOURCE_DETECTOR_HOST = "host";
 	const RESOURCE_DETECTOR_OS = "os";
@@ -52001,19 +52991,19 @@ var require_sdk = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.NodeSDK = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const api_logs_1 = require_src$27();
+	const api_logs_1 = require_src$28();
 	const instrumentation_1 = require_src$15();
-	const resources_1 = require_src$26();
-	const sdk_logs_1 = require_src$19();
+	const resources_1 = require_src$27();
+	const sdk_logs_1 = require_src$20();
 	const exporter_logs_otlp_http_1 = require_src$14();
 	const exporter_logs_otlp_grpc_1 = require_src$9();
-	const exporter_logs_otlp_proto_1 = require_src$23();
+	const exporter_logs_otlp_proto_1 = require_src$24();
 	const exporter_prometheus_1 = require_src$8();
-	const sdk_metrics_1 = require_src$25();
-	const sdk_trace_base_1 = require_src$17();
-	const sdk_trace_node_1 = require_src$16();
+	const sdk_metrics_1 = require_src$26();
+	const sdk_trace_base_1 = require_src$18();
+	const sdk_trace_node_1 = require_src$17();
 	const semantic_conventions_1 = (init_esm$1(), __toCommonJS(esm_exports$1));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const utils_1 = require_utils$1();
 	/**
 	*
@@ -52356,7 +53346,7 @@ var require_utils = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.getHttpTlsConfig = exports.getGrpcTlsConfig = exports.envVariableSubstitution = exports.getStringListFromConfigFile = exports.getStringFromConfigFile = exports.getNumberListFromConfigFile = exports.getNumberFromConfigFile = exports.getBooleanListFromConfigFile = exports.getBooleanFromConfigFile = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const util_1 = __require("util");
 	/**
 	* Retrieves a boolean value from a configuration file parameter.
@@ -52553,7 +53543,7 @@ var require_EnvReader = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.readAllEnvVars = exports.readEnvVar = void 0;
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const EnvDefinition_1 = require_EnvDefinition();
 	function readStringEnv(def) {
 		const value = (0, core_1.getStringFromEnv)(def.key);
@@ -52592,7 +53582,7 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setLoggerProvider = exports.setMeterProvider = exports.setTracerProvider = exports.setSampler = exports.setPropagators = exports.setAttributeLimits = exports.setResources = exports.EnvironmentConfigFactory = void 0;
 	const configModel_1 = require_configModel();
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const meterProviderModel_1 = require_meterProviderModel();
 	const commonModel_1 = require_commonModel();
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
@@ -52979,7 +53969,7 @@ var require_EnvironmentConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) 
 var require_FileConfigFactory = /* @__PURE__ */ __commonJSMin(((exports) => {
 	Object.defineProperty(exports, "__esModule", { value: true });
 	exports.setLoggerProvider = exports.getSeverity = exports.setMeterProvider = exports.getTemporalityPreference = exports.setTracerProvider = exports.setPropagator = exports.setAttributeLimits = exports.setResourceAttributes = exports.parseConfigFile = exports.hasValidConfigFile = exports.FileConfigFactory = void 0;
-	const core_1 = require_src$28();
+	const core_1 = require_src$29();
 	const configModel_1 = require_configModel();
 	const fs = __require("fs");
 	const yaml = __require("yaml");
@@ -53854,11 +54844,11 @@ var require_start = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const api_1 = (init_esm$2(), __toCommonJS(esm_exports$2));
 	const utils_1 = require_utils$1();
 	const instrumentation_1 = require_src$15();
-	const sdk_logs_1 = require_src$19();
-	const sdk_metrics_1 = require_src$25();
-	const api_logs_1 = require_src$27();
-	const resources_1 = require_src$26();
-	const context_async_hooks_1 = require_src$18();
+	const sdk_logs_1 = require_src$20();
+	const sdk_metrics_1 = require_src$26();
+	const api_logs_1 = require_src$28();
+	const resources_1 = require_src$27();
+	const context_async_hooks_1 = require_src$19();
 	const semconv_1 = require_semconv();
 	/**
 	* @experimental Function to start the OpenTelemetry Node SDK
@@ -53935,12 +54925,12 @@ var require_src = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.startNodeSDK = exports.NodeSDK = exports.tracing = exports.resources = exports.node = exports.metrics = exports.logs = exports.core = exports.contextBase = exports.api = void 0;
 	exports.api = (init_esm$2(), __toCommonJS(esm_exports$2));
 	exports.contextBase = (init_esm$2(), __toCommonJS(esm_exports$2));
-	exports.core = require_src$28();
-	exports.logs = require_src$19();
-	exports.metrics = require_src$25();
-	exports.node = require_src$16();
-	exports.resources = require_src$26();
-	exports.tracing = require_src$17();
+	exports.core = require_src$29();
+	exports.logs = require_src$20();
+	exports.metrics = require_src$26();
+	exports.node = require_src$17();
+	exports.resources = require_src$27();
+	exports.tracing = require_src$18();
 	var sdk_1 = require_sdk();
 	Object.defineProperty(exports, "NodeSDK", {
 		enumerable: true,
@@ -53959,14 +54949,14 @@ var require_src = /* @__PURE__ */ __commonJSMin(((exports) => {
 //#endregion
 //#region extensions/diagnostics-otel/src/service.ts
 init_esm$2();
-var import_src = require_src$23();
-var import_src$1 = require_src$21();
-var import_src$2 = require_src$20();
-var import_src$3 = require_src$26();
-var import_src$4 = require_src$19();
-var import_src$5 = require_src$25();
+var import_src = require_src$24();
+var import_src$1 = require_src$22();
+var import_src$2 = require_src$21();
+var import_src$3 = require_src$27();
+var import_src$4 = require_src$20();
+var import_src$5 = require_src$26();
 var import_src$6 = require_src();
-var import_src$7 = require_src$17();
+var import_src$7 = require_src$18();
 init_esm$1();
 const DEFAULT_SERVICE_NAME = "openclaw";
 const DROPPED_OTEL_ATTRIBUTE_KEYS = new Set([
@@ -53994,6 +54984,44 @@ const BLOCKED_OTEL_LOG_ATTRIBUTE_KEYS = new Set([
 	"constructor"
 ]);
 const PRELOADED_OTEL_SDK_ENV = "OPENCLAW_OTEL_PRELOADED";
+const OTEL_EXPORTER_OTLP_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_ENDPOINT";
+const OTEL_EXPORTER_OTLP_TRACES_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
+const OTEL_EXPORTER_OTLP_METRICS_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT";
+const OTEL_EXPORTER_OTLP_LOGS_ENDPOINT_ENV = "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT";
+const OTEL_SEMCONV_STABILITY_OPT_IN_ENV = "OTEL_SEMCONV_STABILITY_OPT_IN";
+const GEN_AI_LATEST_EXPERIMENTAL_OPT_IN = "gen_ai_latest_experimental";
+const GEN_AI_TOKEN_USAGE_BUCKETS = [
+	1,
+	4,
+	16,
+	64,
+	256,
+	1024,
+	4096,
+	16384,
+	65536,
+	262144,
+	1048576,
+	4194304,
+	16777216,
+	67108864
+];
+const GEN_AI_OPERATION_DURATION_BUCKETS = [
+	.01,
+	.02,
+	.04,
+	.08,
+	.16,
+	.32,
+	.64,
+	1.28,
+	2.56,
+	5.12,
+	10.24,
+	20.48,
+	40.96,
+	81.92
+];
 const NO_CONTENT_CAPTURE = {
 	inputMessages: false,
 	outputMessages: false,
@@ -54011,6 +55039,9 @@ function resolveOtelUrl(endpoint, path) {
 	if (/\/v1\/(?:traces|metrics|logs)$/i.test(endpointWithoutQueryOrFragment)) return endpoint;
 	return `${endpoint}/${path}`;
 }
+function resolveSignalOtelUrl(params) {
+	return resolveOtelUrl(normalizeEndpoint(params.signalEndpoint ?? params.signalEnvEndpoint) ?? params.endpoint, params.path);
+}
 function resolveSampleRate(value) {
 	if (typeof value !== "number" || !Number.isFinite(value)) return;
 	if (value < 0 || value > 1) return;
@@ -54023,6 +55054,14 @@ function formatError(err) {
 		return JSON.stringify(err);
 	} catch {
 		return String(err);
+	}
+}
+function errorCategory(err) {
+	try {
+		if (err instanceof Error && typeof err.name === "string" && err.name.trim()) return lowCardinalityAttr(err.name, "Error");
+		return lowCardinalityAttr(typeof err, "unknown");
+	} catch {
+		return "unknown";
 	}
 }
 function redactOtelAttributes(attributes) {
@@ -54038,8 +55077,45 @@ function lowCardinalityAttr(value, fallback = "unknown") {
 	const redacted = redactSensitiveText(value.trim());
 	return LOW_CARDINALITY_VALUE_RE.test(redacted) ? redacted : fallback;
 }
+function hasOtelSemconvOptIn(value, optIn) {
+	return value?.split(",").map((part) => part.trim()).includes(optIn) ?? false;
+}
+function emitLatestGenAiSemconv() {
+	return hasOtelSemconvOptIn(process.env[OTEL_SEMCONV_STABILITY_OPT_IN_ENV], GEN_AI_LATEST_EXPERIMENTAL_OPT_IN);
+}
 function genAiOperationName(api) {
-	return api === "completions" ? "text_completion" : "chat";
+	const normalized = api?.trim().toLowerCase();
+	if (!normalized) return "chat";
+	if (normalized === "completions" || normalized.endsWith("-completions")) return "text_completion";
+	if (normalized === "generate_content" || normalized.includes("generative-ai")) return "generate_content";
+	return "chat";
+}
+function positiveFiniteNumber(value) {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+function assignPositiveNumberAttr(attrs, key, value) {
+	const normalized = positiveFiniteNumber(value);
+	if (normalized !== void 0) attrs[key] = normalized;
+}
+function assignModelCallSizeTimingAttrs(attrs, evt) {
+	assignPositiveNumberAttr(attrs, "openclaw.model_call.request_bytes", evt.requestPayloadBytes);
+	assignPositiveNumberAttr(attrs, "openclaw.model_call.response_bytes", evt.responseStreamBytes);
+	assignPositiveNumberAttr(attrs, "openclaw.model_call.time_to_first_byte_ms", evt.timeToFirstByteMs);
+}
+function assignGenAiSpanIdentityAttrs(attrs, input) {
+	if (emitLatestGenAiSemconv()) attrs["gen_ai.provider.name"] = lowCardinalityAttr(input.provider);
+	else attrs["gen_ai.system"] = lowCardinalityAttr(input.provider);
+	if (input.model) attrs["gen_ai.request.model"] = lowCardinalityAttr(input.model);
+	attrs["gen_ai.operation.name"] = genAiOperationName(input.api);
+}
+function assignGenAiModelCallAttrs(attrs, evt) {
+	assignGenAiSpanIdentityAttrs(attrs, evt);
+}
+function addUpstreamRequestIdSpanEvent(span, upstreamRequestIdHash) {
+	if (!upstreamRequestIdHash) return;
+	const boundedHash = lowCardinalityAttr(upstreamRequestIdHash);
+	if (boundedHash === "unknown") return;
+	span.addEvent?.("openclaw.provider.request", { "openclaw.upstreamRequestIdHash": boundedHash });
 }
 function clampOtelLogText(value, maxChars) {
 	return value.length > maxChars ? `${value.slice(0, maxChars)}...(truncated)` : value;
@@ -54144,6 +55220,9 @@ function contextForTraceContext(traceContext) {
 		isRemote: true
 	});
 }
+function contextForTrustedTraceContext(evt, metadata) {
+	return metadata.trusted ? contextForTraceContext(evt.trace) : void 0;
+}
 function addTraceAttributes(attributes, traceContext) {
 	const normalized = normalizeTraceContext(traceContext);
 	if (!normalized) return;
@@ -54156,14 +55235,18 @@ function createDiagnosticsOtelService() {
 	let sdk = null;
 	let logProvider = null;
 	let unsubscribe = null;
+	let stopActiveTrustedSpans = null;
 	const stopStarted = async () => {
 		const currentUnsubscribe = unsubscribe;
 		const currentLogProvider = logProvider;
 		const currentSdk = sdk;
+		const currentStopActiveTrustedSpans = stopActiveTrustedSpans;
 		unsubscribe = null;
 		logProvider = null;
 		sdk = null;
+		stopActiveTrustedSpans = null;
 		currentUnsubscribe?.();
+		currentStopActiveTrustedSpans?.();
 		if (currentLogProvider) await currentLogProvider.shutdown().catch(() => void 0);
 		if (currentSdk) await currentSdk.shutdown().catch(() => void 0);
 	};
@@ -54174,26 +55257,65 @@ function createDiagnosticsOtelService() {
 			const cfg = ctx.config.diagnostics;
 			const otel = cfg?.otel;
 			if (!cfg?.enabled || !otel?.enabled) return;
+			const emitExporterEvent = (event) => {
+				try {
+					ctx.internalDiagnostics?.emit({
+						type: "telemetry.exporter",
+						...event
+					});
+				} catch {}
+			};
+			const emitForSignals = (signals, event) => {
+				for (const signal of signals) emitExporterEvent({
+					signal,
+					...event
+				});
+			};
+			const tracesEnabled = otel.traces !== false;
+			const metricsEnabled = otel.metrics !== false;
+			const logsEnabled = otel.logs === true;
+			const enabledSignals = [
+				...tracesEnabled ? ["traces"] : [],
+				...metricsEnabled ? ["metrics"] : [],
+				...logsEnabled ? ["logs"] : []
+			];
+			if (enabledSignals.length === 0) return;
 			const protocol = otel.protocol ?? process.env.OTEL_EXPORTER_OTLP_PROTOCOL ?? "http/protobuf";
 			if (protocol !== "http/protobuf") {
+				emitForSignals(enabledSignals, {
+					exporter: "diagnostics-otel",
+					status: "failure",
+					reason: "unsupported_protocol"
+				});
 				ctx.logger.warn(`diagnostics-otel: unsupported protocol ${protocol}`);
 				return;
 			}
-			const endpoint = normalizeEndpoint(otel.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+			const endpoint = normalizeEndpoint(otel.endpoint ?? process.env[OTEL_EXPORTER_OTLP_ENDPOINT_ENV]);
 			const headers = otel.headers ?? void 0;
 			const serviceName = otel.serviceName?.trim() || process.env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME;
 			const sampleRate = resolveSampleRate(otel.sampleRate);
 			const contentCapturePolicy = resolveContentCapturePolicy(otel.captureContent);
-			const tracesEnabled = otel.traces !== false;
-			const metricsEnabled = otel.metrics !== false;
-			const logsEnabled = otel.logs === true;
-			if (!tracesEnabled && !metricsEnabled && !logsEnabled) return;
 			const sdkPreloaded = hasPreloadedOtelSdk();
 			const resource = (0, import_src$3.resourceFromAttributes)({ [ATTR_SERVICE_NAME]: serviceName });
-			const logUrl = resolveOtelUrl(endpoint, "v1/logs");
+			const logUrl = resolveSignalOtelUrl({
+				signalEndpoint: otel.logsEndpoint,
+				signalEnvEndpoint: process.env[OTEL_EXPORTER_OTLP_LOGS_ENDPOINT_ENV],
+				endpoint,
+				path: "v1/logs"
+			});
 			if (!sdkPreloaded && (tracesEnabled || metricsEnabled)) {
-				const traceUrl = resolveOtelUrl(endpoint, "v1/traces");
-				const metricUrl = resolveOtelUrl(endpoint, "v1/metrics");
+				const traceUrl = resolveSignalOtelUrl({
+					signalEndpoint: otel.tracesEndpoint,
+					signalEnvEndpoint: process.env[OTEL_EXPORTER_OTLP_TRACES_ENDPOINT_ENV],
+					endpoint,
+					path: "v1/traces"
+				});
+				const metricUrl = resolveSignalOtelUrl({
+					signalEndpoint: otel.metricsEndpoint,
+					signalEnvEndpoint: process.env[OTEL_EXPORTER_OTLP_METRICS_ENDPOINT_ENV],
+					endpoint,
+					path: "v1/metrics"
+				});
 				const traceExporter = tracesEnabled ? new import_src$2.OTLPTraceExporter({
 					...traceUrl ? { url: traceUrl } : {},
 					...headers ? { headers } : {}
@@ -54215,6 +55337,12 @@ function createDiagnosticsOtelService() {
 				try {
 					sdk.start();
 				} catch (err) {
+					emitForSignals([...tracesEnabled ? ["traces"] : [], ...metricsEnabled ? ["metrics"] : []], {
+						exporter: "diagnostics-otel",
+						status: "failure",
+						reason: "start_failed",
+						errorCategory: errorCategory(err)
+					});
 					await stopStarted();
 					ctx.logger.error(`diagnostics-otel: failed to start SDK: ${formatError(err)}`);
 					throw err;
@@ -54230,9 +55358,30 @@ function createDiagnosticsOtelService() {
 			};
 			const meter = metrics.getMeter("openclaw");
 			const tracer = trace.getTracer("openclaw");
+			const activeTrustedSpans = /* @__PURE__ */ new Map();
+			const activeTrustedSpanAliases = /* @__PURE__ */ new Map();
+			const pendingTrustedRunFinalizers = /* @__PURE__ */ new Map();
+			stopActiveTrustedSpans = () => {
+				const stopAt = Date.now();
+				for (const handle of pendingTrustedRunFinalizers.values()) clearImmediate(handle);
+				pendingTrustedRunFinalizers.clear();
+				for (const span of new Set([...activeTrustedSpans.values(), ...activeTrustedSpanAliases.values()])) span.end(stopAt);
+				activeTrustedSpans.clear();
+				activeTrustedSpanAliases.clear();
+			};
 			const tokensCounter = meter.createCounter("openclaw.tokens", {
 				unit: "1",
 				description: "Token usage by type"
+			});
+			const genAiTokenUsageHistogram = meter.createHistogram("gen_ai.client.token.usage", {
+				unit: "{token}",
+				description: "Number of input and output tokens used by GenAI client operations",
+				advice: { explicitBucketBoundaries: GEN_AI_TOKEN_USAGE_BUCKETS }
+			});
+			const genAiOperationDurationHistogram = meter.createHistogram("gen_ai.client.operation.duration", {
+				unit: "s",
+				description: "GenAI client operation duration",
+				advice: { explicitBucketBoundaries: GEN_AI_OPERATION_DURATION_BUCKETS }
 			});
 			const costCounter = meter.createCounter("openclaw.cost.usd", {
 				unit: "1",
@@ -54241,6 +55390,10 @@ function createDiagnosticsOtelService() {
 			const durationHistogram = meter.createHistogram("openclaw.run.duration_ms", {
 				unit: "ms",
 				description: "Agent run duration"
+			});
+			const harnessDurationHistogram = meter.createHistogram("openclaw.harness.duration_ms", {
+				unit: "ms",
+				description: "Agent harness lifecycle duration"
 			});
 			const contextHistogram = meter.createHistogram("openclaw.context.tokens", {
 				unit: "1",
@@ -54269,6 +55422,14 @@ function createDiagnosticsOtelService() {
 			const messageDurationHistogram = meter.createHistogram("openclaw.message.duration_ms", {
 				unit: "ms",
 				description: "Message processing duration"
+			});
+			const messageDeliveryStartedCounter = meter.createCounter("openclaw.message.delivery.started", {
+				unit: "1",
+				description: "Outbound message delivery attempts started"
+			});
+			const messageDeliveryDurationHistogram = meter.createHistogram("openclaw.message.delivery.duration_ms", {
+				unit: "ms",
+				description: "Outbound message delivery duration"
 			});
 			const queueDepthHistogram = meter.createHistogram("openclaw.queue.depth", {
 				unit: "1",
@@ -54302,9 +55463,25 @@ function createDiagnosticsOtelService() {
 				unit: "1",
 				description: "Run attempts"
 			});
+			const toolLoopCounter = meter.createCounter("openclaw.tool.loop", {
+				unit: "1",
+				description: "Detected repetitive tool-call loop events"
+			});
 			const modelCallDurationHistogram = meter.createHistogram("openclaw.model_call.duration_ms", {
 				unit: "ms",
 				description: "Model call duration"
+			});
+			const modelCallRequestBytesHistogram = meter.createHistogram("openclaw.model_call.request_bytes", {
+				unit: "By",
+				description: "UTF-8 byte size of sanitized model request payloads"
+			});
+			const modelCallResponseBytesHistogram = meter.createHistogram("openclaw.model_call.response_bytes", {
+				unit: "By",
+				description: "UTF-8 byte size of streamed model response events"
+			});
+			const modelCallTimeToFirstByteHistogram = meter.createHistogram("openclaw.model_call.time_to_first_byte_ms", {
+				unit: "ms",
+				description: "Elapsed time before the first streamed model response event"
 			});
 			const toolExecutionDurationHistogram = meter.createHistogram("openclaw.tool.execution.duration_ms", {
 				unit: "ms",
@@ -54313,6 +55490,34 @@ function createDiagnosticsOtelService() {
 			const execProcessDurationHistogram = meter.createHistogram("openclaw.exec.duration_ms", {
 				unit: "ms",
 				description: "Exec process duration"
+			});
+			const memoryRssHistogram = meter.createHistogram("openclaw.memory.rss_bytes", {
+				unit: "By",
+				description: "Resident set size reported by diagnostic memory samples"
+			});
+			const memoryHeapUsedHistogram = meter.createHistogram("openclaw.memory.heap_used_bytes", {
+				unit: "By",
+				description: "Heap used bytes reported by diagnostic memory samples"
+			});
+			const memoryHeapTotalHistogram = meter.createHistogram("openclaw.memory.heap_total_bytes", {
+				unit: "By",
+				description: "Heap total bytes reported by diagnostic memory samples"
+			});
+			const memoryExternalHistogram = meter.createHistogram("openclaw.memory.external_bytes", {
+				unit: "By",
+				description: "External memory bytes reported by diagnostic memory samples"
+			});
+			const memoryArrayBuffersHistogram = meter.createHistogram("openclaw.memory.array_buffers_bytes", {
+				unit: "By",
+				description: "ArrayBuffer bytes reported by diagnostic memory samples"
+			});
+			const memoryPressureCounter = meter.createCounter("openclaw.memory.pressure", {
+				unit: "1",
+				description: "Diagnostic memory pressure events"
+			});
+			const telemetryExporterCounter = meter.createCounter("openclaw.telemetry.exporter.events", {
+				unit: "1",
+				description: "Diagnostic telemetry exporter lifecycle and failure events"
 			});
 			let recordLogRecord;
 			if (logsEnabled) {
@@ -54325,7 +55530,7 @@ function createDiagnosticsOtelService() {
 					}), typeof otel.flushIntervalMs === "number" ? { scheduledDelayMillis: Math.max(1e3, otel.flushIntervalMs) } : {})]
 				});
 				const otelLogger = logProvider.getLogger("openclaw");
-				recordLogRecord = (evt) => {
+				recordLogRecord = (evt, metadata) => {
 					try {
 						const logLevelName = evt.level || "INFO";
 						const severityNumber = logSeverityMap[logLevelName] ?? 9;
@@ -54336,7 +55541,7 @@ function createDiagnosticsOtelService() {
 						assignOtelLogEventAttributes(attributes, evt.attributes);
 						if (evt.code?.line) assignOtelLogAttribute(attributes, "code.lineno", evt.code.line);
 						if (evt.code?.functionName) assignOtelLogAttribute(attributes, "code.function", evt.code.functionName);
-						addTraceAttributes(attributes, evt.trace);
+						if (metadata.trusted) addTraceAttributes(attributes, evt.trace);
 						const logRecord = {
 							body: normalizeOtelLogString(evt.message || "log", MAX_OTEL_LOG_BODY_CHARS),
 							severityText: logLevelName,
@@ -54344,10 +55549,17 @@ function createDiagnosticsOtelService() {
 							attributes: redactOtelAttributes(attributes),
 							timestamp: evt.ts
 						};
-						const logContext = contextForTraceContext(evt.trace);
+						const logContext = contextForTrustedTraceContext(evt, metadata);
 						if (logContext) logRecord.context = logContext;
 						otelLogger.emit(logRecord);
 					} catch (err) {
+						emitExporterEvent({
+							exporter: "diagnostics-otel",
+							signal: "logs",
+							status: "failure",
+							reason: "emit_failed",
+							errorCategory: errorCategory(err)
+						});
 						const now = Date.now();
 						if (now - logRecordExportFailureLastReportedAt >= LOG_RECORD_EXPORT_FAILURE_REPORT_INTERVAL_MS) {
 							logRecordExportFailureLastReportedAt = now;
@@ -54358,12 +55570,46 @@ function createDiagnosticsOtelService() {
 			}
 			const spanWithDuration = (name, attributes, durationMs, options = {}) => {
 				const endTimeMs = options.endTimeMs ?? Date.now();
-				const startTime = typeof durationMs === "number" ? endTimeMs - Math.max(0, durationMs) : void 0;
+				const startTime = typeof options.startTimeMs === "number" ? options.startTimeMs : typeof durationMs === "number" && durationMs >= 0 ? endTimeMs - durationMs : void 0;
 				const parentContext = "parentContext" in options ? options.parentContext ?? void 0 : void 0;
 				return tracer.startSpan(name, {
 					attributes: redactOtelAttributes(attributes),
 					...startTime !== void 0 ? { startTime } : {}
 				}, parentContext);
+			};
+			const trustedTraceContext = (evt, metadata) => metadata.trusted ? normalizeTraceContext(evt.trace) : void 0;
+			const activeTrustedParentContext = (evt, metadata) => {
+				const parentSpanId = trustedTraceContext(evt, metadata)?.parentSpanId;
+				if (!parentSpanId) return;
+				const activeParentSpan = activeTrustedSpans.get(parentSpanId) ?? activeTrustedSpanAliases.get(parentSpanId);
+				if (!activeParentSpan) return;
+				return trace.setSpanContext(context.active(), activeParentSpan.spanContext());
+			};
+			const trackTrustedSpan = (evt, metadata, span) => {
+				const spanId = trustedTraceContext(evt, metadata)?.spanId;
+				if (spanId) activeTrustedSpans.set(spanId, span);
+				return span;
+			};
+			const takeTrackedTrustedSpan = (evt, metadata) => {
+				const spanId = trustedTraceContext(evt, metadata)?.spanId;
+				if (!spanId) return;
+				const span = activeTrustedSpans.get(spanId);
+				if (span) activeTrustedSpans.delete(spanId);
+				return span;
+			};
+			const setSpanAttrs = (span, attributes) => {
+				span.setAttributes?.(redactOtelAttributes(attributes));
+			};
+			const scheduleTrackedRunSpanFinalize = (spanId, parentSpanId, span, endTimeMs) => {
+				const existingHandle = pendingTrustedRunFinalizers.get(spanId);
+				if (existingHandle) clearImmediate(existingHandle);
+				const handle = setImmediate(() => {
+					pendingTrustedRunFinalizers.delete(spanId);
+					if (activeTrustedSpans.get(spanId) === span) activeTrustedSpans.delete(spanId);
+					if (parentSpanId && activeTrustedSpanAliases.get(parentSpanId) === span) activeTrustedSpanAliases.delete(parentSpanId);
+					span.end(endTimeMs);
+				});
+				pendingTrustedRunFinalizers.set(spanId, handle);
 			};
 			const addRunAttrs = (spanAttrs, evt) => {
 				if (evt.provider) spanAttrs["openclaw.provider"] = evt.provider;
@@ -54378,21 +55624,39 @@ function createDiagnosticsOtelService() {
 					..."length" in summary ? { "openclaw.tool.params.length": summary.length } : {}
 				};
 			};
-			const recordModelUsage = (evt) => {
+			const recordModelUsage = (evt, metadata) => {
 				const attrs = {
 					"openclaw.channel": evt.channel ?? "unknown",
+					"openclaw.agent": lowCardinalityAttr(evt.agentId),
 					"openclaw.provider": evt.provider ?? "unknown",
 					"openclaw.model": evt.model ?? "unknown"
 				};
+				const genAiAttrs = {
+					"gen_ai.operation.name": "chat",
+					"gen_ai.provider.name": lowCardinalityAttr(evt.provider),
+					"gen_ai.request.model": lowCardinalityAttr(evt.model)
+				};
 				const usage = evt.usage;
-				if (usage.input) tokensCounter.add(usage.input, {
-					...attrs,
-					"openclaw.token": "input"
-				});
-				if (usage.output) tokensCounter.add(usage.output, {
-					...attrs,
-					"openclaw.token": "output"
-				});
+				if (usage.input) {
+					tokensCounter.add(usage.input, {
+						...attrs,
+						"openclaw.token": "input"
+					});
+					genAiTokenUsageHistogram.record(usage.input, {
+						...genAiAttrs,
+						"gen_ai.token.type": "input"
+					});
+				}
+				if (usage.output) {
+					tokensCounter.add(usage.output, {
+						...attrs,
+						"openclaw.token": "output"
+					});
+					genAiTokenUsageHistogram.record(usage.output, {
+						...genAiAttrs,
+						"gen_ai.token.type": "output"
+					});
+				}
 				if (usage.cacheRead) tokensCounter.add(usage.cacheRead, {
 					...attrs,
 					"openclaw.token": "cache_read"
@@ -54420,14 +55684,24 @@ function createDiagnosticsOtelService() {
 					"openclaw.context": "used"
 				});
 				if (!tracesEnabled) return;
-				spanWithDuration("openclaw.model.usage", {
+				const genAiInputTokens = usage.promptTokens ?? (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+				const spanAttrs = {
 					...attrs,
 					"openclaw.tokens.input": usage.input ?? 0,
 					"openclaw.tokens.output": usage.output ?? 0,
 					"openclaw.tokens.cache_read": usage.cacheRead ?? 0,
 					"openclaw.tokens.cache_write": usage.cacheWrite ?? 0,
 					"openclaw.tokens.total": usage.total ?? 0
-				}, evt.durationMs).end();
+				};
+				assignGenAiSpanIdentityAttrs(spanAttrs, evt);
+				assignPositiveNumberAttr(spanAttrs, "gen_ai.usage.input_tokens", genAiInputTokens);
+				assignPositiveNumberAttr(spanAttrs, "gen_ai.usage.output_tokens", usage.output);
+				assignPositiveNumberAttr(spanAttrs, "gen_ai.usage.cache_read.input_tokens", usage.cacheRead);
+				assignPositiveNumberAttr(spanAttrs, "gen_ai.usage.cache_creation.input_tokens", usage.cacheWrite);
+				spanWithDuration("openclaw.model.usage", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				}).end(evt.ts);
 			};
 			const recordWebhookReceived = (evt) => {
 				const attrs = {
@@ -54494,6 +55768,51 @@ function createDiagnosticsOtelService() {
 				});
 				span.end();
 			};
+			const messageDeliveryAttrs = (evt) => ({
+				"openclaw.channel": evt.channel,
+				"openclaw.delivery.kind": evt.deliveryKind
+			});
+			const recordMessageDeliveryStarted = (evt) => {
+				messageDeliveryStartedCounter.add(1, messageDeliveryAttrs(evt));
+			};
+			const recordMessageDeliveryCompleted = (evt) => {
+				const attrs = {
+					...messageDeliveryAttrs(evt),
+					"openclaw.outcome": "completed"
+				};
+				messageDeliveryDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				spanWithDuration("openclaw.message.delivery", {
+					...attrs,
+					"openclaw.delivery.result_count": evt.resultCount
+				}, evt.durationMs, { endTimeMs: evt.ts }).end(evt.ts);
+			};
+			const recordMessageDeliveryError = (evt) => {
+				const attrs = {
+					...messageDeliveryAttrs(evt),
+					"openclaw.outcome": "error",
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other")
+				};
+				messageDeliveryDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const span = spanWithDuration("openclaw.message.delivery", attrs, evt.durationMs, { endTimeMs: evt.ts });
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: redactSensitiveText(evt.errorCategory)
+				});
+				span.end(evt.ts);
+			};
+			const recordRunStarted = (evt, metadata) => {
+				if (!tracesEnabled || !metadata.trusted) return;
+				const spanAttrs = {};
+				addRunAttrs(spanAttrs, evt);
+				const span = trackTrustedSpan(evt, metadata, spanWithDuration("openclaw.run", spanAttrs, void 0, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					startTimeMs: evt.ts
+				}));
+				const parentSpanId = trustedTraceContext(evt, metadata)?.parentSpanId;
+				if (parentSpanId && !activeTrustedSpans.has(parentSpanId)) activeTrustedSpanAliases.set(parentSpanId, span);
+			};
 			const recordLaneEnqueue = (evt) => {
 				const attrs = { "openclaw.lane": evt.lane };
 				laneEnqueueCounter.add(1, attrs);
@@ -54528,7 +55847,61 @@ function createDiagnosticsOtelService() {
 			const recordRunAttempt = (evt) => {
 				runAttemptCounter.add(1, { "openclaw.attempt": evt.attempt });
 			};
-			const recordRunCompleted = (evt) => {
+			const toolLoopAttrs = (evt) => ({
+				"openclaw.toolName": lowCardinalityAttr(evt.toolName, "tool"),
+				"openclaw.loop.level": evt.level,
+				"openclaw.loop.action": evt.action,
+				"openclaw.loop.detector": evt.detector,
+				"openclaw.loop.count": evt.count,
+				...evt.pairedToolName ? { "openclaw.loop.paired_tool": lowCardinalityAttr(evt.pairedToolName, "tool") } : {}
+			});
+			const recordToolLoop = (evt) => {
+				const attrs = toolLoopAttrs(evt);
+				toolLoopCounter.add(1, attrs);
+				if (!tracesEnabled) return;
+				const span = spanWithDuration("openclaw.tool.loop", attrs, 0, { endTimeMs: evt.ts });
+				if (evt.level === "critical" || evt.action === "block") span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: `${evt.detector}:${evt.action}`
+				});
+				span.end(evt.ts);
+			};
+			const recordMemoryUsageMetrics = (evt, attrs = {}) => {
+				memoryRssHistogram.record(evt.memory.rssBytes, attrs);
+				memoryHeapUsedHistogram.record(evt.memory.heapUsedBytes, attrs);
+				memoryHeapTotalHistogram.record(evt.memory.heapTotalBytes, attrs);
+				memoryExternalHistogram.record(evt.memory.externalBytes, attrs);
+				memoryArrayBuffersHistogram.record(evt.memory.arrayBuffersBytes, attrs);
+			};
+			const recordMemorySample = (evt) => {
+				recordMemoryUsageMetrics(evt);
+			};
+			const recordMemoryPressure = (evt) => {
+				const attrs = {
+					"openclaw.memory.level": evt.level,
+					"openclaw.memory.reason": evt.reason
+				};
+				memoryPressureCounter.add(1, attrs);
+				recordMemoryUsageMetrics(evt, attrs);
+				if (!tracesEnabled) return;
+				const span = spanWithDuration("openclaw.memory.pressure", {
+					...attrs,
+					"openclaw.memory.rss_bytes": evt.memory.rssBytes,
+					"openclaw.memory.heap_used_bytes": evt.memory.heapUsedBytes,
+					"openclaw.memory.heap_total_bytes": evt.memory.heapTotalBytes,
+					"openclaw.memory.external_bytes": evt.memory.externalBytes,
+					"openclaw.memory.array_buffers_bytes": evt.memory.arrayBuffersBytes,
+					...evt.thresholdBytes !== void 0 ? { "openclaw.memory.threshold_bytes": evt.thresholdBytes } : {},
+					...evt.rssGrowthBytes !== void 0 ? { "openclaw.memory.rss_growth_bytes": evt.rssGrowthBytes } : {},
+					...evt.windowMs !== void 0 ? { "openclaw.memory.window_ms": evt.windowMs } : {}
+				}, 0, { endTimeMs: evt.ts });
+				if (evt.level === "critical") span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: evt.reason
+				});
+				span.end(evt.ts);
+			};
+			const recordRunCompleted = (evt, metadata) => {
 				const attrs = {
 					"openclaw.outcome": evt.outcome,
 					"openclaw.provider": evt.provider ?? "unknown",
@@ -54540,12 +55913,103 @@ function createDiagnosticsOtelService() {
 				const spanAttrs = { "openclaw.outcome": evt.outcome };
 				addRunAttrs(spanAttrs, evt);
 				if (evt.errorCategory) spanAttrs["openclaw.errorCategory"] = lowCardinalityAttr(evt.errorCategory, "other");
-				const span = spanWithDuration("openclaw.run", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				const trustedTrace = trustedTraceContext(evt, metadata);
+				const trackedSpan = trustedTrace?.spanId ? activeTrustedSpans.get(trustedTrace.spanId) : void 0;
+				const span = trackedSpan ?? spanWithDuration("openclaw.run", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
 				if (evt.outcome === "error") span.setStatus({
 					code: SpanStatusCode.ERROR,
 					...evt.errorCategory ? { message: redactSensitiveText(evt.errorCategory) } : {}
 				});
+				if (trackedSpan && trustedTrace?.spanId) {
+					scheduleTrackedRunSpanFinalize(trustedTrace.spanId, trustedTrace.parentSpanId, trackedSpan, evt.ts);
+					return;
+				}
 				span.end(evt.ts);
+			};
+			const harnessRunMetricAttrs = (evt) => ({
+				"openclaw.harness.id": lowCardinalityAttr(evt.harnessId, "unknown"),
+				"openclaw.harness.plugin": lowCardinalityAttr(evt.pluginId),
+				...evt.type === "harness.run.started" ? {} : { "openclaw.outcome": evt.type === "harness.run.error" ? "error" : evt.outcome },
+				"openclaw.provider": lowCardinalityAttr(evt.provider, "unknown"),
+				"openclaw.model": lowCardinalityAttr(evt.model, "unknown"),
+				...evt.channel ? { "openclaw.channel": lowCardinalityAttr(evt.channel) } : {}
+			});
+			const recordHarnessRunStarted = (evt, metadata) => {
+				if (!tracesEnabled || !metadata.trusted) return;
+				trackTrustedSpan(evt, metadata, spanWithDuration("openclaw.harness.run", harnessRunMetricAttrs(evt), void 0, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					startTimeMs: evt.ts
+				}));
+			};
+			const recordHarnessRunCompleted = (evt, metadata) => {
+				harnessDurationHistogram.record(evt.durationMs, harnessRunMetricAttrs(evt));
+				if (!tracesEnabled) return;
+				const spanAttrs = { ...harnessRunMetricAttrs(evt) };
+				if (evt.resultClassification) spanAttrs["openclaw.harness.result_classification"] = lowCardinalityAttr(evt.resultClassification);
+				if (typeof evt.yieldDetected === "boolean") spanAttrs["openclaw.harness.yield_detected"] = evt.yieldDetected;
+				if (evt.itemLifecycle) {
+					spanAttrs["openclaw.harness.items.started"] = evt.itemLifecycle.startedCount;
+					spanAttrs["openclaw.harness.items.completed"] = evt.itemLifecycle.completedCount;
+					spanAttrs["openclaw.harness.items.active"] = evt.itemLifecycle.activeCount;
+				}
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.harness.run", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
+				if (evt.outcome === "error") span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: "error"
+				});
+				span.end(evt.ts);
+			};
+			const recordHarnessRunError = (evt, metadata) => {
+				const errorType = lowCardinalityAttr(evt.errorCategory, "other");
+				const attrs = {
+					...harnessRunMetricAttrs(evt),
+					"openclaw.harness.phase": evt.phase,
+					"openclaw.errorCategory": errorType
+				};
+				harnessDurationHistogram.record(evt.durationMs, attrs);
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					...attrs,
+					"error.type": errorType,
+					...evt.cleanupFailed ? { "openclaw.harness.cleanup_failed": true } : {}
+				};
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.harness.run", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
+				span.setStatus({
+					code: SpanStatusCode.ERROR,
+					message: errorType
+				});
+				span.end(evt.ts);
+			};
+			const recordContextAssembled = (evt, metadata) => {
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.context.message_count": evt.messageCount,
+					"openclaw.context.history_text_chars": evt.historyTextChars,
+					"openclaw.context.history_image_blocks": evt.historyImageBlocks,
+					"openclaw.context.max_message_text_chars": evt.maxMessageTextChars,
+					"openclaw.context.system_prompt_chars": evt.systemPromptChars,
+					"openclaw.context.prompt_chars": evt.promptChars,
+					"openclaw.context.prompt_images": evt.promptImages
+				};
+				addRunAttrs(spanAttrs, evt);
+				if (evt.contextTokenBudget !== void 0) spanAttrs["openclaw.context.token_budget"] = evt.contextTokenBudget;
+				if (evt.reserveTokens !== void 0) spanAttrs["openclaw.context.reserve_tokens"] = evt.reserveTokens;
+				spanWithDuration("openclaw.context.assembled", spanAttrs, 0, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				}).end(evt.ts);
 			};
 			const modelCallMetricAttrs = (evt) => ({
 				"openclaw.provider": evt.provider,
@@ -54553,62 +56017,122 @@ function createDiagnosticsOtelService() {
 				"openclaw.api": lowCardinalityAttr(evt.api),
 				"openclaw.transport": lowCardinalityAttr(evt.transport)
 			});
-			const recordModelCallCompleted = (evt) => {
-				modelCallDurationHistogram.record(evt.durationMs, modelCallMetricAttrs(evt));
-				if (!tracesEnabled) return;
-				const spanAttrs = {
-					"openclaw.provider": evt.provider,
-					"openclaw.model": evt.model,
-					"gen_ai.system": evt.provider,
-					"gen_ai.request.model": evt.model,
-					"gen_ai.operation.name": genAiOperationName(evt.api)
-				};
-				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
-				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
-				assignOtelModelContentAttributes(spanAttrs, evt, contentCapturePolicy);
-				spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, { endTimeMs: evt.ts }).end(evt.ts);
+			const genAiModelCallMetricAttrs = (evt, errorType) => ({
+				"gen_ai.operation.name": genAiOperationName(evt.api),
+				"gen_ai.provider.name": lowCardinalityAttr(evt.provider),
+				"gen_ai.request.model": lowCardinalityAttr(evt.model),
+				...errorType ? { "error.type": errorType } : {}
+			});
+			const recordModelCallSizeTimingMetrics = (evt, attrs) => {
+				const requestPayloadBytes = positiveFiniteNumber(evt.requestPayloadBytes);
+				if (requestPayloadBytes !== void 0) modelCallRequestBytesHistogram.record(requestPayloadBytes, attrs);
+				const responseStreamBytes = positiveFiniteNumber(evt.responseStreamBytes);
+				if (responseStreamBytes !== void 0) modelCallResponseBytesHistogram.record(responseStreamBytes, attrs);
+				const timeToFirstByteMs = positiveFiniteNumber(evt.timeToFirstByteMs);
+				if (timeToFirstByteMs !== void 0) modelCallTimeToFirstByteHistogram.record(timeToFirstByteMs, attrs);
 			};
-			const recordModelCallError = (evt) => {
-				modelCallDurationHistogram.record(evt.durationMs, {
-					...modelCallMetricAttrs(evt),
-					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other")
+			const recordModelCallStarted = (evt, metadata) => {
+				if (!tracesEnabled || !metadata.trusted) return;
+				const spanAttrs = {
+					"openclaw.provider": evt.provider,
+					"openclaw.model": evt.model
+				};
+				assignGenAiModelCallAttrs(spanAttrs, evt);
+				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
+				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
+				trackTrustedSpan(evt, metadata, spanWithDuration("openclaw.model.call", spanAttrs, void 0, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					startTimeMs: evt.ts
+				}));
+			};
+			const recordModelCallCompleted = (evt, metadata) => {
+				const metricAttrs = modelCallMetricAttrs(evt);
+				modelCallDurationHistogram.record(evt.durationMs, metricAttrs);
+				recordModelCallSizeTimingMetrics(evt, metricAttrs);
+				genAiOperationDurationHistogram.record(evt.durationMs / 1e3, genAiModelCallMetricAttrs(evt));
+				if (!tracesEnabled) return;
+				const spanAttrs = {
+					"openclaw.provider": evt.provider,
+					"openclaw.model": evt.model
+				};
+				assignGenAiModelCallAttrs(spanAttrs, evt);
+				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
+				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
+				assignModelCallSizeTimingAttrs(spanAttrs, evt);
+				assignOtelModelContentAttributes(spanAttrs, evt, contentCapturePolicy);
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
 				});
+				setSpanAttrs(span, spanAttrs);
+				addUpstreamRequestIdSpanEvent(span, evt.upstreamRequestIdHash);
+				span.end(evt.ts);
+			};
+			const recordModelCallError = (evt, metadata) => {
+				const errorType = lowCardinalityAttr(evt.errorCategory, "other");
+				const metricAttrs = {
+					...modelCallMetricAttrs(evt),
+					"openclaw.errorCategory": errorType,
+					...evt.failureKind ? { "openclaw.failureKind": lowCardinalityAttr(evt.failureKind, "other") } : {}
+				};
+				modelCallDurationHistogram.record(evt.durationMs, metricAttrs);
+				recordModelCallSizeTimingMetrics(evt, metricAttrs);
+				genAiOperationDurationHistogram.record(evt.durationMs / 1e3, genAiModelCallMetricAttrs(evt, errorType));
 				if (!tracesEnabled) return;
 				const spanAttrs = {
 					"openclaw.provider": evt.provider,
 					"openclaw.model": evt.model,
-					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
-					"gen_ai.system": evt.provider,
-					"gen_ai.request.model": evt.model,
-					"gen_ai.operation.name": genAiOperationName(evt.api)
+					"openclaw.errorCategory": errorType,
+					"error.type": errorType
 				};
+				if (evt.failureKind) spanAttrs["openclaw.failureKind"] = lowCardinalityAttr(evt.failureKind, "other");
+				assignGenAiModelCallAttrs(spanAttrs, evt);
 				if (evt.api) spanAttrs["openclaw.api"] = evt.api;
 				if (evt.transport) spanAttrs["openclaw.transport"] = evt.transport;
+				assignModelCallSizeTimingAttrs(spanAttrs, evt);
 				assignOtelModelContentAttributes(spanAttrs, evt, contentCapturePolicy);
-				const span = spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.model.call", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
+				addUpstreamRequestIdSpanEvent(span, evt.upstreamRequestIdHash);
 				span.setStatus({
 					code: SpanStatusCode.ERROR,
 					message: redactSensitiveText(evt.errorCategory)
 				});
 				span.end(evt.ts);
 			};
-			const recordToolExecutionCompleted = (evt) => {
+			const toolExecutionBaseAttrs = (evt) => ({
+				"openclaw.toolName": evt.toolName,
+				"gen_ai.tool.name": evt.toolName,
+				...paramsSummaryAttrs(evt.paramsSummary)
+			});
+			const recordToolExecutionStarted = (evt, metadata) => {
+				if (!tracesEnabled || !metadata.trusted) return;
+				trackTrustedSpan(evt, metadata, spanWithDuration("openclaw.tool.execution", toolExecutionBaseAttrs(evt), void 0, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					startTimeMs: evt.ts
+				}));
+			};
+			const recordToolExecutionCompleted = (evt, metadata) => {
 				const attrs = {
 					"openclaw.toolName": evt.toolName,
 					...paramsSummaryAttrs(evt.paramsSummary)
 				};
 				toolExecutionDurationHistogram.record(evt.durationMs, attrs);
 				if (!tracesEnabled) return;
-				const spanAttrs = {
-					"openclaw.toolName": evt.toolName,
-					"gen_ai.tool.name": evt.toolName,
-					...paramsSummaryAttrs(evt.paramsSummary)
-				};
+				const spanAttrs = { ...toolExecutionBaseAttrs(evt) };
 				addRunAttrs(spanAttrs, evt);
 				assignOtelToolContentAttributes(spanAttrs, evt, contentCapturePolicy);
-				spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, { endTimeMs: evt.ts }).end(evt.ts);
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
+				span.end(evt.ts);
 			};
-			const recordToolExecutionError = (evt) => {
+			const recordToolExecutionError = (evt, metadata) => {
 				const attrs = {
 					"openclaw.toolName": evt.toolName,
 					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
@@ -54617,15 +56141,17 @@ function createDiagnosticsOtelService() {
 				toolExecutionDurationHistogram.record(evt.durationMs, attrs);
 				if (!tracesEnabled) return;
 				const spanAttrs = {
-					"openclaw.toolName": evt.toolName,
-					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other"),
-					"gen_ai.tool.name": evt.toolName,
-					...paramsSummaryAttrs(evt.paramsSummary)
+					...toolExecutionBaseAttrs(evt),
+					"openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other")
 				};
 				addRunAttrs(spanAttrs, evt);
 				if (evt.errorCode) spanAttrs["openclaw.errorCode"] = lowCardinalityAttr(evt.errorCode, "other");
 				assignOtelToolContentAttributes(spanAttrs, evt, contentCapturePolicy);
-				const span = spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, { endTimeMs: evt.ts });
+				const span = takeTrackedTrustedSpan(evt, metadata) ?? spanWithDuration("openclaw.tool.execution", spanAttrs, evt.durationMs, {
+					parentContext: activeTrustedParentContext(evt, metadata),
+					endTimeMs: evt.ts
+				});
+				setSpanAttrs(span, spanAttrs);
 				span.setStatus({
 					code: SpanStatusCode.ERROR,
 					message: redactSensitiveText(evt.errorCategory)
@@ -54658,11 +56184,26 @@ function createDiagnosticsOtelService() {
 			const recordHeartbeat = (evt) => {
 				queueDepthHistogram.record(evt.queued, { "openclaw.channel": "heartbeat" });
 			};
-			unsubscribe = onInternalDiagnosticEvent((evt) => {
+			const recordTelemetryExporter = (evt, metadata) => {
+				if (!metadata.trusted) return;
+				telemetryExporterCounter.add(1, {
+					"openclaw.exporter": lowCardinalityAttr(evt.exporter, "unknown"),
+					"openclaw.signal": evt.signal,
+					"openclaw.status": evt.status,
+					...evt.reason ? { "openclaw.reason": evt.reason } : {},
+					...evt.errorCategory ? { "openclaw.errorCategory": lowCardinalityAttr(evt.errorCategory, "other") } : {}
+				});
+			};
+			const subscribe = ctx.internalDiagnostics?.onEvent;
+			if (!subscribe) {
+				ctx.logger.error("diagnostics-otel: internal diagnostics capability unavailable");
+				return;
+			}
+			unsubscribe = subscribe((evt, metadata) => {
 				try {
 					switch (evt.type) {
 						case "model.usage":
-							recordModelUsage(evt);
+							recordModelUsage(evt, metadata);
 							return;
 						case "webhook.received":
 							recordWebhookReceived(evt);
@@ -54678,6 +56219,15 @@ function createDiagnosticsOtelService() {
 							return;
 						case "message.processed":
 							recordMessageProcessed(evt);
+							return;
+						case "message.delivery.started":
+							recordMessageDeliveryStarted(evt);
+							return;
+						case "message.delivery.completed":
+							recordMessageDeliveryCompleted(evt);
+							return;
+						case "message.delivery.error":
+							recordMessageDeliveryError(evt);
 							return;
 						case "queue.lane.enqueue":
 							recordLaneEnqueue(evt);
@@ -54697,38 +56247,70 @@ function createDiagnosticsOtelService() {
 						case "diagnostic.heartbeat":
 							recordHeartbeat(evt);
 							return;
+						case "run.started":
+							recordRunStarted(evt, metadata);
+							return;
 						case "run.completed":
-							recordRunCompleted(evt);
+							recordRunCompleted(evt, metadata);
+							return;
+						case "harness.run.started":
+							recordHarnessRunStarted(evt, metadata);
+							return;
+						case "harness.run.completed":
+							recordHarnessRunCompleted(evt, metadata);
+							return;
+						case "harness.run.error":
+							recordHarnessRunError(evt, metadata);
+							return;
+						case "context.assembled":
+							recordContextAssembled(evt, metadata);
+							return;
+						case "model.call.started":
+							recordModelCallStarted(evt, metadata);
 							return;
 						case "model.call.completed":
-							recordModelCallCompleted(evt);
+							recordModelCallCompleted(evt, metadata);
 							return;
 						case "model.call.error":
-							recordModelCallError(evt);
+							recordModelCallError(evt, metadata);
+							return;
+						case "tool.execution.started":
+							recordToolExecutionStarted(evt, metadata);
 							return;
 						case "tool.execution.completed":
-							recordToolExecutionCompleted(evt);
+							recordToolExecutionCompleted(evt, metadata);
 							return;
 						case "tool.execution.error":
-							recordToolExecutionError(evt);
+							recordToolExecutionError(evt, metadata);
 							return;
 						case "exec.process.completed":
 							recordExecProcessCompleted(evt);
 							return;
 						case "log.record":
-							recordLogRecord?.(evt);
+							recordLogRecord?.(evt, metadata);
 							return;
 						case "tool.loop":
-						case "tool.execution.started":
-						case "run.started":
-						case "model.call.started":
+							recordToolLoop(evt);
+							return;
 						case "diagnostic.memory.sample":
+							recordMemorySample(evt);
+							return;
 						case "diagnostic.memory.pressure":
+							recordMemoryPressure(evt);
+							return;
+						case "telemetry.exporter":
+							recordTelemetryExporter(evt, metadata);
+							return;
 						case "payload.large": return;
 					}
 				} catch (err) {
 					ctx.logger.error(`diagnostics-otel: event handler failed (${evt.type}): ${formatError(err)}`);
 				}
+			});
+			emitForSignals(enabledSignals, {
+				exporter: "diagnostics-otel",
+				status: "started",
+				reason: "configured"
 			});
 			if (logsEnabled) ctx.logger.info("diagnostics-otel: logs exporter enabled (OTLP/Protobuf)");
 		},

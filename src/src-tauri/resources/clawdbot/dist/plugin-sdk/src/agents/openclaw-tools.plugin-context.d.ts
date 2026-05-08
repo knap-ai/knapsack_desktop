@@ -23,10 +23,12 @@ export declare function resolveOpenClawPluginToolInputs(params: {
     options?: OpenClawPluginToolOptions;
     resolvedConfig?: OpenClawConfig;
     runtimeConfig?: OpenClawConfig;
+    getRuntimeConfig?: () => OpenClawConfig | undefined;
 }): {
     context: {
         config: OpenClawConfig | undefined;
         runtimeConfig: OpenClawConfig | undefined;
+        getRuntimeConfig: (() => OpenClawConfig | undefined) | undefined;
         fsPolicy: ToolFsPolicy | undefined;
         workspaceDir: string;
         agentDir: string | undefined;

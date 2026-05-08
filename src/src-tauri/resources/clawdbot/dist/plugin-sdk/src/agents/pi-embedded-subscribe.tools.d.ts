@@ -8,7 +8,7 @@ export declare function filterToolResultMediaUrls(toolName: string | undefined, 
  *
  * Strategy (first match wins):
  * 1. Read structured `details.media` attachments from tool details.
- * 2. Parse legacy `MEDIA:` tokens from text content blocks.
+ * 2. Parse `MEDIA:` directive tokens from text content blocks.
  * 3. Fall back to `details.path` when image content exists (legacy imageResult).
  *
  * Returns an empty array when no media is found (e.g. Pi SDK `read` tool

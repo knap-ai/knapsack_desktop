@@ -3,10 +3,10 @@ import { a as resolveMatrixDefaultOrOnlyAccountId, i as resolveMatrixChannelConf
 import { n as listMatrixEnvAccountIds, r as resolveMatrixEnvAccountToken, t as getMatrixScopedEnvVarNames } from "./env-vars-KF01E9CM.js";
 import { n as setMatrixRuntime } from "./runtime-CvAfSP12.js";
 import { a as resolveMatrixCredentialsPath, c as resolveMatrixLegacyFlatStoreRoot, i as resolveMatrixCredentialsFilename, l as sanitizeMatrixPathSegment, n as resolveMatrixAccountStorageRoot, o as resolveMatrixHomeserverKey, r as resolveMatrixCredentialsDir, s as resolveMatrixLegacyFlatStoragePaths, t as hashMatrixAccessToken } from "./storage-paths-CR-Jr5Jc.js";
-import { i as isMatrixSdkAvailable, r as ensureMatrixSdkInstalled } from "./deps-BMnYy1T3.js";
+import { i as isMatrixSdkAvailable, r as ensureMatrixSdkInstalled } from "./deps-Dp9cpROI.js";
 import { assertHttpUrlTargetsPrivateNetwork, closeDispatcher, createPinnedDispatcher, resolvePinnedHostnameWithPolicy, ssrfPolicyFromAllowPrivateNetwork, ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "openclaw/plugin-sdk/ssrf-runtime";
 import { writeJsonFileAtomically } from "openclaw/plugin-sdk/json-store";
-import { formatZonedTimestamp } from "openclaw/plugin-sdk/matrix-runtime-shared";
+import { formatZonedTimestamp } from "openclaw/plugin-sdk/core";
 //#region extensions/matrix/runtime-api.ts
 function chunkTextForOutbound(text, limit) {
 	const chunks = [];

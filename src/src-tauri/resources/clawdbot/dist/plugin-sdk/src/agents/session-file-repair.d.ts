@@ -1,6 +1,9 @@
 type RepairReport = {
     repaired: boolean;
     droppedLines: number;
+    rewrittenAssistantMessages?: number;
+    droppedBlankUserMessages?: number;
+    rewrittenUserMessages?: number;
     backupPath?: string;
     reason?: string;
 };

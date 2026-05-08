@@ -23,6 +23,21 @@ function createGoogleProvider() {
 		}]
 	};
 }
+function createGoogleVertexProvider() {
+	return {
+		id: "google-vertex",
+		label: "Google Vertex AI",
+		docsPath: "/providers/models",
+		envVars: [
+			"GOOGLE_CLOUD_API_KEY",
+			"GOOGLE_CLOUD_PROJECT",
+			"GCLOUD_PROJECT",
+			"GOOGLE_CLOUD_LOCATION",
+			"GOOGLE_APPLICATION_CREDENTIALS"
+		],
+		auth: []
+	};
+}
 function createGoogleGeminiCliProvider() {
 	return {
 		id: "google-gemini-cli",
@@ -51,4 +66,4 @@ function createGoogleGeminiCliProvider() {
 	};
 }
 //#endregion
-export { createGoogleGeminiCliProvider, createGoogleProvider };
+export { createGoogleGeminiCliProvider, createGoogleProvider, createGoogleVertexProvider };

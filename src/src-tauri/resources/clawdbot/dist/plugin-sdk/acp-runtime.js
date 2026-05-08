@@ -1,11 +1,12 @@
-import { c as normalizeOptionalString } from "../string-coerce-C1IzJjqi.js";
-import { n as AcpRuntimeError, r as isAcpRuntimeError } from "../errors-DbyMWuiR.js";
-import { a as getAcpRuntimeBackend, c as unregisterAcpRuntimeBackend, i as __testing$2, n as getAcpSessionManager, o as registerAcpRuntimeBackend, s as requireAcpRuntimeBackend, t as __testing$1 } from "../manager-C1Jx3l8a.js";
-import { n as readAcpSessionEntry } from "../session-meta-Tafp3XqB.js";
+import { c as normalizeOptionalString } from "../string-coerce-Bje8XVt9.js";
+import { n as AcpRuntimeError, r as isAcpRuntimeError } from "../errors-DII5rEKQ.js";
+import { a as unregisterAcpRuntimeBackend, i as requireAcpRuntimeBackend, n as getAcpRuntimeBackend, r as registerAcpRuntimeBackend, t as __testing$1 } from "../registry-D-ZIoZaU.js";
+import { n as getAcpSessionManager, t as __testing$2 } from "../manager-BIQ5eGBZ.js";
+import { n as readAcpSessionEntry } from "../session-meta-D3_oSoyR.js";
 //#region src/plugin-sdk/acp-runtime.ts
 let dispatchAcpRuntimePromise = null;
 function loadDispatchAcpRuntime() {
-	dispatchAcpRuntimePromise ??= import("../dispatch-acp.runtime-DOohifi5.js");
+	dispatchAcpRuntimePromise ??= import("../dispatch-acp.runtime-D2vMSg3f.js");
 	return dispatchAcpRuntimePromise;
 }
 function hasExplicitCommandCandidate(ctx) {
@@ -49,17 +50,17 @@ async function tryDispatchAcpReplyHook(event, ctx) {
 }
 const __testing = new Proxy({}, {
 	get(_target, prop, receiver) {
-		if (Reflect.has(__testing$1, prop)) return Reflect.get(__testing$1, prop, receiver);
-		return Reflect.get(__testing$2, prop, receiver);
+		if (Reflect.has(__testing$2, prop)) return Reflect.get(__testing$2, prop, receiver);
+		return Reflect.get(__testing$1, prop, receiver);
 	},
 	has(_target, prop) {
-		return Reflect.has(__testing$1, prop) || Reflect.has(__testing$2, prop);
+		return Reflect.has(__testing$2, prop) || Reflect.has(__testing$1, prop);
 	},
 	ownKeys() {
-		return Array.from(new Set([...Reflect.ownKeys(__testing$1), ...Reflect.ownKeys(__testing$2)]));
+		return Array.from(new Set([...Reflect.ownKeys(__testing$2), ...Reflect.ownKeys(__testing$1)]));
 	},
 	getOwnPropertyDescriptor(_target, prop) {
-		if (Reflect.has(__testing$1, prop) || Reflect.has(__testing$2, prop)) return {
+		if (Reflect.has(__testing$2, prop) || Reflect.has(__testing$1, prop)) return {
 			configurable: true,
 			enumerable: true
 		};

@@ -1,2 +1,2 @@
-import { t as OpenClawSchema } from "../zod-schema-Q-_hlOBD.js";
+import { t as OpenClawSchema } from "../zod-schema-DjRHIl0Z.js";
 export { OpenClawSchema };

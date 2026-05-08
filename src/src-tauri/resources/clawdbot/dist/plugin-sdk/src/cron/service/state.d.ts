@@ -76,6 +76,7 @@ export type CronServiceDeps = {
         job: CronJob;
         message: string;
         abortSignal?: AbortSignal;
+        onExecutionStarted?: () => void;
     }) => Promise<{
         summary?: string;
         /** Last non-empty agent text output (not truncated). */

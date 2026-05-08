@@ -47,12 +47,12 @@ export declare function killControlledSubagentRun(params: {
     controller: ResolvedSubagentController;
     entry: SubagentRunRecord;
 }): Promise<{
+    label?: undefined;
     text?: undefined;
     status: "forbidden";
     runId: string;
     sessionKey: string;
     error: string;
-    label?: undefined;
     cascadeKilled?: undefined;
     cascadeLabels?: undefined;
 } | {
@@ -131,8 +131,8 @@ export declare function sendControlledSubagentMessage(params: {
     text: string;
     replyText?: undefined;
 } | {
-    text?: undefined;
     error?: undefined;
+    text?: undefined;
     status: "timeout";
     runId: string;
     replyText?: undefined;
@@ -143,8 +143,8 @@ export declare function sendControlledSubagentMessage(params: {
     error: string;
     replyText?: undefined;
 } | {
-    text?: undefined;
     error?: undefined;
+    text?: undefined;
     status: "ok";
     runId: string;
     replyText: string | undefined;

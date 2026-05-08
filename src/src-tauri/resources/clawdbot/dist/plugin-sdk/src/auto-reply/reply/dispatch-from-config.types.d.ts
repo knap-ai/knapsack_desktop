@@ -16,7 +16,7 @@ export type DispatchFromConfigParams = {
     replyResolver?: GetReplyFromConfig;
     fastAbortResolver?: TryFastAbortFromMessage;
     formatAbortReplyTextResolver?: FormatAbortReplyText;
-    /** Optional config override passed to getReplyFromConfig (e.g. per-sender timezone). */
+    /** Optional patch applied to the already loaded config before reply resolution. */
     configOverride?: OpenClawConfig;
 };
 export type DispatchReplyFromConfig = (params: DispatchFromConfigParams) => Promise<DispatchFromConfigResult>;

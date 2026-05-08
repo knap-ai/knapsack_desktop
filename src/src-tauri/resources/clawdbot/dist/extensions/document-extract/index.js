@@ -1,4 +1,4 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
 //#region extensions/document-extract/index.ts
 var document_extract_default = definePluginEntry({
 	id: "document-extract",

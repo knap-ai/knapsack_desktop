@@ -4,6 +4,21 @@
   "providers": [
     "opencode"
   ],
+  "providerEndpoints": [
+    {
+      "endpointClass": "opencode-native",
+      "hostSuffixes": [
+        "opencode.ai"
+      ]
+    }
+  ],
+  "providerRequest": {
+    "providers": {
+      "opencode": {
+        "family": "opencode"
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "opencode": [
       "OPENCODE_API_KEY",

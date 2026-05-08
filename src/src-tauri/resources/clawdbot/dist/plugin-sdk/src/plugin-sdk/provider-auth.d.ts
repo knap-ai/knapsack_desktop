@@ -1,3 +1,4 @@
+import type { OpenClawConfig } from "../config/config.js";
 export type { OpenClawConfig } from "../config/config.js";
 export type { SecretInput } from "../config/types.secrets.js";
 export type { SecretInputMode } from "../plugins/provider-auth-types.js";
@@ -5,7 +6,7 @@ export type { ProviderAuthResult } from "../plugins/types.js";
 export type { ProviderAuthContext } from "../plugins/types.js";
 export type { AuthProfileStore, OAuthCredential } from "../agents/auth-profiles/types.js";
 export { CLAUDE_CLI_PROFILE_ID, CODEX_CLI_PROFILE_ID } from "../agents/auth-profiles/constants.js";
-export { ensureAuthProfileStore, ensureAuthProfileStoreForLocalUpdate, } from "../agents/auth-profiles/store.js";
+export { ensureAuthProfileStore, ensureAuthProfileStoreForLocalUpdate, updateAuthProfileStoreWithLock, } from "../agents/auth-profiles/store.js";
 export { listProfilesForProvider, removeProviderAuthProfilesWithLock, upsertAuthProfile, upsertAuthProfileWithLock, } from "../agents/auth-profiles/profiles.js";
 export { resolveEnvApiKey } from "../agents/model-auth-env.js";
 export { readClaudeCliCredentialsCached } from "../agents/cli-credentials.js";
@@ -30,3 +31,21 @@ export declare function isProviderApiKeyConfigured(params: {
     provider: string;
     agentDir?: string;
 }): boolean;
+export declare function listUsableProviderAuthProfileIds(params: {
+    provider: string;
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+}): {
+    agentDir: string;
+    profileIds: string[];
+};
+export declare function isProviderAuthProfileConfigured(params: {
+    provider: string;
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+}): boolean;
+export declare function resolveProviderAuthProfileApiKey(params: {
+    provider: string;
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+}): Promise<string | undefined>;

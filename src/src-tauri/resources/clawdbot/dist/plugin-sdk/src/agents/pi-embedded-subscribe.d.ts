@@ -1,3 +1,4 @@
+import type { BlockReplyPayload } from "./pi-embedded-payloads.js";
 import type { EmbeddedRunLivenessState } from "./pi-embedded-runner/types.js";
 import type { SubscribeEmbeddedPiSessionParams } from "./pi-embedded-subscribe.types.js";
 export type { BlockReplyChunking, SubscribeEmbeddedPiSessionParams, ToolResultFormat, } from "./pi-embedded-subscribe.types.js";
@@ -17,6 +18,7 @@ export declare function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSe
     getMessagingToolSentTexts: () => string[];
     getMessagingToolSentMediaUrls: () => string[];
     getMessagingToolSentTargets: () => import("openclaw/plugin-sdk/agent-harness-runtime").MessagingToolSend[];
+    getPendingToolMediaReply: () => BlockReplyPayload | null;
     getSuccessfulCronAdds: () => number;
     getReplayState: () => {
         replayInvalid: boolean;
@@ -40,6 +42,7 @@ export declare function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSe
         total: number | undefined;
     } | undefined;
     getCompactionCount: () => number;
+    getLastCompactionTokensAfter: () => number | undefined;
     getItemLifecycle: () => {
         startedCount: number;
         completedCount: number;

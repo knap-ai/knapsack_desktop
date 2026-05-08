@@ -1,2 +1,3 @@
-import { a as msteamsSetupAdapter, i as createMSTeamsSetupWizardBase, n as msteamsSetupWizard, r as openDelegatedOAuthUrl, t as msteamsPlugin } from "../../channel-B2hk2VPF.js";
+import { t as msteamsPlugin } from "./channel-BJ3qH4Ny.js";
+import { i as msteamsSetupAdapter, n as openDelegatedOAuthUrl, r as createMSTeamsSetupWizardBase, t as msteamsSetupWizard } from "./setup-surface-Dp4IrkEN.js";
 export { createMSTeamsSetupWizardBase, msteamsPlugin, msteamsSetupAdapter, msteamsSetupWizard, openDelegatedOAuthUrl };

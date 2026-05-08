@@ -1,16 +1,29 @@
-import type { OpenClawConfig } from "../config/types.js";
-export declare function requireRuntimeConfig(config: OpenClawConfig, context: string): OpenClawConfig;
-export declare function resolvePluginConfigObject(config: OpenClawConfig | undefined, pluginId: string): Record<string, unknown> | undefined;
-export declare function resolveLivePluginConfigObject(runtimeConfigLoader: (() => OpenClawConfig | undefined) | undefined, pluginId: string, startupPluginConfig?: Record<string, unknown>): Record<string, unknown> | undefined;
 export { resolveDefaultAgentId } from "../agents/agent-scope.js";
-export { clearRuntimeConfigSnapshot, getRuntimeConfigSourceSnapshot, getRuntimeConfigSnapshot, loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot, writeConfigFile, } from "../config/io.js";
+export { requireRuntimeConfig, resolveLivePluginConfigObject, resolvePluginConfigObject, } from "./plugin-config-runtime.js";
+export { clearRuntimeConfigSnapshot, getRuntimeConfigSourceSnapshot, getRuntimeConfigSnapshot, getRuntimeConfig, 
+/**
+ * @deprecated Use getRuntimeConfig(), runtime.config.current(), or pass the
+ * already loaded config through the call path. Runtime code must not reload
+ * config on demand. Bundled plugins and repo code are blocked from using
+ * this by the deprecated-internal-config-api architecture guard.
+ */
+loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot, 
+/**
+ * @deprecated Use mutateConfigFile() or replaceConfigFile() with an explicit
+ * afterWrite intent so restart behavior stays under host control. Bundled
+ * plugins and repo code are blocked from using this by the
+ * deprecated-internal-config-api architecture guard.
+ */
+writeConfigFile, } from "../config/io.js";
+export { mutateConfigFile, replaceConfigFile } from "../config/mutate.js";
+export type { ConfigWriteAfterWrite } from "../config/runtime-snapshot.js";
 export { logConfigUpdated } from "../config/logging.js";
 export { updateConfig } from "../commands/models/shared.js";
 export { resolveChannelModelOverride } from "../channels/model-overrides.js";
 export { evaluateSupplementalContextVisibility, filterSupplementalContextItems, } from "../security/context-visibility.js";
 export { resolveChannelContextVisibilityMode, resolveDefaultContextVisibility, } from "../config/context-visibility.js";
 export { resolveMarkdownTableMode } from "../config/markdown-tables.js";
-export { resolveChannelGroupPolicy, resolveChannelGroupRequireMention, type ChannelGroupPolicy, } from "../config/group-policy.js";
+export { resolveChannelGroupPolicy, resolveChannelGroupRequireMention, resolveToolsBySender, type ChannelGroupPolicy, } from "../config/group-policy.js";
 export { GROUP_POLICY_BLOCKED_LABEL, resolveAllowlistProviderRuntimeGroupPolicy, resolveDefaultGroupPolicy, resolveOpenProviderRuntimeGroupPolicy, warnMissingProviderGroupPolicyFallbackOnce, } from "../config/runtime-group-policy.js";
 export { isNativeCommandsExplicitlyDisabled, resolveNativeCommandsEnabled, resolveNativeSkillsEnabled, } from "../config/commands.js";
 export { TELEGRAM_COMMAND_NAME_PATTERN, normalizeTelegramCommandName, resolveTelegramCustomCommands, } from "./telegram-command-config.js";
@@ -20,7 +33,7 @@ export { loadCronStore, resolveCronStorePath, saveCronStore } from "../cron/stor
 export { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
 export { coerceSecretRef } from "../config/types.secrets.js";
 export { resolveConfiguredSecretInputString, resolveConfiguredSecretInputWithFallback, resolveRequiredConfiguredSecretRefInputString, } from "../gateway/resolve-configured-secret-input-string.js";
-export type { BlockStreamingCoalesceConfig, DiscordAccountConfig, DiscordActionConfig, DiscordAutoPresenceConfig, DiscordConfig, DiscordExecApprovalConfig, DiscordGuildChannelConfig, DiscordGuildEntry, DiscordIntentsConfig, DiscordSlashCommandConfig, DmConfig, DmPolicy, ContextVisibilityMode, GroupPolicy, GroupToolPolicyBySenderConfig, GroupToolPolicyConfig, MarkdownConfig, MarkdownTableMode, OpenClawConfig, ReplyToMode, SignalReactionNotificationMode, SlackAccountConfig, SlackChannelConfig, SlackReactionNotificationMode, SlackSlashCommandConfig, TelegramAccountConfig, TelegramActionConfig, TelegramDirectConfig, TelegramExecApprovalConfig, TelegramGroupConfig, TelegramInlineButtonsScope, TelegramNetworkConfig, TelegramTopicConfig, TtsAutoMode, TtsConfig, TtsMode, TtsModelOverrideConfig, TtsProvider, } from "../config/types.js";
+export type { BlockStreamingCoalesceConfig, DiscordAccountConfig, DiscordActionConfig, DiscordAutoPresenceConfig, DiscordConfig, DiscordExecApprovalConfig, DiscordGuildChannelConfig, DiscordGuildEntry, DiscordIntentsConfig, DiscordSlashCommandConfig, DmConfig, DmPolicy, GoogleChatAccountConfig, GoogleChatConfig, ContextVisibilityMode, GroupPolicy, GroupToolPolicyBySenderConfig, GroupToolPolicyConfig, MarkdownConfig, MarkdownTableMode, MSTeamsChannelConfig, MSTeamsConfig, MSTeamsReplyStyle, MSTeamsTeamConfig, OpenClawConfig, ReplyToMode, SignalReactionNotificationMode, SlackAccountConfig, SlackChannelConfig, SlackReactionNotificationMode, SlackSlashCommandConfig, TelegramAccountConfig, TelegramActionConfig, TelegramDirectConfig, TelegramExecApprovalConfig, TelegramGroupConfig, TelegramInlineButtonsScope, TelegramNetworkConfig, TelegramTopicConfig, ResolvedTtsPersona, TtsAutoMode, TtsConfig, TtsMode, TtsModelOverrideConfig, TtsPersonaConfig, TtsPersonaFallbackPolicy, TtsPersonaPromptConfig, TtsProvider, } from "../config/types.js";
 export { clearSessionStoreCacheForTest, loadSessionStore, readSessionUpdatedAt, recordSessionMetaFromInbound, saveSessionStore, updateLastRoute, updateSessionStore, resolveSessionStoreEntry, } from "../config/sessions/store.js";
 export { resolveSessionKey } from "../config/sessions/session-key.js";
 export { resolveStorePath } from "../config/sessions/paths.js";

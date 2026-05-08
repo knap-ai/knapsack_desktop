@@ -1,4 +1,4 @@
-import { n as ARCEE_MODEL_CATALOG, r as buildArceeModelDefinition, t as ARCEE_BASE_URL } from "../../models-CGoKYuZh.js";
-import { a as buildArceeProvider, i as buildArceeOpenRouterProvider } from "../../provider-catalog-B9bu47IL.js";
-import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-CEJv36G8.js";
+import { n as ARCEE_MODEL_CATALOG, r as buildArceeModelDefinition, t as ARCEE_BASE_URL } from "../../models-4PRQN_z6.js";
+import { a as buildArceeProvider, i as buildArceeOpenRouterProvider } from "../../provider-catalog-DWpzM6Cv.js";
+import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-nJsCzl4X.js";
 export { ARCEE_BASE_URL, ARCEE_DEFAULT_MODEL_REF, ARCEE_MODEL_CATALOG, ARCEE_OPENROUTER_DEFAULT_MODEL_REF, applyArceeConfig, applyArceeOpenRouterConfig, buildArceeModelDefinition, buildArceeOpenRouterProvider, buildArceeProvider };

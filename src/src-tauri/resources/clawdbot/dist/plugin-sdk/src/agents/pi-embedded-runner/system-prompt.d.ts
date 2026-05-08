@@ -19,6 +19,7 @@ export declare function buildEmbeddedSystemPrompt(params: {
     heartbeatPrompt?: string;
     skillsPrompt?: string;
     docsPath?: string;
+    sourcePath?: string;
     ttsHint?: string;
     reactionGuidance?: {
         level: "minimal" | "extensive";
@@ -29,6 +30,10 @@ export declare function buildEmbeddedSystemPrompt(params: {
     promptMode?: PromptMode;
     /** Whether ACP-specific routing guidance should be included. Defaults to true. */
     acpEnabled?: boolean;
+    /** Registered runtime slash/native command names such as `codex`. */
+    nativeCommandNames?: string[];
+    /** Plugin-owned prompt guidance for registered native slash commands. */
+    nativeCommandGuidanceLines?: string[];
     runtimeInfo: {
         agentId?: string;
         host: string;

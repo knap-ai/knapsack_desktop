@@ -20,6 +20,7 @@ type ThinkTaggedSplitBlock = {
     type: "text";
     text: string;
 };
+export declare const THINKING_TAG_SCAN_RE: RegExp;
 export declare function splitThinkingTaggedText(text: string): ThinkTaggedSplitBlock[] | null;
 export declare function promoteThinkingTagsToBlocks(message: AssistantMessage): void;
 export declare function extractThinkingFromTaggedText(text: string): string;

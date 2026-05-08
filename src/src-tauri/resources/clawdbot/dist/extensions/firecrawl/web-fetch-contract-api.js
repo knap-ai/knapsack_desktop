@@ -1,5 +1,5 @@
-import { t as enablePluginInConfig } from "../../provider-enable-config-DpVsuHrf.js";
-import { t as FIRECRAWL_WEB_FETCH_PROVIDER_SHARED } from "../../firecrawl-fetch-provider-shared-BXQrv46z.js";
+import { t as enablePluginInConfig } from "../../provider-enable-config-Ba2UZyE8.js";
+import { t as FIRECRAWL_WEB_FETCH_PROVIDER_SHARED } from "../../firecrawl-fetch-provider-shared-2l94exIE.js";
 //#region extensions/firecrawl/web-fetch-contract-api.ts
 function createFirecrawlWebFetchProvider() {
 	return {

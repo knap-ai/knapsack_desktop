@@ -35,29 +35,32 @@ var nostr_default = defineBundledChannelEntry({
 		const httpHandler = createNostrProfileHttpHandler()({
 			getConfigProfile: (accountId) => {
 				return resolveNostrAccount({
-					cfg: getNostrRuntime().config.loadConfig(),
+					cfg: getNostrRuntime().config.current(),
 					accountId
 				}).profile;
 			},
 			updateConfigProfile: async (accountId, profile) => {
 				const runtime = getNostrRuntime();
-				const cfg = runtime.config.loadConfig();
+				const cfg = runtime.config.current();
 				const channels = cfg.channels ?? {};
 				const nostrConfig = channels.nostr ?? {};
-				await runtime.config.writeConfigFile({
-					...cfg,
-					channels: {
-						...channels,
-						nostr: {
-							...nostrConfig,
-							profile
+				await runtime.config.replaceConfigFile({
+					nextConfig: {
+						...cfg,
+						channels: {
+							...channels,
+							nostr: {
+								...nostrConfig,
+								profile
+							}
 						}
-					}
+					},
+					afterWrite: { mode: "auto" }
 				});
 			},
 			getAccountInfo: (accountId) => {
 				const account = resolveNostrAccount({
-					cfg: getNostrRuntime().config.loadConfig(),
+					cfg: getNostrRuntime().config.current(),
 					accountId
 				});
 				if (!account.configured || !account.publicKey) return null;

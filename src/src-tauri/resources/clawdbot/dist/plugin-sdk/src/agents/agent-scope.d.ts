@@ -19,6 +19,8 @@ export declare function resolveAgentExecutionContract(cfg: OpenClawConfig | unde
 export declare function resolveAgentSkillsFilter(cfg: OpenClawConfig, agentId: string): string[] | undefined;
 export declare function resolveAgentExplicitModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined;
 export declare function resolveAgentEffectiveModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined;
+export type AgentModelPrimaryWriteTarget = "agent" | "defaults";
+export declare function setAgentEffectiveModelPrimary(cfg: OpenClawConfig, agentId: string, primary: string): AgentModelPrimaryWriteTarget;
 export declare function resolveAgentModelPrimary(cfg: OpenClawConfig, agentId: string): string | undefined;
 export declare function resolveAgentModelFallbacksOverride(cfg: OpenClawConfig, agentId: string): string[] | undefined;
 export declare function resolveFallbackAgentId(params: {

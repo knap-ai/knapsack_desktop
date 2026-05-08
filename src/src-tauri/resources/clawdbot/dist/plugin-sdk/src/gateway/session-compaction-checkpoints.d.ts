@@ -1,6 +1,7 @@
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import type { SessionCompactionCheckpoint, SessionCompactionCheckpointReason, SessionEntry } from "../config/sessions.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+export declare const MAX_COMPACTION_CHECKPOINT_SNAPSHOT_BYTES: number;
 export type CapturedCompactionCheckpointSnapshot = {
     sessionId: string;
     sessionFile: string;
@@ -13,6 +14,7 @@ export declare function resolveSessionCompactionCheckpointReason(params: {
 export declare function captureCompactionCheckpointSnapshot(params: {
     sessionManager: Pick<SessionManager, "getLeafId">;
     sessionFile: string;
+    maxBytes?: number;
 }): CapturedCompactionCheckpointSnapshot | null;
 export declare function cleanupCompactionCheckpointSnapshot(snapshot: CapturedCompactionCheckpointSnapshot | null | undefined): Promise<void>;
 export declare function persistSessionCompactionCheckpoint(params: {

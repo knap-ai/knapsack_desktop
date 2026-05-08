@@ -1,7 +1,8 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { i as VLLM_PROVIDER_LABEL, n as VLLM_DEFAULT_BASE_URL, r as VLLM_MODEL_PLACEHOLDER, t as VLLM_DEFAULT_API_KEY_ENV_VAR } from "../../defaults-Sob5aylT.js";
-import { t as buildVllmProvider } from "../../models-Du3sqboj.js";
-import "../../api-BqvVnZZF2.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { i as VLLM_PROVIDER_LABEL, n as VLLM_DEFAULT_BASE_URL, r as VLLM_MODEL_PLACEHOLDER, t as VLLM_DEFAULT_API_KEY_ENV_VAR } from "../../defaults-CkPDP-vw.js";
+import { t as buildVllmProvider } from "../../models-Dp4NYKIf.js";
+import { r as wrapVllmProviderStream } from "../../stream-BGkW5XGf.js";
+import "../../api-xMTQzWN7.js";
 //#region extensions/vllm/index.ts
 const PROVIDER_ID = "vllm";
 async function loadProviderSetup() {
@@ -70,7 +71,8 @@ var vllm_default = definePluginEntry({
 					methodId: "custom"
 				}
 			},
-			buildUnknownModelHint: () => "vLLM requires authentication to be registered as a provider. Set VLLM_API_KEY (any value works) or run \"openclaw configure\". See: https://docs.openclaw.ai/providers/vllm"
+			buildUnknownModelHint: () => "vLLM requires authentication to be registered as a provider. Set VLLM_API_KEY (any value works) or run \"openclaw configure\". See: https://docs.openclaw.ai/providers/vllm",
+			wrapStreamFn: wrapVllmProviderStream
 		});
 	}
 });

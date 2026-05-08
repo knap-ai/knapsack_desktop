@@ -1,2 +1,2 @@
-import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-D269bmn3.js";
+import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-DewZLrEC.js";
 export { buildGithubCopilotReplayPolicy };

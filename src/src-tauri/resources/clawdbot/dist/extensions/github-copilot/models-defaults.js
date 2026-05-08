@@ -1,4 +1,4 @@
-import { r as resolveCopilotTransportApi } from "../../models-CZL3_C6Y.js";
+import { r as resolveCopilotTransportApi } from "../../models-CVzS8osi.js";
 //#region extensions/github-copilot/models-defaults.ts
 const DEFAULT_CONTEXT_WINDOW = 128e3;
 const DEFAULT_MAX_TOKENS = 8192;

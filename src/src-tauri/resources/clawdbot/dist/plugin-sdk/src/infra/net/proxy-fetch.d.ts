@@ -6,8 +6,7 @@ export declare const PROXY_FETCH_PROXY_URL: unique symbol;
 export declare function makeProxyFetch(proxyUrl: string): typeof fetch;
 export declare function getProxyUrlFromFetch(fetchImpl?: typeof fetch): string | undefined;
 /**
- * Resolve a proxy-aware fetch from standard environment variables
- * (HTTPS_PROXY, HTTP_PROXY, https_proxy, http_proxy).
+ * Resolve a proxy-aware fetch from standard environment variables.
  * Respects NO_PROXY / no_proxy exclusions via undici's EnvHttpProxyAgent.
  * Returns undefined when no proxy is configured.
  * Gracefully returns undefined if the proxy URL is malformed.

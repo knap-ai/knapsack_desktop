@@ -1,0 +1,2 @@
+import { a as preflightPluginRegistryInstallMigration, i as migratePluginRegistryForInstall, n as FORCE_PLUGIN_REGISTRY_MIGRATION_ENV, r as listMigrationRelevantPluginRecords, t as DISABLE_PLUGIN_REGISTRY_MIGRATION_ENV } from "../../../plugin-registry-migration-DngrkLLV.js";
+export { DISABLE_PLUGIN_REGISTRY_MIGRATION_ENV, FORCE_PLUGIN_REGISTRY_MIGRATION_ENV, listMigrationRelevantPluginRecords, migratePluginRegistryForInstall, preflightPluginRegistryInstallMigration };

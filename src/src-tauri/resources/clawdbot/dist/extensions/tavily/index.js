@@ -1,8 +1,8 @@
-import { f as readNumberParam, g as readStringParam, l as jsonResult } from "../../common-B4WrK_Ib.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../provider-web-search-DiAvE6oC.js";
-import { n as runTavilyExtract, r as runTavilySearch } from "../../tavily-client-B1ZYE6dU.js";
-import { t as createTavilyWebSearchProvider } from "../../tavily-search-provider-fsQ5ulgM.js";
+import { f as readNumberParam, g as readStringParam, l as jsonResult } from "../../common-C4RGIxnG.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../provider-web-search-fsZ6HXjy.js";
+import { n as runTavilyExtract, r as runTavilySearch } from "../../tavily-client-CsRb3PnT.js";
+import { t as createTavilyWebSearchProvider } from "../../tavily-search-provider-hXvEvaU5.js";
 import { Type } from "typebox";
 //#region extensions/tavily/src/tavily-tool-schema.ts
 function optionalStringEnum(values, options = {}) {

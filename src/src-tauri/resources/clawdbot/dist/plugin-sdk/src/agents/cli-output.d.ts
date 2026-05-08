@@ -19,7 +19,7 @@ export type CliStreamingDelta = {
     sessionId?: string;
     usage?: CliUsage;
 };
-export declare function parseCliJson(raw: string, backend: CliBackendConfig): CliOutput | null;
+export declare function parseCliJson(raw: string, backend: CliBackendConfig, providerId?: string): CliOutput | null;
 export declare function createCliJsonlStreamingParser(params: {
     backend: CliBackendConfig;
     providerId: string;

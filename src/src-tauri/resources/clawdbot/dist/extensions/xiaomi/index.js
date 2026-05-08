@@ -1,8 +1,9 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-CVsaqhfb.js";
-import { n as PROVIDER_LABELS } from "../../provider-usage.shared-CcKpxFl6.js";
-import "../../provider-usage-Bi4CRsxy.js";
-import { n as buildXiaomiProvider } from "../../provider-catalog-CSIByH6I.js";
-import { n as applyXiaomiConfig, t as XIAOMI_DEFAULT_MODEL_REF } from "../../onboard-CLH2_hRz.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
+import { n as PROVIDER_LABELS } from "../../provider-usage.shared-DbAk3IUd.js";
+import "../../provider-usage-BKrKiEp4.js";
+import { n as buildXiaomiProvider } from "../../provider-catalog-jZ7BlGcM.js";
+import { n as applyXiaomiConfig, t as XIAOMI_DEFAULT_MODEL_REF } from "../../onboard-CTF8q8YM2.js";
+import { s as buildXiaomiSpeechProvider } from "../../speech-provider-CktOJo-02.js";
 var xiaomi_default = defineSingleProviderPluginEntry({
 	id: "xiaomi",
 	name: "Xiaomi Provider",
@@ -31,6 +32,9 @@ var xiaomi_default = defineSingleProviderPluginEntry({
 			displayName: PROVIDER_LABELS.xiaomi,
 			windows: []
 		})
+	},
+	register(api) {
+		api.registerSpeechProvider(buildXiaomiSpeechProvider());
 	}
 });
 //#endregion

@@ -23,6 +23,7 @@ export declare function buildReplyPayloads(params: {
     originatingChannel?: OriginatingChannelType;
     originatingTo?: string;
     accountId?: string;
+    extractMarkdownImages?: boolean;
     normalizeMediaPaths?: (payload: ReplyPayload) => Promise<ReplyPayload>;
 }): Promise<{
     replyPayloads: ReplyPayload[];

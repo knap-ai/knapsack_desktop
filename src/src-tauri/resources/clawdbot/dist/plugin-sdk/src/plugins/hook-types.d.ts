@@ -10,17 +10,18 @@ import type { PluginHookInboundClaimContext, PluginHookInboundClaimEvent, Plugin
 export type { PluginHookBeforeAgentStartEvent, PluginHookBeforeAgentStartOverrideResult, PluginHookBeforeAgentStartResult, PluginHookBeforeModelResolveAttachment, PluginHookBeforeModelResolveEvent, PluginHookBeforeModelResolveResult, PluginHookBeforePromptBuildEvent, PluginHookBeforePromptBuildResult, } from "./hook-before-agent-start.types.js";
 export { PLUGIN_PROMPT_MUTATION_RESULT_FIELDS, stripPromptMutationFieldsFromLegacyHookResult, } from "./hook-before-agent-start.types.js";
 export type { PluginHookInboundClaimContext, PluginHookInboundClaimEvent, PluginHookMessageContext, PluginHookMessageReceivedEvent, PluginHookMessageSendingEvent, PluginHookMessageSendingResult, PluginHookMessageSentEvent, } from "./hook-message.types.js";
-export type PluginHookName = "before_model_resolve" | "before_prompt_build" | "before_agent_start" | "before_agent_reply" | "llm_input" | "llm_output" | "agent_end" | "before_compaction" | "after_compaction" | "before_reset" | "inbound_claim" | "message_received" | "message_sending" | "message_sent" | "before_tool_call" | "after_tool_call" | "tool_result_persist" | "before_message_write" | "session_start" | "session_end" | "subagent_spawning" | "subagent_delivery_target" | "subagent_spawned" | "subagent_ended" | "gateway_start" | "gateway_stop" | "before_dispatch" | "reply_dispatch" | "before_install";
-export declare const PLUGIN_HOOK_NAMES: readonly ["before_model_resolve", "before_prompt_build", "before_agent_start", "before_agent_reply", "llm_input", "llm_output", "agent_end", "before_compaction", "after_compaction", "before_reset", "inbound_claim", "message_received", "message_sending", "message_sent", "before_tool_call", "after_tool_call", "tool_result_persist", "before_message_write", "session_start", "session_end", "subagent_spawning", "subagent_delivery_target", "subagent_spawned", "subagent_ended", "gateway_start", "gateway_stop", "before_dispatch", "reply_dispatch", "before_install"];
+export type PluginHookName = "before_model_resolve" | "before_prompt_build" | "before_agent_start" | "before_agent_reply" | "model_call_started" | "model_call_ended" | "llm_input" | "llm_output" | "before_agent_finalize" | "agent_end" | "before_compaction" | "after_compaction" | "before_reset" | "inbound_claim" | "message_received" | "message_sending" | "message_sent" | "before_tool_call" | "after_tool_call" | "tool_result_persist" | "before_message_write" | "session_start" | "session_end" | "subagent_spawning" | "subagent_delivery_target" | "subagent_spawned" | "subagent_ended" | "gateway_start" | "gateway_stop" | "before_dispatch" | "reply_dispatch" | "before_install";
+export declare const PLUGIN_HOOK_NAMES: readonly ["before_model_resolve", "before_prompt_build", "before_agent_start", "before_agent_reply", "model_call_started", "model_call_ended", "llm_input", "llm_output", "before_agent_finalize", "agent_end", "before_compaction", "after_compaction", "before_reset", "inbound_claim", "message_received", "message_sending", "message_sent", "before_tool_call", "after_tool_call", "tool_result_persist", "before_message_write", "session_start", "session_end", "subagent_spawning", "subagent_delivery_target", "subagent_spawned", "subagent_ended", "gateway_start", "gateway_stop", "before_dispatch", "reply_dispatch", "before_install"];
 export declare const isPluginHookName: (hookName: unknown) => hookName is PluginHookName;
 export declare const PROMPT_INJECTION_HOOK_NAMES: readonly ["before_prompt_build", "before_agent_start"];
 export type PromptInjectionHookName = (typeof PROMPT_INJECTION_HOOK_NAMES)[number];
 export declare const isPromptInjectionHookName: (hookName: PluginHookName) => boolean;
-export declare const CONVERSATION_HOOK_NAMES: readonly ["llm_input", "llm_output", "agent_end"];
+export declare const CONVERSATION_HOOK_NAMES: readonly ["llm_input", "llm_output", "before_agent_finalize", "agent_end"];
 export type ConversationHookName = (typeof CONVERSATION_HOOK_NAMES)[number];
 export declare const isConversationHookName: (hookName: PluginHookName) => boolean;
 export type PluginHookAgentContext = {
     runId?: string;
+    jobId?: string;
     trace?: DiagnosticTraceContext;
     agentId?: string;
     sessionKey?: string;
@@ -49,6 +50,27 @@ export type PluginHookLlmInputEvent = {
     prompt: string;
     historyMessages: unknown[];
     imagesCount: number;
+};
+export type PluginHookModelCallBaseEvent = {
+    runId: string;
+    callId: string;
+    sessionKey?: string;
+    sessionId?: string;
+    provider: string;
+    model: string;
+    api?: string;
+    transport?: string;
+};
+export type PluginHookModelCallStartedEvent = PluginHookModelCallBaseEvent;
+export type PluginHookModelCallEndedEvent = PluginHookModelCallBaseEvent & {
+    durationMs: number;
+    outcome: "completed" | "error";
+    errorCategory?: string;
+    failureKind?: "aborted" | "connection_closed" | "connection_reset" | "terminated" | "timeout";
+    requestPayloadBytes?: number;
+    responseStreamBytes?: number;
+    timeToFirstByteMs?: number;
+    upstreamRequestIdHash?: string;
 };
 export type PluginHookLlmOutputEvent = {
     runId: string;
@@ -84,6 +106,28 @@ export type PluginHookAgentEndEvent = {
     success: boolean;
     error?: string;
     durationMs?: number;
+};
+export type PluginHookBeforeAgentFinalizeEvent = {
+    runId?: string;
+    sessionId: string;
+    sessionKey?: string;
+    turnId?: string;
+    provider?: string;
+    model?: string;
+    cwd?: string;
+    transcriptPath?: string;
+    stopHookActive: boolean;
+    lastAssistantMessage?: string;
+    messages?: unknown[];
+};
+export type PluginHookBeforeAgentFinalizeResult = {
+    /**
+     * continue: accept normal finalization.
+     * revise: block finalization and ask the harness for another model pass.
+     * finalize: force finalization even if another hook requested revision.
+     */
+    action?: "continue" | "revise" | "finalize";
+    reason?: string;
 };
 export type PluginHookBeforeCompactionEvent = {
     messageCount: number;
@@ -457,8 +501,11 @@ export type PluginHookHandlerMap = {
     before_prompt_build: (event: PluginHookBeforePromptBuildEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforePromptBuildResult | void> | PluginHookBeforePromptBuildResult | void;
     before_agent_start: (event: PluginHookBeforeAgentStartEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeAgentStartResult | void> | PluginHookBeforeAgentStartResult | void;
     before_agent_reply: (event: PluginHookBeforeAgentReplyEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeAgentReplyResult | void> | PluginHookBeforeAgentReplyResult | void;
+    model_call_started: (event: PluginHookModelCallStartedEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
+    model_call_ended: (event: PluginHookModelCallEndedEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
     llm_input: (event: PluginHookLlmInputEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
     llm_output: (event: PluginHookLlmOutputEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
+    before_agent_finalize: (event: PluginHookBeforeAgentFinalizeEvent, ctx: PluginHookAgentContext) => Promise<PluginHookBeforeAgentFinalizeResult | void> | PluginHookBeforeAgentFinalizeResult | void;
     agent_end: (event: PluginHookAgentEndEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
     before_compaction: (event: PluginHookBeforeCompactionEvent, ctx: PluginHookAgentContext) => Promise<void> | void;
     after_compaction: (event: PluginHookAfterCompactionEvent, ctx: PluginHookAgentContext) => Promise<void> | void;

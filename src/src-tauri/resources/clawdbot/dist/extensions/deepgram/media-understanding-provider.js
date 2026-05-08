@@ -1,2 +1,2 @@
-import { t as deepgramMediaUnderstandingProvider } from "../../media-understanding-provider-D_l1L3Bl.js";
+import { t as deepgramMediaUnderstandingProvider } from "../../media-understanding-provider-BzBudbvb.js";
 export { deepgramMediaUnderstandingProvider };

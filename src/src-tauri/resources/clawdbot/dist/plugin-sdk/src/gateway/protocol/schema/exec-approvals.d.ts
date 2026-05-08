@@ -2,6 +2,8 @@ import { Type } from "typebox";
 export declare const ExecApprovalsAllowlistEntrySchema: Type.TObject<{
     id: Type.TOptional<Type.TString>;
     pattern: Type.TString;
+    source: Type.TOptional<Type.TLiteral<"allow-always">>;
+    commandText: Type.TOptional<Type.TString>;
     argPattern: Type.TOptional<Type.TString>;
     lastUsedAt: Type.TOptional<Type.TInteger>;
     lastUsedCommand: Type.TOptional<Type.TString>;
@@ -21,6 +23,8 @@ export declare const ExecApprovalsAgentSchema: Type.TObject<{
     allowlist: Type.TOptional<Type.TArray<Type.TObject<{
         id: Type.TOptional<Type.TString>;
         pattern: Type.TString;
+        source: Type.TOptional<Type.TLiteral<"allow-always">>;
+        commandText: Type.TOptional<Type.TString>;
         argPattern: Type.TOptional<Type.TString>;
         lastUsedAt: Type.TOptional<Type.TInteger>;
         lastUsedCommand: Type.TOptional<Type.TString>;
@@ -47,6 +51,8 @@ export declare const ExecApprovalsFileSchema: Type.TObject<{
         allowlist: Type.TOptional<Type.TArray<Type.TObject<{
             id: Type.TOptional<Type.TString>;
             pattern: Type.TString;
+            source: Type.TOptional<Type.TLiteral<"allow-always">>;
+            commandText: Type.TOptional<Type.TString>;
             argPattern: Type.TOptional<Type.TString>;
             lastUsedAt: Type.TOptional<Type.TInteger>;
             lastUsedCommand: Type.TOptional<Type.TString>;
@@ -78,6 +84,8 @@ export declare const ExecApprovalsSnapshotSchema: Type.TObject<{
             allowlist: Type.TOptional<Type.TArray<Type.TObject<{
                 id: Type.TOptional<Type.TString>;
                 pattern: Type.TString;
+                source: Type.TOptional<Type.TLiteral<"allow-always">>;
+                commandText: Type.TOptional<Type.TString>;
                 argPattern: Type.TOptional<Type.TString>;
                 lastUsedAt: Type.TOptional<Type.TInteger>;
                 lastUsedCommand: Type.TOptional<Type.TString>;
@@ -108,6 +116,8 @@ export declare const ExecApprovalsSetParamsSchema: Type.TObject<{
             allowlist: Type.TOptional<Type.TArray<Type.TObject<{
                 id: Type.TOptional<Type.TString>;
                 pattern: Type.TString;
+                source: Type.TOptional<Type.TLiteral<"allow-always">>;
+                commandText: Type.TOptional<Type.TString>;
                 argPattern: Type.TOptional<Type.TString>;
                 lastUsedAt: Type.TOptional<Type.TInteger>;
                 lastUsedCommand: Type.TOptional<Type.TString>;
@@ -142,6 +152,8 @@ export declare const ExecApprovalsNodeSetParamsSchema: Type.TObject<{
             allowlist: Type.TOptional<Type.TArray<Type.TObject<{
                 id: Type.TOptional<Type.TString>;
                 pattern: Type.TString;
+                source: Type.TOptional<Type.TLiteral<"allow-always">>;
+                commandText: Type.TOptional<Type.TString>;
                 argPattern: Type.TOptional<Type.TString>;
                 lastUsedAt: Type.TOptional<Type.TInteger>;
                 lastUsedCommand: Type.TOptional<Type.TString>;

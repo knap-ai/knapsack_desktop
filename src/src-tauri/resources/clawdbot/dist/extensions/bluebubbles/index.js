@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { t as defineBundledChannelEntry } from "../../channel-entry-contract-CXwWQle7.js";
 //#region extensions/bluebubbles/index.ts
 var bluebubbles_default = defineBundledChannelEntry({
 	id: "bluebubbles",

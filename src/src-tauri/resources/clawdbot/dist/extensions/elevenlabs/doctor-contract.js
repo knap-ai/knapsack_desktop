@@ -1,3 +1,3 @@
-import { t as ELEVENLABS_TALK_PROVIDER_ID } from "../../config-compat-DPm3akdR.js";
-import { i as normalizeCompatibilityConfig, n as hasLegacyTalkFields, r as legacyConfigRules, t as ELEVENLABS_TALK_LEGACY_CONFIG_RULES } from "../../doctor-contract-DE3U-ff-.js";
+import { t as ELEVENLABS_TALK_PROVIDER_ID } from "../../config-compat-_t5yOAPm.js";
+import { i as normalizeCompatibilityConfig, n as hasLegacyTalkFields, r as legacyConfigRules, t as ELEVENLABS_TALK_LEGACY_CONFIG_RULES } from "../../doctor-contract-vw-weTjQ.js";
 export { ELEVENLABS_TALK_LEGACY_CONFIG_RULES, ELEVENLABS_TALK_PROVIDER_ID, hasLegacyTalkFields, legacyConfigRules, normalizeCompatibilityConfig };

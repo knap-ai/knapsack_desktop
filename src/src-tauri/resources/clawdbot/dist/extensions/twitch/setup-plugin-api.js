@@ -1,2 +1,2 @@
-import { n as twitchSetupPlugin } from "../../setup-surface-CjW_2Sf-.js";
+import { n as twitchSetupPlugin } from "../../setup-surface-DyAaBiNZ.js";
 export { twitchSetupPlugin };

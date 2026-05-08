@@ -2,10 +2,15 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { PluginCompatCode } from "./compat/registry.js";
 import { type PluginCapabilityEntry, type PluginInspectShape } from "./inspect-shape.js";
 import type { PluginDiagnostic } from "./manifest-types.js";
-import type { PluginRegistry } from "./registry.js";
+import { type PluginRegistrySnapshotDiagnostic, type PluginRegistrySnapshotSource } from "./plugin-registry.js";
+import { type PluginRegistry } from "./registry.js";
 import type { PluginHookName, PluginLogger } from "./types.js";
 export type PluginStatusReport = PluginRegistry & {
     workspaceDir?: string;
+};
+export type PluginRegistryStatusReport = PluginStatusReport & {
+    registrySource: PluginRegistrySnapshotSource;
+    registryDiagnostics: readonly PluginRegistrySnapshotDiagnostic[];
 };
 export type { PluginCapabilityKind, PluginInspectShape } from "./inspect-shape.js";
 export type PluginCompatibilityNotice = {
@@ -66,11 +71,13 @@ export type PluginInspectReport = {
 };
 type PluginReportParams = {
     config?: OpenClawConfig;
+    effectiveOnly?: boolean;
     workspaceDir?: string;
     /** Use an explicit env when plugin roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
     logger?: PluginLogger;
 };
+export declare function buildPluginRegistrySnapshotReport(params?: PluginReportParams): PluginRegistryStatusReport;
 export declare function buildPluginSnapshotReport(params?: PluginReportParams): PluginStatusReport;
 export declare function buildPluginDiagnosticsReport(params?: PluginReportParams): PluginStatusReport;
 export declare function buildPluginInspectReport(params: {

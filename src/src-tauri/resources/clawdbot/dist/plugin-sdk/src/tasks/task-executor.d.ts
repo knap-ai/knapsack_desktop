@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { DetachedRunningTaskCreateParams, DetachedTaskCreateParams } from "./detached-task-runtime-contract.js";
+import type { DetachedRunningTaskCreateParams, DetachedTaskCreateParams, DetachedTaskFinalizeParams } from "./detached-task-runtime-contract.js";
 import type { TaskFlowRecord } from "./task-flow-registry.types.js";
 import type { TaskDeliveryState, TaskDeliveryStatus, TaskNotifyPolicy, TaskRecord, TaskRegistrySummary, TaskRuntime, TaskStatus, TaskTerminalOutcome } from "./task-registry.types.js";
 type TaskRunCreateParams = DetachedTaskCreateParams;
@@ -52,6 +52,7 @@ export declare function completeTaskRunByRunId(params: {
     terminalSummary?: string | null;
     terminalOutcome?: TaskTerminalOutcome | null;
 }): TaskRecord[];
+export declare function finalizeTaskRunByRunId(params: DetachedTaskFinalizeParams): TaskRecord[];
 export declare function failTaskRunByRunId(params: {
     runId: string;
     runtime?: TaskRuntime;
@@ -75,6 +76,7 @@ export declare function setDetachedTaskDeliveryStatusByRunId(params: {
     runtime?: TaskRuntime;
     sessionKey?: string;
     deliveryStatus: TaskDeliveryStatus;
+    error?: string;
 }): TaskRecord[];
 type RetryBlockedFlowResult = {
     found: boolean;

@@ -1,4 +1,4 @@
-import { t as defineBundledChannelEntry } from "../../channel-entry-contract-Dgvv3PjH.js";
+import { defineBundledChannelEntry } from "openclaw/plugin-sdk/channel-entry-contract";
 //#region extensions/msteams/index.ts
 var msteams_default = defineBundledChannelEntry({
 	id: "msteams",

@@ -26,6 +26,7 @@ export declare function normalizeBundlePathList(value: unknown): string[];
 export declare function mergeBundlePathLists(...groups: string[][]): string[];
 export declare function loadBundleManifest(params: {
     rootDir: string;
+    rootRealPath?: string;
     bundleFormat: PluginBundleFormat;
     rejectHardlinks?: boolean;
 }): BundleManifestLoadResult;

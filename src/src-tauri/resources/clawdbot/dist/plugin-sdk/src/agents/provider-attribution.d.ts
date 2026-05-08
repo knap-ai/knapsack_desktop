@@ -56,6 +56,7 @@ export type ProviderRequestCapabilities = ProviderRequestPolicyResolution & {
     allowsResponsesStore: boolean;
     shouldStripResponsesPromptCache: boolean;
     supportsNativeStreamingUsageCompat: boolean;
+    supportsOpenAICompletionsStreamingUsageCompat: boolean;
     compatibilityFamily?: ProviderRequestCompatibilityFamily;
 };
 export declare function resolveProviderEndpoint(baseUrl: string | null | undefined): ProviderEndpointResolution;

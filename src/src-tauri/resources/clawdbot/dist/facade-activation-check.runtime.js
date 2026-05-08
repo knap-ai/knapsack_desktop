@@ -1,13 +1,13 @@
-import { t as resolveBundledPluginsDir } from "./bundled-dir-DXKS8sgC.js";
-import { o as resolveConfigPath } from "./paths-BG0ad0P6.js";
-import { t as loadPluginManifestRegistry } from "./manifest-registry-pYrbrdHJ.js";
-import { c as resolveEffectivePluginActivationState, n as createPluginActivationSource, o as normalizePluginsConfig } from "./config-state-UvzNc3si.js";
-import { a as getRuntimeConfigSourceSnapshot, r as getRuntimeConfigSnapshot } from "./runtime-snapshot-C5PRsFS9.js";
-import { i as configMayNeedPluginAutoEnable, t as applyPluginAutoEnable } from "./plugin-auto-enable-BKDUQLPR.js";
-import { i as resolveRegistryPluginModuleLocationFromRecords } from "./facade-resolution-shared-D6EBhHse.js";
+import { o as resolveConfigPath } from "./paths-B2cMK-wd.js";
+import { t as resolveBundledPluginsDir } from "./bundled-dir-DygrJuRr.js";
+import { c as resolveEffectivePluginActivationState, n as createPluginActivationSource, o as normalizePluginsConfig } from "./config-state-Bw_lAn0M.js";
+import { t as loadPluginManifestRegistry } from "./manifest-registry-CXpW6f0a.js";
+import { i as getRuntimeConfigSnapshot, s as getRuntimeConfigSourceSnapshot } from "./runtime-snapshot-DLisEE8Y.js";
+import { i as configMayNeedPluginAutoEnable, t as applyPluginAutoEnable } from "./plugin-auto-enable-BlWaQbGq.js";
+import { i as resolveRegistryPluginModuleLocationFromRecords } from "./facade-resolution-shared-DueUCXAq.js";
 import fs from "node:fs";
-import path from "node:path";
 import JSON5 from "json5";
+import path from "node:path";
 //#region src/plugin-sdk/facade-activation-check.runtime.ts
 const ALWAYS_ALLOWED_RUNTIME_DIR_NAMES = new Set([
 	"image-generation-core",

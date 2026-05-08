@@ -8,6 +8,7 @@ export declare function normalizeReplyPayloadDirectives(params: {
     silentToken?: string;
     trimLeadingWhitespace?: boolean;
     parseMode?: ReplyDirectiveParseMode;
+    extractMarkdownImages?: boolean;
 }): {
     payload: ReplyPayload;
     isSilent: boolean;

@@ -98,10 +98,12 @@
       "minimax-portal"
     ],
     "musicGenerationProviders": [
-      "minimax"
+      "minimax",
+      "minimax-portal"
     ],
     "videoGenerationProviders": [
-      "minimax"
+      "minimax",
+      "minimax-portal"
     ],
     "webSearchProviders": [
       "minimax"

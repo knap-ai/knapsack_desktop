@@ -1,7 +1,7 @@
 export type JsonValue = null | boolean | number | string | JsonValue[] | {
     [key: string]: JsonValue;
 };
-export declare const NATIVE_HOOK_RELAY_EVENTS: readonly ["pre_tool_use", "post_tool_use", "permission_request"];
+export declare const NATIVE_HOOK_RELAY_EVENTS: readonly ["pre_tool_use", "post_tool_use", "permission_request", "before_agent_finalize"];
 export declare const NATIVE_HOOK_RELAY_PROVIDERS: readonly ["codex"];
 export type NativeHookRelayEvent = (typeof NATIVE_HOOK_RELAY_EVENTS)[number];
 export type NativeHookRelayProvider = (typeof NATIVE_HOOK_RELAY_PROVIDERS)[number];
@@ -16,6 +16,11 @@ export type NativeHookRelayInvocation = {
     runId: string;
     cwd?: string;
     model?: string;
+    turnId?: string;
+    transcriptPath?: string;
+    permissionMode?: string;
+    stopHookActive?: boolean;
+    lastAssistantMessage?: string;
     toolName?: string;
     toolUseId?: string;
     rawPayload: JsonValue;
@@ -75,7 +80,7 @@ type NativeHookRelayPermissionApprovalRequest = {
     toolCallId?: string;
     cwd?: string;
     model?: string;
-    toolInput: Record<string, unknown>;
+    toolInput: Record<string, JsonValue>;
     signal?: AbortSignal;
 };
 type NativeHookRelayPermissionApprovalRequester = (request: NativeHookRelayPermissionApprovalRequest) => Promise<NativeHookRelayPermissionApprovalResult>;
@@ -100,6 +105,8 @@ export declare const __testing: {
     getNativeHookRelayInvocationsForTests(): NativeHookRelayInvocation[];
     getNativeHookRelayRegistrationForTests(relayId: string): NativeHookRelayRegistration | undefined;
     formatPermissionApprovalDescriptionForTests(request: NativeHookRelayPermissionApprovalRequest): string;
+    permissionRequestContentFingerprintForTests(request: NativeHookRelayPermissionApprovalRequest): string;
+    permissionRequestToolInputKeyFingerprintForTests(toolInput: Record<string, unknown>): string;
     setNativeHookRelayPermissionApprovalRequesterForTests(requester: NativeHookRelayPermissionApprovalRequester): void;
 };
 export {};

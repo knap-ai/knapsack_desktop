@@ -11,6 +11,8 @@ type ConfigModelEntry = {
     contextTokens?: number;
 };
 type ProviderConfigEntry = {
+    contextWindow?: number;
+    contextTokens?: number;
     models?: ConfigModelEntry[];
 };
 type ModelsConfig = {

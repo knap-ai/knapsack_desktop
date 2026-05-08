@@ -4,6 +4,15 @@
   "providers": [
     "huggingface"
   ],
+  "modelIdNormalization": {
+    "providers": {
+      "huggingface": {
+        "stripPrefixes": [
+          "huggingface/"
+        ]
+      }
+    }
+  },
   "providerAuthEnvVars": {
     "huggingface": [
       "HUGGINGFACE_HUB_TOKEN",

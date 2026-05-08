@@ -22,6 +22,6 @@ export declare function createChannelOutboundRuntimeSend(params: {
     channelId: ChannelId;
     unavailableMessage: string;
 }): {
-    sendMessage: (to: string, text: string, opts?: RuntimeSendOpts) => Promise<import("openclaw/plugin-sdk/outbound-runtime").OutboundDeliveryResult>;
+    sendMessage: (to: string, text: string, opts?: RuntimeSendOpts) => Promise<import("openclaw/plugin-sdk/channel-send-result").OutboundDeliveryResult>;
 };
 export {};

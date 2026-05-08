@@ -6,6 +6,7 @@ export declare function resolveMemoryFlushContextWindowTokens(params: {
     cfg?: OpenClawConfig;
     provider?: string;
 }): number;
+export declare function resolveMaxActiveTranscriptBytes(cfg?: OpenClawConfig): number | undefined;
 export declare function shouldRunMemoryFlush(params: {
     entry?: Pick<SessionEntry, "totalTokens" | "totalTokensFresh" | "compactionCount" | "memoryFlushCompactionCount">;
     /**

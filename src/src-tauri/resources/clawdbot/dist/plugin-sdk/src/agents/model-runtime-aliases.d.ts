@@ -20,6 +20,7 @@ export declare function migrateLegacyRuntimeModelRef(raw: string): {
     cli: boolean;
 } | null;
 export declare function isLegacyRuntimeModelProvider(provider: string): boolean;
+export declare function isCliRuntimeAlias(runtime: string | undefined): boolean;
 export declare function resolveCliRuntimeExecutionProvider(params: {
     provider: string;
     cfg?: OpenClawConfig;

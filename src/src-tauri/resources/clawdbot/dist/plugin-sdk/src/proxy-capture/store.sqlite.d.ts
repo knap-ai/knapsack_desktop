@@ -4,8 +4,11 @@ export declare class DebugProxyCaptureStore {
     readonly dbPath: string;
     readonly blobDir: string;
     readonly db: DatabaseSync;
+    private readonly walMaintenance;
+    private closed;
     constructor(dbPath: string, blobDir: string);
     close(): void;
+    get isClosed(): boolean;
     upsertSession(session: CaptureSessionRecord): void;
     endSession(sessionId: string, endedAt?: number): void;
     persistPayload(data: Buffer, contentType?: string): CaptureBlobRecord;
@@ -28,6 +31,10 @@ export declare class DebugProxyCaptureStore {
 }
 export declare function getDebugProxyCaptureStore(dbPath: string, blobDir: string): DebugProxyCaptureStore;
 export declare function closeDebugProxyCaptureStore(): void;
+export declare function acquireDebugProxyCaptureStore(dbPath: string, blobDir: string): {
+    store: DebugProxyCaptureStore;
+    release: () => void;
+};
 export declare function persistEventPayload(store: DebugProxyCaptureStore, params: {
     data?: Buffer | string | null;
     contentType?: string;

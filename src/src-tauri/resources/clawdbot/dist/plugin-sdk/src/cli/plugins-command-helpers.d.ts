@@ -23,6 +23,7 @@ export declare function formatPluginInstallWithHookFallbackError(pluginError: st
 export declare function logHookPackRestartHint(): void;
 export declare function logSlotWarnings(warnings: string[]): void;
 export declare function buildPreferredClawHubSpec(raw: string): string | null;
+export declare function parseNpmPrefixSpec(raw: string): string | null;
 export declare const PREFERRED_CLAWHUB_FALLBACK_DECISION: {
     readonly FALLBACK_TO_NPM: "fallback_to_npm";
     readonly STOP: "stop";

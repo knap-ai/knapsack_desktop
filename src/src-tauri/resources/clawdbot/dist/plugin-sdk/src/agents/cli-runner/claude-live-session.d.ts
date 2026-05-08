@@ -6,6 +6,7 @@ type ClaudeLiveRunResult = {
     output: CliOutput;
 };
 export declare function resetClaudeLiveSessionsForTest(): void;
+export declare function closeClaudeLiveSessionForContext(context: PreparedCliRunContext): void;
 export declare function shouldUseClaudeLiveSession(context: PreparedCliRunContext): boolean;
 export declare function buildClaudeLiveArgs(params: {
     args: string[];

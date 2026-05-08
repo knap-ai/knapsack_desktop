@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as buildGradiumSpeechProvider } from "../../speech-provider-CWhOMgbv.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as buildGradiumSpeechProvider } from "../../speech-provider-D1X5uhmV.js";
 //#region extensions/gradium/index.ts
 var gradium_default = definePluginEntry({
 	id: "gradium",

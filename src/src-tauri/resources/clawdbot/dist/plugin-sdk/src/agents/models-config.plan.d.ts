@@ -1,10 +1,13 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginMetadataSnapshot } from "../plugins/plugin-metadata-snapshot.js";
 import { type ProviderConfig } from "./models-config.providers.js";
 export type ResolveImplicitProvidersForModelsJson = (params: {
     agentDir: string;
     config: OpenClawConfig;
     env: NodeJS.ProcessEnv;
+    workspaceDir?: string;
     explicitProviders: Record<string, ProviderConfig>;
+    pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
 }) => Promise<Record<string, ProviderConfig>>;
 export type ModelsJsonPlan = {
     action: "skip";
@@ -18,6 +21,8 @@ export declare function resolveProvidersForModelsJsonWithDeps(params: {
     cfg: OpenClawConfig;
     agentDir: string;
     env: NodeJS.ProcessEnv;
+    workspaceDir?: string;
+    pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
 }, deps?: {
     resolveImplicitProviders?: ResolveImplicitProvidersForModelsJson;
 }): Promise<Record<string, ProviderConfig>>;
@@ -26,8 +31,10 @@ export declare function planOpenClawModelsJsonWithDeps(params: {
     sourceConfigForSecrets?: OpenClawConfig;
     agentDir: string;
     env: NodeJS.ProcessEnv;
+    workspaceDir?: string;
     existingRaw: string;
     existingParsed: unknown;
+    pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
 }, deps?: {
     resolveImplicitProviders?: ResolveImplicitProvidersForModelsJson;
 }): Promise<ModelsJsonPlan>;

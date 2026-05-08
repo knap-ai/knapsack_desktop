@@ -18,6 +18,10 @@ export type CompactResult = {
         tokensBefore: number;
         tokensAfter?: number;
         details?: unknown;
+        /** Session id after compaction, when the runtime rotated transcripts. */
+        sessionId?: string;
+        /** Session file after compaction, when the runtime rotated transcripts. */
+        sessionFile?: string;
     };
 };
 export type IngestResult = {

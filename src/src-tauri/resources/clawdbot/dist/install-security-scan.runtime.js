@@ -1,1 +1,1 @@
-export * from "./install-security-scan.runtime-BINcXq2M.js";
+export * from "./install-security-scan.runtime-CnsY_UiX.js";

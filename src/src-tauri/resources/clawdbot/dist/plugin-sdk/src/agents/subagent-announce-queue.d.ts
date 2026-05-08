@@ -26,4 +26,5 @@ export declare function enqueueAnnounce(params: {
     item: AnnounceQueueItem;
     settings: AnnounceQueueSettings;
     send: (item: AnnounceQueueItem) => Promise<void>;
+    shouldDefer?: (item: AnnounceQueueItem) => boolean;
 }): boolean;

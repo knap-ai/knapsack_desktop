@@ -3,6 +3,7 @@ import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type ToolModelConfig = {
     primary?: string;
     fallbacks?: string[];
+    timeoutMs?: number;
 };
 export declare function hasToolModelConfig(model: ToolModelConfig | undefined): boolean;
 export declare function resolveDefaultModelRef(cfg?: OpenClawConfig): {

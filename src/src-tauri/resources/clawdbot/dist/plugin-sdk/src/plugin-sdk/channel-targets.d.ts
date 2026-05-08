@@ -3,4 +3,5 @@ export { buildMessagingTarget, ensureTargetId, normalizeTargetId, parseAtUserTar
 export { createAllowedChatSenderMatcher, parseChatAllowTargetPrefixes, parseChatTargetPrefixesOrThrow, resolveServicePrefixedAllowTarget, resolveServicePrefixedChatTarget, resolveServicePrefixedOrChatAllowTarget, resolveServicePrefixedTarget, type ChatSenderAllowParams, type ChatTargetPrefixesParams, type ParsedChatAllowTarget, type ParsedChatTarget, type ServicePrefix, } from "../channels/plugins/chat-target-prefixes.js";
 export type { ChannelId } from "../channels/plugins/types.public.js";
 export { normalizeChannelId } from "../channels/plugins/registry.js";
+export { resolveChannelTtsVoiceDelivery } from "../channels/plugins/tts-capabilities.js";
 export { buildUnresolvedTargetResults, resolveTargetsWithOptionalToken, } from "../channels/plugins/target-resolvers.js";

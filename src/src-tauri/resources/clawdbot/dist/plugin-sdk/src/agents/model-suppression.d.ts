@@ -1,4 +1,9 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+export declare function shouldSuppressBuiltInModelFromManifest(params: {
+    provider?: string | null;
+    id?: string | null;
+    config?: OpenClawConfig;
+}): boolean;
 export declare function shouldSuppressBuiltInModel(params: {
     provider?: string | null;
     id?: string | null;

@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type AuthCredentialReasonCode } from "./auth-profiles/credential-state.js";
-import type { AuthProfileStore } from "./auth-profiles/types.js";
+import type { AuthProfileCredential, AuthProfileStore } from "./auth-profiles/types.js";
 export type AuthProfileSource = "store";
 export type AuthProfileHealthStatus = "ok" | "expiring" | "expired" | "missing" | "static";
 export type AuthProfileHealth = {
@@ -38,4 +38,5 @@ export declare function buildAuthHealthSummary(params: {
     cfg?: OpenClawConfig;
     warnAfterMs?: number;
     providers?: string[];
+    runtimeCredentialsByProvider?: ReadonlyMap<string, AuthProfileCredential>;
 }): AuthHealthSummary;

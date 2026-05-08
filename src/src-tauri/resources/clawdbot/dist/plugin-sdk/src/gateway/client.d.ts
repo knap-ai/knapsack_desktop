@@ -8,6 +8,11 @@ type GatewayClientErrorShape = {
     retryable?: boolean;
     retryAfterMs?: number;
 };
+export type GatewayReconnectPausedInfo = {
+    code: number;
+    reason: string;
+    detailCode: string | null;
+};
 export declare class GatewayClientRequestError extends Error {
     readonly gatewayCode: string;
     readonly details?: unknown;
@@ -46,6 +51,7 @@ export type GatewayClientOptions = {
     onEvent?: (evt: EventFrame) => void;
     onHelloOk?: (hello: HelloOk) => void;
     onConnectError?: (err: Error) => void;
+    onReconnectPaused?: (info: GatewayReconnectPausedInfo) => void;
     onClose?: (code: number, reason: string) => void;
     onGap?: (info: {
         expected: number;
@@ -65,6 +71,7 @@ export declare class GatewayClient {
     private connectNonce;
     private connectSent;
     private connectTimer;
+    private reconnectTimer;
     private pendingDeviceTokenRetry;
     private deviceTokenRetryBudgetUsed;
     private pendingConnectErrorDetailCode;
@@ -93,6 +100,7 @@ export declare class GatewayClient {
     private handleMessage;
     private beginPreauthHandshake;
     private clearConnectChallengeTimeout;
+    private clearReconnectTimer;
     private armConnectChallengeTimeout;
     private scheduleReconnect;
     private flushPendingErrors;

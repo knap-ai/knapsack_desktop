@@ -1,21 +1,21 @@
-import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString } from "../../string-coerce-C1IzJjqi.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-CoGSA-7K.js";
-import { u as resolveGatewayPort } from "../../paths-BG0ad0P6.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { n as resolveGatewayBindUrl, t as resolveTailnetHostWithRunner } from "../../tailscale-status-Ca9OERuf.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-hPKcADK4.js";
-import { c as renderQrPngDataUrl, l as writeQrPngTempFile } from "../../media-runtime-CaqK85Sx.js";
-import { t as PAIRING_SETUP_BOOTSTRAP_PROFILE } from "../../device-bootstrap-profile-G_w2eTHB.js";
-import { l as listDevicePairing } from "../../device-pairing-DFwfBQIP.js";
-import { i as issueDeviceBootstrapToken, o as revokeDeviceBootstrapToken, t as clearDeviceBootstrapTokens } from "../../device-bootstrap-JSLx_Ss2.js";
-import "../../api-CHSuTlKx.js";
-import { i as registerPairingNotifierService, n as formatPendingRequests, r as handleNotifyCommand, t as armPairNotifyOnce } from "../../notify-DjxoFZzI.js";
-import { n as selectPendingApprovalRequest, t as approvePendingPairingRequest } from "../../pair-command-approve-VtAYTcDI.js";
-import { n as resolvePairingCommandAuthState, t as buildMissingPairingScopeReply } from "../../pair-command-auth-Bpj1uMz9.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
+import { u as resolveGatewayPort } from "../../paths-B2cMK-wd.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-WEYPFjsW.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { n as resolveGatewayBindUrl, t as resolveTailnetHostWithRunner } from "../../tailscale-status-TIS3YuXv.js";
+import { t as runPluginCommandWithTimeout } from "../../run-command-Dn8XvLAC.js";
+import { c as renderQrPngDataUrl, l as writeQrPngTempFile } from "../../media-runtime-BVjLGcae.js";
+import { t as PAIRING_SETUP_BOOTSTRAP_PROFILE } from "../../device-bootstrap-profile-BB7Yi_yP.js";
+import { l as listDevicePairing } from "../../device-pairing-wkouYy9B.js";
+import { i as issueDeviceBootstrapToken, o as revokeDeviceBootstrapToken, t as clearDeviceBootstrapTokens } from "../../device-bootstrap-C0mqX0qI.js";
+import "../../api-DKxf0G6T.js";
+import { i as registerPairingNotifierService, n as formatPendingRequests, r as handleNotifyCommand, t as armPairNotifyOnce } from "../../notify-Di4dCYgN.js";
+import { n as selectPendingApprovalRequest, t as approvePendingPairingRequest } from "../../pair-command-approve-D3oki1cg.js";
+import { n as resolvePairingCommandAuthState, t as buildMissingPairingScopeReply } from "../../pair-command-auth-DDhV5rfk.js";
 import path from "node:path";
-import os from "node:os";
 import { rm } from "node:fs/promises";
+import os from "node:os";
 //#region extensions/device-pair/index.ts
 function formatDurationMinutes(expiresAtMs) {
 	const msRemaining = Math.max(0, expiresAtMs - Date.now());

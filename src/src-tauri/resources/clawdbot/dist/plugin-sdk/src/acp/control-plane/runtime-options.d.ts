@@ -2,6 +2,7 @@ import type { AcpSessionRuntimeOptions, SessionAcpMeta } from "../../config/sess
 export { normalizeText } from "../normalize-text.js";
 export declare function validateRuntimeModeInput(rawMode: unknown): string;
 export declare function validateRuntimeModelInput(rawModel: unknown): string;
+export declare function validateRuntimeThinkingInput(rawThinking: unknown): string;
 export declare function validateRuntimePermissionProfileInput(rawProfile: unknown): string;
 export declare function validateRuntimeCwdInput(rawCwd: unknown): string;
 export declare function validateRuntimeTimeoutSecondsInput(rawTimeout: unknown): number;

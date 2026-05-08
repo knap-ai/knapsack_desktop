@@ -21,4 +21,5 @@ export declare function createBundleLspToolRuntime(params: {
     cfg?: OpenClawConfig;
     reservedToolNames?: Iterable<string>;
 }): Promise<BundleLspToolRuntime>;
+export declare function disposeAllBundleLspRuntimes(): Promise<void>;
 export {};

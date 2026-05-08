@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/types.js";
+import type { PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginDiagnostic } from "./manifest-types.js";
 import type { PluginManifestActivationCapability } from "./manifest.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
@@ -43,6 +44,7 @@ type ResolveManifestActivationPlanParams = {
     cache?: boolean;
     origin?: PluginOrigin;
     onlyPluginIds?: readonly string[];
+    manifestRecords?: readonly PluginManifestRecord[];
 };
 export declare function resolveManifestActivationPlan(params: ResolveManifestActivationPlanParams): PluginActivationPlan;
 export declare function resolveManifestActivationPluginIds(params: ResolveManifestActivationPlanParams): string[];

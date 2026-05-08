@@ -809,6 +809,86 @@
             "default": true,
             "type": "boolean"
           },
+          "tts": {
+            "type": "object",
+            "properties": {
+              "auto": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "always",
+                  "inbound",
+                  "tagged"
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "final",
+                  "all"
+                ]
+              },
+              "provider": {
+                "type": "string"
+              },
+              "persona": {
+                "type": "string"
+              },
+              "personas": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "summaryModel": {
+                "type": "string"
+              },
+              "modelOverrides": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "providers": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "prefsPath": {
+                "type": "string"
+              },
+              "maxTextLength": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 120000
+              }
+            },
+            "additionalProperties": false
+          },
           "groupSessionScope": {
             "type": "string",
             "enum": [
@@ -1455,6 +1535,86 @@
                 },
                 "resolveSenderNames": {
                   "type": "boolean"
+                },
+                "tts": {
+                  "type": "object",
+                  "properties": {
+                    "auto": {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "always",
+                        "inbound",
+                        "tagged"
+                      ]
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "final",
+                        "all"
+                      ]
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "persona": {
+                      "type": "string"
+                    },
+                    "personas": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "summaryModel": {
+                      "type": "string"
+                    },
+                    "modelOverrides": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "providers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "prefsPath": {
+                      "type": "string"
+                    },
+                    "maxTextLength": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "timeoutMs": {
+                      "type": "integer",
+                      "minimum": 1000,
+                      "maximum": 120000
+                    }
+                  },
+                  "additionalProperties": false
                 },
                 "groupSessionScope": {
                   "type": "string",

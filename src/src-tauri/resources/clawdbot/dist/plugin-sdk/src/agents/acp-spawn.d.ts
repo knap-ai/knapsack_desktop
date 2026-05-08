@@ -11,6 +11,8 @@ export type SpawnAcpParams = {
     agentId?: string;
     resumeSessionId?: string;
     model?: string;
+    thinking?: string;
+    runTimeoutSeconds?: number;
     cwd?: string;
     mode?: SpawnAcpMode;
     thread?: boolean;
@@ -31,7 +33,7 @@ export type SpawnAcpContext = {
     agentMemberRoleIds?: string[];
     sandboxed?: boolean;
 };
-export declare const ACP_SPAWN_ERROR_CODES: readonly ["acp_disabled", "requester_session_required", "runtime_policy", "subagent_policy", "thread_required", "target_agent_required", "agent_forbidden", "cwd_resolution_failed", "thread_binding_invalid", "spawn_failed", "dispatch_failed"];
+export declare const ACP_SPAWN_ERROR_CODES: readonly ["acp_disabled", "requester_session_required", "runtime_policy", "resume_forbidden", "subagent_policy", "thread_required", "target_agent_required", "runtime_agent_mismatch", "agent_forbidden", "cwd_resolution_failed", "thread_binding_invalid", "spawn_failed", "dispatch_failed"];
 export type SpawnAcpErrorCode = (typeof ACP_SPAWN_ERROR_CODES)[number];
 type SpawnAcpResultFields = {
     childSessionKey?: string;

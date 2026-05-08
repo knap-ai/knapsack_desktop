@@ -106,11 +106,25 @@ export declare function markTaskTerminalByRunId(params: {
     terminalSummary?: string | null;
     terminalOutcome?: TaskTerminalOutcome | null;
 }): TaskRecord[];
+export declare function finalizeTaskRunByRunId(params: {
+    runId: string;
+    runtime?: TaskRuntime;
+    sessionKey?: string;
+    status: Extract<TaskStatus, "succeeded" | "failed" | "timed_out" | "cancelled">;
+    startedAt?: number;
+    endedAt: number;
+    lastEventAt?: number;
+    error?: string;
+    progressSummary?: string | null;
+    terminalSummary?: string | null;
+    terminalOutcome?: TaskTerminalOutcome | null;
+}): TaskRecord[];
 export declare function setTaskRunDeliveryStatusByRunId(params: {
     runId: string;
     runtime?: TaskRuntime;
     sessionKey?: string;
     deliveryStatus: TaskDeliveryStatus;
+    error?: string;
 }): TaskRecord[];
 export declare function updateTaskNotifyPolicyById(params: {
     taskId: string;

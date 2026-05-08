@@ -1,15 +1,30 @@
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CkOd5v2f.js";
-import { n as removeProviderAuthProfilesWithLock } from "../../profiles-RuCKjoVP.js";
-import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-BHhtM4mz.js";
-import { n as buildApiKeyCredential } from "../../provider-auth-helpers-BIVX-4NW.js";
-import "../../provider-auth-B7ecZcum.js";
-import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-Ck8tsJYW.js";
-import "../../provider-setup-JN9x1Jdc.js";
-import { t as WizardCancelledError } from "../../prompts-ocoL7LgP.js";
-import "../../setup-Bk02jGjc.js";
-import { h as withAgentModelAliases } from "../../provider-onboard-VLZPCYnL.js";
-import { A as LMSTUDIO_MODEL_PLACEHOLDER, C as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, D as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, E as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, M as LMSTUDIO_PROVIDER_LABEL, O as LMSTUDIO_DEFAULT_MODEL_ID, S as resolveLoadedContextWindow, T as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_PROVIDER_ID, k as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_BASE_URL, x as resolveLmstudioServerBase, y as resolveLmstudioInferenceBase } from "../../models.fetch-rYikvgVG.js";
+import { o as hasConfiguredSecretInput } from "../../types.secrets-ClP-vJ-P.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
+import { n as removeProviderAuthProfilesWithLock } from "../../profiles-CrHNjqxk.js";
+import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-DHREnmQa.js";
+import { n as buildApiKeyCredential } from "../../provider-auth-helpers-byAcxGN1.js";
+import "../../provider-auth-LNc11avL.js";
+import { h as withAgentModelAliases } from "../../provider-onboard-DXwevr7q.js";
+import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-C17w8z3a.js";
+import "../../provider-setup-35TPpZBn.js";
+import { t as WizardCancelledError } from "../../prompts-CsV4pT5z.js";
+import "../../setup-CScHqsli.js";
+import { A as LMSTUDIO_DOCKER_HOST_BASE_URL, C as resolveLoadedContextWindow, D as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, E as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, F as LMSTUDIO_PROVIDER_LABEL, M as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, N as LMSTUDIO_MODEL_PLACEHOLDER, O as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, P as LMSTUDIO_PROVIDER_ID, S as resolveLmstudioServerBase, T as LMSTUDIO_DEFAULT_BASE_URL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_DOCKER_HOST_INFERENCE_BASE_URL, k as LMSTUDIO_DEFAULT_MODEL_ID, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, x as resolveLmstudioReasoningCompat, y as resolveLmstudioInferenceBase } from "../../models.fetch-DQvr3ubL.js";
 //#region extensions/lmstudio/src/setup.ts
+function isTruthyEnvValue(value) {
+	return [
+		"1",
+		"true",
+		"yes",
+		"on"
+	].includes(value?.trim().toLowerCase() ?? "");
+}
+function resolveLmstudioSetupDefaultBaseUrl(env = process.env) {
+	return isTruthyEnvValue(env.OPENCLAW_DOCKER_SETUP) ? LMSTUDIO_DOCKER_HOST_BASE_URL : LMSTUDIO_DEFAULT_BASE_URL;
+}
+function resolveLmstudioSetupDefaultInferenceBaseUrl(env = process.env) {
+	return isTruthyEnvValue(env.OPENCLAW_DOCKER_SETUP) ? LMSTUDIO_DOCKER_HOST_INFERENCE_BASE_URL : LMSTUDIO_DEFAULT_INFERENCE_BASE_URL;
+}
 function stripLmstudioStoredAuthConfig(cfg) {
 	const { profiles: _profiles, order: _order, ...restAuth } = cfg.auth ?? {};
 	const nextProfiles = Object.fromEntries(Object.entries(cfg.auth?.profiles ?? {}).filter(([, profile]) => profile.provider !== LMSTUDIO_PROVIDER_ID));
@@ -167,12 +182,13 @@ async function promptAndConfigureLmstudioInteractive(params) {
 	const promptText = params.prompter?.text ?? params.promptText;
 	if (!promptText) throw new Error("LM Studio interactive setup requires a text prompter.");
 	const note = params.prompter?.note ?? params.note;
+	const defaultBaseUrl = resolveLmstudioSetupDefaultBaseUrl();
 	const baseUrl = resolveLmstudioInferenceBase(await promptText({
 		message: `LM Studio base URL`,
-		initialValue: "http://localhost:1234",
-		placeholder: "http://localhost:1234",
+		initialValue: defaultBaseUrl,
+		placeholder: defaultBaseUrl,
 		validate: (value) => value?.trim() ? void 0 : "Required"
-	}) ?? "");
+	}) ?? defaultBaseUrl);
 	let credentialInput;
 	let credentialMode;
 	const implicitRefMode = params.allowSecretRefPrompt === false && !params.secretInputMode;
@@ -183,23 +199,25 @@ async function promptAndConfigureLmstudioInteractive(params) {
 		envLabel: LMSTUDIO_DEFAULT_API_KEY_ENV_VAR,
 		promptMessage: `${LMSTUDIO_PROVIDER_LABEL} API key`,
 		normalize: (value) => value.trim(),
-		validate: (value) => value.trim() ? void 0 : "Required",
+		validate: () => void 0,
 		prompter: params.prompter,
 		secretInputMode: params.allowSecretRefPrompt === false ? params.secretInputMode ?? "plaintext" : params.secretInputMode,
 		setCredential: async (apiKeyValue, mode) => {
 			credentialInput = apiKeyValue;
 			credentialMode = mode;
 		}
-	}) : String(await promptText({
-		message: `${LMSTUDIO_PROVIDER_LABEL} API key`,
-		placeholder: "sk-...",
-		validate: (value) => value?.trim() ? void 0 : "Required"
-	})).trim();
-	const credential = params.prompter ? buildApiKeyCredential(LMSTUDIO_PROVIDER_ID, credentialInput ?? (implicitRefMode && autoRefEnvKey ? `\${LM_API_TOKEN}` : apiKey), void 0, credentialMode ? { secretInputMode: credentialMode } : implicitRefMode && autoRefEnvKey ? { secretInputMode: "ref" } : void 0) : {
+	}) : (await promptText({
+		message: `LM Studio API key`,
+		placeholder: "sk-... (leave blank if auth is disabled)",
+		validate: () => void 0
+	}) ?? "").trim();
+	const normalizedApiKey = normalizeOptionalSecretInput(apiKey);
+	const credentialSource = credentialInput ?? (implicitRefMode && autoRefEnvKey ? `\${LM_API_TOKEN}` : apiKey);
+	const credential = (params.prompter ? credentialMode === "ref" || hasConfiguredSecretInput(credentialSource) : normalizedApiKey !== void 0) ? params.prompter ? buildApiKeyCredential(LMSTUDIO_PROVIDER_ID, credentialSource, void 0, credentialMode ? { secretInputMode: credentialMode } : implicitRefMode && autoRefEnvKey ? { secretInputMode: "ref" } : void 0) : {
 		type: "api_key",
 		provider: LMSTUDIO_PROVIDER_ID,
-		key: apiKey
-	};
+		key: normalizedApiKey ?? apiKey
+	} : void 0;
 	const existingProvider = params.config.models?.providers?.[LMSTUDIO_PROVIDER_ID];
 	const persistedHeaders = existingProvider?.headers;
 	const resolvedHeaders = await resolveLmstudioProviderHeaders({
@@ -207,9 +225,14 @@ async function promptAndConfigureLmstudioInteractive(params) {
 		env: process.env,
 		headers: persistedHeaders
 	});
+	const hasAuthorizationHeader = hasLmstudioAuthorizationHeader(resolvedHeaders);
 	const setupDiscovery = await discoverLmstudioSetupModels({
 		baseUrl,
-		apiKey,
+		apiKey: normalizedApiKey ?? (shouldUseLmstudioApiKeyPlaceholder({
+			hasModels: true,
+			resolvedApiKey: void 0,
+			hasAuthorizationHeader
+		}) ? "lmstudio-local" : void 0),
 		...resolvedHeaders ? { headers: resolvedHeaders } : {},
 		timeoutMs: 5e3
 	});
@@ -236,18 +259,22 @@ async function promptAndConfigureLmstudioInteractive(params) {
 	});
 	const defaultModel = setupDiscovery.value.defaultModel;
 	const persistedApiKey = resolvePersistedLmstudioApiKey({
-		currentApiKey: existingProvider?.apiKey,
-		explicitAuth: resolveLmstudioProviderAuthMode(apiKey),
-		fallbackApiKey: "LM_API_TOKEN",
+		currentApiKey: normalizedApiKey ? existingProvider?.apiKey : void 0,
+		explicitAuth: resolveLmstudioProviderAuthMode(normalizedApiKey),
+		fallbackApiKey: normalizedApiKey ? "LM_API_TOKEN" : void 0,
 		preferFallbackApiKey: true,
 		hasModels: discoveredModels.length > 0,
-		hasAuthorizationHeader: hasLmstudioAuthorizationHeader(resolvedHeaders)
-	}) ?? "LM_API_TOKEN";
+		hasAuthorizationHeader
+	}) ?? (normalizedApiKey ? "LM_API_TOKEN" : void 0);
+	if (!credential) await removeProviderAuthProfilesWithLock({
+		provider: LMSTUDIO_PROVIDER_ID,
+		agentDir: params.agentDir
+	});
 	return {
-		profiles: [{
+		profiles: credential ? [{
 			profileId: `${LMSTUDIO_PROVIDER_ID}:default`,
 			credential
-		}],
+		}] : [],
 		configPatch: {
 			agents: { defaults: { models: allowlistEntries } },
 			models: {
@@ -267,7 +294,7 @@ async function promptAndConfigureLmstudioInteractive(params) {
 /** Non-interactive setup path backed by the shared self-hosted helper. */
 async function configureLmstudioNonInteractive(ctx) {
 	const customBaseUrl = normalizeOptionalSecretInput(ctx.opts.customBaseUrl);
-	const baseUrl = resolveLmstudioInferenceBase(customBaseUrl || LMSTUDIO_DEFAULT_INFERENCE_BASE_URL);
+	const baseUrl = resolveLmstudioInferenceBase(customBaseUrl || resolveLmstudioSetupDefaultInferenceBaseUrl());
 	const normalizedCtx = customBaseUrl ? {
 		...ctx,
 		opts: {
@@ -279,7 +306,7 @@ async function configureLmstudioNonInteractive(ctx) {
 		ctx: configureCtx,
 		providerId: LMSTUDIO_PROVIDER_ID,
 		providerLabel: LMSTUDIO_PROVIDER_LABEL,
-		defaultBaseUrl: LMSTUDIO_DEFAULT_INFERENCE_BASE_URL,
+		defaultBaseUrl: resolveLmstudioSetupDefaultInferenceBaseUrl(),
 		defaultApiKeyEnvVar: LMSTUDIO_DEFAULT_API_KEY_ENV_VAR,
 		modelPlaceholder: LMSTUDIO_MODEL_PLACEHOLDER
 	});
@@ -495,8 +522,9 @@ async function prepareLmstudioDynamicModels(ctx) {
 	})).map((model) => Object.assign({}, model, {
 		provider: LMSTUDIO_PROVIDER_ID,
 		api: ctx.providerConfig?.api ?? `openai-completions`,
-		baseUrl
+		baseUrl,
+		input: model.input.filter((entry) => entry === "text" || entry === "image")
 	}));
 }
 //#endregion
-export { LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, LMSTUDIO_DEFAULT_BASE_URL, LMSTUDIO_DEFAULT_EMBEDDING_MODEL, LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, LMSTUDIO_DEFAULT_MODEL_ID, LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, LMSTUDIO_MODEL_PLACEHOLDER, LMSTUDIO_PROVIDER_ID, LMSTUDIO_PROVIDER_LABEL, buildLmstudioAuthHeaders, buildLmstudioModelName, configureLmstudioNonInteractive, discoverLmstudioProvider, mapLmstudioWireEntry, mapLmstudioWireModelsToConfig, normalizeLmstudioConfiguredCatalogEntries, normalizeLmstudioConfiguredCatalogEntry, normalizeLmstudioProviderConfig, prepareLmstudioDynamicModels, promptAndConfigureLmstudioInteractive, resolveLmstudioConfiguredApiKey, resolveLmstudioInferenceBase, resolveLmstudioProviderHeaders, resolveLmstudioReasoningCapability, resolveLmstudioRequestContext, resolveLmstudioRuntimeApiKey, resolveLmstudioServerBase, resolveLoadedContextWindow };
+export { LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, LMSTUDIO_DEFAULT_BASE_URL, LMSTUDIO_DEFAULT_EMBEDDING_MODEL, LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, LMSTUDIO_DEFAULT_MODEL_ID, LMSTUDIO_DOCKER_HOST_BASE_URL, LMSTUDIO_DOCKER_HOST_INFERENCE_BASE_URL, LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, LMSTUDIO_MODEL_PLACEHOLDER, LMSTUDIO_PROVIDER_ID, LMSTUDIO_PROVIDER_LABEL, buildLmstudioAuthHeaders, buildLmstudioModelName, configureLmstudioNonInteractive, discoverLmstudioProvider, mapLmstudioWireEntry, mapLmstudioWireModelsToConfig, normalizeLmstudioConfiguredCatalogEntries, normalizeLmstudioConfiguredCatalogEntry, normalizeLmstudioProviderConfig, prepareLmstudioDynamicModels, promptAndConfigureLmstudioInteractive, resolveLmstudioConfiguredApiKey, resolveLmstudioInferenceBase, resolveLmstudioProviderHeaders, resolveLmstudioReasoningCapability, resolveLmstudioReasoningCompat, resolveLmstudioRequestContext, resolveLmstudioRuntimeApiKey, resolveLmstudioServerBase, resolveLoadedContextWindow };

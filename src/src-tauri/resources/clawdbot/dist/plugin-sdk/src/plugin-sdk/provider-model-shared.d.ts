@@ -1,5 +1,6 @@
 import { buildAnthropicReplayPolicyForModel, buildGoogleGeminiReplayPolicy, buildHybridAnthropicOrOpenAIReplayPolicy, buildNativeAnthropicReplayPolicyForModel, buildOpenAICompatibleReplayPolicy, buildPassthroughGeminiSanitizingReplayPolicy, buildStrictAnthropicReplayPolicy, resolveTaggedReasoningOutputMode, sanitizeGoogleGeminiReplayHistory } from "../plugins/provider-replay-helpers.js";
 import type { ProviderPlugin } from "../plugins/types.js";
+import type { ProviderThinkingProfile } from "./plugin-entry.js";
 import { normalizeAntigravityPreviewModelId, normalizeGooglePreviewModelId, normalizeNativeXaiModelId } from "./provider-model-id-normalize.js";
 export type { ModelApi, ModelProviderConfig } from "../config/types.models.js";
 export type { BedrockDiscoveryConfig, ModelCompatConfig, ModelDefinitionConfig, } from "../config/types.models.js";
@@ -16,6 +17,9 @@ export { createMoonshotThinkingWrapper, resolveMoonshotThinkingType, } from "../
 export { cloneFirstTemplateModel, matchesExactOrPrefix, } from "../plugins/provider-model-helpers.js";
 export declare function getModelProviderHint(modelId: string): string | null;
 export declare function isProxyReasoningUnsupportedModelHint(modelId: string): boolean;
+export declare function isClaudeOpus47ModelId(modelId: string): boolean;
+export declare function isClaudeAdaptiveThinkingDefaultModelId(modelId: string): boolean;
+export declare function resolveClaudeThinkingProfile(modelId: string): ProviderThinkingProfile;
 export { normalizeAntigravityPreviewModelId, normalizeGooglePreviewModelId, normalizeNativeXaiModelId, };
 export type ProviderReplayFamily = "openai-compatible" | "anthropic-by-model" | "native-anthropic-by-model" | "google-gemini" | "passthrough-gemini" | "hybrid-anthropic-openai";
 type ProviderReplayFamilyHooks = Pick<ProviderPlugin, "buildReplayPolicy" | "sanitizeReplayHistory" | "resolveReasoningOutputMode">;

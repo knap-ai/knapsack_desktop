@@ -17,11 +17,11 @@ function createCodexAppServerAgentHarness(options) {
 			};
 		},
 		runAttempt: async (params) => {
-			const { runCodexAppServerAttempt } = await import("./run-attempt-DHkL03VS.js");
+			const { runCodexAppServerAttempt } = await import("./run-attempt-BwJ6jZ4b.js");
 			return runCodexAppServerAttempt(params, { pluginConfig: options?.pluginConfig });
 		},
 		compact: async (params) => {
-			const { maybeCompactCodexAppServerSession } = await import("./compact-ChqMv1ox.js");
+			const { maybeCompactCodexAppServerSession } = await import("./compact-CNmDEW4W.js");
 			return maybeCompactCodexAppServerSession(params, { pluginConfig: options?.pluginConfig });
 		},
 		reset: async (params) => {
@@ -31,8 +31,8 @@ function createCodexAppServerAgentHarness(options) {
 			}
 		},
 		dispose: async () => {
-			const { clearSharedCodexAppServerClient } = await import("./shared-client-C3NXWlxU.js").then((n) => n.r);
-			clearSharedCodexAppServerClient();
+			const { clearSharedCodexAppServerClientAndWait } = await import("./shared-client-MLSTUxlJ.js").then((n) => n.r);
+			await clearSharedCodexAppServerClientAndWait();
 		}
 	};
 }

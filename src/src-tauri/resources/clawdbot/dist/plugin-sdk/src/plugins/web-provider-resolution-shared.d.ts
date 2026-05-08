@@ -1,7 +1,11 @@
 import type { PluginLoadOptions } from "./loader.js";
-import { type PluginManifestRecord } from "./manifest-registry.js";
+import type { PluginManifestRecord } from "./manifest-registry.js";
 export type WebProviderContract = "webSearchProviders" | "webFetchProviders";
 export type WebProviderConfigKey = "webSearch" | "webFetch";
+export type WebProviderCandidateResolution = {
+    pluginIds: string[] | undefined;
+    manifestRecords?: readonly PluginManifestRecord[];
+};
 type WebProviderSortEntry = {
     id: string;
     pluginId: string;
@@ -18,6 +22,16 @@ export declare function resolveManifestDeclaredWebProviderCandidatePluginIds(par
     onlyPluginIds?: readonly string[];
     origin?: PluginManifestRecord["origin"];
 }): string[] | undefined;
+export declare function resolveManifestDeclaredWebProviderCandidates(params: {
+    contract: WebProviderContract;
+    configKey: WebProviderConfigKey;
+    config?: PluginLoadOptions["config"];
+    workspaceDir?: string;
+    env?: PluginLoadOptions["env"];
+    onlyPluginIds?: readonly string[];
+    origin?: PluginManifestRecord["origin"];
+    manifestRecords?: readonly PluginManifestRecord[];
+}): WebProviderCandidateResolution;
 export declare function resolveBundledWebProviderResolutionConfig(params: {
     contract: WebProviderContract;
     config?: PluginLoadOptions["config"];

@@ -1,9 +1,10 @@
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-CRUz52Bz.js";
-import "../../provider-auth-api-key-BVwjjhIk.js";
-import { m as ensureModelAllowlistEntry } from "../../provider-onboard-VLZPCYnL.js";
-import { c as DOUBAO_MODEL_CATALOG, i as DOUBAO_CODING_MODEL_CATALOG } from "../../models-C4kiWq5n.js";
-import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-1c5_xr2j.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
+import { m as ensureModelAllowlistEntry } from "../../provider-onboard-DXwevr7q.js";
+import "../../provider-auth-api-key-brLkyScu.js";
+import { c as DOUBAO_MODEL_CATALOG, i as DOUBAO_CODING_MODEL_CATALOG } from "../../models-D0WXcInB.js";
+import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-D7qTHvXU.js";
+import { n as buildVolcengineSpeechProvider } from "../../speech-provider-B6v2wNID.js";
 //#region extensions/volcengine/index.ts
 const PROVIDER_ID = "volcengine";
 const VOLCENGINE_DEFAULT_MODEL_REF = "volcengine-plan/ark-code-latest";
@@ -77,6 +78,7 @@ var volcengine_default = definePluginEntry({
 				return [...volcengineModels, ...volcenginePlanModels];
 			}
 		});
+		api.registerSpeechProvider(buildVolcengineSpeechProvider());
 	}
 });
 //#endregion

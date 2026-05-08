@@ -1,5 +1,5 @@
 export type OpenAIReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-export type OpenAIApiReasoningEffort = OpenAIReasoningEffort;
+export type OpenAIApiReasoningEffort = OpenAIReasoningEffort | (string & {});
 type OpenAIReasoningModel = {
     provider?: unknown;
     id?: unknown;

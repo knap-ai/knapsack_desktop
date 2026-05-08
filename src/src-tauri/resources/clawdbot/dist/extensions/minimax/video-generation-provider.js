@@ -1,2 +1,2 @@
-import { t as buildMinimaxVideoGenerationProvider } from "../../video-generation-provider-Df1_29-_.js";
-export { buildMinimaxVideoGenerationProvider };
+import { n as buildMinimaxVideoGenerationProvider, t as buildMinimaxPortalVideoGenerationProvider } from "../../video-generation-provider-DzCpPcba.js";
+export { buildMinimaxPortalVideoGenerationProvider, buildMinimaxVideoGenerationProvider };

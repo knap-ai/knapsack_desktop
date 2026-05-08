@@ -1,7 +1,7 @@
 import { definePluginEntry } from "./api.js";
 import { WEBHOOK_IN_FLIGHT_DEFAULTS, WEBHOOK_RATE_LIMIT_DEFAULTS, createFixedWindowRateLimiter, createWebhookInFlightLimiter, normalizeWebhookPath, readJsonWebhookBodyOrReject, resolveConfiguredSecretInputString, resolveRequestClientIp, resolveWebhookTargetWithAuthOrReject, withResolvedWebhookRequestPipeline } from "./runtime-api.js";
 import { z } from "zod";
-import { safeEqualSecret } from "openclaw/plugin-sdk/browser-security-runtime";
+import { safeEqualSecret } from "openclaw/plugin-sdk/security-runtime";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
 //#region extensions/webhooks/src/config.ts
 const secretRefSchema = z.object({

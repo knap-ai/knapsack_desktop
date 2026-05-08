@@ -1,12 +1,12 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-C1IzJjqi.js";
-import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-KzKcGOUY.js";
-import "../../text-runtime-B1c54bxG.js";
-import { t as definePluginEntry } from "../../plugin-entry-oWwpQhIC.js";
-import "../../runtime-env-BIRphFQj.js";
-import { n as resolveLivePluginConfigObject } from "../../config-runtime-Dutm3Ah0.js";
-import "../../api-BrCKW89g.js";
-import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-BxPyU4Cq.js";
-import { n as loadLanceDbModule } from "../../lancedb-runtime-CIa-2Wte.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
+import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-CDAQsjZ7.js";
+import "../../text-runtime-DfALcXL5.js";
+import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import "../../runtime-env-CnUCUUx1.js";
+import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
+import "../../api-DP82C2-M.js";
+import { i as vectorDimsForModel, n as MEMORY_CATEGORIES, r as memoryConfigSchema } from "../../config-Cd4tXHpC.js";
+import { n as loadLanceDbModule } from "../../lancedb-runtime-CFjhc6Yj.js";
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import OpenAI from "openai";
@@ -20,6 +20,40 @@ import OpenAI from "openai";
 */
 function asRecord(value) {
 	return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function extractUserTextContent(message) {
+	const msgObj = asRecord(message);
+	if (!msgObj || msgObj.role !== "user") return [];
+	const content = msgObj.content;
+	if (typeof content === "string") return [content];
+	if (!Array.isArray(content)) return [];
+	const texts = [];
+	for (const block of content) {
+		const blockObj = asRecord(block);
+		if (blockObj?.type === "text" && typeof blockObj.text === "string") texts.push(blockObj.text);
+	}
+	return texts;
+}
+function messageFingerprint(message) {
+	const msgObj = asRecord(message);
+	if (!msgObj) return `${typeof message}:${String(message)}`;
+	try {
+		return JSON.stringify({
+			role: msgObj.role,
+			content: msgObj.content
+		});
+	} catch {
+		return `${String(msgObj.role)}:${String(msgObj.content)}`;
+	}
+}
+function resolveAutoCaptureStartIndex(messages, cursor) {
+	if (!cursor) return 0;
+	if (cursor.lastMessageFingerprint && cursor.nextIndex > 0) {
+		for (let index = messages.length - 1; index >= 0; index--) if (messageFingerprint(messages[index]) === cursor.lastMessageFingerprint) return index + 1;
+		return 0;
+	}
+	if (cursor.nextIndex <= messages.length) return cursor.nextIndex;
+	return 0;
 }
 const TABLE_NAME = "memories";
 var MemoryDB = class {
@@ -107,7 +141,8 @@ var Embeddings = class {
 	async embed(text) {
 		const params = {
 			model: this.model,
-			input: text
+			input: text,
+			encoding_format: "float"
 		};
 		if (this.dimensions) params.dimensions = this.dimensions;
 		ensureGlobalUndiciEnvProxyDispatcher();
@@ -187,8 +222,9 @@ var memory_lancedb_default = definePluginEntry({
 		};
 		const db = new MemoryDB(resolvedDbPath, dimensions ?? vectorDimsForModel(model), cfg.storageOptions);
 		const embeddings = new Embeddings(apiKey, model, baseUrl, dimensions);
+		const autoCaptureCursors = /* @__PURE__ */ new Map();
 		const resolveCurrentHookConfig = () => {
-			const runtimePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.loadConfig, "memory-lancedb", api.pluginConfig);
+			const runtimePluginConfig = resolveLivePluginConfigObject(api.runtime.config?.current ? () => api.runtime.config.current() : void 0, "memory-lancedb", api.pluginConfig);
 			if (!runtimePluginConfig) return disabledHookCfg;
 			return memoryConfigSchema.parse({
 				embedding: {
@@ -403,44 +439,52 @@ var memory_lancedb_default = definePluginEntry({
 				api.logger.warn(`memory-lancedb: recall failed: ${String(err)}`);
 			}
 		});
-		api.on("agent_end", async (event) => {
+		api.on("agent_end", async (event, ctx) => {
 			const currentCfg = resolveCurrentHookConfig();
 			if (!currentCfg.autoCapture) return;
 			if (!event.success || !event.messages || event.messages.length === 0) return;
 			try {
-				const texts = [];
-				for (const msg of event.messages) {
-					if (!msg || typeof msg !== "object") continue;
-					const msgObj = msg;
-					if (msgObj.role !== "user") continue;
-					const content = msgObj.content;
-					if (typeof content === "string") {
-						texts.push(content);
-						continue;
-					}
-					if (Array.isArray(content)) {
-						for (const block of content) if (block && typeof block === "object" && "type" in block && block.type === "text" && "text" in block && typeof block.text === "string") texts.push(block.text);
-					}
-				}
-				const toCapture = texts.filter((text) => text && shouldCapture(text, { maxChars: currentCfg.captureMaxChars }));
-				if (toCapture.length === 0) return;
+				const cursorKey = ctx.sessionKey ?? ctx.sessionId;
+				const startIndex = resolveAutoCaptureStartIndex(event.messages, cursorKey ? autoCaptureCursors.get(cursorKey) : void 0);
 				let stored = 0;
-				for (const text of toCapture.slice(0, 3)) {
-					const category = detectCategory(text);
-					const vector = await embeddings.embed(text);
-					if ((await db.search(vector, 1, .95)).length > 0) continue;
-					await db.store({
-						text,
-						vector,
-						importance: .7,
-						category
-					});
-					stored++;
+				let capturableSeen = 0;
+				for (let index = startIndex; index < event.messages.length; index++) {
+					const message = event.messages[index];
+					let messageProcessed = false;
+					try {
+						for (const text of extractUserTextContent(message)) {
+							if (!text || !shouldCapture(text, { maxChars: currentCfg.captureMaxChars })) continue;
+							capturableSeen++;
+							if (capturableSeen > 3) continue;
+							const category = detectCategory(text);
+							const vector = await embeddings.embed(text);
+							if ((await db.search(vector, 1, .95)).length > 0) continue;
+							await db.store({
+								text,
+								vector,
+								importance: .7,
+								category
+							});
+							stored++;
+						}
+						messageProcessed = true;
+					} finally {
+						if (messageProcessed && cursorKey) autoCaptureCursors.set(cursorKey, {
+							nextIndex: index + 1,
+							lastMessageFingerprint: messageFingerprint(message)
+						});
+					}
 				}
 				if (stored > 0) api.logger.info(`memory-lancedb: auto-captured ${stored} memories`);
 			} catch (err) {
 				api.logger.warn(`memory-lancedb: capture failed: ${String(err)}`);
 			}
+		});
+		api.on("session_end", (event, ctx) => {
+			const cursorKey = ctx.sessionKey ?? event.sessionKey ?? ctx.sessionId ?? event.sessionId;
+			autoCaptureCursors.delete(cursorKey);
+			const nextCursorKey = event.nextSessionKey ?? event.nextSessionId;
+			if (nextCursorKey) autoCaptureCursors.delete(nextCursorKey);
 		});
 		api.registerService({
 			id: "memory-lancedb",

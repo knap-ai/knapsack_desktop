@@ -5,6 +5,7 @@ type OpenAICompletionsCompatDefaultsInput = {
     endpointClass: ProviderEndpointClass;
     knownProviderFamily: string;
     supportsNativeStreamingUsageCompat?: boolean;
+    supportsOpenAICompletionsStreamingUsageCompat?: boolean;
     usesExplicitProxyLikeEndpoint?: boolean;
 };
 export type OpenAICompletionsCompatDefaults = {
@@ -22,7 +23,7 @@ export type DetectedOpenAICompletionsCompat = {
     defaults: OpenAICompletionsCompatDefaults;
 };
 export declare function resolveOpenAICompletionsCompatDefaults(input: OpenAICompletionsCompatDefaultsInput): OpenAICompletionsCompatDefaults;
-export declare function resolveOpenAICompletionsCompatDefaultsFromCapabilities(input: Pick<ProviderRequestCapabilities, "endpointClass" | "knownProviderFamily" | "supportsNativeStreamingUsageCompat" | "usesExplicitProxyLikeEndpoint"> & {
+export declare function resolveOpenAICompletionsCompatDefaultsFromCapabilities(input: Pick<ProviderRequestCapabilities, "endpointClass" | "knownProviderFamily" | "supportsNativeStreamingUsageCompat" | "supportsOpenAICompletionsStreamingUsageCompat" | "usesExplicitProxyLikeEndpoint"> & {
     provider?: string;
 }): OpenAICompletionsCompatDefaults;
 export declare function detectOpenAICompletionsCompat(model: Pick<Model<"openai-completions">, "provider" | "baseUrl" | "id"> & {

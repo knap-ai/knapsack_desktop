@@ -45,6 +45,8 @@ export declare function installPluginFromClawHub(params: InstallSafetyOverrides 
     token?: string;
     logger?: PluginInstallLogger;
     mode?: "install" | "update";
+    extensionsDir?: string;
+    timeoutMs?: number;
     dryRun?: boolean;
     expectedPluginId?: string;
 }): Promise<({

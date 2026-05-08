@@ -1,2 +1,2 @@
-import { t as feishuPlugin } from "./channel-BrSg_Wfu.js";
+import { t as feishuPlugin } from "./channel-D5d1aeJk.js";
 export { feishuPlugin };

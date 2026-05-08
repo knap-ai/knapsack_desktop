@@ -6,5 +6,6 @@ export declare function resolveAcpDispatchPolicyState(cfg: OpenClawConfig): AcpD
 export declare function isAcpDispatchEnabledByPolicy(cfg: OpenClawConfig): boolean;
 export declare function resolveAcpDispatchPolicyMessage(cfg: OpenClawConfig): string | null;
 export declare function resolveAcpDispatchPolicyError(cfg: OpenClawConfig): AcpRuntimeError | null;
+export declare function resolveAcpExplicitTurnPolicyError(cfg: OpenClawConfig): AcpRuntimeError | null;
 export declare function isAcpAgentAllowedByPolicy(cfg: OpenClawConfig, agentId: string): boolean;
 export declare function resolveAcpAgentPolicyError(cfg: OpenClawConfig, agentId: string): AcpRuntimeError | null;

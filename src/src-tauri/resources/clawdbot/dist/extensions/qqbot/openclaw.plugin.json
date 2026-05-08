@@ -164,6 +164,10 @@
                       "partial"
                     ],
                     "default": "partial"
+                  },
+                  "c2cStreamApi": {
+                    "type": "boolean",
+                    "description": "Use QQ C2C official stream_messages API (single-message typing-style updates)."
                   }
                 }
               }
@@ -241,6 +245,10 @@
                   "partial"
                 ],
                 "default": "partial"
+              },
+              "c2cStreamApi": {
+                "type": "boolean",
+                "description": "Use QQ C2C official stream_messages API (single-message typing-style updates)."
               }
             }
           }
@@ -456,6 +464,9 @@
                       "off",
                       "partial"
                     ]
+                  },
+                  "c2cStreamApi": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -728,6 +739,9 @@
                             "off",
                             "partial"
                           ]
+                        },
+                        "c2cStreamApi": {
+                          "type": "boolean"
                         }
                       },
                       "required": [

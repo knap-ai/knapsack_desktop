@@ -1,7 +1,7 @@
 import type { SubagentLifecycleHookRunner } from "../plugins/hooks.js";
 import { decodeStrictBase64 } from "./subagent-attachments.js";
 export { SUBAGENT_SPAWN_ACCEPTED_NOTE, SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE, } from "./subagent-spawn-accepted-note.js";
-import { callGateway, forkSessionFromParent, loadConfig, resolveContextEngine, resolveParentForkMaxTokens, updateSessionStore } from "./subagent-spawn.runtime.js";
+import { callGateway, forkSessionFromParent, getRuntimeConfig, resolveContextEngine, resolveParentForkMaxTokens, updateSessionStore } from "./subagent-spawn.runtime.js";
 import { type SpawnSubagentContextMode, type SpawnSubagentMode, type SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
 export { SUBAGENT_SPAWN_CONTEXT_MODES, SUBAGENT_SPAWN_MODES, SUBAGENT_SPAWN_SANDBOX_MODES, } from "./subagent-spawn.types.js";
 export type { SpawnSubagentContextMode, SpawnSubagentMode, SpawnSubagentSandboxMode, } from "./subagent-spawn.types.js";
@@ -10,7 +10,7 @@ type SubagentSpawnDeps = {
     callGateway: typeof callGateway;
     forkSessionFromParent: typeof forkSessionFromParent;
     getGlobalHookRunner: () => SubagentLifecycleHookRunner | null;
-    loadConfig: typeof loadConfig;
+    getRuntimeConfig: typeof getRuntimeConfig;
     resolveContextEngine: typeof resolveContextEngine;
     resolveParentForkMaxTokens: typeof resolveParentForkMaxTokens;
     updateSessionStore: typeof updateSessionStore;

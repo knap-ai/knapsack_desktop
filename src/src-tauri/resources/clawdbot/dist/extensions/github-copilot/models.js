@@ -1,2 +1,2 @@
-import { n as resolveCopilotForwardCompatModel, r as resolveCopilotTransportApi, t as PROVIDER_ID } from "../../models-CZL3_C6Y.js";
+import { n as resolveCopilotForwardCompatModel, r as resolveCopilotTransportApi, t as PROVIDER_ID } from "../../models-CVzS8osi.js";
 export { PROVIDER_ID, resolveCopilotForwardCompatModel, resolveCopilotTransportApi };

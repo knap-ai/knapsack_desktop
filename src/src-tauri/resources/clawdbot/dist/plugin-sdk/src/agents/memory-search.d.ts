@@ -24,6 +24,9 @@ export type ResolvedMemorySearchConfig = {
     };
     fallback: string;
     model: string;
+    inputType?: string;
+    queryInputType?: string;
+    documentInputType?: string;
     outputDimensionality?: number;
     local: {
         modelPath?: string;
@@ -51,6 +54,7 @@ export type ResolvedMemorySearchConfig = {
         watch: boolean;
         watchDebounceMs: number;
         intervalMinutes: number;
+        embeddingBatchTimeoutSeconds: number | undefined;
         sessions: {
             deltaBytes: number;
             deltaMessages: number;

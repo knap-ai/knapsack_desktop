@@ -1,2 +1,2 @@
-import { t as buildMistralProvider } from "../../provider-catalog-D9Y6TgDo.js";
+import { t as buildMistralProvider } from "../../provider-catalog-BaoZwg1m.js";
 export { buildMistralProvider };

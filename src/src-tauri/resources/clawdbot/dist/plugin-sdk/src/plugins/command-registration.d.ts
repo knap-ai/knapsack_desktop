@@ -1,4 +1,4 @@
-import { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, type RegisteredPluginCommand } from "./command-registry-state.js";
+import { clearPluginCommands, clearPluginCommandsForPlugin, listProviderPluginCommandSpecs, type RegisteredPluginCommand } from "./command-registry-state.js";
 import type { OpenClawPluginCommandDefinition } from "./types.js";
 export type CommandRegistrationResult = {
     ok: boolean;
@@ -16,5 +16,5 @@ export declare function registerPluginCommand(pluginId: string, command: OpenCla
     pluginName?: string;
     pluginRoot?: string;
 }): CommandRegistrationResult;
-export { clearPluginCommands, clearPluginCommandsForPlugin, getPluginCommandSpecs, listProviderPluginCommandSpecs, };
+export { clearPluginCommands, clearPluginCommandsForPlugin, listProviderPluginCommandSpecs };
 export type { RegisteredPluginCommand };

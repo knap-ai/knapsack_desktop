@@ -1,2 +1,2 @@
-import { t as ircPlugin } from "../../channel-CL-duWhZ.js";
+import { t as ircPlugin } from "../../channel-CRj52V1v.js";
 export { ircPlugin };

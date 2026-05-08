@@ -2,10 +2,10 @@ import { d as setMatrixThreadBindingIdleTimeoutBySessionKey, n as getMatrixThrea
 import { a as resolveMatrixDefaultOrOnlyAccountId, i as resolveMatrixChannelConfig, n as requiresExplicitMatrixDefaultAccount, r as resolveConfiguredMatrixAccountIds, t as findMatrixAccountEntry } from "./account-selection-CgvQn_T8.js";
 import { n as listMatrixEnvAccountIds, r as resolveMatrixEnvAccountToken, t as getMatrixScopedEnvVarNames } from "./env-vars-KF01E9CM.js";
 import { a as resolveMatrixCredentialsPath, c as resolveMatrixLegacyFlatStoreRoot, i as resolveMatrixCredentialsFilename, l as sanitizeMatrixPathSegment, n as resolveMatrixAccountStorageRoot, o as resolveMatrixHomeserverKey, r as resolveMatrixCredentialsDir, s as resolveMatrixLegacyFlatStoragePaths, t as hashMatrixAccessToken } from "./storage-paths-CR-Jr5Jc.js";
-import { t as matrixPlugin } from "./channel-B51Vdjzw.js";
-import { n as matrixSetupAdapter, t as createMatrixSetupWizardProxy } from "./setup-core-C_wQ1-v5.js";
-import { n as matrixOnboardingAdapter } from "./setup-surface-CDSiT3BY.js";
-import { t as createMatrixThreadBindingManager } from "./thread-bindings-BGH_ZUF4.js";
+import { t as matrixPlugin } from "./channel-Buapgk_t.js";
+import { n as matrixSetupAdapter, t as createMatrixSetupWizardProxy } from "./setup-core-vUjse8DF.js";
+import { n as matrixOnboardingAdapter } from "./setup-surface-N3Equur_.js";
+import { t as createMatrixThreadBindingManager } from "./thread-bindings-BGb7gT9G.js";
 //#region extensions/matrix/api.ts
 const matrixSessionBindingAdapterChannels = ["matrix"];
 //#endregion

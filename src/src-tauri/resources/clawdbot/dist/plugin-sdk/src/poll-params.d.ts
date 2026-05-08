@@ -19,9 +19,5 @@ declare const SHARED_POLL_CREATION_PARAM_DEFS: {
 export declare const POLL_CREATION_PARAM_DEFS: Record<string, PollCreationParamDef>;
 type SharedPollCreationParamName = keyof typeof SHARED_POLL_CREATION_PARAM_DEFS;
 export declare const SHARED_POLL_CREATION_PARAM_NAMES: SharedPollCreationParamName[];
-export declare function resolveTelegramPollVisibility(params: {
-    pollAnonymous?: boolean;
-    pollPublic?: boolean;
-}): boolean | undefined;
 export declare function hasPollCreationParams(params: Record<string, unknown>): boolean;
 export {};
