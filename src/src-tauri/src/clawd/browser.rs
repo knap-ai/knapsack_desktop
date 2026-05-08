@@ -1297,11 +1297,62 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
+  // Split attachments: images → gateway RPC params (gateway handles data-URL stripping and
+  // MIME sniffing); non-images → text extracted in Rust and appended to the message.
+  let raw_attachments = body.get("attachments").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+  let mut gateway_attachments: Vec<serde_json::Value> = Vec::new();
+  let mut text_with_attachments = text.clone();
+
+  for att in &raw_attachments {
+    let name = att.get("name").and_then(|v| v.as_str()).unwrap_or("file");
+    let file_type = att.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let content = att.get("content").and_then(|v| v.as_str()).unwrap_or("");
+
+    if file_type.starts_with("image/") || content.starts_with("data:image/") {
+      gateway_attachments.push(serde_json::json!({
+        "fileName": name,
+        "mimeType": file_type,
+        "content": content,
+      }));
+    } else if file_type == "application/pdf" || content.starts_with("data:application/pdf") {
+      let extracted = extract_pdf_text(content);
+      let truncated = if extracted.len() > 50_000 {
+        format!("{}...\n(truncated)", &extracted[..50_000])
+      } else {
+        extracted
+      };
+      text_with_attachments.push_str(&format!(
+        "\n\n--- PDF: {} ---\n{}\n--- End ---", name, truncated
+      ));
+    } else if file_type.contains("wordprocessingml")
+      || file_type == "application/msword"
+      || name.ends_with(".docx")
+      || name.ends_with(".doc")
+    {
+      let extracted = extract_docx_text(content);
+      let truncated = if extracted.len() > 50_000 {
+        format!("{}...\n(truncated)", &extracted[..50_000])
+      } else {
+        extracted
+      };
+      text_with_attachments.push_str(&format!(
+        "\n\n--- Document: {} ---\n{}\n--- End ---", name, truncated
+      ));
+    } else if !content.is_empty() {
+      // Plain text / CSV / markdown — content is raw text, not base64
+      text_with_attachments.push_str(&format!(
+        "\n\n--- File: {} ---\n{}\n--- End ---", name, content
+      ));
+    }
+  }
+
   // Try gateway agent-chat if port is open
   let gateway_reply = if gateway_client::is_gateway_port_open().await {
-    eprintln!("[clawd/agent-chat] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+    eprintln!("[clawd/agent-chat] Sending to gateway: {:?} (attachments: {})",
+      &text_with_attachments[..text_with_attachments.len().min(100)],
+      gateway_attachments.len());
 
-    match gateway_client::agent_chat(&text, None).await {
+    match gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None).await {
       Ok(result) => {
         eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
           result.as_object().map(|o| o.keys().collect::<Vec<_>>()));

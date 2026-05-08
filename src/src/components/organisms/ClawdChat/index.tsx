@@ -4088,10 +4088,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // message in the gateway session (the gateway committed the user turn but
         // hasn't produced the assistant response yet).  The user's abort controller
         // also cancels the request if they click Stop.
-        // Skip gateway when there are attachments — the gateway protocol only
-        // carries a text message string and cannot forward images/files.
-        // Go straight to direct /api/clawd/chat which has full vision support.
-        let useDirectChat = currentAttachments.length > 0
+        let useDirectChat = false
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
@@ -4109,7 +4106,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: requestBody.text, advancedMode, userEmail: userEmail || '', userName: userName || '' }),
+            body: JSON.stringify({
+              text: requestBody.text,
+              advancedMode,
+              userEmail: userEmail || '',
+              userName: userName || '',
+              ...(currentAttachments.length > 0 && {
+                attachments: currentAttachments.map(f => ({
+                  name: f.name,
+                  type: f.type,
+                  content: f.content,
+                }))
+              }),
+            }),
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)

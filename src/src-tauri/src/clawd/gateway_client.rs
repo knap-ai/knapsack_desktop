@@ -1960,6 +1960,7 @@ pub async fn wait_for_browser_ready(token: Option<&str>, max_wait_secs: u64) -> 
 /// conversation history, and system prompt.
 pub async fn agent_chat(
   message: &str,
+  attachments: &[serde_json::Value],
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
@@ -1967,13 +1968,16 @@ pub async fn agent_chat(
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
     .as_millis());
-  let params = serde_json::json!({
+  let mut params = serde_json::json!({
     "message": message,
     "idempotencyKey": idem,
     "deliver": false,
     "channel": "webchat",
     "agentId": "main",
   });
+  if !attachments.is_empty() {
+    params["attachments"] = serde_json::Value::Array(attachments.to_vec());
+  }
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await
 }
