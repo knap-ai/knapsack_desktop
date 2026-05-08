@@ -1,5 +1,5 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { isTruthyEnvValue } from "openclaw/plugin-sdk/runtime-env";
+import { isTruthyEnvValue, registerUnhandledRejectionHandler } from "openclaw/plugin-sdk/runtime-env";
 //#region extensions/bonjour/src/errors.ts
 function formatBonjourError(err) {
 	if (err instanceof Error) {
@@ -150,7 +150,7 @@ async function startGatewayBonjourAdvertiser(opts, deps = {}) {
 			return {
 				responder,
 				services,
-				cleanupUnhandledRejection: services.length > 0 && deps.registerUnhandledRejectionHandler ? deps.registerUnhandledRejectionHandler(handleCiaoUnhandledRejection) : void 0
+				cleanupUnhandledRejection: services.length > 0 ? (deps.registerUnhandledRejectionHandler ?? registerUnhandledRejectionHandler)(handleCiaoUnhandledRejection) : void 0
 			};
 		}
 		async function stopCycle(cycle) {
