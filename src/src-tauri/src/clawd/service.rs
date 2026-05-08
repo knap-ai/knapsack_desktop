@@ -6319,8 +6319,8 @@ pub async fn skills_install(
     Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "result": result})),
     Err(e) => {
       eprintln!("[clawd/service] skills.install error: {}", e);
-      HttpResponse::BadGateway()
-        .json(serde_json::json!({"success": false, "error": "Skill installation requires the ClawdBot gateway to be running. Check the Activity panel for gateway status."}))
+      HttpResponse::Ok()
+        .json(serde_json::json!({"success": false, "error": format!("Skill installation failed: {}. Make sure the ClawdBot gateway is running — check the Activity panel.", e)}))
     }
   }
 }
