@@ -1844,6 +1844,8 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "gatekeeper_blocked"
   } else if lower.contains("missing-meta-before-write") || lower.contains("config write anomaly") {
     "config_anomaly"
+  } else if lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
+    "plugin_install_fail"
   } else {
     "unknown"
   }
@@ -1924,7 +1926,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         eprintln!("[clawd/service] gateway recovered — resetting browser nudge flag");
         BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
         // Allow a fresh Sentry alert if the gateway goes down again.
-        GATEWAY_DOWN_SENTRY_ALERTED.store(false, Ordering::Relaxed);
+        // Also send a recovery event so outage durations are visible in Sentry.
+        if GATEWAY_DOWN_SENTRY_ALERTED.swap(false, Ordering::Relaxed) {
+          sentry::capture_message("[gateway] recovered after outage", sentry::Level::Info);
+        }
         // Kill stale managed Chrome processes from the previous gateway
         // session.  They may still hold the CDP port (18800), preventing
         // the new gateway from launching its own browser.
@@ -1944,6 +1949,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
     if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
       let token = tokens.gateway_token.clone();
+      // Pre-compute paths before the spawn (app_handle can't cross async boundaries cheaply).
+      let restart_clawdbot_home = app_clawdbot_home(&app_handle);
+      let restart_bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
       eprintln!("[clawd/service] gateway not reachable — attempting background restart");
       tokio::spawn(async move {
         // Kill stale managed Chrome processes before restarting the gateway.
@@ -2023,6 +2031,26 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           }
           eprintln!("[clawd/service] Windows background restart: no saved setup — use Enable in UI");
         }
+
+        // macOS: clear any zombie process holding port 18789.
+        // Without this, kickstart fails with EADDRINUSE when a crashed gateway
+        // process lingers on the port without responding to HTTP health checks.
+        #[cfg(not(target_os = "windows"))]
+        kill_process_on_port(18789);
+
+        // Remove stale plugin-runtime-deps locks and old versioned dirs.
+        // These are cleaned during initial enable but NOT during auto-restart,
+        // leaving ENOTEMPTY traps that cause bonjour (and other plugins) to
+        // fail their npm install on every subsequent gateway start.
+        remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
+        remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+
+        // Sentry: record that a self-heal cycle ran so we can see frequency in
+        // the dashboard even when the gateway ultimately recovers cleanly.
+        sentry::capture_message(
+          "[gateway] auto-restart: port cleared + plugin-runtime-deps cleaned",
+          sentry::Level::Info,
+        );
 
         use crate::clawd::gateway_supervisor;
         let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
