@@ -242,8 +242,11 @@ function friendlyError(raw: string, activeModel?: string): string {
     return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
   }
   // Network / connection errors
+  // WebKit raises "TypeError: Load failed" when the AI request is blocked
+  // (context window overflow, oversized payload, or DNS/network hang).
+  // The most common cause is a conversation that's grown too long for the model.
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return `🌐 **Request too large** (active: \`${activeModel}\`). The message or attachment was too large to send. Try removing any image attachments, or start a new conversation to reduce context size.`
+    return `⚠️ **Message too large** (active: \`${activeModel}\`). The conversation or payload exceeded what this model can handle. Start a new conversation to reduce context size${activeModel ? `, or switch to a larger-context model in Settings → Provider` : ''}.\n\n${switchProviderAction}`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
