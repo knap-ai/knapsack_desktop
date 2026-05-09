@@ -3079,11 +3079,24 @@ pub async fn chat(
       }
 
       // Phase 1: draft the email and store it as pending.
-      let to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+      let mut to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
       let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
       let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
       let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
       let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+
+      // When replying to an existing thread, look up the actual sender from the local DB
+      // so we don't rely on the LLM guessing the recipient's email address.
+      if let Some(ref tid) = thread_id {
+        if let Ok(thread_emails) = crate::db::models::email::Email::get_last_email_by_thread_id(tid) {
+          if let Some(most_recent) = thread_emails.first() {
+            let db_sender = most_recent.sender.trim().to_string();
+            if !db_sender.is_empty() && db_sender != user_email {
+              to = db_sender;
+            }
+          }
+        }
+      }
 
       if to.is_empty() || subject.is_empty() || body_html.is_empty() {
         anyhow::bail!("to, subject, and body are all required");
