@@ -238,7 +238,7 @@ jobs:
           }
           & $makensis /V3 src\installer\stub.nsi
           if ($LASTEXITCODE -ne 0) { Write-Error "makensis failed"; exit 1 }
-          Write-Host "Built: "$installerPath""
+          Write-Host "Built: src/installer/Knapsack-web-setup.exe"
 
       - name: Sign web installer stub
         if: env.AZURE_KEY_VAULT_URI != ''
@@ -250,12 +250,12 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          AzureSignT          $installerPath = "src\installer\Knapsack-web-setup.exe"
+          $installerPath = "src/installer/Knapsack-web-setup.exe"
           if (-not (Test-Path $installerPath)) {
             Write-Error "Installer not found at $installerPath"
             exit 1
           }
-ool sign `
+          AzureSignTool sign `
             -kvu "$env:AZURE_KEY_VAULT_URI" `
             -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
             -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
