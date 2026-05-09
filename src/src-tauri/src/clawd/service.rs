@@ -6368,17 +6368,66 @@ pub fn cleanup_gateway_on_exit() {
 
 /// Return built-in skills catalog (static JSON file, no gateway dependency)
 #[get("/api/clawd/skills/status")]
-pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
-  let catalog: serde_json::Value = serde_json::from_str(
+pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let catalog: Vec<serde_json::Value> = serde_json::from_str(
     include_str!("skills_catalog.json")
   ).unwrap_or_default();
+
+  // Try to get live eligible state from the gateway (skills.status) and merge
+  // it into the catalog as `enabled`.  Falls back to the static catalog when
+  // the gateway is unavailable.  skills.status returns { skills: [{name, eligible, disabled, ...}] }.
+  if let Ok(tokens) = load_or_create_tokens(&app_handle) {
+    if let Ok(result) = super::gateway_client::gateway_request_pooled(
+      "skills.status",
+      Some(serde_json::json!({})),
+      &tokens.gateway_token,
+    ).await {
+      if let Some(live_skills) = result.get("skills").and_then(|s| s.as_array()) {
+        // A skill is "enabled" (usable) when eligible=true and disabled=false.
+        let mut enabled_map: std::collections::HashMap<String, bool> =
+          std::collections::HashMap::new();
+        for skill in live_skills {
+          if let Some(name) = skill.get("name").and_then(|n| n.as_str()) {
+            let eligible = skill.get("eligible").and_then(|e| e.as_bool()).unwrap_or(false);
+            let disabled = skill.get("disabled").and_then(|d| d.as_bool()).unwrap_or(false);
+            enabled_map.insert(name.to_string(), eligible && !disabled);
+          }
+        }
+        let merged: Vec<serde_json::Value> = catalog
+          .into_iter()
+          .map(|mut entry| {
+            if let Some(name) = entry
+              .get("name")
+              .and_then(|n| n.as_str())
+              .map(|s| s.to_string())
+            {
+              if let Some(&enabled) = enabled_map.get(&name) {
+                entry["enabled"] = serde_json::json!(enabled);
+              }
+            }
+            entry
+          })
+          .collect();
+        return HttpResponse::Ok()
+          .json(serde_json::json!({"success": true, "skills": merged}));
+      }
+    }
+  }
+
   HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": catalog}))
 }
 
-/// Install a skill — requires the gateway (clawdbot) to be running
+/// Install a skill — requires the gateway (clawdbot) to be running.
+/// Supports two forms matching the gateway's SkillsInstallParamsSchema:
+///   - ClawHub: { source: "clawhub", slug }
+///   - Named:   { name, installId }
 #[derive(Debug, Deserialize)]
 pub struct SkillInstallRequest {
-  pub name: String,
+  // ClawHub form
+  pub source: Option<String>,
+  pub slug: Option<String>,
+  // Named form (legacy)
+  pub name: Option<String>,
   #[serde(rename = "installId")]
   pub install_id: Option<String>,
 }
@@ -6396,10 +6445,18 @@ pub async fn skills_install(
     }
   };
 
-  let mut params = serde_json::json!({"name": payload.name});
-  if let Some(ref id) = payload.install_id {
-    params["installId"] = serde_json::json!(id);
-  }
+  let params = match (&payload.source, &payload.slug, &payload.name, &payload.install_id) {
+    (Some(source), Some(slug), _, _) => {
+      serde_json::json!({"source": source, "slug": slug})
+    }
+    (_, _, Some(name), Some(id)) => {
+      serde_json::json!({"name": name, "installId": id})
+    }
+    _ => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "error": "Provide either { source, slug } for ClawHub skills or { name, installId } for named skills."}));
+    }
+  };
 
   match super::gateway_client::gateway_request_pooled(
     "skills.install",
