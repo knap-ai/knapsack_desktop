@@ -206,12 +206,32 @@ jobs:
             '-tr', 'http://timestamp.globalsign.com/tsa/advanced',
             '-td', 'sha256'
           )
-          $targets = @(Get-ChildItem 'src\src-tauri\target\release\*.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName) +
-                     @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
-          foreach ($f in $targets) {
-            Write-Host "Signing: $f"
-            AzureSignTool sign @s $f
-            if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign $f"; exit 1 }
+          # Diagnostics — show what files exist before signing
+          Write-Host "=== EXEs in target/release ==="
+          Get-ChildItem 'src\src-tauri\target\release\' -Filter '*.exe' -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
+          Write-Host "=== MSIs in bundle/msi ==="
+          Get-ChildItem 'src\src-tauri\target\release\bundle\msi\' -Filter '*.msi' -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          # Sign the release EXE (Tauri renames knapsack.exe → Knapsack.exe for WiX)
+          $exe = 'src\src-tauri\target\release\Knapsack.exe'
+          if (Test-Path $exe) {
+            Write-Host "Signing EXE: $exe"
+            AzureSignTool sign @s $exe
+            if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign EXE: $exe"; exit 1 }
+            Write-Host "Signed EXE OK"
+          } else {
+            Write-Warning "Knapsack.exe not found; skipping EXE signing"
+          }
+
+          # Sign each MSI produced by the WiX bundler
+          $msiBundles = @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue)
+          foreach ($msi in $msiBundles) {
+            Write-Host "Signing MSI: $($msi.FullName)"
+            AzureSignTool sign @s $msi.FullName
+            if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign MSI: $($msi.FullName)"; exit 1 }
+            Write-Host "Signed MSI OK"
           }
 
       - name: Post build log to PR on failure
