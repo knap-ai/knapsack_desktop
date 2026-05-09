@@ -166,10 +166,9 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          # Tauri v1 reads signCommand from tauri.conf.json (NOT from
-          # TAURI_WINDOWS_SIGN_COMMAND env var — that's a Tauri v2 feature).
-          # Inject the signCommand into the config before building.
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
+          # Tauri v1 reads signCommand from tauri.conf.json and appends the
+          # target file path automatically — do NOT include %1 placeholder.
+          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256"
 
           $confPath = "src/src-tauri/tauri.conf.json"
           $conf = Get-Content $confPath -Raw | ConvertFrom-Json
