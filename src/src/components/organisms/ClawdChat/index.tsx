@@ -398,8 +398,8 @@ type ProviderOption = {
 }
 
 const PROVIDERS: ProviderOption[] = [
-  { id: 'openai', name: 'OpenAI', description: 'GPT-5.4, GPT-5-mini, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
@@ -414,11 +414,12 @@ type AnthropicModelOption = {
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding', vision: true },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision (May 2026)', vision: true },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for agents and coding', vision: true },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence', vision: true },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost', vision: true },
   { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent', vision: true },
-  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks', vision: true },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Older flagship, excellent for long tasks', vision: true },
 ]
 
 type GeminiModelOption = {
@@ -463,11 +464,14 @@ type OpenRouterModelOption = {
 
 const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request', vision: true },
+  { id: 'qwen/qwen3-coder-480b-a35b-instruct:free', name: 'Qwen3 Coder 480B (Free)', description: 'Free, best open-source coding model, 262K context' },
+  { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
-  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
-  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits', vision: true },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits', vision: true },
+  { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, 1T params, rivals GPT-5.5 at 10x lower cost' },
+  { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
+  { id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7 (Paid)', description: 'Paid, Anthropic latest flagship via OpenRouter', vision: true },
+  { id: 'openai/gpt-5.5', name: 'GPT-5.5 (Paid)', description: 'Paid, OpenAI newest frontier via OpenRouter', vision: true },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -540,15 +544,27 @@ type OpenAIModelOption = {
 
 const OPENAI_MODELS: OpenAIModelOption[] = [
   {
+    id: 'gpt-5.5',
+    name: 'GPT-5.5',
+    description: 'Newest frontier model, best for complex professional work',
+    vision: true,
+  },
+  {
+    id: 'gpt-5.5-pro',
+    name: 'GPT-5.5 Pro',
+    description: 'Extended thinking for the hardest problems',
+    vision: true,
+  },
+  {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
-    description: 'Most intelligent model, best for complex tasks',
+    description: 'Highly capable, great balance of performance and cost',
     vision: true,
   },
   {
     id: 'gpt-5.4-pro',
     name: 'GPT-5.4 Pro',
-    description: 'Extended thinking for harder problems',
+    description: 'GPT-5.4 with extended thinking',
     vision: true,
   },
   {
