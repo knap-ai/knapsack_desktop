@@ -169,7 +169,7 @@ jobs:
           # Tauri v1 reads signCommand from tauri.conf.json (NOT from
           # TAURI_WINDOWS_SIGN_COMMAND env var — that's a Tauri v2 feature).
           # Inject the signCommand into the config before building.
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
+          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256""
 
           $confPath = "src/src-tauri/tauri.conf.json"
           $conf = Get-Content $confPath -Raw | ConvertFrom-Json
@@ -238,7 +238,7 @@ jobs:
           }
           & $makensis /V3 src\installer\stub.nsi
           if ($LASTEXITCODE -ne 0) { Write-Error "makensis failed"; exit 1 }
-          Write-Host "Built: src\installer\Knapsack-web-setup.exe"
+          Write-Host "Built: "$installerPath""
 
       - name: Sign web installer stub
         if: env.AZURE_KEY_VAULT_URI != ''
@@ -250,7 +250,12 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          AzureSignTool sign `
+          AzureSignT          $installerPath = "src\installer\Knapsack-web-setup.exe"
+          if (-not (Test-Path $installerPath)) {
+            Write-Error "Installer not found at $installerPath"
+            exit 1
+          }
+ool sign `
             -kvu "$env:AZURE_KEY_VAULT_URI" `
             -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
             -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
@@ -258,7 +263,7 @@ jobs:
             -kvt "$env:AZURE_KEY_VAULT_TENANT_ID" `
             -tr http://timestamp.globalsign.com/tsa/advanced `
             -td sha256 `
-            src\installer\Knapsack-web-setup.exe
+            "$installerPath"
           Write-Host "Signed: Knapsack-web-setup.exe"
 
       - name: Upload MSI artifact
