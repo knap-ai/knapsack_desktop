@@ -156,31 +156,10 @@ jobs:
           AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
         run: dotnet tool install --global AzureSignTool
 
-      - name: Configure Windows code signing (Azure Key Vault)
-        if: env.AZURE_KEY_VAULT_URI != ''
-        shell: pwsh
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
-          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
-          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
-          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
-        run: |
-          # Tauri v1's Rust-level %1 substitution in signCommand is unreliable
-          # when the command is round-tripped through ConvertTo-Json — Tauri logs
-          # the original command and passes literal "%1" to AzureSignTool.
-          # Fix: write a batch wrapper so cmd.exe expands %1 natively when Tauri
-          # calls the wrapper with the target file appended as a separate arg.
-          $batchPath = "$env:RUNNER_TEMP\sign.bat"
-          $batchContent = "@echo off`r`nAzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 %1`r`n"
-          [System.IO.File]::WriteAllText($batchPath, $batchContent, [System.Text.Encoding]::ASCII)
-          Write-Host "Wrote signing batch wrapper to $batchPath"
-
-          $confPath = "src/src-tauri/tauri.conf.json"
-          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
-          $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $batchPath -Force
-          $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
-          Write-Host "Injected signCommand (batch wrapper) into tauri.conf.json"
+      # signCommand is intentionally NOT injected into tauri.conf.json — Tauri v1's
+      # %1 substitution is broken (passes literal "%1" to AzureSignTool). Instead,
+      # we sign the EXE and MSI directly after the build (see "Sign release binary"
+      # step below), matching the same pattern used for the web installer stub.
 
       - name: Build Tauri app
         working-directory: src
@@ -206,6 +185,35 @@ jobs:
         shell: pwsh
         run: |
           Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
+
+      - name: Sign release binary and MSI
+        if: env.AZURE_KEY_VAULT_URI != ''
+        shell: pwsh
+        env:
+          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
+          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
+          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
+          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
+          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
+        run: |
+          $s = @(
+            '-kvu', $env:AZURE_KEY_VAULT_URI,
+            '-kvc', $env:AZURE_KEY_VAULT_CERT_NAME,
+            '-kvi', $env:AZURE_KEY_VAULT_CLIENT_ID,
+            '-kvs', $env:AZURE_KEY_VAULT_CLIENT_SECRET,
+            '-kvt', $env:AZURE_KEY_VAULT_TENANT_ID,
+            '-tr', 'http://timestamp.globalsign.com/tsa/advanced',
+            '-td', 'sha256'
+          )
+          $targets = @('src\src-tauri\target\release\Knapsack.exe') +
+                     @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+          foreach ($f in $targets) {
+            if (Test-Path $f) {
+              Write-Host "Signing: $f"
+              AzureSignTool sign @s $f
+              if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign $f"; exit 1 }
+            }
+          }
 
       - name: Post build log to PR on failure
         if: failure() && github.event.pull_request.number != ''
