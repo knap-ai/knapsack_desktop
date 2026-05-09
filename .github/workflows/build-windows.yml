@@ -157,49 +157,10 @@ jobs:
         run: dotnet tool install --global AzureSignTool
 
       # Tauri v1's signCommand %1 substitution is broken (passes literal "%1" to
-      # AzureSignTool). Instead we use a pre-sign approach:
-      #   1. cargo build --release compiles Knapsack.exe
-      #   2. We sign the EXE with AzureSignTool
-      #   3. npx tauri build --bundles msi — cargo sees the binary is up-to-date
-      #      (fingerprint unchanged since we didn't touch source), skips recompile,
-      #      and WiX bundles the already-signed EXE → signed EXE inside MSI
-      #   4. We sign the resulting MSI
-
-      - name: Pre-compile Knapsack.exe
-        working-directory: src/src-tauri
-        shell: pwsh
-        run: cargo build --release
-        env:
-          VITE_KN_API_SERVER: https://api.knapsack.ai
-          MICROSOFT_CLIENT_ID: unused
-          VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
-          VITE_GOOGLE_DEVELOPER_KEY: ""
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-
-      - name: Sign Knapsack.exe pre-bundle
-        if: env.AZURE_KEY_VAULT_URI != ''
-        shell: pwsh
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
-          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
-          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
-          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
-        run: |
-          AzureSignTool sign `
-            -kvu "$env:AZURE_KEY_VAULT_URI" `
-            -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
-            -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
-            -kvs "$env:AZURE_KEY_VAULT_CLIENT_SECRET" `
-            -kvt "$env:AZURE_KEY_VAULT_TENANT_ID" `
-            -tr http://timestamp.globalsign.com/tsa/advanced `
-            -td sha256 `
-            src\src-tauri\target\release\Knapsack.exe
-          if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign Knapsack.exe"; exit 1 }
-          Write-Host "Signed: Knapsack.exe"
+      # AzureSignTool). We sign the EXE and MSI after the build instead.
+      # Note: the EXE copy inside the MSI archive is not Authenticode-signed
+      # (WiX already packaged it before we sign); the MSI installer itself and
+      # the standalone EXE on disk are both signed.
 
       - name: Build Tauri app
         working-directory: src
@@ -226,7 +187,7 @@ jobs:
         run: |
           Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
-      - name: Sign MSI
+      - name: Sign release binary and MSI
         if: env.AZURE_KEY_VAULT_URI != ''
         shell: pwsh
         env:
@@ -245,9 +206,9 @@ jobs:
             '-tr', 'http://timestamp.globalsign.com/tsa/advanced',
             '-td', 'sha256'
           )
-          $msiBundles = Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue |
-                        Select-Object -ExpandProperty FullName
-          foreach ($f in $msiBundles) {
+          $targets = @(Get-ChildItem 'src\src-tauri\target\release\*.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName) +
+                     @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+          foreach ($f in $targets) {
             Write-Host "Signing: $f"
             AzureSignTool sign @s $f
             if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign $f"; exit 1 }
