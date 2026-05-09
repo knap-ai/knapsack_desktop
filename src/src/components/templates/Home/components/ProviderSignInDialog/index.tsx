@@ -77,6 +77,7 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
       { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
       { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
       { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, rivals GPT-5.5 at 10x lower cost' },
+      { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
     ],
     defaultModel: 'qwen/qwen3-coder-480b-a35b-instruct:free',
   },

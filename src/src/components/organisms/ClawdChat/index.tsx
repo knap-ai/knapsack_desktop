@@ -469,6 +469,7 @@ const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
   { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, 1T params, rivals GPT-5.5 at 10x lower cost' },
+  { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
   { id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7 (Paid)', description: 'Paid, Anthropic latest flagship via OpenRouter', vision: true },
   { id: 'openai/gpt-5.5', name: 'GPT-5.5 (Paid)', description: 'Paid, OpenAI newest frontier via OpenRouter', vision: true },
 ]
