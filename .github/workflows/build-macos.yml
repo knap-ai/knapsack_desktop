@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Cancel the redundant push-triggered build when a pull_request build for the
+# same branch starts. Without this, opening a PR on a claude/* branch launches
+# TWO parallel macOS builds (push + pull_request).
+concurrency:
+  group: build-macos-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-macos:
     runs-on: macos-latest
