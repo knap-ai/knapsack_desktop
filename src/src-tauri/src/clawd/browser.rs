@@ -1223,40 +1223,6 @@ fn parse_sse_payload_text(raw: &str) -> String {
   parts.join("")
 }
 
-/// Best-effort: open the first URL found in the agent's reply text using
-/// the system browser. This ensures users see a browser open even when the
-/// gateway's built-in browser control (Chrome extension) is unavailable.
-fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
-  // First try to extract a URL from markdown link syntax: [text](url)
-  // This handles the common case where the agent wraps URLs in markdown.
-  if let Some(start) = reply.find("](http") {
-    let url_start = start + 2; // skip "]("
-    if let Some(end) = reply[url_start..].find(')') {
-      let url = &reply[url_start..url_start + end];
-      if url.len() > 10 && !url.contains(char::is_whitespace) {
-        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in Chrome: {}", url);
-        let _ = fallback_open_url(app_handle, url);
-        return;
-      }
-    }
-  }
-
-  // Fallback: scan whitespace-separated words for bare URLs
-  for word in reply.split_whitespace() {
-    // Strip common markdown/punctuation wrappers
-    let cleaned = word
-      .trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '<' || c == '>' || c == '"' || c == '\'' || c == ',')
-      .trim_end_matches(|c: char| c == '.' || c == '!' || c == '?');
-    if (cleaned.starts_with("http://") || cleaned.starts_with("https://"))
-      && cleaned.len() > 10
-      && !cleaned.contains(char::is_whitespace)
-    {
-      eprintln!("[clawd/agent-chat] Opening URL from reply in Chrome: {}", cleaned);
-      let _ = fallback_open_url(app_handle, cleaned);
-      return; // Only open the first URL
-    }
-  }
-}
 
 /// Send a chat message through the gateway's agent pipeline.
 /// Read recent terminal output from the built-in terminal sessions.
