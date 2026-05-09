@@ -1400,7 +1400,6 @@ pub async fn agent_chat(
             None
           } else {
             eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-            open_first_url_in_reply(&app_handle, &reply);
             Some(reply)
           }
         } else {
@@ -1453,7 +1452,6 @@ pub async fn agent_chat(
               let model = data.get("model").and_then(|v| v.as_str());
               if !reply.is_empty() {
                 eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
-                open_first_url_in_reply(&app_handle, reply);
                 HttpResponse::Ok().json(serde_json::json!({
                   "ok": true,
                   "reply": reply,
