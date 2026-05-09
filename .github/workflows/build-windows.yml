@@ -166,16 +166,21 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          # Tauri v1 reads signCommand from tauri.conf.json (NOT from
-          # TAURI_WINDOWS_SIGN_COMMAND env var — that's a Tauri v2 feature).
-          # Inject the signCommand into the config before building.
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 `"%1`""
+          # Tauri v1's Rust-level %1 substitution in signCommand is unreliable
+          # when the command is round-tripped through ConvertTo-Json — Tauri logs
+          # the original command and passes literal "%1" to AzureSignTool.
+          # Fix: write a batch wrapper so cmd.exe expands %1 natively when Tauri
+          # calls the wrapper with the target file appended as a separate arg.
+          $batchPath = "$env:RUNNER_TEMP\sign.bat"
+          $batchContent = "@echo off`r`nAzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 %1`r`n"
+          [System.IO.File]::WriteAllText($batchPath, $batchContent, [System.Text.Encoding]::ASCII)
+          Write-Host "Wrote signing batch wrapper to $batchPath"
 
           $confPath = "src/src-tauri/tauri.conf.json"
           $conf = Get-Content $confPath -Raw | ConvertFrom-Json
-          $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $signCommand -Force
+          $conf.tauri.bundle.windows | Add-Member -NotePropertyName "signCommand" -NotePropertyValue $batchPath -Force
           $conf | ConvertTo-Json -Depth 20 | Set-Content $confPath -Encoding UTF8
-          Write-Host "Injected signCommand into tauri.conf.json for Tauri v1 code signing"
+          Write-Host "Injected signCommand (batch wrapper) into tauri.conf.json"
 
       - name: Build Tauri app
         working-directory: src
