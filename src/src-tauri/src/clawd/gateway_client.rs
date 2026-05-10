@@ -1537,6 +1537,10 @@ fn spawn_reconnect_task(token: String) {
 
     eprintln!("[gateway_client] reconnect task: gave up after {} attempts — health-check polling will drive recovery", max_attempts);
     RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+
+    // Peekaboo watchdog: try to clear blocking dialogs + capture a diagnostic
+    // screenshot now that we've given up on the WS reconnect.
+    crate::clawd::peekaboo_watchdog::on_reconnect_exhausted();
   });
 }
 

@@ -11,5 +11,6 @@ pub mod gmail;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
 pub mod agent_team;
+pub mod peekaboo_watchdog;
 pub mod service;
 pub mod sidecar;
