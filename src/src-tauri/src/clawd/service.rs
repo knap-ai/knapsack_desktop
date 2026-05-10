@@ -4367,6 +4367,52 @@ async fn prepare_gateway_config(
           }
         }
 
+        // On macOS, enable peekaboo as a bundled skill (macOS UI automation via PeekabooBridge)
+        if cfg!(target_os = "macos") {
+          // Ensure skills.allowBundled contains "peekaboo"
+          let peekaboo_allowed = cfg_val
+            .pointer("/skills/allowBundled")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().any(|item| item.as_str() == Some("peekaboo")))
+            .unwrap_or(false);
+          if !peekaboo_allowed {
+            if cfg_val.get("skills").is_none() {
+              cfg_val.as_object_mut().unwrap().insert("skills".to_string(), serde_json::json!({}));
+            }
+            let skills = cfg_val.pointer_mut("/skills").unwrap().as_object_mut().unwrap();
+            if let Some(allow_bundled) = skills.get_mut("allowBundled").and_then(|v| v.as_array_mut()) {
+              allow_bundled.push(serde_json::json!("peekaboo"));
+            } else {
+              skills.insert("allowBundled".to_string(), serde_json::json!(["peekaboo"]));
+            }
+            eprintln!("[clawd/service] Added peekaboo to skills.allowBundled (macOS)");
+            patched = true;
+          }
+
+          // Ensure skills.config.peekaboo.enabled = true
+          let peekaboo_enabled = cfg_val
+            .pointer("/skills/config/peekaboo/enabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+          if !peekaboo_enabled {
+            if cfg_val.get("skills").is_none() {
+              cfg_val.as_object_mut().unwrap().insert("skills".to_string(), serde_json::json!({}));
+            }
+            let skills = cfg_val.pointer_mut("/skills").unwrap().as_object_mut().unwrap();
+            if !skills.contains_key("config") {
+              skills.insert("config".to_string(), serde_json::json!({}));
+            }
+            let config = cfg_val.pointer_mut("/skills/config").unwrap().as_object_mut().unwrap();
+            if !config.contains_key("peekaboo") {
+              config.insert("peekaboo".to_string(), serde_json::json!({}));
+            }
+            cfg_val.pointer_mut("/skills/config/peekaboo").unwrap().as_object_mut().unwrap()
+              .insert("enabled".to_string(), serde_json::json!(true));
+            eprintln!("[clawd/service] Enabled skills.config.peekaboo (macOS)");
+            patched = true;
+          }
+        }
+
         // On Linux, set browser.noSandbox = true
         if cfg!(target_os = "linux") {
           let no_sandbox = cfg_val
