@@ -413,8 +413,14 @@ fn evict_competing_gateway_plists() -> Vec<String> {
 }
 
 /// Thin shim kept for existing call sites that don't need the return value.
+/// After evicting competing LaunchAgent plists, also kills any process still
+/// holding port 18789 — `launchctl bootout` removes launchd management but
+/// leaves the process alive, so without the kill it keeps blocking the port.
 fn remove_stale_standalone_gateway() {
-  evict_competing_gateway_plists();
+  let evicted = evict_competing_gateway_plists();
+  if !evicted.is_empty() {
+    kill_process_on_port(18789);
+  }
 }
 
 /// Remove stale `.openclaw-runtime-deps.lock` directories left behind when a
