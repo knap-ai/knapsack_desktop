@@ -423,6 +423,58 @@ fn remove_stale_standalone_gateway() {
   }
 }
 
+/// Self-heal a gateway connectivity issue by clearing competing LaunchAgent
+/// plists, killing any process holding port 18789, and restarting our own
+/// gateway via the supervisor.
+///
+/// Called when gateway_client repeatedly fails its WS handshake even though
+/// port 18789 is responding to HTTP.  The most likely cause is a competing
+/// gateway (standalone openclaw, manual `openclaw gateway start`, old beta
+/// install) that owns the port.  Knapsack's HTTP health probe treats it as
+/// healthy, so the auto-restart path never fires — but our handshake fails
+/// because the auth token doesn't match.
+///
+/// This function unconditionally kills whatever holds port 18789.  If it was
+/// our own gateway in a bad state, the supervisor restarts it.  If it was a
+/// non-LaunchAgent process, the kill is the only way to clear the port.
+#[cfg(target_os = "macos")]
+pub async fn self_heal_gateway_conflict(token: &str) {
+  let evicted = evict_competing_gateway_plists();
+  eprintln!(
+    "[clawd/service] self-heal: evicted competing plists: {:?}",
+    evicted
+  );
+  kill_process_on_port(18789);
+
+  // Wait for LaunchAgent throttle / for the supervisor to be willing to
+  // kickstart again.  Also gives mDNS/Bonjour time to release its bindings.
+  tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+
+  let result =
+    crate::clawd::gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
+  eprintln!(
+    "[clawd/service] self-heal: restart {} ({})",
+    result.message,
+    if result.running { "running" } else { "not running" }
+  );
+
+  sentry::with_scope(
+    |scope| scope.set_tag("evicted_count", &evicted.len().to_string()),
+    || {
+      sentry::capture_message(
+        &format!("[gateway] self-heal triggered (evicted={:?})", evicted),
+        sentry::Level::Warning,
+      )
+    },
+  );
+}
+
+#[cfg(not(target_os = "macos"))]
+pub async fn self_heal_gateway_conflict(_token: &str) {
+  // No-op on non-macOS: the LaunchAgent + standalone-gateway scenario is
+  // macOS-specific.  Windows uses a different supervision model.
+}
+
 /// Remove stale `.openclaw-runtime-deps.lock` directories left behind when a
 /// previous gateway process was killed (e.g. via `launchctl bootout` or SIGTERM)
 /// while holding the lock during plugin runtime-deps installation.
