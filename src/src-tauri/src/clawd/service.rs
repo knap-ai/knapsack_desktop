@@ -1680,6 +1680,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_model: None,
     ollama_base_url: None,
     extra_provider_keys: None,
+    preferred_coding_agent: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())

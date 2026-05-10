@@ -97,6 +97,8 @@ struct StoredTokens {
   ollama_base_url: Option<String>,
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
+  #[serde(default)]
+  preferred_coding_agent: Option<String>,
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -161,6 +163,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_model: None,
     ollama_base_url: None,
     extra_provider_keys: None,
+    preferred_coding_agent: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
