@@ -166,9 +166,11 @@ jobs:
           AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
           AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
         run: |
-          # Tauri v1 does string substitution of %1 with the file path — include
-          # unquoted %1 at the end (quoted "%1" is not substituted by Tauri v1).
-          $signCommand = "AzureSignTool sign -kvu `"$env:AZURE_KEY_VAULT_URI`" -kvc `"$env:AZURE_KEY_VAULT_CERT_NAME`" -kvi `"$env:AZURE_KEY_VAULT_CLIENT_ID`" -kvs `"$env:AZURE_KEY_VAULT_CLIENT_SECRET`" -kvt `"$env:AZURE_KEY_VAULT_TENANT_ID`" -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 %1"
+          # Tauri v1 splits signCommand on spaces (no shell parsing) before running it,
+          # so quoted values arrive with literal " chars that break URI parsing in
+          # AzureSignTool. All secret values are single tokens (no spaces), so no
+          # quoting is needed. %1 is substituted with the file path by Tauri v1.
+          $signCommand = "AzureSignTool sign -kvu $env:AZURE_KEY_VAULT_URI -kvc $env:AZURE_KEY_VAULT_CERT_NAME -kvi $env:AZURE_KEY_VAULT_CLIENT_ID -kvs $env:AZURE_KEY_VAULT_CLIENT_SECRET -kvt $env:AZURE_KEY_VAULT_TENANT_ID -tr http://timestamp.globalsign.com/tsa/advanced -td sha256 %1"
 
           $confPath = "src/src-tauri/tauri.conf.json"
           $conf = Get-Content $confPath -Raw | ConvertFrom-Json
