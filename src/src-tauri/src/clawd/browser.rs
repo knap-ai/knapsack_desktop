@@ -2617,27 +2617,47 @@ pub async fn chat(
       let session_id = "claude-code".to_string();
       let process_id = uuid::Uuid::new_v4().to_string();
 
+      // Select which coding CLI to use: check user preference first, then fall back to
+      // whichever API key is available (Anthropic → claude, OpenAI → codex).
+      let coding_agent = {
+        let pref = std::env::var("KNAPSACK_CODING_AGENT").unwrap_or_default();
+        let pref = pref.trim().to_lowercase();
+        if !pref.is_empty() {
+          pref
+        } else {
+          let has = |v: &str| std::env::var(v).map(|k| !k.trim().is_empty()).unwrap_or(false);
+          if has("ANTHROPIC_API_KEY") { "claude".to_string() }
+          else if has("OPENAI_API_KEY") { "codex".to_string() }
+          else { "claude".to_string() }
+        }
+      };
+
       // Emit a "claude-code-started" event so the frontend auto-opens the Activity Panel
       let _ = app_handle.emit_all("claude-code-started", json!({
         "processId": process_id,
         "sessionId": session_id,
         "prompt": prompt,
         "cwd": wd,
+        "agent": coding_agent,
       }));
 
-      // Build the claude command: use --yes for non-interactive mode that can still make changes.
-      // --print only outputs text without making file changes; --yes auto-accepts tool use
-      // so Claude Code can actually read/write files and run commands.
+      // Build the command string for the chosen CLI.
+      // claude: --yes auto-accepts tool use so it can read/write files without prompting.
+      // codex:  --approval-mode auto-edit allows file edits non-interactively.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
-      #[cfg(target_os = "windows")]
-      let claude_cmd = {
-        let escaped = prompt.replace('"', "\\\"");
-        format!("claude --yes \"{}\"", escaped)
-      };
-      #[cfg(not(target_os = "windows"))]
-      let claude_cmd = {
-        let escaped_prompt = prompt.replace('\'', "'\\''");
-        format!("claude --yes '{}'", escaped_prompt)
+      let claude_cmd = match coding_agent.as_str() {
+        "codex" => {
+          #[cfg(target_os = "windows")]
+          { format!("codex --approval-mode auto-edit \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("codex --approval-mode auto-edit '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        _ => {
+          #[cfg(target_os = "windows")]
+          { format!("claude --yes \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("claude --yes '{}'", prompt.replace('\'', "'\\''")) }
+        }
       };
 
       let wd_clone = wd.clone();

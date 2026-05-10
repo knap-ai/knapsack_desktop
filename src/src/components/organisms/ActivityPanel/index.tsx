@@ -1486,11 +1486,14 @@ const TerminalView: React.FC = () => {
         return
       }
 
-      // Claude Code CLI — run as a streaming process so output appears in real-time
-      if (cmd === 'claude' || cmd.startsWith('claude ')) {
+      // Coding agent CLIs (claude, codex) — run as streaming processes so output appears in real-time
+      const isCodingAgentCmd = cmd === 'claude' || cmd.startsWith('claude ')
+        || cmd === 'codex' || cmd.startsWith('codex ')
+      if (isCodingAgentCmd) {
+        const agentLabel = cmd.startsWith('codex') ? 'Codex' : 'Claude Code'
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
-          addLine(sessionId, 'system', 'Starting Claude Code...')
+          addLine(sessionId, 'system', `Starting ${agentLabel}...`)
           const processId: string = await invoke('kn_spawn_streaming_command', {
             command: trimmed,
             cwd: session.cwd || undefined,
@@ -1498,7 +1501,7 @@ const TerminalView: React.FC = () => {
           })
           updateSession(sessionId, s => ({ ...s, streamingProcessId: processId }))
         } catch (err) {
-          addLine(sessionId, 'stderr', `Failed to start Claude Code: ${err}`)
+          addLine(sessionId, 'stderr', `Failed to start ${agentLabel}: ${err}`)
           updateSession(sessionId, s => ({ ...s, isExecuting: false }))
         }
         return

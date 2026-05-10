@@ -1534,6 +1534,11 @@ struct StoredTokens {
   /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
+
+  /// Preferred coding CLI when multiple keys are available: "claude", "codex", or "gemini".
+  /// When unset, auto-selects based on which API key is present (Anthropic → claude, OpenAI → codex).
+  #[serde(default)]
+  preferred_coding_agent: Option<String>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -1718,6 +1723,10 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   if let Some(p) = &tokens.active_provider {
     let p = p.trim();
     if !p.is_empty() { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
+  }
+  if let Some(a) = &tokens.preferred_coding_agent {
+    let a = a.trim();
+    if !a.is_empty() { std::env::set_var("KNAPSACK_CODING_AGENT", a); }
   }
   if let Some(m) = &tokens.openai_model {
     let m = m.trim();
@@ -2757,6 +2766,9 @@ pub struct ApiKeyStatusResponse {
   /// Extra providers: list of {id, env_var, has_key, key_hint}
   #[serde(skip_serializing_if = "Vec::is_empty")]
   pub extra_providers: Vec<ExtraProviderStatus>,
+  /// User's preferred coding CLI: "claude", "codex", or "gemini".
+  /// Null means auto-select based on available API keys.
+  pub preferred_coding_agent: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2794,6 +2806,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         ollama_model: None,
         ollama_base_url: None,
         extra_providers: vec![],
+        preferred_coding_agent: None,
       })
     }
   };
@@ -2865,6 +2878,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     ollama_model: tokens.ollama_model.clone(),
     ollama_base_url: tokens.ollama_base_url.clone(),
     extra_providers,
+    preferred_coding_agent: tokens.preferred_coding_agent.clone(),
   })
 }
 
@@ -3040,6 +3054,9 @@ pub struct SetApiKeyRequest {
   /// For extra providers: the environment variable name to store the key under.
   /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
   pub env_var: Option<String>,
+  /// Preferred coding CLI agent: "claude", "codex", or "gemini".
+  /// When provided alongside or without a key change, updates the stored preference.
+  pub preferred_coding_agent: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -3296,6 +3313,15 @@ pub async fn set_api_key(
       "OpenAI"
     }
   };
+
+  // Persist coding agent preference if provided ("claude", "codex", or "gemini")
+  if let Some(agent) = &payload.preferred_coding_agent {
+    let agent = agent.trim().to_lowercase();
+    if ["claude", "codex", "gemini"].contains(&agent.as_str()) {
+      tokens.preferred_coding_agent = Some(agent.clone());
+      std::env::set_var("KNAPSACK_CODING_AGENT", &agent);
+    }
+  }
 
   if let Err(e) = save_tokens(&app_handle, &tokens) {
     return HttpResponse::InternalServerError().json(SetApiKeyResponse {

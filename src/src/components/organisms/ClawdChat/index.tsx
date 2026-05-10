@@ -370,6 +370,7 @@ type ApiKeyStatus = {
   ollama_model?: string
   ollama_base_url?: string
   extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
+  preferred_coding_agent?: string
 }
 
 type SkillInfo = {
@@ -529,6 +530,7 @@ const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
 const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
 const DEVELOPER_MODE_STORAGE = 'moltbot_developer_mode'
 const ACTIVE_PROVIDER_STORAGE = 'moltbot_active_provider'
+const CODING_AGENT_STORAGE = 'knapsack_coding_agent_pref'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
@@ -933,6 +935,7 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
   {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
+  {name:"Codex",emoji:"🧪",description:"OpenAI's autonomous coding agent — edits files, runs tests, and manages git",source:"OpenAI",eligible:false,externalApi:true,homepage:"https://github.com/openai/codex"},
   {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
   {name:"Persistent Memory",emoji:"🧠",description:"Remember decisions, context, and past work across sessions with semantic search",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
   {name:"Code Review",emoji:"🔎",description:"Severity-ranked AI code review with security, performance, and architecture findings",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
@@ -1623,9 +1626,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
-  // Claude Code activity tracking — shows indicator when Claude Code is running
+  // Claude Code / Codex activity tracking — shows indicator when a coding agent is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
   const [claudeCodePrompt, setClaudeCodePrompt] = useState<string | null>(null)
+  const [codingAgentName, setCodingAgentName] = useState('Claude Code')
+
+  // Preferred coding agent: "claude" | "codex" | "gemini" | "" (auto-detect from API keys)
+  const [preferredCodingAgent, setPreferredCodingAgent] = useState<string>(() => {
+    return localStorage.getItem(CODING_AGENT_STORAGE) || ''
+  })
 
   // Tone selection
   const [selectedTone, setSelectedTone] = useState<string>(() => {
@@ -1921,6 +1930,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
           setSelectedOllamaModel(keyStatus.ollama_model)
           localStorage.setItem(OLLAMA_MODEL_STORAGE, keyStatus.ollama_model)
+        }
+        // Restore coding agent preference from backend
+        if (keyStatus.preferred_coding_agent) {
+          setPreferredCodingAgent(keyStatus.preferred_coding_agent)
+          localStorage.setItem(CODING_AGENT_STORAGE, keyStatus.preferred_coding_agent)
         }
         // Fetch extra provider statuses
         if (keyStatus.extra_providers) {
@@ -2680,12 +2694,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const cleanups: Array<() => void> = []
 
     ;(async () => {
-      const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+      const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string; agent?: string }>(
         'claude-code-started',
         (event) => {
           if (cancelled) return
           setClaudeCodeActive(true)
           setClaudeCodePrompt(event.payload.prompt)
+          setCodingAgentName(event.payload.agent === 'codex' ? 'Codex' : 'Claude Code')
           // Auto-open Activity Panel if not already open
           if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
             onToggleActivityRef.current()
@@ -4974,7 +4989,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble ClawdBubble--claude-code">
               <div className="ClawdClaudeCodeIndicator">
                 <span className="ClawdClaudeCodeIndicator__pulse" />
-                <span className="ClawdClaudeCodeIndicator__label">Claude Code is working</span>
+                <span className="ClawdClaudeCodeIndicator__label">{codingAgentName} is working</span>
                 {claudeCodePrompt && (
                   <span className="ClawdClaudeCodeIndicator__prompt">{claudeCodePrompt.length > 80 ? claudeCodePrompt.slice(0, 80) + '...' : claudeCodePrompt}</span>
                 )}
@@ -6819,6 +6834,35 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </div>
                 )
               })}
+            </div>
+
+            {/* ── Coding Agent preference ── */}
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Coding Agent</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, maxWidth: 280 }}>
+                    Which CLI to use for autonomous coding tasks. "Auto" picks based on which API key is saved.
+                  </div>
+                </div>
+                <select
+                  value={preferredCodingAgent}
+                  onChange={async e => {
+                    const val = e.target.value
+                    setPreferredCodingAgent(val)
+                    localStorage.setItem(CODING_AGENT_STORAGE, val)
+                    try {
+                      await apiPost('/api/clawd/service/set-api-key', { key: '', preferred_coding_agent: val || null })
+                    } catch { /* ignore — preference is still stored locally */ }
+                  }}
+                  style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                >
+                  <option value="">Auto-detect</option>
+                  <option value="claude">Claude Code (Anthropic)</option>
+                  <option value="codex">Codex (OpenAI)</option>
+                  <option value="gemini">Gemini CLI (Google)</option>
+                </select>
+              </div>
             </div>
 
             {/* ── Background AI toggle ── */}
