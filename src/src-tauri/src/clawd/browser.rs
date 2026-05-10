@@ -2644,6 +2644,7 @@ pub async fn chat(
       // Build the command string for the chosen CLI.
       // claude: --yes auto-accepts tool use so it can read/write files without prompting.
       // codex:  --approval-mode auto-edit allows file edits non-interactively.
+      // agy:    Google Antigravity CLI (agy); launched with the prompt as a positional arg.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
       let claude_cmd = match coding_agent.as_str() {
         "codex" => {
@@ -2651,6 +2652,12 @@ pub async fn chat(
           { format!("codex --approval-mode auto-edit \"{}\"", prompt.replace('"', "\\\"")) }
           #[cfg(not(target_os = "windows"))]
           { format!("codex --approval-mode auto-edit '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        "agy" | "antigravity" => {
+          #[cfg(target_os = "windows")]
+          { format!("agy \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("agy '{}'", prompt.replace('\'', "'\\''")) }
         }
         _ => {
           #[cfg(target_os = "windows")]

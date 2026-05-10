@@ -1535,7 +1535,7 @@ struct StoredTokens {
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 
-  /// Preferred coding CLI when multiple keys are available: "claude", "codex", or "gemini".
+  /// Preferred coding CLI when multiple keys are available: "claude", "codex", or "agy" (Google Antigravity).
   /// When unset, auto-selects based on which API key is present (Anthropic → claude, OpenAI → codex).
   #[serde(default)]
   preferred_coding_agent: Option<String>,
@@ -3317,7 +3317,7 @@ pub async fn set_api_key(
   // Persist coding agent preference if provided ("claude", "codex", or "gemini")
   if let Some(agent) = &payload.preferred_coding_agent {
     let agent = agent.trim().to_lowercase();
-    if ["claude", "codex", "gemini"].contains(&agent.as_str()) {
+    if ["claude", "codex", "agy"].contains(&agent.as_str()) {
       tokens.preferred_coding_agent = Some(agent.clone());
       std::env::set_var("KNAPSACK_CODING_AGENT", &agent);
     }

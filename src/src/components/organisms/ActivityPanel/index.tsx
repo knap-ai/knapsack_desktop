@@ -1489,8 +1489,11 @@ const TerminalView: React.FC = () => {
       // Coding agent CLIs (claude, codex) — run as streaming processes so output appears in real-time
       const isCodingAgentCmd = cmd === 'claude' || cmd.startsWith('claude ')
         || cmd === 'codex' || cmd.startsWith('codex ')
+        || cmd === 'agy' || cmd.startsWith('agy ')
       if (isCodingAgentCmd) {
-        const agentLabel = cmd.startsWith('codex') ? 'Codex' : 'Claude Code'
+        const agentLabel = cmd.startsWith('codex') ? 'Codex'
+          : cmd.startsWith('agy') ? 'Antigravity'
+          : 'Claude Code'
         updateSession(sessionId, s => ({ ...s, isExecuting: true }))
         try {
           addLine(sessionId, 'system', `Starting ${agentLabel}...`)
