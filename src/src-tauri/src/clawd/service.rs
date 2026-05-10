@@ -554,6 +554,43 @@ fn remove_stale_plugin_runtime_deps_versions(clawdbot_home: &std::path::Path, cu
   }
 }
 
+/// Count plugin-runtime-deps directories whose version prefix doesn't match
+/// `current_version` — i.e. stale dirs from a prior gateway version that
+/// `remove_stale_plugin_runtime_deps_versions` would remove.
+///
+/// Used by `auto_enable_if_needed` to decide whether to force a gateway
+/// restart on startup: if stale dirs exist, the gateway will load mismatched
+/// staged plugin code (e.g. `openclaw-unknown-{hash}/dist/extensions/slack/`
+/// imports `openclaw` against a different package layout) and silently fail
+/// every channel setup.  HTTP /health still responds, so the auto-restart
+/// path never fires — we have to detect-and-restart at startup instead.
+fn count_stale_plugin_runtime_deps_versions(
+  clawdbot_home: &std::path::Path,
+  current_version: &str,
+) -> usize {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return 0,
+  };
+  let expected_prefix = format!("openclaw-{}-", current_version);
+  let mut stale = 0usize;
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    if !current_version.is_empty() && dir_name.starts_with(&expected_prefix) {
+      continue;
+    }
+    stale += 1;
+  }
+  stale
+}
+
 /// Read the bundled clawdbot version string from its package.json.
 /// Returns an empty string if the file can't be read or has no version field.
 fn read_clawdbot_bundle_version(clawdbot_dir: &std::path::Path) -> String {
@@ -7153,6 +7190,60 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       // on port 18789 and causing the connect/disconnect instability even though
       // our own service is "loaded."
       remove_stale_standalone_gateway();
+
+      // Detect stale plugin-runtime-deps dirs from a prior gateway version
+      // (e.g. `openclaw-unknown-{hash}` left by a previous standalone openclaw
+      // install, or an older Knapsack bundle).  The gateway happily loads
+      // staged plugin code from these dirs, but the slack/telegram/whatsapp
+      // channel setups inside them import `openclaw/plugin-sdk/...` against a
+      // different package layout — every channel fails with "Cannot find
+      // module .../root-alias.cjs/channel-config-schema-legacy" or "Cannot
+      // find package 'openclaw'".  HTTP /health still responds, so the
+      // auto-restart path never fires; we have to clean + restart here at
+      // startup, before the user notices.
+      let bundle_dir = clawdbot_bundle_dir(app_handle);
+      let bundle_ver = read_clawdbot_bundle_version(&bundle_dir);
+      let clawdbot_home = app_clawdbot_home(app_handle);
+      let stale = count_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
+      if stale > 0 {
+        eprintln!(
+          "[clawd/service] auto_enable: detected {} stale plugin-runtime-deps dir(s) (bundle ver={}) — cleaning and forcing gateway restart",
+          stale, bundle_ver
+        );
+        // Bootout first so the gateway isn't holding files we're about to delete.
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        // Brief wait so the gateway releases file handles + port.
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
+        // Re-bootstrap so the gateway is registered + started fresh.  The
+        // gateway will re-stage plugin runtime deps under the correct
+        // `openclaw-{bundle_ver}-{hash}` dir on first startup.
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+        }
+        sentry::with_scope(
+          |scope| {
+            scope.set_tag("stale_count", &stale.to_string());
+            scope.set_tag("bundle_ver", &bundle_ver);
+          },
+          || sentry::capture_message(
+            "[gateway] auto_enable: cleaned stale plugin-runtime-deps + restarted",
+            sentry::Level::Warning,
+          ),
+        );
+      }
       return;
     }
     eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");
