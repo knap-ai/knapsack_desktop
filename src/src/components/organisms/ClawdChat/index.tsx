@@ -936,7 +936,7 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
   {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
   {name:"Codex",emoji:"🧪",description:"OpenAI's autonomous coding agent — edits files, runs tests, and manages git",source:"OpenAI",eligible:false,externalApi:true,homepage:"https://github.com/openai/codex"},
-  {name:"Antigravity",emoji:"🚀",description:"Google's agentic development platform — natural language coding in a VS Code-based IDE",source:"Google",eligible:false,externalApi:true,homepage:"https://antigravity.google"},
+  {name:"Gemini CLI",emoji:"♊",description:"Google's open-source terminal AI agent — headless coding with the Gemini API",source:"Google",eligible:false,externalApi:true,homepage:"https://github.com/google-gemini/gemini-cli"},
   {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
   {name:"Persistent Memory",emoji:"🧠",description:"Remember decisions, context, and past work across sessions with semantic search",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
   {name:"Code Review",emoji:"🔎",description:"Severity-ranked AI code review with security, performance, and architecture findings",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
@@ -2702,7 +2702,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           setClaudeCodeActive(true)
           setClaudeCodePrompt(event.payload.prompt)
           const a = event.payload.agent
-          setCodingAgentName(a === 'codex' ? 'Codex' : a === 'agy' || a === 'antigravity' ? 'Antigravity' : 'Claude Code')
+          setCodingAgentName(a === 'codex' ? 'Codex' : a === 'gemini' ? 'Gemini CLI' : 'Claude Code')
           // Auto-open Activity Panel if not already open
           if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
             onToggleActivityRef.current()
@@ -6862,7 +6862,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   <option value="">Auto-detect</option>
                   <option value="claude">Claude Code (Anthropic)</option>
                   <option value="codex">Codex (OpenAI)</option>
-                  <option value="agy">Antigravity — agy (Google)</option>
+                  <option value="gemini">Gemini CLI (Google)</option>
                 </select>
               </div>
             </div>

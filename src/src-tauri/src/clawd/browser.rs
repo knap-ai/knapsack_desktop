@@ -2618,7 +2618,7 @@ pub async fn chat(
       let process_id = uuid::Uuid::new_v4().to_string();
 
       // Select which coding CLI to use: check user preference first, then fall back to
-      // whichever API key is available (Anthropic → claude, OpenAI → codex).
+      // whichever API key is available. Anthropic → claude, OpenAI → codex, Google → gemini.
       let coding_agent = {
         let pref = std::env::var("KNAPSACK_CODING_AGENT").unwrap_or_default();
         let pref = pref.trim().to_lowercase();
@@ -2628,6 +2628,7 @@ pub async fn chat(
           let has = |v: &str| std::env::var(v).map(|k| !k.trim().is_empty()).unwrap_or(false);
           if has("ANTHROPIC_API_KEY") { "claude".to_string() }
           else if has("OPENAI_API_KEY") { "codex".to_string() }
+          else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") { "gemini".to_string() }
           else { "claude".to_string() }
         }
       };
@@ -2644,7 +2645,8 @@ pub async fn chat(
       // Build the command string for the chosen CLI.
       // claude: --yes auto-accepts tool use so it can read/write files without prompting.
       // codex:  --approval-mode auto-edit allows file edits non-interactively.
-      // agy:    Google Antigravity CLI (agy); launched with the prompt as a positional arg.
+      // gemini: -p (--prompt) triggers headless mode, returning stdout output without TTY UI.
+      //         Note: Antigravity (`agy`) is an IDE, not a headless CLI — use `gemini` instead.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
       let claude_cmd = match coding_agent.as_str() {
         "codex" => {
@@ -2653,11 +2655,11 @@ pub async fn chat(
           #[cfg(not(target_os = "windows"))]
           { format!("codex --approval-mode auto-edit '{}'", prompt.replace('\'', "'\\''")) }
         }
-        "agy" | "antigravity" => {
+        "gemini" => {
           #[cfg(target_os = "windows")]
-          { format!("agy \"{}\"", prompt.replace('"', "\\\"")) }
+          { format!("gemini -p \"{}\"", prompt.replace('"', "\\\"")) }
           #[cfg(not(target_os = "windows"))]
-          { format!("agy '{}'", prompt.replace('\'', "'\\''")) }
+          { format!("gemini -p '{}'", prompt.replace('\'', "'\\''")) }
         }
         _ => {
           #[cfg(target_os = "windows")]
