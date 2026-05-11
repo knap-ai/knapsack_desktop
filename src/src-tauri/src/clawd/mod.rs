@@ -7,6 +7,7 @@ pub mod dev_remote;
 pub mod gateway_client;
 pub mod gateway_supervisor;
 pub mod gateway_ws;
+pub mod gbrain;
 pub mod gmail;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
