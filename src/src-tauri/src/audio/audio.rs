@@ -181,12 +181,12 @@ fn write_audio_data<T, U>(
     std::thread::spawn(move || {
       let rt = match Runtime::new() {
         Ok(rt) => rt,
-        Err(e) => { crate::utils::logging::knap_log_error(&format!("Failed to create tokio runtime: {}", e)); return; }
+        Err(e) => { log::error!("Failed to create tokio runtime: {}", e); return; }
       };
       rt.block_on(async {
         let permit = match semaphore.acquire().await {
           Ok(p) => p,
-          Err(e) => { crate::utils::logging::knap_log_error(&format!("Failed to acquire semaphore: {}", e)); return; }
+          Err(e) => { log::error!("Failed to acquire semaphore: {}", e); return; }
         };
         save_chunk(chunk_samples, chunk_filename.clone(), channel, sample_rate);
         finalize_chunk(chunk_filename, transcript_filename).await;
