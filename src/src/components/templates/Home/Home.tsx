@@ -52,6 +52,7 @@ import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
+import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
 import { markdownToEmailHtml } from 'src/utils/emails'
 
@@ -748,6 +749,12 @@ function Home({
               {currentTab === TabChoices.MCPMarketplace && (
                 <div className="overflow-auto w-full h-full p-6">
                   <MCPMarketplace />
+                </div>
+              )}
+
+              {currentTab === TabChoices.GBrain && (
+                <div className="overflow-hidden w-full h-full">
+                  <GBrainView />
                 </div>
               )}
 
