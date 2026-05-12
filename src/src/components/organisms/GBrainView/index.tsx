@@ -202,7 +202,7 @@ const GBrainView: React.FC = () => {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [pageContent, setPageContent] = useState<string | null>(null)
   const [pageLoading, setPageLoading] = useState(false)
-  const [panelTab, setPanelTab] = useState<PanelTab>('brain')
+  const [panelTab, setPanelTab] = useState<PanelTab>('skills')
 
   const [skillRunning, setSkillRunning] = useState(false)
   const [skillOutput, setSkillOutput] = useState<string | null>(null)
@@ -357,16 +357,22 @@ const GBrainView: React.FC = () => {
         {/* Left: file tree */}
         <div className="w-56 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
           {rootError ? (
-            <div className="p-3 text-xs text-red-500">
-              <div className="font-medium">Brain not found</div>
-              <div className="mt-1 text-gray-400">{rootError}</div>
-              <div className="mt-2 text-gray-400">
-                Clone GBrain: <code className="bg-gray-100 px-1 rounded">git clone github.com/garrytan/gbrain ~/gbrain</code>
-              </div>
+            <div className="p-4 flex flex-col gap-3">
+              <div className="text-xs font-semibold text-red-500">Brain not found</div>
+              <div className="text-xs text-gray-500 leading-relaxed">{rootError}</div>
+              <button
+                className="w-full px-3 py-2 rounded-md bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
+                onClick={() => setEditingRoot(true)}
+              >
+                Change path
+              </button>
             </div>
           ) : rootEntries.length === 0 ? (
-            <div className="p-3 text-xs text-gray-400">
-              {brainRoot ? 'Loading…' : 'Set a brain path above'}
+            <div className="p-4 flex flex-col gap-3">
+              <div className="text-xs text-gray-400 leading-relaxed">
+                Brain is empty. Use the <strong>Skills</strong> tab to start building it, or add markdown files to:
+              </div>
+              <pre className="bg-gray-100 rounded p-2 text-xs select-all break-all">{brainRoot || '…'}</pre>
             </div>
           ) : (
             <div className="py-1">
