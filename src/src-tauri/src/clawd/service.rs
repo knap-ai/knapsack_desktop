@@ -7478,9 +7478,119 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+  // Fast path: if the gateway is already healthy, just save setup for future
+  // background restarts and return.
+  let already_healthy = crate::clawd::gateway_supervisor::is_gateway_healthy("").await;
+  if already_healthy {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway already running, caching setup");
+    let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+      std::sync::Arc::new(tokio::sync::RwLock::new(
+        crate::clawd::sidecar::ClawdbotConfig::default(),
+      ));
+    if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+    }
+    return;
+  }
+
+  // Gateway is not running — start it.
+  AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
+  eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
+
+  let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+    std::sync::Arc::new(tokio::sync::RwLock::new(
+      crate::clawd::sidecar::ClawdbotConfig::default(),
+    ));
+
+  let setup = match prepare_gateway_config(app_handle, &cfg).await {
+    Ok(s) => s,
+    Err(e) => {
+      eprintln!("[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}", e);
+      return;
+    }
+  };
+
+  // Prevent the background health-check task from racing us.
+  GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
+
+  kill_stale_clawdbot_chromes();
+  kill_process_on_port(18789);
+  std::thread::sleep(std::time::Duration::from_millis(500));
+
+  // Remove stale gateway lock files so the new process starts without waiting.
+  {
+    let lock_dir = std::env::temp_dir().join("openclaw");
+    if lock_dir.is_dir() {
+      if let Ok(entries) = fs::read_dir(&lock_dir) {
+        for entry in entries.flatten() {
+          let name = entry.file_name();
+          let s = name.to_string_lossy();
+          if s.starts_with("gateway.") && s.ends_with(".lock") {
+            let _ = fs::remove_file(entry.path());
+          }
+        }
+      }
+    }
+  }
+
+  remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
+  {
+    let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+    remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
+  }
+
+  let stdout_log = windows_log_path("stdout");
+  let stderr_log = windows_log_path("stderr");
+
+  let (out_f, err_f) = match (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
+    (Ok(o), Ok(e)) => (o, e),
+    (Err(e), _) | (_, Err(e)) => {
+      eprintln!("[clawd/service] auto_enable (Windows): failed to create log files: {}", e);
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      return;
+    }
+  };
+
+  match std::process::Command::new(&setup.program_args[0])
+    .args(&setup.program_args[1..])
+    .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    .current_dir(&setup.working_dir)
+    .stdout(out_f)
+    .stderr(err_f)
+    .creation_flags(CREATE_NO_WINDOW)
+    .spawn()
+  {
+    Ok(child) => {
+      let pid = child.id();
+      GATEWAY_PID.store(pid, Ordering::Relaxed);
+      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      eprintln!("[clawd/service] auto_enable (Windows): gateway spawned (pid {})", pid);
+
+      // Workaround for OpenClaw #23006: patch paired.json scopes after startup.
+      let ah = app_handle.clone();
+      tokio::spawn(async move {
+        for delay_s in [2u64, 5, 10, 20, 40] {
+          tokio::time::sleep(std::time::Duration::from_secs(delay_s)).await;
+          patch_paired_json_scopes(&ah);
+        }
+      });
+    }
+    Err(e) => {
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      eprintln!("[clawd/service] auto_enable (Windows): spawn failed: {}", e);
+    }
+  }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
-  // No-op on non-macOS platforms.
+  // No-op on non-macOS/Windows platforms.
 }
 
 #[cfg(test)]
