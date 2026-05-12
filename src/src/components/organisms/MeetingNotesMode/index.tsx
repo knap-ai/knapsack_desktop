@@ -131,6 +131,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   onAttendeeClick,
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
@@ -380,8 +381,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     if (thread.id) {
+      // Safety timeout: if fetchNotes hangs (e.g. server temporarily busy),
+      // clear the skeleton after 8 seconds so the view isn't stuck forever.
+      if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
+      initialLoadingTimerRef.current = setTimeout(() => setIsInitialLoading(false), 8000)
       fetchNotes()
       refreshStatus()
+    }
+    return () => {
+      if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
     }
   }, [thread.id, isLLMLoading, synthesisState])
 
@@ -519,6 +527,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     if (!meeting?.event_id || thread.recorded || briefPrepTriggeredRef.current) return
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
+    // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
+    const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
     const participantList = meeting.participants
       .map(p => p.name ? `${p.name} (${p.email})` : p.email)
       .join(', ')
@@ -534,12 +544,17 @@ Output only the 3 sentences, nothing else.`,
       documents: [],
       messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
       messageFinishCallback: async (response) => {
+        clearTimeout(briefPrepTimeout)
         setBriefPrepContent(response)
         setIsBriefPrepGenerating(false)
         return undefined
       },
-      errorCallback: () => setIsBriefPrepGenerating(false),
+      errorCallback: () => {
+        clearTimeout(briefPrepTimeout)
+        setIsBriefPrepGenerating(false)
+      },
     })
+    return () => clearTimeout(briefPrepTimeout)
   }, [meeting?.event_id])
 
   const getRunParamObject = () => {
