@@ -76,7 +76,11 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
         setState({ status: 'up-to-date' })
       }
     } catch (err) {
-      setState({ status: 'error', message: String(err) })
+      const msg = String(err)
+      const friendlyMsg = msg.includes('fetch') || msg.includes('release JSON') || msg.includes('network')
+        ? 'Could not reach the update server. Check your connection and try again.'
+        : msg
+      setState({ status: 'error', message: friendlyMsg })
     }
   }, [])
 
