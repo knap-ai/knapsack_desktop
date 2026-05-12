@@ -6565,12 +6565,17 @@ pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Resp
   // Try to get live eligible state from the gateway (skills.status) and merge
   // it into the catalog as `enabled`.  Falls back to the static catalog when
   // the gateway is unavailable.  skills.status returns { skills: [{name, eligible, disabled, ...}] }.
+  // 5-second timeout so a reconnecting gateway never stalls the UI.
   if let Ok(tokens) = load_or_create_tokens(&app_handle) {
-    if let Ok(result) = super::gateway_client::gateway_request_pooled(
-      "skills.status",
-      Some(serde_json::json!({})),
-      &tokens.gateway_token,
-    ).await {
+    let gateway_result = tokio::time::timeout(
+      std::time::Duration::from_secs(5),
+      super::gateway_client::gateway_request_pooled(
+        "skills.status",
+        Some(serde_json::json!({})),
+        &tokens.gateway_token,
+      ),
+    ).await;
+    if let Ok(Ok(result)) = gateway_result {
       if let Some(live_skills) = result.get("skills").and_then(|s| s.as_array()) {
         // A skill is "enabled" (usable) when eligible=true and disabled=false.
         let mut enabled_map: std::collections::HashMap<String, bool> =
