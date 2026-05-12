@@ -664,6 +664,11 @@ async fn knapsack_completion(
         "Knapsack session expired — please sign in again".into(),
       ));
     }
+    if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+      return Err(LLMError::ChatCompletionFailed(
+        "No Knapsack credits remaining. Sign up or top up at https://studio.knapsack.ai".into(),
+      ));
+    }
     return Err(LLMError::ChatCompletionFailed(format!(
       "Knapsack inference error ({}): {}",
       status, text

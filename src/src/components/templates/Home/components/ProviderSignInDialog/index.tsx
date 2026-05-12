@@ -843,6 +843,17 @@ export const ProviderSignInDialog = ({
               >
                 {saving ? 'Activating…' : isActiveProvider('knapsack') ? 'Update model' : 'Activate Knapsack'}
               </button>
+              <p style={{ margin: '12px 0 0', fontSize: 12, color: '#64748b', textAlign: 'center' }}>
+                Need credits?{' '}
+                <a
+                  href="https://studio.knapsack.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#c54841', textDecoration: 'underline' }}
+                >
+                  Sign up at studio.knapsack.ai
+                </a>
+              </p>
             </div>
           )}
           {selectedProvider === 'openrouter' && (
