@@ -2,7 +2,7 @@ name: Build Windows App
 
 on:
   push:
-    branches: [main, "release/*", "claude/*"]
+    branches: [main, "release/*"]
   pull_request:
     branches: [main]
   workflow_dispatch:

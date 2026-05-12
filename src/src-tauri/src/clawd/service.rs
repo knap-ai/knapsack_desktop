@@ -1980,6 +1980,10 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "config_anomaly"
   } else if lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
     "plugin_install_fail"
+  } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
+    // Stale plugin-runtime-deps with wrong internal structure — version prefix
+    // matched so the normal cleanup skipped it, but the content is incompatible.
+    "module_resolution_fail"
   } else {
     "unknown"
   }
@@ -2203,7 +2207,23 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // leaving ENOTEMPTY traps that cause bonjour (and other plugins) to
         // fail their npm install on every subsequent gateway start.
         remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
-        remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+
+        // Check if the crash is a module-resolution failure (e.g. "Cannot find
+        // module .../plugin-sdk/root-alias.cjs/channel-config-schema-legacy").
+        // This happens when a plugin-runtime-deps dir has the correct version
+        // prefix but incompatible internal structure — the normal version-prefix
+        // cleanup skips it.  Force a full wipe so the gateway re-stages clean deps.
+        let log_lower = std::fs::read_to_string(gateway_stderr_log())
+          .unwrap_or_default()
+          .to_lowercase();
+        let is_module_resolution_crash = log_lower.contains("cannot find module")
+          && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
+        if is_module_resolution_crash {
+          eprintln!("[clawd/service] auto-restart: module-resolution crash detected — force-wiping all plugin-runtime-deps dirs");
+          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
+        } else {
+          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+        }
 
         // Re-run plugin dep installs for any extension whose node_modules are
         // missing (fast no-op when all deps are already present).  This is how
@@ -6545,12 +6565,17 @@ pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Resp
   // Try to get live eligible state from the gateway (skills.status) and merge
   // it into the catalog as `enabled`.  Falls back to the static catalog when
   // the gateway is unavailable.  skills.status returns { skills: [{name, eligible, disabled, ...}] }.
+  // 5-second timeout so a reconnecting gateway never stalls the UI.
   if let Ok(tokens) = load_or_create_tokens(&app_handle) {
-    if let Ok(result) = super::gateway_client::gateway_request_pooled(
-      "skills.status",
-      Some(serde_json::json!({})),
-      &tokens.gateway_token,
-    ).await {
+    let gateway_result = tokio::time::timeout(
+      std::time::Duration::from_secs(5),
+      super::gateway_client::gateway_request_pooled(
+        "skills.status",
+        Some(serde_json::json!({})),
+        &tokens.gateway_token,
+      ),
+    ).await;
+    if let Ok(Ok(result)) = gateway_result {
       if let Some(live_skills) = result.get("skills").and_then(|s| s.as_array()) {
         // A skill is "enabled" (usable) when eligible=true and disabled=false.
         let mut enabled_map: std::collections::HashMap<String, bool> =
@@ -7317,6 +7342,22 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
             sentry::Level::Warning,
           ),
         );
+      }
+
+      // Cache plist args so regenerate_macos_plist_with_current_env() can update
+      // the plist when the user saves an API key on subsequent launches. Without
+      // this, LAST_MACOS_PLIST_ARGS stays None (it's only set in the new-plist
+      // path below) and set_api_key silently skips the plist update, leaving the
+      // gateway running with stale or missing env vars.
+      {
+        let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+          std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::clawd::sidecar::ClawdbotConfig::default(),
+          ));
+        if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+          *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args, setup.env));
+          eprintln!("[clawd/service] auto_enable: cached plist args for future API key updates");
+        }
       }
       return;
     }

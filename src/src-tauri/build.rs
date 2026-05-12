@@ -27,20 +27,25 @@ fn remove_broken_symlinks_recursive(dir: &Path) {
 }
 
 fn main() {
+    let is_release = std::env::var("PROFILE").as_deref() == Ok("release");
     let node_modules = Path::new("resources/clawdbot/node_modules");
 
-    // Remove .pnpm virtual store — not needed at runtime with hoisted
-    // node_modules, and it contains thousands of internal symlinks that
-    // bloat the bundle and can break Tauri's resource copier.
-    let pnpm_store = node_modules.join(".pnpm");
-    if pnpm_store.exists() {
-        let _ = fs::remove_dir_all(&pnpm_store);
-    }
+    // These cleanup steps are only needed for release bundles — they're slow
+    // (can take minutes on large node_modules trees) and unnecessary for dev.
+    if is_release {
+        // Remove .pnpm virtual store — not needed at runtime with hoisted
+        // node_modules, and it contains thousands of internal symlinks that
+        // bloat the bundle and can break Tauri's resource copier.
+        let pnpm_store = node_modules.join(".pnpm");
+        if pnpm_store.exists() {
+            let _ = fs::remove_dir_all(&pnpm_store);
+        }
 
-    // Clean up any broken symlinks (e.g. in .bin/) that could cause
-    // tauri_build to fail.
-    if node_modules.exists() {
-        remove_broken_symlinks_recursive(node_modules);
+        // Clean up any broken symlinks (e.g. in .bin/) that could cause
+        // tauri_build to fail.
+        if node_modules.exists() {
+            remove_broken_symlinks_recursive(node_modules);
+        }
     }
 
     // Fail the build early if the bundled Node.js binary is missing.
