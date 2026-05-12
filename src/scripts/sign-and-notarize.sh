@@ -336,6 +336,14 @@ if [ "$DO_NOTARIZE" = true ]; then
       chmod -R a+rX "$DMG_TEMP"
 
       rm -f "$DMG_PATH"
+
+      # Detach any lingering mounts with the same volume name — a previous
+      # build step or failed run can leave /Volumes/<AppName> attached, which
+      # causes hdiutil create to fail with "Resource busy".
+      for vol in /Volumes/"$APP_NAME"*; do
+        [ -d "$vol" ] && hdiutil detach "$vol" -force 2>/dev/null || true
+      done
+
       hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
         -ov -format UDZO "$DMG_PATH"
       rm -rf "$DMG_TEMP"
