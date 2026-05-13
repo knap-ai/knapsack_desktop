@@ -59,7 +59,7 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
-  onProviderSignInClick?: (provider?: 'openai' | 'anthropic' | 'openrouter') => void
+  onProviderSignInClick?: (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter') => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
