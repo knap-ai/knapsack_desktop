@@ -1734,6 +1734,12 @@ struct StoredTokens {
   /// (Anthropic → claude, OpenAI → codex, Google → gemini).
   #[serde(default)]
   preferred_coding_agent: Option<String>,
+
+  // Knapsack cloud inference (no API key — uses the user's Knapsack JWT)
+  #[serde(default)]
+  knapsack_email: Option<String>,
+  #[serde(default)]
+  knapsack_model: Option<String>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -1875,6 +1881,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_base_url: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
+    knapsack_email: None,
+    knapsack_model: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -1976,6 +1984,15 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
         std::env::set_var(env_var, key);
       }
     }
+  }
+  // Propagate Knapsack cloud inference settings (active when user chose Knapsack as provider)
+  if let Some(e) = &tokens.knapsack_email {
+    let e = e.trim();
+    if !e.is_empty() { std::env::set_var("KNAPSACK_USER_EMAIL", e); }
+  }
+  if let Some(m) = &tokens.knapsack_model {
+    let m = m.trim();
+    if !m.is_empty() { std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m); }
   }
 
   // Propagate gateway token so that in-process gateway RPC callers
@@ -3022,6 +3039,10 @@ pub struct ApiKeyStatusResponse {
   /// User's preferred coding CLI: "claude", "codex", or "gemini".
   /// Null means auto-select based on available API keys.
   pub preferred_coding_agent: Option<String>,
+  // Knapsack cloud inference
+  pub has_knapsack: bool,
+  pub knapsack_email: Option<String>,
+  pub knapsack_model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -3060,6 +3081,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         ollama_base_url: None,
         extra_providers: vec![],
         preferred_coding_agent: None,
+        has_knapsack: false,
+        knapsack_email: None,
+        knapsack_model: None,
       })
     }
   };
@@ -3071,7 +3095,8 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let has_openrouter = tokens.openrouter_api_key.as_ref().map(|k| !k.trim().is_empty()).unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
-  let has_key = has_openai || has_anthropic || has_gemini || has_groq || has_openrouter || ollama_enabled || has_gemini_cli;
+  let has_knapsack = tokens.knapsack_email.as_ref().map(|e| !e.trim().is_empty()).unwrap_or(false);
+  let has_key = has_openai || has_anthropic || has_gemini || has_groq || has_openrouter || ollama_enabled || has_gemini_cli || has_knapsack;
 
   let model = tokens.openai_model.clone();
   let active_provider = tokens.active_provider.clone();
@@ -3132,6 +3157,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     ollama_base_url: tokens.ollama_base_url.clone(),
     extra_providers,
     preferred_coding_agent: tokens.preferred_coding_agent.clone(),
+    has_knapsack,
+    knapsack_email: tokens.knapsack_email.clone(),
+    knapsack_model: tokens.knapsack_model.clone(),
   })
 }
 
@@ -3336,8 +3364,8 @@ pub async fn set_api_key(
   let key = payload.key.trim().to_string();
   let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
 
-  // Validate key format before storing (skip for ollama which uses a dummy key)
-  if !key.is_empty() && provider != "ollama" {
+  // Validate key format before storing (skip for ollama and knapsack which don't use API keys)
+  if !key.is_empty() && provider != "ollama" && provider != "knapsack" {
     if let Err(msg) = validate_api_key_format(&key) {
       return HttpResponse::BadRequest().json(SetApiKeyResponse {
         success: false,
@@ -3354,6 +3382,7 @@ pub async fn set_api_key(
       "groq" => tokens.groq_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "openrouter" => tokens.openrouter_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "ollama" => true,
+      "knapsack" => tokens.knapsack_email.as_ref().map_or(false, |e| !e.is_empty()),
       _ => tokens.openai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
     };
     if !has_existing {
@@ -3371,6 +3400,7 @@ pub async fn set_api_key(
         "groq" => { tokens.groq_model = Some(model.trim().to_string()); }
         "openrouter" => { tokens.openrouter_model = Some(model.trim().to_string()); }
         "ollama" => { tokens.ollama_model = Some(model.trim().to_string()); }
+        "knapsack" => { tokens.knapsack_model = Some(model.trim().to_string()); }
         _ => { tokens.openai_model = Some(model.trim().to_string()); }
       }
     }
@@ -3380,6 +3410,7 @@ pub async fn set_api_key(
       "groq" => "Groq",
       "openrouter" => "OpenRouter",
       "ollama" => "Ollama",
+      "knapsack" => "Knapsack",
       _ => "OpenAI",
     };
     if let Err(e) = save_tokens(&app_handle, &tokens) {
@@ -3416,6 +3447,11 @@ pub async fn set_api_key(
       std::env::remove_var("OLLAMA_API_KEY");
       std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
       std::env::remove_var("OLLAMA_HOST");
+    }
+    // Propagate Knapsack inference settings
+    if provider == "knapsack" {
+      if let Some(e) = &tokens.knapsack_email { std::env::set_var("KNAPSACK_USER_EMAIL", e); }
+      if let Some(m) = &tokens.knapsack_model { std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m); }
     }
 
     // Update agents.defaults.model in the config file so the gateway uses
@@ -3529,6 +3565,15 @@ pub async fn set_api_key(
       }
       "Ollama"
     }
+    "knapsack" => {
+      // Knapsack cloud inference: key field carries the user's email (no API key needed)
+      tokens.knapsack_email = Some(key);
+      tokens.active_provider = Some("knapsack".to_string());
+      if let Some(model) = &payload.model {
+        tokens.knapsack_model = Some(model.trim().to_string());
+      }
+      "Knapsack"
+    }
     "minimax" | "zai" | "huggingface" => {
       // Extra providers: store key in extra_provider_keys map.
       // Determine the env var name from the request or derive from provider.
@@ -3617,6 +3662,11 @@ pub async fn set_api_key(
     std::env::remove_var("OLLAMA_API_KEY");
     std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
     std::env::remove_var("OLLAMA_HOST");
+  }
+  // Propagate Knapsack cloud inference settings
+  if provider == "knapsack" {
+    if let Some(e) = &tokens.knapsack_email { std::env::set_var("KNAPSACK_USER_EMAIL", e); }
+    if let Some(m) = &tokens.knapsack_model { std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m); }
   }
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {

@@ -109,6 +109,20 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
         is_anthropic: false,
       });
     }
+    "knapsack" => {
+      let email = std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default();
+      if !email.trim().is_empty() {
+        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
+          .unwrap_or_else(|_| "anthropic/claude-haiku-4-5".to_string());
+        return Ok(ResolvedProvider {
+          name: "knapsack".into(),
+          api_key: email,
+          model,
+          base_url: "https://api.knapsack.ai".into(),
+          is_anthropic: false,
+        });
+      }
+    }
     "ollama" if ollama_key.is_some() => {
       let ollama_base = std::env::var("OLLAMA_HOST")
         .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
@@ -568,6 +582,134 @@ async fn anthropic_completion(
   Err(LLMError::ChatCompletionFailed(format!("Anthropic failed after {} retries: {}", max_retries, last_error)))
 }
 
+/// Call Knapsack's cloud inference API (`POST /api/desktop/inference`).
+/// Fetches a fresh JWT from the local gateway before each request.
+async fn knapsack_completion(
+  provider: &ResolvedProvider,
+  messages: &[LlmMessage],
+) -> Result<String, LLMError> {
+  let email = &provider.api_key;
+  let client = reqwest::Client::new();
+
+  // Fetch a fresh JWT from the local gateway
+  let token_url = format!(
+    "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
+    email
+  );
+  let token_resp = client.get(&token_url).send().await.map_err(|e| {
+    LLMError::ChatCompletionFailed(format!("Knapsack token fetch failed: {}", e))
+  })?;
+
+  if !token_resp.status().is_success() {
+    return Err(LLMError::ChatCompletionFailed(
+      "Knapsack auth failed — please sign in to Knapsack again".into(),
+    ));
+  }
+
+  let token_json: serde_json::Value = token_resp.json().await.map_err(|e| {
+    LLMError::ChatCompletionFailed(format!("Knapsack token parse failed: {}", e))
+  })?;
+
+  let token = token_json
+    .get("token")
+    .and_then(|t| t.as_str())
+    .ok_or_else(|| {
+      LLMError::ChatCompletionFailed("Knapsack JWT not found in token response".into())
+    })?
+    .to_string();
+
+  // Separate system prompt from conversation messages
+  let system_prompt: String = messages
+    .iter()
+    .filter(|m| matches!(m.sender, MessageSender::System))
+    .map(|m| m.content.as_str())
+    .collect::<Vec<_>>()
+    .join("\n");
+
+  let conversation: Vec<serde_json::Value> = messages
+    .iter()
+    .filter(|m| !matches!(m.sender, MessageSender::System))
+    .map(|m| {
+      let role = match m.sender {
+        MessageSender::User => "user",
+        MessageSender::Bot => "assistant",
+        _ => "user",
+      };
+      serde_json::json!({"role": role, "content": &m.content})
+    })
+    .collect();
+
+  let mut body = serde_json::json!({
+    "messages": conversation,
+    "model": &provider.model,
+  });
+  if !system_prompt.is_empty() {
+    body["system_prompt"] = serde_json::Value::String(system_prompt);
+  }
+
+  let resp = client
+    .post(format!("{}/api/desktop/inference", &provider.base_url))
+    .header("Authorization", format!("Bearer {}", token))
+    .header("Content-Type", "application/json")
+    .json(&body)
+    .send()
+    .await
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack inference request failed: {}", e)))?;
+
+  let status = resp.status();
+  if !status.is_success() {
+    let text = resp.text().await.unwrap_or_default();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+      return Err(LLMError::ChatCompletionFailed(
+        "Knapsack session expired — please sign in again".into(),
+      ));
+    }
+    if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+      return Err(LLMError::ChatCompletionFailed(
+        "No Knapsack credits remaining. Sign up or top up at https://studio.knapsack.ai".into(),
+      ));
+    }
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "Knapsack inference error ({}): {}",
+      status, text
+    )));
+  }
+
+  // Consume SSE stream and concatenate content chunks
+  let body_bytes = resp.bytes().await.map_err(|e| {
+    LLMError::ChatCompletionFailed(format!("Knapsack response read failed: {}", e))
+  })?;
+  let body_str = String::from_utf8_lossy(&body_bytes);
+
+  let mut full_text = String::new();
+  for line in body_str.lines() {
+    if let Some(data) = line.strip_prefix("data: ") {
+      if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+        if json.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
+          break;
+        }
+        if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+          full_text.push_str(content);
+        }
+      }
+    }
+  }
+
+  if full_text.is_empty() {
+    return Err(LLMError::ChatCompletionFailed(
+      "Knapsack returned an empty response".into(),
+    ));
+  }
+
+  let usage = CompletionUsage {
+    input_tokens: messages.iter().map(|m| estimate_tokens(&m.content)).sum::<i64>(),
+    output_tokens: estimate_tokens(&full_text),
+  };
+  record_usage("knapsack", &provider.model, &usage, "chat");
+
+  Ok(full_text)
+}
+
 /// Complete using the best available provider. Falls back through providers on failure.
 pub async fn multi_provider_completion(
   messages: Vec<LlmMessage>,
@@ -593,7 +735,9 @@ pub async fn multi_provider_completion(
     provider.name, provider.model, key_len, key_preview
   );
 
-  let result = if provider.is_anthropic {
+  let result = if provider.name == "knapsack" {
+    knapsack_completion(&provider, &messages).await
+  } else if provider.is_anthropic {
     anthropic_completion(&provider, &messages).await
   } else {
     openai_compatible_completion(&provider, &messages).await
