@@ -454,16 +454,21 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         }
       },
     )
-    const unlistenAutoStartRecordingPromise = listen('stop_recording', async () => {
-      const statusDisable = await isRecordingStatus()
-      if (statusDisable && statusDisable.isRecording) {
-        setDisableIsRecording(statusDisable.threadId !== thread.id)
-      }
-      // Do NOT update isRecording state here — stopRecording() manages it.
-      // Setting it to false before calling handleStopRecording would cause
-      // wasRecording to be false inside stopRecording, preventing note generation.
-      handleStopRecording('Automatic')
-    })
+    const unlistenAutoStartRecordingPromise = listen(
+      'stop_recording',
+      async (event: Event<{ threadId?: number | null }>) => {
+        if (event.payload?.threadId && event.payload.threadId !== thread.id) return
+
+        const statusDisable = await isRecordingStatus()
+        if (statusDisable && statusDisable.isRecording) {
+          setDisableIsRecording(statusDisable.threadId !== thread.id)
+        }
+        // Do NOT update isRecording state here — stopRecording() manages it.
+        // Setting it to false before calling handleStopRecording would cause
+        // wasRecording to be false inside stopRecording, preventing note generation.
+        handleStopRecording('Automatic')
+      },
+    )
     // Listen for heartbeat insights during recording — always show inline, notify if proactive mode on
     const unlistenHeartbeatPromise = listen(
       'meeting_heartbeat',
