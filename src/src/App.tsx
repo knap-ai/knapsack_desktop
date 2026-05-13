@@ -69,6 +69,53 @@ export interface IGoogleDriveItem {
   id: string
 }
 
+type FrontmostAppInfo = {
+  name?: string
+  bundleId?: string | null
+  windowTitle?: string | null
+}
+
+const EXCLUDED_MIC_PROMPT_APPS = [
+  'wispr',
+  'superwhisper',
+  'super whisper',
+  'voice control',
+  'dictation',
+  'chatgpt',
+  'claude',
+]
+
+const MEETING_MIC_PROMPT_APPS = [
+  'zoom',
+  'microsoft teams',
+  'teams',
+  'google meet',
+  'meet.google.com',
+  'slack',
+  'webex',
+  'facetime',
+  'around',
+  'whereby',
+  'gotomeeting',
+]
+
+function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
+  if (!appInfo) return true
+
+  const haystack = [
+    appInfo.name,
+    appInfo.bundleId,
+    appInfo.windowTitle,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (!haystack) return true
+  if (EXCLUDED_MIC_PROMPT_APPS.some(app => haystack.includes(app))) return false
+  return MEETING_MIC_PROMPT_APPS.some(app => haystack.includes(app))
+}
+
 export interface IGoogleDriveData {
   docs: IGoogleDriveItem[]
   action: string
@@ -239,6 +286,7 @@ function App() {
   const {
     isRecording,
     setIsRecording,
+    activeRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -1020,6 +1068,7 @@ function App() {
   const recordingHandlers: RecordingContextProps = {
     isRecording,
     setIsRecording,
+    activeRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -1071,6 +1120,12 @@ function App() {
     const unlistenPromise = listen('mic-activated', async () => {
       if (isAnyRecordingRef.current || suppressMicNotificationRef.current) return
       try {
+        const appInfo = await invoke<FrontmostAppInfo>('get_frontmost_app_info').catch(error => {
+          console.warn('Unable to inspect frontmost app for mic prompt filtering:', error)
+          return null
+        })
+        if (!shouldShowMicPromptForApp(appInfo)) return
+
         await openNotificationWindow(
           undefined,
           [

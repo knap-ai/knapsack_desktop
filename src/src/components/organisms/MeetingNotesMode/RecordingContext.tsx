@@ -12,6 +12,7 @@ import { openBesideApp } from 'src/utils/openBesideApp'
 export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
   setIsRecording: (threadId: number, isRecording: boolean) => void
+  activeRecordingThreadId: number | null
   isLoadingNotes: (threadId: number) => boolean
   startRecording: (
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
@@ -66,6 +67,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   const [loadingStates, setLoadingStates] = useState<Map<number, boolean>>(new Map())
   const [hasSynthesizedState, setHasSynthesizedState] = useState<Map<number, boolean>>(new Map())
   const [isAnyRecording, setIsAnyRecording] = useState(false)
+  const [activeRecordingThreadId, setActiveRecordingThreadId] = useState<number | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const isStartingRef = useRef(false)
 
@@ -94,6 +96,10 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       const newMap = new Map(prev).set(threadId, isRecording)
       setIsAnyRecording(Array.from(newMap.values()).some(Boolean))
       return newMap
+    })
+    setActiveRecordingThreadId(prev => {
+      if (isRecording) return threadId
+      return prev === threadId ? null : prev
     })
   }, [])
 
@@ -221,6 +227,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         await synthesizeContent(threadId, notesMarkdown, meeting)
         setHasSynthesized(threadId, true)
         setIsRecording(threadId, false)
+        setActiveRecordingThreadId(prev => prev === threadId ? null : prev)
         await saveNotes(threadId, notesMarkdown)
         // Emit event for post-meeting follow-up notifications
         emit('notes_synthesized', {
@@ -313,6 +320,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   const contextValue = useMemo(() => ({
     isRecording,
     setIsRecording,
+    activeRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -321,7 +329,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     isPaused,
     generateNotes,
     hasSynthesized,
-  }), [isRecording, setIsRecording, isLoadingNotes, startRecording, stopRecording, isAnyRecording, pauseRecording, isPaused, generateNotes, hasSynthesized])
+  }), [isRecording, setIsRecording, activeRecordingThreadId, isLoadingNotes, startRecording, stopRecording, isAnyRecording, pauseRecording, isPaused, generateNotes, hasSynthesized])
 
   return (
     <RecordingContext.Provider value={contextValue}>

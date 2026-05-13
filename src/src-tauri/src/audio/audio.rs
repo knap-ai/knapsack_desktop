@@ -1237,7 +1237,7 @@ async fn stream_audio(
         should_stop_flag = false;
       } else if let Some(end_time) = meeting_end_time {
         if Utc::now() > end_time {
-          handle_stop_events(&app_handle).await;
+          handle_stop_events(&app_handle, &recording_state).await;
           should_stop_flag = false;
           stop_event_called = true;
         } else if (Utc::now() - should_stop_time) >= ChronoDuration::seconds(3) {
@@ -1277,7 +1277,10 @@ async fn stream_audio(
   Ok(())
 }
 
-async fn handle_stop_events(app_handle: &tauri::AppHandle) -> Result<(), Error> {
+async fn handle_stop_events(
+  app_handle: &tauri::AppHandle,
+  recording_state: &RecordingState,
+) -> Result<(), Error> {
   let window = match app_handle.get_window(WINDOW_LABEL) {
     Some(w) => w,
     None => {
@@ -1291,10 +1294,15 @@ async fn handle_stop_events(app_handle: &tauri::AppHandle) -> Result<(), Error> 
     let _ = indicator_window.hide();
   }
 
-  let _ = window.emit("open_feed_item", {});
-  sleep(Duration::from_millis(100)).await;
+  let active_thread_id = {
+    let thread_id_guard = recording_state.thread_id.lock().unwrap();
+    *thread_id_guard
+  };
 
-  let _ = window.emit("stop_recording", {});
+  let _ = window.emit("open_feed_item", json!({ "threadId": active_thread_id }));
+  sleep(Duration::from_millis(750)).await;
+
+  let _ = window.emit("stop_recording", json!({ "threadId": active_thread_id }));
   sleep(Duration::from_millis(500)).await;
 
   focus_window(window);
@@ -1302,8 +1310,11 @@ async fn handle_stop_events(app_handle: &tauri::AppHandle) -> Result<(), Error> 
 }
 
 #[tauri::command]
-pub async fn emit_stop_events(app_handle: tauri::AppHandle) -> Result<(), String> {
-  match handle_stop_events(&app_handle).await {
+pub async fn emit_stop_events(
+  app_handle: tauri::AppHandle,
+  recording_state: tauri::State<'_, RecordingState>,
+) -> Result<(), String> {
+  match handle_stop_events(&app_handle, &recording_state).await {
     Ok(_) => Ok(()),
     Err(e) => {
       let err_msg = format!("Error in stop Recording from tauri command: {:?}", e);
