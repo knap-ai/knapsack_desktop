@@ -73,7 +73,13 @@ pub fn kn_brain_list(brain_root: String, sub_path: String) -> Result<Vec<BrainEn
     };
 
     if !dir.exists() {
-        return Err(format!("Brain directory not found: {}", dir.display()));
+        // Auto-create the root brain directory on first use so the UI starts clean.
+        if sub_path.trim().is_empty() {
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("Cannot create brain directory {}: {}", dir.display(), e))?;
+        } else {
+            return Err(format!("Brain directory not found: {}", dir.display()));
+        }
     }
 
     let mut entries: Vec<BrainEntry> = std::fs::read_dir(&dir)
