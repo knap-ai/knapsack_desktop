@@ -1527,9 +1527,14 @@ interface ClawdChatProps {
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
   initialInput?: string
+  /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
+  contextPrefix?: string
+  /** Render with a tighter header for embedded surfaces. */
+  compact?: boolean
+  title?: string
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat' }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -4070,6 +4075,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        if (contextPrefix?.trim()) {
+          actualText = `${contextPrefix.trim()}
+
+---
+User message:
+${actualText}`
+        }
+
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
         if (!isSmartPrompt) {
@@ -4492,12 +4505,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [msgs])
 
   return (
-    <div className="ClawdChatRoot">
+    <div className={`ClawdChatRoot ${compact ? 'ClawdChatRoot--compact' : ''}`}>
       <div className="ClawdChatHeader">
         <div className="ClawdChatTitleRow">
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
-            <h1 className="ClawdChatTitle">Knapsack Chat</h1>
+            <h1 className="ClawdChatTitle">{title}</h1>
             {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>

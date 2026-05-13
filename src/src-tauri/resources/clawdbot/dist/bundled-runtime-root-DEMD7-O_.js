@@ -4,6 +4,7 @@ import { _ as resolveStateDir } from "./paths-B2cMK-wd.js";
 import { t as createNpmProjectInstallEnv } from "./npm-install-env-C2UCLEG0.js";
 import { t as sanitizeTerminalText } from "./safe-text-BsGBhnDf.js";
 import { o as normalizePluginsConfig } from "./config-state-Bw_lAn0M.js";
+import { i as formatErrorMessage } from "./errors-CDFVCV9D.js";
 import { Module, createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";

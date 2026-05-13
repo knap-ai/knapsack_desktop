@@ -656,10 +656,11 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  userEmail={userEmail}
+                  userName={userName}
                   onBack={() => {
                     // Back from note view returns to sidebar
                   }}
-                  onChatClick={() => setMeetingSubView('chat')}
                   onAttendeeClick={(email, name) => {
                     setChatInitialInput(`Tell me about ${name || email}`)
                     setMeetingSubView('chat')

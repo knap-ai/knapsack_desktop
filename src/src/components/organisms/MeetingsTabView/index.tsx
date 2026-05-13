@@ -31,6 +31,7 @@ interface TemplatesState {
 interface TranscriptState {
   isOpen: boolean
   threadId?: number
+  participantNames?: string[]
 }
 
 interface TasksState {
@@ -53,10 +54,11 @@ interface MeetingsTabViewProps {
   connections?: Record<string, Connection>
   onConnectCalendar?: () => void
   onBack?: () => void
-  onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string, meeting?: Meeting) => void
   onAttendeeClick?: (email: string, name: string) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
+  userEmail?: string
+  userName?: string
 }
 
 const MeetingsTabView = ({
@@ -68,10 +70,11 @@ const MeetingsTabView = ({
   connections,
   onConnectCalendar,
   onBack,
-  onChatClick,
   onEmailClick,
   onAttendeeClick,
   onLibraryWorkspaceOpen,
+  userEmail,
+  userName,
 }: MeetingsTabViewProps) => {
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
@@ -146,7 +149,7 @@ const MeetingsTabView = ({
     }))
   }
 
-  const handleOpenTranscript = async (threadId: number | undefined) => {
+  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[]) => {
     if (!threadId) return
     if (templatesState.isOpen) {
       setTemplatesState(prev => ({ ...prev, isOpen: false }))
@@ -160,6 +163,7 @@ const MeetingsTabView = ({
     setTranscriptState(prev => ({
       isOpen: !prev.isOpen || prev.threadId !== threadId,
       threadId: threadId,
+      participantNames,
     }))
   }
 
@@ -382,10 +386,11 @@ const MeetingsTabView = ({
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
                       handleOpenInsights={handleOpenInsights}
-                      onChatClick={onChatClick}
                       onEmailClick={onEmailClick}
                       onAttendeeClick={onAttendeeClick}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
+                      userEmail={userEmail}
+                      userName={userName}
                     />
                   ) : null
                 })()}
@@ -395,7 +400,11 @@ const MeetingsTabView = ({
 
           {/* Right-side panels (Templates, Transcript, Tasks) */}
           {transcriptState.isOpen && transcriptState.threadId && (
-            <TranscriptView threadId={transcriptState.threadId} onClose={closeTranscript} />
+            <TranscriptView
+              threadId={transcriptState.threadId}
+              participantNames={transcriptState.participantNames}
+              onClose={closeTranscript}
+            />
           )}
           {templatesState.isOpen && templatesState.thread && (
             <TemplatesView

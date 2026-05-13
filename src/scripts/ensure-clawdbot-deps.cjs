@@ -130,9 +130,24 @@ for (const dir of clawdbotDirs) {
   }
 }
 
-// Step 3: ensure the openclaw self-link exists in each clawdbot dir so that
-// bundled extensions can resolve `openclaw/plugin-sdk/*` imports at runtime.
-for (const dir of clawdbotDirs) {
+// Step 3: ensure the openclaw self-link exists only in copied runtime dirs.
+// Do not create it in the source resources/clawdbot tree: node_modules/openclaw
+// points back to the clawdbot root, and Tauri's resources/clawdbot/**/* glob
+// follows that cycle during dev/build, producing enormous recursive
+// cargo:rerun-if-changed paths. service.rs recreates the link at runtime after
+// resources have been copied, so the source bundle should remain acyclic.
+const sourceSelfLinkPath = path.join(SOURCE_CLAWDBOT_DIR, 'node_modules', 'openclaw');
+try {
+  const stat = fs.lstatSync(sourceSelfLinkPath);
+  if (stat.isSymbolicLink()) {
+    fs.unlinkSync(sourceSelfLinkPath);
+    console.log('[ensure-clawdbot-deps] Removed source openclaw self-link to prevent Tauri glob recursion');
+  }
+} catch {
+  // absent is fine
+}
+
+for (const dir of clawdbotDirs.filter(dir => dir !== SOURCE_CLAWDBOT_DIR)) {
   if (!fs.existsSync(dir)) continue;
   const selfLinkPath = path.join(dir, 'node_modules', 'openclaw');
   if (!fs.existsSync(selfLinkPath)) {
