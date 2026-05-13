@@ -7784,6 +7784,7 @@ mod crash_classifier_tests {
 #[cfg(test)]
 mod bundle_key_tests {
   use super::*;
+  use std::fs;
 
   #[test]
   fn compute_key_sorted_and_stable() {
