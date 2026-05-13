@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import Markdown from 'marked-react'
 import { KN_SERVER_HOST } from 'src/utils/constants'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
+import { getFeedItems, FeedItem } from 'src/api/feed_items'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ interface BrainEntry {
   isDir: boolean
 }
 
-type PanelMode = 'skills' | 'brain'
+type Tab = 'feed' | 'skills' | 'brain'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,11 +43,34 @@ function dayLabel(unix: number): string {
   return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+function relativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime()
+  const m = Math.floor(diff / 60000)
+  const h = Math.floor(m / 60)
+  const d = Math.floor(h / 24)
+  if (m < 2) return 'just now'
+  if (m < 60) return `${m}m ago`
+  if (h < 24) return `${h}h ago`
+  if (d < 7) return `${d}d ago`
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
 function parseAttendees(json: string): Attendee[] {
   try { return JSON.parse(json) } catch { return [] }
 }
 
-// ── Shared: skill runner hook ─────────────────────────────────────────────────
+function skillEmoji(name: string): string {
+  const n = name.toLowerCase()
+  if (n.includes('meeting') || n.includes('prep')) return '📅'
+  if (n.includes('enrich') || n.includes('person')) return '🧠'
+  if (n.includes('book')) return '📚'
+  if (n.includes('research') || n.includes('perplexity')) return '🔍'
+  if (n.includes('media') || n.includes('ingest')) return '🎬'
+  if (n.includes('cron') || n.includes('task')) return '⏰'
+  return '⚡'
+}
+
+// ── Skill runner hook ─────────────────────────────────────────────────────────
 
 function useSkillRunner() {
   const [running, setRunning] = useState(false)
@@ -74,9 +98,7 @@ function useSkillRunner() {
     }
   }, [])
 
-  const dismiss = useCallback(() => setOutput(null), [])
-
-  return { running, runningLabel, output, run, dismiss }
+  return { running, runningLabel, output, setOutput, run }
 }
 
 // ── Output panel ──────────────────────────────────────────────────────────────
@@ -113,10 +135,58 @@ const OutputPanel: React.FC<{
   )
 }
 
+// ── Feed item card ────────────────────────────────────────────────────────────
+
+const FeedCard: React.FC<{ item: FeedItem }> = ({ item }) => {
+  const [expanded, setExpanded] = useState(false)
+
+  const automationName = item.automation?.name ?? 'Skill run'
+  const emoji = skillEmoji(automationName)
+  const when = item.run?.executionDate
+    ? relativeTime(item.run.executionDate)
+    : relativeTime(item.timestamp)
+
+  // Find the first bot reply in any thread
+  const botReply = item.threads
+    ?.flatMap(t => t.messages ?? [])
+    .find(m => m.user_type === 'bot')?.text
+
+  const snippet = botReply?.slice(0, 120).replace(/\n/g, ' ').trimEnd()
+
+  return (
+    <div
+      className="px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-50 last:border-0"
+      onClick={() => setExpanded(e => !e)}
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-base mt-0.5">
+          {emoji}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 mb-0.5">
+            <span className="text-sm font-medium text-gray-800 truncate">{item.title}</span>
+            <span className="text-xs text-gray-400 flex-shrink-0">{when}</span>
+          </div>
+          <div className="text-xs text-gray-400 truncate">{automationName}</div>
+          {!expanded && snippet && (
+            <div className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{snippet}…</div>
+          )}
+          {expanded && botReply && (
+            <div className="mt-3 prose prose-sm max-w-none" onClick={e => e.stopPropagation()}>
+              <Markdown>{botReply}</Markdown>
+            </div>
+          )}
+        </div>
+        <span className="text-gray-300 text-xs flex-shrink-0 mt-1">{expanded ? '▾' : '▸'}</span>
+      </div>
+    </div>
+  )
+}
+
 // ── Section header ────────────────────────────────────────────────────────────
 
 const SectionHeader: React.FC<{ label: string }> = ({ label }) => (
-  <div className="px-4 pt-5 pb-2">
+  <div className="px-4 pt-5 pb-1">
     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</span>
   </div>
 )
@@ -133,9 +203,7 @@ const MeetingRow: React.FC<{
 
   return (
     <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
-      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 text-base">
-        📅
-      </div>
+      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 text-base">📅</div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-800 truncate">{event.title}</div>
         <div className="text-xs text-gray-400 truncate">
@@ -252,13 +320,15 @@ const BrainTreeNode: React.FC<{
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 const GBrainView: React.FC = () => {
-  const [mode, setMode] = useState<PanelMode>('skills')
-  const { running, runningLabel, output, run, dismiss } = useSkillRunner()
+  const [tab, setTab] = useState<Tab>('feed')
+  const { running, runningLabel, output, setOutput, run } = useSkillRunner()
 
-  // Meetings
+  // Feed
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([])
+  const [feedLoading, setFeedLoading] = useState(true)
+
+  // Meetings & library
   const [meetings, setMeetings] = useState<CalendarEvent[]>([])
-
-  // Library
   const [people, setPeople] = useState<Workspace[]>([])
   const [projects, setProjects] = useState<Workspace[]>([])
 
@@ -272,6 +342,23 @@ const GBrainView: React.FC = () => {
   const [rootEntries, setRootEntries] = useState<BrainEntry[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [pageContent, setPageContent] = useState<string | null>(null)
+
+  // Load feed
+  const loadFeed = useCallback(() => {
+    setFeedLoading(true)
+    getFeedItems()
+      .then(items => {
+        const withRuns = (items as FeedItem[])
+          .filter(i => i.run || i.threads?.some(t => t.messages?.some(m => m.user_type === 'bot')))
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+          .slice(0, 50)
+        setFeedItems(withRuns)
+      })
+      .catch(() => {})
+      .finally(() => setFeedLoading(false))
+  }, [])
+
+  useEffect(() => { loadFeed() }, [loadFeed])
 
   // Load brain root
   useEffect(() => {
@@ -319,20 +406,24 @@ const GBrainView: React.FC = () => {
   const prepMeeting = useCallback((event: CalendarEvent) => {
     const attendees = parseAttendees(event.attendees_json).map(a => a.name).join(', ')
     run(`/meeting-prep ${event.title}${attendees ? ` — Attendees: ${attendees}` : ''}`, `Prepping: ${event.title}`)
+    setTab('skills')
   }, [run])
 
   const enrichPerson = useCallback((ws: Workspace) => {
     run(`/enrich ${ws.name}`, `Enriching: ${ws.name}`)
+    setTab('skills')
   }, [run])
 
   const researchProject = useCallback((ws: Workspace) => {
-    run(`/perplexity-research ${ws.name} project — ${ws.description ?? ''}`, `Researching: ${ws.name}`)
+    run(`/perplexity-research ${ws.name}${ws.description ? ` — ${ws.description}` : ''}`, `Researching: ${ws.name}`)
+    setTab('skills')
   }, [run])
 
   const handleCustom = useCallback(() => {
     const text = customText.trim()
     if (!text) return
     run(text, text)
+    setCustomText('')
   }, [customText, run])
 
   const handleSelectBrainPage = useCallback(async (relPath: string) => {
@@ -342,34 +433,75 @@ const GBrainView: React.FC = () => {
     setPageContent(content)
   }, [brainRoot])
 
-  const noData = meetings.length === 0 && people.length === 0 && projects.length === 0
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'feed', label: 'Feed' },
+    { id: 'skills', label: 'Skills' },
+    { id: 'brain', label: 'Brain' },
+  ]
 
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-shrink-0">
         <span className="text-sm font-semibold text-gray-800">🧠 GBrain</span>
         <div className="flex gap-1 ml-auto">
-          <button
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === 'skills' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-            onClick={() => setMode('skills')}
-          >
-            Skills
-          </button>
-          <button
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === 'brain' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-            onClick={() => setMode('brain')}
-          >
-            Brain
-          </button>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${tab === t.id ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Skills mode */}
-      {mode === 'skills' && (
+      {/* ── Feed tab ── */}
+      {tab === 'feed' && (
         <div className="flex-1 overflow-y-auto">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">What your brain did</span>
+            <button
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={loadFeed}
+            >
+              Refresh
+            </button>
+          </div>
 
-          {/* Custom command bar */}
+          {feedLoading ? (
+            <div className="flex items-center gap-2 px-4 py-6 text-sm text-gray-400">
+              <span className="animate-pulse">●</span> Loading…
+            </div>
+          ) : feedItems.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <div className="text-2xl mb-2">🌱</div>
+              <div className="text-sm font-medium text-gray-500 mb-1">No activity yet</div>
+              <div className="text-xs text-gray-400 leading-relaxed">
+                Run your first skill to start building your brain.
+              </div>
+              <button
+                className="mt-4 px-4 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
+                onClick={() => setTab('skills')}
+              >
+                Open Skills →
+              </button>
+            </div>
+          ) : (
+            <div>
+              {feedItems.map(item => (
+                <FeedCard key={item.id ?? item.timestamp.getTime()} item={item} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Skills tab ── */}
+      {tab === 'skills' && (
+        <div className="flex-1 overflow-y-auto">
+          {/* Command bar */}
           <div className="px-4 pt-4 pb-2 flex gap-2">
             <input
               className="flex-1 text-sm border border-gray-200 rounded-xl px-4 py-2.5 outline-none focus:border-gray-400 placeholder-gray-300"
@@ -388,13 +520,7 @@ const GBrainView: React.FC = () => {
           </div>
 
           {/* Output */}
-          <OutputPanel running={running} label={runningLabel} output={output} onDismiss={dismiss} />
-
-          {noData && (
-            <div className="px-4 py-8 text-sm text-gray-400 text-center">
-              Syncing your calendar and library…
-            </div>
-          )}
+          <OutputPanel running={running} label={runningLabel} output={output} onDismiss={() => setOutput(null)} />
 
           {/* Meetings */}
           {meetings.length > 0 && (
@@ -436,8 +562,8 @@ const GBrainView: React.FC = () => {
         </div>
       )}
 
-      {/* Brain mode */}
-      {mode === 'brain' && (
+      {/* ── Brain tab ── */}
+      {tab === 'brain' && (
         <div className="flex flex-1 min-h-0">
           <div className="w-56 flex-shrink-0 border-r border-gray-100 overflow-y-auto bg-white">
             <div className="px-3 py-2 border-b border-gray-100">
