@@ -28,6 +28,7 @@ fn remove_broken_symlinks_recursive(dir: &Path) {
 
 fn main() {
     let node_modules = Path::new("resources/clawdbot/node_modules");
+    let openclaw_self_link = node_modules.join("openclaw");
 
     // Remove .pnpm virtual store — not needed at runtime with hoisted
     // node_modules, and it contains thousands of internal symlinks that
@@ -41,6 +42,15 @@ fn main() {
     // tauri_build to fail.
     if node_modules.exists() {
         remove_broken_symlinks_recursive(node_modules);
+    }
+
+    // Keep the source resource tree acyclic for Tauri's resources/clawdbot/**/*
+    // glob. The runtime recreates node_modules/openclaw -> .. after resources
+    // are copied, so it should not exist while Cargo/Tauri are scanning.
+    if let Ok(meta) = openclaw_self_link.symlink_metadata() {
+        if meta.file_type().is_symlink() {
+            let _ = fs::remove_file(&openclaw_self_link);
+        }
     }
 
     // Fail the build early if the bundled Node.js binary is missing.
