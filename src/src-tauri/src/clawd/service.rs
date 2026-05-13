@@ -1485,6 +1485,34 @@ fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
   patched
 }
 
+/// Remove legacy keys that the bundled gateway schema rejects before startup.
+/// The gateway restores invalid configs from backup and then immediately
+/// crashes again, so these patches need to run in the Tauri supervisor too.
+fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
+  let mut patched = false;
+
+  if cfg.pointer("/skills/config").is_some() {
+    if let Some(skills) = cfg.pointer_mut("/skills").and_then(|v| v.as_object_mut()) {
+      skills.remove("config");
+      eprintln!("[clawd/service] Removed invalid OpenClaw config key: skills.config");
+      patched = true;
+    }
+  }
+
+  if cfg.pointer("/agents/defaults/llm").is_some() {
+    if let Some(defaults) = cfg
+      .pointer_mut("/agents/defaults")
+      .and_then(|v| v.as_object_mut())
+    {
+      defaults.remove("llm");
+      eprintln!("[clawd/service] Removed legacy OpenClaw config key: agents.defaults.llm");
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 /// Apply `sanitize_channel_allowlist_configs` to a config file on disk.
 /// Non-destructive: only writes back when a change was actually made.
 /// Logs a clear warning but never panics or returns an error — startup
@@ -1498,10 +1526,12 @@ fn sanitize_config_file_allowlist(config_path: &Path) {
     Ok(v) => v,
     Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
   };
-  if sanitize_channel_allowlist_configs(&mut cfg) {
+  let patched = sanitize_channel_allowlist_configs(&mut cfg)
+    | sanitize_rejected_legacy_config_keys(&mut cfg);
+  if patched {
     match fs::write(config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
       Ok(_) => eprintln!(
-        "[clawd/service] Persisted auto-fixed allowlist config to {}",
+        "[clawd/service] Persisted auto-fixed OpenClaw config to {}",
         config_path.display()
       ),
       Err(e) => eprintln!(
@@ -2000,14 +2030,16 @@ fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
     && (lower.contains("openclaw-npm-cache") || lower.contains("_cacache"))
 }
 
-fn is_plugin_runtime_deps_enoent(lower: &str) -> bool {
-  lower.contains("enoent")
-    && lower.contains("plugin-runtime-deps")
+fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
+  let mentions_staged_plugin = lower.contains("plugin-runtime-deps")
     && (lower.contains("dist/extensions/slack")
       || lower.contains("dist/extensions/telegram")
+      || lower.contains("@slack/")
       || lower.contains("/slack/")
-      || lower.contains("/telegram/")
-      || lower.contains("cannot find module"))
+      || lower.contains("/telegram/"));
+
+  (lower.contains("enoent") && (mentions_staged_plugin || lower.contains("plugin-runtime-deps")))
+    || (lower.contains("cannot find module") && mentions_staged_plugin)
 }
 
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
@@ -2024,7 +2056,7 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "config_anomaly"
   } else if lower.contains("enotempty")
     || is_openclaw_npm_cache_enoent(&lower)
-    || is_plugin_runtime_deps_enoent(&lower)
+    || is_plugin_runtime_deps_corruption(&lower)
     || lower.contains("stage bundled runtime deps")
     || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install")))
   {
@@ -2268,8 +2300,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         let is_module_resolution_crash = log_lower.contains("cannot find module")
           && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
         let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
-        let is_plugin_runtime_enoent = is_plugin_runtime_deps_enoent(&log_lower);
-        if is_module_resolution_crash || is_plugin_runtime_enoent {
+        let is_plugin_runtime_corruption = is_plugin_runtime_deps_corruption(&log_lower);
+        if is_module_resolution_crash || is_plugin_runtime_corruption {
           eprintln!("[clawd/service] auto-restart: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
         } else {
@@ -4491,29 +4523,6 @@ async fn prepare_gateway_config(
             eprintln!("[clawd/service] Added peekaboo to skills.allowBundled (macOS)");
             patched = true;
           }
-
-          // Ensure skills.config.peekaboo.enabled = true
-          let peekaboo_enabled = cfg_val
-            .pointer("/skills/config/peekaboo/enabled")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-          if !peekaboo_enabled {
-            if cfg_val.get("skills").is_none() {
-              cfg_val.as_object_mut().unwrap().insert("skills".to_string(), serde_json::json!({}));
-            }
-            let skills = cfg_val.pointer_mut("/skills").unwrap().as_object_mut().unwrap();
-            if !skills.contains_key("config") {
-              skills.insert("config".to_string(), serde_json::json!({}));
-            }
-            let config = cfg_val.pointer_mut("/skills/config").unwrap().as_object_mut().unwrap();
-            if !config.contains_key("peekaboo") {
-              config.insert("peekaboo".to_string(), serde_json::json!({}));
-            }
-            cfg_val.pointer_mut("/skills/config/peekaboo").unwrap().as_object_mut().unwrap()
-              .insert("enabled".to_string(), serde_json::json!(true));
-            eprintln!("[clawd/service] Enabled skills.config.peekaboo (macOS)");
-            patched = true;
-          }
         }
 
         // On Linux, set browser.noSandbox = true
@@ -4766,7 +4775,8 @@ async fn prepare_gateway_config(
         // Track separately: channel fixes MUST always reach disk (even while
         // the gateway is running) because an invalid channel entry causes every
         // subsequent config reload to fail — a worse outcome than the anomaly.
-        let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val);
+        let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val)
+          | sanitize_rejected_legacy_config_keys(&mut cfg_val);
         if channels_sanitized {
           patched = true;
         }
@@ -6037,7 +6047,9 @@ pub async fn set_service_enabled(
             }
 
             // ── Auto-heal allowlist channels ──────────────────────────
-            if sanitize_channel_allowlist_configs(&mut cfg) {
+            if sanitize_channel_allowlist_configs(&mut cfg)
+              | sanitize_rejected_legacy_config_keys(&mut cfg)
+            {
               patched = true;
             }
 
@@ -7662,6 +7674,28 @@ mod crash_classifier_tests {
   fn slack_runtime_deps_enoent_is_plugin_install_fail() {
     let log_tail = "Error: ENOENT: no such file or directory, open '/Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/dist/extensions/slack/runtime-api.js'";
     assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn slack_runtime_deps_missing_module_is_plugin_install_fail() {
+    let log_tail = "Error: Cannot find module '@slack/logger'\nRequire stack:\n- /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/node_modules/@slack/web-api/dist/logger.js";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn legacy_rejected_config_keys_are_removed() {
+    let mut cfg = serde_json::json!({
+      "skills": { "allowBundled": ["peekaboo"], "config": { "peekaboo": { "enabled": true } } },
+      "agents": { "defaults": { "model": { "primary": "groq/test" }, "llm": { "timeoutSeconds": 120 } } }
+    });
+    assert!(sanitize_rejected_legacy_config_keys(&mut cfg));
+    assert!(cfg.pointer("/skills/config").is_none());
+    assert!(cfg.pointer("/agents/defaults/llm").is_none());
+    assert_eq!(
+      cfg.pointer("/skills/allowBundled/0").and_then(|v| v.as_str()),
+      Some("peekaboo")
+    );
+    assert!(cfg.pointer("/agents/defaults/model").is_some());
   }
 }
 
