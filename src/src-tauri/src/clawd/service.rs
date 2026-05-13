@@ -2000,6 +2000,16 @@ fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
     && (lower.contains("openclaw-npm-cache") || lower.contains("_cacache"))
 }
 
+fn is_plugin_runtime_deps_enoent(lower: &str) -> bool {
+  lower.contains("enoent")
+    && lower.contains("plugin-runtime-deps")
+    && (lower.contains("dist/extensions/slack")
+      || lower.contains("dist/extensions/telegram")
+      || lower.contains("/slack/")
+      || lower.contains("/telegram/")
+      || lower.contains("cannot find module"))
+}
+
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
   let lower = log_tail.to_lowercase();
   if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
@@ -2014,6 +2024,7 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "config_anomaly"
   } else if lower.contains("enotempty")
     || is_openclaw_npm_cache_enoent(&lower)
+    || is_plugin_runtime_deps_enoent(&lower)
     || lower.contains("stage bundled runtime deps")
     || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install")))
   {
@@ -2257,8 +2268,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         let is_module_resolution_crash = log_lower.contains("cannot find module")
           && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
         let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
-        if is_module_resolution_crash {
-          eprintln!("[clawd/service] auto-restart: module-resolution crash detected — force-wiping all plugin-runtime-deps dirs");
+        let is_plugin_runtime_enoent = is_plugin_runtime_deps_enoent(&log_lower);
+        if is_module_resolution_crash || is_plugin_runtime_enoent {
+          eprintln!("[clawd/service] auto-restart: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
         } else {
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
@@ -7643,6 +7655,12 @@ mod crash_classifier_tests {
   #[test]
   fn npm_cache_enoent_is_plugin_install_fail() {
     let log_tail = "npm error code ENOENT\nnpm error syscall open\nnpm error path /Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/.openclaw-npm-cache/_cacache/content-v2/sha512/aa/bb";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn slack_runtime_deps_enoent_is_plugin_install_fail() {
+    let log_tail = "Error: ENOENT: no such file or directory, open '/Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/dist/extensions/slack/runtime-api.js'";
     assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
   }
 }
