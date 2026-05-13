@@ -105,6 +105,7 @@ function walkFiles(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
+      if (entry.name === 'node_modules') continue;
       walkFiles(fullPath, out);
     } else if (entry.isFile() && entry.name.endsWith('.js')) {
       out.push(fullPath);
