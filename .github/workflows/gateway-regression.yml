@@ -80,6 +80,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src/src-tauri
+          cache-bin: false
 
       - name: Create Tauri dist directory
         working-directory: src
