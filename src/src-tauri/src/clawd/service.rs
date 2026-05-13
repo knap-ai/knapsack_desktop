@@ -554,6 +554,58 @@ fn remove_stale_plugin_runtime_deps_versions(clawdbot_home: &std::path::Path, cu
   }
 }
 
+/// Compute a stable key from the sorted list of .js filenames inside
+/// `dist/extensions/*/`. Bundler assigns content-based names, so any dist
+/// change produces a new filename and therefore a new key.
+fn compute_bundle_extensions_key(clawdbot_dist_dir: &std::path::Path) -> String {
+  let ext_dir = clawdbot_dist_dir.join("extensions");
+  let mut names: Vec<String> = Vec::new();
+  if let Ok(plugins) = fs::read_dir(&ext_dir) {
+    for plugin in plugins.flatten() {
+      if !plugin.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let plugin_name = plugin.file_name().to_string_lossy().to_string();
+      if let Ok(files) = fs::read_dir(plugin.path()) {
+        for file in files.flatten() {
+          let fname = file.file_name().to_string_lossy().to_string();
+          if fname.ends_with(".js") {
+            names.push(format!("{}/{}", plugin_name, fname));
+          }
+        }
+      }
+    }
+  }
+  names.sort();
+  names.join("\n")
+}
+
+/// Compare the stored bundle-content key against the current dist layout.
+/// Returns true and wipes all staged dirs if the key changed (meaning the
+/// app bundle was updated but the staged dirs weren't re-created).
+fn check_and_refresh_bundle_content_key(
+  clawdbot_home: &std::path::Path,
+  clawdbot_dist_dir: &std::path::Path,
+) -> bool {
+  let sentinel = clawdbot_home.join("plugin-runtime-deps").join(".bundle-content-key");
+  let current_key = compute_bundle_extensions_key(clawdbot_dist_dir);
+  if current_key.is_empty() {
+    return false;
+  }
+  let stored = fs::read_to_string(&sentinel).unwrap_or_default();
+  if stored == current_key {
+    return false;
+  }
+  eprintln!(
+    "[clawd/service] bundle dist content changed — wiping all plugin-runtime-deps for re-stage"
+  );
+  remove_stale_plugin_runtime_deps_versions(clawdbot_home, "");
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let _ = fs::create_dir_all(&base);
+  let _ = fs::write(&sentinel, &current_key);
+  true
+}
+
 /// Count plugin-runtime-deps directories whose version prefix doesn't match
 /// `current_version` — i.e. stale dirs from a prior gateway version that
 /// `remove_stale_plugin_runtime_deps_versions` would remove.
@@ -2289,14 +2341,15 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // fail their npm install on every subsequent gateway start.
         remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
 
+        let log_lower = std::fs::read_to_string(gateway_stderr_log())
+          .unwrap_or_default()
+          .to_lowercase();
+
         // Check if the crash is a module-resolution failure (e.g. "Cannot find
         // module .../plugin-sdk/root-alias.cjs/channel-config-schema-legacy").
         // This happens when a plugin-runtime-deps dir has the correct version
         // prefix but incompatible internal structure — the normal version-prefix
         // cleanup skips it.  Force a full wipe so the gateway re-stages clean deps.
-        let log_lower = std::fs::read_to_string(gateway_stderr_log())
-          .unwrap_or_default()
-          .to_lowercase();
         let is_module_resolution_crash = log_lower.contains("cannot find module")
           && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
         let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
@@ -7411,6 +7464,35 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         );
       }
 
+      // Detect when the app bundle dist content changed but the staged
+      // plugin-runtime-deps dir was NOT invalidated (because the JS staging
+      // key is based on package path, not content).  Wipe and restart so the
+      // gateway re-stages fresh dist files on next start.
+      let bundle_dist_dir = bundle_dir.join("dist");
+      if check_and_refresh_bundle_content_key(&clawdbot_home, &bundle_dist_dir) {
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+        }
+        sentry::capture_message(
+          "[gateway] auto_enable: bundle content changed — wiped stale plugin-runtime-deps + restarted",
+          sentry::Level::Warning,
+        );
+      }
+
       // Cache plist args so regenerate_macos_plist_with_current_env() can update
       // the plist when the user saves an API key on subsequent launches. Without
       // this, LAST_MACOS_PLIST_ARGS stays None (it's only set in the new-plist
@@ -7696,6 +7778,82 @@ mod crash_classifier_tests {
       Some("peekaboo")
     );
     assert!(cfg.pointer("/agents/defaults/model").is_some());
+  }
+}
+
+#[cfg(test)]
+mod bundle_key_tests {
+  use super::*;
+  use std::fs;
+
+  #[test]
+  fn compute_key_sorted_and_stable() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions");
+    let slack_dir = ext_dir.join("slack");
+    let tg_dir = ext_dir.join("telegram");
+    fs::create_dir_all(&slack_dir).unwrap();
+    fs::create_dir_all(&tg_dir).unwrap();
+    fs::write(slack_dir.join("channel-abc.js"), "").unwrap();
+    fs::write(slack_dir.join("index.js"), "").unwrap();
+    fs::write(tg_dir.join("index.js"), "").unwrap();
+
+    let key1 = compute_bundle_extensions_key(&tmp);
+    let key2 = compute_bundle_extensions_key(&tmp);
+    assert_eq!(key1, key2, "key must be deterministic");
+    assert!(key1.contains("slack/channel-abc.js"));
+    assert!(key1.contains("slack/index.js"));
+    assert!(key1.contains("telegram/index.js"));
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn key_changes_when_file_added() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-add-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions").join("slack");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+    let key_before = compute_bundle_extensions_key(&tmp);
+
+    fs::write(ext_dir.join("allow-list-new.js"), "").unwrap();
+    let key_after = compute_bundle_extensions_key(&tmp);
+    assert_ne!(key_before, key_after, "adding a file must change the key");
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn check_and_refresh_wipes_dirs_on_change() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-wipe-{}", std::process::id()));
+    let dist_dir = tmp.join("dist");
+    let ext_dir = dist_dir.join("extensions").join("slack");
+    let home_dir = tmp.join("home");
+    let deps_dir = home_dir.join("plugin-runtime-deps");
+    let staged = deps_dir.join("openclaw-1.0.0-abc");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+
+    // First call: no sentinel → wipes and writes
+    let changed = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed, "first call with no sentinel should report changed");
+    assert!(!staged.exists(), "staged dir should be wiped");
+    assert!(deps_dir.join(".bundle-content-key").exists(), "sentinel should be written");
+
+    // Recreate staged dir; second call with same key should be a no-op
+    fs::create_dir_all(&staged).unwrap();
+    let changed2 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(!changed2, "same key should not trigger wipe");
+    assert!(staged.exists(), "staged dir should still exist");
+
+    // Add a dist file; key changes → wipe fires again
+    fs::write(ext_dir.join("new-chunk.js"), "").unwrap();
+    let changed3 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed3, "new dist file should trigger wipe");
+    assert!(!staged.exists(), "staged dir should be wiped again");
+
+    fs::remove_dir_all(&tmp).ok();
   }
 }
 

@@ -85,9 +85,9 @@ jobs:
         working-directory: src
         run: mkdir -p dist
 
-      - name: Run gateway crash-classifier tests
+      - name: Run gateway service tests
         working-directory: src
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
-        run: cargo test --manifest-path src-tauri/Cargo.toml crash_classifier_tests -- --nocapture
+        run: cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
