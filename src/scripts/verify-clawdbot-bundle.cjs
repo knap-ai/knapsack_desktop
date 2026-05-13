@@ -97,6 +97,63 @@ if (fs.existsSync(entryPath)) {
   }
 }
 
+// Verify all relative JS imports inside dist resolve. Some bundled chunks use
+// dynamic imports that entry.js does not reference directly; missing those files
+// only appears at runtime (for example, `openclaw doctor --fix`).
+function walkFiles(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkFiles(fullPath, out);
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      out.push(fullPath);
+    }
+  }
+  return out;
+}
+
+function stripQueryOrHash(specifier) {
+  return specifier.split(/[?#]/, 1)[0];
+}
+
+function resolveRelativeJsImport(importerPath, specifier) {
+  const clean = stripQueryOrHash(specifier);
+  const resolved = path.resolve(path.dirname(importerPath), clean);
+  if (path.extname(resolved)) return resolved;
+  return `${resolved}.js`;
+}
+
+const distDir = path.join(CLAWDBOT_DIR, 'dist');
+const relativeImportRegexes = [
+  /(?:^|[;\n]\s*)import\s+(?:[^"';]+?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g,
+  /(?:^|[;\n]\s*)export\s+[^"';]+?\s+from\s+["'](\.{1,2}\/[^"']+)["']/g,
+  /(?:^|[=({[,;:\n]\s*)import\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g,
+];
+
+for (const jsFile of walkFiles(distDir)) {
+  // Remove comments first so JSDoc type references like
+  // `@type {import("./foo")}` are not treated as runtime imports.
+  const content = fs
+    .readFileSync(jsFile, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  for (const regex of relativeImportRegexes) {
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      const targetPath = resolveRelativeJsImport(jsFile, match[1]);
+      if (!fs.existsSync(targetPath)) {
+        const importer = path.relative(CLAWDBOT_DIR, jsFile);
+        const target = path.relative(CLAWDBOT_DIR, targetPath);
+        console.error(
+          `[verify-clawdbot] MISSING RELATIVE IMPORT: ${target} (imported by ${importer})`
+        );
+        errors++;
+      }
+    }
+  }
+}
+
 // Verify bundled extensions have required plugin metadata
 const extensionsDir = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
 if (fs.existsSync(extensionsDir)) {
