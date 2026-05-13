@@ -54,7 +54,7 @@ export default function GitHubConnect({ activeRepo }: GitHubConnectProps) {
       const resp = await fetch(`${API_BASE}/api/clawd/skills/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'github' }),
+        body: JSON.stringify({ source: 'clawhub', slug: 'github' }),
       })
       const data = await resp.json()
       if (data.success) {

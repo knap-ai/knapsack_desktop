@@ -1414,6 +1414,17 @@ fn invalidate_client() {
 static RECONNECT_IN_PROGRESS: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
 
+/// Total number of self-heal attempts triggered in this process lifetime.
+/// Capped to prevent infinite kill/restart loops if the user has a genuinely
+/// misconfigured environment that the self-heal can't fix.
+static SELF_HEAL_ATTEMPTS: std::sync::atomic::AtomicUsize =
+  std::sync::atomic::AtomicUsize::new(0);
+const MAX_SELF_HEAL_ATTEMPTS_PER_SESSION: usize = 3;
+/// Trigger self-heal after this many consecutive handshake failures while
+/// the gateway port is responding (i.e. something is on 18789 but it's not
+/// answering our handshake correctly — likely a competing gateway).
+const SELF_HEAL_AFTER_CONSECUTIVE_FAILURES: usize = 3;
+
 /// Spawn a background task that retries the WebSocket connection with
 /// exponential backoff (1 s → 2 s → 4 s → 8 s → 15 s cap).
 ///
@@ -1433,6 +1444,12 @@ fn spawn_reconnect_task(token: String) {
     let backoff_steps: &[u64] = &[1000, 2000, 4000, 8000, 15000];
     let mut step_idx = 0usize;
     let max_attempts = 20usize;
+    // Tracks consecutive handshake failures where the port WAS open.  This
+    // is the signature of a competing gateway responding to HTTP probes but
+    // rejecting our auth.  If we hit this signature repeatedly, run the
+    // self-heal to evict competing plists + clear the port + restart our
+    // own gateway.
+    let mut consecutive_handshake_failures: usize = 0;
 
     for attempt in 0..max_attempts {
       let delay_ms = backoff_steps[step_idx.min(backoff_steps.len() - 1)];
@@ -1484,13 +1501,46 @@ fn spawn_reconnect_task(token: String) {
           return;
         }
         Err(e) => {
-          eprintln!("[gateway_client] reconnect task: attempt {} failed ({}), backing off {}ms", attempt + 1, e, delay_ms);
+          // Port was open (we passed the is_gateway_port_open check above) but
+          // the handshake failed.  Track this as a "competing gateway"
+          // signature.
+          consecutive_handshake_failures += 1;
+          eprintln!(
+            "[gateway_client] reconnect task: attempt {} failed ({}), consecutive_handshake_failures={}, backing off {}ms",
+            attempt + 1, e, consecutive_handshake_failures, delay_ms
+          );
+
+          if consecutive_handshake_failures >= SELF_HEAL_AFTER_CONSECUTIVE_FAILURES {
+            let prior = SELF_HEAL_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
+            if prior < MAX_SELF_HEAL_ATTEMPTS_PER_SESSION {
+              eprintln!(
+                "[gateway_client] reconnect task: triggering self-heal (attempt {}/{} this session)",
+                prior + 1, MAX_SELF_HEAL_ATTEMPTS_PER_SESSION
+              );
+              crate::clawd::service::self_heal_gateway_conflict(&token).await;
+              // Reset so we don't immediately self-heal again on the next failure.
+              consecutive_handshake_failures = 0;
+              // Reset backoff so the next attempt happens quickly after the
+              // self-heal restarts our gateway.
+              step_idx = 0;
+            } else {
+              // Already burned our self-heal budget — fall through to backoff.
+              eprintln!(
+                "[gateway_client] reconnect task: self-heal budget exhausted ({} attempts), continuing with backoff",
+                MAX_SELF_HEAL_ATTEMPTS_PER_SESSION
+              );
+            }
+          }
         }
       }
     }
 
     eprintln!("[gateway_client] reconnect task: gave up after {} attempts — health-check polling will drive recovery", max_attempts);
     RECONNECT_IN_PROGRESS.store(false, Ordering::Relaxed);
+
+    // Peekaboo watchdog: try to clear blocking dialogs + capture a diagnostic
+    // screenshot now that we've given up on the WS reconnect.
+    crate::clawd::peekaboo_watchdog::on_reconnect_exhausted();
   });
 }
 

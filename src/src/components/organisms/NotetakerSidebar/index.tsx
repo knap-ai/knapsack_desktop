@@ -190,6 +190,7 @@ function NotetakerSidebar({
     (currentTab === TabChoices.Meeting && activeView === 'chat')
   const isEmailActive = currentTab === TabChoices.Email
   const isLibraryActive = currentTab === TabChoices.Library
+  const isGBrainActive = currentTab === TabChoices.GBrain
 
   const chatIcon = (
     <svg
@@ -235,6 +236,22 @@ function NotetakerSidebar({
     >
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  )
+
+  const gbrainIcon = (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.46 2.5 2.5 0 0 1-1.67-3.6A3 3 0 0 1 3 12a3 3 0 0 1 2.37-2.94A2.5 2.5 0 0 1 9.5 2z" />
+      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.46 2.5 2.5 0 0 0 1.67-3.6A3 3 0 0 0 21 12a3 3 0 0 0-2.37-2.94A2.5 2.5 0 0 0 14.5 2z" />
     </svg>
   )
 
@@ -723,12 +740,12 @@ function NotetakerSidebar({
             <span>Email</span>
           </button>
           <button
-            className={`notetaker-sidebar__bottom-action ${isLibraryActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
-            onClick={() => onTabChange(TabChoices.Library)}
-            title="Library"
+            className={`notetaker-sidebar__bottom-action ${isGBrainActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
+            onClick={() => onTabChange(TabChoices.GBrain)}
+            title="GBrain"
           >
-            {libraryIcon}
-            <span>Library</span>
+            {gbrainIcon}
+            <span>GBrain</span>
           </button>
         </div>
         {appVersion && (

@@ -281,19 +281,22 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
   echo "[notarize] Submission ID: $SUBMISSION_ID"
 
-  # Wait for result; retry up to 5 times on transient network failures
-  NOTARY_STATUS=""; _WAIT_DELAY=30
-  for _attempt in 1 2 3 4 5; do
-    echo "[notarize] Polling .app notarization status (attempt $_attempt/5)..."
-    _WAIT_OUTPUT=$(xcrun notarytool wait "$SUBMISSION_ID" \
+  # Poll using `notarytool info` so a network blip only loses one cycle,
+  # not the entire blocking `notarytool wait` call.
+  NOTARY_STATUS=""; _POLL_DELAY=30; _POLL_MAX=40
+  echo "[notarize] Polling .app notarization status (up to ${_POLL_MAX} attempts)..."
+  for _attempt in $(seq 1 "$_POLL_MAX"); do
+    _INFO_OUTPUT=$(xcrun notarytool info "$SUBMISSION_ID" \
       --apple-id "$APPLE_ID" \
       --team-id "$APPLE_TEAM_ID" \
       --password "$APPLE_APP_PASSWORD" 2>&1) || true
-    echo "$_WAIT_OUTPUT"
-    NOTARY_STATUS=$(echo "$_WAIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-    [ -n "$NOTARY_STATUS" ] && break
-    echo "[notarize] No status received (network error?); retrying in ${_WAIT_DELAY}s..."
-    sleep "$_WAIT_DELAY"; _WAIT_DELAY=$((_WAIT_DELAY * 2))
+    NOTARY_STATUS=$(echo "$_INFO_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+    echo "[notarize] Attempt $_attempt/${_POLL_MAX}: status=${NOTARY_STATUS:-<network error>}"
+    if [ "$NOTARY_STATUS" = "Accepted" ] || [ "$NOTARY_STATUS" = "Invalid" ]; then
+      break
+    fi
+    # In Progress or empty (network blip) — wait and retry
+    sleep "$_POLL_DELAY"
   done
 
   if [ "$NOTARY_STATUS" != "Accepted" ]; then
@@ -333,6 +336,14 @@ if [ "$DO_NOTARIZE" = true ]; then
       chmod -R a+rX "$DMG_TEMP"
 
       rm -f "$DMG_PATH"
+
+      # Detach any lingering mounts with the same volume name — a previous
+      # build step or failed run can leave /Volumes/<AppName> attached, which
+      # causes hdiutil create to fail with "Resource busy".
+      for vol in /Volumes/"$APP_NAME"*; do
+        [ -d "$vol" ] && hdiutil detach "$vol" -force 2>/dev/null || true
+      done
+
       hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
         -ov -format UDZO "$DMG_PATH"
       rm -rf "$DMG_TEMP"
@@ -355,18 +366,20 @@ if [ "$DO_NOTARIZE" = true ]; then
       fi
       echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
 
-      DMG_STATUS=""; _DMG_DELAY=30
-      for _attempt in 1 2 3 4 5; do
-        echo "[notarize] Polling DMG notarization status (attempt $_attempt/5)..."
-        _DMG_WAIT=$(xcrun notarytool wait "$DMG_SUBMISSION_ID" \
+      # Poll using `notarytool info` so a network blip only loses one cycle.
+      DMG_STATUS=""; _DMG_POLL_DELAY=30; _DMG_POLL_MAX=40
+      echo "[notarize] Polling DMG notarization status (up to ${_DMG_POLL_MAX} attempts)..."
+      for _attempt in $(seq 1 "$_DMG_POLL_MAX"); do
+        _DMG_INFO=$(xcrun notarytool info "$DMG_SUBMISSION_ID" \
           --apple-id "$APPLE_ID" \
           --team-id "$APPLE_TEAM_ID" \
           --password "$APPLE_APP_PASSWORD" 2>&1) || true
-        echo "$_DMG_WAIT"
-        DMG_STATUS=$(echo "$_DMG_WAIT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-        [ -n "$DMG_STATUS" ] && break
-        echo "[notarize] No status received (network error?); retrying in ${_DMG_DELAY}s..."
-        sleep "$_DMG_DELAY"; _DMG_DELAY=$((_DMG_DELAY * 2))
+        DMG_STATUS=$(echo "$_DMG_INFO" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
+        echo "[notarize] Attempt $_attempt/${_DMG_POLL_MAX}: status=${DMG_STATUS:-<network error>}"
+        if [ "$DMG_STATUS" = "Accepted" ] || [ "$DMG_STATUS" = "Invalid" ]; then
+          break
+        fi
+        sleep "$_DMG_POLL_DELAY"
       done
 
       if [ "$DMG_STATUS" = "Accepted" ]; then

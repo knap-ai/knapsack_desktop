@@ -413,8 +413,66 @@ fn evict_competing_gateway_plists() -> Vec<String> {
 }
 
 /// Thin shim kept for existing call sites that don't need the return value.
+/// After evicting competing LaunchAgent plists, also kills any process still
+/// holding port 18789 — `launchctl bootout` removes launchd management but
+/// leaves the process alive, so without the kill it keeps blocking the port.
 fn remove_stale_standalone_gateway() {
-  evict_competing_gateway_plists();
+  let evicted = evict_competing_gateway_plists();
+  if !evicted.is_empty() {
+    kill_process_on_port(18789);
+  }
+}
+
+/// Self-heal a gateway connectivity issue by clearing competing LaunchAgent
+/// plists, killing any process holding port 18789, and restarting our own
+/// gateway via the supervisor.
+///
+/// Called when gateway_client repeatedly fails its WS handshake even though
+/// port 18789 is responding to HTTP.  The most likely cause is a competing
+/// gateway (standalone openclaw, manual `openclaw gateway start`, old beta
+/// install) that owns the port.  Knapsack's HTTP health probe treats it as
+/// healthy, so the auto-restart path never fires — but our handshake fails
+/// because the auth token doesn't match.
+///
+/// This function unconditionally kills whatever holds port 18789.  If it was
+/// our own gateway in a bad state, the supervisor restarts it.  If it was a
+/// non-LaunchAgent process, the kill is the only way to clear the port.
+#[cfg(target_os = "macos")]
+pub async fn self_heal_gateway_conflict(token: &str) {
+  let evicted = evict_competing_gateway_plists();
+  eprintln!(
+    "[clawd/service] self-heal: evicted competing plists: {:?}",
+    evicted
+  );
+  kill_process_on_port(18789);
+
+  // Wait for LaunchAgent throttle / for the supervisor to be willing to
+  // kickstart again.  Also gives mDNS/Bonjour time to release its bindings.
+  tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+
+  let result =
+    crate::clawd::gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
+  eprintln!(
+    "[clawd/service] self-heal: restart {} ({})",
+    result.message,
+    if result.running { "running" } else { "not running" }
+  );
+
+  sentry::with_scope(
+    |scope| scope.set_tag("evicted_count", &evicted.len().to_string()),
+    || {
+      sentry::capture_message(
+        &format!("[gateway] self-heal triggered (evicted={:?})", evicted),
+        sentry::Level::Warning,
+      )
+    },
+  );
+}
+
+#[cfg(not(target_os = "macos"))]
+pub async fn self_heal_gateway_conflict(_token: &str) {
+  // No-op on non-macOS: the LaunchAgent + standalone-gateway scenario is
+  // macOS-specific.  Windows uses a different supervision model.
 }
 
 /// Remove stale `.openclaw-runtime-deps.lock` directories left behind when a
@@ -492,6 +550,124 @@ fn remove_stale_plugin_runtime_deps_versions(clawdbot_home: &std::path::Path, cu
         entry.path().display(),
         e
       ),
+    }
+  }
+}
+
+/// Compute a stable key from the sorted list of .js filenames inside
+/// `dist/extensions/*/`. Bundler assigns content-based names, so any dist
+/// change produces a new filename and therefore a new key.
+fn compute_bundle_extensions_key(clawdbot_dist_dir: &std::path::Path) -> String {
+  let ext_dir = clawdbot_dist_dir.join("extensions");
+  let mut names: Vec<String> = Vec::new();
+  if let Ok(plugins) = fs::read_dir(&ext_dir) {
+    for plugin in plugins.flatten() {
+      if !plugin.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let plugin_name = plugin.file_name().to_string_lossy().to_string();
+      if let Ok(files) = fs::read_dir(plugin.path()) {
+        for file in files.flatten() {
+          let fname = file.file_name().to_string_lossy().to_string();
+          if fname.ends_with(".js") {
+            names.push(format!("{}/{}", plugin_name, fname));
+          }
+        }
+      }
+    }
+  }
+  names.sort();
+  names.join("\n")
+}
+
+/// Compare the stored bundle-content key against the current dist layout.
+/// Returns true and wipes all staged dirs if the key changed (meaning the
+/// app bundle was updated but the staged dirs weren't re-created).
+fn check_and_refresh_bundle_content_key(
+  clawdbot_home: &std::path::Path,
+  clawdbot_dist_dir: &std::path::Path,
+) -> bool {
+  let sentinel = clawdbot_home.join("plugin-runtime-deps").join(".bundle-content-key");
+  let current_key = compute_bundle_extensions_key(clawdbot_dist_dir);
+  if current_key.is_empty() {
+    return false;
+  }
+  let stored = fs::read_to_string(&sentinel).unwrap_or_default();
+  if stored == current_key {
+    return false;
+  }
+  eprintln!(
+    "[clawd/service] bundle dist content changed — wiping all plugin-runtime-deps for re-stage"
+  );
+  remove_stale_plugin_runtime_deps_versions(clawdbot_home, "");
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let _ = fs::create_dir_all(&base);
+  let _ = fs::write(&sentinel, &current_key);
+  true
+}
+
+/// Count plugin-runtime-deps directories whose version prefix doesn't match
+/// `current_version` — i.e. stale dirs from a prior gateway version that
+/// `remove_stale_plugin_runtime_deps_versions` would remove.
+///
+/// Used by `auto_enable_if_needed` to decide whether to force a gateway
+/// restart on startup: if stale dirs exist, the gateway will load mismatched
+/// staged plugin code (e.g. `openclaw-unknown-{hash}/dist/extensions/slack/`
+/// imports `openclaw` against a different package layout) and silently fail
+/// every channel setup.  HTTP /health still responds, so the auto-restart
+/// path never fires — we have to detect-and-restart at startup instead.
+fn count_stale_plugin_runtime_deps_versions(
+  clawdbot_home: &std::path::Path,
+  current_version: &str,
+) -> usize {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return 0,
+  };
+  let expected_prefix = format!("openclaw-{}-", current_version);
+  let mut stale = 0usize;
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    if !current_version.is_empty() && dir_name.starts_with(&expected_prefix) {
+      continue;
+    }
+    stale += 1;
+  }
+  stale
+}
+
+/// Wipe corrupt `.openclaw-npm-cache` directories inside plugin-runtime-deps
+/// subdirs. These caches are disposable; npm will rebuild them on the next
+/// install attempt.
+fn remove_corrupt_openclaw_npm_caches(clawdbot_home: &std::path::Path) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let cache_dir = entry.path().join(".openclaw-npm-cache");
+    if cache_dir.is_dir() {
+      match fs::remove_dir_all(&cache_dir) {
+        Ok(_) => eprintln!(
+          "[clawd/service] Removed corrupt npm cache: {}",
+          cache_dir.display()
+        ),
+        Err(e) => eprintln!(
+          "[clawd/service] WARNING: Failed to remove npm cache {}: {}",
+          cache_dir.display(), e
+        ),
+      }
     }
   }
 }
@@ -1361,6 +1537,34 @@ fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
   patched
 }
 
+/// Remove legacy keys that the bundled gateway schema rejects before startup.
+/// The gateway restores invalid configs from backup and then immediately
+/// crashes again, so these patches need to run in the Tauri supervisor too.
+fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
+  let mut patched = false;
+
+  if cfg.pointer("/skills/config").is_some() {
+    if let Some(skills) = cfg.pointer_mut("/skills").and_then(|v| v.as_object_mut()) {
+      skills.remove("config");
+      eprintln!("[clawd/service] Removed invalid OpenClaw config key: skills.config");
+      patched = true;
+    }
+  }
+
+  if cfg.pointer("/agents/defaults/llm").is_some() {
+    if let Some(defaults) = cfg
+      .pointer_mut("/agents/defaults")
+      .and_then(|v| v.as_object_mut())
+    {
+      defaults.remove("llm");
+      eprintln!("[clawd/service] Removed legacy OpenClaw config key: agents.defaults.llm");
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 /// Apply `sanitize_channel_allowlist_configs` to a config file on disk.
 /// Non-destructive: only writes back when a change was actually made.
 /// Logs a clear warning but never panics or returns an error — startup
@@ -1374,10 +1578,12 @@ fn sanitize_config_file_allowlist(config_path: &Path) {
     Ok(v) => v,
     Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
   };
-  if sanitize_channel_allowlist_configs(&mut cfg) {
+  let patched = sanitize_channel_allowlist_configs(&mut cfg)
+    | sanitize_rejected_legacy_config_keys(&mut cfg);
+  if patched {
     match fs::write(config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default()) {
       Ok(_) => eprintln!(
-        "[clawd/service] Persisted auto-fixed allowlist config to {}",
+        "[clawd/service] Persisted auto-fixed OpenClaw config to {}",
         config_path.display()
       ),
       Err(e) => eprintln!(
@@ -1439,6 +1645,12 @@ struct StoredTokens {
   /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
+
+  /// Preferred coding CLI when multiple keys are available: "claude", "codex", or "gemini" (Google Gemini CLI).
+  /// When unset, auto-selects based on which API key is present
+  /// (Anthropic → claude, OpenAI → codex, Google → gemini).
+  #[serde(default)]
+  preferred_coding_agent: Option<String>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -1579,6 +1791,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_model: None,
     ollama_base_url: None,
     extra_provider_keys: None,
+    preferred_coding_agent: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -1623,6 +1836,10 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   if let Some(p) = &tokens.active_provider {
     let p = p.trim();
     if !p.is_empty() { std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p); }
+  }
+  if let Some(a) = &tokens.preferred_coding_agent {
+    let a = a.trim();
+    if !a.is_empty() { std::env::set_var("KNAPSACK_CODING_AGENT", a); }
   }
   if let Some(m) = &tokens.openai_model {
     let m = m.trim();
@@ -1860,6 +2077,23 @@ static AUTO_ENABLE_STARTED: AtomicBool = AtomicBool::new(false);
 
 /// Parse the last N lines of the gateway stderr log and return a structured
 /// crash classification for Sentry/Amplitude tagging.
+fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
+  lower.contains("enoent")
+    && (lower.contains("openclaw-npm-cache") || lower.contains("_cacache"))
+}
+
+fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
+  let mentions_staged_plugin = lower.contains("plugin-runtime-deps")
+    && (lower.contains("dist/extensions/slack")
+      || lower.contains("dist/extensions/telegram")
+      || lower.contains("@slack/")
+      || lower.contains("/slack/")
+      || lower.contains("/telegram/"));
+
+  (lower.contains("enoent") && (mentions_staged_plugin || lower.contains("plugin-runtime-deps")))
+    || (lower.contains("cannot find module") && mentions_staged_plugin)
+}
+
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
   let lower = log_tail.to_lowercase();
   if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
@@ -1872,8 +2106,17 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "gatekeeper_blocked"
   } else if lower.contains("missing-meta-before-write") || lower.contains("config write anomaly") {
     "config_anomaly"
-  } else if lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
+  } else if lower.contains("enotempty")
+    || is_openclaw_npm_cache_enoent(&lower)
+    || is_plugin_runtime_deps_corruption(&lower)
+    || lower.contains("stage bundled runtime deps")
+    || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install")))
+  {
     "plugin_install_fail"
+  } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
+    // Stale plugin-runtime-deps with wrong internal structure — version prefix
+    // matched so the normal cleanup skipped it, but the content is incompatible.
+    "module_resolution_fail"
   } else {
     "unknown"
   }
@@ -2097,7 +2340,30 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // leaving ENOTEMPTY traps that cause bonjour (and other plugins) to
         // fail their npm install on every subsequent gateway start.
         remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
-        remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+
+        let log_lower = std::fs::read_to_string(gateway_stderr_log())
+          .unwrap_or_default()
+          .to_lowercase();
+
+        // Check if the crash is a module-resolution failure (e.g. "Cannot find
+        // module .../plugin-sdk/root-alias.cjs/channel-config-schema-legacy").
+        // This happens when a plugin-runtime-deps dir has the correct version
+        // prefix but incompatible internal structure — the normal version-prefix
+        // cleanup skips it.  Force a full wipe so the gateway re-stages clean deps.
+        let is_module_resolution_crash = log_lower.contains("cannot find module")
+          && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
+        let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
+        let is_plugin_runtime_corruption = is_plugin_runtime_deps_corruption(&log_lower);
+        if is_module_resolution_crash || is_plugin_runtime_corruption {
+          eprintln!("[clawd/service] auto-restart: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
+          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
+        } else {
+          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+        }
+        if is_npm_cache_crash {
+          eprintln!("[clawd/service] auto-restart: npm cache ENOENT detected — wiping corrupt caches");
+          remove_corrupt_openclaw_npm_caches(&restart_clawdbot_home);
+        }
 
         // Re-run plugin dep installs for any extension whose node_modules are
         // missing (fast no-op when all deps are already present).  This is how
@@ -2662,6 +2928,9 @@ pub struct ApiKeyStatusResponse {
   /// Extra providers: list of {id, env_var, has_key, key_hint}
   #[serde(skip_serializing_if = "Vec::is_empty")]
   pub extra_providers: Vec<ExtraProviderStatus>,
+  /// User's preferred coding CLI: "claude", "codex", or "gemini".
+  /// Null means auto-select based on available API keys.
+  pub preferred_coding_agent: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2699,6 +2968,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         ollama_model: None,
         ollama_base_url: None,
         extra_providers: vec![],
+        preferred_coding_agent: None,
       })
     }
   };
@@ -2770,6 +3040,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     ollama_model: tokens.ollama_model.clone(),
     ollama_base_url: tokens.ollama_base_url.clone(),
     extra_providers,
+    preferred_coding_agent: tokens.preferred_coding_agent.clone(),
   })
 }
 
@@ -2945,6 +3216,9 @@ pub struct SetApiKeyRequest {
   /// For extra providers: the environment variable name to store the key under.
   /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
   pub env_var: Option<String>,
+  /// Preferred coding CLI agent: "claude", "codex", or "gemini".
+  /// When provided alongside or without a key change, updates the stored preference.
+  pub preferred_coding_agent: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -3201,6 +3475,15 @@ pub async fn set_api_key(
       "OpenAI"
     }
   };
+
+  // Persist coding agent preference if provided ("claude", "codex", or "gemini")
+  if let Some(agent) = &payload.preferred_coding_agent {
+    let agent = agent.trim().to_lowercase();
+    if ["claude", "codex", "gemini"].contains(&agent.as_str()) {
+      tokens.preferred_coding_agent = Some(agent.clone());
+      std::env::set_var("KNAPSACK_CODING_AGENT", &agent);
+    }
+  }
 
   if let Err(e) = save_tokens(&app_handle, &tokens) {
     return HttpResponse::InternalServerError().json(SetApiKeyResponse {
@@ -4272,6 +4555,29 @@ async fn prepare_gateway_config(
           }
         }
 
+        // On macOS, enable peekaboo as a bundled skill (macOS UI automation via PeekabooBridge)
+        if cfg!(target_os = "macos") {
+          // Ensure skills.allowBundled contains "peekaboo"
+          let peekaboo_allowed = cfg_val
+            .pointer("/skills/allowBundled")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().any(|item| item.as_str() == Some("peekaboo")))
+            .unwrap_or(false);
+          if !peekaboo_allowed {
+            if cfg_val.get("skills").is_none() {
+              cfg_val.as_object_mut().unwrap().insert("skills".to_string(), serde_json::json!({}));
+            }
+            let skills = cfg_val.pointer_mut("/skills").unwrap().as_object_mut().unwrap();
+            if let Some(allow_bundled) = skills.get_mut("allowBundled").and_then(|v| v.as_array_mut()) {
+              allow_bundled.push(serde_json::json!("peekaboo"));
+            } else {
+              skills.insert("allowBundled".to_string(), serde_json::json!(["peekaboo"]));
+            }
+            eprintln!("[clawd/service] Added peekaboo to skills.allowBundled (macOS)");
+            patched = true;
+          }
+        }
+
         // On Linux, set browser.noSandbox = true
         if cfg!(target_os = "linux") {
           let no_sandbox = cfg_val
@@ -4522,7 +4828,8 @@ async fn prepare_gateway_config(
         // Track separately: channel fixes MUST always reach disk (even while
         // the gateway is running) because an invalid channel entry causes every
         // subsequent config reload to fail — a worse outcome than the anomaly.
-        let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val);
+        let channels_sanitized = sanitize_channel_allowlist_configs(&mut cfg_val)
+          | sanitize_rejected_legacy_config_keys(&mut cfg_val);
         if channels_sanitized {
           patched = true;
         }
@@ -5793,7 +6100,9 @@ pub async fn set_service_enabled(
             }
 
             // ── Auto-heal allowlist channels ──────────────────────────
-            if sanitize_channel_allowlist_configs(&mut cfg) {
+            if sanitize_channel_allowlist_configs(&mut cfg)
+              | sanitize_rejected_legacy_config_keys(&mut cfg)
+            {
               patched = true;
             }
 
@@ -6368,17 +6677,71 @@ pub fn cleanup_gateway_on_exit() {
 
 /// Return built-in skills catalog (static JSON file, no gateway dependency)
 #[get("/api/clawd/skills/status")]
-pub async fn skills_status(_h: web::Data<tauri::AppHandle>) -> impl Responder {
-  let catalog: serde_json::Value = serde_json::from_str(
+pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let catalog: Vec<serde_json::Value> = serde_json::from_str(
     include_str!("skills_catalog.json")
   ).unwrap_or_default();
+
+  // Try to get live eligible state from the gateway (skills.status) and merge
+  // it into the catalog as `enabled`.  Falls back to the static catalog when
+  // the gateway is unavailable.  skills.status returns { skills: [{name, eligible, disabled, ...}] }.
+  // 5-second timeout so a reconnecting gateway never stalls the UI.
+  if let Ok(tokens) = load_or_create_tokens(&app_handle) {
+    let gateway_result = tokio::time::timeout(
+      std::time::Duration::from_secs(5),
+      super::gateway_client::gateway_request_pooled(
+        "skills.status",
+        Some(serde_json::json!({})),
+        &tokens.gateway_token,
+      ),
+    ).await;
+    if let Ok(Ok(result)) = gateway_result {
+      if let Some(live_skills) = result.get("skills").and_then(|s| s.as_array()) {
+        // A skill is "enabled" (usable) when eligible=true and disabled=false.
+        let mut enabled_map: std::collections::HashMap<String, bool> =
+          std::collections::HashMap::new();
+        for skill in live_skills {
+          if let Some(name) = skill.get("name").and_then(|n| n.as_str()) {
+            let eligible = skill.get("eligible").and_then(|e| e.as_bool()).unwrap_or(false);
+            let disabled = skill.get("disabled").and_then(|d| d.as_bool()).unwrap_or(false);
+            enabled_map.insert(name.to_string(), eligible && !disabled);
+          }
+        }
+        let merged: Vec<serde_json::Value> = catalog
+          .into_iter()
+          .map(|mut entry| {
+            if let Some(name) = entry
+              .get("name")
+              .and_then(|n| n.as_str())
+              .map(|s| s.to_string())
+            {
+              if let Some(&enabled) = enabled_map.get(&name) {
+                entry["enabled"] = serde_json::json!(enabled);
+              }
+            }
+            entry
+          })
+          .collect();
+        return HttpResponse::Ok()
+          .json(serde_json::json!({"success": true, "skills": merged}));
+      }
+    }
+  }
+
   HttpResponse::Ok().json(serde_json::json!({"success": true, "skills": catalog}))
 }
 
-/// Install a skill — requires the gateway (clawdbot) to be running
+/// Install a skill — requires the gateway (clawdbot) to be running.
+/// Supports two forms matching the gateway's SkillsInstallParamsSchema:
+///   - ClawHub: { source: "clawhub", slug }
+///   - Named:   { name, installId }
 #[derive(Debug, Deserialize)]
 pub struct SkillInstallRequest {
-  pub name: String,
+  // ClawHub form
+  pub source: Option<String>,
+  pub slug: Option<String>,
+  // Named form (legacy)
+  pub name: Option<String>,
   #[serde(rename = "installId")]
   pub install_id: Option<String>,
 }
@@ -6396,10 +6759,18 @@ pub async fn skills_install(
     }
   };
 
-  let mut params = serde_json::json!({"name": payload.name});
-  if let Some(ref id) = payload.install_id {
-    params["installId"] = serde_json::json!(id);
-  }
+  let params = match (&payload.source, &payload.slug, &payload.name, &payload.install_id) {
+    (Some(source), Some(slug), _, _) => {
+      serde_json::json!({"source": source, "slug": slug})
+    }
+    (_, _, Some(name), Some(id)) => {
+      serde_json::json!({"name": name, "installId": id})
+    }
+    _ => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "error": "Provide either { source, slug } for ClawHub skills or { name, installId } for named skills."}));
+    }
+  };
 
   match super::gateway_client::gateway_request_pooled(
     "skills.install",
@@ -7038,6 +7409,105 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       // on port 18789 and causing the connect/disconnect instability even though
       // our own service is "loaded."
       remove_stale_standalone_gateway();
+
+      // Detect stale plugin-runtime-deps dirs from a prior gateway version
+      // (e.g. `openclaw-unknown-{hash}` left by a previous standalone openclaw
+      // install, or an older Knapsack bundle).  The gateway happily loads
+      // staged plugin code from these dirs, but the slack/telegram/whatsapp
+      // channel setups inside them import `openclaw/plugin-sdk/...` against a
+      // different package layout — every channel fails with "Cannot find
+      // module .../root-alias.cjs/channel-config-schema-legacy" or "Cannot
+      // find package 'openclaw'".  HTTP /health still responds, so the
+      // auto-restart path never fires; we have to clean + restart here at
+      // startup, before the user notices.
+      let bundle_dir = clawdbot_bundle_dir(app_handle);
+      let bundle_ver = read_clawdbot_bundle_version(&bundle_dir);
+      let clawdbot_home = app_clawdbot_home(app_handle);
+      let stale = count_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
+      if stale > 0 {
+        eprintln!(
+          "[clawd/service] auto_enable: detected {} stale plugin-runtime-deps dir(s) (bundle ver={}) — cleaning and forcing gateway restart",
+          stale, bundle_ver
+        );
+        // Bootout first so the gateway isn't holding files we're about to delete.
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        // Brief wait so the gateway releases file handles + port.
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
+        // Re-bootstrap so the gateway is registered + started fresh.  The
+        // gateway will re-stage plugin runtime deps under the correct
+        // `openclaw-{bundle_ver}-{hash}` dir on first startup.
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+        }
+        sentry::with_scope(
+          |scope| {
+            scope.set_tag("stale_count", &stale.to_string());
+            scope.set_tag("bundle_ver", &bundle_ver);
+          },
+          || sentry::capture_message(
+            "[gateway] auto_enable: cleaned stale plugin-runtime-deps + restarted",
+            sentry::Level::Warning,
+          ),
+        );
+      }
+
+      // Detect when the app bundle dist content changed but the staged
+      // plugin-runtime-deps dir was NOT invalidated (because the JS staging
+      // key is based on package path, not content).  Wipe and restart so the
+      // gateway re-stages fresh dist files on next start.
+      let bundle_dist_dir = bundle_dir.join("dist");
+      if check_and_refresh_bundle_content_key(&clawdbot_home, &bundle_dist_dir) {
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+        }
+        sentry::capture_message(
+          "[gateway] auto_enable: bundle content changed — wiped stale plugin-runtime-deps + restarted",
+          sentry::Level::Warning,
+        );
+      }
+
+      // Cache plist args so regenerate_macos_plist_with_current_env() can update
+      // the plist when the user saves an API key on subsequent launches. Without
+      // this, LAST_MACOS_PLIST_ARGS stays None (it's only set in the new-plist
+      // path below) and set_api_key silently skips the plist update, leaving the
+      // gateway running with stale or missing env vars.
+      {
+        let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+          std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::clawd::sidecar::ClawdbotConfig::default(),
+          ));
+        if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+          *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args, setup.env));
+          eprintln!("[clawd/service] auto_enable: cached plist args for future API key updates");
+        }
+      }
       return;
     }
     eprintln!("[clawd/service] auto_enable: plist exists but service not loaded — re-bootstrapping");
@@ -7157,9 +7627,234 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+  // Fast path: if the gateway is already healthy, just save setup for future
+  // background restarts and return.
+  let already_healthy = crate::clawd::gateway_supervisor::is_gateway_healthy("").await;
+  if already_healthy {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway already running, caching setup");
+    let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+      std::sync::Arc::new(tokio::sync::RwLock::new(
+        crate::clawd::sidecar::ClawdbotConfig::default(),
+      ));
+    if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+    }
+    return;
+  }
+
+  // Gateway is not running — start it.
+  AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
+  eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
+
+  let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+    std::sync::Arc::new(tokio::sync::RwLock::new(
+      crate::clawd::sidecar::ClawdbotConfig::default(),
+    ));
+
+  let setup = match prepare_gateway_config(app_handle, &cfg).await {
+    Ok(s) => s,
+    Err(e) => {
+      eprintln!("[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}", e);
+      return;
+    }
+  };
+
+  // Prevent the background health-check task from racing us.
+  GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
+
+  kill_stale_clawdbot_chromes();
+  kill_process_on_port(18789);
+  std::thread::sleep(std::time::Duration::from_millis(500));
+
+  // Remove stale gateway lock files so the new process starts without waiting.
+  {
+    let lock_dir = std::env::temp_dir().join("openclaw");
+    if lock_dir.is_dir() {
+      if let Ok(entries) = fs::read_dir(&lock_dir) {
+        for entry in entries.flatten() {
+          let name = entry.file_name();
+          let s = name.to_string_lossy();
+          if s.starts_with("gateway.") && s.ends_with(".lock") {
+            let _ = fs::remove_file(entry.path());
+          }
+        }
+      }
+    }
+  }
+
+  remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
+  {
+    let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+    remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
+  }
+
+  let stdout_log = windows_log_path("stdout");
+  let stderr_log = windows_log_path("stderr");
+
+  let (out_f, err_f) = match (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
+    (Ok(o), Ok(e)) => (o, e),
+    (Err(e), _) | (_, Err(e)) => {
+      eprintln!("[clawd/service] auto_enable (Windows): failed to create log files: {}", e);
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      return;
+    }
+  };
+
+  match std::process::Command::new(&setup.program_args[0])
+    .args(&setup.program_args[1..])
+    .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    .current_dir(&setup.working_dir)
+    .stdout(out_f)
+    .stderr(err_f)
+    .creation_flags(CREATE_NO_WINDOW)
+    .spawn()
+  {
+    Ok(child) => {
+      let pid = child.id();
+      GATEWAY_PID.store(pid, Ordering::Relaxed);
+      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      eprintln!("[clawd/service] auto_enable (Windows): gateway spawned (pid {})", pid);
+
+      // Workaround for OpenClaw #23006: patch paired.json scopes after startup.
+      let ah = app_handle.clone();
+      tokio::spawn(async move {
+        for delay_s in [2u64, 5, 10, 20, 40] {
+          tokio::time::sleep(std::time::Duration::from_secs(delay_s)).await;
+          patch_paired_json_scopes(&ah);
+        }
+      });
+    }
+    Err(e) => {
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      eprintln!("[clawd/service] auto_enable (Windows): spawn failed: {}", e);
+    }
+  }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
-  // No-op on non-macOS platforms.
+  // No-op on non-macOS/Windows platforms.
+}
+
+#[cfg(test)]
+mod crash_classifier_tests {
+  use super::*;
+
+  #[test]
+  fn npm_cache_enoent_is_plugin_install_fail() {
+    let log_tail = "npm error code ENOENT\nnpm error syscall open\nnpm error path /Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/.openclaw-npm-cache/_cacache/content-v2/sha512/aa/bb";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn slack_runtime_deps_enoent_is_plugin_install_fail() {
+    let log_tail = "Error: ENOENT: no such file or directory, open '/Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/dist/extensions/slack/runtime-api.js'";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn slack_runtime_deps_missing_module_is_plugin_install_fail() {
+    let log_tail = "Error: Cannot find module '@slack/logger'\nRequire stack:\n- /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/node_modules/@slack/web-api/dist/logger.js";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn legacy_rejected_config_keys_are_removed() {
+    let mut cfg = serde_json::json!({
+      "skills": { "allowBundled": ["peekaboo"], "config": { "peekaboo": { "enabled": true } } },
+      "agents": { "defaults": { "model": { "primary": "groq/test" }, "llm": { "timeoutSeconds": 120 } } }
+    });
+    assert!(sanitize_rejected_legacy_config_keys(&mut cfg));
+    assert!(cfg.pointer("/skills/config").is_none());
+    assert!(cfg.pointer("/agents/defaults/llm").is_none());
+    assert_eq!(
+      cfg.pointer("/skills/allowBundled/0").and_then(|v| v.as_str()),
+      Some("peekaboo")
+    );
+    assert!(cfg.pointer("/agents/defaults/model").is_some());
+  }
+}
+
+#[cfg(test)]
+mod bundle_key_tests {
+  use super::*;
+  use std::fs;
+
+  #[test]
+  fn compute_key_sorted_and_stable() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions");
+    let slack_dir = ext_dir.join("slack");
+    let tg_dir = ext_dir.join("telegram");
+    fs::create_dir_all(&slack_dir).unwrap();
+    fs::create_dir_all(&tg_dir).unwrap();
+    fs::write(slack_dir.join("channel-abc.js"), "").unwrap();
+    fs::write(slack_dir.join("index.js"), "").unwrap();
+    fs::write(tg_dir.join("index.js"), "").unwrap();
+
+    let key1 = compute_bundle_extensions_key(&tmp);
+    let key2 = compute_bundle_extensions_key(&tmp);
+    assert_eq!(key1, key2, "key must be deterministic");
+    assert!(key1.contains("slack/channel-abc.js"));
+    assert!(key1.contains("slack/index.js"));
+    assert!(key1.contains("telegram/index.js"));
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn key_changes_when_file_added() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-add-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions").join("slack");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+    let key_before = compute_bundle_extensions_key(&tmp);
+
+    fs::write(ext_dir.join("allow-list-new.js"), "").unwrap();
+    let key_after = compute_bundle_extensions_key(&tmp);
+    assert_ne!(key_before, key_after, "adding a file must change the key");
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn check_and_refresh_wipes_dirs_on_change() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-wipe-{}", std::process::id()));
+    let dist_dir = tmp.join("dist");
+    let ext_dir = dist_dir.join("extensions").join("slack");
+    let home_dir = tmp.join("home");
+    let deps_dir = home_dir.join("plugin-runtime-deps");
+    let staged = deps_dir.join("openclaw-1.0.0-abc");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+
+    // First call: no sentinel → wipes and writes
+    let changed = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed, "first call with no sentinel should report changed");
+    assert!(!staged.exists(), "staged dir should be wiped");
+    assert!(deps_dir.join(".bundle-content-key").exists(), "sentinel should be written");
+
+    // Recreate staged dir; second call with same key should be a no-op
+    fs::create_dir_all(&staged).unwrap();
+    let changed2 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(!changed2, "same key should not trigger wipe");
+    assert!(staged.exists(), "staged dir should still exist");
+
+    // Add a dist file; key changes → wipe fires again
+    fs::write(ext_dir.join("new-chunk.js"), "").unwrap();
+    let changed3 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed3, "new dist file should trigger wipe");
+    assert!(!staged.exists(), "staged dir should be wiped again");
+
+    fs::remove_dir_all(&tmp).ok();
+  }
 }
 
 #[cfg(test)]
