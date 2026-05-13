@@ -65,12 +65,42 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
     log::warn!("Failed to register Option+k shortcut: {}", e);
   }
 
-  // Register overlay (Quick Chat) shortcut: Option+Space (Alt+Space on Windows/Linux)
-  // Note: Alt+Space is reserved by Windows for the system menu, so use Ctrl+Space instead.
-  let overlay_handle = app_handle.clone();
-  let overlay_shortcut = if cfg!(windows) { "Ctrl+Space" } else { "Option+Space" };
-  if let Err(e) = shortcut_manager
-    .register(overlay_shortcut, move || {
+  // Register overlay (Quick Chat) shortcut.
+  // On Windows, Ctrl+Space is commonly taken by the IME (CJK input switching),
+  // so fall back to Ctrl+Shift+Space if the primary fails.
+  #[cfg(windows)]
+  {
+    let candidates = ["Ctrl+Space", "Ctrl+Shift+Space"];
+    let mut registered = false;
+    for &shortcut in &candidates {
+      let h = app_handle.clone();
+      match shortcut_manager.register(shortcut, move || {
+        if let Some(w) = h.get_window("overlay") {
+          if w.is_visible().unwrap_or(false) {
+            w.hide().expect("Failed to hide overlay window");
+          } else {
+            w.show().expect("Failed to show overlay window");
+            w.set_focus().expect("Failed to focus overlay window");
+          }
+        }
+      }) {
+        Ok(_) => {
+          log::info!("Registered Quick Chat shortcut: {}", shortcut);
+          registered = true;
+          break;
+        }
+        Err(e) => log::warn!("Failed to register {} shortcut: {}", shortcut, e),
+      }
+    }
+    if !registered {
+      log::warn!("Quick Chat shortcut unavailable — all candidates taken");
+    }
+  }
+
+  #[cfg(not(windows))]
+  {
+    let overlay_handle = app_handle.clone();
+    if let Err(e) = shortcut_manager.register("Option+Space", move || {
       if let Some(overlay_window) = overlay_handle.get_window("overlay") {
         if overlay_window.is_visible().unwrap_or(false) {
           overlay_window.hide().expect("Failed to hide overlay window");
@@ -79,9 +109,9 @@ fn register_shortcut(app_handle: AppHandle<Wry>) {
           overlay_window.set_focus().expect("Failed to focus overlay window");
         }
       }
-    })
-  {
-    log::warn!("Failed to register {} shortcut: {}", overlay_shortcut, e);
+    }) {
+      log::warn!("Failed to register Option+Space shortcut: {}", e);
+    }
   }
 }
 
