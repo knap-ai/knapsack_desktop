@@ -1,0 +1,93 @@
+name: Gateway Regression Guards
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/gateway-regression.yml"
+      - "src/scripts/**"
+      - "src/package.json"
+      - "src/package-lock.json"
+      - "src/src-tauri/Cargo.toml"
+      - "src/src-tauri/Cargo.lock"
+      - "src/src-tauri/src/clawd/**"
+      - "src/src-tauri/resources/clawdbot/**"
+  push:
+    branches: [main, "release/*"]
+    paths:
+      - ".github/workflows/gateway-regression.yml"
+      - "src/scripts/**"
+      - "src/package.json"
+      - "src/package-lock.json"
+      - "src/src-tauri/Cargo.toml"
+      - "src/src-tauri/Cargo.lock"
+      - "src/src-tauri/src/clawd/**"
+      - "src/src-tauri/resources/clawdbot/**"
+  workflow_dispatch:
+
+concurrency:
+  group: gateway-regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clawdbot-bundle-integrity:
+    name: Clawdbot bundle integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/src-tauri/resources/clawdbot/package-lock.json
+
+      - name: Install clawdbot dependencies
+        working-directory: src/src-tauri/resources/clawdbot
+        run: npm ci --ignore-scripts
+
+      - name: Install bundled plugin runtime deps
+        working-directory: src
+        run: node scripts/install-bundled-plugin-deps.cjs
+
+      - name: Prepare bundled Node.js
+        working-directory: src
+        run: node scripts/prepare-node.cjs
+
+      - name: Prune clawdbot bundle
+        working-directory: src
+        run: node scripts/prune-clawdbot.cjs
+
+      - name: Verify clawdbot bundle integrity
+        working-directory: src
+        run: node scripts/verify-clawdbot-bundle.cjs
+
+  rust-gateway-regressions:
+    name: Rust gateway regressions
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src/src-tauri
+
+      - name: Create Tauri dist directory
+        working-directory: src
+        run: mkdir -p dist
+
+      - name: Run gateway clawd tests
+        working-directory: src
+        env:
+          VITE_KN_API_SERVER: https://api.knapsack.ai
+          VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
+        run: cargo test --manifest-path src-tauri/Cargo.toml clawd -- --nocapture

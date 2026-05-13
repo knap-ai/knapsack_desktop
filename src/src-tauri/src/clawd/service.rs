@@ -7782,6 +7782,81 @@ mod crash_classifier_tests {
 }
 
 #[cfg(test)]
+mod bundle_key_tests {
+  use super::*;
+
+  #[test]
+  fn compute_key_sorted_and_stable() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions");
+    let slack_dir = ext_dir.join("slack");
+    let tg_dir = ext_dir.join("telegram");
+    fs::create_dir_all(&slack_dir).unwrap();
+    fs::create_dir_all(&tg_dir).unwrap();
+    fs::write(slack_dir.join("channel-abc.js"), "").unwrap();
+    fs::write(slack_dir.join("index.js"), "").unwrap();
+    fs::write(tg_dir.join("index.js"), "").unwrap();
+
+    let key1 = compute_bundle_extensions_key(&tmp);
+    let key2 = compute_bundle_extensions_key(&tmp);
+    assert_eq!(key1, key2, "key must be deterministic");
+    assert!(key1.contains("slack/channel-abc.js"));
+    assert!(key1.contains("slack/index.js"));
+    assert!(key1.contains("telegram/index.js"));
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn key_changes_when_file_added() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-add-{}", std::process::id()));
+    let ext_dir = tmp.join("extensions").join("slack");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+    let key_before = compute_bundle_extensions_key(&tmp);
+
+    fs::write(ext_dir.join("allow-list-new.js"), "").unwrap();
+    let key_after = compute_bundle_extensions_key(&tmp);
+    assert_ne!(key_before, key_after, "adding a file must change the key");
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+
+  #[test]
+  fn check_and_refresh_wipes_dirs_on_change() {
+    let tmp = std::env::temp_dir().join(format!("bundle-key-test-wipe-{}", std::process::id()));
+    let dist_dir = tmp.join("dist");
+    let ext_dir = dist_dir.join("extensions").join("slack");
+    let home_dir = tmp.join("home");
+    let deps_dir = home_dir.join("plugin-runtime-deps");
+    let staged = deps_dir.join("openclaw-1.0.0-abc");
+    fs::create_dir_all(&ext_dir).unwrap();
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(ext_dir.join("index.js"), "").unwrap();
+
+    // First call: no sentinel → wipes and writes
+    let changed = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed, "first call with no sentinel should report changed");
+    assert!(!staged.exists(), "staged dir should be wiped");
+    assert!(deps_dir.join(".bundle-content-key").exists(), "sentinel should be written");
+
+    // Recreate staged dir; second call with same key should be a no-op
+    fs::create_dir_all(&staged).unwrap();
+    let changed2 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(!changed2, "same key should not trigger wipe");
+    assert!(staged.exists(), "staged dir should still exist");
+
+    // Add a dist file; key changes → wipe fires again
+    fs::write(ext_dir.join("new-chunk.js"), "").unwrap();
+    let changed3 = check_and_refresh_bundle_content_key(&home_dir, &dist_dir);
+    assert!(changed3, "new dist file should trigger wipe");
+    assert!(!staged.exists(), "staged dir should be wiped again");
+
+    fs::remove_dir_all(&tmp).ok();
+  }
+}
+
+#[cfg(test)]
 mod provider_key_tests {
   use super::*;
 
