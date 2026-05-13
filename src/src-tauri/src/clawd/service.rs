@@ -591,6 +591,35 @@ fn count_stale_plugin_runtime_deps_versions(
   stale
 }
 
+/// Wipe corrupt `.openclaw-npm-cache` directories inside plugin-runtime-deps
+/// subdirs. These caches are disposable; npm will rebuild them on the next
+/// install attempt.
+fn remove_corrupt_openclaw_npm_caches(clawdbot_home: &std::path::Path) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let cache_dir = entry.path().join(".openclaw-npm-cache");
+    if cache_dir.is_dir() {
+      match fs::remove_dir_all(&cache_dir) {
+        Ok(_) => eprintln!(
+          "[clawd/service] Removed corrupt npm cache: {}",
+          cache_dir.display()
+        ),
+        Err(e) => eprintln!(
+          "[clawd/service] WARNING: Failed to remove npm cache {}: {}",
+          cache_dir.display(), e
+        ),
+      }
+    }
+  }
+}
+
 /// Read the bundled clawdbot version string from its package.json.
 /// Returns an empty string if the file can't be read or has no version field.
 fn read_clawdbot_bundle_version(clawdbot_dir: &std::path::Path) -> String {
@@ -1966,6 +1995,11 @@ static AUTO_ENABLE_STARTED: AtomicBool = AtomicBool::new(false);
 
 /// Parse the last N lines of the gateway stderr log and return a structured
 /// crash classification for Sentry/Amplitude tagging.
+fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
+  lower.contains("enoent")
+    && (lower.contains("openclaw-npm-cache") || lower.contains("_cacache"))
+}
+
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
   let lower = log_tail.to_lowercase();
   if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
@@ -1978,7 +2012,11 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "gatekeeper_blocked"
   } else if lower.contains("missing-meta-before-write") || lower.contains("config write anomaly") {
     "config_anomaly"
-  } else if lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
+  } else if lower.contains("enotempty")
+    || is_openclaw_npm_cache_enoent(&lower)
+    || lower.contains("stage bundled runtime deps")
+    || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install")))
+  {
     "plugin_install_fail"
   } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
     // Stale plugin-runtime-deps with wrong internal structure — version prefix
@@ -2218,11 +2256,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           .to_lowercase();
         let is_module_resolution_crash = log_lower.contains("cannot find module")
           && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
+        let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
         if is_module_resolution_crash {
           eprintln!("[clawd/service] auto-restart: module-resolution crash detected — force-wiping all plugin-runtime-deps dirs");
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
         } else {
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+        }
+        if is_npm_cache_crash {
+          eprintln!("[clawd/service] auto-restart: npm cache ENOENT detected — wiping corrupt caches");
+          remove_corrupt_openclaw_npm_caches(&restart_clawdbot_home);
         }
 
         // Re-run plugin dep installs for any extension whose node_modules are
@@ -7591,6 +7634,17 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
   // No-op on non-macOS/Windows platforms.
+}
+
+#[cfg(test)]
+mod crash_classifier_tests {
+  use super::*;
+
+  #[test]
+  fn npm_cache_enoent_is_plugin_install_fail() {
+    let log_tail = "npm error code ENOENT\nnpm error syscall open\nnpm error path /Users/test/Library/Application Support/ai.knap.knapsack.clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/.openclaw-npm-cache/_cacache/content-v2/sha512/aa/bb";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
 }
 
 #[cfg(test)]
