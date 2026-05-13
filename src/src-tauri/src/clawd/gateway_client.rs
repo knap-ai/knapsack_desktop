@@ -2135,6 +2135,7 @@ mod tests {
 
   fn fully_correct_config() -> serde_json::Value {
     let gateway_token = get_gateway_token().unwrap_or_else(|| "test-token".to_string());
+    let model = resolve_default_model();
     json!({
       "gateway": {
         "auth": { "token": gateway_token, "mode": "token" },
@@ -2147,9 +2148,6 @@ mod tests {
         "enabled": true,
         "headless": false,
         "defaultProfile": "openclaw"
-      },
-      "agents": {
-        "defaults": { "model": "groq/llama-3.3-70b-versatile" }
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],
@@ -2166,6 +2164,11 @@ mod tests {
               "browser", "group:web"
             ]
           }
+        }
+      },
+      "agents": {
+        "defaults": {
+          "model": model
         }
       }
     })
@@ -2267,13 +2270,13 @@ mod tests {
 
   #[test]
   fn telegram_timeout_corrected_when_stale() {
-    let cfg_json = json!({
-      "channels": {
+    let mut cfg_json = fully_correct_config();
+    cfg_json.as_object_mut().unwrap().insert(
+      "channels".into(),
+      json!({
         "telegram": { "botToken": "123:abc", "timeoutSeconds": 500 }
-      },
-      "browser": { "enabled": true, "headless": false, "defaultProfile": "openclaw" },
-      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","group:web","exec","process","group:fs"] }
-    });
+      }),
+    );
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     let changed = ensure_browser_config_at(f.path());
     assert!(changed, "stale timeoutSeconds=500 should be corrected");
@@ -2288,9 +2291,12 @@ mod tests {
   #[test]
   fn telegram_timeout_not_patched_when_already_correct() {
     let mut cfg_json = fully_correct_config();
-    cfg_json.as_object_mut().unwrap().insert("channels".into(), json!({
-      "telegram": { "botToken": "123:abc", "timeoutSeconds": 60 }
-    }));
+    cfg_json.as_object_mut().unwrap().insert(
+      "channels".into(),
+      json!({
+        "telegram": { "botToken": "123:abc", "timeoutSeconds": 60 }
+      }),
+    );
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     let changed = ensure_browser_config_at(f.path());
     assert!(!changed, "should not re-patch a config that already has correct timeoutSeconds");
