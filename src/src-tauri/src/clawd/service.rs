@@ -554,6 +554,88 @@ fn remove_stale_plugin_runtime_deps_versions(clawdbot_home: &std::path::Path, cu
   }
 }
 
+/// Wipe `.openclaw-npm-cache` directories inside plugin-runtime-deps subdirs.
+/// Called when an npm cache ENOENT crash is detected — the corrupted cache
+/// causes every subsequent npm install attempt to fail with the same ENOENT.
+fn remove_stale_openclaw_npm_caches(clawdbot_home: &std::path::Path) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let cache_dir = entry.path().join(".openclaw-npm-cache");
+    if cache_dir.is_dir() {
+      match fs::remove_dir_all(&cache_dir) {
+        Ok(_) => eprintln!(
+          "[clawd/service] Removed corrupt npm cache: {}",
+          cache_dir.display()
+        ),
+        Err(e) => eprintln!(
+          "[clawd/service] WARNING: Failed to remove npm cache {}: {}",
+          cache_dir.display(),
+          e
+        ),
+      }
+    }
+  }
+}
+
+/// Compute a stable key from the sorted list of .js filenames inside
+/// `dist/extensions/*/`. Bundler assigns content-based names, so any dist
+/// change produces a new filename and therefore a new key.
+fn compute_bundle_extensions_key(clawdbot_dist_dir: &std::path::Path) -> String {
+  let ext_dir = clawdbot_dist_dir.join("extensions");
+  let mut names: Vec<String> = Vec::new();
+  if let Ok(plugins) = fs::read_dir(&ext_dir) {
+    for plugin in plugins.flatten() {
+      if !plugin.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let plugin_name = plugin.file_name().to_string_lossy().to_string();
+      if let Ok(files) = fs::read_dir(plugin.path()) {
+        for file in files.flatten() {
+          let fname = file.file_name().to_string_lossy().to_string();
+          if fname.ends_with(".js") {
+            names.push(format!("{}/{}", plugin_name, fname));
+          }
+        }
+      }
+    }
+  }
+  names.sort();
+  names.join("\n")
+}
+
+/// Compare the stored bundle-content key against the current dist layout.
+/// Returns true and wipes all staged dirs if the key changed (meaning the
+/// app bundle was updated but the staged dirs weren't re-created).
+fn check_and_refresh_bundle_content_key(
+  clawdbot_home: &std::path::Path,
+  clawdbot_dist_dir: &std::path::Path,
+) -> bool {
+  let sentinel = clawdbot_home.join("plugin-runtime-deps").join(".bundle-content-key");
+  let current_key = compute_bundle_extensions_key(clawdbot_dist_dir);
+  if current_key.is_empty() {
+    return false;
+  }
+  let stored = fs::read_to_string(&sentinel).unwrap_or_default();
+  if stored == current_key {
+    return false;
+  }
+  eprintln!(
+    "[clawd/service] bundle dist content changed — wiping all plugin-runtime-deps for re-stage"
+  );
+  remove_stale_plugin_runtime_deps_versions(clawdbot_home, "");
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let _ = fs::create_dir_all(&base);
+  let _ = fs::write(&sentinel, &current_key);
+  true
+}
+
 /// Count plugin-runtime-deps directories whose version prefix doesn't match
 /// `current_version` — i.e. stale dirs from a prior gateway version that
 /// `remove_stale_plugin_runtime_deps_versions` would remove.
@@ -1978,7 +2060,8 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "gatekeeper_blocked"
   } else if lower.contains("missing-meta-before-write") || lower.contains("config write anomaly") {
     "config_anomaly"
-  } else if lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
+  } else if (lower.contains("enoent") && (lower.contains("openclaw-npm-cache") || lower.contains("_cacache")))
+    || lower.contains("enotempty") || lower.contains("stage bundled runtime deps") || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install"))) {
     "plugin_install_fail"
   } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
     // Stale plugin-runtime-deps with wrong internal structure — version prefix
@@ -2208,14 +2291,24 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // fail their npm install on every subsequent gateway start.
         remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
 
+        let log_lower = std::fs::read_to_string(gateway_stderr_log())
+          .unwrap_or_default()
+          .to_lowercase();
+
+        // Wipe corrupt npm caches on ENOENT cache failures so the next npm
+        // install doesn't hit the same broken _cacache entries.
+        let is_npm_cache_crash = log_lower.contains("enoent")
+          && (log_lower.contains("openclaw-npm-cache") || log_lower.contains("_cacache"));
+        if is_npm_cache_crash {
+          eprintln!("[clawd/service] auto-restart: npm cache ENOENT detected — wiping corrupt caches");
+          remove_stale_openclaw_npm_caches(&restart_clawdbot_home);
+        }
+
         // Check if the crash is a module-resolution failure (e.g. "Cannot find
         // module .../plugin-sdk/root-alias.cjs/channel-config-schema-legacy").
         // This happens when a plugin-runtime-deps dir has the correct version
         // prefix but incompatible internal structure — the normal version-prefix
         // cleanup skips it.  Force a full wipe so the gateway re-stages clean deps.
-        let log_lower = std::fs::read_to_string(gateway_stderr_log())
-          .unwrap_or_default()
-          .to_lowercase();
         let is_module_resolution_crash = log_lower.contains("cannot find module")
           && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
         if is_module_resolution_crash {
@@ -7341,6 +7434,35 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
             "[gateway] auto_enable: cleaned stale plugin-runtime-deps + restarted",
             sentry::Level::Warning,
           ),
+        );
+      }
+
+      // Detect when the app bundle dist content changed but the staged
+      // plugin-runtime-deps dir was NOT invalidated (because the JS staging
+      // key is based on package path, not content).  Wipe and restart so the
+      // gateway re-stages fresh dist files on next start.
+      let bundle_dist_dir = bundle_dir.join("dist");
+      if check_and_refresh_bundle_content_key(&clawdbot_home, &bundle_dist_dir) {
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let _ = std::process::Command::new("launchctl")
+            .args(["kickstart", "-k", &service])
+            .status();
+        }
+        sentry::capture_message(
+          "[gateway] auto_enable: bundle content changed — wiped stale plugin-runtime-deps + restarted",
+          sentry::Level::Warning,
         );
       }
 
