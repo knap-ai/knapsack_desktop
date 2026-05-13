@@ -591,6 +591,89 @@ fn count_stale_plugin_runtime_deps_versions(
   stale
 }
 
+fn is_incomplete_plugin_runtime_deps_dir(path: &std::path::Path) -> bool {
+  !path.join("package.json").is_file()
+    || !path.join("node_modules").is_dir()
+    || !path.join("dist").join("extensions").is_dir()
+}
+
+fn count_incomplete_plugin_runtime_deps_dirs(
+  clawdbot_home: &std::path::Path,
+  current_version: &str,
+) -> usize {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return 0,
+  };
+  let expected_prefix = format!("openclaw-{}-", current_version);
+  let mut incomplete = 0usize;
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    if !current_version.is_empty() && !dir_name.starts_with(&expected_prefix) {
+      continue;
+    }
+    if is_incomplete_plugin_runtime_deps_dir(&entry.path()) {
+      incomplete += 1;
+    }
+  }
+  incomplete
+}
+
+/// Remove current-version plugin-runtime-deps dirs left half-created by an
+/// interrupted npm install. A SIGTERM during staging can leave only
+/// `.openclaw-npm-cache`; the version prefix is correct, so stale-version
+/// cleanup preserves it, but every restart keeps staging from a broken base.
+fn remove_incomplete_plugin_runtime_deps_dirs(
+  clawdbot_home: &std::path::Path,
+  current_version: &str,
+) -> usize {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return 0,
+  };
+  let expected_prefix = format!("openclaw-{}-", current_version);
+  let mut removed = 0usize;
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    if !current_version.is_empty() && !dir_name.starts_with(&expected_prefix) {
+      continue;
+    }
+    let path = entry.path();
+    if !is_incomplete_plugin_runtime_deps_dir(&path) {
+      continue;
+    }
+    match fs::remove_dir_all(&path) {
+      Ok(_) => {
+        removed += 1;
+        eprintln!(
+          "[clawd/service] Removed incomplete plugin runtime deps dir: {}",
+          path.display()
+        );
+      }
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: Failed to remove incomplete plugin runtime deps dir {}: {}",
+        path.display(),
+        e
+      ),
+    }
+  }
+  removed
+}
+
 /// Wipe corrupt `.openclaw-npm-cache` directories inside plugin-runtime-deps
 /// subdirs. These caches are disposable; npm will rebuild them on the next
 /// install attempt.
@@ -2306,6 +2389,14 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
         } else {
           remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
+          let removed_incomplete =
+            remove_incomplete_plugin_runtime_deps_dirs(&restart_clawdbot_home, &restart_bundle_ver);
+          if removed_incomplete > 0 {
+            eprintln!(
+              "[clawd/service] auto-restart: removed {} incomplete plugin-runtime-deps dir(s)",
+              removed_incomplete
+            );
+          }
         }
         if is_npm_cache_crash {
           eprintln!("[clawd/service] auto-restart: npm cache ENOENT detected — wiping corrupt caches");
@@ -5243,6 +5334,7 @@ pub async fn set_service_enabled(
       {
         let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
         remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(&app_handle), &ver);
+        remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(&app_handle), &ver);
       }
 
       // Run "openclaw doctor --fix" in a background thread — same reason as
@@ -7371,10 +7463,11 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       let bundle_ver = read_clawdbot_bundle_version(&bundle_dir);
       let clawdbot_home = app_clawdbot_home(app_handle);
       let stale = count_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
-      if stale > 0 {
+      let incomplete = count_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &bundle_ver);
+      if stale > 0 || incomplete > 0 {
         eprintln!(
-          "[clawd/service] auto_enable: detected {} stale plugin-runtime-deps dir(s) (bundle ver={}) — cleaning and forcing gateway restart",
-          stale, bundle_ver
+          "[clawd/service] auto_enable: detected {} stale and {} incomplete plugin-runtime-deps dir(s) (bundle ver={}) — cleaning and forcing gateway restart",
+          stale, incomplete, bundle_ver
         );
         // Bootout first so the gateway isn't holding files we're about to delete.
         let uid = unsafe { libc::getuid() };
@@ -7388,6 +7481,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         kill_process_on_port(18789);
         remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
         remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_ver);
+        remove_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &bundle_ver);
         // Re-bootstrap so the gateway is registered + started fresh.  The
         // gateway will re-stage plugin runtime deps under the correct
         // `openclaw-{bundle_ver}-{hash}` dir on first startup.
@@ -7515,6 +7609,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   {
     let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
     remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
+    remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(app_handle), &ver);
   }
 
   let boot = std::process::Command::new("launchctl")
@@ -7609,6 +7704,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   {
     let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
     remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
+    remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(app_handle), &ver);
   }
 
   let stdout_log = windows_log_path("stdout");
@@ -7680,6 +7776,32 @@ mod crash_classifier_tests {
   fn slack_runtime_deps_missing_module_is_plugin_install_fail() {
     let log_tail = "Error: Cannot find module '@slack/logger'\nRequire stack:\n- /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-1.2.3-abcd/node_modules/@slack/web-api/dist/logger.js";
     assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn removes_current_version_incomplete_plugin_runtime_deps_dir() {
+    let root = std::env::temp_dir().join(format!(
+      "knapsack-incomplete-runtime-deps-{}-{}",
+      std::process::id(),
+      std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+    ));
+    let base = root.join("plugin-runtime-deps");
+    let incomplete = base.join("openclaw-2026.4.26-abc123");
+    let complete = base.join("openclaw-2026.4.26-def456");
+    fs::create_dir_all(incomplete.join(".openclaw-npm-cache")).unwrap();
+    fs::create_dir_all(complete.join("node_modules")).unwrap();
+    fs::create_dir_all(complete.join("dist").join("extensions")).unwrap();
+    fs::write(complete.join("package.json"), "{}").unwrap();
+
+    assert_eq!(count_incomplete_plugin_runtime_deps_dirs(&root, "2026.4.26"), 1);
+    assert_eq!(remove_incomplete_plugin_runtime_deps_dirs(&root, "2026.4.26"), 1);
+    assert!(!incomplete.exists());
+    assert!(complete.exists());
+
+    let _ = fs::remove_dir_all(root);
   }
 
   #[test]
