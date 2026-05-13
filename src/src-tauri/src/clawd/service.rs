@@ -2553,6 +2553,39 @@ async fn run_gateway_self_heal_cycle(
   GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
 }
 
+/// The gateway can be unreachable for a while on first run while it installs
+/// bundled plugin runtime dependencies. Treat that as startup progress, not a
+/// crash, so health polling does not repeatedly SIGTERM the installer process.
+fn gateway_runtime_deps_startup_in_progress() -> bool {
+  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+    return false;
+  };
+  gateway_runtime_deps_startup_in_progress_from_log(&content)
+}
+
+fn gateway_runtime_deps_startup_in_progress_from_log(content: &str) -> bool {
+  let tail_start = content
+    .char_indices()
+    .rev()
+    .nth(16_000)
+    .map(|(idx, _)| idx)
+    .unwrap_or(0);
+  let tail = &content[tail_start..];
+
+  let staging = tail.rfind("staging bundled runtime deps before gateway startup");
+  let installed = tail.rfind("installed bundled runtime deps before gateway startup");
+  let listening = tail.rfind("http server listening");
+  let terminated = tail.rfind("received SIGTERM; shutting down");
+
+  let Some(staging_idx) = staging else {
+    return false;
+  };
+
+  installed.unwrap_or(0) < staging_idx
+    && listening.unwrap_or(0) < staging_idx
+    && terminated.unwrap_or(0) < staging_idx
+}
+
 #[get("/api/clawd/service/health")]
 pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -2649,7 +2682,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // If gateway is down, try to restart it via launchctl kickstart.
     // This runs in a background task to avoid blocking the health poll.
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
-    if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    if !gateway_ok && gateway_runtime_deps_startup_in_progress() {
+      eprintln!(
+        "[clawd/service] gateway not reachable but plugin runtime deps are staging - skipping restart"
+      );
+    } else if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
       let token = tokens.gateway_token.clone();
       #[cfg(target_os = "windows")]
       let restart_err_path = windows_log_path("stderr");
@@ -8203,6 +8240,25 @@ mod crash_classifier_tests {
       Some("peekaboo")
     );
     assert!(cfg.pointer("/agents/defaults/model").is_some());
+  }
+
+  #[test]
+  fn runtime_deps_staging_is_startup_progress_until_completion() {
+    let staging =
+      "2026-05-13T10:44:47 [gateway] [plugins] staging bundled runtime deps before gateway startup";
+    assert!(gateway_runtime_deps_startup_in_progress_from_log(staging));
+
+    let installed = format!(
+      "{}\n2026-05-13T10:44:50 [gateway] [plugins] installed bundled runtime deps before gateway startup",
+      staging
+    );
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&installed));
+
+    let listening = format!("{}\n2026-05-13T10:44:51 [gateway] http server listening", staging);
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&listening));
+
+    let terminated = format!("{}\n2026-05-13T10:44:49 [gateway] received SIGTERM; shutting down", staging);
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&terminated));
   }
 }
 
