@@ -3461,7 +3461,7 @@ No email account is directly connected via the send_email tool. However, you CAN
     };
     let home_dir = home_dir_string();
     format!(
-      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n",
+      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n\n## KNAPSACK SERVICE\nYou are running **inside** the Knapsack desktop app. The Knapsack gateway (also called OpenClaw or Clawdbot) is a bundled Node.js process that Knapsack manages automatically — it is NOT a system service, Windows service, or standalone app.\n\n**CRITICAL — never try to start or restart the gateway via terminal commands.** The user cannot and should not run `node`, `npm`, or any gateway script manually. If the gateway isn't running, the ONLY correct action is: **Settings → Service → click Enable**. Do not search for node.exe, openclaw executables, or package.json files to start the gateway.\n\nThe gateway state directory (`~/.openclaw` or the app data folder) stores config and auth data — do NOT modify files there unless the user explicitly asks for config changes.",
       os_name, shell_info, home_dir
     )
   };

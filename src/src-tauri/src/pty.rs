@@ -145,8 +145,8 @@ pub async fn kn_pty_spawn(
   let rows = rows.unwrap_or(24);
 
   info!(
-    "[pty] spawn session={} cols={} rows={} cwd={:?}",
-    session_id, cols, rows, cwd
+    "[pty] spawn session={} cols={} rows={} cwd={}",
+    session_id, cols, rows, cwd.as_deref().unwrap_or("<default>")
   );
 
   let handle = platform_spawn(&app, &session_id, cwd.as_deref(), cols, rows)?;
