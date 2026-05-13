@@ -10,6 +10,45 @@
   box-sizing: border-box;
 }
 
+.ClawdChatRoot--compact {
+  padding: 0;
+
+  .ClawdChatHeader {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .ClawdChatLogo {
+    display: none;
+  }
+
+  .ClawdChatTitle {
+    font-size: 15px;
+  }
+
+  .ClawdChatSubtitle,
+  .ClawdChatStatus {
+    font-size: 11px;
+  }
+
+  .ClawdChatActions {
+    gap: 4px;
+  }
+
+  .ClawdChatActions button {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .ClawdChatBody {
+    padding: 10px 12px;
+  }
+
+  .ClawdChatInput {
+    padding: 8px 10px;
+  }
+}
+
 // Flex row that holds the main chat area and any side panel
 .ClawdChatContent {
   display: flex;

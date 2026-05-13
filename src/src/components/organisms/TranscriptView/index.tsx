@@ -1,5 +1,5 @@
 import cn from 'classnames'
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getSavedTranscript } from "src/api/transcripts";
 import { detectLanguage, translateToEnglish, type DetectedLanguage } from "src/utils/translate";
 
@@ -8,11 +8,13 @@ import styles from './styles.module.scss'
 interface TranscriptViewProps {
   threadId: number
   onClose: () => void
+  participantNames?: string[]
 }
 
 const TranscriptView: React.FC<TranscriptViewProps> = ({
   threadId,
   onClose,
+  participantNames = [],
 }) => {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           setError("Transcript not found")
           return
         }
-        const text = data.content.split("\n\n\n")[1];
+        const text = extractTranscriptBody(data.content);
         setContent(text);
         setDetectedLang(detectLanguage(text ?? ''));
         setIsTranslated(false);
@@ -61,9 +63,13 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   };
 
   const displayedContent = isTranslated ? translatedContent : content;
+  const turns = useMemo(
+    () => formatTranscriptTurns(displayedContent ?? '', participantNames),
+    [displayedContent, participantNames],
+  );
 
   return (
-    <div className="text-ks-warm-grey-900 h-screen flex flex-col overflow-hidden mt-3 mr-0 w-[18em] ml-1">
+    <div className="text-ks-warm-grey-900 h-screen flex flex-col overflow-hidden mt-3 mr-0 w-[22em] ml-1">
       <div className="flex flex-row w-full mt-6 justify-between pl-1 pr-3">
         <div className="uppercase text-ks-warm-grey-800 font-Lora font-bold text-xs leading-4 tracking-[1.44px] ml-1">
           Transcript
@@ -108,12 +114,16 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           <>
             <div className="flex-1 flex flex-col overflow-hidden mt-6 mb-24">
               <div className={
-                  cn("space-y-4 text-sm leading-relaxed flex-1 overflow-auto pl-1 pr-3",
+                  cn("space-y-3 text-sm leading-relaxed flex-1 overflow-auto pl-1 pr-3",
                      styles.scrollbarHide)}>
-                {displayedContent?.split('\n').map((paragraph, index) => (
-                  <p key={index} className="text-start leading-[1.6] mb-2">
-                    {paragraph}
-                  </p>
+                {turns.map((turn, index) => (
+                  <article key={index} className={styles.turn}>
+                    <div className={styles.turnHeader}>
+                      <span className={styles.speaker}>{turn.speaker}</span>
+                      {turn.inferred && <span className={styles.inferred}>inferred</span>}
+                    </div>
+                    <p className={styles.turnText}>{turn.text}</p>
+                  </article>
                 ))}
               </div>
             </div>
@@ -125,3 +135,97 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 }
 
 export default TranscriptView;
+
+interface TranscriptTurn {
+  speaker: string
+  text: string
+  inferred: boolean
+}
+
+const extractTranscriptBody = (raw: string) => {
+  const parts = raw.split(/\n{3,}/).map(part => part.trim()).filter(Boolean)
+  return parts.length > 1 ? parts.slice(1).join('\n\n') : raw.trim()
+}
+
+const formatTranscriptTurns = (raw: string, participantNames: string[]): TranscriptTurn[] => {
+  const text = raw.replace(/\r/g, '').trim()
+  if (!text) return []
+
+  const knownSpeakers = participantNames
+    .map(name => name.trim())
+    .filter(Boolean)
+  const fallbackSpeakers = knownSpeakers.length > 0
+    ? knownSpeakers.slice(0, 4)
+    : ['Speaker 1', 'Speaker 2']
+
+  const explicitTurns = parseExplicitSpeakerTurns(text, knownSpeakers)
+  if (explicitTurns.length > 0) return explicitTurns
+
+  return inferSpeakerTurns(text, fallbackSpeakers)
+}
+
+const parseExplicitSpeakerTurns = (text: string, knownSpeakers: string[]): TranscriptTurn[] => {
+  const speakerPattern = /^([A-Z][\w'.-]+(?:\s+[A-Z][\w'.-]+){0,3}|Speaker\s+\d+|You|Me)\s*:\s*(.+)$/i
+  const turns: TranscriptTurn[] = []
+
+  text.split(/\n+/).forEach(line => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+    const match = trimmed.match(speakerPattern)
+    if (!match) {
+      if (turns.length > 0) {
+        turns[turns.length - 1].text += ` ${trimmed}`
+      }
+      return
+    }
+    turns.push({
+      speaker: normalizeSpeakerName(match[1], knownSpeakers),
+      text: match[2].trim(),
+      inferred: false,
+    })
+  })
+
+  return turns
+}
+
+const inferSpeakerTurns = (text: string, speakerNames: string[]): TranscriptTurn[] => {
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .match(/[^.!?]+[.!?]+(?:["']|\))?|[^.!?]+$/g)
+    ?.map(sentence => sentence.trim())
+    .filter(Boolean) ?? []
+
+  if (sentences.length === 0) return []
+
+  const turns: TranscriptTurn[] = []
+  let speakerIndex = 0
+
+  sentences.forEach((sentence, index) => {
+    const startsResponse = /^(yes|yeah|yep|no|right|okay|ok|exactly|interesting|got it|sure|well)\b/i.test(sentence)
+    const previous = turns[turns.length - 1]
+    const previousLooksLikeQuestion = previous?.text.trim().endsWith('?')
+    const shouldStartTurn =
+      index === 0 ||
+      previousLooksLikeQuestion ||
+      startsResponse ||
+      previous.text.length > 260
+
+    if (shouldStartTurn) {
+      if (index > 0) speakerIndex = (speakerIndex + 1) % Math.max(speakerNames.length, 1)
+      turns.push({
+        speaker: speakerNames[speakerIndex] ?? `Speaker ${speakerIndex + 1}`,
+        text: sentence,
+        inferred: true,
+      })
+    } else {
+      previous.text += ` ${sentence}`
+    }
+  })
+
+  return turns
+}
+
+const normalizeSpeakerName = (speaker: string, knownSpeakers: string[]) => {
+  const known = knownSpeakers.find(name => name.toLowerCase() === speaker.toLowerCase())
+  return known ?? speaker
+}

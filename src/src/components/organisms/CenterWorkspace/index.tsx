@@ -76,6 +76,7 @@ interface TemplatesState {
 interface TranscriptState {
   isOpen: boolean
   threadId?: number
+  participantNames?: string[]
 }
 
 export interface TaskItem {
@@ -233,7 +234,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
     checkPermissions()
   }, [])
 
-  const handleOpenTranscript = async (threadId: number | undefined) => {
+  const handleOpenTranscript = async (threadId: number | undefined, participantNames?: string[]) => {
     if (!threadId) return
 
     if (templatesState.isOpen) {
@@ -252,6 +253,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
     setTranscriptState(prev => ({
       isOpen: !prev.isOpen || prev.threadId !== threadId,
       threadId: threadId,
+      participantNames,
     }))
   }
 
@@ -356,6 +358,8 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       recordingHandlers={recordingHandlers}
                       handleOpenTasks={handleOpenTasks}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
+                      userEmail={userEmail}
+                      userName={userName}
                       onEmailClick={(notesMarkdown, meeting) => {
                         const participants = meeting?.participants ?? []
                         const toEmails = participants
@@ -576,7 +580,11 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
             </div>
           )}
         {transcriptState.isOpen && transcriptState.threadId && (
-          <TranscriptView threadId={transcriptState.threadId} onClose={() => closeTranscript()} />
+          <TranscriptView
+            threadId={transcriptState.threadId}
+            participantNames={transcriptState.participantNames}
+            onClose={() => closeTranscript()}
+          />
         )}
         {templatesState.isOpen && templatesState.thread && (
           <TemplatesView
