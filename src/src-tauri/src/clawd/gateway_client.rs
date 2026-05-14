@@ -690,9 +690,10 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
         cfg.pointer_mut("/agents").unwrap().as_object_mut().unwrap()
           .insert("defaults".into(), serde_json::json!({}));
       }
-      // Write as plain string (gateway accepts both forms; string is simpler).
+      // Write as object with fallbacks so the gateway can retry when the primary
+      // model is rate-limited (429) or overloaded (503).
       cfg.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap()
-        .insert("model".into(), serde_json::json!(current_model));
+        .insert("model".into(), build_model_config());
       eprintln!("[gateway_client] Patched agents.defaults.model: {:?} → '{}'", disk_model, current_model);
       patched = true;
     }
@@ -769,6 +770,12 @@ pub fn resolve_default_model() -> String {
         .unwrap_or_else(|_| "gemini-2.0-flash".to_string());
       return format!("google/{}", model);
     }
+    // Google OAuth CLI auth (no API key env var — credentials stored in auth-profiles.json).
+    "google-gemini-cli" => {
+      let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+        .unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      return format!("google-gemini-cli/{}", model);
+    }
     _ => {}
   }
 
@@ -777,7 +784,9 @@ pub fn resolve_default_model() -> String {
   let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
     .unwrap_or(true);
-  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+  // google-gemini-cli is OAuth-based (free tier) — treat it as a free provider
+  // so paid fallbacks are not silently selected when the CLI model is unavailable.
+  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter" | "google-gemini-cli");
 
   if !disable_paid || !active_is_free {
     if has_key("ANTHROPIC_API_KEY") {
@@ -823,6 +832,53 @@ pub fn resolve_default_model() -> String {
   // Final fallback: use Groq free model instead of expensive Anthropic Opus
   log::warn!("[resolve_default_model] No provider keys found, defaulting to groq/llama-3.3-70b-versatile");
   "groq/llama-3.3-70b-versatile".to_string()
+}
+
+/// Return fallback model refs to try when the primary model is rate-limited or overloaded.
+///
+/// Fallbacks are sourced from providers whose API keys are available and differ from the
+/// primary's provider.  Groq is preferred as a fallback because it is free and fast.
+/// Called by `build_model_config()` — prefer that over calling this directly.
+pub fn collect_fallback_models(primary: &str) -> Vec<String> {
+  let has_key = |var: &str| std::env::var(var).map(|k| !k.trim().is_empty()).unwrap_or(false);
+  let primary_provider = primary.split('/').next().unwrap_or("").to_lowercase();
+  let mut fallbacks = Vec::new();
+
+  // Groq first: free, fast, and a good rate-limit escape hatch.
+  if primary_provider != "groq" && has_key("GROQ_API_KEY") {
+    let model = std::env::var("KNAPSACK_GROQ_MODEL")
+      .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+    fallbacks.push(format!("groq/{}", model));
+  }
+
+  // Google/Gemini as fallback when the primary is not already a Google provider.
+  let is_google_primary = matches!(
+    primary_provider.as_str(),
+    "google" | "gemini" | "google-gemini-cli"
+  );
+  if !is_google_primary && has_key("GEMINI_API_KEY") {
+    let model = std::env::var("KNAPSACK_GEMINI_MODEL")
+      .unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+    fallbacks.push(format!("google/{}", model));
+  }
+
+  fallbacks
+}
+
+/// Build the `agents.defaults.model` config object for the gateway.
+///
+/// Returns `{"primary": "...", "fallbacks": [...]}` when fallback providers are
+/// available, or `{"primary": "..."}` when none are.  The gateway uses `fallbacks`
+/// to retry with an alternative model when the primary is rate-limited (429) or
+/// overloaded (503), preventing `FailoverError` propagation to the user.
+pub fn build_model_config() -> serde_json::Value {
+  let primary = resolve_default_model();
+  let fallbacks = collect_fallback_models(&primary);
+  if fallbacks.is_empty() {
+    serde_json::json!({"primary": primary})
+  } else {
+    serde_json::json!({"primary": primary, "fallbacks": fallbacks})
+  }
 }
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
@@ -1025,7 +1081,7 @@ async fn apply_runtime_browser_config(token: &str) {
   let model_changed = existing_model.as_deref() != Some(&model);
   patch_obj.as_object_mut().unwrap().insert(
     "agents".to_string(),
-    serde_json::json!({"defaults": {"model": model}}),
+    serde_json::json!({"defaults": {"model": build_model_config()}}),
   );
   if model_changed {
     eprintln!("[gateway_client] agents.defaults.model updated: {:?} → '{}' in runtime patch", existing_model, model);
