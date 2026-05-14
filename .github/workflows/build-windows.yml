@@ -260,56 +260,9 @@ jobs:
           path: ${{ runner.temp }}/tauri-build.log
           if-no-files-found: ignore
 
-      - name: Build web installer stub
-        shell: pwsh
-        run: |
-          # Windows-2022 runners ship NSIS; use it to compile the stub.
-          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
-          if (-not (Test-Path $makensis)) {
-            Write-Error "NSIS not found at $makensis"; exit 1
-          }
-          & $makensis /V3 src\installer\stub.nsi
-          if ($LASTEXITCODE -ne 0) { Write-Error "makensis failed"; exit 1 }
-          Write-Host "Built: src\installer\Knapsack-web-setup.exe"
-
-      - name: Sign web installer stub
-        if: env.AZURE_KEY_VAULT_URI != ''
-        shell: pwsh
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
-          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
-          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
-          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
-        run: |
-          AzureSignTool sign `
-            -kvu "$env:AZURE_KEY_VAULT_URI" `
-            -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
-            -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
-            -kvs "$env:AZURE_KEY_VAULT_CLIENT_SECRET" `
-            -kvt "$env:AZURE_KEY_VAULT_TENANT_ID" `
-            -tr http://timestamp.globalsign.com/tsa/advanced `
-            -td sha256 `
-            src\installer\Knapsack-web-setup.exe
-          Write-Host "Signed: Knapsack-web-setup.exe"
-
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v6
         with:
           name: knapsack-windows-msi
           path: src/src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: warn
-
-      - name: Upload NSIS artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: knapsack-windows-nsis
-          path: src/src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: warn
-
-      - name: Upload web installer stub artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: knapsack-windows-web-setup
-          path: src/installer/Knapsack-web-setup.exe
           if-no-files-found: warn
