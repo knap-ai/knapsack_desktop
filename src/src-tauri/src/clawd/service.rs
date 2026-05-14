@@ -412,14 +412,46 @@ fn evict_competing_gateway_plists() -> Vec<String> {
   vec![]
 }
 
+/// On macOS, kill the standalone `openclaw-gateway` binary if it is holding
+/// `port` WITHOUT a LaunchAgent plist (e.g. started via `openclaw gateway
+/// start`).  Our own clawdbot runs as a `node` process so filtering on the
+/// binary name "openclaw-gateway" is safe to call even when our gateway is
+/// healthy.
+#[cfg(target_os = "macos")]
+fn kill_standalone_openclaw_gateway_on_port(port: u16) {
+  // `lsof -c <name>` matches on command name prefix; `-ti :<port>` returns
+  // just the PID if that command holds the port.
+  let output = std::process::Command::new("lsof")
+    .args(["-c", "openclaw-gateway", "-ti", &format!(":{}", port)])
+    .output();
+  if let Ok(out) = output {
+    let pid_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !pid_str.is_empty() {
+      eprintln!(
+        "[clawd/service] standalone openclaw-gateway binary on port {} (pid={}) without plist — killing",
+        port, pid_str
+      );
+      kill_process_on_port(port);
+    }
+  }
+}
+
 /// Thin shim kept for existing call sites that don't need the return value.
 /// After evicting competing LaunchAgent plists, also kills any process still
 /// holding port 18789 — `launchctl bootout` removes launchd management but
 /// leaves the process alive, so without the kill it keeps blocking the port.
+/// Additionally kills a standalone `openclaw-gateway` binary on the port even
+/// when no plist was found (started via `openclaw gateway start` with no
+/// LaunchAgent registration).
 fn remove_stale_standalone_gateway() {
   let evicted = evict_competing_gateway_plists();
   if !evicted.is_empty() {
     kill_process_on_port(18789);
+  } else {
+    // No LaunchAgent plist was evicted, but a manually-started
+    // openclaw-gateway binary may still be holding port 18789.
+    #[cfg(target_os = "macos")]
+    kill_standalone_openclaw_gateway_on_port(18789);
   }
 }
 
