@@ -769,7 +769,17 @@ function Home({
 
               {currentTab === TabChoices.GBrain && (
                 <div className="overflow-hidden w-full h-full">
-                  <GBrainView />
+                  <GBrainView
+                    feed={feed}
+                    onOpenMeeting={() => {
+                      setCurrentTab(TabChoices.Meeting)
+                      setMeetingSubView('meetings')
+                    }}
+                    onOpenWorkspace={(ws) => {
+                      setCurrentTab(TabChoices.Library)
+                      setSelectedWorkspace(ws)
+                    }}
+                  />
                 </div>
               )}
 
