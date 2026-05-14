@@ -25,6 +25,10 @@ const MAX_PER_PASS_FIRST_RUN: i64 = 5;
 const FIRST_RUN_THRESHOLD: i64 = 10;
 /// Pause between LLM calls to avoid rate-limit bursts.
 const INTER_CALL_DELAY_MS: u64 = 500;
+/// Substrings that indicate a rate-limit or overload error from the LLM layer.
+/// `multi_provider_completion` surfaces these as `LLMError::TooManyRequests`,
+/// which formats to `TooManyRequests("...")` via `{:?}`.
+const RATE_LIMIT_MARKERS: &[&str] = &["TooManyRequests", "rate limit", "429", "overload", "503"];
 const MAX_BODY_CHARS: usize = 4_000;
 
 #[derive(Debug, Deserialize)]
@@ -77,9 +81,19 @@ pub async fn retag_stale() -> Result<(), Error> {
                 let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
                 let _ = WorkspaceDocument::update_auto_tags(id, Some(tags_json), Some(summary));
             }
+            Err(ref e) if RATE_LIMIT_MARKERS.iter().any(|m| e.contains(m)) => {
+                // Rate-limited or overloaded after all internal retries. Abort the
+                // remainder of this pass — continuing would just pile on more 429s.
+                // The 30-minute inter-pass interval is the effective backoff window.
+                log::warn!(
+                    "[library_curator/retag] rate limit detected ({}), aborting pass early",
+                    e
+                );
+                return Ok(());
+            }
             Err(e) => {
                 log::warn!("[library_curator/retag] tag failed for doc {}: {}", id, e);
-                // On failure, leave auto_tags NULL so we retry next pass.
+                // Non-rate-limit failure — leave auto_tags NULL so we retry next pass.
             }
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(INTER_CALL_DELAY_MS)).await;
