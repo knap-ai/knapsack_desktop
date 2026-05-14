@@ -4,16 +4,10 @@ import Markdown from 'marked-react'
 import { KN_SERVER_HOST } from 'src/utils/constants'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { getFeedItems, FeedItem } from 'src/api/feed_items'
+import { IFeed } from 'src/hooks/feed/useFeed'
+import { CalendarEvents, serializeCalendarEventToMeeting } from 'src/hooks/dataSources/useCalendar'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface CalendarEvent {
-  id: number
-  title: string
-  start: number
-  end: number
-  attendees_json: string
-}
 
 interface Attendee {
   name: string
@@ -70,6 +64,109 @@ function skillEmoji(name: string): string {
   return '⚡'
 }
 
+const formatEventWindow = (event: CalendarEvents): string => (
+  `${dayLabel(event.start)} ${formatTime(event.start)}-${formatTime(event.end)}`
+)
+
+const docNoun = (count: number): string => count === 1 ? 'source' : 'sources'
+
+function topWorkspaceDocs(workspace: Workspace) {
+  return (workspace.documents ?? [])
+    .filter(doc => doc.summary || doc.documentName)
+    .slice(0, 5)
+}
+
+function docDateLabel(epoch: number | null | undefined): string {
+  if (!epoch) return 'undated'
+  const ms = epoch > 10_000_000_000 ? epoch : epoch * 1000
+  return new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function docTimeline(workspace: Workspace): string {
+  const docs = topWorkspaceDocs(workspace)
+  if (!docs.length) return '- No timeline entries yet. Add meetings, email, or notes to start the append-only history.'
+  return docs
+    .map(doc => `- **${docDateLabel(doc.createdAt)}** · ${doc.documentName || doc.sourceType || 'Memory'}${doc.summary ? ` — ${doc.summary}` : ''}`)
+    .join('\n')
+}
+
+function personFallback(ws: Workspace): string {
+  const docs = topWorkspaceDocs(ws)
+  const sourceLine = `${docs.length || (ws.documents ?? []).length} ${docNoun(docs.length || (ws.documents ?? []).length)} in local memory`
+  const latest = docs[0]?.summary || ws.description || 'Not enough signal yet. This page should improve as meetings, emails, and notes attach to the person.'
+  return [
+    `## ${ws.name}`,
+    `**Person page starter** · ${sourceLine}`,
+    '\n### Compiled truth',
+    `- ${latest}`,
+    '- Current best understanding belongs here: role, relationship, company, why this person matters, and any standing context.',
+    '\n### State',
+    '- Current status: unknown until the next enrichment or meeting note updates it.',
+    '- Relationship context: capture how you know them and what changed recently.',
+    '\n### Open threads',
+    '- What do we owe them?',
+    '- What do they owe us?',
+    '- What should the next conversation clarify?',
+    '\n### Score',
+    '- Relationship/context score: unrated. Score should reflect importance, recency, and confidence.',
+    '\n### Append-only timeline',
+    docTimeline(ws),
+    '\n### Raw source sidecars',
+    docs.length ? docs.map(doc => `- ${doc.sourceType || doc.documentType || 'source'} · ${doc.documentName}`).join('\n') : '- No sidecars linked yet.',
+    '\n### Next action',
+    `Ask the agent to enrich ${ws.name} with career arc, contact info, meeting history, relationship context, and citations from the brain.`,
+  ].filter(Boolean).join('\n')
+}
+
+function projectFallback(ws: Workspace): string {
+  const docs = topWorkspaceDocs(ws)
+  const notes = docs.length
+    ? docs.map(doc => `- **${doc.documentName || doc.sourceType || 'Memory'}**: ${doc.summary || 'Indexed project source.'}`).join('\n')
+    : '- No rich project summaries yet.'
+  return [
+    `## ${ws.name}`,
+    '**Project page starter**',
+    '\n### Compiled truth',
+    ws.description || 'Current best understanding of the project belongs here.',
+    '\n### State',
+    '- Current status, owner, deadline, and last meaningful change.',
+    '\n### Open threads',
+    '- Unresolved questions',
+    '- Risks',
+    '- Next actions',
+    '\n### Append-only timeline',
+    notes,
+    '\n### Suggested next move',
+    `Ask: "Turn ${ws.name} into a project brief with current status, open loops, risks, and next actions."`,
+  ].join('\n')
+}
+
+function meetingFallback(event: CalendarEvents): string {
+  const attendees = parseAttendees(event.attendees_json)
+  const names = attendees.map(a => a.name || a.email).filter(Boolean)
+  return [
+    `## ${event.title}`,
+    `**${formatEventWindow(event)}**`,
+    names.length ? `\n**People:** ${names.join(', ')}` : '',
+    event.location ? `\n**Location:** ${event.location}` : '',
+    '\n### Structured summary',
+    '- Purpose: infer from title, calendar description, and linked people pages.',
+    '- Decisions: capture during or after the meeting.',
+    '- Follow-ups: capture owners and dates.',
+    event.description ? `\n### Calendar notes\n${event.description}` : '',
+    '\n### Entity propagation plan',
+    names.length
+      ? names.map(name => `- Update **${name}** person page with what changed, open threads, and relationship context.`).join('\n')
+      : '- Identify people and companies mentioned, then update their brain pages.',
+    '\n### Transcript / raw source sidecar',
+    '- Attach transcript or meeting notes here after the call.',
+    '\n### Prep angles',
+    '- Pull current person/company/project pages.',
+    '- Identify overlap, divergence, and one useful conversation hook.',
+    '- Walk in with a specific desired outcome.',
+  ].filter(Boolean).join('\n')
+}
+
 // ── Skill runner hook ─────────────────────────────────────────────────────────
 
 function useSkillRunner() {
@@ -77,7 +174,7 @@ function useSkillRunner() {
   const [runningLabel, setRunningLabel] = useState('')
   const [output, setOutput] = useState<string | null>(null)
 
-  const run = useCallback(async (text: string, label: string) => {
+  const run = useCallback(async (text: string, label: string, fallback?: string) => {
     setRunning(true)
     setRunningLabel(label)
     setOutput(null)
@@ -85,14 +182,16 @@ function useSkillRunner() {
       const res = await fetch(`${KN_SERVER_HOST}/api/clawd/agent-run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, channel: 'automation' }),
+        body: JSON.stringify({ text, channel: 'webchat', agentId: 'main' }),
       })
       const data = await res.json()
-      setOutput(data.ok && data.reply
-        ? data.reply
-        : `❌ ${data.message ?? 'No reply. Is the OpenClaw gateway running?'}`)
+      if (data.ok && data.reply) {
+        setOutput(data.reply)
+      } else {
+        setOutput(fallback ?? `Could not run the agent yet: ${data.message ?? 'No reply from the gateway.'}`)
+      }
     } catch (e: any) {
-      setOutput(`❌ ${e?.message ?? 'Network error'}`)
+      setOutput(fallback ?? `Could not reach the local gateway: ${e?.message ?? 'Network error'}`)
     } finally {
       setRunning(false)
     }
@@ -194,15 +293,22 @@ const SectionHeader: React.FC<{ label: string }> = ({ label }) => (
 // ── Meeting row ───────────────────────────────────────────────────────────────
 
 const MeetingRow: React.FC<{
-  event: CalendarEvent
-  onPrep: (event: CalendarEvent) => void
+  event: CalendarEvents
+  onOpen: (event: CalendarEvents) => void
+  onPrep: (event: CalendarEvents) => void
   running: boolean
-}> = ({ event, onPrep, running }) => {
+}> = ({ event, onOpen, onPrep, running }) => {
   const attendees = parseAttendees(event.attendees_json)
   const names = attendees.map(a => a.name).filter(Boolean)
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
+    <div
+      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(event)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onOpen(event) }}
+    >
       <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 text-base">📅</div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-gray-800 truncate">{event.title}</div>
@@ -211,10 +317,13 @@ const MeetingRow: React.FC<{
           {names.length > 0 && ` · ${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}`}
         </div>
       </div>
+      <span className="flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 group-hover:bg-gray-200 transition-colors">
+        Open
+      </span>
       <button
-        className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-900 hover:text-white disabled:opacity-40 transition-colors opacity-0 group-hover:opacity-100"
+        className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
         disabled={running}
-        onClick={() => onPrep(event)}
+        onClick={e => { e.stopPropagation(); onPrep(event) }}
       >
         Prep
       </button>
@@ -226,10 +335,17 @@ const MeetingRow: React.FC<{
 
 const PersonRow: React.FC<{
   workspace: Workspace
+  onOpen: (ws: Workspace) => void
   onEnrich: (ws: Workspace) => void
   running: boolean
-}> = ({ workspace, onEnrich, running }) => (
-  <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
+}> = ({ workspace, onOpen, onEnrich, running }) => (
+  <div
+    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group cursor-pointer"
+    role="button"
+    tabIndex={0}
+    onClick={() => onOpen(workspace)}
+    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onOpen(workspace) }}
+  >
     <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0 text-base">
       {workspace.icon || '👤'}
     </div>
@@ -240,9 +356,9 @@ const PersonRow: React.FC<{
       )}
     </div>
     <button
-      className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-900 hover:text-white disabled:opacity-40 transition-colors opacity-0 group-hover:opacity-100"
+      className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
       disabled={running}
-      onClick={() => onEnrich(workspace)}
+      onClick={e => { e.stopPropagation(); onEnrich(workspace) }}
     >
       Enrich
     </button>
@@ -253,10 +369,17 @@ const PersonRow: React.FC<{
 
 const ProjectRow: React.FC<{
   workspace: Workspace
+  onOpen: (ws: Workspace) => void
   onResearch: (ws: Workspace) => void
   running: boolean
-}> = ({ workspace, onResearch, running }) => (
-  <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group">
+}> = ({ workspace, onOpen, onResearch, running }) => (
+  <div
+    className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors group cursor-pointer"
+    role="button"
+    tabIndex={0}
+    onClick={() => onOpen(workspace)}
+    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onOpen(workspace) }}
+  >
     <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0 text-base">
       {workspace.icon || '📁'}
     </div>
@@ -267,9 +390,9 @@ const ProjectRow: React.FC<{
       )}
     </div>
     <button
-      className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-900 hover:text-white disabled:opacity-40 transition-colors opacity-0 group-hover:opacity-100"
+      className="flex-shrink-0 px-3 py-1 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
       disabled={running}
-      onClick={() => onResearch(workspace)}
+      onClick={e => { e.stopPropagation(); onResearch(workspace) }}
     >
       Research
     </button>
@@ -319,7 +442,13 @@ const BrainTreeNode: React.FC<{
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
-const GBrainView: React.FC = () => {
+interface GBrainViewProps {
+  feed?: IFeed
+  onOpenMeeting?: () => void
+  onOpenWorkspace?: (workspace: Workspace) => void
+}
+
+const GBrainView: React.FC<GBrainViewProps> = ({ feed, onOpenMeeting, onOpenWorkspace }) => {
   const [tab, setTab] = useState<Tab>('feed')
   const { running, runningLabel, output, setOutput, run } = useSkillRunner()
 
@@ -328,7 +457,7 @@ const GBrainView: React.FC = () => {
   const [feedLoading, setFeedLoading] = useState(true)
 
   // Meetings & library
-  const [meetings, setMeetings] = useState<CalendarEvent[]>([])
+  const [meetings, setMeetings] = useState<CalendarEvents[]>([])
   const [people, setPeople] = useState<Workspace[]>([])
   const [projects, setProjects] = useState<Workspace[]>([])
 
@@ -382,7 +511,7 @@ const GBrainView: React.FC = () => {
       body: JSON.stringify({ start_timestamp: now, end_timestamp: now + 60 * 60 * 24 * 3 }),
     })
       .then(r => r.json())
-      .then((data: CalendarEvent[]) => {
+      .then((data: CalendarEvents[]) => {
         setMeetings(
           (Array.isArray(data) ? data : [])
             .filter(e => e.start > now)
@@ -403,19 +532,41 @@ const GBrainView: React.FC = () => {
   }, [])
 
   // Actions
-  const prepMeeting = useCallback((event: CalendarEvent) => {
+  const openMeeting = useCallback(async (event: CalendarEvents) => {
+    if (!feed) {
+      setOutput(meetingFallback(event))
+      setTab('skills')
+      return
+    }
+    await feed.openCalendarEvent(serializeCalendarEventToMeeting(event))
+    onOpenMeeting?.()
+  }, [feed, onOpenMeeting, setOutput])
+
+  const prepMeeting = useCallback((event: CalendarEvents) => {
     const attendees = parseAttendees(event.attendees_json).map(a => a.name).join(', ')
-    run(`/meeting-prep ${event.title}${attendees ? ` — Attendees: ${attendees}` : ''}`, `Prepping: ${event.title}`)
+    run(
+      `Prepare me for this meeting using the GBrain meeting schema: structured summary, relevant person/company context, conversation hooks, follow-ups to capture, and entity propagation targets. Meeting: ${event.title}${attendees ? `. Attendees: ${attendees}.` : ''} Time: ${formatEventWindow(event)}.`,
+      `Prepping: ${event.title}`,
+      meetingFallback(event),
+    )
     setTab('skills')
   }, [run])
 
   const enrichPerson = useCallback((ws: Workspace) => {
-    run(`/enrich ${ws.name}`, `Enriching: ${ws.name}`)
+    run(
+      `Build or update the GBrain person page for ${ws.name}. Use this schema: compiled truth, current state, open threads, relationship score, append-only timeline, raw source sidecars, and next action. Use local memory first and cite useful context.`,
+      `Enriching: ${ws.name}`,
+      personFallback(ws),
+    )
     setTab('skills')
   }, [run])
 
   const researchProject = useCallback((ws: Workspace) => {
-    run(`/perplexity-research ${ws.name}${ws.description ? ` — ${ws.description}` : ''}`, `Researching: ${ws.name}`)
+    run(
+      `Build or update the GBrain project page for ${ws.name}${ws.description ? `: ${ws.description}` : ''}. Use compiled truth, current state, open threads, append-only timeline, raw sources, risks, and next actions.`,
+      `Researching: ${ws.name}`,
+      projectFallback(ws),
+    )
     setTab('skills')
   }, [run])
 
@@ -443,7 +594,10 @@ const GBrainView: React.FC = () => {
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-shrink-0">
-        <span className="text-sm font-semibold text-gray-800">🧠 GBrain</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-gray-800">🧠 GBrain</span>
+          <span className="text-[11px] text-gray-400 truncate">Start with one task, turn the pattern into a skill, and let memory compound.</span>
+        </div>
         <div className="flex gap-1 ml-auto">
           {tabs.map(t => (
             <button
@@ -528,7 +682,7 @@ const GBrainView: React.FC = () => {
               <SectionHeader label="Meetings" />
               <div className="divide-y divide-gray-50">
                 {meetings.map(ev => (
-                  <MeetingRow key={ev.id} event={ev} onPrep={prepMeeting} running={running} />
+                  <MeetingRow key={ev.id} event={ev} onOpen={openMeeting} onPrep={prepMeeting} running={running} />
                 ))}
               </div>
             </>
@@ -540,7 +694,13 @@ const GBrainView: React.FC = () => {
               <SectionHeader label="People" />
               <div className="divide-y divide-gray-50">
                 {people.map(ws => (
-                  <PersonRow key={ws.uuid} workspace={ws} onEnrich={enrichPerson} running={running} />
+                  <PersonRow
+                    key={ws.uuid}
+                    workspace={ws}
+                    onOpen={onOpenWorkspace ?? enrichPerson}
+                    onEnrich={enrichPerson}
+                    running={running}
+                  />
                 ))}
               </div>
             </>
@@ -552,7 +712,13 @@ const GBrainView: React.FC = () => {
               <SectionHeader label="Projects" />
               <div className="divide-y divide-gray-50">
                 {projects.map(ws => (
-                  <ProjectRow key={ws.uuid} workspace={ws} onResearch={researchProject} running={running} />
+                  <ProjectRow
+                    key={ws.uuid}
+                    workspace={ws}
+                    onOpen={onOpenWorkspace ?? researchProject}
+                    onResearch={researchProject}
+                    running={running}
+                  />
                 ))}
               </div>
             </>
