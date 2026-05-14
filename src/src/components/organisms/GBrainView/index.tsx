@@ -76,20 +76,45 @@ function topWorkspaceDocs(workspace: Workspace) {
     .slice(0, 5)
 }
 
+function docDateLabel(epoch: number | null | undefined): string {
+  if (!epoch) return 'undated'
+  const ms = epoch > 10_000_000_000 ? epoch : epoch * 1000
+  return new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function docTimeline(workspace: Workspace): string {
+  const docs = topWorkspaceDocs(workspace)
+  if (!docs.length) return '- No timeline entries yet. Add meetings, email, or notes to start the append-only history.'
+  return docs
+    .map(doc => `- **${docDateLabel(doc.createdAt)}** · ${doc.documentName || doc.sourceType || 'Memory'}${doc.summary ? ` — ${doc.summary}` : ''}`)
+    .join('\n')
+}
+
 function personFallback(ws: Workspace): string {
   const docs = topWorkspaceDocs(ws)
   const sourceLine = `${docs.length || (ws.documents ?? []).length} ${docNoun(docs.length || (ws.documents ?? []).length)} in local memory`
-  const notes = docs.length
-    ? docs.map(doc => `- **${doc.documentName || doc.sourceType || 'Memory'}**: ${doc.summary || 'Indexed memory source.'}`).join('\n')
-    : '- No rich summaries yet. Open the Library page to add notes, emails, or meeting context.'
+  const latest = docs[0]?.summary || ws.description || 'Not enough signal yet. This page should improve as meetings, emails, and notes attach to the person.'
   return [
     `## ${ws.name}`,
-    `**Relationship brief starter** · ${sourceLine}`,
-    ws.description ? `\n${ws.description}` : '',
-    '\n### What Knapsack already knows',
-    notes,
-    '\n### Suggested next move',
-    `Ask: "Give me a concise relationship brief for ${ws.name}, cite the strongest memories, and suggest the next useful touchpoint."`,
+    `**Person page starter** · ${sourceLine}`,
+    '\n### Compiled truth',
+    `- ${latest}`,
+    '- Current best understanding belongs here: role, relationship, company, why this person matters, and any standing context.',
+    '\n### State',
+    '- Current status: unknown until the next enrichment or meeting note updates it.',
+    '- Relationship context: capture how you know them and what changed recently.',
+    '\n### Open threads',
+    '- What do we owe them?',
+    '- What do they owe us?',
+    '- What should the next conversation clarify?',
+    '\n### Score',
+    '- Relationship/context score: unrated. Score should reflect importance, recency, and confidence.',
+    '\n### Append-only timeline',
+    docTimeline(ws),
+    '\n### Raw source sidecars',
+    docs.length ? docs.map(doc => `- ${doc.sourceType || doc.documentType || 'source'} · ${doc.documentName}`).join('\n') : '- No sidecars linked yet.',
+    '\n### Next action',
+    `Ask the agent to enrich ${ws.name} with career arc, contact info, meeting history, relationship context, and citations from the brain.`,
   ].filter(Boolean).join('\n')
 }
 
@@ -100,8 +125,16 @@ function projectFallback(ws: Workspace): string {
     : '- No rich project summaries yet.'
   return [
     `## ${ws.name}`,
-    ws.description || 'Project memory starter from the local Library.',
-    '\n### Local context',
+    '**Project page starter**',
+    '\n### Compiled truth',
+    ws.description || 'Current best understanding of the project belongs here.',
+    '\n### State',
+    '- Current status, owner, deadline, and last meaningful change.',
+    '\n### Open threads',
+    '- Unresolved questions',
+    '- Risks',
+    '- Next actions',
+    '\n### Append-only timeline',
     notes,
     '\n### Suggested next move',
     `Ask: "Turn ${ws.name} into a project brief with current status, open loops, risks, and next actions."`,
@@ -116,11 +149,21 @@ function meetingFallback(event: CalendarEvents): string {
     `**${formatEventWindow(event)}**`,
     names.length ? `\n**People:** ${names.join(', ')}` : '',
     event.location ? `\n**Location:** ${event.location}` : '',
-    event.description ? `\n### Notes\n${event.description}` : '',
-    '\n### Prep checklist',
-    '- Review the people and project pages connected to this meeting.',
-    '- Decide the one outcome you want from the conversation.',
-    '- Capture follow-ups into the meeting note so the brain can update after.',
+    '\n### Structured summary',
+    '- Purpose: infer from title, calendar description, and linked people pages.',
+    '- Decisions: capture during or after the meeting.',
+    '- Follow-ups: capture owners and dates.',
+    event.description ? `\n### Calendar notes\n${event.description}` : '',
+    '\n### Entity propagation plan',
+    names.length
+      ? names.map(name => `- Update **${name}** person page with what changed, open threads, and relationship context.`).join('\n')
+      : '- Identify people and companies mentioned, then update their brain pages.',
+    '\n### Transcript / raw source sidecar',
+    '- Attach transcript or meeting notes here after the call.',
+    '\n### Prep angles',
+    '- Pull current person/company/project pages.',
+    '- Identify overlap, divergence, and one useful conversation hook.',
+    '- Walk in with a specific desired outcome.',
   ].filter(Boolean).join('\n')
 }
 
@@ -502,7 +545,7 @@ const GBrainView: React.FC<GBrainViewProps> = ({ feed, onOpenMeeting, onOpenWork
   const prepMeeting = useCallback((event: CalendarEvents) => {
     const attendees = parseAttendees(event.attendees_json).map(a => a.name).join(', ')
     run(
-      `Prepare me for this meeting: ${event.title}${attendees ? `. Attendees: ${attendees}.` : ''} Time: ${formatEventWindow(event)}.`,
+      `Prepare me for this meeting using the GBrain meeting schema: structured summary, relevant person/company context, conversation hooks, follow-ups to capture, and entity propagation targets. Meeting: ${event.title}${attendees ? `. Attendees: ${attendees}.` : ''} Time: ${formatEventWindow(event)}.`,
       `Prepping: ${event.title}`,
       meetingFallback(event),
     )
@@ -511,7 +554,7 @@ const GBrainView: React.FC<GBrainViewProps> = ({ feed, onOpenMeeting, onOpenWork
 
   const enrichPerson = useCallback((ws: Workspace) => {
     run(
-      `Build a concise relationship brief for ${ws.name}. Use local memory first, cite useful context, and suggest the next best action.`,
+      `Build or update the GBrain person page for ${ws.name}. Use this schema: compiled truth, current state, open threads, relationship score, append-only timeline, raw source sidecars, and next action. Use local memory first and cite useful context.`,
       `Enriching: ${ws.name}`,
       personFallback(ws),
     )
@@ -520,7 +563,7 @@ const GBrainView: React.FC<GBrainViewProps> = ({ feed, onOpenMeeting, onOpenWork
 
   const researchProject = useCallback((ws: Workspace) => {
     run(
-      `Build a project brief for ${ws.name}${ws.description ? `: ${ws.description}` : ''}. Include current status, open loops, risks, and next actions.`,
+      `Build or update the GBrain project page for ${ws.name}${ws.description ? `: ${ws.description}` : ''}. Use compiled truth, current state, open threads, append-only timeline, raw sources, risks, and next actions.`,
       `Researching: ${ws.name}`,
       projectFallback(ws),
     )
