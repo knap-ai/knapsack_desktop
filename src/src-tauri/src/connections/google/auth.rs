@@ -673,8 +673,9 @@ pub async fn refresh_connection_token(email: String, user_connection: UserConnec
     Ok(access_token) => Ok(access_token),
     Err(err) => {
       // Check if this is an invalid refresh token error
-      let err_msg = err.to_string();
-      if err_msg.contains("Invalid refresh token") {
+      let is_invalid_refresh_token =
+        matches!(&err, Error::KSError(msg) if msg.contains("Invalid refresh token"));
+      if is_invalid_refresh_token {
         // Delete the invalid connection so the user can re-authenticate
         let _ = user_connection.clone().delete();
         log::info!(

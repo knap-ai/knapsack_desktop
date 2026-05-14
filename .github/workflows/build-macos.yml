@@ -64,7 +64,7 @@ jobs:
         run: node scripts/verify-clawdbot-bundle.cjs
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli@1.6.3 --locked
+        run: rustup run stable cargo install tauri-cli --version 1.6.3 --locked
 
       - name: Build Tauri app (universal)
         working-directory: src
