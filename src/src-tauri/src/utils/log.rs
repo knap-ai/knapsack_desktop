@@ -8,6 +8,7 @@ use log4rs::{
 use log::LevelFilter;
 use sentry;
 
+use crate::crash_reporter::CrashLogAppender;
 use crate::error::Error;
 use serde_json::Value;
 use std::fs;
@@ -137,11 +138,13 @@ pub fn setup_logger(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Erro
       .filter(Box::new(ThresholdFilter::new(LevelFilter::Error)))
       .build("error_logs", Box::new(error_logs)),
     )
+    .appender(Appender::builder().build("crash_ring", Box::new(CrashLogAppender)))
     .build(
       Root::builder()
       .appender("stdout")
       .appender("all_logs")
       .appender("error_logs")
+      .appender("crash_ring")
       .build(LevelFilter::Info),
     )?;
 
