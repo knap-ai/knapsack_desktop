@@ -236,12 +236,17 @@ fn setup_handler(
 
   // Start the heartbeat background loop
   std::thread::spawn(move || {
-    tokio::runtime::Runtime::new()
-      .unwrap()
-      .block_on(heartbeat::engine::start_heartbeat_loop(
-        heartbeat_app_handle,
-        heartbeat_is_chatting,
-      ));
+    match tokio::runtime::Runtime::new() {
+      Ok(runtime) => {
+        runtime.block_on(heartbeat::engine::start_heartbeat_loop(
+          heartbeat_app_handle,
+          heartbeat_is_chatting,
+        ));
+      }
+      Err(e) => {
+        eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
+      }
+    }
   });
 
   // Start the library curator background loop. Auto-populates the user's
