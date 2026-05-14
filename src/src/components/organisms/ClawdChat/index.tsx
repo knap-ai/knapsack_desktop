@@ -335,6 +335,7 @@ type ServiceHealth = {
   gateway_ok: boolean
   browser_ok: boolean
   message: string
+  diagnostic_type?: string
 }
 
 type Tab = {
@@ -4850,9 +4851,13 @@ ${actualText}`
         {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= 3 && !channelStatus.gatewayStarting && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
-              <p className="ClawdGatewayBannerTitle">Gateway connectivity issue</p>
+              <p className="ClawdGatewayBannerTitle">
+                {health.diagnostic_type === 'version_mismatch' ? 'OpenClaw version mismatch' : 'Gateway connectivity issue'}
+              </p>
               <p className="ClawdGatewayBannerDesc">
-                The gateway isn't responding. This can happen after a crash, permission change, or system sleep. Try one of these:
+                {health.diagnostic_type === 'version_mismatch'
+                  ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
+                  : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'}
               </p>
               <div className="ClawdPromptActions">
                 <button
