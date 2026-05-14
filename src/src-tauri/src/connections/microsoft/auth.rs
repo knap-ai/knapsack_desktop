@@ -291,22 +291,49 @@ async fn refresh_access_token(
         access_token: token_response.access_token,
         refresh_token: Some(refresh_token),
       };
-  
+
       Ok(refresh)
     } else {
+      let status = response.status();
+      let error_text = response.text().await.unwrap_or_default();
+      log::error!("Microsoft token refresh failed ({}): {}", status, error_text);
+
+      // Check for invalid/expired refresh token errors
+      if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::BAD_REQUEST {
+        if error_text.contains("invalid_grant") || error_text.contains("AADSTS") {
+          return Err(Error::KSError("Invalid refresh token".to_string()));
+        }
+      }
+
       Err(Error::KSError(format!(
         "Failed to refresh token: {}",
-        response.status()
+        status
       )))
     }
 }
 
 pub async fn refresh_user_connection(user_connection: UserConnection, email: String) -> Result<UserConnection, Error>{
   let refresh_response: RefreshResponse = match refresh_access_token(
-    user_connection.refresh_token.clone().unwrap(), email
+    user_connection.refresh_token.clone().unwrap(), email.clone()
   ).await {
     Ok(response) => response,
     Err(err) => {
+      // Check if this is an invalid refresh token error
+      let err_msg = err.to_string();
+      if err_msg.contains("Invalid refresh token") {
+        // Delete the invalid connection so the user can re-authenticate
+        let _ = user_connection.clone().delete();
+        log::info!(
+          "Deleted invalid Microsoft connection for user {} (connection_id: {}). User will need to reconnect.",
+          email,
+          user_connection.connection_id
+        );
+        return Err(knap_log_error(
+          format!("Invalid refresh token for user {}. Please reconnect your Microsoft account in Settings.", email),
+          Some(err),
+          None
+        ));
+      }
       return Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
     }
   };

@@ -150,7 +150,13 @@ async fn refresh_token_locally(refresh_token: String, client_secret: &str) -> Re
   } else {
     let error_text = response.text().await.unwrap_or_default();
     log::error!("Google token refresh failed: {}", error_text);
-    Err(Error::KSError(format!("Token refresh failed: {}", error_text)))
+
+    // Check if this is an invalid/expired refresh token error
+    if error_text.contains("invalid_grant") || error_text.contains("Token has been expired or revoked") {
+      Err(Error::KSError("Invalid refresh token".to_string()))
+    } else {
+      Err(Error::KSError(format!("Token refresh failed: {}", error_text)))
+    }
   }
 }
 
@@ -660,13 +666,30 @@ pub async fn refresh_connection_token(email: String, user_connection: UserConnec
   {
     user_connection.calendar_account_email.clone()
   } else {
-    email
+    email.clone()
   };
 
-  match google_refresh_token(effective_email, user_connection.clone().token).await {
+  match google_refresh_token(effective_email.clone(), user_connection.clone().token).await {
     Ok(access_token) => Ok(access_token),
     Err(err) => {
-      Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
+      // Check if this is an invalid refresh token error
+      let err_msg = err.to_string();
+      if err_msg.contains("Invalid refresh token") {
+        // Delete the invalid connection so the user can re-authenticate
+        let _ = user_connection.clone().delete();
+        log::info!(
+          "Deleted invalid Google connection for user {} (connection_id: {}). User will need to reconnect.",
+          email,
+          user_connection.connection_id
+        );
+        Err(knap_log_error(
+          format!("Invalid refresh token for user {}. Please reconnect your Google account in Settings.", effective_email),
+          Some(err),
+          None
+        ))
+      } else {
+        Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
+      }
     }
   }
 }
