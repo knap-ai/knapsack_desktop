@@ -3684,6 +3684,7 @@ pub async fn set_api_key(
     let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
     if let Ok(cfg_str) = fs::read_to_string(&config_path) {
       if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model_cfg = crate::clawd::gateway_client::build_model_config();
         let model = crate::clawd::gateway_client::resolve_default_model();
         let agents = cfg_val
           .as_object_mut()
@@ -3697,7 +3698,7 @@ pub async fn set_api_key(
           .entry("defaults")
           .or_insert_with(|| serde_json::json!({}));
         defaults.as_object_mut().map(|d| {
-          d.insert("model".to_string(), serde_json::json!({"primary": model}));
+          d.insert("model".to_string(), model_cfg);
         });
         if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
           let _ = fs::write(&config_path, json);
@@ -3908,6 +3909,7 @@ pub async fn set_api_key(
   if let Ok(cfg_str) = fs::read_to_string(&config_path) {
     if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
       let model = crate::clawd::gateway_client::resolve_default_model();
+      let model_cfg = crate::clawd::gateway_client::build_model_config();
       let agents = cfg_val
         .as_object_mut()
         .unwrap()
@@ -3920,7 +3922,7 @@ pub async fn set_api_key(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        d.insert("model".to_string(), model_cfg);
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -4198,6 +4200,7 @@ pub async fn ollama_configure(
   if let Ok(cfg_str) = fs::read_to_string(&config_path) {
     if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
       let model = crate::clawd::gateway_client::resolve_default_model();
+      let model_cfg = crate::clawd::gateway_client::build_model_config();
       let agents = cfg_val
         .as_object_mut()
         .unwrap()
@@ -4210,7 +4213,7 @@ pub async fn ollama_configure(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        d.insert("model".to_string(), model_cfg);
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -4221,6 +4224,7 @@ pub async fn ollama_configure(
   }
 
   // Push model change to the running gateway immediately
+  let ollama_model_cfg = crate::clawd::gateway_client::build_model_config();
   let ollama_model = crate::clawd::gateway_client::resolve_default_model();
   tokio::spawn(async move {
     if !crate::clawd::gateway_client::is_gateway_port_open().await {
@@ -4233,7 +4237,7 @@ pub async fn ollama_configure(
         .unwrap_or("");
       if !base_hash.is_empty() {
         let patch = serde_json::json!({
-          "agents": {"defaults": {"model": {"primary": ollama_model}}}
+          "agents": {"defaults": {"model": ollama_model_cfg}}
         });
         match crate::clawd::gateway_client::config_patch(
           &patch.to_string(), base_hash, None
@@ -4736,7 +4740,7 @@ async fn prepare_gateway_config(
     let agents_defaults = if any_provider_key_available() {
       serde_json::json!({
         "defaults": {
-          "model": {"primary": crate::clawd::gateway_client::resolve_default_model()}
+          "model": crate::clawd::gateway_client::build_model_config()
         }
       })
     } else {
@@ -4977,7 +4981,7 @@ async fn prepare_gateway_config(
             }
             cfg_val.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap().insert(
               "model".to_string(),
-              serde_json::json!({"primary": new_model.clone()}),
+              crate::clawd::gateway_client::build_model_config(),
             );
             eprintln!(
               "[clawd/service] Patched agents.defaults.model.primary: {:?} → '{}' (provider key mismatch)",
@@ -7491,6 +7495,33 @@ async fn do_gemini_connect(app_handle: &tauri::AppHandle, code: &str) -> Result<
     .map_err(|e| format!("Failed to save tokens: {}", e))?;
 
   std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "google-gemini-cli");
+
+  // Sync openclaw.json model to the Gemini CLI provider so the gateway starts
+  // with the correct model (and fallbacks) instead of a stale one from before.
+  {
+    let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+    if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+      if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model_cfg = crate::clawd::gateway_client::build_model_config();
+        let model_str = crate::clawd::gateway_client::resolve_default_model();
+        if cfg_val.get("agents").is_none() {
+          cfg_val.as_object_mut().unwrap().insert("agents".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/agents/defaults").is_none() {
+          cfg_val.pointer_mut("/agents").unwrap().as_object_mut().unwrap()
+            .insert("defaults".to_string(), serde_json::json!({}));
+        }
+        cfg_val.pointer_mut("/agents/defaults").unwrap().as_object_mut().unwrap()
+          .insert("model".to_string(), model_cfg);
+        if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+          let _ = fs::write(&config_path, json);
+          harden_file_permissions(&config_path);
+          eprintln!("[clawd/service] Gemini CLI OAuth: updated agents.defaults.model to '{}'", model_str);
+        }
+      }
+    }
+  }
+
   crate::clawd::gateway_client::invalidate();
 
   #[cfg(target_os = "windows")]
