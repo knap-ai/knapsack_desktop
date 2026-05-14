@@ -129,7 +129,9 @@ const distDir = path.join(CLAWDBOT_DIR, 'dist');
 const relativeImportRegexes = [
   /(?:^|[;\n]\s*)import\s+(?:[^"';]+?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g,
   /(?:^|[;\n]\s*)export\s+[^"';]+?\s+from\s+["'](\.{1,2}\/[^"']+)["']/g,
-  /(?:^|[=({[,;:\n]\s*)import\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g,
+  // Matches dynamic import() — both `await import(...)` (space before "import")
+  // and call-expression forms like `foo(import(...))`, assignments, etc.
+  /(?:^|[=({[,;:\n\s]\s*)import\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g,
 ];
 
 for (const jsFile of walkFiles(distDir)) {
