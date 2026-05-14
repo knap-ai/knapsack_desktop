@@ -12,6 +12,7 @@
   {"name":"gog","emoji":"📊","description":"Google Workspace — Gmail, Calendar, Drive, Sheets, Docs","source":"OpenClaw","eligible":false},
   {"name":"notion","emoji":"📝","description":"Read and edit Notion pages and databases","source":"OpenClaw","eligible":false},
   {"name":"slack","emoji":"💬","description":"Team communication via Slack","source":"OpenClaw","eligible":false},
+  {"name":"peekaboo","emoji":"👁️","description":"macOS UI automation via PeekabooBridge — screenshot, click, and inspect any app","source":"OpenClaw","eligible":false,"macOnly":true},
   {"name":"apple-notes","emoji":"🍎","description":"Create and manage macOS Notes","source":"OpenClaw","eligible":false},
   {"name":"apple-reminders","emoji":"⏰","description":"Manage macOS Reminders","source":"OpenClaw","eligible":false},
   {"name":"things-mac","emoji":"✅","description":"Things 3 task management for macOS","source":"OpenClaw","eligible":false},

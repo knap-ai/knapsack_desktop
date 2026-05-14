@@ -1722,7 +1722,11 @@ async fn main() {
       pty::kn_pty_write,
       pty::kn_pty_resize,
       pty::kn_pty_kill,
-      pty::kn_pty_read_output
+      pty::kn_pty_read_output,
+      clawd::gbrain::kn_brain_list,
+      clawd::gbrain::kn_brain_read_page,
+      clawd::gbrain::kn_brain_write_page,
+      clawd::gbrain::kn_brain_default_root
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),

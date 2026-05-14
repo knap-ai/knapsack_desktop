@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Knapsack",
-    "version": "1.8.1"
+    "version": "1.9.4"
   },
   "tauri": {
     "allowlist": {
@@ -204,8 +204,8 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM3RTg2NTAzQTBCQjg0NTMKUldSVGhMdWdBMlhvTjlPTXN1RkkyY1Vhdnl2dHkrSVFxL3Y5Um4xb3puL0FMdkdicHZ4UUFINUEK"
     },
     "systemTray": {
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": false
+      "iconPath": "icons/tray-icon.png",
+      "iconAsTemplate": true
     },
     "macOSPrivateApi": true,
     "windows": []

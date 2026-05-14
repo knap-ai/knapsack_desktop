@@ -4,6 +4,7 @@ import { _ as resolveStateDir } from "./paths-B2cMK-wd.js";
 import { t as createNpmProjectInstallEnv } from "./npm-install-env-C2UCLEG0.js";
 import { t as sanitizeTerminalText } from "./safe-text-BsGBhnDf.js";
 import { o as normalizePluginsConfig } from "./config-state-Bw_lAn0M.js";
+import { i as formatErrorMessage } from "./errors-CDFVCV9D.js";
 import { Module, createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -719,6 +720,18 @@ function createBundledRuntimeDepsInstallEnv(env, options = {}) {
 		npm_config_legacy_peer_deps: "true"
 	};
 }
+
+function shouldRetryBundledRuntimeDepsInstallWithoutCache(error) {
+	const message = formatErrorMessage(error).toLowerCase();
+	return message.includes("npm error code enoent") && message.includes(".openclaw-npm-cache") && message.includes("_cacache");
+}
+function clearBundledRuntimeDepsInstallCacheDir(cacheDir) {
+	try {
+		fs.rmSync(cacheDir, { recursive: true, force: true });
+	} catch {
+	}
+}
+
 function createBundledRuntimeDepsInstallArgs(missingSpecs) {
 	missingSpecs.forEach((spec) => {
 		parseInstallableRuntimeDepSpec(spec);
@@ -1087,19 +1100,29 @@ function installBundledRuntimeDeps(params) {
 		});
 		if (diskWarning) params.warn?.(diskWarning);
 		ensureNpmInstallExecutionManifest(installExecutionRoot);
-		const installEnv = createBundledRuntimeDepsInstallEnv(params.env, { cacheDir: path.join(installExecutionRoot, ".openclaw-npm-cache") });
+		const cacheDir = path.join(installExecutionRoot, ".openclaw-npm-cache");
+		const installEnv = createBundledRuntimeDepsInstallEnv(params.env, { cacheDir });
 		const npmRunner = resolveBundledRuntimeDepsNpmRunner({
 			env: installEnv,
 			npmArgs: createBundledRuntimeDepsInstallArgs(params.missingSpecs)
 		});
-		const result = spawnSync(npmRunner.command, npmRunner.args, {
+		const runInstall = () => spawnSync(npmRunner.command, npmRunner.args, {
 			cwd: installExecutionRoot,
 			encoding: "utf8",
 			env: npmRunner.env ?? installEnv,
 			stdio: "pipe",
 			windowsHide: true
 		});
-		if (result.status !== 0 || result.error) throw new Error(formatBundledRuntimeDepsInstallError(result));
+		let result = runInstall();
+		if (result.status !== 0 || result.error) {
+			const installError = new Error(formatBundledRuntimeDepsInstallError(result));
+			if (shouldRetryBundledRuntimeDepsInstallWithoutCache(installError)) {
+				params.warn?.("bundled runtime deps npm cache corruption detected; clearing install cache and retrying once");
+				clearBundledRuntimeDepsInstallCacheDir(cacheDir);
+				result = runInstall();
+			}
+			if (result.status !== 0 || result.error) throw new Error(formatBundledRuntimeDepsInstallError(result));
+		}
 		assertBundledRuntimeDepsInstalled(installExecutionRoot, params.missingSpecs);
 		if (isolatedExecutionRoot) {
 			const stagedNodeModulesDir = path.join(installExecutionRoot, "node_modules");
@@ -1132,19 +1155,33 @@ async function installBundledRuntimeDepsAsync(params) {
 		});
 		if (diskWarning) params.warn?.(diskWarning);
 		ensureNpmInstallExecutionManifest(installExecutionRoot);
-		const installEnv = createBundledRuntimeDepsInstallEnv(params.env, { cacheDir: path.join(installExecutionRoot, ".openclaw-npm-cache") });
+		const cacheDir = path.join(installExecutionRoot, ".openclaw-npm-cache");
+		const installEnv = createBundledRuntimeDepsInstallEnv(params.env, { cacheDir });
 		const npmRunner = resolveBundledRuntimeDepsNpmRunner({
 			env: installEnv,
 			npmArgs: createBundledRuntimeDepsInstallArgs(params.missingSpecs)
 		});
 		params.onProgress?.(`Starting npm install for bundled plugin runtime deps: ${params.missingSpecs.join(", ")}`);
-		await spawnBundledRuntimeDepsInstall({
-			command: npmRunner.command,
-			args: npmRunner.args,
-			cwd: installExecutionRoot,
-			env: npmRunner.env ?? installEnv,
-			onProgress: params.onProgress
-		});
+		try {
+			await spawnBundledRuntimeDepsInstall({
+				command: npmRunner.command,
+				args: npmRunner.args,
+				cwd: installExecutionRoot,
+				env: npmRunner.env ?? installEnv,
+				onProgress: params.onProgress
+			});
+		} catch (error) {
+			if (!shouldRetryBundledRuntimeDepsInstallWithoutCache(error)) throw error;
+			params.warn?.("bundled runtime deps npm cache corruption detected; clearing install cache and retrying once");
+			clearBundledRuntimeDepsInstallCacheDir(cacheDir);
+			await spawnBundledRuntimeDepsInstall({
+				command: npmRunner.command,
+				args: npmRunner.args,
+				cwd: installExecutionRoot,
+				env: npmRunner.env ?? installEnv,
+				onProgress: params.onProgress
+			});
+		}
 		assertBundledRuntimeDepsInstalled(installExecutionRoot, params.missingSpecs);
 		if (isolatedExecutionRoot) {
 			const stagedNodeModulesDir = path.join(installExecutionRoot, "node_modules");

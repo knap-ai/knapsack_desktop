@@ -49,9 +49,10 @@ import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
 import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
-import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
+import GBrain from 'src/components/organisms/GBrain'
+import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
 import { markdownToEmailHtml } from 'src/utils/emails'
 
@@ -92,7 +93,7 @@ function Home({
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
-  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'openai' | 'anthropic' | 'openrouter' | undefined>(undefined)
+  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'knapsack' | 'openai' | 'anthropic' | 'openrouter' | undefined>(undefined)
   const [openProviderPanelTrigger, setOpenProviderPanelTrigger] = useState(0)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
@@ -322,7 +323,7 @@ function Home({
     }
   }
 
-  const handleOpenProviderSignIn = useCallback((provider?: 'openai' | 'anthropic' | 'openrouter') => {
+  const handleOpenProviderSignIn = useCallback((provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter') => {
     // Close settings dialog and open the ClawdChat provider sidebar instead
     setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)
@@ -473,6 +474,7 @@ function Home({
         isOpen={isProviderSignInDialogOpened}
         handleClose={() => setIsProviderSignInDialogOpened(false)}
         initialProvider={providerSignInInitialProvider}
+        userEmail={userEmail}
       />
       <SignInDialog
         isOpen={isSignInDialogOpened}
@@ -655,10 +657,11 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  userEmail={userEmail}
+                  userName={userName}
                   onBack={() => {
                     // Back from note view returns to sidebar
                   }}
-                  onChatClick={() => setMeetingSubView('chat')}
                   onAttendeeClick={(email, name) => {
                     setChatInitialInput(`Tell me about ${name || email}`)
                     setMeetingSubView('chat')
@@ -738,8 +741,21 @@ function Home({
                       onBack={() => setSelectedWorkspace(null)}
                     />
                   ) : (
-                    <WorkspacesList
-                      onWorkspaceOpen={(ws) => setSelectedWorkspace(ws)}
+                    <GBrain
+                      feed={feed}
+                      onOpenWorkspace={(ws) => setSelectedWorkspace(ws)}
+                      onOpenFeedItem={async (item, key) => {
+                        try {
+                          if (item.id) {
+                            await feed.selectFeedItem(key, item.id)
+                          } else if (item.calendarEvent) {
+                            await feed.openCalendarEvent(item.calendarEvent)
+                          }
+                          setCurrentTab(TabChoices.Work)
+                        } catch (err) {
+                          console.error('Failed to open GBrain feed item:', err)
+                        }
+                      }}
                     />
                   )}
                 </div>
@@ -748,6 +764,12 @@ function Home({
               {currentTab === TabChoices.MCPMarketplace && (
                 <div className="overflow-auto w-full h-full p-6">
                   <MCPMarketplace />
+                </div>
+              )}
+
+              {currentTab === TabChoices.GBrain && (
+                <div className="overflow-hidden w-full h-full">
+                  <GBrainView />
                 </div>
               )}
 

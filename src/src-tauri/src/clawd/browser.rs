@@ -97,6 +97,8 @@ struct StoredTokens {
   ollama_base_url: Option<String>,
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
+  #[serde(default)]
+  preferred_coding_agent: Option<String>,
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -161,6 +163,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_model: None,
     ollama_base_url: None,
     extra_provider_keys: None,
+    preferred_coding_agent: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -1223,40 +1226,6 @@ fn parse_sse_payload_text(raw: &str) -> String {
   parts.join("")
 }
 
-/// Best-effort: open the first URL found in the agent's reply text using
-/// the system browser. This ensures users see a browser open even when the
-/// gateway's built-in browser control (Chrome extension) is unavailable.
-fn open_first_url_in_reply(app_handle: &tauri::AppHandle, reply: &str) {
-  // First try to extract a URL from markdown link syntax: [text](url)
-  // This handles the common case where the agent wraps URLs in markdown.
-  if let Some(start) = reply.find("](http") {
-    let url_start = start + 2; // skip "]("
-    if let Some(end) = reply[url_start..].find(')') {
-      let url = &reply[url_start..url_start + end];
-      if url.len() > 10 && !url.contains(char::is_whitespace) {
-        eprintln!("[clawd/agent-chat] Opening markdown URL from reply in Chrome: {}", url);
-        let _ = fallback_open_url(app_handle, url);
-        return;
-      }
-    }
-  }
-
-  // Fallback: scan whitespace-separated words for bare URLs
-  for word in reply.split_whitespace() {
-    // Strip common markdown/punctuation wrappers
-    let cleaned = word
-      .trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']' || c == '<' || c == '>' || c == '"' || c == '\'' || c == ',')
-      .trim_end_matches(|c: char| c == '.' || c == '!' || c == '?');
-    if (cleaned.starts_with("http://") || cleaned.starts_with("https://"))
-      && cleaned.len() > 10
-      && !cleaned.contains(char::is_whitespace)
-    {
-      eprintln!("[clawd/agent-chat] Opening URL from reply in Chrome: {}", cleaned);
-      let _ = fallback_open_url(app_handle, cleaned);
-      return; // Only open the first URL
-    }
-  }
-}
 
 /// Send a chat message through the gateway's agent pipeline.
 /// Read recent terminal output from the built-in terminal sessions.
@@ -1400,7 +1369,6 @@ pub async fn agent_chat(
             None
           } else {
             eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-            open_first_url_in_reply(&app_handle, &reply);
             Some(reply)
           }
         } else {
@@ -1453,7 +1421,6 @@ pub async fn agent_chat(
               let model = data.get("model").and_then(|v| v.as_str());
               if !reply.is_empty() {
                 eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
-                open_first_url_in_reply(&app_handle, reply);
                 HttpResponse::Ok().json(serde_json::json!({
                   "ok": true,
                   "reply": reply,
@@ -2653,27 +2620,56 @@ pub async fn chat(
       let session_id = "claude-code".to_string();
       let process_id = uuid::Uuid::new_v4().to_string();
 
+      // Select which coding CLI to use: check user preference first, then fall back to
+      // whichever API key is available. Anthropic → claude, OpenAI → codex, Google → gemini.
+      let coding_agent = {
+        let pref = std::env::var("KNAPSACK_CODING_AGENT").unwrap_or_default();
+        let pref = pref.trim().to_lowercase();
+        if !pref.is_empty() {
+          pref
+        } else {
+          let has = |v: &str| std::env::var(v).map(|k| !k.trim().is_empty()).unwrap_or(false);
+          if has("ANTHROPIC_API_KEY") { "claude".to_string() }
+          else if has("OPENAI_API_KEY") { "codex".to_string() }
+          else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") { "gemini".to_string() }
+          else { "claude".to_string() }
+        }
+      };
+
       // Emit a "claude-code-started" event so the frontend auto-opens the Activity Panel
       let _ = app_handle.emit_all("claude-code-started", json!({
         "processId": process_id,
         "sessionId": session_id,
         "prompt": prompt,
         "cwd": wd,
+        "agent": coding_agent,
       }));
 
-      // Build the claude command: use --yes for non-interactive mode that can still make changes.
-      // --print only outputs text without making file changes; --yes auto-accepts tool use
-      // so Claude Code can actually read/write files and run commands.
+      // Build the command string for the chosen CLI.
+      // claude: --yes auto-accepts tool use so it can read/write files without prompting.
+      // codex:  --approval-mode auto-edit allows file edits non-interactively.
+      // gemini: -p (--prompt) triggers headless mode, returning stdout output without TTY UI.
+      //         Note: Antigravity (`agy`) is an IDE, not a headless CLI — use `gemini` instead.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
-      #[cfg(target_os = "windows")]
-      let claude_cmd = {
-        let escaped = prompt.replace('"', "\\\"");
-        format!("claude --yes \"{}\"", escaped)
-      };
-      #[cfg(not(target_os = "windows"))]
-      let claude_cmd = {
-        let escaped_prompt = prompt.replace('\'', "'\\''");
-        format!("claude --yes '{}'", escaped_prompt)
+      let claude_cmd = match coding_agent.as_str() {
+        "codex" => {
+          #[cfg(target_os = "windows")]
+          { format!("codex --approval-mode auto-edit \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("codex --approval-mode auto-edit '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        "gemini" => {
+          #[cfg(target_os = "windows")]
+          { format!("gemini -p \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("gemini -p '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        _ => {
+          #[cfg(target_os = "windows")]
+          { format!("claude --yes \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("claude --yes '{}'", prompt.replace('\'', "'\\''")) }
+        }
       };
 
       let wd_clone = wd.clone();
@@ -3465,7 +3461,7 @@ No email account is directly connected via the send_email tool. However, you CAN
     };
     let home_dir = home_dir_string();
     format!(
-      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n",
+      "\n\n## PLATFORM\nOperating System: **{}**\nShell: {}\nUser home directory: `{}`\nIMPORTANT: Always use commands compatible with this platform when using run_command.\n\n## KNAPSACK SERVICE\nYou are running **inside** the Knapsack desktop app. The Knapsack gateway (also called OpenClaw or Clawdbot) is a bundled Node.js process that Knapsack manages automatically — it is NOT a system service, Windows service, or standalone app.\n\n**CRITICAL — never try to start or restart the gateway via terminal commands.** The user cannot and should not run `node`, `npm`, or any gateway script manually. If the gateway isn't running, the ONLY correct action is: **Settings → Service → click Enable**. Do not search for node.exe, openclaw executables, or package.json files to start the gateway.\n\nThe gateway state directory (`~/.openclaw` or the app data folder) stores config and auth data — do NOT modify files there unless the user explicitly asks for config changes.",
       os_name, shell_info, home_dir
     )
   };

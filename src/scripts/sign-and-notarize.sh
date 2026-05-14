@@ -253,6 +253,37 @@ echo "[sign] Signature verification passed."
 # 10. Notarize (if requested)
 # ---------------------------------------------------------------------------
 if [ "$DO_NOTARIZE" = true ]; then
+  poll_notarization() {
+    local submission_id="$1"
+    local label="$2"
+    local status=""
+    local poll_delay="${NOTARY_POLL_DELAY_SECONDS:-30}"
+    local poll_max="${NOTARY_POLL_MAX_ATTEMPTS:-120}"
+
+    echo "[notarize] Polling ${label} notarization status (up to ${poll_max} attempts)..." >&2
+    for attempt in $(seq 1 "$poll_max"); do
+      local info_output
+      info_output=$(xcrun notarytool info "$submission_id" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_PASSWORD" 2>&1) || true
+
+      status=$(echo "$info_output" | sed -n 's/^[[:space:]]*status:[[:space:]]*//p' | tail -1)
+      echo "[notarize] ${label} attempt ${attempt}/${poll_max}: status=${status:-<network error>}" >&2
+
+      case "$status" in
+        Accepted|Invalid|Rejected)
+          printf '%s\n' "$status"
+          return 0
+          ;;
+      esac
+
+      sleep "$poll_delay"
+    done
+
+    printf '%s\n' "$status"
+  }
+
   # Validate required env vars
   for var in APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
     if [ -z "${!var:-}" ]; then
@@ -281,20 +312,7 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
   echo "[notarize] Submission ID: $SUBMISSION_ID"
 
-  # Wait for result; retry up to 5 times on transient network failures
-  NOTARY_STATUS=""; _WAIT_DELAY=30
-  for _attempt in 1 2 3 4 5; do
-    echo "[notarize] Polling .app notarization status (attempt $_attempt/5)..."
-    _WAIT_OUTPUT=$(xcrun notarytool wait "$SUBMISSION_ID" \
-      --apple-id "$APPLE_ID" \
-      --team-id "$APPLE_TEAM_ID" \
-      --password "$APPLE_APP_PASSWORD" 2>&1) || true
-    echo "$_WAIT_OUTPUT"
-    NOTARY_STATUS=$(echo "$_WAIT_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-    [ -n "$NOTARY_STATUS" ] && break
-    echo "[notarize] No status received (network error?); retrying in ${_WAIT_DELAY}s..."
-    sleep "$_WAIT_DELAY"; _WAIT_DELAY=$((_WAIT_DELAY * 2))
-  done
+  NOTARY_STATUS=$(poll_notarization "$SUBMISSION_ID" ".app" | tail -1)
 
   if [ "$NOTARY_STATUS" != "Accepted" ]; then
     echo "[notarize] ERROR: Notarization failed with status: $NOTARY_STATUS" >&2
@@ -333,6 +351,14 @@ if [ "$DO_NOTARIZE" = true ]; then
       chmod -R a+rX "$DMG_TEMP"
 
       rm -f "$DMG_PATH"
+
+      # Detach any lingering mounts with the same volume name — a previous
+      # build step or failed run can leave /Volumes/<AppName> attached, which
+      # causes hdiutil create to fail with "Resource busy".
+      for vol in /Volumes/"$APP_NAME"*; do
+        [ -d "$vol" ] && hdiutil detach "$vol" -force 2>/dev/null || true
+      done
+
       hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" \
         -ov -format UDZO "$DMG_PATH"
       rm -rf "$DMG_TEMP"
@@ -355,19 +381,7 @@ if [ "$DO_NOTARIZE" = true ]; then
       fi
       echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
 
-      DMG_STATUS=""; _DMG_DELAY=30
-      for _attempt in 1 2 3 4 5; do
-        echo "[notarize] Polling DMG notarization status (attempt $_attempt/5)..."
-        _DMG_WAIT=$(xcrun notarytool wait "$DMG_SUBMISSION_ID" \
-          --apple-id "$APPLE_ID" \
-          --team-id "$APPLE_TEAM_ID" \
-          --password "$APPLE_APP_PASSWORD" 2>&1) || true
-        echo "$_DMG_WAIT"
-        DMG_STATUS=$(echo "$_DMG_WAIT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-        [ -n "$DMG_STATUS" ] && break
-        echo "[notarize] No status received (network error?); retrying in ${_DMG_DELAY}s..."
-        sleep "$_DMG_DELAY"; _DMG_DELAY=$((_DMG_DELAY * 2))
-      done
+      DMG_STATUS=$(poll_notarization "$DMG_SUBMISSION_ID" "DMG" | tail -1)
 
       if [ "$DMG_STATUS" = "Accepted" ]; then
         echo "[notarize] Stapling DMG..."

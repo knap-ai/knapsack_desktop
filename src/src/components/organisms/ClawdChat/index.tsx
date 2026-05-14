@@ -370,6 +370,7 @@ type ApiKeyStatus = {
   ollama_model?: string
   ollama_base_url?: string
   extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
+  preferred_coding_agent?: string
 }
 
 type SkillInfo = {
@@ -398,8 +399,8 @@ type ProviderOption = {
 }
 
 const PROVIDERS: ProviderOption[] = [
-  { id: 'openai', name: 'OpenAI', description: 'GPT-5.4, GPT-5-mini, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.6, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
@@ -414,11 +415,12 @@ type AnthropicModelOption = {
 }
 
 const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for agents and coding', vision: true },
+  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision (May 2026)', vision: true },
+  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for agents and coding', vision: true },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence', vision: true },
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost', vision: true },
   { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent', vision: true },
-  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Previous flagship, excellent for long tasks', vision: true },
+  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Older flagship, excellent for long tasks', vision: true },
 ]
 
 type GeminiModelOption = {
@@ -463,11 +465,14 @@ type OpenRouterModelOption = {
 
 const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request', vision: true },
+  { id: 'qwen/qwen3-coder-480b-a35b-instruct:free', name: 'Qwen3 Coder 480B (Free)', description: 'Free, best open-source coding model, 262K context' },
+  { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
-  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
-  { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits', vision: true },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Paid, use your OpenRouter credits', vision: true },
+  { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, 1T params, rivals GPT-5.5 at 10x lower cost' },
+  { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
+  { id: 'anthropic/claude-opus-4-7', name: 'Claude Opus 4.7 (Paid)', description: 'Paid, Anthropic latest flagship via OpenRouter', vision: true },
+  { id: 'openai/gpt-5.5', name: 'GPT-5.5 (Paid)', description: 'Paid, OpenAI newest frontier via OpenRouter', vision: true },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -525,6 +530,7 @@ const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
 const ADVANCED_MODE_STORAGE = 'moltbot_advanced_mode'
 const DEVELOPER_MODE_STORAGE = 'moltbot_developer_mode'
 const ACTIVE_PROVIDER_STORAGE = 'moltbot_active_provider'
+const CODING_AGENT_STORAGE = 'knapsack_coding_agent_pref'
 const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 
 // The current app version — bump this when you want to re-show the key prompt
@@ -540,15 +546,27 @@ type OpenAIModelOption = {
 
 const OPENAI_MODELS: OpenAIModelOption[] = [
   {
+    id: 'gpt-5.5',
+    name: 'GPT-5.5',
+    description: 'Newest frontier model, best for complex professional work',
+    vision: true,
+  },
+  {
+    id: 'gpt-5.5-pro',
+    name: 'GPT-5.5 Pro',
+    description: 'Extended thinking for the hardest problems',
+    vision: true,
+  },
+  {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
-    description: 'Most intelligent model, best for complex tasks',
+    description: 'Highly capable, great balance of performance and cost',
     vision: true,
   },
   {
     id: 'gpt-5.4-pro',
     name: 'GPT-5.4 Pro',
-    description: 'Extended thinking for harder problems',
+    description: 'GPT-5.4 with extended thinking',
     vision: true,
   },
   {
@@ -917,6 +935,8 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"skill-creator",emoji:"🛠️",description:"Create custom skills",source:"OpenClaw",eligible:false},
   {name:"clawhub",emoji:"🏪",description:"Discover and install skills from ClawHub",source:"OpenClaw",eligible:false},
   {name:"Claude Code",emoji:"🤖",description:"Anthropic's autonomous AI coding agent — edits files, runs tests, and manages git",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://claude.ai/code"},
+  {name:"Codex",emoji:"🧪",description:"OpenAI's autonomous coding agent — edits files, runs tests, and manages git",source:"OpenAI",eligible:false,externalApi:true,homepage:"https://github.com/openai/codex"},
+  {name:"Gemini CLI",emoji:"♊",description:"Google's open-source terminal AI agent — headless coding with the Gemini API",source:"Google",eligible:false,externalApi:true,homepage:"https://github.com/google-gemini/gemini-cli"},
   {name:"Claude API",emoji:"✨",description:"Use Claude models directly in your own apps and scripts via the Anthropic API",source:"Anthropic",eligible:false,externalApi:true,homepage:"https://console.anthropic.com"},
   {name:"Persistent Memory",emoji:"🧠",description:"Remember decisions, context, and past work across sessions with semantic search",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/memory-search-for-claude"},
   {name:"Code Review",emoji:"🔎",description:"Severity-ranked AI code review with security, performance, and architecture findings",source:"MCP Market",eligible:false,homepage:"https://mcpmarket.com/tools/skills/advanced-code-review-agent"},
@@ -1507,9 +1527,14 @@ interface ClawdChatProps {
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
   initialInput?: string
+  /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
+  contextPrefix?: string
+  /** Render with a tighter header for embedded surfaces. */
+  compact?: boolean
+  title?: string
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat' }: ClawdChatProps = {}) {
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
     const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
@@ -1607,9 +1632,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
-  // Claude Code activity tracking — shows indicator when Claude Code is running
+  // Claude Code / Codex activity tracking — shows indicator when a coding agent is running
   const [claudeCodeActive, setClaudeCodeActive] = useState(false)
   const [claudeCodePrompt, setClaudeCodePrompt] = useState<string | null>(null)
+  const [codingAgentName, setCodingAgentName] = useState('Claude Code')
+
+  // Preferred coding agent: "claude" | "codex" | "gemini" | "" (auto-detect from API keys)
+  const [preferredCodingAgent, setPreferredCodingAgent] = useState<string>(() => {
+    return localStorage.getItem(CODING_AGENT_STORAGE) || ''
+  })
 
   // Tone selection
   const [selectedTone, setSelectedTone] = useState<string>(() => {
@@ -1905,6 +1936,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
           setSelectedOllamaModel(keyStatus.ollama_model)
           localStorage.setItem(OLLAMA_MODEL_STORAGE, keyStatus.ollama_model)
+        }
+        // Restore coding agent preference from backend
+        if (keyStatus.preferred_coding_agent) {
+          setPreferredCodingAgent(keyStatus.preferred_coding_agent)
+          localStorage.setItem(CODING_AGENT_STORAGE, keyStatus.preferred_coding_agent)
         }
         // Fetch extra provider statuses
         if (keyStatus.extra_providers) {
@@ -2664,12 +2700,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const cleanups: Array<() => void> = []
 
     ;(async () => {
-      const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string }>(
+      const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string; agent?: string }>(
         'claude-code-started',
         (event) => {
           if (cancelled) return
           setClaudeCodeActive(true)
           setClaudeCodePrompt(event.payload.prompt)
+          const a = event.payload.agent
+          setCodingAgentName(a === 'codex' ? 'Codex' : a === 'gemini' ? 'Gemini CLI' : 'Claude Code')
           // Auto-open Activity Panel if not already open
           if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
             onToggleActivityRef.current()
@@ -4037,6 +4075,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
 
+        if (contextPrefix?.trim()) {
+          actualText = `${contextPrefix.trim()}
+
+---
+User message:
+${actualText}`
+        }
+
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
         if (!isSmartPrompt) {
@@ -4459,12 +4505,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [msgs])
 
   return (
-    <div className="ClawdChatRoot">
+    <div className={`ClawdChatRoot ${compact ? 'ClawdChatRoot--compact' : ''}`}>
       <div className="ClawdChatHeader">
         <div className="ClawdChatTitleRow">
           <img src="/assets/images/knap-logo-medium.png" alt="Knapsack" className="ClawdChatLogo" />
           <div className="ClawdChatTitleGroup">
-            <h1 className="ClawdChatTitle">Knapsack Chat</h1>
+            <h1 className="ClawdChatTitle">{title}</h1>
             {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
@@ -4958,7 +5004,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             <div className="ClawdBubble ClawdBubble--claude-code">
               <div className="ClawdClaudeCodeIndicator">
                 <span className="ClawdClaudeCodeIndicator__pulse" />
-                <span className="ClawdClaudeCodeIndicator__label">Claude Code is working</span>
+                <span className="ClawdClaudeCodeIndicator__label">{codingAgentName} is working</span>
                 {claudeCodePrompt && (
                   <span className="ClawdClaudeCodeIndicator__prompt">{claudeCodePrompt.length > 80 ? claudeCodePrompt.slice(0, 80) + '...' : claudeCodePrompt}</span>
                 )}
@@ -6803,6 +6849,35 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                   </div>
                 )
               })}
+            </div>
+
+            {/* ── Coding Agent preference ── */}
+            <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 16, paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: 13 }}>Coding Agent</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, maxWidth: 280 }}>
+                    Which CLI to use for autonomous coding tasks. "Auto" picks based on which API key is saved.
+                  </div>
+                </div>
+                <select
+                  value={preferredCodingAgent}
+                  onChange={async e => {
+                    const val = e.target.value
+                    setPreferredCodingAgent(val)
+                    localStorage.setItem(CODING_AGENT_STORAGE, val)
+                    try {
+                      await apiPost('/api/clawd/service/set-api-key', { key: '', preferred_coding_agent: val || null })
+                    } catch { /* ignore — preference is still stored locally */ }
+                  }}
+                  style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer' }}
+                >
+                  <option value="">Auto-detect</option>
+                  <option value="claude">Claude Code (Anthropic)</option>
+                  <option value="codex">Codex (OpenAI)</option>
+                  <option value="gemini">Gemini CLI (Google)</option>
+                </select>
+              </div>
             </div>
 
             {/* ── Background AI toggle ── */}

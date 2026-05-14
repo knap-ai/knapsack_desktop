@@ -59,7 +59,7 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
-  onProviderSignInClick?: (provider?: 'openai' | 'anthropic' | 'openrouter') => void
+  onProviderSignInClick?: (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter') => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -257,6 +257,7 @@ export const SettingsDialog = ({
     has_openai_key?: boolean
     has_anthropic_key?: boolean
     has_openrouter_key?: boolean
+    has_gemini_cli_key?: boolean
     ollama_enabled?: boolean
     ollama_model?: string
     ollama_base_url?: string
@@ -301,6 +302,7 @@ export const SettingsDialog = ({
           has_openai_key: data.has_openai_key,
           has_anthropic_key: data.has_anthropic_key,
           has_openrouter_key: data.has_openrouter_key,
+          has_gemini_cli_key: data.has_gemini_cli_key,
           ollama_enabled: data.ollama_enabled,
           ollama_model: data.ollama_model,
           ollama_base_url: data.ollama_base_url,
@@ -619,23 +621,25 @@ export const SettingsDialog = ({
               { id: 'huggingface', envVar: 'HF_TOKEN', name: 'Hugging Face' },
             ].map(ep => {
               const status = providerStatus?.extra_providers?.find(p => p.env_var === ep.envVar)
+              const isGeminiViaCli = ep.id === 'gemini' && !!providerStatus?.has_gemini_cli_key
+              const isConnected = !!status?.has_key || isGeminiViaCli
               return (
                 <ProviderAccordion
                   key={ep.id}
                   title={ep.name}
-                  isConnected={!!status?.has_key}
+                  isConnected={isConnected}
                   expanded={expandedProvider === ep.id}
                   onToggle={() => toggleProvider(ep.id)}
                 >
                   <div className={styles.providerActions}>
                     <span className={styles.providerStatus}>
-                      {status?.has_key ? 'API key configured' : 'No API key set'}
+                      {isConnected ? (isGeminiViaCli && !status?.has_key ? 'Gemini CLI auth configured' : 'API key configured') : 'No API key set'}
                     </span>
                     <button
                       className={styles.providerActionLink}
                       onClick={() => { handleClose(); onProviderSignInClick?.() }}
                     >
-                      {status?.has_key ? 'Change' : 'Add key'}
+                      {isConnected ? 'Change' : 'Add key'}
                     </button>
                   </div>
                 </ProviderAccordion>

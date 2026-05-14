@@ -278,6 +278,10 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     }
   }
 
+  // Peekaboo watchdog: try to dismiss any blocking macOS dialog and capture
+  // a diagnostic screenshot — fire-and-forget, never blocks recovery.
+  crate::clawd::peekaboo_watchdog::on_gateway_down();
+
   GatewayEnsureResponse {
     success: false,
     running: false,

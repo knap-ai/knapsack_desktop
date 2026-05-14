@@ -20,6 +20,7 @@ export enum TabChoices {
   Activity = 'Activity',
   Library = 'Library',
   MCPMarketplace = 'MCPMarketplace',
+  GBrain = 'GBrain',
 }
 
 interface TabBarProps {
@@ -75,6 +76,12 @@ const TabBar: React.FC<TabBarProps> = ({ currentTab, setCurrentTab, fullRelease,
       svg: '/assets/images/tabBar/automateTab.svg',
       label: 'Skills',
       isActive: false,
+    },
+    {
+      id: TabChoices.GBrain,
+      svg: '/assets/images/tabBar/libraryTab.svg',
+      label: 'GBrain',
+      isActive: true,
     },
   ]
 

@@ -13,7 +13,7 @@ import styles from './styles.module.scss'
 
 const API_BASE = 'http://127.0.0.1:8897'
 
-type Provider = 'openai' | 'anthropic' | 'openrouter' | 'gemini'
+type Provider = 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'gemini'
 
 type ProviderConfig = {
   id: Provider
@@ -34,33 +34,49 @@ type ModelOption = {
 
 const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
+    id: 'knapsack',
+    name: 'Knapsack',
+    description: 'Powered by Knapsack — no API key needed',
+    keyPrefix: '',
+    helpUrl: 'https://www.knapsack.ai',
+    helpLabel: 'knapsack.ai',
+    models: [
+      { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
+      { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
+      { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
+    ],
+    defaultModel: 'anthropic/claude-haiku-4-5',
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
-    description: 'GPT-5.4, GPT-5-mini, o3',
+    description: 'GPT-5.5, GPT-5.4, o3',
     keyPrefix: 'sk-',
     helpUrl: 'https://platform.openai.com/api-keys',
     helpLabel: 'platform.openai.com/api-keys',
     models: [
-      { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Most intelligent, best for complex tasks' },
-      { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', description: 'Extended thinking for harder problems' },
+      { id: 'gpt-5.5', name: 'GPT-5.5', description: 'Newest frontier model, best for complex professional work' },
+      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', description: 'Extended thinking for the hardest problems' },
+      { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Highly capable, great balance of performance and cost' },
       { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
       { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable' },
     ],
-    defaultModel: 'gpt-5.4',
+    defaultModel: 'gpt-5.5',
   },
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Opus 4.6, Sonnet 4.6, Haiku 4.5',
+    description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5',
     keyPrefix: 'sk-ant-',
     helpUrl: 'https://console.anthropic.com/settings/keys',
     helpLabel: 'console.anthropic.com/settings/keys',
     models: [
-      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Most intelligent, best for complex tasks' },
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision' },
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for complex tasks' },
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Fast and capable, good balance' },
       { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
     ],
-    defaultModel: 'claude-sonnet-4-6',
+    defaultModel: 'claude-opus-4-7',
   },
   {
     id: 'openrouter',
@@ -71,25 +87,28 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     helpLabel: 'openrouter.ai/keys',
     models: [
       { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request' },
+      { id: 'qwen/qwen3-coder-480b-a35b-instruct:free', name: 'Qwen3 Coder 480B (Free)', description: 'Free, best open-source coding model' },
+      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
       { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
-      { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', description: 'Free, fast and capable' },
-      { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 (Free)', description: 'Free, good for coding and reasoning' },
-      { id: 'anthropic/claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Paid, use your OpenRouter credits' },
+      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, rivals GPT-5.5 at 10x lower cost' },
+      { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
     ],
-    defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
+    defaultModel: 'qwen/qwen3-coder-480b-a35b-instruct:free',
   },
   {
     id: 'gemini',
     name: 'Gemini',
-    description: 'Gemini 2.5 Pro, Flash — sign in with Google',
+    description: 'Gemini 3.1 Pro, 3 Flash — sign in with Google',
     keyPrefix: 'AIza',
     helpUrl: 'https://aistudio.google.com/apikey',
     helpLabel: 'aistudio.google.com/apikey',
     models: [
-      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, best for complex tasks' },
-      { id: 'gemini/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and affordable' },
+      { id: 'gemini/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
+      { id: 'gemini/gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
+      { id: 'gemini/gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
+      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
     ],
-    defaultModel: 'gemini/gemini-2.5-pro',
+    defaultModel: 'gemini/gemini-3.1-pro-preview',
   },
 ]
 
@@ -154,6 +173,9 @@ type ApiKeyStatusResponse = {
   gemini_key_hint?: string
   gemini_cli_email?: string
   extra_providers?: ExtraProviderStatusItem[]
+  has_knapsack?: boolean
+  knapsack_email?: string
+  knapsack_model?: string
 }
 
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
@@ -162,14 +184,16 @@ type ProviderSignInDialogProps = {
   isOpen: boolean
   handleClose: () => void
   initialProvider?: Provider
+  userEmail?: string
 }
 
 export const ProviderSignInDialog = ({
   isOpen,
   handleClose,
   initialProvider,
+  userEmail,
 }: ProviderSignInDialogProps) => {
-  const [selectedProvider, setSelectedProvider] = useState<Provider>(initialProvider ?? 'openai')
+  const [selectedProvider, setSelectedProvider] = useState<Provider>(initialProvider ?? 'knapsack')
   const [apiKey, setApiKey] = useState('')
   const [selectedModel, setSelectedModel] = useState('')
   const [saving, setSaving] = useState(false)
@@ -452,6 +476,10 @@ export const ProviderSignInDialog = ({
       } else if (data.active_provider === 'google-gemini-cli') {
         setSelectedProvider('gemini')
         setSelectedModel('gemini/gemini-2.5-pro')
+      } else if (data.active_provider === 'knapsack') {
+        setSelectedProvider('knapsack')
+        const config = PROVIDER_CONFIGS.find(p => p.id === 'knapsack')!
+        setSelectedModel(data.knapsack_model || config.defaultModel)
       } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter' || data.active_provider === 'gemini') {
         setSelectedProvider(data.active_provider as Provider)
         const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
@@ -478,6 +506,38 @@ export const ProviderSignInDialog = ({
     setGeminiOAuthPending(false)
     geminiOAuthPendingRef.current = false
   }, [selectedProvider])
+
+  const handleActivateKnapsack = useCallback(async () => {
+    const email = userEmail || keyStatus?.knapsack_email || ''
+    if (!email) {
+      setError('Sign in to Knapsack first to use this option.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    setSuccess('')
+    try {
+      const res = await fetch(`${API_BASE}/api/clawd/service/set-api-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'knapsack', key: email, model: selectedModel }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        KNAnalytics.trackEvent('knapsack_provider_activated', { model: selectedModel, app_version: KNAnalytics.APP_VERSION })
+        setSuccess('Knapsack AI activated!')
+        await fetchKeyStatus()
+        setTimeout(() => handleClose(), 1200)
+      } else {
+        setError(data.message || 'Failed to activate Knapsack.')
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to activate. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }, [userEmail, keyStatus, selectedModel, fetchKeyStatus, handleClose])
 
   const handleSave = useCallback(async () => {
     if (!apiKey.trim()) {
@@ -546,6 +606,7 @@ export const ProviderSignInDialog = ({
 
   const hasExistingKey = (provider: Provider): boolean => {
     if (!keyStatus) return false
+    if (provider === 'knapsack') return !!keyStatus.has_knapsack
     if (provider === 'openai') return !!keyStatus.has_openai_key
     if (provider === 'anthropic') return !!keyStatus.has_anthropic_key
     if (provider === 'openrouter') return !!keyStatus.has_openrouter_key
@@ -682,6 +743,13 @@ export const ProviderSignInDialog = ({
               disabled={saving}
             >
               <div className={styles.providerTabIcon}>
+                {config.id === 'knapsack' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="6" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
+                    <path d="M8 6V4a4 4 0 018 0v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <circle cx="12" cy="13" r="2" fill="currentColor"/>
+                  </svg>
+                )}
                 {config.id === 'openai' && (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364l2.0201-1.1638a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4091-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0974-2.3616l2.603-1.5018 2.6032 1.5018v3.0036l-2.6032 1.5018-2.603-1.5018z" fill="currentColor"/>
@@ -719,6 +787,75 @@ export const ProviderSignInDialog = ({
         </div>
 
         <div className={styles.providerSignInForm}>
+          {selectedProvider === 'knapsack' && (
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ marginBottom: 16, padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                {(userEmail || keyStatus?.knapsack_email) ? (
+                  <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>
+                    Signed in as <strong>{userEmail || keyStatus?.knapsack_email}</strong>
+                  </p>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>
+                    Sign in to Knapsack to use this option.
+                  </p>
+                )}
+              </div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>
+                Model tier
+              </label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                {providerConfig.models.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedModel(m.id)}
+                    disabled={saving}
+                    style={{
+                      flex: 1,
+                      padding: '10px 8px',
+                      border: selectedModel === m.id ? '2px solid #c54841' : '2px solid #e2e8f0',
+                      borderRadius: 8,
+                      background: selectedModel === m.id ? '#fff5f5' : 'white',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: selectedModel === m.id ? '#c54841' : '#374151' }}>{m.name}</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{m.description}</div>
+                  </button>
+                ))}
+              </div>
+              {error && <p style={{ margin: '0 0 12px', fontSize: 13, color: '#ef4444' }}>{error}</p>}
+              {success && <p style={{ margin: '0 0 12px', fontSize: 13, color: '#4caf50' }}>{success}</p>}
+              <button
+                style={{
+                  width: '100%',
+                  padding: '10px 0',
+                  background: (userEmail || keyStatus?.knapsack_email) ? '#c54841' : '#94a3b8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: (userEmail || keyStatus?.knapsack_email) ? 'pointer' : 'not-allowed',
+                }}
+                onClick={handleActivateKnapsack}
+                disabled={saving || !(userEmail || keyStatus?.knapsack_email)}
+              >
+                {saving ? 'Activating…' : isActiveProvider('knapsack') ? 'Update model' : 'Activate Knapsack'}
+              </button>
+              <p style={{ margin: '12px 0 0', fontSize: 12, color: '#64748b', textAlign: 'center' }}>
+                Need credits?{' '}
+                <a
+                  href="https://studio.knapsack.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#c54841', textDecoration: 'underline' }}
+                >
+                  Sign up at studio.knapsack.ai
+                </a>
+              </p>
+            </div>
+          )}
           {selectedProvider === 'openrouter' && (
             <div className={styles.oauthSection}>
               <button
@@ -770,10 +907,10 @@ export const ProviderSignInDialog = ({
             </div>
           )}
 
-          <label className={styles.formLabel}>
+          {selectedProvider !== 'knapsack' && <label className={styles.formLabel}>
             {providerConfig.name} API Key
-          </label>
-          <div className={styles.inputWrapper}>
+          </label>}
+          {selectedProvider !== 'knapsack' && <div className={styles.inputWrapper}>
             <input
               type="password"
               value={apiKey}
@@ -798,16 +935,16 @@ export const ProviderSignInDialog = ({
                 </svg>
               )}
             </div>
-          </div>
-          {validationMsg && validation === 'valid' && (
+          </div>}
+          {selectedProvider !== 'knapsack' && validationMsg && validation === 'valid' && (
             <p className={styles.validationSuccess}>{validationMsg}</p>
           )}
-          {validationMsg && validation === 'invalid' && (
+          {selectedProvider !== 'knapsack' && validationMsg && validation === 'invalid' && (
             <p className={styles.validationError}>{validationMsg}</p>
           )}
 
-          <label className={styles.formLabel}>Model</label>
-          <div className={styles.modelSelector}>
+          {selectedProvider !== 'knapsack' && <label className={styles.formLabel}>Model</label>}
+          {selectedProvider !== 'knapsack' && <div className={styles.modelSelector}>
             {providerConfig.models.map(model => (
               <button
                 key={model.id}
@@ -822,25 +959,25 @@ export const ProviderSignInDialog = ({
                 </span>
               </button>
             ))}
-          </div>
+          </div>}
 
-          {error && (
+          {selectedProvider !== 'knapsack' && error && (
             <p className={styles.errorMessage}>{error}</p>
           )}
 
-          {success && (
+          {selectedProvider !== 'knapsack' && success && (
             <p className={styles.successMessage}>{success}</p>
           )}
 
-          <button
+          {selectedProvider !== 'knapsack' && <button
             className={styles.saveButton}
             onClick={handleSave}
             disabled={saving || !apiKey.trim()}
           >
             {saving ? 'Connecting...' : `Sign in with ${providerConfig.name}`}
-          </button>
+          </button>}
 
-          <p className={styles.helpText}>
+          {selectedProvider !== 'knapsack' && <p className={styles.helpText}>
             Get your API key at{' '}
             <a
               href={providerConfig.helpUrl}
@@ -849,7 +986,7 @@ export const ProviderSignInDialog = ({
             >
               {providerConfig.helpLabel}
             </a>
-          </p>
+          </p>}
         </div>
 
         {/* More Providers section */}

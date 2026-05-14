@@ -15,6 +15,7 @@ import { CSSTransition, TransitionGroup } from 'react-transition-group'
 import { FeedItem } from 'src/api/feed_items'
 import { isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
 import { IThread, ThreadType } from 'src/api/threads'
+import { getSavedTranscript } from 'src/api/transcripts'
 import { LLMParams } from 'src/App'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { IFeed } from 'src/hooks/feed/useFeed'
@@ -33,6 +34,7 @@ import { Markdown } from 'tiptap-markdown'
 import MeetingNotesTabBar from 'src/components/molecules/MeetingNotesTabBar'
 import RecordControlPanel from 'src/components/molecules/RecordControlPanel'
 import MarkdownDisplay from 'src/components/molecules/MarkdownDisplay'
+import ClawdChat from 'src/components/organisms/ClawdChat'
 
 import { Event, listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
@@ -90,17 +92,18 @@ interface MeetingNotesModeProps {
   synthesisState: boolean
   onSynthesisFinish: () => void
   handleOpenTemplates: (thread: IThread) => Promise<void>
-  handleOpenTranscript: (FeedItemId: number | undefined) => void
+  handleOpenTranscript: (FeedItemId: number | undefined, participantNames?: string[]) => void
   handleErrorContact: (message: string) => void
   closeTranscript: () => void
   closeTasks: () => void
   recordingHandlers: RecordingContextProps
   handleOpenTasks?: (threadId: number | undefined, tasks: TaskItem[]) => void
   handleOpenInsights?: (threadId: number | undefined) => void
-  onChatClick?: () => void
   onEmailClick?: (notesMarkdown: string, meeting: Meeting | undefined) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   onAttendeeClick?: (email: string, name: string) => void
+  userEmail?: string
+  userName?: string
 }
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
@@ -125,16 +128,20 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   recordingHandlers,
   handleOpenTasks,
   handleOpenInsights,
-  onChatClick,
   onEmailClick,
   onLibraryWorkspaceOpen,
   onAttendeeClick,
+  userEmail,
+  userName,
 }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
+  const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+  const [meetingTranscriptContext, setMeetingTranscriptContext] = useState('')
 
   useEffect(() => {
     listWorkspaces().then(res => {
@@ -180,6 +187,47 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
     setIsEditingTitle(false)
   }
+
+  const openMeetingChat = () => {
+    setIsMeetingChatOpen(true)
+  }
+
+  useEffect(() => {
+    if (!isMeetingChatOpen || !thread.savedTranscript) return
+    let cancelled = false
+    getSavedTranscript(thread.id.toString()).then(data => {
+      if (cancelled || !data?.content) return
+      setMeetingTranscriptContext(extractTranscriptBodyForContext(data.content))
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isMeetingChatOpen, thread.id, thread.savedTranscript])
+
+  const meetingChatContext = useMemo(() => {
+    const participantList = meeting?.participants
+      ?.map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      .filter(Boolean)
+      .join(', ') || 'Unknown'
+    const lines = [
+      'You are answering from the inline meeting chat. Use the full Knapsack gateway, tools, memory, and normal chat context, but prioritize the meeting context below over broader context when there is a conflict.',
+      '',
+      'Meeting details:',
+      `- Title: ${meeting?.title || thread.subtitle || 'Meeting'}`,
+      `- Participants: ${participantList}`,
+      meeting?.start ? `- Start: ${dayjs.unix(meeting.start).format('MMM D, YYYY h:mm A')}` : '',
+      meeting?.end ? `- End: ${dayjs.unix(meeting.end).format('MMM D, YYYY h:mm A')}` : '',
+      meeting?.description ? `- Description: ${meeting.description}` : '',
+      `- Recording status: ${recordingHandlers.isRecording(thread.id) ? 'currently recording' : 'not recording'}`,
+      '',
+      'Current notes:',
+      notesMarkdown || 'No notes yet.',
+      '',
+      'Transcript:',
+      meetingTranscriptContext || (thread.savedTranscript ? 'Transcript is being loaded or unavailable.' : 'No saved transcript yet. If the meeting is still live, rely on current notes and meeting details.'),
+    ]
+    return lines.filter(line => line !== '').join('\n')
+  }, [meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle])
 
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
@@ -380,8 +428,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     if (thread.id) {
+      // Safety timeout: if fetchNotes hangs (e.g. server temporarily busy),
+      // clear the skeleton after 8 seconds so the view isn't stuck forever.
+      if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
+      initialLoadingTimerRef.current = setTimeout(() => setIsInitialLoading(false), 8000)
       fetchNotes()
       refreshStatus()
+    }
+    return () => {
+      if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
     }
   }, [thread.id, isLLMLoading, synthesisState])
 
@@ -524,6 +579,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     if (!meeting?.event_id || thread.recorded || briefPrepTriggeredRef.current) return
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
+    // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
+    const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
     const participantList = meeting.participants
       .map(p => p.name ? `${p.name} (${p.email})` : p.email)
       .join(', ')
@@ -539,12 +596,17 @@ Output only the 3 sentences, nothing else.`,
       documents: [],
       messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
       messageFinishCallback: async (response) => {
+        clearTimeout(briefPrepTimeout)
         setBriefPrepContent(response)
         setIsBriefPrepGenerating(false)
         return undefined
       },
-      errorCallback: () => setIsBriefPrepGenerating(false),
+      errorCallback: () => {
+        clearTimeout(briefPrepTimeout)
+        setIsBriefPrepGenerating(false)
+      },
     })
+    return () => clearTimeout(briefPrepTimeout)
   }, [meeting?.event_id])
 
   const getRunParamObject = () => {
@@ -1255,7 +1317,10 @@ Be direct, specific, and concise. No filler text.`
             templateLabel={templatePrompt.title}
             hasActionItems={hasActionItems()}
             onOpenTemplatesClick={handleOpenTemplates}
-            onViewTranscriptClick={handleOpenTranscript}
+            onViewTranscriptClick={() => handleOpenTranscript(
+              thread.id,
+              meeting?.participants?.map(p => p.name || p.email).filter(Boolean),
+            )}
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
             onCopyClick={() => {
@@ -1507,6 +1572,36 @@ Be direct, specific, and concise. No filler text.`
       </div>
       </div>
 
+      {isMeetingChatOpen && (
+        <div className="notetaker-note__chat-drawer">
+          <div className="notetaker-note__chat-drawer-header">
+            <div>
+              <div className="notetaker-note__chat-drawer-title">Meeting Chat</div>
+              <div className="notetaker-note__chat-drawer-subtitle">
+                Full gateway chat, grounded first in this meeting.
+              </div>
+            </div>
+            <button
+              className="notetaker-note__chat-drawer-close"
+              onClick={() => setIsMeetingChatOpen(false)}
+              title="Close meeting chat"
+            >
+              ×
+            </button>
+          </div>
+          <div className="notetaker-note__chat-drawer-body">
+            <ClawdChat
+              userName={userName}
+              userEmail={userEmail}
+              compact
+              title="Meeting Chat"
+              contextPrefix={meetingChatContext}
+              initialInput="What should I pay attention to in this meeting?"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Notetaker bottom bar */}
       <div className="notetaker-note__bottom-bar">
         {recordingHandlers.isRecording(thread.id) ? (
@@ -1521,7 +1616,19 @@ Be direct, specific, and concise. No filler text.`
             <div className="notetaker-note__bottom-recording-status">
               Privately transcribing...
             </div>
-            <div className="flex-1" />
+            <div
+              className="notetaker-note__bottom-chat"
+              onClick={openMeetingChat}
+              style={{ cursor: 'pointer' }}
+            >
+              <input
+                type="text"
+                placeholder="Ask about the meeting"
+                className="notetaker-note__bottom-chat-input"
+                readOnly
+                style={{ cursor: 'pointer' }}
+              />
+            </div>
             <button
               className="notetaker-note__bottom-stop"
               onClick={() => handleStopRecording('Manually')}
@@ -1542,7 +1649,7 @@ Be direct, specific, and concise. No filler text.`
             </button>
             <div
               className="notetaker-note__bottom-chat"
-              onClick={() => onChatClick?.()}
+              onClick={openMeetingChat}
               style={{ cursor: 'pointer' }}
             >
               <input
@@ -1572,6 +1679,11 @@ Be direct, specific, and concise. No filler text.`
       </div>
     </div>
   )
+}
+
+const extractTranscriptBodyForContext = (raw: string) => {
+  const parts = raw.split(/\n{3,}/).map(part => part.trim()).filter(Boolean)
+  return parts.length > 1 ? parts.slice(1).join('\n\n') : raw.trim()
 }
 
 export default MeetingNotesMode

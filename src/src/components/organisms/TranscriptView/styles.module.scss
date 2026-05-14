@@ -6,3 +6,44 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.turn {
+  border: 1px solid #ecebea;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.turnHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.speaker {
+  color: #333333;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inferred {
+  color: #8a8787;
+  background: #f3f2f1;
+  border-radius: 4px;
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  text-transform: uppercase;
+}
+
+.turnText {
+  color: #222222;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+}

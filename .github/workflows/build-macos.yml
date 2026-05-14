@@ -2,7 +2,7 @@ name: Build macOS App (Universal)
 
 on:
   push:
-    branches: [main, "release/*", "claude/*"]
+    branches: [main, "release/*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -63,12 +63,9 @@ jobs:
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
 
-      - name: Install Tauri CLI
-        run: rustup run stable cargo install tauri-cli --version 1.6.3 --locked
-
       - name: Build Tauri app (universal)
         working-directory: src
-        run: cargo tauri build --target universal-apple-darwin
+        run: npm exec -- tauri build --target universal-apple-darwin
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
