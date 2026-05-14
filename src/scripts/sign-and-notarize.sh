@@ -253,6 +253,37 @@ echo "[sign] Signature verification passed."
 # 10. Notarize (if requested)
 # ---------------------------------------------------------------------------
 if [ "$DO_NOTARIZE" = true ]; then
+  poll_notarization() {
+    local submission_id="$1"
+    local label="$2"
+    local status=""
+    local poll_delay="${NOTARY_POLL_DELAY_SECONDS:-30}"
+    local poll_max="${NOTARY_POLL_MAX_ATTEMPTS:-120}"
+
+    echo "[notarize] Polling ${label} notarization status (up to ${poll_max} attempts)..." >&2
+    for attempt in $(seq 1 "$poll_max"); do
+      local info_output
+      info_output=$(xcrun notarytool info "$submission_id" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_PASSWORD" 2>&1) || true
+
+      status=$(echo "$info_output" | sed -n 's/^[[:space:]]*status:[[:space:]]*//p' | tail -1)
+      echo "[notarize] ${label} attempt ${attempt}/${poll_max}: status=${status:-<network error>}" >&2
+
+      case "$status" in
+        Accepted|Invalid|Rejected)
+          printf '%s\n' "$status"
+          return 0
+          ;;
+      esac
+
+      sleep "$poll_delay"
+    done
+
+    printf '%s\n' "$status"
+  }
+
   # Validate required env vars
   for var in APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
     if [ -z "${!var:-}" ]; then
@@ -281,23 +312,7 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
   echo "[notarize] Submission ID: $SUBMISSION_ID"
 
-  # Poll using `notarytool info` so a network blip only loses one cycle,
-  # not the entire blocking `notarytool wait` call.
-  NOTARY_STATUS=""; _POLL_DELAY=30; _POLL_MAX=40
-  echo "[notarize] Polling .app notarization status (up to ${_POLL_MAX} attempts)..."
-  for _attempt in $(seq 1 "$_POLL_MAX"); do
-    _INFO_OUTPUT=$(xcrun notarytool info "$SUBMISSION_ID" \
-      --apple-id "$APPLE_ID" \
-      --team-id "$APPLE_TEAM_ID" \
-      --password "$APPLE_APP_PASSWORD" 2>&1) || true
-    NOTARY_STATUS=$(echo "$_INFO_OUTPUT" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-    echo "[notarize] Attempt $_attempt/${_POLL_MAX}: status=${NOTARY_STATUS:-<network error>}"
-    if [ "$NOTARY_STATUS" = "Accepted" ] || [ "$NOTARY_STATUS" = "Invalid" ]; then
-      break
-    fi
-    # In Progress or empty (network blip) — wait and retry
-    sleep "$_POLL_DELAY"
-  done
+  NOTARY_STATUS=$(poll_notarization "$SUBMISSION_ID" ".app" | tail -1)
 
   if [ "$NOTARY_STATUS" != "Accepted" ]; then
     echo "[notarize] ERROR: Notarization failed with status: $NOTARY_STATUS" >&2
@@ -366,21 +381,7 @@ if [ "$DO_NOTARIZE" = true ]; then
       fi
       echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
 
-      # Poll using `notarytool info` so a network blip only loses one cycle.
-      DMG_STATUS=""; _DMG_POLL_DELAY=30; _DMG_POLL_MAX=40
-      echo "[notarize] Polling DMG notarization status (up to ${_DMG_POLL_MAX} attempts)..."
-      for _attempt in $(seq 1 "$_DMG_POLL_MAX"); do
-        _DMG_INFO=$(xcrun notarytool info "$DMG_SUBMISSION_ID" \
-          --apple-id "$APPLE_ID" \
-          --team-id "$APPLE_TEAM_ID" \
-          --password "$APPLE_APP_PASSWORD" 2>&1) || true
-        DMG_STATUS=$(echo "$_DMG_INFO" | grep -E '^\s*status:' | tail -1 | awk '{print $2}')
-        echo "[notarize] Attempt $_attempt/${_DMG_POLL_MAX}: status=${DMG_STATUS:-<network error>}"
-        if [ "$DMG_STATUS" = "Accepted" ] || [ "$DMG_STATUS" = "Invalid" ]; then
-          break
-        fi
-        sleep "$_DMG_POLL_DELAY"
-      done
+      DMG_STATUS=$(poll_notarization "$DMG_SUBMISSION_ID" "DMG" | tail -1)
 
       if [ "$DMG_STATUS" = "Accepted" ]; then
         echo "[notarize] Stapling DMG..."

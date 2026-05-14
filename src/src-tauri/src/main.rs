@@ -9,7 +9,7 @@ extern crate derive_more;
 extern crate dirs;
 extern crate qdrant_client;
 extern crate serde;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 extern crate tokio;
 
 mod api;
@@ -236,12 +236,17 @@ fn setup_handler(
 
   // Start the heartbeat background loop
   std::thread::spawn(move || {
-    tokio::runtime::Runtime::new()
-      .unwrap()
-      .block_on(heartbeat::engine::start_heartbeat_loop(
-        heartbeat_app_handle,
-        heartbeat_is_chatting,
-      ));
+    match tokio::runtime::Runtime::new() {
+      Ok(runtime) => {
+        runtime.block_on(heartbeat::engine::start_heartbeat_loop(
+          heartbeat_app_handle,
+          heartbeat_is_chatting,
+        ));
+      }
+      Err(e) => {
+        eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
+      }
+    }
   });
 
   // Start the library curator background loop. Auto-populates the user's
@@ -388,6 +393,80 @@ async fn kn_get_search_indexing_status(
 struct ButtonConfig {
   button_text: String,
   button_handler: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FrontmostAppInfo {
+  name: String,
+  bundle_id: Option<String>,
+  window_title: Option<String>,
+}
+
+#[tauri::command]
+fn get_frontmost_app_info() -> Result<FrontmostAppInfo, String> {
+  #[cfg(target_os = "macos")]
+  {
+    use std::process::Command;
+
+    let script = r#"
+      tell application "System Events"
+        set frontApp to first application process whose frontmost is true
+        set appName to name of frontApp
+        set bundleId to ""
+        set windowTitle to ""
+        try
+          set bundleId to bundle identifier of frontApp
+        end try
+        try
+          set windowTitle to name of front window of frontApp
+        end try
+        return appName & linefeed & bundleId & linefeed & windowTitle
+      end tell
+    "#;
+
+    let output = Command::new("osascript")
+      .arg("-e")
+      .arg(script)
+      .output()
+      .map_err(|e| format!("Failed to inspect frontmost app: {}", e))?;
+
+    if !output.status.success() {
+      return Err(format!(
+        "Failed to inspect frontmost app: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+      ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut lines = stdout.lines();
+    let name = lines.next().unwrap_or_default().trim().to_string();
+    let bundle_id = lines
+      .next()
+      .map(str::trim)
+      .filter(|s| !s.is_empty())
+      .map(ToString::to_string);
+    let window_title = lines
+      .next()
+      .map(str::trim)
+      .filter(|s| !s.is_empty())
+      .map(ToString::to_string);
+
+    return Ok(FrontmostAppInfo {
+      name,
+      bundle_id,
+      window_title,
+    });
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+    Ok(FrontmostAppInfo {
+      name: String::new(),
+      bundle_id: None,
+      window_title: None,
+    })
+  }
 }
 
 #[tauri::command]
@@ -1609,6 +1688,7 @@ async fn main() {
       kn_get_search_indexing_status,
       start_oauth,
       show_notification_window,
+      get_frontmost_app_info,
       close_notification_window,
       start_meeting_recording,
       activate_main_window,

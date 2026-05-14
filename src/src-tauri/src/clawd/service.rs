@@ -946,6 +946,49 @@ fn install_bundled_plugin_runtime_deps(node_path: &std::path::Path, extensions_d
   };
   let root_nm = clawdbot_root.join("node_modules");
 
+  if !root_nm.is_dir() && clawdbot_root.join("package.json").exists() {
+    eprintln!(
+      "[clawd/service] Root node_modules missing in {} — attempting npm install",
+      clawdbot_root.display()
+    );
+    let root_install_args = ["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"];
+    #[cfg(target_os = "windows")]
+    let root_bootstrap = {
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+      match &npm_runner {
+        NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+          .arg(npm_cli)
+          .args(root_install_args)
+          .current_dir(&clawdbot_root)
+          .creation_flags(CREATE_NO_WINDOW)
+          .status(),
+        NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+          .args(root_install_args)
+          .current_dir(&clawdbot_root)
+          .creation_flags(CREATE_NO_WINDOW)
+          .status(),
+      }
+    };
+    #[cfg(not(target_os = "windows"))]
+    let root_bootstrap = match &npm_runner {
+      NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
+        .arg(npm_cli)
+        .args(root_install_args)
+        .current_dir(&clawdbot_root)
+        .status(),
+      NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
+        .args(root_install_args)
+        .current_dir(&clawdbot_root)
+        .status(),
+    };
+    match root_bootstrap {
+      Ok(s) if s.success() => eprintln!("[clawd/service] Root node_modules installed"),
+      Ok(s) => eprintln!("[clawd/service] WARNING: root npm install exited {}", s),
+      Err(e) => eprintln!("[clawd/service] WARNING: root npm install failed: {}", e),
+    }
+  }
+
   let mut missing_root: Vec<String> = Vec::new();
   if let Ok(root_entries) = fs::read_dir(extensions_dir) {
     for entry in root_entries.flatten() {
@@ -2200,6 +2243,25 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     "mdns_crash"
   } else if lower.contains("eaddrinuse") || lower.contains("address already in use") {
     "port_conflict"
+  } else if lower.contains("node: no such file")
+    || lower.contains("env: node")
+    || lower.contains("node.js not found")
+    || lower.contains("failed to run node")
+    || (lower.contains("permission denied") && lower.contains("/node"))
+  {
+    "node_unavailable"
+  } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
+    // Stale plugin-runtime-deps with wrong internal structure — version prefix
+    // matched so the normal cleanup skipped it, but the content is incompatible.
+    "module_resolution_fail"
+  } else if is_plugin_runtime_deps_corruption(&lower) {
+    "plugin_install_fail"
+  } else if lower.contains("cannot find module")
+    || lower.contains("err_module_not_found")
+    || lower.contains("module_not_found")
+    || lower.contains("node_modules")
+  {
+    "node_modules_missing"
   } else if lower.contains("assertionerror") || lower.contains("[err_assertion]") {
     "crash_loop"
   } else if lower.contains("gatekeeper") || lower.contains("sigkill") || lower.contains("exit code = 9") {
@@ -2213,13 +2275,315 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
     || (lower.contains("plugin") && (lower.contains("npm install failed") || lower.contains("failed to install")))
   {
     "plugin_install_fail"
-  } else if lower.contains("cannot find module") && (lower.contains("plugin-sdk") || lower.contains("channel-config") || lower.contains("root-alias")) {
-    // Stale plugin-runtime-deps with wrong internal structure — version prefix
-    // matched so the normal cleanup skipped it, but the content is incompatible.
-    "module_resolution_fail"
   } else {
     "unknown"
   }
+}
+
+fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle) {
+  let mut candidates = vec![
+    app_clawdbot_home(app_handle).join("openclaw.json"),
+    app_clawdbot_home(app_handle).join("clawdbot.json"),
+  ];
+
+  if let Some(home) = dirs::home_dir() {
+    candidates.push(home.join(".openclaw").join("openclaw.json"));
+    candidates.push(home.join(".clawdbot").join("clawdbot.json"));
+  }
+
+  for path in candidates {
+    if path.exists() {
+      sanitize_config_file_allowlist(&path);
+    }
+  }
+}
+
+fn remove_stale_gateway_lock_files() {
+  #[cfg(target_os = "windows")]
+  let lock_dir = std::env::temp_dir().join("openclaw");
+
+  #[cfg(not(target_os = "windows"))]
+  let lock_dir = {
+    let uid = unsafe { libc::getuid() };
+    std::path::PathBuf::from(format!("/tmp/openclaw-{}", uid))
+  };
+
+  if !lock_dir.is_dir() {
+    return;
+  }
+
+  if let Ok(entries) = fs::read_dir(&lock_dir) {
+    for entry in entries.flatten() {
+      let name = entry.file_name();
+      let name_str = name.to_string_lossy();
+      if name_str.starts_with("gateway.") && name_str.ends_with(".lock") {
+        match fs::remove_file(entry.path()) {
+          Ok(_) => eprintln!("[clawd/service] self-heal: removed stale gateway lock {}", entry.path().display()),
+          Err(e) => eprintln!(
+            "[clawd/service] self-heal: warning: failed to remove stale gateway lock {}: {}",
+            entry.path().display(), e
+          ),
+        }
+      }
+    }
+  }
+}
+
+fn run_openclaw_doctor_fix(setup: &ServiceSetup, context: &str) -> bool {
+  if setup.program_args.len() < 2 {
+    eprintln!("[clawd/service] {}: cannot run openclaw doctor --fix; missing program args", context);
+    return false;
+  }
+
+  let mut cmd = std::process::Command::new(&setup.program_args[0]);
+  cmd
+    .arg(&setup.program_args[1])
+    .args(["doctor", "--fix"])
+    .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+    .current_dir(&setup.working_dir)
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped());
+
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+  }
+
+  let mut child = match cmd.spawn() {
+    Ok(child) => child,
+    Err(e) => {
+      eprintln!("[clawd/service] {}: failed to run openclaw doctor --fix: {}", context, e);
+      return false;
+    }
+  };
+
+  let started = std::time::Instant::now();
+  let timeout = std::time::Duration::from_secs(25);
+  loop {
+    match child.try_wait() {
+      Ok(Some(_)) => break,
+      Ok(None) if started.elapsed() < timeout => {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+      }
+      Ok(None) => {
+        let _ = child.kill();
+        let _ = child.wait();
+        eprintln!("[clawd/service] {}: openclaw doctor --fix timed out after {:?}", context, timeout);
+        return false;
+      }
+      Err(e) => {
+        eprintln!("[clawd/service] {}: openclaw doctor --fix wait failed: {}", context, e);
+        return false;
+      }
+    }
+  }
+
+  match child.wait_with_output() {
+    Ok(out) if out.status.success() => {
+      eprintln!("[clawd/service] {}: openclaw doctor --fix completed successfully", context);
+      true
+    }
+    Ok(out) => {
+      let stderr = String::from_utf8_lossy(&out.stderr);
+      let stdout = String::from_utf8_lossy(&out.stdout);
+      eprintln!(
+        "[clawd/service] {}: openclaw doctor --fix exited with {}: {}{}",
+        context,
+        out.status,
+        stderr.chars().take(700).collect::<String>(),
+        if stderr.trim().is_empty() {
+          stdout.chars().take(300).collect::<String>()
+        } else {
+          String::new()
+        }
+      );
+      false
+    }
+    Err(e) => {
+      eprintln!("[clawd/service] {}: openclaw doctor --fix output failed: {}", context, e);
+      false
+    }
+  }
+}
+
+async fn run_gateway_self_heal_cycle(
+  app_handle: tauri::AppHandle,
+  token: String,
+  log_snapshot_lower: String,
+) {
+  let crash_class = classify_gateway_crash(&log_snapshot_lower).to_string();
+  eprintln!("[clawd/service] self-heal: starting recovery cycle (class={})", crash_class);
+
+  let cfg: crate::clawd::sidecar::SharedClawdbotConfig =
+    std::sync::Arc::new(tokio::sync::RwLock::new(
+      crate::clawd::sidecar::ClawdbotConfig::default(),
+    ));
+
+  let setup = match prepare_gateway_config(&app_handle, &cfg).await {
+    Ok(setup) => setup,
+    Err(e) => {
+      eprintln!("[clawd/service] self-heal: prepare_gateway_config failed: {}", e);
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      return;
+    }
+  };
+
+  sanitize_known_gateway_configs(&app_handle);
+  let doctor_ok = run_openclaw_doctor_fix(&setup, "self-heal");
+  // Some doctor versions write config migrations that the bundled gateway does
+  // not yet accept. Re-apply our compatibility sanitizers after doctor runs.
+  sanitize_known_gateway_configs(&app_handle);
+
+  #[cfg(any(target_os = "macos", target_os = "windows"))]
+  kill_stale_clawdbot_chromes();
+
+  #[cfg(not(target_os = "windows"))]
+  {
+    let evicted = evict_competing_gateway_plists();
+    if !evicted.is_empty() {
+      sentry::with_scope(
+        |scope| scope.set_tag("competing_labels", &evicted.join(",")),
+        || sentry::capture_message(
+          &format!("[gateway] self-heal: evicted competing plist(s): {:?}", evicted),
+          sentry::Level::Warning,
+        ),
+      );
+    }
+  }
+
+  kill_process_on_port(18789);
+  remove_stale_gateway_lock_files();
+
+  let clawdbot_home = app_clawdbot_home(&app_handle);
+  let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+  remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+
+  if crash_class == "module_resolution_fail" || is_plugin_runtime_deps_corruption(&log_snapshot_lower) {
+    eprintln!("[clawd/service] self-heal: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
+    remove_stale_plugin_runtime_deps_versions(&clawdbot_home, "");
+  } else {
+    remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &bundle_version);
+    let removed_incomplete =
+      remove_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &bundle_version);
+    if removed_incomplete > 0 {
+      eprintln!(
+        "[clawd/service] self-heal: removed {} incomplete plugin-runtime-deps dir(s)",
+        removed_incomplete
+      );
+    }
+  }
+
+  if crash_class == "plugin_install_fail"
+    || crash_class == "node_modules_missing"
+    || crash_class == "module_resolution_fail"
+    || is_openclaw_npm_cache_enoent(&log_snapshot_lower)
+  {
+    eprintln!("[clawd/service] self-heal: dependency install failure detected — wiping npm caches");
+    remove_corrupt_openclaw_npm_caches(&clawdbot_home);
+  }
+
+  let extensions_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
+  install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir);
+
+  #[cfg(target_os = "windows")]
+  {
+    eprintln!("[clawd/service] self-heal: Windows restart via direct spawn");
+    let stdout_log = windows_log_path("stdout");
+    let stderr_log = windows_log_path("stderr");
+    if let (Ok(out_f), Ok(err_f)) = (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
+      use std::os::windows::process::CommandExt;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+      match std::process::Command::new(&setup.program_args[0])
+        .args(&setup.program_args[1..])
+        .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
+        .current_dir(&setup.working_dir)
+        .stdout(out_f)
+        .stderr(err_f)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+      {
+        Ok(child) => {
+          let pid = child.id();
+          GATEWAY_PID.store(pid, Ordering::Relaxed);
+          *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
+          eprintln!("[clawd/service] self-heal: spawned gateway pid {}", pid);
+        }
+        Err(e) => eprintln!("[clawd/service] self-heal: Windows spawn failed: {}", e),
+      }
+    }
+  }
+
+  #[cfg(not(target_os = "windows"))]
+  {
+    use crate::clawd::gateway_supervisor;
+    let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
+    eprintln!(
+      "[clawd/service] self-heal: gateway restart attempt: {} ({})",
+      result.message,
+      if result.running { "running" } else { "not running" }
+    );
+  }
+
+  let ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 10_000).await;
+  if ready {
+    eprintln!("[clawd/service] self-heal: gateway healthy after recovery cycle");
+    gateway_client::invalidate();
+    GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
+    BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+    patch_paired_json_scopes(&app_handle);
+  } else {
+    eprintln!(
+      "[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class={}, doctor_ok={})",
+      crash_class,
+      doctor_ok
+    );
+  }
+
+  sentry::with_scope(
+    |scope| {
+      scope.set_tag("gateway_crash_type", &crash_class);
+      scope.set_tag("doctor_ok", if doctor_ok { "true" } else { "false" });
+      scope.set_tag("recovered", if ready { "true" } else { "false" });
+    },
+    || sentry::capture_message("[gateway] self-heal cycle completed", sentry::Level::Info),
+  );
+
+  GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+}
+
+/// The gateway can be unreachable for a while on first run while it installs
+/// bundled plugin runtime dependencies. Treat that as startup progress, not a
+/// crash, so health polling does not repeatedly SIGTERM the installer process.
+fn gateway_runtime_deps_startup_in_progress() -> bool {
+  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+    return false;
+  };
+  gateway_runtime_deps_startup_in_progress_from_log(&content)
+}
+
+fn gateway_runtime_deps_startup_in_progress_from_log(content: &str) -> bool {
+  let tail_start = content
+    .char_indices()
+    .rev()
+    .nth(16_000)
+    .map(|(idx, _)| idx)
+    .unwrap_or(0);
+  let tail = &content[tail_start..];
+
+  let staging = tail.rfind("staging bundled runtime deps before gateway startup");
+  let installed = tail.rfind("installed bundled runtime deps before gateway startup");
+  let listening = tail.rfind("http server listening");
+  let terminated = tail.rfind("received SIGTERM; shutting down");
+
+  let Some(staging_idx) = staging else {
+    return false;
+  };
+
+  installed.unwrap_or(0) < staging_idx
+    && listening.unwrap_or(0) < staging_idx
+    && terminated.unwrap_or(0) < staging_idx
 }
 
 #[get("/api/clawd/service/health")]
@@ -2318,181 +2682,27 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // If gateway is down, try to restart it via launchctl kickstart.
     // This runs in a background task to avoid blocking the health poll.
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
-    if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    if !gateway_ok && gateway_runtime_deps_startup_in_progress() {
+      eprintln!(
+        "[clawd/service] gateway not reachable but plugin runtime deps are staging - skipping restart"
+      );
+    } else if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
       let token = tokens.gateway_token.clone();
-      // Pre-compute paths before the spawn (app_handle can't cross async boundaries cheaply).
-      let restart_clawdbot_home = app_clawdbot_home(&app_handle);
-      let restart_bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
-      let restart_node_path = resource_path(&app_handle, if cfg!(target_os = "windows") {
-        "resources/node/node.exe"
-      } else {
-        "resources/node/node"
-      });
-      let restart_extensions_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
-      eprintln!("[clawd/service] gateway not reachable — attempting background restart");
+      #[cfg(target_os = "windows")]
+      let restart_err_path = windows_log_path("stderr");
+      #[cfg(not(target_os = "windows"))]
+      let restart_err_path = gateway_stderr_log();
+      let restart_log_lower = fs::read_to_string(&restart_err_path)
+        .or_else(|_| fs::read_to_string("/tmp/knapsack-clawdbot.err.log"))
+        .unwrap_or_default()
+        .to_lowercase();
+      let heal_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
+      eprintln!(
+        "[clawd/service] gateway not reachable — starting background self-heal (class={})",
+        classify_gateway_crash(&restart_log_lower)
+      );
       tokio::spawn(async move {
-        // Kill stale managed Chrome processes before restarting the gateway.
-        // When the gateway exits, its Chrome child survives and holds the
-        // CDP port (18800).  Without cleanup the new gateway can't launch
-        // its own browser and browser control stays permanently down.
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        kill_stale_clawdbot_chromes();
-
-        // Auto-heal the config before restarting.  If the gateway is crashing
-        // due to a Zod validation error (e.g. dmPolicy="allowlist" with an
-        // empty allowFrom), it will exit immediately on every kickstart attempt.
-        // Patching here ensures recovery works even when prepare_gateway_config
-        // hasn't run yet (e.g. user edited config via CLI after initial setup).
-        if let Ok(dir) = std::env::var("OPENCLAW_HOME")
-          .or_else(|_| std::env::var("CLAWDBOT_STATE_DIR"))
-        {
-          let dir = dir.trim().to_string();
-          if !dir.is_empty() {
-            for filename in &["openclaw.json", "clawdbot.json"] {
-              let p = std::path::PathBuf::from(&dir).join(filename);
-              if p.exists() {
-                sanitize_config_file_allowlist(&p);
-                break;
-              }
-            }
-          }
-        }
-
-        // On Windows, `kickstart_launch_agent` cannot start a new process.
-        // Re-spawn directly using the saved ServiceSetup from the last enable call.
-        #[cfg(target_os = "windows")]
-        {
-          let saved_setup = LAST_GATEWAY_SETUP.lock().unwrap().clone();
-          if let Some(setup) = saved_setup {
-            eprintln!("[clawd/service] Windows background restart: re-spawning gateway");
-            kill_process_on_port(18789);
-            // Clean up stale lock files
-            {
-              let lock_dir = std::env::temp_dir().join("openclaw");
-              if lock_dir.is_dir() {
-                if let Ok(entries) = fs::read_dir(&lock_dir) {
-                  for entry in entries.flatten() {
-                    let name = entry.file_name();
-                    let s = name.to_string_lossy();
-                    if s.starts_with("gateway.") && s.ends_with(".lock") {
-                      let _ = fs::remove_file(entry.path());
-                    }
-                  }
-                }
-              }
-            }
-            let stdout_log = windows_log_path("stdout");
-            let stderr_log = windows_log_path("stderr");
-            if let (Ok(out_f), Ok(err_f)) = (fs::File::create(&stdout_log), fs::File::create(&stderr_log)) {
-              use std::os::windows::process::CommandExt;
-              const CREATE_NO_WINDOW: u32 = 0x08000000;
-              match std::process::Command::new(&setup.program_args[0])
-                .args(&setup.program_args[1..])
-                .envs(setup.env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
-                .current_dir(&setup.working_dir)
-                .stdout(out_f)
-                .stderr(err_f)
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-              {
-                Ok(child) => {
-                  let pid = child.id();
-                  GATEWAY_PID.store(pid, Ordering::Relaxed);
-                  eprintln!("[clawd/service] Windows background restart: spawned gateway pid {}", pid);
-                }
-                Err(e) => eprintln!("[clawd/service] Windows background restart: spawn failed: {}", e),
-              }
-            }
-            GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
-            return;
-          }
-          eprintln!("[clawd/service] Windows background restart: no saved setup — use Enable in UI");
-        }
-
-        // Evict any competing openclaw/clawdbot LaunchAgent plists before
-        // clearing the port.  A competing plist (standalone openclaw CLI,
-        // old Knapsack beta, etc.) re-launches a new process on port 18789
-        // immediately after kill_process_on_port, causing an instant EADDRINUSE
-        // on kickstart.  Removing the plist + booting out the service first
-        // prevents that race.
-        #[cfg(not(target_os = "windows"))]
-        {
-          let evicted = evict_competing_gateway_plists();
-          if !evicted.is_empty() {
-            sentry::with_scope(
-              |scope| scope.set_tag("competing_labels", &evicted.join(",")),
-              || sentry::capture_message(
-                &format!("[gateway] auto-restart: evicted competing plist(s): {:?}", evicted),
-                sentry::Level::Warning,
-              ),
-            );
-          }
-        }
-
-        // macOS: clear any zombie process holding port 18789.
-        // Without this, kickstart fails with EADDRINUSE when a crashed gateway
-        // process lingers on the port without responding to HTTP health checks.
-        #[cfg(not(target_os = "windows"))]
-        kill_process_on_port(18789);
-
-        // Remove stale plugin-runtime-deps locks and old versioned dirs.
-        // These are cleaned during initial enable but NOT during auto-restart,
-        // leaving ENOTEMPTY traps that cause bonjour (and other plugins) to
-        // fail their npm install on every subsequent gateway start.
-        remove_stale_plugin_runtime_deps_locks(&restart_clawdbot_home);
-
-        let log_lower = std::fs::read_to_string(gateway_stderr_log())
-          .unwrap_or_default()
-          .to_lowercase();
-
-        // Check if the crash is a module-resolution failure (e.g. "Cannot find
-        // module .../plugin-sdk/root-alias.cjs/channel-config-schema-legacy").
-        // This happens when a plugin-runtime-deps dir has the correct version
-        // prefix but incompatible internal structure — the normal version-prefix
-        // cleanup skips it.  Force a full wipe so the gateway re-stages clean deps.
-        let is_module_resolution_crash = log_lower.contains("cannot find module")
-          && (log_lower.contains("plugin-sdk") || log_lower.contains("channel-config") || log_lower.contains("root-alias"));
-        let is_npm_cache_crash = is_openclaw_npm_cache_enoent(&log_lower);
-        let is_plugin_runtime_corruption = is_plugin_runtime_deps_corruption(&log_lower);
-        if is_module_resolution_crash || is_plugin_runtime_corruption {
-          eprintln!("[clawd/service] auto-restart: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
-          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, "");
-        } else {
-          remove_stale_plugin_runtime_deps_versions(&restart_clawdbot_home, &restart_bundle_ver);
-          let removed_incomplete =
-            remove_incomplete_plugin_runtime_deps_dirs(&restart_clawdbot_home, &restart_bundle_ver);
-          if removed_incomplete > 0 {
-            eprintln!(
-              "[clawd/service] auto-restart: removed {} incomplete plugin-runtime-deps dir(s)",
-              removed_incomplete
-            );
-          }
-        }
-        if is_npm_cache_crash {
-          eprintln!("[clawd/service] auto-restart: npm cache ENOENT detected — wiping corrupt caches");
-          remove_corrupt_openclaw_npm_caches(&restart_clawdbot_home);
-        }
-
-        // Re-run plugin dep installs for any extension whose node_modules are
-        // missing (fast no-op when all deps are already present).  This is how
-        // playwright-core for the browser extension gets installed — if the
-        // initial enable-time install failed (ENOTEMPTY, npm unavailable, etc.)
-        // the gateway silently starts without it and every snapshot() call
-        // returns "Playwright is not available in this gateway build".
-        install_bundled_plugin_runtime_deps(&restart_node_path, &restart_extensions_dir);
-
-        // Sentry: record that a self-heal cycle ran so we can see frequency in
-        // the dashboard even when the gateway ultimately recovers cleanly.
-        sentry::capture_message(
-          "[gateway] auto-restart: port cleared + plugin-runtime-deps cleaned",
-          sentry::Level::Info,
-        );
-
-        use crate::clawd::gateway_supervisor;
-        let result = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, &token).await;
-        eprintln!("[clawd/service] gateway restart attempt: {} ({})", result.message,
-          if result.running { "running" } else { "not running" });
-        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+        run_gateway_self_heal_cycle(heal_app_handle, token, restart_log_lower).await;
       });
     }
 
@@ -4315,6 +4525,70 @@ fn model_ref_has_key(model_ref: &str) -> bool {
   }
 }
 
+fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
+  if !node_path.exists() {
+    return Err(format!("Node.js binary is missing at {}", node_path.display()));
+  }
+
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = fs::metadata(node_path) {
+      let mode = metadata.permissions().mode();
+      if mode & 0o111 == 0 {
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(mode | 0o755);
+        fs::set_permissions(node_path, permissions).map_err(|e| {
+          format!(
+            "Node.js binary exists but is not executable, and chmod failed at {}: {}",
+            node_path.display(),
+            e
+          )
+        })?;
+        eprintln!("[clawd/service] self-heal: restored execute bit on {}", node_path.display());
+      }
+    }
+  }
+
+  let mut child = std::process::Command::new(node_path)
+    .arg("--version")
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped())
+    .spawn()
+    .map_err(|e| format!("Failed to run Node.js at {}: {}", node_path.display(), e))?;
+
+  let started = std::time::Instant::now();
+  let timeout = std::time::Duration::from_secs(3);
+  loop {
+    match child.try_wait() {
+      Ok(Some(_)) => break,
+      Ok(None) if started.elapsed() < timeout => {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+      }
+      Ok(None) => {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("Node.js at {} did not respond to --version within {:?}", node_path.display(), timeout));
+      }
+      Err(e) => return Err(format!("Failed waiting for Node.js at {}: {}", node_path.display(), e)),
+    }
+  }
+
+  match child.wait_with_output() {
+    Ok(out) if out.status.success() => Ok(()),
+    Ok(out) => {
+      let stderr = String::from_utf8_lossy(&out.stderr);
+      Err(format!(
+        "Node.js at {} exited with {} while checking --version: {}",
+        node_path.display(),
+        out.status,
+        stderr.trim()
+      ))
+    }
+    Err(e) => Err(format!("Failed reading Node.js --version output at {}: {}", node_path.display(), e)),
+  }
+}
+
 /// Platform-agnostic gateway configuration setup.
 /// Finds Node.js, resolves paths, creates/patches config files, builds env vars.
 /// Returns everything needed to spawn the gateway process.
@@ -4392,6 +4666,10 @@ async fn prepare_gateway_config(
       return Err("Node.js not found. The bundled Node.js binary is missing and no system Node.js was found. Please reinstall Knapsack or install Node.js (https://nodejs.org).".to_string());
     }
   };
+  if let Err(e) = ensure_node_binary_ready(&node_path) {
+    eprintln!("[clawd/service] ERROR: {}", e);
+    return Err(format!("Node.js is not usable for the gateway. {}", e));
+  }
 
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
@@ -7911,6 +8189,18 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn missing_module_is_node_modules_missing() {
+    let log_tail = "Error: Cannot find module 'jiti'\nRequire stack:\n- /Applications/Knapsack.app/Contents/Resources/resources/clawdbot/dist/entry.js";
+    assert_eq!(classify_gateway_crash(log_tail), "node_modules_missing");
+  }
+
+  #[test]
+  fn missing_node_binary_is_node_unavailable() {
+    let log_tail = "launchctl: node: No such file or directory";
+    assert_eq!(classify_gateway_crash(log_tail), "node_unavailable");
+  }
+
+  #[test]
   fn removes_current_version_incomplete_plugin_runtime_deps_dir() {
     let root = std::env::temp_dir().join(format!(
       "knapsack-incomplete-runtime-deps-{}-{}",
@@ -7950,6 +8240,25 @@ mod crash_classifier_tests {
       Some("peekaboo")
     );
     assert!(cfg.pointer("/agents/defaults/model").is_some());
+  }
+
+  #[test]
+  fn runtime_deps_staging_is_startup_progress_until_completion() {
+    let staging =
+      "2026-05-13T10:44:47 [gateway] [plugins] staging bundled runtime deps before gateway startup";
+    assert!(gateway_runtime_deps_startup_in_progress_from_log(staging));
+
+    let installed = format!(
+      "{}\n2026-05-13T10:44:50 [gateway] [plugins] installed bundled runtime deps before gateway startup",
+      staging
+    );
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&installed));
+
+    let listening = format!("{}\n2026-05-13T10:44:51 [gateway] http server listening", staging);
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&listening));
+
+    let terminated = format!("{}\n2026-05-13T10:44:49 [gateway] received SIGTERM; shutting down", staging);
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(&terminated));
   }
 }
 
