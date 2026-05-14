@@ -2890,6 +2890,17 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let log_content = std::fs::read_to_string(&err_path)
         .or_else(|_| std::fs::read_to_string(&legacy_err_path));
       if let Ok(content) = log_content {
+        // Detect version mismatch before noise-filtering so we can tag diagnostic_type,
+        // even though the lines are stripped from the user-visible tail below.
+        let has_version_mismatch = content.lines().any(|l| {
+          let l = l.to_ascii_lowercase();
+          l.contains("config was last written by a newer openclaw")
+            || l.contains("config was last written by an older openclaw")
+        });
+        if has_version_mismatch && diagnostic_type.is_none() {
+          diagnostic_type = Some("version_mismatch".to_string());
+        }
+
         // Strip known-noisy lines that appear during normal gateway operation
         // and would only confuse users when shown as a diagnostic.
         let is_noise = |line: &str| {
@@ -2899,6 +2910,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             || l.contains("bonjour: gateway hostname conflict resolved")
             || l.contains("unhandled promise rejection: ciao")
             || (l.contains("security warning") && l.contains("allowinsecureauth"))
+            || l.contains("config was last written by a newer openclaw")
+            || l.contains("config was last written by an older openclaw")
         };
         let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
         let start = all_filtered.len().saturating_sub(25);
