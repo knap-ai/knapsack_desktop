@@ -362,6 +362,9 @@ type ApiKeyStatus = {
   has_gemini_key?: boolean
   has_groq_key?: boolean
   has_openrouter_key?: boolean
+  has_knapsack?: boolean
+  knapsack_email?: string
+  knapsack_model?: string
   openai_key_hint?: string
   anthropic_key_hint?: string
   gemini_key_hint?: string
@@ -389,7 +392,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'openai' | 'anthropic' | 'gemini' | 'groq' | 'openrouter' | 'ollama'
+type Provider = 'knapsack' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'openrouter' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -399,7 +402,15 @@ type ProviderOption = {
   helpUrl: string
 }
 
+const KNAPSACK_MODELS = [
+  { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
+  { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
+  { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
+]
+const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
+
 const PROVIDERS: ProviderOption[] = [
+  { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
@@ -1595,6 +1606,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
+  const [selectedKnapsackModel, setSelectedKnapsackModel] = useState<string>(() => {
+    return localStorage.getItem(KNAPSACK_MODEL_STORAGE) || 'anthropic/claude-haiku-4-5'
+  })
+  const [knapsackEmail, setKnapsackEmail] = useState<string>('')
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
@@ -1927,12 +1942,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         })
         // Track which providers have saved keys
         setSavedProviderKeys({
+          knapsack: !!keyStatus.has_knapsack,
           openai: !!keyStatus.has_openai_key,
           anthropic: !!keyStatus.has_anthropic_key,
           gemini: !!keyStatus.has_gemini_key,
           groq: !!keyStatus.has_groq_key,
           openrouter: !!keyStatus.has_openrouter_key,
         })
+        if (keyStatus.knapsack_email) {
+          setKnapsackEmail(keyStatus.knapsack_email)
+        }
+        if (keyStatus.knapsack_model) {
+          setSelectedKnapsackModel(keyStatus.knapsack_model)
+          localStorage.setItem(KNAPSACK_MODEL_STORAGE, keyStatus.knapsack_model)
+        }
         // Restore Ollama model from backend if Ollama is the active provider
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
           setSelectedOllamaModel(keyStatus.ollama_model)
@@ -6482,6 +6505,75 @@ ${actualText}`
               {/* ── Cloud providers ── */}
               {PROVIDERS.filter(p => p.id !== 'ollama').map(p => {
                 const isActive = selectedProvider === p.id
+
+                // ── Knapsack (no API key — uses Knapsack account) ──
+                if (p.id === 'knapsack') {
+                  return (
+                    <div key="knapsack" className={`ClawdAccordionItem ${isActive ? 'ClawdAccordionItem--open ClawdAccordionItem--connected' : ''}`}>
+                      <button className="ClawdAccordionHeader" onClick={() => setSelectedProvider('knapsack')}>
+                        <div className="ClawdAccordionTitle">{p.name}</div>
+                        <span className="ClawdAccordionDesc">{p.description}</span>
+                        {isActive && (
+                          <span className="ClawdAccordionCheck">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          </span>
+                        )}
+                        <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                      </button>
+                      <div className="ClawdAccordionBody">
+                        {knapsackEmail && (
+                          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>
+                            Signed in as <strong>{knapsackEmail}</strong>
+                          </p>
+                        )}
+                        <label className="ClawdKeyPromptLabel">Model tier</label>
+                        <div className="ClawdModelSelector">
+                          {KNAPSACK_MODELS.map(model => (
+                            <button
+                              key={model.id}
+                              className={`ClawdModelOption${selectedKnapsackModel === model.id ? ' selected' : ''}`}
+                              onClick={() => {
+                                setSelectedKnapsackModel(model.id)
+                                localStorage.setItem(KNAPSACK_MODEL_STORAGE, model.id)
+                              }}
+                              disabled={savingKey}
+                            >
+                              <span className="ClawdModelName">{model.name}</span>
+                              <span className="ClawdModelDesc">{model.description}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="ClawdAccordionActions">
+                          <button
+                            className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                            onClick={async () => {
+                              if (!knapsackEmail) return
+                              setSavingKey(true)
+                              try {
+                                await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail, model: selectedKnapsackModel })
+                                setSelectedProvider('knapsack')
+                                localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+                                pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
+                              } catch {}
+                              setSavingKey(false)
+                            }}
+                            disabled={savingKey || !knapsackEmail}
+                          >
+                            {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
+                          </button>
+                        </div>
+                        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                          Need credits?{' '}
+                          <a href="https://studio.knapsack.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#c54841' }}>
+                            studio.knapsack.ai
+                          </a>
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+
                 const models = p.id === 'openai' ? OPENAI_MODELS
                   : p.id === 'anthropic' ? ANTHROPIC_MODELS
                   : p.id === 'gemini' ? GEMINI_MODELS
