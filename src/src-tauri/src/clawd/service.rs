@@ -243,6 +243,21 @@ static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 /// outage can trigger a new alert.
 static GATEWAY_DOWN_SENTRY_ALERTED: AtomicBool = AtomicBool::new(false);
 
+/// Counts consecutive self-heal cycles that ended with the gateway still
+/// unhealthy.  Reset to 0 on any successful recovery.  When this hits
+/// HEAL_FAILURE_CAP we stop restarting for HEAL_SUPPRESS_SECS seconds so the
+/// app doesn't burn CPU in an infinite wipe-reinstall-restart loop.
+static CONSECUTIVE_HEAL_FAILURES: std::sync::atomic::AtomicU32 =
+  std::sync::atomic::AtomicU32::new(0);
+
+/// Unix timestamp (seconds) before which new self-heal cycles are suppressed.
+/// Written by the cap logic; read by the health-poll loop.
+static HEAL_SUPPRESSED_UNTIL_SECS: std::sync::atomic::AtomicU64 =
+  std::sync::atomic::AtomicU64::new(0);
+
+const HEAL_FAILURE_CAP: u32 = 3;
+const HEAL_SUPPRESS_SECS: u64 = 300; // 5 minutes
+
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
 /// Resolve the directory for gateway service logs.
@@ -2574,16 +2589,40 @@ async fn run_gateway_self_heal_cycle(
   let ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 10_000).await;
   if ready {
     eprintln!("[clawd/service] self-heal: gateway healthy after recovery cycle");
+    CONSECUTIVE_HEAL_FAILURES.store(0, Ordering::Relaxed);
+    HEAL_SUPPRESSED_UNTIL_SECS.store(0, Ordering::Relaxed);
     gateway_client::invalidate();
     GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
     BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
     patch_paired_json_scopes(&app_handle);
   } else {
+    let failures = CONSECUTIVE_HEAL_FAILURES.fetch_add(1, Ordering::Relaxed) + 1;
     eprintln!(
-      "[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class={}, doctor_ok={})",
-      crash_class,
-      doctor_ok
+      "[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class={}, doctor_ok={}, consecutive_failures={})",
+      crash_class, doctor_ok, failures
     );
+    if failures >= HEAL_FAILURE_CAP {
+      let suppress_until = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .saturating_add(HEAL_SUPPRESS_SECS);
+      HEAL_SUPPRESSED_UNTIL_SECS.store(suppress_until, Ordering::Relaxed);
+      eprintln!(
+        "[clawd/service] self-heal: {} consecutive failed recovery cycles (class={}) — suppressing restarts for {}s",
+        failures, crash_class, HEAL_SUPPRESS_SECS
+      );
+      sentry::with_scope(
+        |scope| {
+          scope.set_tag("gateway_crash_type", &crash_class);
+          scope.set_tag("consecutive_failures", &failures.to_string());
+        },
+        || sentry::capture_message(
+          &format!("[gateway] self-heal suppressed after {} consecutive failures (class={})", failures, crash_class),
+          sentry::Level::Error,
+        ),
+      );
+    }
   }
 
   sentry::with_scope(
@@ -2732,23 +2771,37 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         "[clawd/service] gateway not reachable but plugin runtime deps are staging - skipping restart"
       );
     } else if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
-      let token = tokens.gateway_token.clone();
-      #[cfg(target_os = "windows")]
-      let restart_err_path = windows_log_path("stderr");
-      #[cfg(not(target_os = "windows"))]
-      let restart_err_path = gateway_stderr_log();
-      let restart_log_lower = fs::read_to_string(&restart_err_path)
-        .or_else(|_| fs::read_to_string("/tmp/knapsack-clawdbot.err.log"))
+      // Check if restarts are suppressed after too many consecutive failures.
+      let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .to_lowercase();
-      let heal_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
-      eprintln!(
-        "[clawd/service] gateway not reachable — starting background self-heal (class={})",
-        classify_gateway_crash(&restart_log_lower)
-      );
-      tokio::spawn(async move {
-        run_gateway_self_heal_cycle(heal_app_handle, token, restart_log_lower).await;
-      });
+        .as_secs();
+      let suppressed_until = HEAL_SUPPRESSED_UNTIL_SECS.load(Ordering::Relaxed);
+      if suppressed_until > now_secs {
+        eprintln!(
+          "[clawd/service] self-heal suppressed for {}s more (too many consecutive failures) — skipping restart",
+          suppressed_until - now_secs
+        );
+        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      } else {
+        let token = tokens.gateway_token.clone();
+        #[cfg(target_os = "windows")]
+        let restart_err_path = windows_log_path("stderr");
+        #[cfg(not(target_os = "windows"))]
+        let restart_err_path = gateway_stderr_log();
+        let restart_log_lower = fs::read_to_string(&restart_err_path)
+          .or_else(|_| fs::read_to_string("/tmp/knapsack-clawdbot.err.log"))
+          .unwrap_or_default()
+          .to_lowercase();
+        let heal_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
+        eprintln!(
+          "[clawd/service] gateway not reachable — starting background self-heal (class={})",
+          classify_gateway_crash(&restart_log_lower)
+        );
+        tokio::spawn(async move {
+          run_gateway_self_heal_cycle(heal_app_handle, token, restart_log_lower).await;
+        });
+      }
     }
 
     // Browser control is accessed through the gateway's `browser.request` RPC
@@ -8334,6 +8387,14 @@ mod crash_classifier_tests {
     assert!(complete.exists());
 
     let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn heal_suppression_constants_are_sane() {
+    // HEAL_FAILURE_CAP and HEAL_SUPPRESS_SECS must be positive and the
+    // suppression window long enough to matter (≥1 minute).
+    assert!(HEAL_FAILURE_CAP >= 2, "cap should allow at least one retry");
+    assert!(HEAL_SUPPRESS_SECS >= 60, "suppression window should be at least 60s");
   }
 
   #[test]

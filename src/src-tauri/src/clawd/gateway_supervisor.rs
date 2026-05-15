@@ -50,8 +50,47 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
   }
 }
 
+/// Check the macOS code signature of the running app bundle.
+/// Returns `Some(message)` if the signature is broken, `None` if it's OK or
+/// the app is unsigned (unsigned dev builds are expected and not an error).
+#[cfg(target_os = "macos")]
+fn check_app_bundle_signature() -> Option<String> {
+  // Walk up from the executable: .../Knapsack.app/Contents/MacOS/Knapsack
+  //                                                 ^3         ^2  ^1   ^0
+  let exe = std::env::current_exe().ok()?;
+  let app_path = exe.ancestors().nth(3)?;
+  if !app_path.to_string_lossy().ends_with(".app") {
+    return None; // dev / test environment — skip check
+  }
+  let output = Command::new("codesign")
+    .args(["--verify", "--deep", "--strict"])
+    .arg(app_path)
+    .output()
+    .ok()?;
+  if output.status.success() {
+    return None;
+  }
+  let stderr = String::from_utf8_lossy(&output.stderr);
+  // "code object is not signed at all" is normal for unsigned dev builds.
+  if stderr.contains("code object is not signed at all") {
+    return None;
+  }
+  Some(format!(
+    "App bundle code signature is broken ({}). \
+     Reinstalling Knapsack from a fresh notarized DMG should fix this.",
+    stderr.trim()
+  ))
+}
+
 #[cfg(target_os = "macos")]
 pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
+  // Verify the app bundle seal before attempting to bootstrap the LaunchAgent.
+  // launchd rejects binaries from a bundle with a broken signature with a
+  // cryptic I/O error; surface a clear message instead.
+  if let Some(sig_err) = check_app_bundle_signature() {
+    return Err(sig_err);
+  }
+
   let uid = unsafe { libc::getuid() };
   let service = format!("gui/{}/{}", uid, label);
 

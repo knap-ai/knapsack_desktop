@@ -76,6 +76,46 @@ jobs:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
+      - name: Verify app bundle code signature
+        working-directory: src
+        run: |
+          APP=src-tauri/target/universal-apple-darwin/release/bundle/macos/Knapsack.app
+          RESULT=$(codesign --verify --deep --strict "$APP" 2>&1 || true)
+          # An unsigned build is fine (signing requires Apple certs).
+          # A *broken seal* ("sealed resource is missing or invalid") must fail the build.
+          if echo "$RESULT" | grep -q "a sealed resource is missing or invalid"; then
+            echo "ERROR: App bundle seal is broken — files were modified after signing:"
+            echo "$RESULT"
+            exit 1
+          fi
+          echo "Bundle integrity check: OK"
+
+      - name: Verify updater artifact integrity after extraction
+        working-directory: src
+        run: |
+          TARBALL=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz 2>/dev/null | head -1)
+          if [ -z "$TARBALL" ]; then
+            echo "No updater tarball found — skipping extraction integrity check"
+            exit 0
+          fi
+          EXTRACT_DIR=$(mktemp -d)
+          tar -xzf "$TARBALL" -C "$EXTRACT_DIR"
+          EXTRACTED_APP=$(find "$EXTRACT_DIR" -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$EXTRACTED_APP" ]; then
+            echo "ERROR: No .app found after extracting updater tarball"
+            rm -rf "$EXTRACT_DIR"
+            exit 1
+          fi
+          RESULT=$(codesign --verify --deep --strict "$EXTRACTED_APP" 2>&1 || true)
+          if echo "$RESULT" | grep -q "a sealed resource is missing or invalid"; then
+            echo "ERROR: Updater tarball breaks the app bundle seal after extraction:"
+            echo "$RESULT"
+            rm -rf "$EXTRACT_DIR"
+            exit 1
+          fi
+          echo "Updater extraction integrity check: OK"
+          rm -rf "$EXTRACT_DIR"
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v6
         with:
