@@ -84,6 +84,10 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Smoke-test gateway plugin registration
+        working-directory: src
+        run: bash scripts/smoke-test-gateway-plugins.sh
+
       - name: Run prebuild scripts
         working-directory: src
         env:
@@ -146,12 +150,55 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash scripts/sign-and-notarize.sh --notarize
 
+      - name: Verify signed app passes Gatekeeper as a user would see it
+        working-directory: src
+        run: |
+          APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          DMG=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+
+          echo "=== codesign --verify (app) ==="
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          echo "=== spctl open check (app) — mirrors Finder double-click ==="
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$APP"
+
+          if [ -n "$DMG" ]; then
+            echo "=== Mounting DMG and verifying .app inside ==="
+            MOUNT_PT=$(mktemp -d)
+            hdiutil attach "$DMG" -mountpoint "$MOUNT_PT" -nobrowse -quiet
+            INNER_APP=$(find "$MOUNT_PT" -maxdepth 1 -name "*.app" | head -1)
+            codesign --verify --deep --strict --verbose=2 "$INNER_APP"
+            spctl --assess --type open --context context:primary-signature --verbose=2 "$INNER_APP"
+            hdiutil detach "$MOUNT_PT" -quiet
+            rm -rf "$MOUNT_PT"
+            echo "=== DMG mount check passed ==="
+          fi
+
+          echo "=== All Gatekeeper checks passed ==="
+
       - name: Recreate updater archive after signing
         working-directory: src
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: bash scripts/recreate-updater-archive.sh
+
+      - name: Verify updater archive preserves signature after repack
+        working-directory: src
+        run: |
+          TARBALL=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz | head -1)
+          EXTRACT_DIR=$(mktemp -d)
+          tar -xzf "$TARBALL" -C "$EXTRACT_DIR"
+          EXTRACTED_APP=$(find "$EXTRACT_DIR" -maxdepth 1 -name "*.app" | head -1)
+
+          echo "=== codesign --verify (extracted updater app) ==="
+          codesign --verify --deep --strict --verbose=2 "$EXTRACTED_APP"
+
+          echo "=== spctl open check (extracted updater app) ==="
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$EXTRACTED_APP"
+
+          rm -rf "$EXTRACT_DIR"
+          echo "=== Updater archive signature check passed ==="
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6

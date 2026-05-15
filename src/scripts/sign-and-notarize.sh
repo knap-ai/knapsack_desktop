@@ -411,7 +411,11 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
 
   echo "[notarize] Verifying Gatekeeper approval..."
-  spctl --assess --type execute --verbose=2 "$APP_PATH"
+  # --type open --context context:primary-signature is exactly what Finder uses
+  # when a user double-clicks the app.  --type execute (command-line executables)
+  # produces a different assessment and can pass even when the Finder open check
+  # fails, which means CI passes but users see "damaged or incomplete".
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$APP_PATH"
 
   echo "[notarize] Done! App is signed, notarized, and stapled."
 else
