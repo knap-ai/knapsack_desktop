@@ -183,6 +183,23 @@ jobs:
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: bash scripts/recreate-updater-archive.sh
 
+      - name: Verify updater archive preserves signature after repack
+        working-directory: src
+        run: |
+          TARBALL=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz | head -1)
+          EXTRACT_DIR=$(mktemp -d)
+          tar -xzf "$TARBALL" -C "$EXTRACT_DIR"
+          EXTRACTED_APP=$(find "$EXTRACT_DIR" -maxdepth 1 -name "*.app" | head -1)
+
+          echo "=== codesign --verify (extracted updater app) ==="
+          codesign --verify --deep --strict --verbose=2 "$EXTRACTED_APP"
+
+          echo "=== spctl open check (extracted updater app) ==="
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$EXTRACTED_APP"
+
+          rm -rf "$EXTRACT_DIR"
+          echo "=== Updater archive signature check passed ==="
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
         with:
