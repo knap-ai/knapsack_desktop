@@ -2258,6 +2258,19 @@ fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
 }
 
 fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
+  // `npm warn tar TAR_ENTRY_ERROR ENOENT` lines are non-fatal npm extraction
+  // warnings that appear during a healthy install of packages with deep nesting
+  // (e.g. @buape/carbon → discord-api-types). If those warnings are the only
+  // ENOENT signal in the log — i.e. no actual module-resolution failures — we
+  // must not classify as corruption. Doing so triggers an infinite loop:
+  // self-heal wipes the deps dir → gateway restarts → npm warns again → repeat.
+  let only_tar_enoent = lower.contains("tar_entry_error")
+    && !lower.contains("cannot find module")
+    && !lower.contains("err_module_not_found");
+  if only_tar_enoent {
+    return false;
+  }
+
   let mentions_staged_plugin = lower.contains("plugin-runtime-deps")
     && (lower.contains("dist/extensions/slack")
       || lower.contains("dist/extensions/telegram")
@@ -8274,6 +8287,27 @@ mod crash_classifier_tests {
   fn missing_node_binary_is_node_unavailable() {
     let log_tail = "launchctl: node: No such file or directory";
     assert_eq!(classify_gateway_crash(log_tail), "node_unavailable");
+  }
+
+  #[test]
+  fn tar_entry_error_enoent_is_not_corruption() {
+    // npm `warn tar TAR_ENTRY_ERROR ENOENT` lines are non-fatal extraction
+    // warnings (e.g. from @buape/carbon → discord-api-types deep nesting).
+    // They must NOT trigger the self-heal wipe or we get an infinite restart loop.
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@buape/carbon/node_modules/discord-api-types/rest'";
+    assert!(
+      !is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "TAR_ENTRY_ERROR warnings should not be classified as corruption"
+    );
+    assert_ne!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn tar_entry_error_with_module_fail_is_still_corruption() {
+    // If the log also contains a real module-resolution failure alongside
+    // TAR_ENTRY_ERROR warnings, it should still be classified as corruption.
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@buape/carbon/node_modules/discord-api-types/rest'\nError: Cannot find module '@slack/logger'\nRequire stack:\n- /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@slack/web-api/dist/logger.js";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
   }
 
   #[test]
