@@ -56,25 +56,35 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
 #[cfg(target_os = "macos")]
 fn check_app_bundle_signature() -> Option<String> {
   // Walk up from the executable: .../Knapsack.app/Contents/MacOS/Knapsack
-  //                                                 ^3         ^2  ^1   ^0
+  // parent() x3 gives us Knapsack.app; convert to PathBuf immediately so
+  // nothing borrows from `exe` past this point.
   let exe = std::env::current_exe().ok()?;
-  let app_path = exe.ancestors().nth(3)?;
-  if !app_path.to_string_lossy().ends_with(".app") {
+  let app_bundle: std::path::PathBuf = exe
+    .parent()                         // Contents/MacOS
+    .and_then(|p| p.parent())         // Contents
+    .and_then(|p| p.parent())         // Knapsack.app
+    .map(|p| p.to_path_buf())?;
+
+  if app_bundle.extension().map_or(true, |e| e != "app") {
     return None; // dev / test environment — skip check
   }
+
   let output = Command::new("codesign")
     .args(["--verify", "--deep", "--strict"])
-    .arg(app_path)
+    .arg(&app_bundle)
     .output()
     .ok()?;
+
   if output.status.success() {
     return None;
   }
+
   let stderr = String::from_utf8_lossy(&output.stderr);
   // "code object is not signed at all" is normal for unsigned dev builds.
   if stderr.contains("code object is not signed at all") {
     return None;
   }
+
   Some(format!(
     "App bundle code signature is broken ({}). \
      Reinstalling Knapsack from a fresh notarized DMG should fix this.",
