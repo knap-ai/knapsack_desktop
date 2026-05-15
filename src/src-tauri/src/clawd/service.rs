@@ -6674,6 +6674,27 @@ pub async fn set_service_enabled(
       // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
 
+      eprintln!("[clawd/service] Running OpenClaw doctor --fix to ensure plugin dependencies...");
+      let doctor_status = std::process::Command::new(&node_path)
+          .arg(&clawdbot_entry)
+          .arg("doctor")
+          .arg("--fix")
+          .env("OPENCLAW_STATE_DIR", &clawdbot_home_str)
+          .env("OPENCLAW_BUNDLED_PLUGINS_DIR", &bundled_plugins_dir_str)
+          .status();
+
+      match doctor_status {
+          Ok(status) if status.success() => {
+              eprintln!("[clawd/service] doctor --fix completed successfully.");
+          }
+          Ok(status) => {
+              eprintln!("[clawd/service] WARNING: doctor --fix exited with status {}", status);
+          }
+          Err(e) => {
+              eprintln!("[clawd/service] ERROR: failed to run doctor --fix: {}", e);
+          }
+      }
+
       // Build a PATH that includes the directory where we found node (so npm
       // is also discoverable), plus common macOS paths.  LaunchAgents get a
       // minimal PATH by default which typically excludes /opt/homebrew/bin.
