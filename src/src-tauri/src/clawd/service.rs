@@ -2805,6 +2805,18 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
     }
 
+    // If the HTTP health check is passing but the WS connection is gone and no
+    // reconnect task is running, kick off a new reconnect task.  This handles
+    // the case where spawn_reconnect_task gave up after 20 attempts while the
+    // gateway stayed HTTP-healthy (e.g. after a competing-gateway eviction):
+    // the health poll never calls invalidate() again (was_healthy stays true)
+    // so no new task is ever spawned — the WS stays None indefinitely.
+    if gateway_ok {
+      if let Some(token) = gateway_client::get_gateway_token() {
+        gateway_client::ensure_reconnect_if_needed(&token);
+      }
+    }
+
     // If gateway is down, try to restart it via launchctl kickstart.
     // This runs in a background task to avoid blocking the health poll.
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
