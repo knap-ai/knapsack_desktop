@@ -2812,9 +2812,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // the health poll never calls invalidate() again (was_healthy stays true)
     // so no new task is ever spawned — the WS stays None indefinitely.
     if gateway_ok {
-      if let Some(token) = gateway_client::get_gateway_token() {
-        gateway_client::ensure_reconnect_if_needed(&token);
-      }
+      gateway_client::ensure_reconnect_if_needed();
     }
 
     // If gateway is down, try to restart it via launchctl kickstart.

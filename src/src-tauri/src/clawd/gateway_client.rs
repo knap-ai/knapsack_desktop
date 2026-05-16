@@ -1609,18 +1609,11 @@ pub fn invalidate() {
   invalidate_client();
 }
 
-/// Return the current gateway token if one is configured, or None.
-/// Used by the health-poll loop to kick a reconnect after the reconnect task
-/// gives up.
-pub fn get_gateway_token() -> Option<String> {
-  get_gateway_token()
-}
-
 /// If the WS connection is gone and no reconnect task is running, start one.
 /// Called from the health-poll loop when the gateway is HTTP-healthy but the
 /// pooled WS client is None — i.e. spawn_reconnect_task previously exhausted
 /// its 20 attempts while the gateway stayed up.
-pub fn ensure_reconnect_if_needed(token: &str) {
+pub fn ensure_reconnect_if_needed() {
   // Fast path: connection is alive.
   {
     let guard = CLIENT.read().unwrap();
@@ -1628,11 +1621,12 @@ pub fn ensure_reconnect_if_needed(token: &str) {
       return;
     }
   }
-  // RECONNECT_IN_PROGRESS.swap returns the OLD value; if it was already true
-  // a task is already running — nothing to do.
+  // No task running — try to get a token and spawn one.
   if !RECONNECT_IN_PROGRESS.load(Ordering::Relaxed) {
-    eprintln!("[gateway_client] health poll: WS disconnected while gateway is up — re-spawning reconnect task");
-    spawn_reconnect_task(token.to_string());
+    if let Some(token) = get_gateway_token() {
+      eprintln!("[gateway_client] health poll: WS disconnected while gateway is up — re-spawning reconnect task");
+      spawn_reconnect_task(token);
+    }
   }
 }
 
