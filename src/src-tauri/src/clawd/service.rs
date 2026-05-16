@@ -694,6 +694,8 @@ fn is_incomplete_plugin_runtime_deps_dir(path: &std::path::Path) -> bool {
   !path.join("package.json").is_file()
     || !path.join("node_modules").is_dir()
     || !path.join("dist").join("extensions").is_dir()
+    // node_modules/openclaw -> .. must exist so channel files can `import 'openclaw'`
+    || !path.join("node_modules").join("openclaw").exists()
 }
 
 fn count_incomplete_plugin_runtime_deps_dirs(
@@ -1251,6 +1253,38 @@ fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
       Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
       Err(e) => eprintln!("[clawd/service] WARNING: could not create openclaw self-link: {}", e),
     }
+  }
+}
+
+/// Ensure every `plugin-runtime-deps/openclaw-*` staging directory has a
+/// `node_modules/openclaw -> ..` self-link.  Channel extension files inside
+/// staging dirs import `'openclaw'` (the plugin SDK) via Node.js module
+/// resolution; without the self-link Node cannot find the package and every
+/// channel fails with "Cannot find package 'openclaw'".
+///
+/// The gateway creates these dirs and should create the link, but it may be
+/// absent when the dir was created by an older gateway or the link was lost
+/// during an interrupted update.  This function repairs them non-destructively
+/// so the gateway can resume without a full re-stage.
+fn ensure_plugin_runtime_deps_openclaw_links(clawdbot_home: &std::path::Path) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    let nm = entry.path().join("node_modules");
+    if !nm.is_dir() {
+      continue;
+    }
+    ensure_openclaw_self_link(&nm);
   }
 }
 
@@ -2281,7 +2315,8 @@ fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
   // self-heal wipes the deps dir → gateway restarts → npm warns again → repeat.
   let only_tar_enoent = lower.contains("tar_entry_error")
     && !lower.contains("cannot find module")
-    && !lower.contains("err_module_not_found");
+    && !lower.contains("err_module_not_found")
+    && !lower.contains("cannot find package");
   if only_tar_enoent {
     return false;
   }
@@ -2293,8 +2328,14 @@ fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
       || lower.contains("/slack/")
       || lower.contains("/telegram/"));
 
+  // ESM `import 'openclaw'` inside a staging dir that is missing node_modules/openclaw -> ..
+  let missing_openclaw_pkg = lower.contains("cannot find package")
+    && lower.contains("openclaw")
+    && lower.contains("plugin-runtime-deps");
+
   (lower.contains("enoent") && (mentions_staged_plugin || lower.contains("plugin-runtime-deps")))
     || (lower.contains("cannot find module") && mentions_staged_plugin)
+    || missing_openclaw_pkg
 }
 
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
@@ -2546,6 +2587,7 @@ async fn run_gateway_self_heal_cycle(
 
   let extensions_dir = resource_path(&app_handle, "resources/clawdbot/dist/extensions");
   install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir);
+  ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
 
   #[cfg(target_os = "windows")]
   {
@@ -5715,6 +5757,7 @@ async fn prepare_gateway_config(
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+  ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
 
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
@@ -6112,6 +6155,7 @@ pub async fn set_service_enabled(
 
       // Install runtime deps for bundled plugins (e.g. grammy for telegram).
       install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+      ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
@@ -8385,6 +8429,31 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn missing_openclaw_package_in_staging_dir_is_corruption() {
+    // ESM `import 'openclaw'` fails with "Cannot find package" when the
+    // node_modules/openclaw -> .. self-link is absent from the staging dir.
+    // This must be detected as corruption so the self-heal wipe+restart fires.
+    let log_tail = "[health] initial refresh failed: Cannot find package 'openclaw' imported from /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/dist/extensions/slack/channel-6sCxriZW.js";
+    assert!(
+      is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "missing openclaw self-link should be classified as corruption"
+    );
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn missing_openclaw_package_not_confused_with_tar_only() {
+    // TAR_ENTRY_ERROR + "cannot find package 'openclaw'" must still be
+    // treated as corruption (the cannot-find-package check overrides the
+    // tar-only early-return guard).
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory\nCannot find package 'openclaw' imported from /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-abc/dist/extensions/slack/channel.js";
+    assert!(
+      is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "TAR_ENTRY_ERROR + missing openclaw package should still be corruption"
+    );
+  }
+
+  #[test]
   fn removes_current_version_incomplete_plugin_runtime_deps_dir() {
     let root = std::env::temp_dir().join(format!(
       "knapsack-incomplete-runtime-deps-{}-{}",
@@ -8398,7 +8467,7 @@ mod crash_classifier_tests {
     let incomplete = base.join("openclaw-2026.4.26-abc123");
     let complete = base.join("openclaw-2026.4.26-def456");
     fs::create_dir_all(incomplete.join(".openclaw-npm-cache")).unwrap();
-    fs::create_dir_all(complete.join("node_modules")).unwrap();
+    fs::create_dir_all(complete.join("node_modules").join("openclaw")).unwrap();
     fs::create_dir_all(complete.join("dist").join("extensions")).unwrap();
     fs::write(complete.join("package.json"), "{}").unwrap();
 
