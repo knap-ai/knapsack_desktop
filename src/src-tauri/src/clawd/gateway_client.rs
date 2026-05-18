@@ -867,12 +867,21 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
 
 /// Build the `agents.defaults.model` config object for the gateway.
 ///
+/// Ollama stays in bare string form because local-provider startup can spin
+/// when the gateway receives the fallback object shape for an Ollama primary.
+///
 /// Returns `{"primary": "...", "fallbacks": [...]}` when fallback providers are
 /// available, or `{"primary": "..."}` when none are.  The gateway uses `fallbacks`
 /// to retry with an alternative model when the primary is rate-limited (429) or
 /// overloaded (503), preventing `FailoverError` propagation to the user.
 pub fn build_model_config() -> serde_json::Value {
   let primary = resolve_default_model();
+  // Keep local Ollama models as a bare string. The gateway starts Ollama
+  // providers more reliably with the explicit provider/model id than with a
+  // fallback object that requires provider catalog discovery during boot.
+  if primary.starts_with("ollama/") {
+    return serde_json::json!(primary);
+  }
   let fallbacks = collect_fallback_models(&primary);
   if fallbacks.is_empty() {
     serde_json::json!({"primary": primary})
