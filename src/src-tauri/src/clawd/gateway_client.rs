@@ -1609,6 +1609,27 @@ pub fn invalidate() {
   invalidate_client();
 }
 
+/// If the WS connection is gone and no reconnect task is running, start one.
+/// Called from the health-poll loop when the gateway is HTTP-healthy but the
+/// pooled WS client is None — i.e. spawn_reconnect_task previously exhausted
+/// its 20 attempts while the gateway stayed up.
+pub fn ensure_reconnect_if_needed() {
+  // Fast path: connection is alive.
+  {
+    let guard = CLIENT.read().unwrap();
+    if guard.is_some() {
+      return;
+    }
+  }
+  // No task running — try to get a token and spawn one.
+  if !RECONNECT_IN_PROGRESS.load(Ordering::Relaxed) {
+    if let Some(token) = get_gateway_token() {
+      eprintln!("[gateway_client] health poll: WS disconnected while gateway is up — re-spawning reconnect task");
+      spawn_reconnect_task(token);
+    }
+  }
+}
+
 /// Check if the gateway port is listening by sending an HTTP request.
 ///
 /// Using a plain HTTP GET instead of a raw TCP probe prevents the gateway's
