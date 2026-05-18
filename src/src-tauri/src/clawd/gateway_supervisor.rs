@@ -7,7 +7,8 @@ use tokio::sync::Mutex;
 /// Multiple callers (channel status, WS reconnect, RPC client) can trigger
 /// restarts simultaneously, causing launchctl bootout/bootstrap races that
 /// result in I/O errors and "service not found" failures.
-static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(|| Mutex::new(()));
+static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
+  once_cell::sync::Lazy::new(|| Mutex::new(()));
 
 /// Minimal gateway supervisor helpers.
 ///
@@ -39,7 +40,12 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
     Err(_) => return false,
   };
 
-  match client.get(gateway_health_url()).bearer_auth(token).send().await {
+  match client
+    .get(gateway_health_url())
+    .bearer_auth(token)
+    .send()
+    .await
+  {
     // Any HTTP response (200, 401, 404, 500 …) means the gateway process is
     // listening on the port.  Only a connection error means it is truly down.
     // Treating 401 as "unhealthy" caused a restart loop: the supervisor would
@@ -48,6 +54,10 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
     Ok(_) => true,
     Err(_) => false,
   }
+}
+
+async fn is_gateway_healthy_or_ready(token: &str) -> bool {
+  is_gateway_healthy(token).await
 }
 
 /// Check the macOS code signature of the running app bundle.
@@ -60,9 +70,9 @@ fn check_app_bundle_signature() -> Option<String> {
   // nothing borrows from `exe` past this point.
   let exe = std::env::current_exe().ok()?;
   let app_bundle: std::path::PathBuf = exe
-    .parent()                         // Contents/MacOS
-    .and_then(|p| p.parent())         // Contents
-    .and_then(|p| p.parent())         // Knapsack.app
+    .parent() // Contents/MacOS
+    .and_then(|p| p.parent()) // Contents
+    .and_then(|p| p.parent()) // Knapsack.app
     .map(|p| p.to_path_buf())?;
 
   if app_bundle.extension().map_or(true, |e| e != "app") {
@@ -176,7 +186,10 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
     }
     Ok(o) => {
       let k2_stderr = String::from_utf8_lossy(&o.stderr);
-      eprintln!("[gateway_supervisor] post-bootstrap kickstart failed: {}", k2_stderr.trim());
+      eprintln!(
+        "[gateway_supervisor] post-bootstrap kickstart failed: {}",
+        k2_stderr.trim()
+      );
       // Bootstrap succeeded, so the service should start via KeepAlive — treat as OK
       Ok(())
     }
@@ -195,7 +208,8 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
   let port_open = std::net::TcpStream::connect_timeout(
     &std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16)),
     std::time::Duration::from_millis(500),
-  ).is_ok();
+  )
+  .is_ok();
 
   if port_open {
     Ok(())
@@ -218,11 +232,19 @@ pub fn kickstart_launch_agent(_label: &str) -> Result<(), String> {
 /// callers wait for the in-progress attempt to finish and then re-check health.
 pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureResponse {
   // Fast path: if already healthy, skip the mutex entirely.
-  if is_gateway_healthy(token).await {
+  if is_gateway_healthy_or_ready(token).await {
     return GatewayEnsureResponse {
       success: true,
       running: true,
       message: "Gateway healthy".to_string(),
+    };
+  }
+
+  if super::service::gateway_startup_in_progress() {
+    return GatewayEnsureResponse {
+      success: true,
+      running: false,
+      message: "Gateway is starting".to_string(),
     };
   }
 
@@ -232,11 +254,19 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 
   // Re-check health after acquiring the lock — the previous holder may
   // have already restarted the gateway successfully.
-  if is_gateway_healthy(token).await {
+  if is_gateway_healthy_or_ready(token).await {
     return GatewayEnsureResponse {
       success: true,
       running: true,
       message: "Gateway healthy (recovered while waiting)".to_string(),
+    };
+  }
+
+  if super::service::gateway_startup_in_progress() {
+    return GatewayEnsureResponse {
+      success: true,
+      running: false,
+      message: "Gateway is starting".to_string(),
     };
   }
 
@@ -260,7 +290,7 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
 
     tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
 
-    if is_gateway_healthy(token).await {
+    if is_gateway_healthy_or_ready(token).await {
       return GatewayEnsureResponse {
         success: true,
         running: true,
@@ -269,7 +299,10 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
     }
   }
 
-  eprintln!("[gateway_supervisor] Gateway failed to start after {} attempts", backoff_ms.len());
+  eprintln!(
+    "[gateway_supervisor] Gateway failed to start after {} attempts",
+    backoff_ms.len()
+  );
 
   // Dump the last few lines of the gateway's stderr log so we can see
   // why the process is failing to start.
@@ -287,7 +320,9 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
       }
       let tail_text = lines.join("\n");
       let lower = tail_text.to_lowercase();
-      crash_type = if lower.contains("assertionerror") && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed")) {
+      crash_type = if lower.contains("assertionerror")
+        && (lower.contains("ipv4") || lower.contains("mdns") || lower.contains("address changed"))
+      {
         "mdns_crash"
       } else if lower.contains("eaddrinuse") || lower.contains("address already in use") {
         "port_conflict"
@@ -305,12 +340,21 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   // Sentry alert: gateway failed to recover after retries — this is a real incident.
   sentry::with_scope(
     |scope| scope.set_tag("gateway_crash_type", crash_type),
-    || sentry::capture_message(
-      &format!("[gateway_supervisor] Gateway unreachable after {} retry attempts. type={}", backoff_ms.len(), crash_type),
-      sentry::Level::Error,
-    ),
+    || {
+      sentry::capture_message(
+        &format!(
+          "[gateway_supervisor] Gateway unreachable after {} retry attempts. type={}",
+          backoff_ms.len(),
+          crash_type
+        ),
+        sentry::Level::Error,
+      )
+    },
   );
-  eprintln!("[gateway_supervisor] Sentry alert sent: crash_type={}", crash_type);
+  eprintln!(
+    "[gateway_supervisor] Sentry alert sent: crash_type={}",
+    crash_type
+  );
 
   // On macOS, check if the process is being killed by Gatekeeper (exit code 9 = SIGKILL).
   #[cfg(target_os = "macos")]
@@ -334,7 +378,10 @@ pub async fn ensure_gateway_running(label: &str, token: &str) -> GatewayEnsureRe
   GatewayEnsureResponse {
     success: false,
     running: false,
-    message: format!("Gateway not reachable after multiple retries (not running).{}", detail),
+    message: format!(
+      "Gateway not reachable after multiple retries (not running).{}",
+      detail
+    ),
   }
 }
 
@@ -347,7 +394,7 @@ pub async fn wait_for_gateway_ready(token: &str, max_wait_ms: u64) -> bool {
   let max_interval_ms: u64 = 3000;
 
   while start.elapsed().as_millis() < max_wait_ms as u128 {
-    if is_gateway_healthy(token).await {
+    if is_gateway_healthy_or_ready(token).await {
       return true;
     }
     tokio::time::sleep(std::time::Duration::from_millis(interval_ms)).await;
