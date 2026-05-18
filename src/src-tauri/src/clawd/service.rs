@@ -4574,6 +4574,26 @@ pub async fn set_api_key(
     }
   }
 
+  if key.is_empty() && payload.model.is_none() && payload.env_var.is_none() {
+    if let Some(agent) = &payload.preferred_coding_agent {
+      tokens.preferred_coding_agent = normalize_coding_agent(agent);
+      match &tokens.preferred_coding_agent {
+        Some(agent) => std::env::set_var("KNAPSACK_CODING_AGENT", agent),
+        None => std::env::remove_var("KNAPSACK_CODING_AGENT"),
+      }
+      if let Err(e) = save_tokens(&app_handle, &tokens) {
+        return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+          success: false,
+          message: e,
+        });
+      }
+      return HttpResponse::Ok().json(SetApiKeyResponse {
+        success: true,
+        message: "Coding agent preference saved".to_string(),
+      });
+    }
+  }
+
   // Validate key format before storing (skip for ollama and knapsack which don't use API keys)
   if !key.is_empty() && provider != "ollama" && provider != "knapsack" {
     if let Err(msg) = validate_api_key_format(&key) {
@@ -10484,6 +10504,16 @@ mod provider_key_tests {
       normalize_coding_agent(" opencode "),
       Some("opencode".to_string())
     );
+  }
+
+  #[test]
+  fn coding_agent_preference_rejects_unknown_values() {
+    assert_eq!(normalize_coding_agent("vim"), None);
+  }
+
+  #[test]
+  fn coding_agent_preference_accepts_opencode() {
+    assert_eq!(normalize_coding_agent(" opencode "), Some("opencode".to_string()));
   }
 
   #[test]
