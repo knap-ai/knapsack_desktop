@@ -2621,7 +2621,8 @@ pub async fn chat(
       let process_id = uuid::Uuid::new_v4().to_string();
 
       // Select which coding CLI to use: check user preference first, then fall back to
-      // whichever API key is available. Anthropic → claude, OpenAI → codex, Google → gemini.
+      // whichever API key is available. Anthropic → claude, OpenAI → codex,
+      // Google → gemini, otherwise OpenCode.
       let coding_agent = {
         let pref = std::env::var("KNAPSACK_CODING_AGENT").unwrap_or_default();
         let pref = pref.trim().to_lowercase();
@@ -2632,7 +2633,7 @@ pub async fn chat(
           if has("ANTHROPIC_API_KEY") { "claude".to_string() }
           else if has("OPENAI_API_KEY") { "codex".to_string() }
           else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") { "gemini".to_string() }
-          else { "claude".to_string() }
+          else { "opencode".to_string() }
         }
       };
 
@@ -2649,6 +2650,7 @@ pub async fn chat(
       // claude: --yes auto-accepts tool use so it can read/write files without prompting.
       // codex:  --approval-mode auto-edit allows file edits non-interactively.
       // gemini: -p (--prompt) triggers headless mode, returning stdout output without TTY UI.
+      // opencode: use npx so the fallback can work even when the binary is not already installed.
       //         Note: Antigravity (`agy`) is an IDE, not a headless CLI — use `gemini` instead.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
       let claude_cmd = match coding_agent.as_str() {
@@ -2663,6 +2665,12 @@ pub async fn chat(
           { format!("gemini -p \"{}\"", prompt.replace('"', "\\\"")) }
           #[cfg(not(target_os = "windows"))]
           { format!("gemini -p '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        "opencode" => {
+          #[cfg(target_os = "windows")]
+          { format!("npx -y opencode-ai run \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("npx -y opencode-ai run '{}'", prompt.replace('\'', "'\\''")) }
         }
         _ => {
           #[cfg(target_os = "windows")]

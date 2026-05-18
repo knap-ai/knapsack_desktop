@@ -3656,7 +3656,7 @@ pub struct SetApiKeyRequest {
   /// For extra providers: the environment variable name to store the key under.
   /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
   pub env_var: Option<String>,
-  /// Preferred coding CLI agent: "claude", "codex", or "gemini".
+  /// Preferred coding CLI agent: "claude", "codex", "gemini", or "opencode".
   /// When provided alongside or without a key change, updates the stored preference.
   pub preferred_coding_agent: Option<String>,
 }
@@ -3665,6 +3665,15 @@ pub struct SetApiKeyRequest {
 pub struct SetApiKeyResponse {
   pub success: bool,
   pub message: String,
+}
+
+fn normalize_coding_agent(agent: &str) -> Option<String> {
+  let agent = agent.trim().to_lowercase();
+  if ["claude", "codex", "gemini", "opencode"].contains(&agent.as_str()) {
+    Some(agent)
+  } else {
+    None
+  }
 }
 
 #[post("/api/clawd/service/set-api-key")]
@@ -3684,6 +3693,26 @@ pub async fn set_api_key(
 
   let key = payload.key.trim().to_string();
   let provider = payload.provider.as_deref().unwrap_or("openai").to_lowercase();
+
+  if key.is_empty() && payload.model.is_none() && payload.env_var.is_none() {
+    if let Some(agent) = &payload.preferred_coding_agent {
+      tokens.preferred_coding_agent = normalize_coding_agent(agent);
+      match &tokens.preferred_coding_agent {
+        Some(agent) => std::env::set_var("KNAPSACK_CODING_AGENT", agent),
+        None => std::env::remove_var("KNAPSACK_CODING_AGENT"),
+      }
+      if let Err(e) = save_tokens(&app_handle, &tokens) {
+        return HttpResponse::InternalServerError().json(SetApiKeyResponse {
+          success: false,
+          message: e,
+        });
+      }
+      return HttpResponse::Ok().json(SetApiKeyResponse {
+        success: true,
+        message: "Coding agent preference saved".to_string(),
+      });
+    }
+  }
 
   // Validate key format before storing (skip for ollama and knapsack which don't use API keys)
   if !key.is_empty() && provider != "ollama" && provider != "knapsack" {
@@ -3934,10 +3963,9 @@ pub async fn set_api_key(
     }
   };
 
-  // Persist coding agent preference if provided ("claude", "codex", or "gemini")
+  // Persist coding agent preference if provided ("claude", "codex", "gemini", or "opencode")
   if let Some(agent) = &payload.preferred_coding_agent {
-    let agent = agent.trim().to_lowercase();
-    if ["claude", "codex", "gemini"].contains(&agent.as_str()) {
+    if let Some(agent) = normalize_coding_agent(agent) {
       tokens.preferred_coding_agent = Some(agent.clone());
       std::env::set_var("KNAPSACK_CODING_AGENT", &agent);
     }
@@ -8546,6 +8574,16 @@ mod provider_key_tests {
 
   fn clear_all() {
     for v in ALL_VARS { std::env::remove_var(v); }
+  }
+
+  #[test]
+  fn coding_agent_preference_accepts_opencode() {
+    assert_eq!(normalize_coding_agent(" opencode "), Some("opencode".to_string()));
+  }
+
+  #[test]
+  fn coding_agent_preference_rejects_unknown_values() {
+    assert_eq!(normalize_coding_agent("vim"), None);
   }
 
   #[test]
