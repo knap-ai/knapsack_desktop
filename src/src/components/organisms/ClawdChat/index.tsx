@@ -2731,7 +2731,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           setClaudeCodeActive(true)
           setClaudeCodePrompt(event.payload.prompt)
           const a = event.payload.agent
-          setCodingAgentName(a === 'codex' ? 'Codex' : a === 'gemini' ? 'Gemini CLI' : 'Claude Code')
+          setCodingAgentName(a === 'codex' ? 'Codex' : a === 'gemini' ? 'Gemini CLI' : a === 'opencode' ? 'OpenCode' : 'Claude Code')
           // Auto-open Activity Panel if not already open
           if (!externalActivityPanelRef.current && onToggleActivityRef.current) {
             onToggleActivityRef.current()
@@ -6973,6 +6973,7 @@ ${actualText}`
                   <option value="claude">Claude Code (Anthropic)</option>
                   <option value="codex">Codex (OpenAI)</option>
                   <option value="gemini">Gemini CLI (Google)</option>
+                  <option value="opencode">OpenCode</option>
                 </select>
               </div>
             </div>
