@@ -19,6 +19,7 @@ mod clawd;
 mod config;
 mod connections;
 mod constants;
+mod crash_reporter;
 mod db;
 mod error;
 mod file_upload;
@@ -1389,6 +1390,10 @@ async fn main() {
     scope.set_tag("platform", "desktop");
     scope.set_tag("app", "knapsack_desktop");
   });
+
+  // Wrap sentry's panic hook so we can attach recent logs + a memory snapshot
+  // to the scope before the event is captured and flushed.
+  crash_reporter::install_panic_hook();
 
   // log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
   // setup_tracing();

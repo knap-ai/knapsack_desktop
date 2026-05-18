@@ -328,6 +328,11 @@ if [ "$DO_NOTARIZE" = true ]; then
 
   echo "[notarize] Stapling notarization ticket to .app..."
   xcrun stapler staple "$APP_PATH"
+  echo "[notarize] Validating .app staple ticket..."
+  xcrun stapler validate "$APP_PATH" || {
+    echo "[notarize] ERROR: .app staple ticket invalid — users would see 'damaged'." >&2
+    exit 1
+  }
 
   # Recreate DMG with the stapled .app, then notarize & staple the DMG
   DMG_DIR="$(dirname "$BUNDLE_DIR")/dmg"
@@ -386,6 +391,16 @@ if [ "$DO_NOTARIZE" = true ]; then
       if [ "$DMG_STATUS" = "Accepted" ]; then
         echo "[notarize] Stapling DMG..."
         xcrun stapler staple "$DMG_PATH"
+        echo "[notarize] Validating DMG staple ticket..."
+        xcrun stapler validate "$DMG_PATH" || {
+          echo "[notarize] ERROR: DMG staple ticket invalid — users would see 'damaged'." >&2
+          exit 1
+        }
+        echo "[notarize] Verifying Gatekeeper approval of DMG..."
+        spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG_PATH" || {
+          echo "[notarize] ERROR: DMG fails Gatekeeper check — users would see 'damaged' on download." >&2
+          exit 1
+        }
       else
         echo "[notarize] ERROR: DMG notarization failed with status: $DMG_STATUS" >&2
         echo "[notarize]        An unnotarized DMG will show 'damaged' on user machines." >&2
@@ -396,7 +411,11 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
 
   echo "[notarize] Verifying Gatekeeper approval..."
-  spctl --assess --type execute --verbose=2 "$APP_PATH"
+  # --type open --context context:primary-signature is exactly what Finder uses
+  # when a user double-clicks the app.  --type execute (command-line executables)
+  # produces a different assessment and can pass even when the Finder open check
+  # fails, which means CI passes but users see "damaged or incomplete".
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$APP_PATH"
 
   echo "[notarize] Done! App is signed, notarized, and stapled."
 else

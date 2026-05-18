@@ -305,6 +305,21 @@ impl Drop for GatewayRestartProgressGuard {
 /// outage can trigger a new alert.
 static GATEWAY_DOWN_SENTRY_ALERTED: AtomicBool = AtomicBool::new(false);
 
+/// Counts consecutive self-heal cycles that ended with the gateway still
+/// unhealthy.  Reset to 0 on any successful recovery.  When this hits
+/// HEAL_FAILURE_CAP we stop restarting for HEAL_SUPPRESS_SECS seconds so the
+/// app doesn't burn CPU in an infinite wipe-reinstall-restart loop.
+static CONSECUTIVE_HEAL_FAILURES: std::sync::atomic::AtomicU32 =
+  std::sync::atomic::AtomicU32::new(0);
+
+/// Unix timestamp (seconds) before which new self-heal cycles are suppressed.
+/// Written by the cap logic; read by the health-poll loop.
+static HEAL_SUPPRESSED_UNTIL_SECS: std::sync::atomic::AtomicU64 =
+  std::sync::atomic::AtomicU64::new(0);
+
+const HEAL_FAILURE_CAP: u32 = 3;
+const HEAL_SUPPRESS_SECS: u64 = 300; // 5 minutes
+
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
 /// Resolve the directory for gateway service logs.
@@ -495,14 +510,46 @@ fn evict_competing_gateway_plists() -> Vec<String> {
   vec![]
 }
 
+/// On macOS, kill the standalone `openclaw-gateway` binary if it is holding
+/// `port` WITHOUT a LaunchAgent plist (e.g. started via `openclaw gateway
+/// start`).  Our own clawdbot runs as a `node` process so filtering on the
+/// binary name "openclaw-gateway" is safe to call even when our gateway is
+/// healthy.
+#[cfg(target_os = "macos")]
+fn kill_standalone_openclaw_gateway_on_port(port: u16) {
+  // `lsof -c <name>` matches on command name prefix; `-ti :<port>` returns
+  // just the PID if that command holds the port.
+  let output = std::process::Command::new("lsof")
+    .args(["-c", "openclaw-gateway", "-ti", &format!(":{}", port)])
+    .output();
+  if let Ok(out) = output {
+    let pid_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if !pid_str.is_empty() {
+      eprintln!(
+        "[clawd/service] standalone openclaw-gateway binary on port {} (pid={}) without plist — killing",
+        port, pid_str
+      );
+      kill_process_on_port(port);
+    }
+  }
+}
+
 /// Thin shim kept for existing call sites that don't need the return value.
 /// After evicting competing LaunchAgent plists, also kills any process still
 /// holding port 18789 — `launchctl bootout` removes launchd management but
 /// leaves the process alive, so without the kill it keeps blocking the port.
+/// Additionally kills a standalone `openclaw-gateway` binary on the port even
+/// when no plist was found (started via `openclaw gateway start` with no
+/// LaunchAgent registration).
 fn remove_stale_standalone_gateway() {
   let evicted = evict_competing_gateway_plists();
   if !evicted.is_empty() {
     kill_process_on_port(18789);
+  } else {
+    // No LaunchAgent plist was evicted, but a manually-started
+    // openclaw-gateway binary may still be holding port 18789.
+    #[cfg(target_os = "macos")]
+    kill_standalone_openclaw_gateway_on_port(18789);
   }
 }
 
@@ -743,6 +790,8 @@ fn is_incomplete_plugin_runtime_deps_dir(path: &std::path::Path) -> bool {
   !path.join("package.json").is_file()
     || !path.join("node_modules").is_dir()
     || !path.join("dist").join("extensions").is_dir()
+    // node_modules/openclaw -> .. must exist so channel files can `import 'openclaw'`
+    || !path.join("node_modules").join("openclaw").exists()
 }
 
 fn count_incomplete_plugin_runtime_deps_dirs(
@@ -1438,6 +1487,38 @@ fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
     return;
   };
   ensure_openclaw_self_link(&clawdbot_root.join("node_modules"));
+}
+
+/// Ensure every `plugin-runtime-deps/openclaw-*` staging directory has a
+/// `node_modules/openclaw -> ..` self-link.  Channel extension files inside
+/// staging dirs import `'openclaw'` (the plugin SDK) via Node.js module
+/// resolution; without the self-link Node cannot find the package and every
+/// channel fails with "Cannot find package 'openclaw'".
+///
+/// The gateway creates these dirs and should create the link, but it may be
+/// absent when the dir was created by an older gateway or the link was lost
+/// during an interrupted update.  This function repairs them non-destructively
+/// so the gateway can resume without a full re-stage.
+fn ensure_plugin_runtime_deps_openclaw_links(clawdbot_home: &std::path::Path) {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return,
+  };
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+    let dir_name = entry.file_name().to_string_lossy().to_string();
+    if !dir_name.starts_with("openclaw-") {
+      continue;
+    }
+    let nm = entry.path().join("node_modules");
+    if !nm.is_dir() {
+      continue;
+    }
+    ensure_openclaw_self_link(&nm);
+  }
 }
 
 /// Check if the gateway Node.js binary or the bundled clawdbot directory is
@@ -2612,6 +2693,20 @@ fn is_openclaw_npm_cache_enoent(lower: &str) -> bool {
 }
 
 fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
+  // `npm warn tar TAR_ENTRY_ERROR ENOENT` lines are non-fatal npm extraction
+  // warnings that appear during a healthy install of packages with deep nesting
+  // (e.g. @buape/carbon → discord-api-types). If those warnings are the only
+  // ENOENT signal in the log — i.e. no actual module-resolution failures — we
+  // must not classify as corruption. Doing so triggers an infinite loop:
+  // self-heal wipes the deps dir → gateway restarts → npm warns again → repeat.
+  let only_tar_enoent = lower.contains("tar_entry_error")
+    && !lower.contains("cannot find module")
+    && !lower.contains("err_module_not_found")
+    && !lower.contains("cannot find package");
+  if only_tar_enoent {
+    return false;
+  }
+
   let mentions_staged_plugin = lower.contains("plugin-runtime-deps")
     && (lower.contains("dist/extensions/")
       || lower.contains("dist/extensions/slack")
@@ -2620,9 +2715,15 @@ fn is_plugin_runtime_deps_corruption(lower: &str) -> bool {
       || lower.contains("/slack/")
       || lower.contains("/telegram/"));
 
+  // ESM `import 'openclaw'` inside a staging dir that is missing node_modules/openclaw -> ..
+  let missing_openclaw_pkg = lower.contains("cannot find package")
+    && lower.contains("openclaw")
+    && lower.contains("plugin-runtime-deps");
+
   (lower.contains("enoent") && (mentions_staged_plugin || lower.contains("plugin-runtime-deps")))
     || (lower.contains("cannot find module") && mentions_staged_plugin)
     || (lower.contains("cannot find package") && lower.contains("plugin-runtime-deps"))
+    || missing_openclaw_pkg
 }
 
 fn classify_gateway_crash(log_tail: &str) -> &'static str {
@@ -2967,6 +3068,7 @@ async fn run_gateway_self_heal_cycle(
   let extensions_dir = bundled_plugins_dir(&app_handle);
   if !cfg!(debug_assertions) {
     install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir);
+    ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
   }
 
   #[cfg(target_os = "windows")]
@@ -3015,16 +3117,45 @@ async fn run_gateway_self_heal_cycle(
   let ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 10_000).await;
   if ready {
     eprintln!("[clawd/service] self-heal: gateway healthy after recovery cycle");
+    CONSECUTIVE_HEAL_FAILURES.store(0, Ordering::Relaxed);
+    HEAL_SUPPRESSED_UNTIL_SECS.store(0, Ordering::Relaxed);
     gateway_client::invalidate();
     GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
     BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
     patch_paired_json_scopes(&app_handle);
   } else {
+    let failures = CONSECUTIVE_HEAL_FAILURES.fetch_add(1, Ordering::Relaxed) + 1;
     eprintln!(
-      "[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class={}, doctor_ok={})",
-      crash_class,
-      doctor_ok
+      "[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class={}, doctor_ok={}, consecutive_failures={})",
+      crash_class, doctor_ok, failures
     );
+    if failures >= HEAL_FAILURE_CAP {
+      let suppress_until = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+        .saturating_add(HEAL_SUPPRESS_SECS);
+      HEAL_SUPPRESSED_UNTIL_SECS.store(suppress_until, Ordering::Relaxed);
+      eprintln!(
+        "[clawd/service] self-heal: {} consecutive failed recovery cycles (class={}) — suppressing restarts for {}s",
+        failures, crash_class, HEAL_SUPPRESS_SECS
+      );
+      sentry::with_scope(
+        |scope| {
+          scope.set_tag("gateway_crash_type", &crash_class);
+          scope.set_tag("consecutive_failures", &failures.to_string());
+        },
+        || {
+          sentry::capture_message(
+            &format!(
+              "[gateway] self-heal suppressed after {} consecutive failures (class={})",
+              failures, crash_class
+            ),
+            sentry::Level::Error,
+          )
+        },
+      );
+    }
   }
 
   sentry::with_scope(
@@ -3381,6 +3512,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
+    // If the HTTP health check is passing but the WS connection is gone and no
+    // reconnect task is running, kick off a new reconnect task.  This handles
+    // the case where spawn_reconnect_task gave up after 20 attempts while the
+    // gateway stayed HTTP-healthy (e.g. after a competing-gateway eviction):
+    // the health poll never calls invalidate() again (was_healthy stays true)
+    // so no new task is ever spawned — the WS stays None indefinitely.
+    if gateway_ok {
+      gateway_client::ensure_reconnect_if_needed();
+    }
+
     // If gateway is down, try to restart it via launchctl kickstart.
     // This runs in a background task to avoid blocking the health poll.
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
@@ -3406,23 +3547,37 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         post_bind_startup
       );
     } else if !gateway_ok && !GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
-      let token = tokens.gateway_token.clone();
-      #[cfg(target_os = "windows")]
-      let restart_err_path = windows_log_path("stderr");
-      #[cfg(not(target_os = "windows"))]
-      let restart_err_path = gateway_stderr_log();
-      let restart_log_lower = fs::read_to_string(&restart_err_path)
-        .or_else(|_| fs::read_to_string("/tmp/knapsack-clawdbot.err.log"))
+      // Check if restarts are suppressed after too many consecutive failures.
+      let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .to_lowercase();
-      let heal_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
-      eprintln!(
-        "[clawd/service] gateway not reachable — starting background self-heal (class={})",
-        classify_gateway_crash(&restart_log_lower)
-      );
-      tokio::spawn(async move {
-        run_gateway_self_heal_cycle(heal_app_handle, token, restart_log_lower).await;
-      });
+        .as_secs();
+      let suppressed_until = HEAL_SUPPRESSED_UNTIL_SECS.load(Ordering::Relaxed);
+      if suppressed_until > now_secs {
+        eprintln!(
+          "[clawd/service] self-heal suppressed for {}s more (too many consecutive failures) — skipping restart",
+          suppressed_until - now_secs
+        );
+        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+      } else {
+        let token = tokens.gateway_token.clone();
+        #[cfg(target_os = "windows")]
+        let restart_err_path = windows_log_path("stderr");
+        #[cfg(not(target_os = "windows"))]
+        let restart_err_path = gateway_stderr_log();
+        let restart_log_lower = fs::read_to_string(&restart_err_path)
+          .or_else(|_| fs::read_to_string("/tmp/knapsack-clawdbot.err.log"))
+          .unwrap_or_default()
+          .to_lowercase();
+        let heal_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
+        eprintln!(
+          "[clawd/service] gateway not reachable — starting background self-heal (class={})",
+          classify_gateway_crash(&restart_log_lower)
+        );
+        tokio::spawn(async move {
+          run_gateway_self_heal_cycle(heal_app_handle, token, restart_log_lower).await;
+        });
+      }
     }
 
     // Keep the UI health poll cheap. Browser automation still uses the gateway
@@ -3634,6 +3789,17 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
       if let Ok(content) = log_content {
+        // Detect version mismatch before noise-filtering so we can tag diagnostic_type,
+        // even though the lines are stripped from the user-visible tail below.
+        let has_version_mismatch = content.lines().any(|l| {
+          let l = l.to_ascii_lowercase();
+          l.contains("config was last written by a newer openclaw")
+            || l.contains("config was last written by an older openclaw")
+        });
+        if has_version_mismatch && diagnostic_type.is_none() {
+          diagnostic_type = Some("version_mismatch".to_string());
+        }
+
         // Strip known-noisy lines that appear during normal gateway operation
         // and would only confuse users when shown as a diagnostic.
         let is_noise = |line: &str| {
@@ -3643,6 +3809,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             || l.contains("bonjour: gateway hostname conflict resolved")
             || l.contains("unhandled promise rejection: ciao")
             || (l.contains("security warning") && l.contains("allowinsecureauth"))
+            || l.contains("config was last written by a newer openclaw")
+            || l.contains("config was last written by an older openclaw")
         };
         let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
         let start = all_filtered.len().saturating_sub(25);
@@ -4551,6 +4719,7 @@ pub async fn set_api_key(
     let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
     if let Ok(cfg_str) = fs::read_to_string(&config_path) {
       if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model_cfg = crate::clawd::gateway_client::build_model_config();
         let model = crate::clawd::gateway_client::resolve_default_model();
         let agents = cfg_val
           .as_object_mut()
@@ -4564,7 +4733,7 @@ pub async fn set_api_key(
           .entry("defaults")
           .or_insert_with(|| serde_json::json!({}));
         defaults.as_object_mut().map(|d| {
-          d.insert("model".to_string(), serde_json::json!({"primary": model}));
+          d.insert("model".to_string(), model_cfg);
         });
         if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
           let _ = fs::write(&config_path, json);
@@ -4806,6 +4975,7 @@ pub async fn set_api_key(
   if let Ok(cfg_str) = fs::read_to_string(&config_path) {
     if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
       let model = crate::clawd::gateway_client::resolve_default_model();
+      let model_cfg = crate::clawd::gateway_client::build_model_config();
       let agents = cfg_val
         .as_object_mut()
         .unwrap()
@@ -4818,7 +4988,7 @@ pub async fn set_api_key(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        d.insert("model".to_string(), model_cfg);
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -5105,6 +5275,7 @@ pub async fn ollama_configure(
   if let Ok(cfg_str) = fs::read_to_string(&config_path) {
     if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
       let model = crate::clawd::gateway_client::resolve_default_model();
+      let model_cfg = crate::clawd::gateway_client::build_model_config();
       let agents = cfg_val
         .as_object_mut()
         .unwrap()
@@ -5117,7 +5288,7 @@ pub async fn ollama_configure(
         .entry("defaults")
         .or_insert_with(|| serde_json::json!({}));
       defaults.as_object_mut().map(|d| {
-        d.insert("model".to_string(), serde_json::json!({"primary": model}));
+        d.insert("model".to_string(), model_cfg);
       });
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
@@ -5131,6 +5302,7 @@ pub async fn ollama_configure(
   }
 
   // Push model change to the running gateway immediately
+  let ollama_model_cfg = crate::clawd::gateway_client::build_model_config();
   let ollama_model = crate::clawd::gateway_client::resolve_default_model();
   tokio::spawn(async move {
     if !crate::clawd::gateway_client::is_gateway_port_open().await {
@@ -5141,7 +5313,7 @@ pub async fn ollama_configure(
       let base_hash = cfg_val.get("hash").and_then(|h| h.as_str()).unwrap_or("");
       if !base_hash.is_empty() {
         let patch = serde_json::json!({
-          "agents": {"defaults": {"model": {"primary": ollama_model}}}
+          "agents": {"defaults": {"model": ollama_model_cfg}}
         });
         match crate::clawd::gateway_client::config_patch(
           &patch.to_string(), base_hash, None
@@ -5697,7 +5869,7 @@ async fn prepare_gateway_config(
     let agents_defaults = if any_provider_key_available() {
       serde_json::json!({
         "defaults": {
-          "model": {"primary": crate::clawd::gateway_client::resolve_default_model()}
+          "model": crate::clawd::gateway_client::build_model_config()
         }
       })
     } else {
@@ -6025,7 +6197,7 @@ async fn prepare_gateway_config(
               .unwrap()
               .insert(
                 "model".to_string(),
-                serde_json::json!({"primary": new_model.clone()}),
+                crate::clawd::gateway_client::build_model_config(),
               );
             eprintln!(
               "[clawd/service] Patched agents.defaults.model.primary: {:?} → '{}' (provider key mismatch)",
@@ -6888,6 +7060,7 @@ async fn prepare_gateway_config(
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   if !cfg!(debug_assertions) {
     install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+    ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
   }
 
   eprintln!(
@@ -7329,6 +7502,7 @@ pub async fn set_service_enabled(
       // Install runtime deps for bundled plugins (e.g. grammy for telegram).
       if !cfg!(debug_assertions) {
         install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
+        ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
       }
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
@@ -8195,6 +8369,30 @@ pub async fn set_service_enabled(
       // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
       let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
+
+      eprintln!("[clawd/service] Running OpenClaw doctor --fix to ensure plugin dependencies...");
+      let doctor_status = std::process::Command::new(&node_path)
+        .arg(&clawdbot_entry)
+        .arg("doctor")
+        .arg("--fix")
+        .env("OPENCLAW_STATE_DIR", &clawdbot_home_str)
+        .env("OPENCLAW_BUNDLED_PLUGINS_DIR", &bundled_plugins_dir_str)
+        .status();
+
+      match doctor_status {
+        Ok(status) if status.success() => {
+          eprintln!("[clawd/service] doctor --fix completed successfully.");
+        }
+        Ok(status) => {
+          eprintln!(
+            "[clawd/service] WARNING: doctor --fix exited with status {}",
+            status
+          );
+        }
+        Err(e) => {
+          eprintln!("[clawd/service] ERROR: failed to run doctor --fix: {}", e);
+        }
+      }
 
       // Build a PATH that includes the directory where we found node (so npm
       // is also discoverable), plus common macOS paths.  LaunchAgents get a
@@ -9163,6 +9361,47 @@ async fn do_gemini_connect(app_handle: &tauri::AppHandle, code: &str) -> Result<
   save_tokens(app_handle, &tokens).map_err(|e| format!("Failed to save tokens: {}", e))?;
 
   std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "google-gemini-cli");
+
+  // Sync openclaw.json model to the Gemini CLI provider so the gateway starts
+  // with the correct model (and fallbacks) instead of a stale one from before.
+  {
+    let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+    if let Ok(cfg_str) = fs::read_to_string(&config_path) {
+      if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
+        let model_cfg = crate::clawd::gateway_client::build_model_config();
+        let model_str = crate::clawd::gateway_client::resolve_default_model();
+        if cfg_val.get("agents").is_none() {
+          cfg_val
+            .as_object_mut()
+            .unwrap()
+            .insert("agents".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/agents/defaults").is_none() {
+          cfg_val
+            .pointer_mut("/agents")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("defaults".to_string(), serde_json::json!({}));
+        }
+        cfg_val
+          .pointer_mut("/agents/defaults")
+          .unwrap()
+          .as_object_mut()
+          .unwrap()
+          .insert("model".to_string(), model_cfg);
+        if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
+          let _ = fs::write(&config_path, json);
+          harden_file_permissions(&config_path);
+          eprintln!(
+            "[clawd/service] Gemini CLI OAuth: updated agents.defaults.model to '{}'",
+            model_str
+          );
+        }
+      }
+    }
+  }
+
   crate::clawd::gateway_client::invalidate();
 
   #[cfg(target_os = "windows")]
@@ -9933,6 +10172,52 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn tar_entry_error_enoent_is_not_corruption() {
+    // npm `warn tar TAR_ENTRY_ERROR ENOENT` lines are non-fatal extraction
+    // warnings (e.g. from @buape/carbon → discord-api-types deep nesting).
+    // They must NOT trigger the self-heal wipe or we get an infinite restart loop.
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@buape/carbon/node_modules/discord-api-types/rest'";
+    assert!(
+      !is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "TAR_ENTRY_ERROR warnings should not be classified as corruption"
+    );
+    assert_ne!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn tar_entry_error_with_module_fail_is_still_corruption() {
+    // If the log also contains a real module-resolution failure alongside
+    // TAR_ENTRY_ERROR warnings, it should still be classified as corruption.
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, lstat '/Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@buape/carbon/node_modules/discord-api-types/rest'\nError: Cannot find module '@slack/logger'\nRequire stack:\n- /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/node_modules/@slack/web-api/dist/logger.js";
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn missing_openclaw_package_in_staging_dir_is_corruption() {
+    // ESM `import 'openclaw'` fails with "Cannot find package" when the
+    // node_modules/openclaw -> .. self-link is absent from the staging dir.
+    // This must be detected as corruption so the self-heal wipe+restart fires.
+    let log_tail = "[health] initial refresh failed: Cannot find package 'openclaw' imported from /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-5b9d7b421f2e/dist/extensions/slack/channel-6sCxriZW.js";
+    assert!(
+      is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "missing openclaw self-link should be classified as corruption"
+    );
+    assert_eq!(classify_gateway_crash(log_tail), "plugin_install_fail");
+  }
+
+  #[test]
+  fn missing_openclaw_package_not_confused_with_tar_only() {
+    // TAR_ENTRY_ERROR + "cannot find package 'openclaw'" must still be
+    // treated as corruption (the cannot-find-package check overrides the
+    // tar-only early-return guard).
+    let log_tail = "npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory\nCannot find package 'openclaw' imported from /Users/test/Library/Application Support/ai.knap.knapsack/clawdbot/plugin-runtime-deps/openclaw-2026.4.26-abc/dist/extensions/slack/channel.js";
+    assert!(
+      is_plugin_runtime_deps_corruption(&log_tail.to_lowercase()),
+      "TAR_ENTRY_ERROR + missing openclaw package should still be corruption"
+    );
+  }
+
+  #[test]
   fn removes_current_version_incomplete_plugin_runtime_deps_dir() {
     let root = std::env::temp_dir().join(format!(
       "knapsack-incomplete-runtime-deps-{}-{}",
@@ -9946,7 +10231,7 @@ mod crash_classifier_tests {
     let incomplete = base.join("openclaw-2026.4.26-abc123");
     let complete = base.join("openclaw-2026.4.26-def456");
     fs::create_dir_all(incomplete.join(".openclaw-npm-cache")).unwrap();
-    fs::create_dir_all(complete.join("node_modules")).unwrap();
+    fs::create_dir_all(complete.join("node_modules").join("openclaw")).unwrap();
     fs::create_dir_all(complete.join("dist").join("extensions")).unwrap();
     fs::write(complete.join("package.json"), "{}").unwrap();
 
@@ -9962,6 +10247,17 @@ mod crash_classifier_tests {
     assert!(complete.exists());
 
     let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn heal_suppression_constants_are_sane() {
+    // HEAL_FAILURE_CAP and HEAL_SUPPRESS_SECS must be positive and the
+    // suppression window long enough to matter (≥1 minute).
+    assert!(HEAL_FAILURE_CAP >= 2, "cap should allow at least one retry");
+    assert!(
+      HEAL_SUPPRESS_SECS >= 60,
+      "suppression window should be at least 60s"
+    );
   }
 
   #[test]
@@ -10142,7 +10438,10 @@ mod provider_key_tests {
 
   #[test]
   fn coding_agent_preference_accepts_opencode() {
-    assert_eq!(normalize_coding_agent(" opencode "), Some("opencode".to_string()));
+    assert_eq!(
+      normalize_coding_agent(" opencode "),
+      Some("opencode".to_string())
+    );
   }
 
   #[test]

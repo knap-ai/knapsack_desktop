@@ -8,7 +8,9 @@
     "@slack/bolt": "^4.7.1",
     "@slack/web-api": "^7.15.1",
     "https-proxy-agent": "^9.0.0",
-    "typebox": "1.1.33"
+    "typebox": "1.1.33",
+    "combined-stream": "^1.0.8",
+    "lodash.includes": "^4.3.0"
   },
   "openclaw": {
     "extensions": [

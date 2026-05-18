@@ -258,6 +258,8 @@ export const SettingsDialog = ({
     has_anthropic_key?: boolean
     has_openrouter_key?: boolean
     has_gemini_cli_key?: boolean
+    has_knapsack?: boolean
+    knapsack_email?: string
     ollama_enabled?: boolean
     ollama_model?: string
     ollama_base_url?: string
@@ -303,6 +305,8 @@ export const SettingsDialog = ({
           has_anthropic_key: data.has_anthropic_key,
           has_openrouter_key: data.has_openrouter_key,
           has_gemini_cli_key: data.has_gemini_cli_key,
+          has_knapsack: data.has_knapsack,
+          knapsack_email: data.knapsack_email,
           ollama_enabled: data.ollama_enabled,
           ollama_model: data.ollama_model,
           ollama_base_url: data.ollama_base_url,
@@ -549,6 +553,37 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>AI Provider</Typography>
 
           <div className={styles.providerAccordion}>
+            {/* Knapsack cloud inference */}
+            <ProviderAccordion
+              title="Knapsack"
+              isActive={providerStatus?.active_provider === 'knapsack'}
+              isConnected={!!providerStatus?.has_knapsack}
+              expanded={expandedProvider === 'knapsack'}
+              onToggle={() => toggleProvider('knapsack')}
+            >
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {providerStatus?.has_knapsack
+                    ? `Connected as ${providerStatus.knapsack_email}`
+                    : 'No Knapsack account connected'}
+                </span>
+                <button
+                  className={styles.providerActionLink}
+                  onClick={() => { handleClose(); onProviderSignInClick?.('knapsack') }}
+                >
+                  {providerStatus?.has_knapsack ? 'Change model' : 'Connect'}
+                </button>
+              </div>
+              {!providerStatus?.has_knapsack && (
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
+                  Need an account?{' '}
+                  <a href="https://studio.knapsack.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#c54841' }}>
+                    Sign up at studio.knapsack.ai
+                  </a>
+                </p>
+              )}
+            </ProviderAccordion>
+
             {/* OpenAI */}
             <ProviderAccordion
               title="OpenAI"

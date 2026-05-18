@@ -84,6 +84,10 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Smoke-test gateway plugin registration
+        working-directory: src
+        run: bash scripts/smoke-test-gateway-plugins.sh
+
       - name: Run prebuild scripts
         working-directory: src
         env:
@@ -146,12 +150,55 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash scripts/sign-and-notarize.sh --notarize
 
+      - name: Verify signed app passes Gatekeeper as a user would see it
+        working-directory: src
+        run: |
+          APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          DMG=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+
+          echo "=== codesign --verify (app) ==="
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          echo "=== spctl open check (app) — mirrors Finder double-click ==="
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$APP"
+
+          if [ -n "$DMG" ]; then
+            echo "=== Mounting DMG and verifying .app inside ==="
+            MOUNT_PT=$(mktemp -d)
+            hdiutil attach "$DMG" -mountpoint "$MOUNT_PT" -nobrowse -quiet
+            INNER_APP=$(find "$MOUNT_PT" -maxdepth 1 -name "*.app" | head -1)
+            codesign --verify --deep --strict --verbose=2 "$INNER_APP"
+            spctl --assess --type open --context context:primary-signature --verbose=2 "$INNER_APP"
+            hdiutil detach "$MOUNT_PT" -quiet
+            rm -rf "$MOUNT_PT"
+            echo "=== DMG mount check passed ==="
+          fi
+
+          echo "=== All Gatekeeper checks passed ==="
+
       - name: Recreate updater archive after signing
         working-directory: src
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: bash scripts/recreate-updater-archive.sh
+
+      - name: Verify updater archive preserves signature after repack
+        working-directory: src
+        run: |
+          TARBALL=$(ls src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz | head -1)
+          EXTRACT_DIR=$(mktemp -d)
+          tar -xzf "$TARBALL" -C "$EXTRACT_DIR"
+          EXTRACTED_APP=$(find "$EXTRACT_DIR" -maxdepth 1 -name "*.app" | head -1)
+
+          echo "=== codesign --verify (extracted updater app) ==="
+          codesign --verify --deep --strict --verbose=2 "$EXTRACTED_APP"
+
+          echo "=== spctl open check (extracted updater app) ==="
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$EXTRACTED_APP"
+
+          rm -rf "$EXTRACT_DIR"
+          echo "=== Updater archive signature check passed ==="
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v6
@@ -164,7 +211,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows — MSI installer (WiX, 64-bit) + lightweight NSIS web-setup stub
+  # Windows — MSI installer (WiX, 64-bit)
   # ---------------------------------------------------------------------------
   build-windows:
     needs: bump-version
@@ -410,43 +457,6 @@ jobs:
           path: ${{ runner.temp }}/tauri-build.log
           if-no-files-found: ignore
 
-      - name: Build web installer stub
-        shell: pwsh
-        run: |
-          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
-          if (-not (Test-Path $makensis)) {
-            Write-Error "NSIS not found at $makensis"; exit 1
-          }
-          & $makensis /V3 src\installer\stub.nsi
-          if ($LASTEXITCODE -ne 0) { Write-Error "makensis failed"; exit 1 }
-          Write-Host "Built: src\installer\Knapsack-web-setup.exe"
-
-      - name: Sign web installer stub
-        if: env.AZURE_KEY_VAULT_URI != ''
-        shell: pwsh
-        env:
-          AZURE_KEY_VAULT_URI: ${{ secrets.AZURE_KEY_VAULT_URI }}
-          AZURE_KEY_VAULT_CERT_NAME: ${{ secrets.AZURE_KEY_VAULT_CERT_NAME }}
-          AZURE_KEY_VAULT_CLIENT_ID: ${{ secrets.AZURE_KEY_VAULT_CLIENT_ID }}
-          AZURE_KEY_VAULT_CLIENT_SECRET: ${{ secrets.AZURE_KEY_VAULT_CLIENT_SECRET }}
-          AZURE_KEY_VAULT_TENANT_ID: ${{ secrets.AZURE_KEY_VAULT_TENANT_ID }}
-        run: |
-          $installerPath = "src\installer\Knapsack-web-setup.exe"
-          if (-not (Test-Path $installerPath)) {
-            Write-Error "Installer not found at $installerPath"
-            exit 1
-          }
-          AzureSignTool sign `
-            -kvu "$env:AZURE_KEY_VAULT_URI" `
-            -kvc "$env:AZURE_KEY_VAULT_CERT_NAME" `
-            -kvi "$env:AZURE_KEY_VAULT_CLIENT_ID" `
-            -kvs "$env:AZURE_KEY_VAULT_CLIENT_SECRET" `
-            -kvt "$env:AZURE_KEY_VAULT_TENANT_ID" `
-            -tr http://timestamp.globalsign.com/tsa/advanced `
-            -td sha256 `
-            "$installerPath"
-          Write-Host "Signed: Knapsack-web-setup.exe"
-
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -455,7 +465,6 @@ jobs:
             src/src-tauri/target/release/bundle/msi/*.msi
             src/src-tauri/target/release/bundle/msi/*.msi.zip
             src/src-tauri/target/release/bundle/msi/*.msi.zip.sig
-            src/installer/Knapsack-web-setup.exe
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -503,18 +512,6 @@ jobs:
             fi
           done
 
-          # Find the MSI installer (exclude the zip and sig variants).
-          # This URL is used by the stub installer to download and install the MSI.
-          WIN_MSI_NAME=""
-          for f in artifacts/windows-artifacts/**/*.msi artifacts/windows-artifacts/*.msi; do
-            name=$(basename "$f")
-            # Skip .msi.zip files
-            if [ -f "$f" ] && [[ "$name" != *.zip ]]; then
-              WIN_MSI_NAME="$name"
-              break
-            fi
-          done
-
           # Build latest.json
           cat > artifacts/latest.json <<EOF
           {
@@ -532,8 +529,7 @@ jobs:
               },
               "windows-x86_64": {
                 "url": "$RELEASE_URL/$WIN_ZIP_NAME",
-                "signature": "$WIN_SIG",
-                "setupUrl": "$RELEASE_URL/$WIN_MSI_NAME"
+                "signature": "$WIN_SIG"
               }
             }
           }
@@ -548,9 +544,7 @@ jobs:
           # macOS
           find artifacts/macos-artifacts -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -exec cp {} release-files/ \;
           # Windows
-          find artifacts/windows-artifacts -type f \( -name "*.msi" -o -name "*.msi.zip" -o -name "*.msi.zip.sig" -o -name "Knapsack-web-setup.exe" \) -exec cp {} release-files/ \;
-          # Web installer stub (promote to top-level with a stable name)
-          find artifacts/windows-artifacts -name "Knapsack-web-setup.exe" -exec cp {} release-files/ \; 2>/dev/null || true
+          find artifacts/windows-artifacts -type f \( -name "*.msi" -o -name "*.msi.zip" -o -name "*.msi.zip.sig" \) -exec cp {} release-files/ \;
           # Updater metadata
           cp artifacts/latest.json release-files/
           echo "[release] Files to upload:"
