@@ -5321,35 +5321,39 @@ pub async fn ollama_configure(
     }
   }
 
-  // Push model change to the running gateway immediately
-  let ollama_model_cfg = crate::clawd::gateway_client::build_model_config();
+  // Restart the gateway so provider discovery runs with the updated Ollama
+  // environment. A live config.patch updates the default model but does not
+  // rebuild the provider catalog, and can fail if config.get returns redacted
+  // secret sentinels in unrelated plugin config.
   let ollama_model = crate::clawd::gateway_client::resolve_default_model();
-  tokio::spawn(async move {
-    if !crate::clawd::gateway_client::is_gateway_port_open().await {
-      return;
+  eprintln!(
+    "[clawd/service] Ollama configure (enabled={}, model: {}) - restarting gateway for provider re-discovery",
+    payload.enabled, ollama_model
+  );
+  crate::clawd::gateway_client::invalidate();
+  #[cfg(target_os = "windows")]
+  {
+    kill_process_on_port(18789);
+  }
+  #[cfg(target_os = "macos")]
+  {
+    if let Ok(plist_path) = launch_agent_plist_path() {
+      regenerate_macos_plist_with_current_env(&plist_path);
+      let uid = unsafe { libc::getuid() };
+      let domain = format!("gui/{}", uid);
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      std::thread::sleep(std::time::Duration::from_millis(500));
+      let _ = std::process::Command::new("launchctl")
+        .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+        .status();
+      let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+      let _ = std::process::Command::new("launchctl")
+        .args(["kickstart", "-k", &service])
+        .status();
     }
-    let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-    if let Ok(cfg_val) = cfg_result {
-      let base_hash = cfg_val.get("hash").and_then(|h| h.as_str()).unwrap_or("");
-      if !base_hash.is_empty() {
-        let patch = serde_json::json!({
-          "agents": {"defaults": {"model": ollama_model_cfg}}
-        });
-        match crate::clawd::gateway_client::config_patch(
-          &patch.to_string(), base_hash, None
-        ).await {
-          Ok(_) => eprintln!(
-            "[clawd/service] Pushed model '{}' to running gateway via config.patch (ollama configure)",
-            ollama_model
-          ),
-          Err(e) => eprintln!(
-            "[clawd/service] Failed to push model to gateway on ollama configure: {}",
-            e
-          ),
-        }
-      }
-    }
-  });
+  }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
     success: true,
@@ -6146,13 +6150,15 @@ async fn prepare_gateway_config(
           patched = true;
         }
 
-        // Migrate agents.defaults.model from string to object form.
-        // The gateway schema expects { primary: "...", fallbacks?: [...] }
-        // but older Knapsack versions wrote a bare string.
+        // Migrate non-Ollama agents.defaults.model strings to object form.
+        // Ollama stays as an explicit provider/model string for startup
+        // stability while provider discovery is still warming up.
         if let Some(model_val) = cfg_val.pointer("/agents/defaults/model") {
           if model_val.is_string() {
             let model_str = model_val.as_str().unwrap_or("").to_string();
-            if let Some(defaults) = cfg_val
+            if model_str.starts_with("ollama/") {
+              eprintln!("[clawd/service] Preserved Ollama agents.defaults.model string form");
+            } else if let Some(defaults) = cfg_val
               .pointer_mut("/agents/defaults")
               .and_then(|v| v.as_object_mut())
             {
@@ -9888,6 +9894,42 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
           tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
         );
         if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+          let expected_plist = generate_plist(&setup.program_args, &setup.env);
+          let existing_plist = fs::read_to_string(&plist_path).unwrap_or_default();
+          if existing_plist != expected_plist {
+            eprintln!(
+              "[clawd/service] auto_enable: LaunchAgent plist is stale - rewriting and restarting gateway"
+            );
+            if let Err(e) = fs::write(&plist_path, &expected_plist) {
+              eprintln!(
+                "[clawd/service] auto_enable: failed to rewrite stale plist: {}",
+                e
+              );
+            } else {
+              harden_file_permissions(&plist_path);
+              *LAST_MACOS_PLIST_ARGS.lock().unwrap() =
+                Some((setup.program_args.clone(), setup.env.clone()));
+              let uid = unsafe { libc::getuid() };
+              let domain = format!("gui/{}", uid);
+              let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+              let _ = std::process::Command::new("launchctl")
+                .args(["bootout", &service])
+                .status();
+              std::thread::sleep(std::time::Duration::from_millis(800));
+              kill_process_on_port(18789);
+              let _ = std::process::Command::new("launchctl")
+                .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+                .status();
+              let _ = std::process::Command::new("launchctl")
+                .args(["kickstart", "-k", &service])
+                .status();
+              sentry::capture_message(
+                "[gateway] auto_enable: rewrote stale LaunchAgent plist + restarted",
+                sentry::Level::Warning,
+              );
+              return;
+            }
+          }
           *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args, setup.env));
           eprintln!("[clawd/service] auto_enable: cached plist args for future API key updates");
         }
@@ -10462,16 +10504,6 @@ mod provider_key_tests {
       normalize_coding_agent(" opencode "),
       Some("opencode".to_string())
     );
-  }
-
-  #[test]
-  fn coding_agent_preference_rejects_unknown_values() {
-    assert_eq!(normalize_coding_agent("vim"), None);
-  }
-
-  #[test]
-  fn coding_agent_preference_accepts_opencode() {
-    assert_eq!(normalize_coding_agent(" opencode "), Some("opencode".to_string()));
   }
 
   #[test]
