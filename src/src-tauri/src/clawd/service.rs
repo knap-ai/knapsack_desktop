@@ -9874,6 +9874,42 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
           tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
         );
         if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
+          let expected_plist = generate_plist(&setup.program_args, &setup.env);
+          let existing_plist = fs::read_to_string(&plist_path).unwrap_or_default();
+          if existing_plist != expected_plist {
+            eprintln!(
+              "[clawd/service] auto_enable: LaunchAgent plist is stale - rewriting and restarting gateway"
+            );
+            if let Err(e) = fs::write(&plist_path, &expected_plist) {
+              eprintln!(
+                "[clawd/service] auto_enable: failed to rewrite stale plist: {}",
+                e
+              );
+            } else {
+              harden_file_permissions(&plist_path);
+              *LAST_MACOS_PLIST_ARGS.lock().unwrap() =
+                Some((setup.program_args.clone(), setup.env.clone()));
+              let uid = unsafe { libc::getuid() };
+              let domain = format!("gui/{}", uid);
+              let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+              let _ = std::process::Command::new("launchctl")
+                .args(["bootout", &service])
+                .status();
+              std::thread::sleep(std::time::Duration::from_millis(800));
+              kill_process_on_port(18789);
+              let _ = std::process::Command::new("launchctl")
+                .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+                .status();
+              let _ = std::process::Command::new("launchctl")
+                .args(["kickstart", "-k", &service])
+                .status();
+              sentry::capture_message(
+                "[gateway] auto_enable: rewrote stale LaunchAgent plist + restarted",
+                sentry::Level::Warning,
+              );
+              return;
+            }
+          }
           *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args, setup.env));
           eprintln!("[clawd/service] auto_enable: cached plist args for future API key updates");
         }
