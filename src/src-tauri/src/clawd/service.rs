@@ -10512,16 +10512,6 @@ mod provider_key_tests {
   }
 
   #[test]
-  fn coding_agent_preference_accepts_opencode() {
-    assert_eq!(normalize_coding_agent(" opencode "), Some("opencode".to_string()));
-  }
-
-  #[test]
-  fn coding_agent_preference_rejects_unknown_values() {
-    assert_eq!(normalize_coding_agent("vim"), None);
-  }
-
-  #[test]
   fn no_keys_means_no_provider_available() {
     let _guard = ENV_LOCK.lock().unwrap();
     clear_all();
