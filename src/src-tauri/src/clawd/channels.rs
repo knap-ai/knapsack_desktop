@@ -2,41 +2,209 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 use crate::clawd::gateway_client;
 use crate::clawd::pairing_auto_approve;
+use crate::clawd::service;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
 /// Strip ANSI escape sequences (colours, bold, etc.) from a string.
 /// The gateway returns colourised channelSummary lines which must be
 /// cleaned before we can prefix-match on them.
 static ANSI_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap());
+static CHANNEL_STATUS_CACHE: Lazy<Mutex<ChannelStatusCache>> =
+  Lazy::new(|| Mutex::new(ChannelStatusCache::default()));
+
+#[derive(Default)]
+struct ChannelStatusCache {
+  fetched_at: Option<Instant>,
+  value: Option<Value>,
+  error_at: Option<Instant>,
+  error: Option<String>,
+}
 
 fn strip_ansi(s: &str) -> String {
   ANSI_RE.replace_all(s, "").into_owned()
+}
+
+async fn gateway_reachable() -> bool {
+  service::gateway_reachable_or_ready(Duration::from_millis(500)).await
+}
+
+async fn channel_runtime_snapshot() -> Result<Value, String> {
+  let mut cache = match CHANNEL_STATUS_CACHE.try_lock() {
+    Ok(cache) => cache,
+    Err(_) => {
+      return Err("Channel status refresh already in progress".to_string());
+    }
+  };
+  if let (Some(fetched_at), Some(value)) = (cache.fetched_at, cache.value.as_ref()) {
+    if fetched_at.elapsed() < Duration::from_secs(2) {
+      return Ok(value.clone());
+    }
+  }
+  if let (Some(error_at), Some(error)) = (cache.error_at, cache.error.as_ref()) {
+    if error_at.elapsed() < Duration::from_secs(2) {
+      return Err(error.clone());
+    }
+  }
+
+  let snapshot = tokio::time::timeout(
+    Duration::from_millis(1500),
+    gateway_client::call_channel_method(
+      "channels.status",
+      Some(serde_json::json!({
+        "probe": false,
+        "timeoutMs": 800
+      })),
+      None,
+    ),
+  )
+  .await
+  .map_err(|_| "Timed out reading channel status".to_string())
+  .and_then(|result| result);
+
+  match snapshot {
+    Ok(snapshot) => {
+      cache.fetched_at = Some(Instant::now());
+      cache.value = Some(snapshot.clone());
+      cache.error_at = None;
+      cache.error = None;
+      Ok(snapshot)
+    }
+    Err(error) => {
+      cache.error_at = Some(Instant::now());
+      cache.error = Some(error.clone());
+      Err(error)
+    }
+  }
+}
+
+fn runtime_channel<'a>(snapshot: &'a Value, channel: &str) -> Option<&'a Value> {
+  snapshot.get("channels")?.get(channel)
+}
+
+fn configured_channel(channel: &str) -> Option<Value> {
+  let mut candidates = Vec::new();
+  if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
+    candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
+  }
+  if let Ok(dir) = std::env::var("OPENCLAW_HOME") {
+    candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
+  }
+  if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join("Library")
+        .join("Application Support")
+        .join("ai.knap.knapsack")
+        .join("clawdbot")
+        .join("openclaw.json"),
+    );
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join(".openclaw")
+        .join("openclaw.json"),
+    );
+  }
+
+  for path in candidates {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+      continue;
+    };
+    let Ok(config) = serde_json::from_str::<Value>(&raw) else {
+      continue;
+    };
+    if let Some(entry) = config.pointer(&format!("/channels/{}", channel)) {
+      return Some(entry.clone());
+    }
+  }
+  None
+}
+
+fn runtime_status_response(
+  snapshot: &Value,
+  channel: &str,
+  linked_when_connected: bool,
+  provider: Option<String>,
+) -> ChannelStatusResponse {
+  let status = runtime_channel(snapshot, channel);
+  let config = configured_channel(channel);
+  let enabled = status
+    .and_then(|s| s.get("enabled"))
+    .and_then(|v| v.as_bool())
+    .or_else(|| {
+      config
+        .as_ref()
+        .and_then(|s| s.get("enabled"))
+        .and_then(|v| v.as_bool())
+    })
+    .unwrap_or_else(|| config.is_some());
+  let configured = status
+    .and_then(|s| s.get("configured"))
+    .and_then(|v| v.as_bool())
+    .unwrap_or_else(|| enabled || config.is_some());
+  let running = status
+    .and_then(|s| s.get("running"))
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  let connected = status
+    .and_then(|s| s.get("connected"))
+    .and_then(|v| v.as_bool())
+    .unwrap_or(running);
+  let account = status
+    .and_then(|s| s.get("accountId"))
+    .and_then(|v| v.as_str())
+    .filter(|id| !id.is_empty() && *id != "default")
+    .map(|id| id.to_string());
+  let message = status
+    .and_then(|s| s.get("lastError"))
+    .and_then(|v| v.as_str())
+    .filter(|err| !err.trim().is_empty())
+    .map(|err| err.to_string());
+
+  ChannelStatusResponse {
+    success: true,
+    enabled,
+    configured,
+    linked: if linked_when_connected {
+      Some(connected)
+    } else {
+      None
+    },
+    provider,
+    message,
+    account,
+  }
 }
 
 /// Quick check: is the gateway port listening?  If not, attempt a restart
 /// via `ensure_gateway_best_effort` and re-check.  Returns a fast error
 /// response if the gateway is still down after the restart attempt.
 async fn gateway_or_bail() -> Option<HttpResponse> {
-  if gateway_client::is_gateway_port_open().await {
+  if gateway_reachable().await {
     return None;
   }
 
-  // Gateway is down — try to restart it before giving up.
-  // This handles the common case where the gateway crashed and macOS
-  // KeepAlive hasn't restarted it yet, or the restart is in progress.
-  eprintln!("[channels] gateway port not open — attempting restart before bailing");
-  gateway_client::ensure_gateway_and_wait().await;
-
-  // Re-check after restart attempt
-  if gateway_client::is_gateway_port_open().await {
-    eprintln!("[channels] gateway came back after restart — proceeding");
-    return None;
+  if service::gateway_startup_in_progress()
+    || service::gateway_health_self_heal_grace_active().is_some()
+  {
+    return Some(HttpResponse::Ok().json(ChannelStatusResponse {
+      success: false,
+      enabled: false,
+      configured: false,
+      linked: Some(false),
+      provider: None,
+      message: Some("Gateway is still starting. Channel status will refresh shortly.".to_string()),
+      account: None,
+    }));
   }
+
+  eprintln!("[channels] gateway port not open — returning transient channel status");
 
   Some(HttpResponse::Ok().json(ChannelStatusResponse {
         success: false,
@@ -411,25 +579,8 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match gateway_client::get_channel_status(None).await {
-    Ok(status) => {
-      let (enabled, linked, _configured) = parse_channel_from_summary(&status, "WhatsApp");
-      let account = if linked {
-        parse_account_from_summary(&status, "WhatsApp")
-      } else {
-        None
-      };
-
-      HttpResponse::Ok().json(ChannelStatusResponse {
-        success: true,
-        enabled,
-        configured: linked,
-        linked: Some(linked),
-        provider: None,
-        message: None,
-        account,
-      })
-    }
+  match channel_runtime_snapshot().await {
+    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, "whatsapp", true, None)),
     Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
       success: false,
       enabled: false,
@@ -838,19 +989,9 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match gateway_client::get_channel_status(None).await {
+  match channel_runtime_snapshot().await {
     Ok(status) => {
-      let (enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
-
-      HttpResponse::Ok().json(ChannelStatusResponse {
-        success: true,
-        enabled,
-        configured,
-        linked: None,
-        provider: None,
-        message: None,
-        account: None,
-      })
+      HttpResponse::Ok().json(runtime_status_response(&status, "imessage", false, None))
     }
     Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
       success: false,
@@ -957,34 +1098,23 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match gateway_client::get_channel_status(None).await {
+  match channel_runtime_snapshot().await {
     Ok(status) => {
-      // Voice calls are handled by plugins, check channelSummary for Twilio/Telnyx/etc
-      let channel_summary = status.get("channelSummary").and_then(|cs| cs.as_array());
-
-      let mut enabled = false;
-      let mut provider: Option<String> = None;
-
-      if let Some(lines) = channel_summary {
-        for line in lines {
-          if let Some(text) = line.as_str() {
-            let lower = text.to_lowercase();
-            if lower.contains("twilio") || lower.contains("telnyx") || lower.contains("plivo") {
-              enabled = !lower.contains("disabled");
-              if lower.contains("twilio") {
-                provider = Some("twilio".to_string());
-              } else if lower.contains("telnyx") {
-                provider = Some("telnyx".to_string());
-              } else if lower.contains("plivo") {
-                provider = Some("plivo".to_string());
-              }
-              break;
-            }
-          }
-        }
-      }
-
-      let configured = provider.is_some() && enabled;
+      let provider = ["twilio", "telnyx", "plivo"]
+        .iter()
+        .find(|name| runtime_channel(&status, name).is_some())
+        .map(|name| (*name).to_string());
+      let selected = provider
+        .as_deref()
+        .and_then(|name| runtime_channel(&status, name));
+      let enabled = selected
+        .and_then(|s| s.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+      let configured = selected
+        .and_then(|s| s.get("configured"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(enabled);
 
       HttpResponse::Ok().json(ChannelStatusResponse {
         success: true,
@@ -1113,20 +1243,8 @@ pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match gateway_client::get_channel_status(None).await {
-    Ok(status) => {
-      let (enabled, _linked, configured) = parse_channel_from_summary(&status, "Telegram");
-
-      HttpResponse::Ok().json(ChannelStatusResponse {
-        success: true,
-        enabled,
-        configured,
-        linked: Some(configured),
-        provider: None,
-        message: None,
-        account: parse_account_from_summary(&status, "Telegram"),
-      })
-    }
+  match channel_runtime_snapshot().await {
+    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, "telegram", true, None)),
     Err(e) => {
       log::error!("[channels] telegram_status gateway error: {}", e);
       HttpResponse::Ok().json(ChannelStatusResponse {
@@ -1224,9 +1342,9 @@ pub async fn telegram_configure(
   }
 
   // Fail fast if gateway is not reachable instead of hanging on stale connections.
-  if !gateway_client::is_gateway_port_open().await {
+  if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
-    if !gateway_client::is_gateway_port_open().await {
+    if !gateway_reachable().await {
       return HttpResponse::Ok().json(GenericResponse {
         success: false,
         message: Some(
@@ -1491,9 +1609,9 @@ pub async fn whatsapp_disconnect(
 /// Shared disconnect logic: logout + remove config with retries.
 async fn disconnect_channel(channel: &str, account_id: &str) -> HttpResponse {
   // Fail fast if gateway is not reachable.
-  if !gateway_client::is_gateway_port_open().await {
+  if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
-    if !gateway_client::is_gateway_port_open().await {
+    if !gateway_reachable().await {
       return HttpResponse::Ok().json(GenericResponse {
         success: false,
         message: Some(
@@ -1634,29 +1752,8 @@ pub async fn generic_channel_status(
     });
   }
 
-  // The gateway uses the display name in channelSummary (e.g. "Slack", "Discord")
-  let display_name = match channel.as_str() {
-    "slack" => "Slack",
-    "discord" => "Discord",
-    "signal" => "Signal",
-    "irc" => "IRC",
-    "googlechat" => "Google Chat",
-    _ => &channel,
-  };
-
-  match gateway_client::get_channel_status(None).await {
-    Ok(status) => {
-      let (enabled, linked, configured) = parse_channel_from_summary(&status, display_name);
-      HttpResponse::Ok().json(ChannelStatusResponse {
-        success: true,
-        enabled,
-        configured: configured || linked,
-        linked: Some(linked),
-        provider: None,
-        message: None,
-        account: None,
-      })
-    }
+  match channel_runtime_snapshot().await {
+    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
     Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
       success: false,
       enabled: false,
@@ -1695,9 +1792,9 @@ pub async fn generic_channel_configure(
   }
 
   // Fail fast if gateway is not reachable.
-  if !gateway_client::is_gateway_port_open().await {
+  if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
-    if !gateway_client::is_gateway_port_open().await {
+    if !gateway_reachable().await {
       return HttpResponse::Ok().json(GenericResponse {
         success: false,
         message: Some(
@@ -3265,9 +3362,9 @@ async fn telegram_user_call(
   method: &str,
   params: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-  if !gateway_client::is_gateway_port_open().await {
+  if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
-    if !gateway_client::is_gateway_port_open().await {
+    if !gateway_reachable().await {
       return Err(
         "Gateway not reachable — the background service may need to be restarted.".to_string(),
       );
@@ -3657,9 +3754,9 @@ async fn telegram_bot_call(
   method: &str,
   params: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-  if !gateway_client::is_gateway_port_open().await {
+  if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
-    if !gateway_client::is_gateway_port_open().await {
+    if !gateway_reachable().await {
       return Err(
         "Gateway not reachable — the background service may need to be restarted.".to_string(),
       );
