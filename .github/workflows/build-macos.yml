@@ -65,7 +65,12 @@ jobs:
 
       - name: Build Tauri app (universal)
         working-directory: src
-        run: npm exec -- tauri build --target universal-apple-darwin
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npm exec -- tauri build --target universal-apple-darwin --bundles app updater --ci
+          else
+            npm exec -- tauri build --target universal-apple-darwin --ci
+          fi
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           MICROSOFT_CLIENT_ID: unused
@@ -117,6 +122,7 @@ jobs:
           rm -rf "$EXTRACT_DIR"
 
       - name: Upload DMG artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v6
         with:
           name: knapsack-macos-dmg
