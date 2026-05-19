@@ -7323,6 +7323,10 @@ async fn prepare_gateway_config(
     .join("plugin-runtime-deps")
     .to_string_lossy()
     .to_string();
+  let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
+    .join("jiti-cache")
+    .to_string_lossy()
+    .to_string();
 
   let mut env = vec![
     ("PATH".to_string(), clawdbot_path),
@@ -7335,6 +7339,7 @@ async fn prepare_gateway_config(
     ),
     ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_PLUGIN_STAGE_DIR".to_string(), plugin_stage_dir),
+    ("JITI_FS_CACHE".to_string(), jiti_cache_dir),
     (
       "OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(),
       bundled_plugins_dir_str,
@@ -8882,6 +8887,10 @@ pub async fn set_service_enabled(
       // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
       let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
+      let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
+        .join("jiti-cache")
+        .to_string_lossy()
+        .to_string();
 
       eprintln!("[clawd/service] Running OpenClaw doctor --fix to ensure plugin dependencies...");
       let doctor_status = std::process::Command::new(&node_path)
@@ -8890,6 +8899,7 @@ pub async fn set_service_enabled(
         .arg("--fix")
         .env("OPENCLAW_STATE_DIR", &clawdbot_home_str)
         .env("OPENCLAW_BUNDLED_PLUGINS_DIR", &bundled_plugins_dir_str)
+        .env("JITI_FS_CACHE", &jiti_cache_dir)
         .status();
 
       match doctor_status {
@@ -8946,6 +8956,10 @@ pub async fn set_service_enabled(
         .join("plugin-runtime-deps")
         .to_string_lossy()
         .to_string();
+      let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
+        .join("jiti-cache")
+        .to_string_lossy()
+        .to_string();
 
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
@@ -8961,6 +8975,7 @@ pub async fn set_service_enabled(
         // Ensure control server family ports remain default.
         ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
         ("OPENCLAW_PLUGIN_STAGE_DIR".to_string(), plugin_stage_dir),
+        ("JITI_FS_CACHE".to_string(), jiti_cache_dir),
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         (
