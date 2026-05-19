@@ -206,15 +206,10 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
 }
 
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
-/// This keeps the fallback browser separate from the user's personal profile.
-fn openclaw_user_data_dir() -> PathBuf {
-  let home = std::env::var("HOME")
-    .or_else(|_| std::env::var("USERPROFILE"))
-    .unwrap_or_else(|_| {
-      if cfg!(target_os = "windows") { r"C:\Users\Default".to_string() }
-      else { "/tmp".to_string() }
-    });
-  PathBuf::from(&home).join(".openclaw").join("browser-profiles").join("openclaw")
+/// This keeps the fallback browser aligned with the gateway-managed profile
+/// instead of opening a second legacy profile under ~/.openclaw.
+fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
+  app_clawdbot_home(app_handle).join("browser").join("openclaw").join("user-data")
 }
 
 /// Cross-platform home directory string (prefers dirs::home_dir, then HOME/USERPROFILE).
@@ -270,12 +265,12 @@ fn knapsack_extension_dir() -> Option<PathBuf> {
 
 /// Build Chromium CLI args for the managed browser profile.
 /// Includes --user-data-dir and --load-extension if the Knapsack extension is found.
-fn build_chromium_args(url: &str) -> Vec<String> {
-  let user_data_dir = openclaw_user_data_dir();
+fn build_chromium_args(app_handle: &tauri::AppHandle, url: &str) -> Vec<String> {
+  let user_data_dir = openclaw_user_data_dir(app_handle);
   let _ = std::fs::create_dir_all(&user_data_dir);
   let udd_arg = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
 
-  let mut args = vec![udd_arg];
+  let mut args = vec![udd_arg, "--remote-debugging-port=18800".to_string()];
 
   // Auto-sideload the Knapsack extension if it's installed locally
   if let Some(ext_dir) = knapsack_extension_dir() {
@@ -292,8 +287,8 @@ fn build_chromium_args(url: &str) -> Vec<String> {
 /// "openclaw" user data directory so it never hijacks the user's personal
 /// profile.  Falls back to the system default only if no Chrome-family browser
 /// can be found.
-fn open_url_in_chrome(url: &str) -> Result<(), String> {
-  let args = build_chromium_args(url);
+fn open_url_in_chrome(app_handle: &tauri::AppHandle, url: &str) -> Result<(), String> {
+  let args = build_chromium_args(app_handle, url);
 
   #[cfg(target_os = "macos")]
   {
@@ -363,7 +358,7 @@ fn open_url_in_chrome(url: &str) -> Result<(), String> {
 
 /// Best-effort fallback: open URL in Chrome first, then system default.
 fn fallback_open_url(app_handle: &tauri::AppHandle, url: &str) -> Result<(), String> {
-  match open_url_in_chrome(url) {
+  match open_url_in_chrome(app_handle, url) {
     Ok(_) => {
       eprintln!("[clawd/browser] Opened URL in Chrome (fallback): {}", url);
       Ok(())
@@ -1321,8 +1316,13 @@ pub async fn agent_chat(
       &text_with_attachments[..text_with_attachments.len().min(100)],
       gateway_attachments.len());
 
-    match gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None).await {
-      Ok(result) => {
+    match tokio::time::timeout(
+      std::time::Duration::from_secs(20),
+      gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None),
+    )
+    .await
+    {
+      Ok(Ok(result)) => {
         eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
           result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
         let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
@@ -1376,8 +1376,12 @@ pub async fn agent_chat(
           None
         }
       }
-      Err(e) => {
+      Ok(Err(e)) => {
         eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat", e);
+        None
+      }
+      Err(_) => {
+        eprintln!("[clawd/agent-chat] Gateway agent request timed out after 20s, falling back to direct chat");
         None
       }
     }

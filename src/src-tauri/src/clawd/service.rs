@@ -242,6 +242,10 @@ fn is_pid_alive(pid: u32) -> bool {
 /// or when the browser transitions from healthy to down, so the nudge
 /// fires again after a gateway restart or a browser crash.
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
+static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
+static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
+const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 600_000;
+const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// Browser-control status can temporarily hang while Chrome/CDP is starting.
 /// Health polling is frequent and can otherwise pile up concurrent probes,
@@ -270,7 +274,7 @@ static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
 
 const GATEWAY_HEALTH_SELF_HEAL_GRACE_MS: u64 = 180_000;
 const GATEWAY_POST_BIND_STARTUP_GRACE_MS: u64 = 300_000;
-const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 15_000;
+const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
 
 fn now_epoch_ms() -> u64 {
   std::time::SystemTime::now()
@@ -351,6 +355,75 @@ pub fn gateway_log_dir() -> PathBuf {
 /// Path to the gateway stdout log file.
 pub fn gateway_stdout_log() -> PathBuf {
   gateway_log_dir().join("knapsack-clawdbot.out.log")
+}
+
+fn mark_gateway_launch_started() {
+  GATEWAY_LAST_LAUNCH_MS.store(now_epoch_ms(), Ordering::Relaxed);
+  GATEWAY_UNREACHABLE_SINCE_MS.store(0, Ordering::Relaxed);
+}
+
+fn gateway_launch_grace_active() -> Option<u64> {
+  let started = GATEWAY_LAST_LAUNCH_MS.load(Ordering::Relaxed);
+  if started == 0 {
+    return None;
+  }
+  let elapsed = now_epoch_ms().saturating_sub(started);
+  if elapsed < GATEWAY_PRE_BIND_STARTUP_GRACE_MS {
+    Some(elapsed)
+  } else {
+    None
+  }
+}
+
+#[cfg(target_os = "macos")]
+fn qa_direct_gateway_process_active() -> bool {
+  if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() != Some("1") {
+    return false;
+  }
+
+  std::process::Command::new("pgrep")
+    .args(["-f", "openclaw-gateway"])
+    .output()
+    .ok()
+    .filter(|output| output.status.success())
+    .map(|output| {
+      String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .any(process_is_alive)
+    })
+    .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn qa_direct_gateway_process_active() -> bool {
+  false
+}
+
+fn qa_direct_gateway_mode() -> bool {
+  std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
+}
+
+fn qa_direct_gateway_grace_active() -> Option<u64> {
+  if !qa_direct_gateway_process_active() {
+    QA_DIRECT_GATEWAY_FIRST_SEEN_MS.store(0, Ordering::Relaxed);
+    return None;
+  }
+
+  let now = now_epoch_ms();
+  let started = QA_DIRECT_GATEWAY_FIRST_SEEN_MS.load(Ordering::Relaxed);
+  let started = if started == 0 {
+    QA_DIRECT_GATEWAY_FIRST_SEEN_MS.store(now, Ordering::Relaxed);
+    now
+  } else {
+    started
+  };
+  let elapsed = now.saturating_sub(started);
+  if elapsed < GATEWAY_PRE_BIND_STARTUP_GRACE_MS {
+    Some(elapsed)
+  } else {
+    None
+  }
 }
 
 /// Path to the gateway stderr log file.
@@ -821,6 +894,96 @@ fn count_incomplete_plugin_runtime_deps_dirs(
     }
   }
   incomplete
+}
+
+#[cfg(unix)]
+fn process_is_alive(pid: u32) -> bool {
+  if pid == 0 {
+    return false;
+  }
+  let rc = unsafe { libc::kill(pid as libc::pid_t, 0) };
+  if rc == 0 {
+    return true;
+  }
+  std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+#[cfg(not(unix))]
+fn process_is_alive(_pid: u32) -> bool {
+  false
+}
+
+fn plugin_runtime_deps_install_in_progress(clawdbot_home: &std::path::Path) -> bool {
+  let base = clawdbot_home.join("plugin-runtime-deps");
+  let entries = match fs::read_dir(&base) {
+    Ok(d) => d,
+    Err(_) => return false,
+  };
+
+  for entry in entries.flatten() {
+    if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+      continue;
+    }
+
+    let lock_dir = entry.path().join(".openclaw-runtime-deps.lock");
+    if !lock_dir.is_dir() {
+      continue;
+    }
+
+    let owner_path = lock_dir.join("owner.json");
+    if let Ok(raw) = fs::read_to_string(&owner_path) {
+      if let Ok(owner) = serde_json::from_str::<serde_json::Value>(&raw) {
+        if let Some(pid) = owner.get("pid").and_then(|v| v.as_u64()) {
+          if pid <= u32::MAX as u64 && process_is_alive(pid as u32) {
+            return true;
+          }
+          continue;
+        }
+      }
+    }
+
+    // If the owner file has not been written yet, or it is transiently
+    // unreadable, treat a fresh lock as active. This avoids killing the gateway
+    // in the tiny window between mkdir(lock) and owner.json write.
+    if let Ok(meta) = fs::metadata(&lock_dir) {
+      if meta
+        .modified()
+        .ok()
+        .and_then(|mtime| mtime.elapsed().ok())
+        .map(|age| age < PLUGIN_RUNTIME_DEPS_LOCK_GRACE)
+        .unwrap_or(false)
+      {
+        return true;
+      }
+    }
+  }
+
+  false
+}
+
+fn default_clawdbot_home_from_env() -> Option<PathBuf> {
+  if let Some(raw) = std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME")) {
+    let path = PathBuf::from(raw);
+    if !path.as_os_str().is_empty() {
+      return Some(path);
+    }
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    return dirs::home_dir().map(|home| {
+      home
+        .join("Library")
+        .join("Application Support")
+        .join("ai.knap.knapsack")
+        .join("clawdbot")
+    });
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+    None
+  }
 }
 
 /// Remove current-version plugin-runtime-deps dirs left half-created by an
@@ -1676,6 +1839,69 @@ fn launchctl_service_loaded(domain: &str, timeout: std::time::Duration) -> bool 
   }
 }
 
+#[cfg(target_os = "macos")]
+fn launchctl_status_with_timeout(
+  args: &[&str],
+  timeout: std::time::Duration,
+  context: &str,
+) -> Option<std::process::ExitStatus> {
+  let mut child = match std::process::Command::new("launchctl")
+    .args(args)
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+  {
+    Ok(child) => child,
+    Err(e) => {
+      eprintln!("[clawd/service] {}: launchctl spawn failed: {}", context, e);
+      return None;
+    }
+  };
+
+  let started = std::time::Instant::now();
+  loop {
+    match child.try_wait() {
+      Ok(Some(status)) => return Some(status),
+      Ok(None) if started.elapsed() < timeout => {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+      }
+      Ok(None) => {
+        let _ = child.kill();
+        let _ = child.wait();
+        eprintln!(
+          "[clawd/service] {}: launchctl timed out after {:?}",
+          context, timeout
+        );
+        return None;
+      }
+      Err(e) => {
+        eprintln!("[clawd/service] {}: launchctl wait failed: {}", context, e);
+        return None;
+      }
+    }
+  }
+}
+
+#[cfg(target_os = "macos")]
+fn launchctl_kickstart_with_timeout(service: &str, context: &str) {
+  if qa_direct_gateway_mode() {
+    eprintln!(
+      "[clawd/service] {}: skipping launchctl kickstart in QA direct gateway mode",
+      context
+    );
+    mark_gateway_launch_started();
+    return;
+  }
+
+  let _ = launchctl_status_with_timeout(
+    &["kickstart", "-k", service],
+    std::time::Duration::from_secs(5),
+    context,
+  );
+  mark_gateway_launch_started();
+}
+
 async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
   let client = match reqwest::Client::builder().timeout(timeout).build() {
     Ok(c) => c,
@@ -1706,7 +1932,15 @@ async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
-  gateway_health_port_ok(timeout).await
+  if gateway_health_port_ok(timeout).await {
+    return true;
+  }
+
+  if qa_direct_gateway_mode() {
+    return gateway_tcp_port_open(timeout).await;
+  }
+
+  false
 }
 
 fn read_log_tail_lines_bounded(
@@ -2966,6 +3200,14 @@ async fn run_gateway_self_heal_cycle(
     return;
   }
 
+  if qa_direct_gateway_mode() {
+    eprintln!(
+      "[clawd/service] self-heal: skipping launchd recovery in QA direct gateway mode; qa-dev-run supervises the gateway process"
+    );
+    GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+    return;
+  }
+
   let cfg: crate::clawd::sidecar::SharedClawdbotConfig = std::sync::Arc::new(
     tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
   );
@@ -3042,7 +3284,7 @@ async fn run_gateway_self_heal_cycle(
   let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
   remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
 
-  if crash_class == "module_resolution_fail" {
+  if crash_class == "module_resolution_fail" || crash_class == "plugin_install_fail" {
     eprintln!("[clawd/service] self-heal: plugin runtime corruption detected — force-wiping all plugin-runtime-deps dirs");
     remove_stale_plugin_runtime_deps_versions(&clawdbot_home, "");
   } else {
@@ -3174,6 +3416,18 @@ async fn run_gateway_self_heal_cycle(
 /// bundled plugin runtime dependencies. Treat that as startup progress, not a
 /// crash, so health polling does not repeatedly SIGTERM the installer process.
 pub(crate) fn gateway_runtime_deps_startup_in_progress() -> bool {
+  if default_clawdbot_home_from_env()
+    .as_deref()
+    .map(plugin_runtime_deps_install_in_progress)
+    .unwrap_or(false)
+  {
+    return true;
+  }
+
+  if qa_direct_gateway_mode() {
+    return false;
+  }
+
   let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
     return false;
   };
@@ -3188,11 +3442,18 @@ fn gateway_post_bind_startup_in_progress() -> bool {
 }
 
 pub(crate) fn gateway_startup_in_progress() -> bool {
+  if qa_direct_gateway_grace_active().is_some() {
+    return true;
+  }
+
+  if gateway_runtime_deps_startup_in_progress() {
+    return true;
+  }
+
   let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
     return false;
   };
-  gateway_runtime_deps_startup_in_progress_from_log(&content)
-    || gateway_pre_bind_startup_in_progress_from_log(&content)
+  gateway_pre_bind_startup_in_progress_from_log(&content)
     || gateway_post_bind_startup_in_progress_from_log(&content)
 }
 
@@ -3407,6 +3668,44 @@ async fn browser_control_start_direct(
   }
 }
 
+#[cfg(target_os = "macos")]
+fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
+  let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+  if !chrome.exists() {
+    return Err("Google Chrome app binary was not found".to_string());
+  }
+
+  let user_data_dir = app_clawdbot_home(app_handle)
+    .join("browser")
+    .join("openclaw")
+    .join("user-data");
+  fs::create_dir_all(&user_data_dir).map_err(|e| {
+    format!(
+      "failed to create OpenClaw Chrome profile at {}: {}",
+      user_data_dir.display(),
+      e
+    )
+  })?;
+
+  std::process::Command::new(chrome)
+    .arg("--remote-debugging-port=18800")
+    .arg(format!("--user-data-dir={}", user_data_dir.to_string_lossy()))
+    .arg("--profile-directory=Default")
+    .arg("--no-first-run")
+    .arg("--no-default-browser-check")
+    .arg("--disable-background-networking")
+    .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
+    .arg("--disable-sync")
+    .arg("--no-proxy-server")
+    .arg("about:blank")
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+    .map(|_| ())
+    .map_err(|e| format!("failed to launch OpenClaw Chrome profile: {}", e))
+}
+
 #[get("/api/clawd/service/health")]
 pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -3468,6 +3767,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else {
       gateway_post_bind_startup_in_progress()
     };
+    let runtime_deps_startup = if gateway_ok {
+      false
+    } else {
+      gateway_runtime_deps_startup_in_progress()
+    };
+    let launch_grace_elapsed_ms = if gateway_ok {
+      None
+    } else {
+      gateway_launch_grace_active().or_else(qa_direct_gateway_grace_active)
+    };
 
     if gateway_ok {
       // Gateway is up — record it so we can detect down→up transitions.
@@ -3489,7 +3798,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // session.  They may still hold the CDP port (18800), preventing
         // the new gateway from launching its own browser.
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        kill_stale_clawdbot_chromes();
+        if !qa_direct_gateway_mode() {
+          kill_stale_clawdbot_chromes();
+        }
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
       }
@@ -3525,9 +3836,15 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // If gateway is down, try to restart it via launchctl kickstart.
     // This runs in a background task to avoid blocking the health poll.
     // We guard with GATEWAY_RESTART_IN_PROGRESS to prevent concurrent restarts.
-    if !gateway_ok && gateway_runtime_deps_startup_in_progress() {
+    if !gateway_ok && runtime_deps_startup {
       eprintln!(
         "[clawd/service] gateway not reachable but plugin runtime deps are staging - skipping restart"
+      );
+    } else if !gateway_ok && launch_grace_elapsed_ms.is_some() {
+      let elapsed = launch_grace_elapsed_ms.unwrap_or(0);
+      eprintln!(
+        "[clawd/service] gateway not reachable for {}ms after launch - waiting before self-heal",
+        elapsed
       );
     } else if !gateway_ok
       && !was_healthy
@@ -3640,7 +3957,38 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       eprintln!("[clawd/service] browser not reachable — sending /start nudge");
       BROWSER_LAST_NUDGE_MS.store(now_epoch_ms(), Ordering::Relaxed);
       let token = tokens.gateway_token.clone();
+      let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
+        if qa_direct_gateway_mode() {
+          #[cfg(target_os = "macos")]
+          {
+            match start_openclaw_chrome_direct(&nudge_app_handle) {
+              Ok(()) => {
+                eprintln!(
+                  "[clawd/service] launched OpenClaw Chrome profile directly for QA startup"
+                );
+              }
+              Err(e) => {
+                eprintln!(
+                  "[clawd/service] direct OpenClaw Chrome launch failed in QA startup: {}",
+                  e
+                );
+                BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+              }
+            }
+            return;
+          }
+
+          #[cfg(not(target_os = "macos"))]
+          {
+            eprintln!(
+              "[clawd/service] QA direct browser nudge is not implemented on this platform"
+            );
+            BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+            return;
+          }
+        }
+
         // Kill any stale Chrome holding the CDP port (18800) before asking the
         // gateway to start a new one.  This handles the case where the app
         // started with the gateway already running but Chrome crashed and left
@@ -3700,6 +4048,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else if gateway_ok && browser_probe == BrowserControlProbe::Starting {
       "Clawdbot gateway OK; browser is still starting up — waiting for Chrome CDP to become ready"
         .to_string()
+    } else if runtime_deps_startup {
+      "Clawdbot gateway is staging plugin runtime dependencies — please wait for startup to finish"
+        .to_string()
+    } else if launch_grace_elapsed_ms.is_some() {
+      "Clawdbot gateway is starting — please wait for startup to finish".to_string()
     } else if gateway_ok {
       "Clawdbot gateway OK; browser control is not reachable".to_string()
     } else if browser_ok {
@@ -3716,7 +4069,26 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       {
         match launch_agent_plist_path() {
           Ok(plist) => {
-            if !plist.exists() {
+            if qa_direct_gateway_mode() {
+              if runtime_deps_startup {
+                message.push_str(
+                  "\n[diagnostic] QA direct gateway is installing plugin runtime dependencies.",
+                );
+                diagnostic_type = Some("runtime_deps_installing".to_string());
+              } else if let Some(elapsed) = launch_grace_elapsed_ms {
+                message.push_str(&format!(
+                  "\n[diagnostic] QA direct gateway launched {}ms ago and is still starting.",
+                  elapsed
+                ));
+                diagnostic_type = Some("gateway_starting".to_string());
+              } else {
+                message.push_str(
+                  "\n[diagnostic] QA direct gateway is running outside launchd but is not responding yet.",
+                );
+                diagnostic_type = Some("gateway_starting".to_string());
+              }
+              eprintln!("[clawd/service] gateway down: QA direct gateway starting");
+            } else if !plist.exists() {
               // Differentiate: auto-enable already started means first-install race,
               // otherwise the service truly hasn't been set up.
               if AUTO_ENABLE_STARTED.load(Ordering::Relaxed) {
@@ -3743,6 +4115,19 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
                 );
               } else {
                 eprintln!("[clawd/service] gateway down: service is loaded but not responding on port 18789");
+
+                if runtime_deps_startup {
+                  message.push_str(
+                    "\n[diagnostic] Gateway process is installing plugin runtime dependencies.",
+                  );
+                  diagnostic_type = Some("runtime_deps_installing".to_string());
+                } else if let Some(elapsed) = launch_grace_elapsed_ms {
+                  message.push_str(&format!(
+                    "\n[diagnostic] Gateway launched {}ms ago and is still starting.",
+                    elapsed
+                  ));
+                  diagnostic_type = Some("gateway_starting".to_string());
+                }
 
                 // Check if Gatekeeper quarantine is blocking the gateway binary.
                 // macOS can silently kill quarantined or improperly signed processes.
@@ -3788,7 +4173,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
-      if let Ok(content) = log_content {
+      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() {
+        // During active startup the stderr file commonly contains stale lines
+        // from previous gateway runs. Showing/classifying those makes the UI
+        // report old crashes while the current gateway is still booting.
+      } else if let Ok(content) = log_content {
         // Detect version mismatch before noise-filtering so we can tag diagnostic_type,
         // even though the lines are stripped from the user-visible tail below.
         let has_version_mismatch = content.lines().any(|l| {
@@ -4761,6 +5150,41 @@ pub async fn set_api_key(
     {
       if let Ok(plist_path) = launch_agent_plist_path() {
         regenerate_macos_plist_with_current_env(&plist_path);
+        if qa_direct_gateway_mode() {
+          bootout_gateway_launch_agent(LAUNCH_AGENT_LABEL);
+          let qa_switch_model = switch_model.clone();
+          tokio::spawn(async move {
+            if !crate::clawd::gateway_client::is_gateway_port_open().await {
+              return;
+            }
+            let cfg_result = crate::clawd::gateway_client::config_get(None).await;
+            if let Ok(cfg_val) = cfg_result {
+              let base_hash = cfg_val.get("hash").and_then(|h| h.as_str()).unwrap_or("");
+              if !base_hash.is_empty() {
+                let patch = serde_json::json!({
+                  "agents": {"defaults": {"model": {"primary": qa_switch_model}}}
+                });
+                match crate::clawd::gateway_client::config_patch(&patch.to_string(), base_hash, None).await {
+                  Ok(_) => eprintln!(
+                    "[clawd/service] Pushed provider switch model to running gateway in QA direct mode"
+                  ),
+                  Err(e) => eprintln!(
+                    "[clawd/service] Failed to push QA direct provider switch model to gateway: {}",
+                    e
+                  ),
+                }
+              }
+            }
+          });
+          eprintln!(
+            "[clawd/service] Provider switch to '{}' prepared plist without launchd restart in QA direct mode",
+            provider
+          );
+          return HttpResponse::Ok().json(SetApiKeyResponse {
+            success: true,
+            message: format!("Switched to {}", provider_name),
+          });
+        }
         let uid = unsafe { libc::getuid() };
         let domain = format!("gui/{}", uid);
         let _ = std::process::Command::new("launchctl")
@@ -4771,9 +5195,7 @@ pub async fn set_api_key(
           .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
           .status();
         let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-        let _ = std::process::Command::new("launchctl")
-          .args(["kickstart", "-k", &service])
-          .status();
+        launchctl_kickstart_with_timeout(&service, "provider switch kickstart");
       }
     }
     return HttpResponse::Ok().json(SetApiKeyResponse {
@@ -5032,9 +5454,7 @@ pub async fn set_api_key(
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
         .status();
       let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .status();
+      launchctl_kickstart_with_timeout(&service, "api key restart kickstart");
     }
   }
 
@@ -7362,6 +7782,22 @@ pub async fn set_service_enabled(
     };
 
     if enabled {
+      if qa_direct_gateway_mode() {
+        {
+          let mut cfg_guard = cfg.write().await;
+          cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
+        }
+        eprintln!(
+          "[clawd/service] QA direct gateway is managed by qa-dev-run; leaving service plist unchanged"
+        );
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message:
+            "QA direct gateway is managed by qa-dev-run; left service plist unchanged".to_string(),
+        });
+      }
+
       // Ensure dirs
       if let Some(parent) = plist_path.parent() {
         if let Err(e) = ensure_dir(parent) {
@@ -8741,9 +9177,7 @@ pub async fn set_service_enabled(
       }
 
       let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .status();
+      launchctl_kickstart_with_timeout(&service, "enable service kickstart");
 
       // Workaround for OpenClaw #23006: patch paired.json after the gateway
       // starts to ensure devices get operator.admin scope.  The gateway may
@@ -8833,9 +9267,7 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
     .status();
 
   let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-  let _ = std::process::Command::new("launchctl")
-    .args(["kickstart", "-k", &service])
-    .status();
+  launchctl_kickstart_with_timeout(&service, "cycle service kickstart");
 
   eprintln!("[clawd/service] Service cycle complete — waiting for browser to start.");
 }
@@ -9423,9 +9855,7 @@ async fn do_gemini_connect(app_handle: &tauri::AppHandle, code: &str) -> Result<
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
         .status();
       let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .status();
+      launchctl_kickstart_with_timeout(&service, "gemini oauth kickstart");
     }
   }
 
@@ -9653,9 +10083,7 @@ fn save_and_restart_for_oauth(
         .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
         .status();
       let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .status();
+      launchctl_kickstart_with_timeout(&service, "provider oauth kickstart");
     }
   }
 
@@ -9746,6 +10174,62 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   let _lifecycle_guard = GATEWAY_LIFECYCLE_MUTEX.lock().await;
   let _progress_guard = GatewayRestartProgressGuard::set();
 
+  if qa_direct_gateway_mode() {
+    let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+    sanitize_config_file_allowlist(&config_path);
+    remove_stale_standalone_gateway();
+
+    let cfg: crate::clawd::sidecar::SharedClawdbotConfig = std::sync::Arc::new(
+      tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
+    );
+    let setup = match prepare_gateway_config(app_handle, &cfg).await {
+      Ok(s) => s,
+      Err(e) => {
+        eprintln!(
+          "[clawd/service] auto_enable: prepare_gateway_config failed in QA direct mode: {}",
+          e
+        );
+        return;
+      }
+    };
+
+    if let Some(parent) = plist_path.parent() {
+      if let Err(e) = fs::create_dir_all(parent) {
+        eprintln!(
+          "[clawd/service] auto_enable: failed to create LaunchAgents dir in QA direct mode: {}",
+          e
+        );
+        return;
+      }
+    }
+
+    let plist_content = generate_plist(&setup.program_args, &setup.env);
+    if let Err(e) = fs::write(&plist_path, &plist_content) {
+      eprintln!(
+        "[clawd/service] auto_enable: failed to write QA direct plist: {}",
+        e
+      );
+      return;
+    }
+    harden_file_permissions(&plist_path);
+    *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((setup.program_args.clone(), setup.env));
+
+    let uid = unsafe { libc::getuid() };
+    let domain = format!("gui/{}", uid);
+    let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+    let _ = std::process::Command::new("launchctl")
+      .args(["bootout", &service])
+      .status();
+    let _ = std::process::Command::new("launchctl")
+      .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+      .status();
+    mark_gateway_launch_started();
+    eprintln!(
+      "[clawd/service] auto_enable: wrote plist and skipped launchd bootstrap in QA direct mode"
+    );
+    return;
+  }
+
   if plist_path.exists() {
     // Plist exists — check if the service is actually loaded.  If it is,
     // there's nothing to do.  If it isn't (e.g. bootstrap failed on a prior
@@ -9783,9 +10267,25 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       let incomplete = count_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &bundle_ver);
       if stale == 0 && incomplete > 0 {
         eprintln!(
-          "[clawd/service] auto_enable: detected {} incomplete plugin-runtime-deps dir(s) for current bundle — leaving running gateway alone",
+          "[clawd/service] auto_enable: detected {} incomplete plugin-runtime-deps dir(s) for current bundle — cleaning and forcing gateway restart",
           incomplete
         );
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &service])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        kill_process_on_port(18789);
+        remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+        remove_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &bundle_ver);
+        if let Ok(plist_path) = launch_agent_plist_path() {
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          launchctl_kickstart_with_timeout(&service, "auto-enable incomplete deps kickstart");
+        }
       } else if stale > 0 {
         eprintln!(
           "[clawd/service] auto_enable: detected {} stale and {} incomplete plugin-runtime-deps dir(s) (bundle ver={}) — cleaning and forcing gateway restart",
@@ -9811,9 +10311,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
           let _ = std::process::Command::new("launchctl")
             .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
             .status();
-          let _ = std::process::Command::new("launchctl")
-            .args(["kickstart", "-k", &service])
-            .status();
+          launchctl_kickstart_with_timeout(&service, "auto-enable stale deps kickstart");
         }
         sentry::with_scope(
           |scope| {
@@ -9848,9 +10346,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
           let _ = std::process::Command::new("launchctl")
             .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
             .status();
-          let _ = std::process::Command::new("launchctl")
-            .args(["kickstart", "-k", &service])
-            .status();
+          launchctl_kickstart_with_timeout(&service, "auto-enable content refresh kickstart");
         }
         sentry::capture_message(
           "[gateway] auto_enable: bundle content changed — wiped stale plugin-runtime-deps + restarted",
@@ -9981,9 +10477,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   match boot {
     Ok(s) if s.success() => {
       let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      let _ = std::process::Command::new("launchctl")
-        .args(["kickstart", "-k", &service])
-        .status();
+      launchctl_kickstart_with_timeout(&service, "auto-enable initial kickstart");
       eprintln!("[clawd/service] auto_enable: LaunchAgent registered and started");
 
       // Workaround for OpenClaw #23006: patch paired.json after the gateway

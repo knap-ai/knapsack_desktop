@@ -130,11 +130,24 @@ pub async fn start_server<'a>(
         .output();
 
       if let Ok(output) = lsof_output {
-        let pid_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !pid_str.is_empty() {
-          eprintln!("Killing zombie process on port {} (PID: {})", port, pid_str);
+        let pid_output = String::from_utf8_lossy(&output.stdout);
+        let current_pid = std::process::id().to_string();
+        let pids: Vec<String> = pid_output
+          .lines()
+          .map(str::trim)
+          .filter(|pid| !pid.is_empty() && *pid != current_pid)
+          .map(ToString::to_string)
+          .collect();
+
+        if !pids.is_empty() {
+          eprintln!(
+            "Killing zombie process(es) on port {} (PIDs: {})",
+            port,
+            pids.join(", ")
+          );
           let _ = std::process::Command::new("kill")
-            .args(["-9", &pid_str])
+            .arg("-9")
+            .args(&pids)
             .status();
           std::thread::sleep(std::time::Duration::from_millis(500));
         }
