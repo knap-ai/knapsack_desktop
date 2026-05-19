@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 /// Global mutex to prevent concurrent `ensure_gateway_running` calls.
@@ -104,6 +105,14 @@ fn check_app_bundle_signature() -> Option<String> {
 
 #[cfg(target_os = "macos")]
 pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
+  if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1") {
+    eprintln!(
+      "[gateway_supervisor] skipping launchctl kickstart for {} in QA direct gateway mode",
+      label
+    );
+    return Ok(());
+  }
+
   // Verify the app bundle seal before attempting to bootstrap the LaunchAgent.
   // launchd rejects binaries from a bundle with a broken signature with a
   // cryptic I/O error; surface a clear message instead.
@@ -115,10 +124,11 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   let service = format!("gui/{}/{}", uid, label);
 
   // kickstart will start it if loaded; if not loaded, it errors.
-  let output = Command::new("launchctl")
-    .args(["kickstart", "-k", &service])
-    .output()
-    .map_err(|e| format!("Failed to run launchctl kickstart: {}", e))?;
+  let output = launchctl_output_with_timeout(
+    &["kickstart", "-k", &service],
+    Duration::from_secs(5),
+    "gateway supervisor kickstart",
+  )?;
 
   if output.status.success() {
     return Ok(());
@@ -154,17 +164,20 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   eprintln!("[gateway_supervisor] trying bootout + bootstrap fallback");
 
   // bootout (ignore errors — service may not be loaded)
-  let _ = Command::new("launchctl")
-    .args(["bootout", &domain, &plist_str])
-    .output();
+  let _ = launchctl_output_with_timeout(
+    &["bootout", &domain, &plist_str],
+    Duration::from_secs(5),
+    "gateway supervisor bootout",
+  );
 
   // Small delay to let launchd clean up
   std::thread::sleep(std::time::Duration::from_millis(500));
 
-  let boot = Command::new("launchctl")
-    .args(["bootstrap", &domain, &plist_str])
-    .output()
-    .map_err(|e| format!("Failed to run launchctl bootstrap: {}", e))?;
+  let boot = launchctl_output_with_timeout(
+    &["bootstrap", &domain, &plist_str],
+    Duration::from_secs(5),
+    "gateway supervisor bootstrap",
+  )?;
 
   if !boot.status.success() {
     let boot_stderr = String::from_utf8_lossy(&boot.stderr);
@@ -175,9 +188,11 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
   }
 
   // kickstart after bootstrap to ensure the process actually starts
-  let kick2 = Command::new("launchctl")
-    .args(["kickstart", "-k", &service])
-    .output();
+  let kick2 = launchctl_output_with_timeout(
+    &["kickstart", "-k", &service],
+    Duration::from_secs(5),
+    "gateway supervisor post-bootstrap kickstart",
+  );
 
   match kick2 {
     Ok(o) if o.status.success() => {
@@ -196,6 +211,44 @@ pub fn kickstart_launch_agent(label: &str) -> Result<(), String> {
     Err(e) => {
       eprintln!("[gateway_supervisor] post-bootstrap kickstart error: {}", e);
       Ok(()) // Bootstrap succeeded, KeepAlive should handle it
+    }
+  }
+}
+
+#[cfg(target_os = "macos")]
+fn launchctl_output_with_timeout(
+  args: &[&str],
+  timeout: Duration,
+  context: &str,
+) -> Result<std::process::Output, String> {
+  let mut child = Command::new("launchctl")
+    .args(args)
+    .spawn()
+    .map_err(|e| format!("Failed to run launchctl {}: {}", context, e))?;
+  let start = Instant::now();
+
+  loop {
+    match child.try_wait() {
+      Ok(Some(_)) => {
+        return child
+          .wait_with_output()
+          .map_err(|e| format!("Failed to collect launchctl {} output: {}", context, e));
+      }
+      Ok(None) if start.elapsed() < timeout => {
+        std::thread::sleep(Duration::from_millis(100));
+      }
+      Ok(None) => {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!(
+          "launchctl {} timed out after {}s",
+          context,
+          timeout.as_secs()
+        ));
+      }
+      Err(e) => {
+        return Err(format!("Failed to poll launchctl {}: {}", context, e));
+      }
     }
   }
 }

@@ -7911,8 +7911,8 @@ async function prestageGatewayBundledRuntimeDeps(params) {
 		scanResult = scanBundledPluginRuntimeDeps({
 			packageRoot,
 			config: params.cfg,
-			selectedPluginIds: [...params.pluginIds],
-			env: process.env
+			env: process.env,
+			selectedPluginIds: [...new Set([...params.pluginIds, "acpx"])]
 		});
 	} catch (error) {
 		params.log.warn(`[plugins] failed to scan bundled runtime deps before gateway startup; gateway startup will continue with per-plugin runtime-deps installs: ${String(error)}`);
@@ -8551,16 +8551,21 @@ async function startGatewaySidecars(params) {
 	});
 	const skipChannels = isTruthyEnvValue(process.env.OPENCLAW_SKIP_CHANNELS) || isTruthyEnvValue(process.env.OPENCLAW_SKIP_PROVIDERS);
 	await measureStartup(params.startupTrace, "sidecars.channels", async () => {
-		if (!skipChannels) try {
-			await prewarmConfiguredPrimaryModel({
-				cfg: params.cfg,
-				log: params.log
-			});
-			await params.startChannels();
-		} catch (err) {
-			params.logChannels.error(`channel startup failed: ${String(err)}`);
-		}
-		else params.logChannels.info("skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)");
+		if (!skipChannels) {
+			const startConfiguredChannels = async () => {
+				try {
+					await prewarmConfiguredPrimaryModel({
+						cfg: params.cfg,
+						log: params.log
+					});
+					await params.startChannels();
+				} catch (err) {
+					params.logChannels.error(`channel startup failed: ${String(err)}`);
+				}
+			};
+			if (isTruthyEnvValue(process.env.OPENCLAW_QA_DIRECT_GATEWAY)) setTimeout(startConfiguredChannels, 15e3);
+			else setImmediate(startConfiguredChannels);
+		} else params.logChannels.info("skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)");
 	});
 	if (internalHooksConfigured || await hasGatewayStartupInternalHookListeners()) setTimeout(() => {
 		import("./internal-hooks-Cu-9gpiV.js").then(({ createInternalHookEvent, triggerInternalHook }) => {
