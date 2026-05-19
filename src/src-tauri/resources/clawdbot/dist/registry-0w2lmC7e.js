@@ -138,7 +138,7 @@ function loadBundledCapabilityRuntimeRegistry(params) {
 	const registry = createEmptyPluginRegistry();
 	const jitiLoaders = /* @__PURE__ */ new Map();
 	const getJiti = (modulePath) => {
-		const tryNative = shouldPreferNativeJiti(modulePath) && !(env?.VITEST && params.pluginSdkResolution === "dist");
+		const tryNative = false;
 		const aliasMap = shouldApplyVitestCapabilityAliasOverrides({
 			pluginSdkResolution: params.pluginSdkResolution,
 			env
