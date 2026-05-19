@@ -1153,6 +1153,13 @@ fn install_bundled_plugin_runtime_deps(
   if !extensions_dir.is_dir() {
     return;
   }
+  if !should_mutate_bundled_clawdbot_runtime(extensions_dir) {
+    eprintln!(
+      "[clawd/service] Skipping bundled plugin runtime dependency mutation in signed app bundle: {}",
+      extensions_dir.display()
+    );
+    return;
+  }
 
   // Locate npm.  Resolution order:
   //   1. node_modules/npm/bin/npm-cli.js next to the node binary — this is
@@ -1649,7 +1656,37 @@ fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
   let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) else {
     return;
   };
+  if !should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
+    eprintln!(
+      "[clawd/service] Skipping bundled node_modules self-link mutation in signed app bundle: {}",
+      clawdbot_root.display()
+    );
+    return;
+  }
   ensure_openclaw_self_link(&clawdbot_root.join("node_modules"));
+}
+
+fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
+  if cfg!(debug_assertions) || cfg!(target_os = "windows") {
+    return true;
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    // Production macOS apps are code-signed after resources are assembled.
+    // Any startup-time npm install, tar extraction, or symlink repair inside
+    // Knapsack.app invalidates the bundle seal and can make launchd/Gatekeeper
+    // kill the gateway before it writes useful logs. Mutable plugin state must
+    // live under Application Support via OPENCLAW_PLUGIN_STAGE_DIR instead.
+    if path
+      .ancestors()
+      .any(|ancestor| ancestor.extension().is_some_and(|ext| ext == "app"))
+    {
+      return false;
+    }
+  }
+
+  true
 }
 
 /// Ensure every `plugin-runtime-deps/openclaw-*` staging directory has a
@@ -7499,7 +7536,14 @@ async fn prepare_gateway_config(
   // resolve correctly.  The clawdbot root is two directories above entry.js
   // (dist/entry.js → dist/ → clawdbot/).
   if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
-    ensure_node_modules_extracted(clawdbot_root);
+    if should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
+      ensure_node_modules_extracted(clawdbot_root);
+    } else {
+      eprintln!(
+        "[clawd/service] Skipping bundled node_modules extraction in signed app bundle: {}",
+        clawdbot_root.display()
+      );
+    }
   }
 
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
@@ -7958,7 +8002,14 @@ pub async fn set_service_enabled(
 
       // Extract node_modules.tar if present (Windows CI/release builds only).
       if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
-        ensure_node_modules_extracted(clawdbot_root);
+        if should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
+          ensure_node_modules_extracted(clawdbot_root);
+        } else {
+          eprintln!(
+            "[clawd/service] Skipping bundled node_modules extraction in signed app bundle: {}",
+            clawdbot_root.display()
+          );
+        }
       }
 
       // Install runtime deps for bundled plugins (e.g. grammy for telegram).
