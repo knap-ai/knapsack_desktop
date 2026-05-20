@@ -1389,6 +1389,7 @@ function ensureBundledPluginRuntimeDeps(params) {
 //#region src/plugins/bundled-runtime-root.ts
 const bundledRuntimeDepsRetainSpecsByInstallRoot = /* @__PURE__ */ new Map();
 const BUNDLED_RUNTIME_MIRROR_LOCK_DIR = ".openclaw-runtime-mirror.lock";
+const BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER = ".openclaw-runtime-mirror-source.json";
 function isBuiltBundledPluginRuntimeRoot(pluginRoot) {
 	const extensionsDir = path.dirname(pluginRoot);
 	const buildDir = path.dirname(extensionsDir);
@@ -1442,6 +1443,10 @@ function mirrorBundledPluginRuntimeRoot(params) {
 			pluginRoot: params.pluginRoot
 		});
 		const mirrorRoot = path.join(mirrorParent, params.pluginId);
+		if (isReusableBundledRuntimeMirror({
+			pluginRoot: params.pluginRoot,
+			mirrorRoot
+		})) return mirrorRoot;
 		fs.mkdirSync(params.installRoot, { recursive: true });
 		try {
 			fs.chmodSync(params.installRoot, 493);
@@ -1456,6 +1461,7 @@ function mirrorBundledPluginRuntimeRoot(params) {
 		const stagedRoot = path.join(tempDir, "plugin");
 		try {
 			copyBundledPluginRuntimeRoot(params.pluginRoot, stagedRoot);
+			writeBundledRuntimeMirrorSourceMarker(stagedRoot, params.pluginRoot);
 			fs.rmSync(mirrorRoot, {
 				recursive: true,
 				force: true
@@ -1469,6 +1475,23 @@ function mirrorBundledPluginRuntimeRoot(params) {
 		}
 		return mirrorRoot;
 	});
+}
+function isReusableBundledRuntimeMirror(params) {
+	if (!fs.existsSync(params.mirrorRoot)) return false;
+	const marker = readJsonObject(path.join(params.mirrorRoot, BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER));
+	if (!marker || typeof marker.sourceRealpath !== "string") return false;
+	try {
+		return marker.sourceRealpath === fs.realpathSync(params.pluginRoot);
+	} catch {
+		return false;
+	}
+}
+function writeBundledRuntimeMirrorSourceMarker(mirrorRoot, pluginRoot) {
+	try {
+		writeRuntimeJsonFile(path.join(mirrorRoot, BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER), {
+			sourceRealpath: fs.realpathSync(pluginRoot)
+		});
+	} catch {}
 }
 function prepareBundledPluginRuntimeDistMirror(params) {
 	const sourceExtensionsRoot = path.dirname(params.pluginRoot);
@@ -1525,11 +1548,7 @@ function copyBundledPluginRuntimeRoot(sourceRoot, targetRoot) {
 			continue;
 		}
 		if (!entry.isFile()) continue;
-		fs.copyFileSync(sourcePath, targetPath);
-		try {
-			const sourceMode = fs.statSync(sourcePath).mode;
-			fs.chmodSync(targetPath, sourceMode | 384);
-		} catch {}
+		materializeBundledRuntimeMirrorDistFile(sourcePath, targetPath);
 	}
 }
 function writeRuntimeJsonFile(targetPath, value) {
