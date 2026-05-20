@@ -50,6 +50,7 @@ export declare function resolveExtensionApiAlias(params?: LoaderModuleResolvePar
 export declare function buildPluginLoaderAliasMap(modulePath: string, argv1?: string | undefined, moduleUrl?: string, pluginSdkResolution?: PluginSdkResolutionPreference): Record<string, string>;
 export declare function resolvePluginRuntimeModulePath(params?: LoaderModuleResolveParams): string | null;
 export declare function buildPluginLoaderJitiOptions(aliasMap: Record<string, string>): {
+    fsCache: false;
     interopDefault: boolean;
     tryNative: boolean;
     extensions: string[];

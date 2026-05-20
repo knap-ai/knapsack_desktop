@@ -204,6 +204,7 @@ function getJiti(tryNative) {
   const { createJiti } = require("jiti");
   const jitiLoader = createJiti(__filename, {
     alias: buildPluginSdkAliasMap(effectiveTryNative),
+    fsCache: false,
     interopDefault: true,
     // Prefer Node's native sync ESM loader for built dist/plugin-sdk/*.js files
     // so local plugins do not create a second transpiled OpenClaw core graph.

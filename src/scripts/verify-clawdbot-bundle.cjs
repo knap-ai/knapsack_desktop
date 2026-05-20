@@ -8,6 +8,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
 
@@ -169,6 +170,65 @@ if (fs.existsSync(extensionsDir)) {
   if (extensionsWithPlugin.length < 10) {
     console.error(`[verify-clawdbot] SUSPICIOUS: only ${extensionsWithPlugin.length} extensions have plugin metadata — expected many more`);
     errors++;
+  }
+}
+
+// Bundled extension modules import the SDK through the package name `openclaw`.
+// In the signed desktop app that package is resolved through Jiti aliases rather
+// than a real node_modules/openclaw symlink. If bundled dist/extensions/*.js is
+// loaded natively, startup model/provider discovery crashes before /health.
+const sdkAliasChunks = fs.existsSync(distDir)
+  ? fs.readdirSync(distDir).filter((name) => /^sdk-alias-.*\.js$/.test(name))
+  : [];
+const sdkAliasChunk = sdkAliasChunks.length === 1 ? path.join(distDir, sdkAliasChunks[0]) : null;
+if (!sdkAliasChunk) {
+  console.error('[verify-clawdbot] MISSING: dist/sdk-alias-*.js — plugin loader alias runtime not found');
+  errors++;
+} else {
+  const content = fs.readFileSync(sdkAliasChunk, 'utf8');
+  if (!content.includes('fsCache: false')) {
+    console.error('[verify-clawdbot] CRITICAL: plugin Jiti loader must disable fsCache to keep signed app bundles sealed');
+    errors++;
+  }
+  if (!content.includes('if (isBundledPluginDistModulePath(modulePath)) return false;')) {
+    console.error('[verify-clawdbot] CRITICAL: bundled dist/extensions modules must not use native import; openclaw SDK aliases are required');
+    errors++;
+  }
+}
+
+const rootAliasPath = path.join(CLAWDBOT_DIR, 'dist', 'plugin-sdk', 'root-alias.cjs');
+if (fs.existsSync(rootAliasPath)) {
+  const content = fs.readFileSync(rootAliasPath, 'utf8');
+  if (!content.includes('fsCache: false')) {
+    console.error('[verify-clawdbot] CRITICAL: plugin-sdk/root-alias.cjs must disable Jiti fsCache in signed app bundles');
+    errors++;
+  }
+}
+
+if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))) {
+  const smoke = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = ${JSON.stringify(extensionsDir)};
+    process.env.OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS = 'codex';
+    const catalog = await import(${JSON.stringify(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))});
+    const models = await catalog.loadModelCatalog({ readOnly: true, useCache: false });
+    if (!Array.isArray(models)) throw new Error('model catalog did not return an array');
+    console.log(models.length);
+  `], {
+    cwd: CLAWDBOT_DIR,
+    env: {
+      ...process.env,
+      OPENCLAW_BUNDLED_PLUGINS_DIR: extensionsDir,
+      OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: 'codex',
+    },
+    encoding: 'utf8',
+    timeout: 30000,
+  });
+  if (smoke.status !== 0) {
+    console.error('[verify-clawdbot] CRITICAL: bundled model catalog smoke failed');
+    if (smoke.stderr) console.error(smoke.stderr.trim());
+    errors++;
+  } else {
+    console.log(`[verify-clawdbot] bundled model catalog smoke: ${smoke.stdout.trim()} models ✓`);
   }
 }
 
