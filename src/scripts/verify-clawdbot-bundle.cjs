@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { pathToFileURL } = require('url');
 
 const CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
 
@@ -206,10 +207,11 @@ if (fs.existsSync(rootAliasPath)) {
 }
 
 if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))) {
+  const modelCatalogUrl = pathToFileURL(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js')).href;
   const smoke = spawnSync(process.execPath, ['--input-type=module', '-e', `
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = ${JSON.stringify(extensionsDir)};
     process.env.OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS = 'codex';
-    const catalog = await import(${JSON.stringify(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))});
+    const catalog = await import(${JSON.stringify(modelCatalogUrl)});
     const models = await catalog.loadModelCatalog({ readOnly: true, useCache: false });
     if (!Array.isArray(models)) throw new Error('model catalog did not return an array');
     console.log(models.length);
