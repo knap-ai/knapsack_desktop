@@ -401,6 +401,7 @@ function buildPluginLoaderJitiOptions(aliasMap) {
 	const hasAliases = Object.keys(aliasMap).length > 0;
 	const jitiAliasMap = hasAliases ? normalizePluginLoaderAliasMapForJiti(aliasMap) : aliasMap;
 	return {
+		fsCache: false,
 		interopDefault: true,
 		tryNative: true,
 		extensions: [
@@ -435,7 +436,7 @@ function shouldPreferNativeJiti(modulePath) {
 	}
 }
 function resolvePluginLoaderJitiTryNative(modulePath, options) {
-	if (isBundledPluginDistModulePath(modulePath)) return shouldPreferNativeJiti(modulePath);
+	if (isBundledPluginDistModulePath(modulePath)) return false;
 	return shouldPreferNativeJiti(modulePath) || supportsNativeJitiRuntime() && options?.preferBuiltDist === true && modulePath.includes(`${path.sep}dist${path.sep}`);
 }
 function createPluginLoaderJitiCacheKey(params) {
