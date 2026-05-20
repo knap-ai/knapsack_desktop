@@ -656,8 +656,24 @@ function apiUrl(path: string): string {
   return API_BASE + path
 }
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path))
+type ApiFetchOptions = {
+  timeoutMs?: number
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs?: number): Promise<Response> {
+  if (!timeoutMs || timeoutMs <= 0) return fetch(input, init)
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+async function apiGet<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+  const res = await fetchWithTimeout(apiUrl(path), {}, options.timeoutMs)
   if (!res.ok) {
     const t = await res.text().catch(() => '')
     throw new Error(t || `HTTP ${res.status}`)
@@ -3108,14 +3124,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         let catchBackoffMs = 1000
         const pollGateway = async () => {
           try {
-            const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
+            const h = await apiGet<ServiceHealth>('/api/clawd/service/health', { timeoutMs: 2500 })
             const hJson = JSON.stringify(h)
             if (hJson !== lastHealthJson) {
               lastHealthJson = hJson
               setHealth(h)
             }
             // Also refresh service status periodically
-            const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status', { timeoutMs: 2500 })
             const s2Json = JSON.stringify(s2)
             if (s2Json !== lastStatusJson) {
               lastStatusJson = s2Json
