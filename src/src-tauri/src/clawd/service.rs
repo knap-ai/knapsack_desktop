@@ -914,6 +914,10 @@ fn process_is_alive(_pid: u32) -> bool {
 }
 
 fn plugin_runtime_deps_install_in_progress(clawdbot_home: &std::path::Path) -> bool {
+  const LOCK_DIR_NAMES: &[&str] = &[
+    ".openclaw-runtime-deps.lock",
+    ".openclaw-runtime-mirror.lock",
+  ];
   let base = clawdbot_home.join("plugin-runtime-deps");
   let entries = match fs::read_dir(&base) {
     Ok(d) => d,
@@ -925,40 +929,57 @@ fn plugin_runtime_deps_install_in_progress(clawdbot_home: &std::path::Path) -> b
       continue;
     }
 
-    let lock_dir = entry.path().join(".openclaw-runtime-deps.lock");
-    if !lock_dir.is_dir() {
-      continue;
+    let package_dir = entry.path();
+    if LOCK_DIR_NAMES
+      .iter()
+      .any(|name| plugin_runtime_deps_lock_active(&package_dir.join(name)))
+    {
+      return true;
     }
 
-    let owner_path = lock_dir.join("owner.json");
-    if let Ok(raw) = fs::read_to_string(&owner_path) {
-      if let Ok(owner) = serde_json::from_str::<serde_json::Value>(&raw) {
-        if let Some(pid) = owner.get("pid").and_then(|v| v.as_u64()) {
-          if pid <= u32::MAX as u64 && process_is_alive(pid as u32) {
-            return true;
-          }
-          continue;
+    let dist_extensions = package_dir.join("dist").join("extensions");
+    if let Ok(plugins) = fs::read_dir(&dist_extensions) {
+      for plugin in plugins.flatten() {
+        if plugin.file_type().map(|t| t.is_dir()).unwrap_or(false)
+          && LOCK_DIR_NAMES
+            .iter()
+            .any(|name| plugin_runtime_deps_lock_active(&plugin.path().join(name)))
+        {
+          return true;
         }
-      }
-    }
-
-    // If the owner file has not been written yet, or it is transiently
-    // unreadable, treat a fresh lock as active. This avoids killing the gateway
-    // in the tiny window between mkdir(lock) and owner.json write.
-    if let Ok(meta) = fs::metadata(&lock_dir) {
-      if meta
-        .modified()
-        .ok()
-        .and_then(|mtime| mtime.elapsed().ok())
-        .map(|age| age < PLUGIN_RUNTIME_DEPS_LOCK_GRACE)
-        .unwrap_or(false)
-      {
-        return true;
       }
     }
   }
 
   false
+}
+
+fn plugin_runtime_deps_lock_active(lock_dir: &std::path::Path) -> bool {
+  if !lock_dir.is_dir() {
+    return false;
+  }
+
+  let owner_path = lock_dir.join("owner.json");
+  if let Ok(raw) = fs::read_to_string(&owner_path) {
+    if let Ok(owner) = serde_json::from_str::<serde_json::Value>(&raw) {
+      if let Some(pid) = owner.get("pid").and_then(|v| v.as_u64()) {
+        if pid <= u32::MAX as u64 {
+          return process_is_alive(pid as u32);
+        }
+        return false;
+      }
+    }
+  }
+
+  // If the owner file has not been written yet, or it is transiently
+  // unreadable, treat a fresh lock as active. This avoids killing the gateway
+  // in the tiny window between mkdir(lock) and owner.json write.
+  fs::metadata(lock_dir)
+    .ok()
+    .and_then(|meta| meta.modified().ok())
+    .and_then(|mtime| mtime.elapsed().ok())
+    .map(|age| age < PLUGIN_RUNTIME_DEPS_LOCK_GRACE)
+    .unwrap_or(false)
 }
 
 fn default_clawdbot_home_from_env() -> Option<PathBuf> {
@@ -7323,11 +7344,6 @@ async fn prepare_gateway_config(
     .join("plugin-runtime-deps")
     .to_string_lossy()
     .to_string();
-  let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
-    .join("jiti-cache")
-    .to_string_lossy()
-    .to_string();
-
   let mut env = vec![
     ("PATH".to_string(), clawdbot_path),
     ("HOME".to_string(), user_home.clone()),
@@ -7339,7 +7355,10 @@ async fn prepare_gateway_config(
     ),
     ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_PLUGIN_STAGE_DIR".to_string(), plugin_stage_dir),
-    ("JITI_FS_CACHE".to_string(), jiti_cache_dir),
+    // Jiti's env parser treats JITI_FS_CACHE as a boolean, not a cache path.
+    // Leaving it enabled writes node_modules/.cache/jiti under the signed app
+    // resources bundle and invalidates macOS code signing after first launch.
+    ("JITI_FS_CACHE".to_string(), "false".to_string()),
     (
       "OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(),
       bundled_plugins_dir_str,
@@ -8887,11 +8906,6 @@ pub async fn set_service_enabled(
       // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
       let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
-      let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
-        .join("jiti-cache")
-        .to_string_lossy()
-        .to_string();
-
       eprintln!("[clawd/service] Running OpenClaw doctor --fix to ensure plugin dependencies...");
       let doctor_status = std::process::Command::new(&node_path)
         .arg(&clawdbot_entry)
@@ -8899,7 +8913,7 @@ pub async fn set_service_enabled(
         .arg("--fix")
         .env("OPENCLAW_STATE_DIR", &clawdbot_home_str)
         .env("OPENCLAW_BUNDLED_PLUGINS_DIR", &bundled_plugins_dir_str)
-        .env("JITI_FS_CACHE", &jiti_cache_dir)
+        .env("JITI_FS_CACHE", "false")
         .status();
 
       match doctor_status {
@@ -8956,11 +8970,6 @@ pub async fn set_service_enabled(
         .join("plugin-runtime-deps")
         .to_string_lossy()
         .to_string();
-      let jiti_cache_dir = PathBuf::from(&clawdbot_home_str)
-        .join("jiti-cache")
-        .to_string_lossy()
-        .to_string();
-
       let mut env = vec![
         ("PATH".to_string(), clawdbot_path),
         ("HOME".to_string(), user_home),
@@ -8975,7 +8984,10 @@ pub async fn set_service_enabled(
         // Ensure control server family ports remain default.
         ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
         ("OPENCLAW_PLUGIN_STAGE_DIR".to_string(), plugin_stage_dir),
-        ("JITI_FS_CACHE".to_string(), jiti_cache_dir),
+        // Jiti's env parser treats JITI_FS_CACHE as a boolean, not a cache path.
+        // Leaving it enabled writes node_modules/.cache/jiti under the signed app
+        // resources bundle and invalidates macOS code signing after first launch.
+        ("JITI_FS_CACHE".to_string(), "false".to_string()),
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         // Point to bundled plugins/extensions directory so OpenClaw can find memory-core etc.
         (
@@ -10867,6 +10879,37 @@ mod crash_classifier_tests {
     );
     assert!(!incomplete.exists());
     assert!(complete.exists());
+
+    let _ = fs::remove_dir_all(root);
+  }
+
+  #[test]
+  fn runtime_deps_locks_are_startup_progress() {
+    let root = std::env::temp_dir().join(format!(
+      "knapsack-runtime-deps-lock-test-{}-{}",
+      std::process::id(),
+      std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+    ));
+    let package_dir = root
+      .join("plugin-runtime-deps")
+      .join("openclaw-2026.4.26-test");
+
+    fs::create_dir_all(package_dir.join(".openclaw-runtime-mirror.lock")).unwrap();
+    assert!(plugin_runtime_deps_install_in_progress(&root));
+
+    fs::remove_dir_all(package_dir.join(".openclaw-runtime-mirror.lock")).unwrap();
+    fs::create_dir_all(
+      package_dir
+        .join("dist")
+        .join("extensions")
+        .join("slack")
+        .join(".openclaw-runtime-deps.lock"),
+    )
+    .unwrap();
+    assert!(plugin_runtime_deps_install_in_progress(&root));
 
     let _ = fs::remove_dir_all(root);
   }
