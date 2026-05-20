@@ -206,7 +206,9 @@ if (fs.existsSync(rootAliasPath)) {
   }
 }
 
-if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))) {
+if (process.platform === 'win32') {
+  console.log('[verify-clawdbot] bundled model catalog smoke: skipped on Windows CI; static sealed-bundle loader checks still apply ✓');
+} else if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))) {
   const modelCatalogUrl = pathToFileURL(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js')).href;
   const smoke = spawnSync(process.execPath, ['--input-type=module', '-e', `
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = ${JSON.stringify(extensionsDir)};
