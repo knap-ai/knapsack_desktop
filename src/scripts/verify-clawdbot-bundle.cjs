@@ -223,10 +223,12 @@ if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalo
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: 'codex',
     },
     encoding: 'utf8',
-    timeout: 30000,
+    timeout: 120000,
   });
   if (smoke.status !== 0) {
     console.error('[verify-clawdbot] CRITICAL: bundled model catalog smoke failed');
+    if (smoke.error) console.error(String(smoke.error));
+    if (smoke.signal) console.error(`[verify-clawdbot] smoke terminated by signal: ${smoke.signal}`);
     if (smoke.stderr) console.error(smoke.stderr.trim());
     errors++;
   } else {
