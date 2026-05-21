@@ -721,6 +721,107 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
   }
 }
 
+const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
+  // Core app activities exercised by the desktop QA loop.
+  "browser",
+  "telegram",
+  "slack",
+  "google",
+  "microsoft",
+  "web-readability",
+  "document-extract",
+  // Web/search providers.
+  "brave",
+  "exa",
+  "firecrawl",
+  "tavily",
+  // Model providers shown in the desktop model picker or commonly configured
+  // by Knapsack users. Keeping the provider set explicit prevents every
+  // bundled default plugin from initializing at gateway startup.
+  "anthropic",
+  "cerebras",
+  "deepseek",
+  "fireworks",
+  "google",
+  "groq",
+  "huggingface",
+  "litellm",
+  "mistral",
+  "moonshot",
+  "ollama",
+  "openai",
+  "openrouter",
+  "qwen",
+  "together",
+  "venice",
+  "xai",
+];
+
+fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  if cfg.get("plugins").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("plugins".to_string(), serde_json::json!({}));
+  }
+
+  let mut required: Vec<String> = KNAPSACK_REQUIRED_PLUGINS
+    .iter()
+    .map(|plugin| plugin.to_string())
+    .collect();
+
+  if let Some(entries) = cfg
+    .pointer("/plugins/entries")
+    .and_then(|value| value.as_object())
+  {
+    for (plugin_id, entry) in entries {
+      let explicitly_disabled =
+        entry.get("enabled").and_then(|value| value.as_bool()) == Some(false);
+      if !explicitly_disabled && !required.iter().any(|existing| existing == plugin_id) {
+        required.push(plugin_id.clone());
+      }
+    }
+  }
+
+  required.sort();
+  required.dedup();
+
+  let existing_allow = cfg
+    .pointer("/plugins/allow")
+    .and_then(|value| value.as_array())
+    .cloned()
+    .unwrap_or_default();
+  let mut merged = existing_allow
+    .iter()
+    .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+    .collect::<Vec<_>>();
+  for plugin in required {
+    if !merged.iter().any(|existing| existing == &plugin) {
+      merged.push(plugin);
+    }
+  }
+  merged.sort();
+  merged.dedup();
+
+  let next_allow = serde_json::json!(merged);
+  if cfg.pointer("/plugins/allow") == Some(&next_allow) {
+    return false;
+  }
+
+  cfg
+    .pointer_mut("/plugins")
+    .unwrap()
+    .as_object_mut()
+    .unwrap()
+    .insert("allow".to_string(), next_allow);
+  eprintln!("[clawd/service] Patched plugins.allow to Knapsack startup allowlist");
+  true
+}
+
 /// Remove plugin-runtime-deps directories whose version prefix doesn't match
 /// `current_version`. This prevents WhatsApp (and other plugins) from crashing
 /// the gateway with ENOENT when they try to migrate their auth-store from an
@@ -983,7 +1084,9 @@ fn plugin_runtime_deps_lock_active(lock_dir: &std::path::Path) -> bool {
 }
 
 fn default_clawdbot_home_from_env() -> Option<PathBuf> {
-  if let Some(raw) = std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME")) {
+  if let Some(raw) =
+    std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME"))
+  {
     let path = PathBuf::from(raw);
     if !path.as_os_str().is_empty() {
       return Some(path);
@@ -1960,25 +2063,46 @@ fn launchctl_kickstart_with_timeout(service: &str, context: &str) {
   mark_gateway_launch_started();
 }
 
+const GATEWAY_LOCAL_HEALTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const GATEWAY_HEALTH_CACHE_TTL: std::time::Duration = std::time::Duration::from_millis(750);
+
+struct GatewayHealthProbeCache {
+  checked_at: Option<std::time::Instant>,
+  result: bool,
+}
+
+static GATEWAY_HEALTH_PROBE_CACHE: once_cell::sync::Lazy<
+  tokio::sync::Mutex<GatewayHealthProbeCache>,
+> = once_cell::sync::Lazy::new(|| {
+  tokio::sync::Mutex::new(GatewayHealthProbeCache {
+    checked_at: None,
+    result: false,
+  })
+});
+
 async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
+  let now = std::time::Instant::now();
+  let mut cache = GATEWAY_HEALTH_PROBE_CACHE.lock().await;
+  if let Some(checked_at) = cache.checked_at {
+    if now.duration_since(checked_at) < GATEWAY_HEALTH_CACHE_TTL {
+      return cache.result;
+    }
+  }
+
   let client = match reqwest::Client::builder().timeout(timeout).build() {
     Ok(c) => c,
     Err(_) => return false,
   };
-  match tokio::time::timeout(timeout, client.get("http://127.0.0.1:18789/health").send()).await {
-    Ok(Ok(resp)) => {
-      resp.status().is_success() || resp.status().as_u16() == 401 || resp.status().as_u16() == 404
-    }
-    _ => false,
-  }
-}
-
-async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
-  let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16));
-  matches!(
-    tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr)).await,
-    Ok(Ok(_))
-  )
+  let result =
+    match tokio::time::timeout(timeout, client.get("http://127.0.0.1:18789/health").send()).await {
+      Ok(Ok(resp)) => {
+        resp.status().is_success() || resp.status().as_u16() == 401 || resp.status().as_u16() == 404
+      }
+      _ => false,
+    };
+  cache.checked_at = Some(std::time::Instant::now());
+  cache.result = result;
+  result
 }
 
 async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
@@ -1990,15 +2114,7 @@ async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
-  if gateway_health_port_ok(timeout).await {
-    return true;
-  }
-
-  if qa_direct_gateway_mode() {
-    return gateway_tcp_port_open(timeout).await;
-  }
-
-  false
+  gateway_health_port_ok(timeout).await
 }
 
 fn read_log_tail_lines_bounded(
@@ -3252,7 +3368,7 @@ async fn run_gateway_self_heal_cycle(
     crash_class
   );
 
-  if gateway_reachable_or_ready(std::time::Duration::from_millis(800)).await {
+  if gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await {
     eprintln!("[clawd/service] self-heal: gateway is already reachable; skipping recovery");
     GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
     return;
@@ -3301,7 +3417,7 @@ async fn run_gateway_self_heal_cycle(
   // The gateway can finish booting while this recovery task is doing config
   // and dependency checks. Re-check immediately before bootout/port-kill so a
   // slow-but-successful startup is not mistaken for a dead service.
-  if gateway_reachable_or_ready(std::time::Duration::from_millis(800)).await {
+  if gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await {
     eprintln!(
       "[clawd/service] self-heal: gateway became reachable before restart; skipping destructive recovery"
     );
@@ -3747,7 +3863,10 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
 
   std::process::Command::new(chrome)
     .arg("--remote-debugging-port=18800")
-    .arg(format!("--user-data-dir={}", user_data_dir.to_string_lossy()))
+    .arg(format!(
+      "--user-data-dir={}",
+      user_data_dir.to_string_lossy()
+    ))
     .arg("--profile-directory=Default")
     .arg("--no-first-run")
     .arg("--no-default-browser-check")
@@ -3811,10 +3930,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // Gateway health is intentionally unauthenticated: the gateway's public
-    // `/health` path is fast, while the authenticated path can hang behind
-    // gateway auth/session work and should not be used by UI polling.
-    let mut gateway_ok = gateway_reachable_or_ready(std::time::Duration::from_millis(800)).await;
+    // Gateway health is intentionally unauthenticated. A bound TCP port is not
+    // enough: during startup the gateway can accept connections while the Node
+    // event loop is still too busy to answer `/health`.
+    let gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
     let gateway_probe_failed = !gateway_ok;
 
     // Track gateway state transitions for recovery logic.
@@ -4510,7 +4629,7 @@ pub async fn service_status() -> impl Responder {
 
     let installed = plist_path.exists();
 
-    let port_ok = gateway_reachable_or_ready(std::time::Duration::from_millis(800)).await;
+    let port_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
 
     // Best-effort fallback: `launchctl print gui/<uid>/<label>` exits 0 when loaded.
     let uid = unsafe { libc::getuid() };
@@ -6403,6 +6522,7 @@ async fn prepare_gateway_config(
         "defaultProfile": "openclaw" // managed, isolated profile
       },
       "plugins": {
+        "allow": KNAPSACK_REQUIRED_PLUGINS,
         "slots": {
           "memory": "none"
         }
@@ -6553,6 +6673,10 @@ async fn prepare_gateway_config(
             .unwrap()
             .insert("memory".to_string(), serde_json::json!("none"));
           eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
+          patched = true;
+        }
+
+        if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
           patched = true;
         }
 
@@ -6887,12 +7011,29 @@ async fn prepare_gateway_config(
           }
         }
 
-        // Ensure exec/process/file tools are in allow
-        let exec_tools = ["exec", "process", "read", "write", "edit", "apply_patch"];
+        // Ensure exec/process/file tools are in allow. Use group:fs instead
+        // of individual file tools so gateway_client does not have to clean
+        // them up after the gateway is already watching the config file.
+        let exec_tools = ["exec", "process", "group:fs"];
         if let Some(allow_arr) = cfg_val
           .pointer_mut("/tools/allow")
           .and_then(|v| v.as_array_mut())
         {
+          let covered_by_group_fs = ["read", "write", "edit", "apply_patch"];
+          let before_len = allow_arr.len();
+          allow_arr.retain(|item| {
+            item
+              .as_str()
+              .map(|s| !covered_by_group_fs.contains(&s))
+              .unwrap_or(true)
+          });
+          if allow_arr.len() != before_len {
+            eprintln!(
+              "[clawd/service] Cleaned up individual file tool entries (now covered by group:fs)"
+            );
+            patched = true;
+          }
+
           for tool_name in &exec_tools {
             let already = allow_arr
               .iter()
@@ -7887,8 +8028,8 @@ pub async fn set_service_enabled(
         return HttpResponse::Ok().json(EnableServiceResponse {
           success: true,
           enabled,
-          message:
-            "QA direct gateway is managed by qa-dev-run; left service plist unchanged".to_string(),
+          message: "QA direct gateway is managed by qa-dev-run; left service plist unchanged"
+            .to_string(),
         });
       }
 
@@ -8084,6 +8225,7 @@ pub async fn set_service_enabled(
             "defaultProfile": "openclaw"
           },
           "plugins": {
+            "allow": KNAPSACK_REQUIRED_PLUGINS,
             "slots": {
               "memory": "none"
             }
@@ -8286,6 +8428,10 @@ pub async fn set_service_enabled(
                 .unwrap()
                 .insert("memory".to_string(), serde_json::json!("none"));
               eprintln!("[clawd/service] Patched plugins.slots.memory to \"none\"");
+              patched = true;
+            }
+
+            if ensure_knapsack_plugin_allowlist(&mut cfg) {
               patched = true;
             }
 

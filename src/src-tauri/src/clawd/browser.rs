@@ -5,6 +5,7 @@ use serde_json::{json, Value as JsonValue};
 use std::fs;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tauri::Manager;
 
 use once_cell::sync::Lazy;
@@ -16,6 +17,9 @@ use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
+
+const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(75);
+const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// Record token usage from a chat API response (best-effort, never panics).
 fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {
@@ -1317,7 +1321,7 @@ pub async fn agent_chat(
       gateway_attachments.len());
 
     match tokio::time::timeout(
-      std::time::Duration::from_secs(20),
+      AGENT_CHAT_GATEWAY_TIMEOUT,
       gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None),
     )
     .await
@@ -1381,8 +1385,15 @@ pub async fn agent_chat(
         None
       }
       Err(_) => {
-        eprintln!("[clawd/agent-chat] Gateway agent request timed out after 20s, falling back to direct chat");
-        None
+        eprintln!(
+          "[clawd/agent-chat] Gateway agent request timed out after {:?}; not starting direct fallback",
+          AGENT_CHAT_GATEWAY_TIMEOUT
+        );
+        return HttpResponse::Ok().json(serde_json::json!({
+          "ok": false,
+          "noFallback": true,
+          "message": "The gateway agent did not finish in time. Please try again in a moment.",
+        }));
       }
     }
   } else {
@@ -1408,7 +1419,7 @@ pub async fn agent_chat(
     fallback_body["text"] = serde_json::json!(text);
   }
   match reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(120))
+    .timeout(AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT)
     .build()
   {
     Ok(client) => {

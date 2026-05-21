@@ -8672,7 +8672,8 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		controlUiBasePath: params.controlUiBasePath,
 		logTailscale: params.logTailscale
 	}));
-	const sidecarsPromise = params.minimalTestGateway ? Promise.resolve({ pluginServices: null }) : new Promise((resolve) => setImmediate(resolve)).then(async () => {
+	const sidecarStartDelayMs = params.deferSidecars === true ? 2500 : 0;
+	const sidecarsPromise = params.minimalTestGateway ? Promise.resolve({ pluginServices: null }) : new Promise((resolve) => setTimeout(resolve, sidecarStartDelayMs)).then(async () => {
 		params.log.info("starting channels and sidecars...");
 		const result = await measureStartup(params.startupTrace, "sidecars.total", () => runtimeDeps.startGatewaySidecars({
 			cfg: params.gatewayPluginConfigAtStart,
@@ -11191,7 +11192,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				startupSidecarsReady = true;
 			},
 			startupTrace,
-			deferSidecars: opts.deferStartupSidecars === true
+			deferSidecars: opts.deferStartupSidecars !== false
 		})));
 		startupTrace.mark("ready");
 		const activated = activateGatewayScheduledServices({

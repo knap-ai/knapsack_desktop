@@ -1802,6 +1802,7 @@ const LAZY_RUNTIME_REFLECTION_KEYS = [
 ];
 const defaultLogger = () => createSubsystemLogger("plugins");
 const BUNDLED_RUNTIME_MIRROR_LOCK_DIR = ".openclaw-runtime-mirror.lock";
+const BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER = ".openclaw-runtime-mirror-source.json";
 function isPromiseLike(value) {
 	return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
 }
@@ -2051,6 +2052,10 @@ function mirrorBundledPluginRuntimeRoot(params) {
 			pluginRoot: params.pluginRoot
 		});
 		const mirrorRoot = path.join(mirrorParent, params.pluginId);
+		if (isReusableBundledRuntimeMirror({
+			pluginRoot: params.pluginRoot,
+			mirrorRoot
+		})) return mirrorRoot;
 		fs.mkdirSync(params.installRoot, { recursive: true });
 		try {
 			fs.chmodSync(params.installRoot, 493);
@@ -2065,6 +2070,7 @@ function mirrorBundledPluginRuntimeRoot(params) {
 		const stagedRoot = path.join(tempDir, "plugin");
 		try {
 			copyBundledPluginRuntimeRoot(params.pluginRoot, stagedRoot);
+			writeBundledRuntimeMirrorSourceMarker(stagedRoot, params.pluginRoot);
 			fs.rmSync(mirrorRoot, {
 				recursive: true,
 				force: true
@@ -2078,6 +2084,23 @@ function mirrorBundledPluginRuntimeRoot(params) {
 		}
 		return mirrorRoot;
 	});
+}
+function isReusableBundledRuntimeMirror(params) {
+	if (!fs.existsSync(params.mirrorRoot)) return false;
+	const marker = readRuntimeJsonFile(path.join(params.mirrorRoot, BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER));
+	if (!marker || typeof marker.sourceRealpath !== "string") return false;
+	try {
+		return marker.sourceRealpath === fs.realpathSync(params.pluginRoot);
+	} catch {
+		return false;
+	}
+}
+function writeBundledRuntimeMirrorSourceMarker(mirrorRoot, pluginRoot) {
+	try {
+		writeRuntimeJsonFile(path.join(mirrorRoot, BUNDLED_RUNTIME_MIRROR_SOURCE_MARKER), {
+			sourceRealpath: fs.realpathSync(pluginRoot)
+		});
+	} catch {}
 }
 function prepareBundledPluginRuntimeDistMirror(params) {
 	const sourceExtensionsRoot = path.dirname(params.pluginRoot);
@@ -2208,6 +2231,14 @@ function copyBundledPluginRuntimeRoot(sourceRoot, targetRoot) {
 function writeRuntimeJsonFile(targetPath, value) {
 	fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 	fs.writeFileSync(targetPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+function readRuntimeJsonFile(targetPath) {
+	try {
+		const parsed = JSON.parse(fs.readFileSync(targetPath, "utf8"));
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
 }
 function hasRuntimeDefaultExport(sourcePath) {
 	const text = fs.readFileSync(sourcePath, "utf8");

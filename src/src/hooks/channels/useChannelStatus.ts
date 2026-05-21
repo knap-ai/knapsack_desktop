@@ -56,7 +56,7 @@ export interface ChannelStates {
 
 /** Interval for polling unconfigured channels (30s instead of active interval). */
 const UNCONFIGURED_POLL_INTERVAL = 30_000
-const GATEWAY_HEALTH_POLL_TIMEOUT_MS = 2500
+const GATEWAY_HEALTH_POLL_TIMEOUT_MS = 6500
 
 /** Returns true if a channel status indicates it has been configured/enabled by the user. */
 function isChannelConfigured(status: ChannelStatus | null): boolean {
