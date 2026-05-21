@@ -144,20 +144,39 @@ impl GroqLlm {
       form = form.text("temperature", temp.to_string());
     }
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_secs(60))
+      .build()
+      .map_err(|e| LLMError::ChatCompletionFailed(format!("Failed to build HTTP client: {}", e)))?;
+
     let response = client
       .post("https://api.groq.com/openai/v1/audio/transcriptions")
       .header("Authorization", format!("Bearer {}", self.api_key))
       .multipart(form)
       .send()
       .await
-      .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+      .map_err(|e| {
+        // Provide more specific error messages for common network issues
+        let error_msg = if e.is_timeout() {
+          "Request timed out. Please check your internet connection and try again."
+        } else if e.is_connect() {
+          "Failed to connect to Groq API. Please check your internet connection and try again."
+        } else {
+          "Network error occurred while contacting Groq API."
+        };
+        log::error!("Error transcribing with Groq: {}: {}", error_msg, e);
+        LLMError::ChatCompletionFailed(format!("{} ({})", error_msg, e))
+      })?;
 
     if !response.status().is_success() {
+      let status = response.status();
+      let error_text = response.text().await.unwrap_or_else(|_| String::from("Unable to read error response"));
+      log::error!("Groq API request failed with status {}: {}", status, error_text);
       return Err(
         LLMError::ChatCompletionFailed(format!(
-          "API request failed with status: {}",
-          response.status()
+          "API request failed with status: {} - {}",
+          status,
+          error_text
         ))
         .into(),
       );

@@ -123,7 +123,15 @@ pub async fn get_api_access_token(email: &str, refresh_internal: Option<String>)
                 .headers(headers)
                 .send()
                 .await
-                .map_err(|e| format!("Network error: {}", e))?;
+                .map_err(|e| {
+                    if e.is_timeout() {
+                        format!("Request timed out connecting to server")
+                    } else if e.is_connect() {
+                        format!("Failed to connect to server (check internet connection)")
+                    } else {
+                        format!("Network error: {}", e)
+                    }
+                })?;
 
             if response.status().is_success() {
                 let response_json: Value = response

@@ -1455,7 +1455,16 @@ async fn main() {
         window_builder = window_builder.title_bar_style(tauri::TitleBarStyle::Overlay);
       }
 
-      let main_window = window_builder.build()?;
+      let main_window = window_builder.build().map_err(|e| {
+        log::error!("Failed to create main window: {:?}", e);
+        #[cfg(target_os = "windows")]
+        {
+          if format!("{:?}", e).contains("0x80070057") || format!("{:?}", e).contains("WebView2") {
+            return tauri::Error::Setup("Failed to initialize WebView2. Please ensure Microsoft Edge WebView2 Runtime is installed. Download it from https://go.microsoft.com/fwlink/p/?LinkId=2124703".into());
+          }
+        }
+        e
+      })?;
 
       // Position the window: right-aligned, filling the usable screen height.
       // On Windows we query the actual work area (excludes taskbar regardless
