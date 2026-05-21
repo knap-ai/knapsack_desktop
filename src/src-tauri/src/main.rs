@@ -1460,7 +1460,11 @@ async fn main() {
         #[cfg(target_os = "windows")]
         {
           if format!("{:?}", e).contains("0x80070057") || format!("{:?}", e).contains("WebView2") {
-            return tauri::Error::Setup("Failed to initialize WebView2. Please ensure Microsoft Edge WebView2 Runtime is installed. Download it from https://go.microsoft.com/fwlink/p/?LinkId=2124703".into());
+            let setup_error: Box<dyn std::error::Error> = Box::new(std::io::Error::new(
+              std::io::ErrorKind::Other,
+              "Failed to initialize WebView2. Please ensure Microsoft Edge WebView2 Runtime is installed. Download it from https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+            ));
+            return tauri::Error::Setup(setup_error.into());
           }
         }
         e
