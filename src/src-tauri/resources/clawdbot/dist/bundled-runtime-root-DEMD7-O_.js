@@ -160,6 +160,11 @@ function materializeBundledRuntimeMirrorDistFile(sourcePath, targetPath) {
 	try {
 		if (fs.realpathSync(sourcePath) === fs.realpathSync(targetPath) && !fs.lstatSync(targetPath).isSymbolicLink()) return;
 	} catch {}
+	try {
+		const sourceStat = fs.statSync(sourcePath);
+		const targetStat = fs.statSync(targetPath);
+		if (sourceStat.dev === targetStat.dev && sourceStat.ino === targetStat.ino) return;
+	} catch {}
 	fs.mkdirSync(path.dirname(targetPath), {
 		recursive: true,
 		mode: 493

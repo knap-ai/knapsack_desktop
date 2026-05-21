@@ -56,11 +56,24 @@ export interface ChannelStates {
 
 /** Interval for polling unconfigured channels (30s instead of active interval). */
 const UNCONFIGURED_POLL_INTERVAL = 30_000
+const GATEWAY_HEALTH_POLL_TIMEOUT_MS = 6500
 
 /** Returns true if a channel status indicates it has been configured/enabled by the user. */
 function isChannelConfigured(status: ChannelStatus | null): boolean {
   if (!status) return false
   return !!(status.linked || status.configured || status.enabled)
+}
+
+async function fetchGatewayHealthWithTimeout(): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), GATEWAY_HEALTH_POLL_TIMEOUT_MS)
+  try {
+    return await fetch('http://127.0.0.1:8897/api/clawd/service/health', {
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeout)
+  }
 }
 
 /**
@@ -150,7 +163,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       // expensive per-channel status polls which each timeout after 10-20s.
       let gwOk = false
       try {
-        const hRes = await fetch('http://127.0.0.1:8897/api/clawd/service/health')
+        const hRes = await fetchGatewayHealthWithTimeout()
         if (hRes.ok) {
           const hData = await hRes.json()
           gwOk = !!hData.gateway_ok
@@ -188,7 +201,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
         // diagnostic details so on-call can investigate early.
         if (gwDownCountRef.current === 3 && !sentryCrashAlertedRef.current) {
           sentryCrashAlertedRef.current = true
-          fetch('http://127.0.0.1:8897/api/clawd/service/health')
+          fetchGatewayHealthWithTimeout()
             .then(r => r.json())
             .then((data: { message?: string; diagnostic_type?: string }) => {
               const diagType = data.diagnostic_type ?? 'unknown'

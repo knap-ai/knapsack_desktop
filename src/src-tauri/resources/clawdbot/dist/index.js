@@ -2,7 +2,7 @@
 import { a as formatUncaughtError } from "./errors-CDFVCV9D.js";
 import { r as runFatalErrorHooks } from "./fatal-error-hooks-4xzPL8p8.js";
 import { t as isMainModule } from "./is-main-BEaTwLZn.js";
-import { o as isUncaughtExceptionHandled, t as installUnhandledRejectionHandler } from "./unhandled-rejections-CjchfgLD.js";
+import { a as isTransientUnhandledRejectionError, o as isUncaughtExceptionHandled, t as installUnhandledRejectionHandler } from "./unhandled-rejections-CjchfgLD.js";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 //#region src/index.ts
@@ -41,6 +41,10 @@ if (isMain) {
 	installUnhandledRejectionHandler();
 	process.on("uncaughtException", (error) => {
 		if (isUncaughtExceptionHandled(error)) return;
+		if (isTransientUnhandledRejectionError(error)) {
+			console.warn("[openclaw] Non-fatal uncaught exception (continuing):", formatUncaughtError(error));
+			return;
+		}
 		console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
 		for (const message of runFatalErrorHooks({
 			reason: "uncaught_exception",

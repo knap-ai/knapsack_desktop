@@ -36,12 +36,12 @@ async fn gateway_reachable() -> bool {
 }
 
 async fn channel_runtime_snapshot() -> Result<Value, String> {
-  let mut cache = match CHANNEL_STATUS_CACHE.try_lock() {
-    Ok(cache) => cache,
-    Err(_) => {
-      return Err("Channel status refresh already in progress".to_string());
-    }
-  };
+  let mut cache = tokio::time::timeout(
+    Duration::from_millis(1800),
+    CHANNEL_STATUS_CACHE.lock(),
+  )
+  .await
+  .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
   if let (Some(fetched_at), Some(value)) = (cache.fetched_at, cache.value.as_ref()) {
     if fetched_at.elapsed() < Duration::from_secs(2) {
       return Ok(value.clone());

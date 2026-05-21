@@ -2010,13 +2010,19 @@ pub async fn browser_request(
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
 
-  // Extra retries help on Windows where Chrome CDP startup is slower and
-  // more variable — the additional attempts catch the browser becoming
-  // ready 1-3s after the first attempt failed.
-  let backoffs: &[u64] = &[300, 600, 1200, 2000, 3000];
+  // Keep browser RPCs bounded. Browser tools often run inside chat requests,
+  // so a stuck CDP call must fail quickly enough for the agent to recover.
+  let backoffs: &[u64] = &[300, 600];
+  let deadline = Instant::now() + Duration::from_secs(12);
   let mut last_err = String::new();
 
   for attempt in 0..=backoffs.len() {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining == Duration::ZERO {
+      last_err = "Timed out waiting for browser response".to_string();
+      break;
+    }
+    let attempt_timeout = remaining.min(Duration::from_secs(6));
     let mut params = serde_json::json!({
       "method": http_method,
       "path": path,
@@ -2028,15 +2034,36 @@ pub async fn browser_request(
       params["body"] = b.clone();
     }
 
-    match gateway_request_pooled("browser.request", Some(params), &t).await {
-      Ok(result) => return Ok(result),
-      Err(e) => {
+    match tokio::time::timeout(
+      attempt_timeout,
+      gateway_request_pooled("browser.request", Some(params), &t),
+    )
+    .await
+    {
+      Ok(Ok(result)) => return Ok(result),
+      Ok(Err(e)) => {
         last_err = e;
         if attempt < backoffs.len() && is_transient_browser_error(&last_err) {
           let delay = backoffs[attempt];
           eprintln!(
             "[gateway_client] browser_request transient error (attempt {}/{}), retrying in {}ms: {}",
             attempt + 1, backoffs.len() + 1, delay, last_err
+          );
+          tokio::time::sleep(Duration::from_millis(delay)).await;
+          continue;
+        }
+        break;
+      }
+      Err(_) => {
+        last_err = format!(
+          "Timed out waiting for browser response after {}ms",
+          attempt_timeout.as_millis()
+        );
+        if attempt < backoffs.len() {
+          let delay = backoffs[attempt];
+          eprintln!(
+            "[gateway_client] browser_request timeout (attempt {}/{}), retrying in {}ms",
+            attempt + 1, backoffs.len() + 1, delay
           );
           tokio::time::sleep(Duration::from_millis(delay)).await;
           continue;

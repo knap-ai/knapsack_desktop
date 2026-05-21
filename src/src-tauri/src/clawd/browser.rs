@@ -5,6 +5,7 @@ use serde_json::{json, Value as JsonValue};
 use std::fs;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tauri::Manager;
 
 use once_cell::sync::Lazy;
@@ -16,6 +17,9 @@ use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
+
+const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(75);
+const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// Record token usage from a chat API response (best-effort, never panics).
 fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {
@@ -1317,7 +1321,7 @@ pub async fn agent_chat(
       gateway_attachments.len());
 
     match tokio::time::timeout(
-      std::time::Duration::from_secs(20),
+      AGENT_CHAT_GATEWAY_TIMEOUT,
       gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None),
     )
     .await
@@ -1381,8 +1385,15 @@ pub async fn agent_chat(
         None
       }
       Err(_) => {
-        eprintln!("[clawd/agent-chat] Gateway agent request timed out after 20s, falling back to direct chat");
-        None
+        eprintln!(
+          "[clawd/agent-chat] Gateway agent request timed out after {:?}; not starting direct fallback",
+          AGENT_CHAT_GATEWAY_TIMEOUT
+        );
+        return HttpResponse::Ok().json(serde_json::json!({
+          "ok": false,
+          "noFallback": true,
+          "message": "The gateway agent did not finish in time. Please try again in a moment.",
+        }));
       }
     }
   } else {
@@ -1408,7 +1419,7 @@ pub async fn agent_chat(
     fallback_body["text"] = serde_json::json!(text);
   }
   match reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(120))
+    .timeout(AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT)
     .build()
   {
     Ok(client) => {
@@ -4270,12 +4281,175 @@ fn parse_ddg_lite_snapshot(text: &str, max_results: usize) -> Vec<BrowserSearchR
       .to_string();
 
     if !title.is_empty() && !url.is_empty() {
+      if is_ddg_ad_or_tracker_url(&url) {
+        continue;
+      }
       results.push(BrowserSearchResult { title, url, snippet });
       if results.len() >= max_results {
         break;
       }
     }
   }
+  results
+}
+
+fn collapse_whitespace(text: &str) -> String {
+  text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn decode_html_entities_basic(text: &str) -> String {
+  text
+    .replace("&amp;", "&")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
+    .replace("&quot;", "\"")
+    .replace("&#39;", "'")
+    .replace("&apos;", "'")
+}
+
+fn extract_html_attr(tag: &str, attr: &str) -> Option<String> {
+  let lower = tag.to_ascii_lowercase();
+  let attr_lower = attr.to_ascii_lowercase();
+  let mut search_from = 0;
+
+  while let Some(pos) = lower[search_from..].find(&attr_lower) {
+    let attr_start = search_from + pos;
+    let attr_end = attr_start + attr_lower.len();
+    let before = lower[..attr_start].chars().next_back();
+    let after = lower[attr_end..].chars().next();
+
+    let valid_before = before.map(|c| c.is_whitespace() || c == '<').unwrap_or(true);
+    let valid_after = after.map(|c| c.is_whitespace() || c == '=').unwrap_or(false);
+    if !valid_before || !valid_after {
+      search_from = attr_end;
+      continue;
+    }
+
+    let mut rest = &tag[attr_end..];
+    rest = rest.trim_start();
+    if !rest.starts_with('=') {
+      search_from = attr_end;
+      continue;
+    }
+    rest = rest[1..].trim_start();
+
+    if let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') {
+      let value_start = quote.len_utf8();
+      let value_rest = &rest[value_start..];
+      return value_rest.find(quote).map(|end| value_rest[..end].to_string());
+    }
+
+    let end = rest
+      .find(|c: char| c.is_whitespace() || c == '>')
+      .unwrap_or(rest.len());
+    return Some(rest[..end].to_string());
+  }
+
+  None
+}
+
+fn normalize_ddg_search_url(raw_href: &str) -> Option<String> {
+  let href = decode_html_entities_basic(raw_href).trim().to_string();
+  if href.is_empty()
+    || href.starts_with('#')
+    || href.starts_with("javascript:")
+    || href.starts_with("mailto:")
+  {
+    return None;
+  }
+
+  let absolute = if href.starts_with("//") {
+    format!("https:{}", href)
+  } else if href.starts_with('/') {
+    format!("https://duckduckgo.com{}", href)
+  } else {
+    href
+  };
+
+  if let Ok(parsed) = url::Url::parse(&absolute) {
+    if parsed.domain().map(|d| d.ends_with("duckduckgo.com")).unwrap_or(false) {
+      if parsed.path().contains("/y.js") {
+        return None;
+      }
+      if let Some((_, value)) = parsed.query_pairs().find(|(key, _)| key == "uddg") {
+        let decoded = value.into_owned();
+        if decoded.starts_with("http://") || decoded.starts_with("https://") {
+          return Some(decoded);
+        }
+      }
+      return None;
+    }
+  }
+
+  if absolute.starts_with("http://") || absolute.starts_with("https://") {
+    if is_ddg_ad_or_tracker_url(&absolute) {
+      None
+    } else {
+      Some(absolute)
+    }
+  } else {
+    None
+  }
+}
+
+fn is_ddg_ad_or_tracker_url(url: &str) -> bool {
+  url.contains("duckduckgo.com/y.js") || url.contains("/y.js?")
+}
+
+fn sanitize_search_results(results: &mut Vec<BrowserSearchResult>, max_results: usize) {
+  results.retain(|result| !is_ddg_ad_or_tracker_url(&result.url));
+  if results.len() > max_results {
+    results.truncate(max_results);
+  }
+}
+
+fn parse_ddg_lite_html(html: &str, max_results: usize) -> Vec<BrowserSearchResult> {
+  let mut results: Vec<BrowserSearchResult> = Vec::new();
+  let lower = html.to_ascii_lowercase();
+  let mut search_from = 0;
+
+  while results.len() < max_results {
+    let Some(anchor_rel_start) = lower[search_from..].find("<a") else {
+      break;
+    };
+    let anchor_start = search_from + anchor_rel_start;
+    let Some(tag_rel_end) = lower[anchor_start..].find('>') else {
+      break;
+    };
+    let tag_end = anchor_start + tag_rel_end + 1;
+    let Some(close_rel) = lower[tag_end..].find("</a>") else {
+      search_from = tag_end;
+      continue;
+    };
+    let close_start = tag_end + close_rel;
+
+    let tag = &html[anchor_start..tag_end];
+    let inner = &html[tag_end..close_start];
+    search_from = close_start + "</a>".len();
+
+    let Some(href) = extract_html_attr(tag, "href") else {
+      continue;
+    };
+    let Some(url) = normalize_ddg_search_url(&href) else {
+      continue;
+    };
+
+    let title = collapse_whitespace(&decode_html_entities_basic(&strip_html_tags(inner)));
+    if title.is_empty()
+      || title.eq_ignore_ascii_case("next page")
+      || title.eq_ignore_ascii_case("previous page")
+      || results.iter().any(|r| r.url == url)
+    {
+      continue;
+    }
+
+    results.push(BrowserSearchResult {
+      title,
+      url,
+      snippet: String::new(),
+    });
+  }
+
   results
 }
 
@@ -4377,7 +4551,8 @@ pub async fn browser_search(
         snap.to_string()
       };
 
-      let results = parse_ddg_lite_snapshot(&text, max_results);
+      let mut results = parse_ddg_lite_snapshot(&text, max_results.saturating_add(5));
+      sanitize_search_results(&mut results, max_results);
       if !results.is_empty() {
         log::info!("[browser_search] browser CDP: {} results for {:?}", results.len(), q);
         return HttpResponse::Ok().json(BrowserSearchResponse {
@@ -4416,11 +4591,15 @@ pub async fn browser_search(
   match http_client.get(&ddg_url).send().await {
     Ok(resp) => match resp.text().await {
       Ok(html) => {
-        let plain = strip_html_tags(&html);
-        let results = parse_ddg_lite_snapshot(&plain, max_results);
+        let mut results = parse_ddg_lite_html(&html, max_results.saturating_add(5));
+        if results.is_empty() {
+          let plain = strip_html_tags(&html);
+          results = parse_ddg_lite_snapshot(&plain, max_results.saturating_add(5));
+        }
+        sanitize_search_results(&mut results, max_results);
         log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
         HttpResponse::Ok().json(BrowserSearchResponse {
-          success: true,
+          success: !results.is_empty(),
           message: if results.is_empty() {
             Some("Search completed but no results were parsed from DuckDuckGo".to_string())
           } else {

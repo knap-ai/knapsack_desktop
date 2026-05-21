@@ -8564,7 +8564,7 @@ async function startGatewaySidecars(params) {
 				}
 			};
 			if (isTruthyEnvValue(process.env.OPENCLAW_QA_DIRECT_GATEWAY)) setTimeout(startConfiguredChannels, 15e3);
-			else setImmediate(startConfiguredChannels);
+			else setTimeout(startConfiguredChannels, 5e3);
 		} else params.logChannels.info("skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)");
 	});
 	if (internalHooksConfigured || await hasGatewayStartupInternalHookListeners()) setTimeout(() => {
@@ -8672,7 +8672,8 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		controlUiBasePath: params.controlUiBasePath,
 		logTailscale: params.logTailscale
 	}));
-	const sidecarsPromise = params.minimalTestGateway ? Promise.resolve({ pluginServices: null }) : new Promise((resolve) => setImmediate(resolve)).then(async () => {
+	const sidecarStartDelayMs = params.deferSidecars === true ? 2500 : 0;
+	const sidecarsPromise = params.minimalTestGateway ? Promise.resolve({ pluginServices: null }) : new Promise((resolve) => setTimeout(resolve, sidecarStartDelayMs)).then(async () => {
 		params.log.info("starting channels and sidecars...");
 		const result = await measureStartup(params.startupTrace, "sidecars.total", () => runtimeDeps.startGatewaySidecars({
 			cfg: params.gatewayPluginConfigAtStart,
@@ -11160,6 +11161,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		});
 		await startListening();
 		startupTrace.mark("http.bound");
+		startupSidecarsReady = true;
+		startupTrace.mark("core.ready");
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		({stopGatewayUpdateCheck: runtimeState.stopGatewayUpdateCheck, tailscaleCleanup: runtimeState.tailscaleCleanup, pluginServices: runtimeState.pluginServices} = await startupTrace.measure("runtime.post-attach", () => startGatewayPostAttachRuntime({
 			minimalTestGateway,
@@ -11191,7 +11194,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				startupSidecarsReady = true;
 			},
 			startupTrace,
-			deferSidecars: opts.deferStartupSidecars === true
+			deferSidecars: opts.deferStartupSidecars !== false
 		})));
 		startupTrace.mark("ready");
 		const activated = activateGatewayScheduledServices({

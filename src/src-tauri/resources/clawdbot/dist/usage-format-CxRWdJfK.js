@@ -50,7 +50,7 @@ function getGatewayModelPricingCacheMeta() {
 const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
 const LITELLM_PRICING_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 const CACHE_TTL_MS = 1440 * 6e4;
-const FETCH_TIMEOUT_MS = 6e4;
+const FETCH_TIMEOUT_MS = 1e4;
 const MAX_PRICING_CATALOG_BYTES = 5 * 1024 * 1024;
 const log = createSubsystemLogger("gateway").child("model-pricing");
 let refreshTimer = null;
@@ -686,12 +686,12 @@ async function refreshGatewayModelPricingCache(params) {
 }
 function startGatewayModelPricingRefresh(params) {
 	let stopped = false;
-	queueMicrotask(() => {
+	setTimeout(() => {
 		if (stopped) return;
 		refreshGatewayModelPricingCache(params).catch((error) => {
 			log.warn(`pricing bootstrap failed: ${String(error)}`);
 		});
-	});
+	}, 15e3);
 	return () => {
 		stopped = true;
 		clearRefreshTimer();

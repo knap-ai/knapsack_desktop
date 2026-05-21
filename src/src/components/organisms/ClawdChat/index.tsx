@@ -656,8 +656,24 @@ function apiUrl(path: string): string {
   return API_BASE + path
 }
 
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(apiUrl(path))
+type ApiFetchOptions = {
+  timeoutMs?: number
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs?: number): Promise<Response> {
+  if (!timeoutMs || timeoutMs <= 0) return fetch(input, init)
+
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
+async function apiGet<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+  const res = await fetchWithTimeout(apiUrl(path), {}, options.timeoutMs)
   if (!res.ok) {
     const t = await res.text().catch(() => '')
     throw new Error(t || `HTTP ${res.status}`)
@@ -3108,14 +3124,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         let catchBackoffMs = 1000
         const pollGateway = async () => {
           try {
-            const h = await apiGet<ServiceHealth>('/api/clawd/service/health')
+            const h = await apiGet<ServiceHealth>('/api/clawd/service/health', { timeoutMs: 6500 })
             const hJson = JSON.stringify(h)
             if (hJson !== lastHealthJson) {
               lastHealthJson = hJson
               setHealth(h)
             }
             // Also refresh service status periodically
-            const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status')
+            const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status', { timeoutMs: 6500 })
             const s2Json = JSON.stringify(s2)
             if (s2Json !== lastStatusJson) {
               lastStatusJson = s2Json
@@ -4163,12 +4179,11 @@ ${actualText}`
 
         // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
         // fall back to direct chat if gateway is unavailable.
-        // Use a 300-second timeout to match the backend's gateway RPC timeout.
-        // A shorter timeout (e.g. 90s) causes the frontend to fall back to direct
-        // chat while the gateway is still processing, which leaves an orphaned user
-        // message in the gateway session (the gateway committed the user turn but
-        // hasn't produced the assistant response yet).  The user's abort controller
-        // also cancels the request if they click Stop.
+        // Keep the frontend timeout longer than the backend request budget. If
+        // the backend times out a gateway turn, it returns noFallback so the UI
+        // does not start duplicate direct-chat work after the gateway committed
+        // the user turn. The user's abort controller still cancels immediately
+        // if they click Stop.
         let useDirectChat = false
 
         if (!useDirectChat) {
@@ -4204,7 +4219,7 @@ ${actualText}`
           })
           if (agentTimerId) clearTimeout(agentTimerId)
           if (agentRes.ok) {
-            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean; model?: string }
+            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean; model?: string; noFallback?: boolean }
             console.log('[chat] agent-chat response:', { ok: agentOut.ok, hasReply: !!agentOut.reply, gateway: agentOut.gateway, fallback: agentOut.fallback, message: agentOut.message })
             if (agentOut.ok && agentOut.reply) {
               // Accept replies from both gateway and direct-chat fallback.
@@ -4237,6 +4252,9 @@ ${actualText}`
                 ])
               }
             } else {
+              if (agentOut.noFallback) {
+                throw new Error(agentOut.message || 'The gateway agent did not finish in time. Please try again in a moment.')
+              }
               // No reply at all — fall back to direct chat from the frontend
               console.warn('[chat] agent-chat returned no reply, using direct chat. Response:', JSON.stringify(agentOut))
               useDirectChat = true

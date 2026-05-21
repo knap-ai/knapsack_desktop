@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 /// result in I/O errors and "service not found" failures.
 static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
   once_cell::sync::Lazy::new(|| Mutex::new(()));
+const LOCAL_GATEWAY_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Minimal gateway supervisor helpers.
 ///
@@ -34,7 +35,7 @@ pub fn gateway_health_url() -> &'static str {
 
 pub async fn is_gateway_healthy(token: &str) -> bool {
   let client = match reqwest::Client::builder()
-    .timeout(std::time::Duration::from_millis(800))
+    .timeout(LOCAL_GATEWAY_HEALTH_TIMEOUT)
     .build()
   {
     Ok(c) => c,
