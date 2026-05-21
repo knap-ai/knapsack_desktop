@@ -8564,7 +8564,7 @@ async function startGatewaySidecars(params) {
 				}
 			};
 			if (isTruthyEnvValue(process.env.OPENCLAW_QA_DIRECT_GATEWAY)) setTimeout(startConfiguredChannels, 15e3);
-			else setImmediate(startConfiguredChannels);
+			else setTimeout(startConfiguredChannels, 5e3);
 		} else params.logChannels.info("skipping channel start (OPENCLAW_SKIP_CHANNELS=1 or OPENCLAW_SKIP_PROVIDERS=1)");
 	});
 	if (internalHooksConfigured || await hasGatewayStartupInternalHookListeners()) setTimeout(() => {
@@ -11161,6 +11161,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		});
 		await startListening();
 		startupTrace.mark("http.bound");
+		startupSidecarsReady = true;
+		startupTrace.mark("core.ready");
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		({stopGatewayUpdateCheck: runtimeState.stopGatewayUpdateCheck, tailscaleCleanup: runtimeState.tailscaleCleanup, pluginServices: runtimeState.pluginServices} = await startupTrace.measure("runtime.post-attach", () => startGatewayPostAttachRuntime({
 			minimalTestGateway,
