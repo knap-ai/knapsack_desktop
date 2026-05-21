@@ -3795,7 +3795,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const logs = await apiGet<{ success: boolean; text: string }>(
           `/api/clawd/service/logs?stream=${encodeURIComponent(stream)}&lines=250`,
         )
-        pushAssistant(formatMaybeJson(logs.text || '(no logs)'))
+        const text = logs.text || '(no logs)'
+        const maxChars = 20000
+        const display =
+          text.length > maxChars
+            ? `...(${text.length - maxChars} chars omitted from start)\n\n` + text.slice(-maxChars)
+            : text
+        pushAssistant(display)
         return
       }
 
