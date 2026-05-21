@@ -157,6 +157,15 @@ done < <(find "$RESOURCES" \( -path "*/node-llama-cpp*" -o -path "*/@node-llama-
 echo "[sign] Clearing extended attributes..."
 xattr -cr "$APP_PATH"
 
+# Tauri/codesign should only keep the resource seal in
+# Contents/_CodeSignature/CodeResources. A stray legacy Contents/CodeResources
+# file can be copied into DMGs and confuse downstream verification after users
+# drag the app into /Applications.
+if [ -e "$CONTENTS/CodeResources" ]; then
+  echo "[sign] Removing stray legacy CodeResources file: $CONTENTS/CodeResources"
+  rm -f "$CONTENTS/CodeResources"
+fi
+
 # ---------------------------------------------------------------------------
 # 3. Sign all native .node addon files
 # ---------------------------------------------------------------------------
@@ -247,6 +256,10 @@ codesign --force --options runtime --timestamp \
 # ---------------------------------------------------------------------------
 echo "[sign] Verifying signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+if [ -e "$CONTENTS/CodeResources" ]; then
+  echo "ERROR: Unexpected $CONTENTS/CodeResources after signing; only Contents/_CodeSignature/CodeResources is allowed." >&2
+  exit 1
+fi
 echo "[sign] Signature verification passed."
 
 # ---------------------------------------------------------------------------

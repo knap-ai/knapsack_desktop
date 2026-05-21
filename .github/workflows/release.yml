@@ -165,11 +165,28 @@ jobs:
           if [ -n "$DMG" ]; then
             echo "=== Mounting DMG and verifying .app inside ==="
             MOUNT_PT=$(mktemp -d)
-            hdiutil attach "$DMG" -mountpoint "$MOUNT_PT" -nobrowse -quiet
+            STAGE=""
+            trap 'hdiutil detach "$MOUNT_PT" -quiet 2>/dev/null || true; [ -n "${STAGE:-}" ] && rm -rf "$STAGE"; rm -rf "$MOUNT_PT"' EXIT
+            hdiutil attach "$DMG" -mountpoint "$MOUNT_PT" -nobrowse -readonly -quiet
             INNER_APP=$(find "$MOUNT_PT" -maxdepth 1 -name "*.app" | head -1)
+            if [ -z "$INNER_APP" ]; then
+              echo "ERROR: No .app found inside DMG"
+              exit 1
+            fi
+            if [ -e "$INNER_APP/Contents/CodeResources" ]; then
+              echo "ERROR: DMG app contains stray Contents/CodeResources"
+              exit 1
+            fi
             codesign --verify --deep --strict --verbose=2 "$INNER_APP"
             spctl --assess --type open --context context:primary-signature --verbose=2 "$INNER_APP"
+            STAGE=$(mktemp -d)
+            ditto "$INNER_APP" "$STAGE/Knapsack.app"
+            codesign --verify --deep --strict --verbose=2 "$STAGE/Knapsack.app"
+            spctl --assess --type open --context context:primary-signature --verbose=2 "$STAGE/Knapsack.app"
+            rm -rf "$STAGE"
+            STAGE=""
             hdiutil detach "$MOUNT_PT" -quiet
+            trap - EXIT
             rm -rf "$MOUNT_PT"
             echo "=== DMG mount check passed ==="
           fi

@@ -86,10 +86,14 @@ function waitForFreshLaunchAgentPlist(minMtimeMs, timeoutMs = 45_000) {
   return new Promise((resolve, reject) => {
     const attempt = () => {
       try {
-        if (fs.existsSync(launchAgentPlist) && fs.statSync(launchAgentPlist).mtimeMs >= minMtimeMs) {
+        if (fs.existsSync(launchAgentPlist)) {
+          const mtimeMs = fs.statSync(launchAgentPlist).mtimeMs;
           const plist = readLaunchAgentPlist();
           const entry = plist.ProgramArguments?.[1] || '';
           if (entry.startsWith(path.join(projectDir, 'src-tauri', 'resources', 'clawdbot'))) {
+            if (mtimeMs < minMtimeMs) {
+              console.warn('[qa-dev-run] Reusing existing dev Clawdbot LaunchAgent plist');
+            }
             resolve(plist);
             return;
           }

@@ -203,7 +203,10 @@ fn bearer_token_for_control(app_handle: &tauri::AppHandle) -> Option<String> {
 
 fn clawd_profile(chrome: Option<bool>) -> &'static str {
   if chrome.unwrap_or(false) {
-    "chrome"
+    // The gateway exposes the controlled Chrome profile as "openclaw".
+    // Older callers still pass chrome=true, so keep that flag wired to the
+    // OpenClaw profile instead of the removed legacy "chrome" profile.
+    "openclaw"
   } else {
     "openclaw"
   }
@@ -4453,6 +4456,57 @@ fn parse_ddg_lite_html(html: &str, max_results: usize) -> Vec<BrowserSearchResul
   results
 }
 
+fn extract_xml_tag(block: &str, tag: &str) -> Option<String> {
+  let open = format!("<{}>", tag);
+  let close = format!("</{}>", tag);
+  let start = block.find(&open)? + open.len();
+  let end = block[start..].find(&close)? + start;
+  Some(decode_html_entities_basic(block[start..end].trim()))
+}
+
+fn parse_google_news_rss(xml: &str, max_results: usize) -> Vec<BrowserSearchResult> {
+  let mut results = Vec::new();
+  let mut search_from = 0;
+
+  while results.len() < max_results {
+    let Some(item_rel_start) = xml[search_from..].find("<item>") else {
+      break;
+    };
+    let item_start = search_from + item_rel_start + "<item>".len();
+    let Some(item_rel_end) = xml[item_start..].find("</item>") else {
+      break;
+    };
+    let item_end = item_start + item_rel_end;
+    let item = &xml[item_start..item_end];
+    search_from = item_end + "</item>".len();
+
+    let Some(title) = extract_xml_tag(item, "title") else {
+      continue;
+    };
+    let Some(url) = extract_xml_tag(item, "link") else {
+      continue;
+    };
+    let source = extract_xml_tag(item, "source").unwrap_or_default();
+    let pub_date = extract_xml_tag(item, "pubDate").unwrap_or_default();
+    let snippet = match (source.is_empty(), pub_date.is_empty()) {
+      (false, false) => format!("{} - {}", source, pub_date),
+      (false, true) => source,
+      (true, false) => pub_date,
+      (true, true) => String::new(),
+    };
+
+    if !title.is_empty() && !url.is_empty() {
+      results.push(BrowserSearchResult {
+        title,
+        url,
+        snippet,
+      });
+    }
+  }
+
+  results
+}
+
 /// Browser-based web search via CDP (DuckDuckGo Lite).
 ///
 /// `GET /api/clawd/browser/search?q=<query>[&count=5][&chrome=true]`
@@ -4597,17 +4651,62 @@ pub async fn browser_search(
           results = parse_ddg_lite_snapshot(&plain, max_results.saturating_add(5));
         }
         sanitize_search_results(&mut results, max_results);
-        log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
-        HttpResponse::Ok().json(BrowserSearchResponse {
-          success: !results.is_empty(),
-          message: if results.is_empty() {
-            Some("Search completed but no results were parsed from DuckDuckGo".to_string())
-          } else {
-            None
+        if !results.is_empty() {
+          log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
+          return HttpResponse::Ok().json(BrowserSearchResponse {
+            success: true,
+            message: None,
+            results,
+            provider: "ddg-fallback".to_string(),
+          });
+        }
+
+        let news_url = format!(
+          "https://news.google.com/rss/search?q={}&hl=en-US&gl=US&ceid=US:en",
+          encoded_q
+        );
+        log::warn!(
+          "[browser_search] DDG returned no parseable results; trying Google News RSS fallback"
+        );
+        match http_client.get(&news_url).send().await {
+          Ok(news_resp) => match news_resp.text().await {
+            Ok(xml) => {
+              let results = parse_google_news_rss(&xml, max_results);
+              log::info!(
+                "[browser_search] Google News RSS fallback: {} results",
+                results.len()
+              );
+              HttpResponse::Ok().json(BrowserSearchResponse {
+                success: !results.is_empty(),
+                message: if results.is_empty() {
+                  Some(
+                    "Search completed but no results were parsed from DuckDuckGo or Google News RSS"
+                      .to_string(),
+                  )
+                } else {
+                  None
+                },
+                results,
+                provider: "google-news-rss".to_string(),
+              })
+            }
+            Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+              success: false,
+              message: Some(format!("Failed to read Google News RSS response: {}", e)),
+              results: vec![],
+              provider: "google-news-rss".to_string(),
+            }),
           },
-          results,
-          provider: "ddg-fallback".to_string(),
-        })
+          Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+            success: false,
+            message: Some(format!(
+              "Search completed but DuckDuckGo returned no parseable results and Google News RSS failed: {}",
+              e
+            )),
+            results: vec![],
+            provider: "none".to_string(),
+          }),
+        }
       }
       Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
         success: false,
