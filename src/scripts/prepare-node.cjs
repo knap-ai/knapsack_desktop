@@ -90,7 +90,7 @@ async function main() {
           console.log('[prepare-node] Found single-arch binary, need universal — re-downloading.');
         } else {
           const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-          if (osName === 'win' && !fs.existsSync(npmPkgDest)) {
+          if (!fs.existsSync(npmPkgDest)) {
             console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
           } else {
             console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
@@ -130,6 +130,19 @@ async function main() {
       execSync(`lipo -create "${path.join(tmpDir, 'node-arm64')}" "${path.join(tmpDir, 'node-x64')}" -output "${targetBin}"`, { stdio: 'inherit' });
       fs.chmodSync(targetBin, 0o755);
 
+      // Extract npm from the arm64 archive (npm is platform-independent JS)
+      const arm64Prefix = `node-v${NODE_VERSION}-darwin-arm64`;
+      const arm64Archive = path.join(tmpDir, `${arm64Prefix}.tar.gz`);
+      execSync(`tar -xzf "${arm64Archive}" -C "${tmpDir}" "${arm64Prefix}/lib/node_modules/npm"`, { stdio: 'inherit' });
+      const npmPkgSrc = path.join(tmpDir, arm64Prefix, 'lib', 'node_modules', 'npm');
+      const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm');
+      if (fs.existsSync(npmPkgSrc)) {
+        fs.cpSync(npmPkgSrc, npmPkgDest, { recursive: true });
+        console.log(`[prepare-node] ✓ npm package installed at ${npmPkgDest}`);
+      } else {
+        console.warn('[prepare-node] Warning: lib/node_modules/npm not found in Node.js archive — plugin runtime deps may require system npm');
+      }
+
     } else {
       // Single-architecture download
       const ext = osName === 'win' ? 'zip' : 'tar.gz';
@@ -160,6 +173,19 @@ async function main() {
         execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
         fs.copyFileSync(path.join(tmpDir, prefix, 'bin', 'node'), targetBin);
         fs.chmodSync(targetBin, 0o755);
+        try {
+          execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/lib/node_modules/npm"`, { stdio: 'inherit' });
+          const npmPkgSrc = path.join(tmpDir, prefix, 'lib', 'node_modules', 'npm');
+          const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm');
+          if (fs.existsSync(npmPkgSrc)) {
+            fs.cpSync(npmPkgSrc, npmPkgDest, { recursive: true });
+            console.log(`[prepare-node] ✓ npm package installed at ${npmPkgDest}`);
+          } else {
+            console.warn('[prepare-node] Warning: lib/node_modules/npm not found in Node.js archive — plugin runtime deps may require system npm');
+          }
+        } catch {
+          console.warn('[prepare-node] Warning: could not extract npm from Node.js archive — plugin runtime deps may require system npm');
+        }
       }
     }
   } finally {

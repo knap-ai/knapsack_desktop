@@ -562,15 +562,13 @@ if (!fs.existsSync(nodeBin)) {
   console.log(`[verify-clawdbot] node binary: resources/node/${isWindows ? 'node.exe' : 'node'} ✓`);
 }
 
-if (isWindows) {
-  const npmCliPath = path.join(NODE_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  if (!fs.existsSync(npmCliPath)) {
-    console.error('[verify-clawdbot] MISSING: resources/node/node_modules/npm/bin/npm-cli.js');
-    console.error('[verify-clawdbot]   Plugin runtime deps will fail on Windows. Run: node scripts/prepare-node.cjs');
-    errors++;
-  } else {
-    console.log('[verify-clawdbot] npm toolchain: resources/node/node_modules/npm/bin/npm-cli.js ✓');
-  }
+const npmCliPath = path.join(NODE_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+if (!fs.existsSync(npmCliPath)) {
+  console.error('[verify-clawdbot] MISSING: resources/node/node_modules/npm/bin/npm-cli.js');
+  console.error('[verify-clawdbot]   Plugin runtime deps will fail. Run: node scripts/prepare-node.cjs');
+  errors++;
+} else {
+  console.log('[verify-clawdbot] npm toolchain: resources/node/node_modules/npm/bin/npm-cli.js ✓');
 }
 
 // Verify that critical plugins with non-trivial runtime dependencies have
