@@ -88,6 +88,26 @@ fi
 echo "[sign] Found app bundle: $APP_PATH"
 CONTENTS="$APP_PATH/Contents"
 
+remove_legacy_coderesources() {
+  local app_path="$1"
+  local legacy="$app_path/Contents/CodeResources"
+
+  if [ -e "$legacy" ]; then
+    echo "[sign] Removing stray legacy CodeResources file: $legacy"
+    rm -f "$legacy"
+  fi
+}
+
+assert_no_legacy_coderesources() {
+  local app_path="$1"
+  local legacy="$app_path/Contents/CodeResources"
+
+  if [ -e "$legacy" ]; then
+    echo "ERROR: Unexpected $legacy; only Contents/_CodeSignature/CodeResources is allowed." >&2
+    exit 1
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Verify the .app version matches package.json (catch stale builds)
 # ---------------------------------------------------------------------------
@@ -161,10 +181,7 @@ xattr -cr "$APP_PATH"
 # Contents/_CodeSignature/CodeResources. A stray legacy Contents/CodeResources
 # file can be copied into DMGs and confuse downstream verification after users
 # drag the app into /Applications.
-if [ -e "$CONTENTS/CodeResources" ]; then
-  echo "[sign] Removing stray legacy CodeResources file: $CONTENTS/CodeResources"
-  rm -f "$CONTENTS/CodeResources"
-fi
+remove_legacy_coderesources "$APP_PATH"
 
 # ---------------------------------------------------------------------------
 # 3. Sign all native .node addon files
@@ -256,10 +273,7 @@ codesign --force --options runtime --timestamp \
 # ---------------------------------------------------------------------------
 echo "[sign] Verifying signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-if [ -e "$CONTENTS/CodeResources" ]; then
-  echo "ERROR: Unexpected $CONTENTS/CodeResources after signing; only Contents/_CodeSignature/CodeResources is allowed." >&2
-  exit 1
-fi
+assert_no_legacy_coderesources "$APP_PATH"
 echo "[sign] Signature verification passed."
 
 # ---------------------------------------------------------------------------
@@ -358,7 +372,11 @@ if [ "$DO_NOTARIZE" = true ]; then
 
       # Create a fresh DMG containing the signed+stapled .app
       DMG_TEMP="$(mktemp -d /tmp/knapsack-dmg.XXXXXX)"
-      cp -R "$APP_PATH" "$DMG_TEMP/"
+      DMG_APP="$DMG_TEMP/$(basename "$APP_PATH")"
+      ditto --noextattr --noqtn "$APP_PATH" "$DMG_APP"
+      remove_legacy_coderesources "$DMG_APP"
+      assert_no_legacy_coderesources "$DMG_APP"
+      codesign --verify --deep --strict --verbose=2 "$DMG_APP"
       ln -s /Applications "$DMG_TEMP/Applications"
 
       # codesign/stapler can leave files with the immutable (locked) flag or
