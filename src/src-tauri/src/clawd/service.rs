@@ -10,6 +10,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 
+pub(crate) const IMESSAGE_OWNER_UNCONFIGURED_SENTINEL: &str =
+  "knapsack-owner-not-configured@invalid.localhost";
+
 // ── Windows process management ──────────────────────────────────────────
 // On Windows we spawn the gateway as a child process (no launchd/launchctl).
 // Track the PID so we can check status and kill it on disable.
@@ -2294,6 +2297,128 @@ fn is_empty_allow_from(value: Option<&serde_json::Value>) -> bool {
   }
 }
 
+fn normalize_imessage_owner_identifier(raw: &str) -> Option<String> {
+  let trimmed = raw.trim();
+  if trimmed.is_empty() {
+    return None;
+  }
+  if trimmed == IMESSAGE_OWNER_UNCONFIGURED_SENTINEL {
+    return Some(trimmed.to_string());
+  }
+  if trimmed.contains('@') {
+    return Some(trimmed.to_lowercase());
+  }
+  Some(trimmed.replace(char::is_whitespace, ""))
+}
+
+fn push_imessage_owner_identifier(entries: &mut Vec<String>, raw: &str) {
+  let Some(normalized) = normalize_imessage_owner_identifier(raw) else {
+    return;
+  };
+  if !entries.iter().any(|entry| entry == &normalized) {
+    entries.push(normalized);
+  }
+}
+
+fn knapsack_profile_email_from_disk() -> Option<String> {
+  let home_dir = dirs::home_dir()?;
+  let profile_path = home_dir.join(".knapsack").join("profile.dat");
+  let raw = fs::read_to_string(profile_path).ok()?;
+  let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+  json
+    .get("KN_PROFILE")
+    .and_then(|profile| profile.get("email"))
+    .and_then(|email| email.as_str())
+    .and_then(normalize_imessage_owner_identifier)
+}
+
+fn knapsack_email_from_tokens() -> Option<String> {
+  let home = default_clawdbot_home_from_env()?;
+  let raw = fs::read_to_string(home.join("tokens.json")).ok()?;
+  let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+  json
+    .get("knapsack_email")
+    .and_then(|email| email.as_str())
+    .and_then(normalize_imessage_owner_identifier)
+}
+
+/// Safe default for iMessage DM access. Prefer the signed-in Knapsack email
+/// because it is often also the user's Apple ID. If no owner identifier is
+/// discoverable, use a non-matching sentinel so the gateway remains in
+/// allowlist mode and never sends pairing codes to arbitrary contacts.
+pub(crate) fn safe_default_imessage_allow_from() -> Vec<String> {
+  let mut entries = Vec::new();
+
+  if let Ok(raw) = std::env::var("KNAPSACK_IMESSAGE_ALLOW_FROM") {
+    for part in raw.split(',') {
+      push_imessage_owner_identifier(&mut entries, part);
+    }
+  }
+  if let Ok(raw) = std::env::var("KNAPSACK_USER_EMAIL") {
+    push_imessage_owner_identifier(&mut entries, &raw);
+  }
+  if let Some(email) = knapsack_email_from_tokens() {
+    push_imessage_owner_identifier(&mut entries, &email);
+  }
+  if let Some(email) = knapsack_profile_email_from_disk() {
+    push_imessage_owner_identifier(&mut entries, &email);
+  }
+
+  if entries.is_empty() {
+    entries.push(IMESSAGE_OWNER_UNCONFIGURED_SENTINEL.to_string());
+  }
+
+  entries
+}
+
+pub(crate) fn visible_imessage_allow_from(entries: Vec<String>) -> Vec<String> {
+  entries
+    .into_iter()
+    .filter(|entry| entry != IMESSAGE_OWNER_UNCONFIGURED_SENTINEL)
+    .collect()
+}
+
+fn ensure_imessage_allowlist_config(cfg: &mut serde_json::Value) -> bool {
+  let Some(ch) = cfg
+    .pointer_mut("/channels/imessage")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  let mut patched = false;
+  let current_policy = ch
+    .get("dmPolicy")
+    .and_then(|value| value.as_str())
+    .unwrap_or("allowlist")
+    .to_string();
+
+  if current_policy != "disabled" && current_policy != "allowlist" {
+    ch.insert("dmPolicy".to_string(), serde_json::json!("allowlist"));
+    eprintln!(
+      "[clawd/service] Migrated iMessage dmPolicy from {:?} to allowlist to avoid pairing-code exposure",
+      current_policy
+    );
+    patched = true;
+  }
+
+  let needs_allow_from = ch
+    .get("allowFrom")
+    .map(|value| is_empty_allow_from(Some(value)))
+    .unwrap_or(true);
+
+  if current_policy != "disabled" && needs_allow_from {
+    ch.insert(
+      "allowFrom".to_string(),
+      serde_json::json!(safe_default_imessage_allow_from()),
+    );
+    eprintln!("[clawd/service] Seeded iMessage allowFrom with the owner identity default");
+    patched = true;
+  }
+
+  patched
+}
+
 /// Auto-heal OpenClaw channel configs where `dmPolicy="allowlist"` but
 /// `allowFrom` is missing or empty. Such configs fail Zod validation and
 /// cause fatal CLI errors ("openclaw logs", "status", etc.).
@@ -2326,7 +2451,7 @@ fn downgrade_streaming_if_object(val: &serde_json::Value) -> Option<serde_json::
 ///
 /// Returns `true` if any fields were modified (caller should persist config).
 fn sanitize_channel_allowlist_configs(cfg: &mut serde_json::Value) -> bool {
-  let mut patched = false;
+  let mut patched = ensure_imessage_allowlist_config(cfg);
 
   let channel_names: Vec<String> = cfg
     .get("channels")
@@ -11087,6 +11212,45 @@ mod crash_classifier_tests {
       Some("peekaboo")
     );
     assert!(cfg.pointer("/agents/defaults/model").is_some());
+  }
+
+  #[test]
+  fn imessage_pairing_is_migrated_to_seeded_allowlist() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "imessage": {
+          "dmPolicy": "pairing",
+          "service": "auto"
+        }
+      }
+    });
+
+    assert!(sanitize_channel_allowlist_configs(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/channels/imessage/dmPolicy")
+        .and_then(|v| v.as_str()),
+      Some("allowlist")
+    );
+    assert!(
+      cfg
+        .pointer("/channels/imessage/allowFrom")
+        .and_then(|v| v.as_array())
+        .map(|arr| !arr.is_empty())
+        .unwrap_or(false),
+      "iMessage allowlist should be seeded so the gateway does not fall back to pairing"
+    );
+  }
+
+  #[test]
+  fn imessage_sentinel_is_hidden_from_ui_allowlist() {
+    assert_eq!(
+      visible_imessage_allow_from(vec![
+        IMESSAGE_OWNER_UNCONFIGURED_SENTINEL.to_string(),
+        "owner@example.com".to_string()
+      ]),
+      vec!["owner@example.com".to_string()]
+    );
   }
 
   #[test]

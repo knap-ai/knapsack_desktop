@@ -1468,10 +1468,10 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
   const allowlistCopy = channel === 'whatsapp'
     ? 'Only these contacts can reach the AI. Your linked WhatsApp number is added automatically after connection:'
     : channel === 'imessage'
-      ? 'Only these contacts can reach the AI. Add the phone number or Apple ID email you will message from:'
+      ? 'Only these contacts can reach the AI. Your Knapsack email is added when available; add the phone number or Apple ID email you will message from:'
       : 'Only these contacts can reach the AI:'
   const pairingCopy = channel === 'imessage'
-    ? 'First-time senders receive a pairing code. After approval, Knapsack locks future messages to that sender.'
+    ? 'Pairing sends approval codes into real iMessage conversations. Use allowlist mode unless you are deliberately approving a new sender.'
     : 'Pre-approved contacts (skip pairing code):'
   const contactPlaceholder = channel === 'discord'
     ? 'User ID'
@@ -5657,7 +5657,7 @@ ${actualText}`
                         </li>
                         <li>
                           <span className="ClawdChannelGuideNum">2</span>
-                          <span>If this is your first message, reply with the pairing code Knapsack sends. After that, your sender is approved automatically.</span>
+                          <span>Only allowlisted senders can reach the AI. Add the phone number or Apple ID email you will message from below if it is not already listed.</span>
                         </li>
                         <li>
                           <span className="ClawdChannelGuideNum">3</span>

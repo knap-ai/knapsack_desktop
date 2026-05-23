@@ -1018,13 +1018,22 @@ pub async fn imessage_enable(
     Ok(config_snapshot) => {
       let base_hash = extract_base_hash(&config_snapshot);
 
-      // iMessage does not expose a reliable "self" handle we can pre-allow.
-      // Start in pairing mode so the first sender can be approved, then the
-      // auto-approve watcher switches the channel back to allowlist.
+      // Default iMessage to allowlist mode. Pairing mode can send codes into
+      // real conversations, which is awkward and unsafe for a desktop app.
       // Also ensures agents.defaults.model is set so auto-reply actually works.
       let patch = if body.enabled {
+        let allow_from = service::safe_default_imessage_allow_from();
+        let patch_value = serde_json::json!({
+          "channels": {
+            "imessage": {
+              "dmPolicy": "allowlist",
+              "allowFrom": allow_from,
+              "service": "auto"
+            }
+          }
+        });
         build_enable_patch(
-          r#"{"channels": {"imessage": {"dmPolicy": "pairing", "service": "auto"}}}"#,
+          &serde_json::to_string(&patch_value).unwrap(),
           &config_snapshot,
         )
       } else {
@@ -1032,21 +1041,16 @@ pub async fn imessage_enable(
       };
 
       match gateway_client::config_patch(&patch, &base_hash, None).await {
-        Ok(_) => {
-          if body.enabled {
-            pairing_auto_approve::spawn_auto_approve("imessage");
-          }
-          HttpResponse::Ok().json(GenericResponse {
-            success: true,
-            message: Some(if body.enabled {
-              "iMessage enabled".to_string()
-            } else {
-              "iMessage disabled".to_string()
-            }),
-            configured: None,
-            linked: None,
-          })
-        }
+        Ok(_) => HttpResponse::Ok().json(GenericResponse {
+          success: true,
+          message: Some(if body.enabled {
+            "iMessage enabled".to_string()
+          } else {
+            "iMessage disabled".to_string()
+          }),
+          configured: None,
+          linked: None,
+        }),
         Err(e) => HttpResponse::Ok().json(GenericResponse {
           success: false,
           message: Some(format!("Failed to update config: {}", e)),
@@ -1081,7 +1085,6 @@ pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respo
         .trim();
 
       if configured {
-        pairing_auto_approve::spawn_auto_approve("imessage");
         HttpResponse::Ok().json(GenericResponse {
           success: true,
           message: Some("iMessage is configured".to_string()),
@@ -2812,6 +2815,11 @@ fn read_channel_allowlist(config: &serde_json::Value, channel: &str) -> (String,
         .unwrap_or_default(),
     )
   };
+  let allow = if channel == "imessage" {
+    service::visible_imessage_allow_from(allow)
+  } else {
+    allow
+  };
   (policy, allow)
 }
 
@@ -2870,6 +2878,14 @@ pub async fn channel_allowlist_update(
           patch_inner.insert("dmPolicy".to_string(), serde_json::json!(policy));
         }
         if let Some(ref allow) = body.allow_from {
+          let allow = if channel == "imessage"
+            && body.dm_policy.as_deref().unwrap_or("allowlist") == "allowlist"
+            && allow.is_empty()
+          {
+            service::safe_default_imessage_allow_from()
+          } else {
+            allow.clone()
+          };
           patch_inner.insert("allowFrom".to_string(), serde_json::json!(allow));
         }
       }
@@ -3253,16 +3269,23 @@ pub async fn channel_diagnostics() -> impl Responder {
                 let re_snapshot = gateway_client::config_get(None).await;
                 if let Ok(snap) = re_snapshot {
                   let bh = extract_base_hash(&snap);
-                  let dm_policy = match *ch_key {
-                    "imessage" => {
-                      r#"{"channels":{"imessage":{"dmPolicy":"pairing","service":"auto"}}}"#
-                    }
-                    _ => &format!(
+                  let patch = match *ch_key {
+                    "imessage" => serde_json::to_string(&serde_json::json!({
+                      "channels": {
+                        "imessage": {
+                          "dmPolicy": "allowlist",
+                          "allowFrom": service::safe_default_imessage_allow_from(),
+                          "service": "auto"
+                        }
+                      }
+                    }))
+                    .unwrap(),
+                    _ => format!(
                       r#"{{"channels":{{"{}": {{"dmPolicy":"pairing"}}}}}}"#,
                       ch_key
                     ),
                   };
-                  match gateway_client::config_patch(dm_policy, &bh, None).await {
+                  match gateway_client::config_patch(&patch, &bh, None).await {
                     Ok(_) => repairs.push(format!("Added channel config for '{}'", ch_key)),
                     Err(e) => issues.push(format!("Failed to repair channel '{}': {}", ch_key, e)),
                   }
