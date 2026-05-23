@@ -1465,6 +1465,24 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 
   if (!isConnected || !loaded) return null
 
+  const allowlistCopy = channel === 'whatsapp'
+    ? 'Only these contacts can reach the AI. Your linked WhatsApp number is added automatically after connection:'
+    : channel === 'imessage'
+      ? 'Only these contacts can reach the AI. Add the phone number or Apple ID email you will message from:'
+      : 'Only these contacts can reach the AI:'
+  const pairingCopy = channel === 'imessage'
+    ? 'First-time senders receive a pairing code. After approval, Knapsack locks future messages to that sender.'
+    : 'Pre-approved contacts (skip pairing code):'
+  const contactPlaceholder = channel === 'discord'
+    ? 'User ID'
+    : channel === 'slack'
+      ? 'User ID'
+      : channel === 'telegram'
+        ? '@username or user ID'
+        : channel === 'imessage'
+          ? '+1234567890 or appleid@example.com'
+          : '+1234567890'
+
   return (
     <div className="ClawdChannelGuide" style={{ borderTop: '1px solid #e2e8f0', marginTop: 8 }}>
       <div className="ClawdChannelGuideTitle">Who can message</div>
@@ -1494,9 +1512,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
       {(dmPolicy === 'allowlist' || dmPolicy === 'pairing') && (
         <>
           <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-            {dmPolicy === 'allowlist'
-              ? 'Only these contacts (plus your own number) can reach the AI:'
-              : 'Pre-approved contacts (skip pairing code):'}
+            {dmPolicy === 'allowlist' ? allowlistCopy : pairingCopy}
           </div>
 
           {allowFrom.length > 0 && (
@@ -1522,7 +1538,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
               value={newContact}
               onChange={e => setNewContact(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') addContact() }}
-              placeholder={channel === 'discord' ? 'User ID' : channel === 'slack' ? 'User ID' : channel === 'telegram' ? '@username or user ID' : '+1234567890'}
+              placeholder={contactPlaceholder}
               style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #ccc' }}
             />
             <button
@@ -5637,10 +5653,14 @@ ${actualText}`
                       <ol className="ClawdChannelGuideSteps">
                         <li>
                           <span className="ClawdChannelGuideNum">1</span>
-                          <span>Send an iMessage to this Mac from any Apple device. Your assistant will see incoming messages and reply automatically.</span>
+                          <span>From Messages on your iPhone, send an iMessage to yourself or to this Mac. Your assistant will see incoming messages and reply automatically.</span>
                         </li>
                         <li>
                           <span className="ClawdChannelGuideNum">2</span>
+                          <span>If this is your first message, reply with the pairing code Knapsack sends. After that, your sender is approved automatically.</span>
+                        </li>
+                        <li>
+                          <span className="ClawdChannelGuideNum">3</span>
                           <span>You can also ask your assistant in this chat: <em>"Send an iMessage to [name/number]"</em>.</span>
                         </li>
                       </ol>

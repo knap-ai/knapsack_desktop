@@ -1018,13 +1018,13 @@ pub async fn imessage_enable(
     Ok(config_snapshot) => {
       let base_hash = extract_base_hash(&config_snapshot);
 
-      // iMessage channel config:
-      // - dmPolicy "allowlist" = only owner (linked self number) can interact; others silently ignored
-      // - service "auto" = detect iMessage vs SMS automatically
+      // iMessage does not expose a reliable "self" handle we can pre-allow.
+      // Start in pairing mode so the first sender can be approved, then the
+      // auto-approve watcher switches the channel back to allowlist.
       // Also ensures agents.defaults.model is set so auto-reply actually works.
       let patch = if body.enabled {
         build_enable_patch(
-          r#"{"channels": {"imessage": {"dmPolicy": "allowlist", "service": "auto"}}}"#,
+          r#"{"channels": {"imessage": {"dmPolicy": "pairing", "service": "auto"}}}"#,
           &config_snapshot,
         )
       } else {
@@ -1032,16 +1032,21 @@ pub async fn imessage_enable(
       };
 
       match gateway_client::config_patch(&patch, &base_hash, None).await {
-        Ok(_) => HttpResponse::Ok().json(GenericResponse {
-          success: true,
-          message: Some(if body.enabled {
-            "iMessage enabled".to_string()
-          } else {
-            "iMessage disabled".to_string()
-          }),
-          configured: None,
-          linked: None,
-        }),
+        Ok(_) => {
+          if body.enabled {
+            pairing_auto_approve::spawn_auto_approve("imessage");
+          }
+          HttpResponse::Ok().json(GenericResponse {
+            success: true,
+            message: Some(if body.enabled {
+              "iMessage enabled".to_string()
+            } else {
+              "iMessage disabled".to_string()
+            }),
+            configured: None,
+            linked: None,
+          })
+        }
         Err(e) => HttpResponse::Ok().json(GenericResponse {
           success: false,
           message: Some(format!("Failed to update config: {}", e)),
@@ -1062,25 +1067,48 @@ pub async fn imessage_enable(
 /// Setup iMessage channel
 #[post("/api/clawd/channels/imessage/setup")]
 pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-  // Check iMessage status from gateway
-  match gateway_client::get_channel_status(None).await {
+  match channel_runtime_snapshot().await {
     Ok(status) => {
-      let (_enabled, _linked, configured) = parse_channel_from_summary(&status, "iMessage");
+      let channel = runtime_channel(&status, "imessage");
+      let configured = channel
+        .and_then(|s| s.get("configured"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or_else(|| configured_channel("imessage").is_some());
+      let last_error = channel
+        .and_then(|s| s.get("lastError"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
 
       if configured {
+        pairing_auto_approve::spawn_auto_approve("imessage");
         HttpResponse::Ok().json(GenericResponse {
           success: true,
           message: Some("iMessage is configured".to_string()),
           configured: Some(true),
           linked: None,
         })
+      } else if last_error.to_lowercase().contains("full disk")
+        || last_error.to_lowercase().contains("permission")
+        || last_error.to_lowercase().contains("messages database")
+      {
+        HttpResponse::Ok().json(GenericResponse {
+          success: false,
+          message: Some("iMessage requires Full Disk Access permission. Go to System Settings > Privacy & Security > Full Disk Access and add Knapsack.".to_string()),
+          configured: Some(false),
+          linked: None,
+        })
       } else {
         HttpResponse::Ok().json(GenericResponse {
-                    success: false,
-                    message: Some("iMessage requires Full Disk Access permission. Go to System Preferences > Privacy & Security > Full Disk Access and add Knapsack.".to_string()),
-                    configured: Some(false),
-                    linked: None,
-                })
+          success: false,
+          message: Some(if last_error.is_empty() {
+            "iMessage is enabled but the gateway does not report it as configured yet. Try again after the gateway finishes starting.".to_string()
+          } else {
+            format!("iMessage is not configured yet: {}", last_error)
+          }),
+          configured: Some(false),
+          linked: None,
+        })
       }
     }
     Err(e) => HttpResponse::Ok().json(GenericResponse {
@@ -1884,7 +1912,7 @@ pub async fn generic_channel_configure(
           log::info!("[channels] {} configured successfully", channel);
           // For channels using pairing mode, auto-approve the first
           // request so the device owner is seamlessly allowlisted.
-          // Channels that already use allowlist (whatsapp, imessage)
+          // Channels that already use allowlist (for example WhatsApp)
           // won't have pairing requests, so this is a safe no-op.
           pairing_auto_approve::spawn_auto_approve(&channel);
           HttpResponse::Ok().json(GenericResponse {
@@ -3227,7 +3255,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                   let bh = extract_base_hash(&snap);
                   let dm_policy = match *ch_key {
                     "imessage" => {
-                      r#"{"channels":{"imessage":{"dmPolicy":"allowlist","service":"auto"}}}"#
+                      r#"{"channels":{"imessage":{"dmPolicy":"pairing","service":"auto"}}}"#
                     }
                     _ => &format!(
                       r#"{{"channels":{{"{}": {{"dmPolicy":"pairing"}}}}}}"#,
