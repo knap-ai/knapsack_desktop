@@ -575,7 +575,7 @@ struct HeartbeatProvider {
 ///
 /// Cheapest models per provider:
 ///   Groq: free (llama-3.3-70b-versatile)
-///   Gemini: gemini-2.5-flash (~$0.15/1M input)
+///   Gemini: gemini-3.5-flash (fast, low-cost)
 ///   OpenAI: gpt-4o-mini (~$0.15/1M input)
 ///   Anthropic: claude-haiku-4-5 (~$0.25/1M input)
 ///   OpenRouter: free tier model
@@ -589,7 +589,10 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
         .unwrap_or(true);
 
     let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
-    let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+    let gemini_key = std::env::var("GEMINI_API_KEY")
+        .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+        .ok()
+        .filter(|k| !k.trim().is_empty());
     let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
     let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
     let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
@@ -609,7 +612,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
             return Ok(HeartbeatProvider {
                 name: "gemini".into(),
                 api_key: gemini_key.unwrap(),
-                model: "gemini-2.5-flash".into(),
+                model: "gemini-3.5-flash".into(),
                 base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
                 is_anthropic: false,
             });
@@ -659,7 +662,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
     if let Some(key) = gemini_key {
         return Ok(HeartbeatProvider {
             name: "gemini".into(), api_key: key,
-            model: "gemini-2.5-flash".into(),
+            model: "gemini-3.5-flash".into(),
             base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
             is_anthropic: false,
         });

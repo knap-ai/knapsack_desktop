@@ -2,10 +2,10 @@ import { CLI_FRESH_WATCHDOG_DEFAULTS, CLI_RESUME_WATCHDOG_DEFAULTS } from "openc
 //#region extensions/google/cli-backend.ts
 const GEMINI_MODEL_ALIASES = {
 	pro: "gemini-3.1-pro-preview",
-	flash: "gemini-3.1-flash-preview",
+	flash: "gemini-3.5-flash",
 	"flash-lite": "gemini-3.1-flash-lite-preview"
 };
-const GEMINI_CLI_DEFAULT_MODEL_REF = "google-gemini-cli/gemini-3-flash-preview";
+const GEMINI_CLI_DEFAULT_MODEL_REF = "google-gemini-cli/gemini-3.5-flash";
 function buildGoogleGeminiCliBackend() {
 	return {
 		id: "google-gemini-cli",

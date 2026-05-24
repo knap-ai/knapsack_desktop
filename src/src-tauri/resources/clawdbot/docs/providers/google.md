@@ -14,7 +14,7 @@ Gemini Grounding.
 - Auth: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
 - API: Google Gemini API
 - Runtime option: `agents.defaults.agentRuntime.id: "google-gemini-cli"`
-  reuses Gemini CLI OAuth while keeping model refs canonical as `google/*`.
+  reuses Antigravity CLI OAuth while keeping model refs canonical as `google/*`.
 
 ## Getting started
 
@@ -44,7 +44,7 @@ Choose your preferred auth method and follow the setup steps.
         {
           agents: {
             defaults: {
-              model: { primary: "google/gemini-3.1-pro-preview" },
+              model: { primary: "google/gemini-3.5-flash" },
             },
           },
         }
@@ -63,8 +63,8 @@ Choose your preferred auth method and follow the setup steps.
 
   </Tab>
 
-  <Tab title="Gemini CLI (OAuth)">
-    **Best for:** reusing an existing Gemini CLI login via PKCE OAuth instead of a separate API key.
+  <Tab title="Antigravity CLI (OAuth)">
+    **Best for:** reusing an existing Antigravity CLI login via PKCE OAuth instead of a separate API key.
 
     <Warning>
     The `google-gemini-cli` provider is an unofficial integration. Some users
@@ -72,19 +72,15 @@ Choose your preferred auth method and follow the setup steps.
     </Warning>
 
     <Steps>
-      <Step title="Install the Gemini CLI">
-        The local `gemini` command must be available on `PATH`.
+      <Step title="Install Antigravity CLI">
+        The local `agy` command must be available on `PATH`.
 
         ```bash
-        # Homebrew
-        brew install gemini-cli
-
-        # or npm
-        npm install -g @google/gemini-cli
+        curl -fsSL https://antigravity.google/cli/install.sh | bash
         ```
 
-        OpenClaw supports both Homebrew installs and global npm installs, including
-        common Windows/npm layouts.
+        OpenClaw keeps legacy `google-gemini-cli` refs for compatibility, while
+        the forward Google coding CLI surface is Antigravity CLI.
       </Step>
       <Step title="Log in via OAuth">
         ```bash
@@ -98,7 +94,7 @@ Choose your preferred auth method and follow the setup steps.
       </Step>
     </Steps>
 
-    - Default model: `google/gemini-3.1-pro-preview`
+    - Default model: `google/gemini-3.5-flash`
     - Runtime: `google-gemini-cli`
     - Alias: `gemini-cli`
 
@@ -110,18 +106,18 @@ Choose your preferred auth method and follow the setup steps.
     (Or the `GEMINI_CLI_*` variants.)
 
     <Note>
-    If Gemini CLI OAuth requests fail after login, set `GOOGLE_CLOUD_PROJECT` or
+    If Antigravity CLI OAuth requests fail after login, set `GOOGLE_CLOUD_PROJECT` or
     `GOOGLE_CLOUD_PROJECT_ID` on the gateway host and retry.
     </Note>
 
     <Note>
-    If login fails before the browser flow starts, make sure the local `gemini`
+    If login fails before the browser flow starts, make sure the local `agy`
     command is installed and on `PATH`.
     </Note>
 
     `google-gemini-cli/*` model refs are legacy compatibility aliases. New
     configs should use `google/*` model refs plus the `google-gemini-cli`
-    runtime when they want local Gemini CLI execution.
+    runtime when they want local Antigravity CLI execution.
 
   </Tab>
 </Tabs>

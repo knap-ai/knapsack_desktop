@@ -2640,7 +2640,9 @@ pub async fn chat(
 
       // Select which coding CLI to use: check user preference first, then fall back to
       // whichever API key is available. Anthropic → claude, OpenAI → codex,
-      // Google → gemini, otherwise OpenCode.
+      // Google → gemini for this piped prompt runner, otherwise OpenCode.
+      // Antigravity (`agy`) is the forward Google coding CLI, but it is a TUI
+      // and needs a PTY-backed terminal path rather than this stdout/stderr pipe.
       let coding_agent = {
         let pref = std::env::var("KNAPSACK_CODING_AGENT").unwrap_or_default();
         let pref = pref.trim().to_lowercase();
@@ -2667,9 +2669,9 @@ pub async fn chat(
       // Build the command string for the chosen CLI.
       // claude: --yes auto-accepts tool use so it can read/write files without prompting.
       // codex:  --approval-mode auto-edit allows file edits non-interactively.
-      // gemini: -p (--prompt) triggers headless mode, returning stdout output without TTY UI.
+      // gemini: -p (--prompt) triggers prompt mode, returning stdout output without TTY UI.
+      // antigravity: launch the TUI when explicitly requested; this path streams output only.
       // opencode: use npx so the fallback can work even when the binary is not already installed.
-      //         Note: Antigravity (`agy`) is an IDE, not a headless CLI — use `gemini` instead.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
       let claude_cmd = match coding_agent.as_str() {
         "codex" => {
@@ -2684,6 +2686,7 @@ pub async fn chat(
           #[cfg(not(target_os = "windows"))]
           { format!("gemini -p '{}'", prompt.replace('\'', "'\\''")) }
         }
+        "antigravity" | "agy" => "agy".to_string(),
         "opencode" => {
           #[cfg(target_os = "windows")]
           { format!("npx -y opencode-ai run \"{}\"", prompt.replace('"', "\\\"")) }

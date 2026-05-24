@@ -49,13 +49,16 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let gemini_key = std::env::var("GEMINI_API_KEY")
+    .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+    .ok()
+    .filter(|k| !k.trim().is_empty());
   let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
   let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
   let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
-  let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+  let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -263,7 +266,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
         let (new_model, label) = match provider.name.as_str() {
             "openai" => ("o3-mini".to_string(), "o3-mini"),
             "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
-            "gemini" => ("gemini-2.5-flash".to_string(), "Flash"), // already cheap
+            "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
             "groq" => (provider.model.clone(), "Groq"),           // already cheap
             "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
             "ollama" => (provider.model.clone(), "Ollama"),       // local, no cost
@@ -757,11 +760,14 @@ pub async fn multi_provider_completion(
 
       let fb_openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
-      let fb_gemini_key = std::env::var("GEMINI_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_gemini_key = std::env::var("GEMINI_API_KEY")
+        .or_else(|_| std::env::var("GOOGLE_API_KEY"))
+        .ok()
+        .filter(|k| !k.trim().is_empty());
       let fb_groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
       let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
       let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
-      let fb_gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      let fb_gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
         ("openai", &fb_openai_key, fb_openai_model, "https://api.openai.com/v1", false),

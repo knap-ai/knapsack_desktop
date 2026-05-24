@@ -7,7 +7,7 @@ import { fetchGeminiUsage } from "openclaw/plugin-sdk/provider-usage";
 //#region extensions/google/gemini-cli-provider.ts
 const PROVIDER_ID = "google-gemini-cli";
 const PROVIDER_LABEL = "Gemini CLI OAuth";
-const DEFAULT_MODEL = "google/gemini-3.1-pro-preview";
+const DEFAULT_MODEL = "google/gemini-3.5-flash";
 const ENV_VARS = [
 	"OPENCLAW_GEMINI_OAUTH_CLIENT_ID",
 	"OPENCLAW_GEMINI_OAUTH_CLIENT_SECRET",

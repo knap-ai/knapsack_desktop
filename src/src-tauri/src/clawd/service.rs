@@ -3230,9 +3230,9 @@ struct StoredTokens {
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
 
-  /// Preferred coding CLI when multiple keys are available: "claude", "codex", "gemini" (Google Gemini CLI), or "opencode".
+  /// Preferred coding CLI when multiple keys are available: "claude", "codex", "antigravity" (Google Antigravity CLI), "gemini" (legacy Google Gemini CLI), or "opencode".
   /// When unset, auto-selects based on which API key is present
-  /// (Anthropic → claude, OpenAI → codex, Google → gemini).
+  /// (Anthropic → claude, OpenAI → codex, Google → antigravity where interactive terminal support is available).
   #[serde(default)]
   preferred_coding_agent: Option<String>,
 
@@ -3411,7 +3411,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     anthropic_api_key: None,
     anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
-    gemini_model: None, // Defaults to gemini-2.5-flash
+    gemini_model: None, // Defaults to gemini-3.5-flash
     groq_model: None,   // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     openrouter_api_key: None,
     openrouter_model: None, // Defaults to meta-llama/llama-3.3-70b-instruct:free
@@ -3622,12 +3622,12 @@ pub fn get_anthropic_model(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "claude-sonnet-4-5-20250929".to_string())
 }
 
-/// Get the configured Gemini model (defaults to gemini-2.5-flash if not set)
+/// Get the configured Gemini model (defaults to gemini-3.5-flash if not set)
 pub fn get_gemini_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.gemini_model)
-    .unwrap_or_else(|| "gemini-2.5-flash".to_string())
+    .unwrap_or_else(|| "gemini-3.5-flash".to_string())
 }
 
 /// Get the configured Groq model (defaults to meta-llama/llama-4-scout-17b-16e-instruct if not set)
@@ -5868,7 +5868,7 @@ pub struct SetApiKeyRequest {
   /// For extra providers: the environment variable name to store the key under.
   /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
   pub env_var: Option<String>,
-  /// Preferred coding CLI agent: "claude", "codex", "gemini", or "opencode".
+  /// Preferred coding CLI agent: "claude", "codex", "antigravity", "gemini", or "opencode".
   /// When provided alongside or without a key change, updates the stored preference.
   pub preferred_coding_agent: Option<String>,
 }
@@ -5881,7 +5881,10 @@ pub struct SetApiKeyResponse {
 
 fn normalize_coding_agent(agent: &str) -> Option<String> {
   let agent = agent.trim().to_lowercase();
-  if ["claude", "codex", "gemini", "opencode"].contains(&agent.as_str()) {
+  if ["claude", "codex", "antigravity", "agy", "gemini", "opencode"].contains(&agent.as_str()) {
+    if agent == "agy" {
+      return Some("antigravity".to_string());
+    }
     Some(agent)
   } else {
     None
@@ -12292,7 +12295,7 @@ mod provider_key_tests {
     clear_all();
     std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
     assert!(model_ref_has_key("google/gemini-2.5-pro"));
-    assert!(model_ref_has_key("gemini/gemini-2.5-flash"));
+    assert!(model_ref_has_key("gemini/gemini-3.5-flash"));
     std::env::remove_var("GOOGLE_API_KEY");
     std::env::set_var("GEMINI_API_KEY", "AIzaTest");
     assert!(model_ref_has_key("google/gemini-2.5-pro"));

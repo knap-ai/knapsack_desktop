@@ -193,37 +193,28 @@ Anthropic staff told us OpenClaw-style Claude CLI usage is allowed again, so Ope
 - Provider: `google`
 - Auth: `GEMINI_API_KEY`
 - Optional rotation: `GEMINI_API_KEYS`, `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, `GOOGLE_API_KEY` fallback, and `OPENCLAW_LIVE_GEMINI_KEY` (single override)
-- Example models: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`
-- Compatibility: legacy OpenClaw config using `google/gemini-3.1-flash-preview` is normalized to `google/gemini-3-flash-preview`
+- Example models: `google/gemini-3.5-flash`, `google/gemini-3.1-pro-preview`
+- Compatibility: legacy OpenClaw config using `google/gemini-3.5-flash-preview` is normalized to `google/gemini-3.5-flash`
 - CLI: `openclaw onboard --auth-choice gemini-api-key`
 - Thinking: `/think adaptive` uses Google dynamic thinking. Gemini 3/3.1 omit a fixed `thinkingLevel`; Gemini 2.5 sends `thinkingBudget: -1`.
 - Direct Gemini runs also accept `agents.defaults.models["google/<model>"].params.cachedContent` (or legacy `cached_content`) to forward a provider-native `cachedContents/...` handle; Gemini cache hits surface as OpenClaw `cacheRead`
 
-### Google Vertex and Gemini CLI
+### Google Vertex, Antigravity CLI, and Gemini CLI
 
-- Providers: `google-vertex`, `google-gemini-cli`
-- Auth: Vertex uses gcloud ADC; Gemini CLI uses its OAuth flow
+- Providers: `google-vertex`, `google-antigravity`, `google-gemini-cli`
+- Auth: Vertex uses gcloud ADC; Antigravity CLI uses keyring/browser Google Sign-In; legacy Gemini CLI uses its OAuth flow
 
 <Warning>
-Gemini CLI OAuth in OpenClaw is an unofficial integration. Some users have reported Google account restrictions after using third-party clients. Review Google terms and use a non-critical account if you choose to proceed.
+Antigravity CLI OAuth in OpenClaw is an unofficial integration. Some users have reported Google account restrictions after using third-party clients. Review Google terms and use a non-critical account if you choose to proceed.
 </Warning>
 
-Gemini CLI OAuth is shipped as part of the bundled `google` plugin.
+Antigravity CLI OAuth is shipped as part of the bundled `google` plugin.
 
 <Steps>
-  <Step title="Install Gemini CLI">
-    <Tabs>
-      <Tab title="brew">
-        ```bash
-        brew install gemini-cli
-        ```
-      </Tab>
-      <Tab title="npm">
-        ```bash
-        npm install -g @google/gemini-cli
-        ```
-      </Tab>
-    </Tabs>
+  <Step title="Install Antigravity CLI">
+    ```bash
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+    ```
   </Step>
   <Step title="Enable plugin">
     ```bash
@@ -235,7 +226,7 @@ Gemini CLI OAuth is shipped as part of the bundled `google` plugin.
     openclaw models auth login --provider google-gemini-cli --set-default
     ```
 
-    Default model: `google-gemini-cli/gemini-3-flash-preview`. You do **not** paste a client id or secret into `openclaw.json`. The CLI login flow stores tokens in auth profiles on the gateway host.
+    Default model: `google-gemini-cli/gemini-3.5-flash`. You do **not** paste a client id or secret into `openclaw.json`. The CLI login flow stores tokens in auth profiles on the gateway host.
 
   </Step>
   <Step title="Set project (if needed)">
