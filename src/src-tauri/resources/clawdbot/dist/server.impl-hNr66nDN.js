@@ -1811,6 +1811,14 @@ const CHANNEL_RESTART_POLICY = {
 };
 const MAX_RESTART_ATTEMPTS = 10;
 const CHANNEL_STOP_ABORT_TIMEOUT_MS = 5e3;
+function isFatalChannelRuntimeError(channelId, message) {
+	const lower = String(message ?? "").toLowerCase();
+	if (!lower) return false;
+	if (channelId === "imessage" && (lower.includes("full disk access") || lower.includes("permissiondenied(") || lower.includes("authorization denied") || lower.includes("/library/messages/chat.db"))) return true;
+	if (channelId === "whatsapp" && (lower.includes("401") || lower.includes("unauthorized") || lower.includes("logged out") || lower.includes("connection failure"))) return true;
+	if (channelId === "telegram" && (lower.includes("missing scope") || lower.includes("operator.read") || lower.includes("unauthorized") || lower.includes("invalid token"))) return true;
+	return false;
+}
 function createRuntimeStore() {
 	return {
 		aborts: /* @__PURE__ */ new Map(),
@@ -1956,6 +1964,7 @@ function createChannelManager(opts) {
 			const abort = new AbortController();
 			store.aborts.set(id, abort);
 			let handedOffTask = false;
+			let terminalChannelError = false;
 			const log = channelLogs[channelId];
 			let scopedChannelRuntime = null;
 			let channelRuntimeForTask;
@@ -2044,11 +2053,16 @@ function createChannelManager(opts) {
 					...channelRuntimeForTask ? { channelRuntime: channelRuntimeForTask } : {}
 				})).catch((err) => {
 					const message = formatErrorMessage(err);
+					terminalChannelError = isFatalChannelRuntimeError(channelId, message);
 					setRuntime(channelId, id, {
 						accountId: id,
-						lastError: message
+						lastError: message,
+						...terminalChannelError ? {
+							restartPending: false,
+							reconnectAttempts: 0
+						} : {}
 					});
-					log.error?.(`[${id}] channel exited: ${message}`);
+					log.error?.(`[${id}] channel exited${terminalChannelError ? " (fatal; restart suppressed)" : ""}: ${message}`);
 				}).finally(async () => {
 					await cleanupTaskScopedApprovalRuntime("channel cleanup failed");
 					setRuntime(channelId, id, {
@@ -2058,6 +2072,15 @@ function createChannelManager(opts) {
 					});
 				}).then(async () => {
 					if (manuallyStopped.has(rKey)) return;
+					if (terminalChannelError) {
+						manuallyStopped.add(rKey);
+						setRuntime(channelId, id, {
+							accountId: id,
+							restartPending: false,
+							reconnectAttempts: 0
+						});
+						return;
+					}
 					const attempt = (restartAttempts.get(rKey) ?? 0) + 1;
 					restartAttempts.set(rKey, attempt);
 					if (attempt > MAX_RESTART_ATTEMPTS) {

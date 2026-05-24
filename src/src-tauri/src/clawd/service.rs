@@ -3663,6 +3663,7 @@ fn gateway_runtime_deps_startup_in_progress_from_log(content: &str) -> bool {
   let staging = tail.rfind("staging bundled runtime deps");
   let installed = tail.rfind("installed bundled runtime deps");
   let listening = tail.rfind("http server listening");
+  let ready = tail.rfind("[gateway] ready");
   let terminated = tail.rfind("received SIGTERM; shutting down");
   let loading = tail.rfind("[gateway] loading configuration");
 
@@ -3672,6 +3673,7 @@ fn gateway_runtime_deps_startup_in_progress_from_log(content: &str) -> bool {
 
   installed.unwrap_or(0) < staging_idx
     && listening.unwrap_or(0) < staging_idx
+    && ready.unwrap_or(0) < staging_idx
     && terminated.unwrap_or(0) < staging_idx
     && loading.unwrap_or(0) < staging_idx
 }
@@ -11109,6 +11111,14 @@ mod crash_classifier_tests {
     );
     assert!(!gateway_runtime_deps_startup_in_progress_from_log(
       &listening
+    ));
+
+    let ready = format!(
+      "{}\n2026-05-13T10:44:52 [gateway] ready",
+      staging
+    );
+    assert!(!gateway_runtime_deps_startup_in_progress_from_log(
+      &ready
     ));
 
     let terminated = format!(

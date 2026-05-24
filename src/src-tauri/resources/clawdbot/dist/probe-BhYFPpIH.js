@@ -16,6 +16,19 @@ import { createInterface } from "node:readline";
 const DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS = 1e4;
 //#endregion
 //#region extensions/imessage/src/client.ts
+function normalizeIMessageRpcText(value) {
+	return String(value ?? "").trim();
+}
+function isIMessagePermissionDeniedText(value) {
+	const text = normalizeIMessageRpcText(value).toLowerCase();
+	return text.includes("permissiondenied(") || text.includes("authorization denied") || text.includes("operation not permitted");
+}
+function formatIMessagePermissionError(value) {
+	const text = normalizeIMessageRpcText(value);
+	const pathMatch = text.match(/path:\s*"([^"]+)"/i);
+	const path = pathMatch?.[1] ?? "~/Library/Messages/chat.db";
+	return `iMessage requires Full Disk Access to read ${path}. Grant Full Disk Access to Knapsack, then restart the gateway.`;
+}
 function isTestEnv() {
 	const vitest = normalizeLowercaseStringOrEmpty(process.env.VITEST);
 	return Boolean(vitest);
@@ -118,6 +131,13 @@ var IMessageRpcClient = class {
 		try {
 			parsed = JSON.parse(line);
 		} catch (err) {
+			if (isIMessagePermissionDeniedText(line)) {
+				const error = new Error(formatIMessagePermissionError(line));
+				this.runtime?.error?.(`imsg rpc: ${error.message}`);
+				this.failAll(error);
+				this.stop().catch(() => {});
+				return;
+			}
 			const detail = formatErrorMessage(err);
 			this.runtime?.error?.(`imsg rpc: failed to parse ${line}: ${detail}`);
 			return;
@@ -231,9 +251,15 @@ async function probeIMessage(timeoutMs, opts = {}) {
 		await client.request("chats.list", { limit: 1 }, { timeoutMs: effectiveTimeout });
 		return { ok: true };
 	} catch (err) {
+		const message = formatErrorMessage(err);
+		if (isIMessagePermissionDeniedText(message)) return {
+			ok: false,
+			error: formatIMessagePermissionError(message),
+			fatal: true
+		};
 		return {
 			ok: false,
-			error: String(err)
+			error: message
 		};
 	} finally {
 		await client.stop();
