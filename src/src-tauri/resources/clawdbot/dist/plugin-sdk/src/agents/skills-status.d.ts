@@ -22,7 +22,11 @@ export type SkillStatusEntry = {
     always: boolean;
     disabled: boolean;
     blockedByAllowlist: boolean;
+    blockedByAgentFilter: boolean;
     eligible: boolean;
+    modelVisible: boolean;
+    userInvocable: boolean;
+    commandVisible: boolean;
     requirements: Requirements;
     missing: Requirements;
     configChecks: SkillStatusConfigCheck[];
@@ -31,6 +35,8 @@ export type SkillStatusEntry = {
 export type SkillStatusReport = {
     workspaceDir: string;
     managedSkillsDir: string;
+    agentId?: string;
+    agentSkillFilter?: string[];
     skills: SkillStatusEntry[];
 };
 export declare function buildWorkspaceSkillStatus(workspaceDir: string, opts?: {
@@ -38,4 +44,5 @@ export declare function buildWorkspaceSkillStatus(workspaceDir: string, opts?: {
     managedSkillsDir?: string;
     entries?: SkillEntry[];
     eligibility?: SkillEligibilityContext;
+    agentId?: string;
 }): SkillStatusReport;

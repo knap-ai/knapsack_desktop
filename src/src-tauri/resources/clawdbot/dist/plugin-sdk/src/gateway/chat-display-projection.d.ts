@@ -12,7 +12,6 @@ export declare function projectChatDisplayMessages(messages: unknown[], options?
     maxChars?: number;
     stripEnvelope?: boolean;
 }): Array<Record<string, unknown>>;
-export declare function limitChatDisplayMessages<T>(messages: T[], maxMessages?: number): T[];
 export declare function projectRecentChatDisplayMessages(messages: unknown[], options?: {
     maxChars?: number;
     maxMessages?: number;

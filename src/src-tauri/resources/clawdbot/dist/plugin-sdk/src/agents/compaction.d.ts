@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AgentCompactionIdentifierPolicy } from "../config/types.agent-defaults.js";
 export declare const BASE_CHUNK_RATIO = 0.4;
 export declare const MIN_CHUNK_RATIO = 0.15;
@@ -60,6 +60,7 @@ export declare function pruneHistoryForContextShare(params: {
     maxContextTokens: number;
     maxHistoryShare?: number;
     parts?: number;
+    mode?: "share" | "handoff";
 }): {
     messages: AgentMessage[];
     droppedMessagesList: AgentMessage[];
@@ -69,4 +70,18 @@ export declare function pruneHistoryForContextShare(params: {
     keptTokens: number;
     budgetTokens: number;
 };
+/**
+ * Generates a concise handoff summary for model transitions, enforcing a 4000 token limit.
+ */
+export declare function summarizeForHandoff(params: {
+    messages: AgentMessage[];
+    model: NonNullable<ExtensionContext["model"]>;
+    apiKey: string;
+    headers?: Record<string, string>;
+    signal: AbortSignal;
+    maxChunkTokens: number;
+    contextWindow: number;
+    customInstructions?: string;
+    summarizationInstructions?: CompactionSummarizationInstructions;
+}): Promise<string>;
 export declare function resolveContextWindowTokens(model?: ExtensionContext["model"]): number;

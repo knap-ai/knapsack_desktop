@@ -14,6 +14,20 @@ export declare const PLUGIN_COMPAT_RECORDS: readonly [{
     readonly tests: readonly ["src/plugins/status.test.ts", "src/plugins/contracts/shape.contract.test.ts"];
     readonly releaseNote: "Legacy `before_agent_start` hook compatibility remains wired while plugins migrate to modern hook stages.";
 }, {
+    readonly code: "legacy-deactivate-hook-alias";
+    readonly status: "deprecated";
+    readonly owner: "sdk";
+    readonly introduced: "2026-05-16";
+    readonly deprecated: "2026-05-16";
+    readonly warningStarts: "2026-05-16";
+    readonly removeAfter: "2026-08-16";
+    readonly replacement: "`gateway_stop` hook";
+    readonly docsPath: "/plugins/hooks#upcoming-deprecations";
+    readonly surfaces: readonly ["api.on(\"deactivate\", ...)", "plugin typed hook registration"];
+    readonly diagnostics: readonly ["plugin runtime compatibility warning"];
+    readonly tests: readonly ["src/plugins/loader.test.ts"];
+    readonly releaseNote: "`api.on(\"deactivate\", ...)` remains wired as a deprecated compatibility alias while plugins migrate to `gateway_stop`.";
+}, {
     readonly code: "hook-only-plugin-shape";
     readonly status: "active";
     readonly owner: "sdk";
@@ -35,7 +49,105 @@ export declare const PLUGIN_COMPAT_RECORDS: readonly [{
     readonly docsPath: "/plugins/sdk-migration";
     readonly surfaces: readonly ["openclaw/plugin-sdk", "openclaw/plugin-sdk/compat"];
     readonly diagnostics: readonly ["OPENCLAW_PLUGIN_SDK_COMPAT_DEPRECATED"];
-    readonly tests: readonly ["src/plugins/contracts/plugin-sdk-index.test.ts", "src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
+    readonly tests: readonly ["src/plugins/contracts/plugin-sdk-index.test.ts", "src/plugins/contracts/plugin-sdk-root-alias.test.ts", "src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
+}, {
+    readonly code: "hook.before_tool_call.terminal-block-approval";
+    readonly status: "active";
+    readonly owner: "agent-runtime";
+    readonly introduced: "2026-04-29";
+    readonly docsPath: "/plugins/hooks";
+    readonly surfaces: readonly ["before_tool_call block result", "before_tool_call approval result"];
+    readonly diagnostics: readonly ["hook runner contract probe"];
+    readonly tests: readonly ["src/plugins/hooks.security.test.ts", "src/agents/pi-tools.before-tool-call.e2e.test.ts"];
+}, {
+    readonly code: "hook.llm-observer.privacy-payload";
+    readonly status: "active";
+    readonly owner: "agent-runtime";
+    readonly introduced: "2026-04-29";
+    readonly docsPath: "/plugins/hooks";
+    readonly surfaces: readonly ["llm_input", "llm_output", "agent_end", "allowConversationAccess"];
+    readonly diagnostics: readonly ["conversation access hook contract probe"];
+    readonly tests: readonly ["src/agents/cli-runner.reliability.test.ts", "src/config/schema.help.quality.test.ts"];
+}, {
+    readonly code: "api.capture.runtime-registrars";
+    readonly status: "active";
+    readonly owner: "plugin-execution";
+    readonly introduced: "2026-04-29";
+    readonly docsPath: "/plugins/architecture-internals";
+    readonly surfaces: readonly ["createCapturedPluginRegistration", "capturePluginRegistration", "OpenClawPluginApi"];
+    readonly diagnostics: readonly ["runtime registration capture contract probe"];
+    readonly tests: readonly ["src/plugins/captured-registration.test.ts"];
+}, {
+    readonly code: "channel.runtime.envelope-config-metadata";
+    readonly status: "active";
+    readonly owner: "channel";
+    readonly introduced: "2026-04-29";
+    readonly docsPath: "/plugins/sdk-channel-plugins";
+    readonly surfaces: readonly ["api.registerChannel", "channel setup metadata", "channel message envelope"];
+    readonly diagnostics: readonly ["channel runtime contract probe"];
+    readonly tests: readonly ["src/plugin-sdk/channel-entry-contract.test.ts", "src/plugins/captured-registration.test.ts"];
+}, {
+    readonly code: "bundled-channel-sdk-compat-facades";
+    readonly status: "active";
+    readonly owner: "sdk";
+    readonly introduced: "2026-04-28";
+    readonly replacement: "generic channel SDK subpaths or plugin-local `api.ts` / `runtime-api.ts` barrels for new plugins";
+    readonly docsPath: "/plugins/sdk-overview";
+    readonly surfaces: readonly ["openclaw/plugin-sdk/discord component message helpers", "openclaw/plugin-sdk/telegram-account resolveTelegramAccount"];
+    readonly diagnostics: readonly ["plugin SDK compatibility registry"];
+    readonly tests: readonly ["src/plugin-sdk/discord.test.ts", "src/plugin-sdk/telegram-account.test.ts", "src/plugins/contracts/plugin-sdk-package-contract-guardrails.test.ts"];
+}, {
+    readonly code: "bundled-channel-config-schema-legacy";
+    readonly status: "deprecated";
+    readonly owner: "sdk";
+    readonly introduced: "2026-04-28";
+    readonly deprecated: "2026-04-28";
+    readonly warningStarts: "2026-04-28";
+    readonly removeAfter: "2026-07-28";
+    readonly replacement: "`openclaw/plugin-sdk/bundled-channel-config-schema` for maintained bundled plugins; plugin-local schemas for third-party plugins";
+    readonly docsPath: "/plugins/sdk-migration";
+    readonly surfaces: readonly ["openclaw/plugin-sdk/channel-config-schema-legacy"];
+    readonly diagnostics: readonly ["plugin SDK compatibility warning"];
+    readonly tests: readonly ["src/plugins/contracts/config-footprint-guardrails.test.ts", "test/extension-test-boundary.test.ts"];
+}, {
+    readonly code: "plugin-sdk-testing-barrel";
+    readonly status: "deprecated";
+    readonly owner: "sdk";
+    readonly introduced: "2026-04-28";
+    readonly deprecated: "2026-04-28";
+    readonly warningStarts: "2026-04-28";
+    readonly removeAfter: "2026-07-28";
+    readonly replacement: "focused `openclaw/plugin-sdk/*` test subpaths such as `plugin-test-runtime`, `channel-test-helpers`, `test-env`, and `test-fixtures`";
+    readonly docsPath: "/plugins/sdk-migration";
+    readonly surfaces: readonly ["openclaw/plugin-sdk/testing"];
+    readonly diagnostics: readonly ["plugin SDK compatibility warning"];
+    readonly tests: readonly ["src/plugins/compat/registry.test.ts", "scripts/check-no-extension-test-core-imports.ts", "test/extension-test-boundary.test.ts"];
+}, {
+    readonly code: "channel-route-key-aliases";
+    readonly status: "deprecated";
+    readonly owner: "sdk";
+    readonly introduced: "2026-04-28";
+    readonly deprecated: "2026-04-28";
+    readonly warningStarts: "2026-04-28";
+    readonly removeAfter: "2026-07-28";
+    readonly replacement: "`channelRouteDedupeKey` and `channelRouteCompactKey`";
+    readonly docsPath: "/plugins/sdk-migration";
+    readonly surfaces: readonly ["openclaw/plugin-sdk/channel-route channelRouteIdentityKey", "openclaw/plugin-sdk/channel-route channelRouteKey"];
+    readonly diagnostics: readonly ["plugin SDK compatibility warning"];
+    readonly tests: readonly ["src/plugin-sdk/channel-route.test.ts", "src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
+}, {
+    readonly code: "channel-target-comparable-aliases";
+    readonly status: "deprecated";
+    readonly owner: "sdk";
+    readonly introduced: "2026-04-28";
+    readonly deprecated: "2026-04-28";
+    readonly warningStarts: "2026-04-28";
+    readonly removeAfter: "2026-07-28";
+    readonly replacement: "`resolveRouteTargetForChannel`, `ChannelRouteParsedTarget`, `channelRouteTargetsMatchExact`, and `channelRouteTargetsShareConversation`";
+    readonly docsPath: "/plugins/sdk-migration";
+    readonly surfaces: readonly ["src/channels/plugins/target-parsing ComparableChannelTarget", "src/channels/plugins/target-parsing resolveComparableTargetForChannel", "src/channels/plugins/target-parsing comparableChannelTargetsMatch", "src/channels/plugins/target-parsing comparableChannelTargetsShareRoute"];
+    readonly diagnostics: readonly ["plugin SDK compatibility warning"];
+    readonly tests: readonly ["src/channels/plugins/target-parsing.test.ts", "src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
 }, {
     readonly code: "bundled-plugin-allowlist";
     readonly status: "active";
@@ -505,7 +617,7 @@ export declare const PLUGIN_COMPAT_RECORDS: readonly [{
     readonly replacement: "`api.runtime.config.current()`, passed config values, `mutateConfigFile(...)`, or `replaceConfigFile(...)`";
     readonly docsPath: "/plugins/sdk-runtime#config-loading-and-writes";
     readonly surfaces: readonly ["api.runtime.config.loadConfig", "api.runtime.config.writeConfigFile"];
-    readonly diagnostics: readonly ["plugin runtime compatibility warning", "deprecated internal config API guard", "runtime channel config boundary guard"];
+    readonly diagnostics: readonly ["plugin runtime compatibility warning", "deprecated API usage guard", "runtime channel config boundary guard"];
     readonly tests: readonly ["src/plugins/runtime/runtime-config.test.ts", "src/plugins/contracts/deprecated-internal-config-api.test.ts", "src/plugins/contracts/config-boundary-guard.test.ts"];
 }, {
     readonly code: "runtime-taskflow-legacy-alias";
@@ -515,7 +627,7 @@ export declare const PLUGIN_COMPAT_RECORDS: readonly [{
     readonly deprecated: "2026-04-26";
     readonly warningStarts: "2026-04-26";
     readonly removeAfter: "2026-07-26";
-    readonly replacement: "`api.runtime.tasks.flows`";
+    readonly replacement: "`api.runtime.tasks.managedFlows` for managed mutations or `api.runtime.tasks.flows` for DTO reads";
     readonly docsPath: "/plugins/sdk-runtime";
     readonly surfaces: readonly ["api.runtime.taskFlow", "api.runtime.tasks.flow"];
     readonly diagnostics: readonly ["plugin runtime compatibility warning"];
@@ -619,11 +731,11 @@ export declare const PLUGIN_COMPAT_RECORDS: readonly [{
     readonly deprecated: "2026-04-26";
     readonly warningStarts: "2026-04-26";
     readonly removeAfter: "2026-07-26";
-    readonly replacement: "`openclaw/plugin-sdk/testing`";
+    readonly replacement: "focused `openclaw/plugin-sdk/*` test subpaths";
     readonly docsPath: "/plugins/sdk-migration";
     readonly surfaces: readonly ["openclaw/plugin-sdk/test-utils"];
     readonly diagnostics: readonly ["plugin SDK compatibility warning"];
-    readonly tests: readonly ["src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
+    readonly tests: readonly ["src/plugins/compat/registry.test.ts", "src/plugins/contracts/plugin-sdk-subpaths.test.ts"];
 }];
 export type PluginCompatCode = (typeof PLUGIN_COMPAT_RECORDS)[number]["code"];
 export type KnownPluginCompatRecord = PluginCompatRecord<PluginCompatCode>;

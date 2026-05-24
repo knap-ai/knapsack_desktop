@@ -1,9 +1,16 @@
 {
   "id": "memory-core",
+  "activation": {
+    "onStartup": false
+  },
   "kind": "memory",
   "contracts": {
     "memoryEmbeddingProviders": [
       "local"
+    ],
+    "tools": [
+      "memory_get",
+      "memory_search"
     ]
   },
   "commandAliases": [

@@ -4,4 +4,5 @@ export declare function scanStatus(opts: {
     json?: boolean;
     timeoutMs?: number;
     all?: boolean;
+    deep?: boolean;
 }, _runtime: RuntimeEnv): Promise<StatusScanResult>;

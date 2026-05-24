@@ -1,10 +1,6 @@
 import type { PluginLoadOptions } from "./loader.js";
 import { type PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginWebFetchProviderEntry } from "./types.js";
-declare function resetWebFetchProviderSnapshotCacheForTests(): void;
-export declare const __testing: {
-    readonly resetWebFetchProviderSnapshotCacheForTests: typeof resetWebFetchProviderSnapshotCacheForTests;
-};
 export declare function resolvePluginWebFetchProviders(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
@@ -24,4 +20,3 @@ export declare function resolveRuntimeWebFetchProviders(params: {
     onlyPluginIds?: readonly string[];
     origin?: PluginManifestRecord["origin"];
 }): PluginWebFetchProviderEntry[];
-export {};

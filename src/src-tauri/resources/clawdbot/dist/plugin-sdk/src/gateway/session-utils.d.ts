@@ -1,18 +1,38 @@
-import type { ModelCatalogEntry } from "../agents/model-catalog.js";
+import { type ModelCatalogEntry } from "../agents/model-catalog.js";
+import { buildSubagentRunReadIndex } from "../agents/subagent-registry-read.js";
+import { listThinkingLevelOptions } from "../auto-reply/thinking.js";
 import { type SessionEntry, type SessionScope } from "../config/sessions.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ModelCostConfig } from "../utils/usage-format.js";
 import type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult } from "./session-utils.types.js";
-export { archiveFileOnDisk, archiveSessionTranscripts, attachOpenClawTranscriptMeta, capArrayByJsonBytes, readFirstUserMessageFromTranscript, readLastMessagePreviewFromTranscript, readLatestSessionUsageFromTranscript, readSessionTitleFieldsFromTranscript, readSessionPreviewItemsFromTranscript, readSessionMessages, resolveSessionTranscriptCandidates, } from "./session-utils.fs.js";
+export { archiveFileOnDisk, archiveSessionTranscripts, attachOpenClawTranscriptMeta, capArrayByJsonBytes, readFirstUserMessageFromTranscript, readLatestSessionUsageFromTranscriptAsync, readLatestRecentSessionUsageFromTranscriptAsync, readRecentSessionUsageFromTranscriptAsync, readRecentSessionMessagesAsync, readRecentSessionMessagesWithStatsAsync, readRecentSessionTranscriptLines, readRecentSessionUsageFromTranscript, readSessionMessageCountAsync, readSessionTitleFieldsFromTranscript, readSessionTitleFieldsFromTranscriptAsync, readSessionPreviewItemsFromTranscript, readSessionMessagesAsync, visitSessionMessagesAsync, resolveSessionTranscriptCandidates, } from "./session-utils.fs.js";
+export type { ReadSessionMessagesAsyncOptions } from "./session-utils.fs.js";
 export { canonicalizeSpawnedByForAgent, resolveSessionStoreKey } from "./session-store-key.js";
 export type { GatewayAgentRow, GatewaySessionRow, GatewaySessionsDefaults, SessionsListResult, SessionsPatchResult, SessionsPreviewEntry, SessionsPreviewResult, } from "./session-utils.types.js";
 export declare function deriveSessionTitle(entry: SessionEntry | undefined, firstUserMessage?: string | null): string | undefined;
+type SessionListRowContext = {
+    subagentRuns: ReturnType<typeof buildSubagentRunReadIndex>;
+    storeChildSessionsByKey: Map<string, string[]>;
+    selectedModelByOverrideRef: Map<string, ReturnType<typeof resolveSessionModelRef>>;
+    thinkingMetadataByModelRef: Map<string, {
+        levels: ReturnType<typeof listThinkingLevelOptions>;
+        defaultLevel: ReturnType<typeof resolveGatewaySessionThinkingDefault>;
+    }>;
+    displayModelIdentityByKey: Map<string, {
+        provider?: string;
+        model?: string;
+    }>;
+    modelCostConfigByModelRef: Map<string, ModelCostConfig | undefined>;
+};
 /**
  * Returns the owning agent id if the session key belongs to an agent that is no
  * longer present in config (deleted). Returns null for non-agent legacy/global
  * keys, or when the owning agent still exists (#65524).
  */
 export declare function resolveDeletedAgentIdFromSessionKey(cfg: OpenClawConfig, sessionKey: string): string | null;
-export declare function loadSessionEntry(sessionKey: string): {
+export declare function loadSessionEntry(sessionKey: string, opts?: {
+    agentId?: string;
+}): {
     cfg: OpenClawConfig;
     storePath: string;
     store: Record<string, SessionEntry>;
@@ -68,6 +88,7 @@ export declare function listAgentsForGateway(cfg: OpenClawConfig): {
 export declare function resolveGatewaySessionStoreTarget(params: {
     cfg: OpenClawConfig;
     key: string;
+    agentId?: string;
     scanLegacyKeys?: boolean;
     store?: Record<string, SessionEntry>;
 }): {
@@ -77,19 +98,43 @@ export declare function resolveGatewaySessionStoreTarget(params: {
     storeKeys: string[];
 };
 export { loadCombinedSessionStoreForGateway } from "../config/sessions/combined-store-gateway.js";
-export declare function getSessionDefaults(cfg: OpenClawConfig): GatewaySessionsDefaults;
-export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string): {
+export declare function resolveGatewaySessionThinkingDefault(params: {
+    cfg: OpenClawConfig;
+    provider: string;
+    model: string;
+    agentId?: string;
+    modelCatalog?: ModelCatalogEntry[];
+}): "adaptive" | "high" | "low" | "max" | "medium" | "minimal" | "off" | "xhigh";
+export declare function getSessionDefaults(cfg: OpenClawConfig, modelCatalog?: ModelCatalogEntry[], options?: {
+    allowPluginNormalization?: boolean;
+}): GatewaySessionsDefaults;
+export declare function resolveSessionModelRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string, options?: {
+    allowPluginNormalization?: boolean;
+}): {
     provider: string;
     model: string;
 };
 export declare function resolveGatewayModelSupportsImages(params: {
-    loadGatewayModelCatalog: () => Promise<ModelCatalogEntry[]>;
+    loadGatewayModelCatalog: (params?: {
+        readOnly?: boolean;
+    }) => Promise<ModelCatalogEntry[]>;
     provider?: string;
     model?: string;
 }): Promise<boolean>;
-export declare function resolveSessionModelIdentityRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string, fallbackModelRef?: string): {
+export declare function resolveSessionModelIdentityRef(cfg: OpenClawConfig, entry?: SessionEntry | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">, agentId?: string, fallbackModelRef?: string, options?: {
+    allowPluginNormalization?: boolean;
+}): {
     provider?: string;
     model: string;
+};
+export declare function resolveSessionDisplayModelIdentityRef(params: {
+    cfg: OpenClawConfig;
+    agentId: string;
+    provider?: string;
+    model?: string;
+}): {
+    provider?: string;
+    model?: string;
 };
 export declare function buildGatewaySessionRow(params: {
     cfg: OpenClawConfig;
@@ -97,18 +142,50 @@ export declare function buildGatewaySessionRow(params: {
     store: Record<string, SessionEntry>;
     key: string;
     entry?: SessionEntry;
+    modelCatalog?: ModelCatalogEntry[];
     now?: number;
     includeDerivedTitles?: boolean;
     includeLastMessage?: boolean;
+    transcriptUsageMaxBytes?: number;
+    storeChildSessionsByKey?: Map<string, string[]>;
+    rowContext?: SessionListRowContext;
+    skipTranscriptUsageFallback?: boolean;
+    lightweightListRow?: boolean;
 }): GatewaySessionRow;
 export declare function loadGatewaySessionRow(sessionKey: string, options?: {
     includeDerivedTitles?: boolean;
     includeLastMessage?: boolean;
     now?: number;
+    transcriptUsageMaxBytes?: number;
 }): GatewaySessionRow | null;
+export declare function filterAndSortSessionEntries(params: {
+    cfg: OpenClawConfig;
+    store: Record<string, SessionEntry>;
+    opts: import("./protocol/index.js").SessionsListParams;
+    now: number;
+    rowContext?: SessionListRowContext;
+}): [string, SessionEntry][];
 export declare function listSessionsFromStore(params: {
     cfg: OpenClawConfig;
     storePath: string;
     store: Record<string, SessionEntry>;
+    modelCatalog?: ModelCatalogEntry[];
     opts: import("./protocol/index.js").SessionsListParams;
 }): SessionsListResult;
+/**
+ * Async version of listSessionsFromStore that yields to the event loop between
+ * batches of session row builds. This prevents large session stores from
+ * blocking the event loop during sessions.list requests.
+ *
+ * The synchronous file I/O in readSessionTitleFieldsFromTranscript (head/tail
+ * reads for derived titles and last-message previews) is the dominant blocker.
+ * By yielding every SESSIONS_LIST_YIELD_BATCH_SIZE rows, we keep the event
+ * loop responsive for WebSocket heartbeats, channel I/O, and concurrent RPC.
+ */
+export declare function listSessionsFromStoreAsync(params: {
+    cfg: OpenClawConfig;
+    storePath: string;
+    store: Record<string, SessionEntry>;
+    modelCatalog?: ModelCatalogEntry[];
+    opts: import("./protocol/index.js").SessionsListParams;
+}): Promise<SessionsListResult>;

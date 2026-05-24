@@ -11,7 +11,7 @@ import type { PluginApprovalRequest } from "./plugin-approvals.js";
 type ApprovalRequest = ExecApprovalRequest | PluginApprovalRequest;
 type ApprovalResolved = ExecApprovalResolved | PluginApprovalResolved;
 export type { PreparedChannelNativeApprovalTarget } from "./approval-native-runtime-types.js";
-export type ChannelNativeApprovalPlanDeliveryResult<TPendingEntry> = {
+type ChannelNativeApprovalPlanDeliveryResult<TPendingEntry> = {
     entries: TPendingEntry[];
     deliveryPlan: ChannelApprovalNativeDeliveryPlan;
     deliveredTargets: ChannelApprovalNativePlannedTarget[];

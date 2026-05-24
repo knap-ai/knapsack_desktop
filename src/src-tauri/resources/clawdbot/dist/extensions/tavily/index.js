@@ -1,19 +1,15 @@
-import { f as readNumberParam, g as readStringParam, l as jsonResult } from "../../common-C4RGIxnG.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import "../../provider-web-search-fsZ6HXjy.js";
-import { n as runTavilyExtract, r as runTavilySearch } from "../../tavily-client-CsRb3PnT.js";
-import { t as createTavilyWebSearchProvider } from "../../tavily-search-provider-hXvEvaU5.js";
+import { r as optionalStringEnum } from "../../typebox-CjEaoMel.js";
+import { c as jsonResult, f as readNumberParam, g as readStringParam } from "../../common-E9YpX7pB.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../channel-actions-DMN7G5RZ.js";
+import "../../provider-web-search-DNIStESL.js";
+import { n as runTavilySearch, t as runTavilyExtract } from "../../tavily-client-DDsyjm82.js";
+import { t as createTavilyWebSearchProvider } from "../../tavily-search-provider-BTyAYEKb.js";
 import { Type } from "typebox";
-//#region extensions/tavily/src/tavily-tool-schema.ts
-function optionalStringEnum(values, options = {}) {
-	return Type.Optional(Type.Unsafe({
-		type: "string",
-		enum: [...values],
-		...options
-	}));
-}
-//#endregion
 //#region extensions/tavily/src/tavily-extract-tool.ts
+function resolveTavilyToolConfig$1(api, ctx) {
+	return ctx?.getRuntimeConfig?.() ?? ctx?.runtimeConfig ?? ctx?.config ?? api.config;
+}
 const TavilyExtractToolSchema = Type.Object({
 	urls: Type.Array(Type.String(), {
 		description: "One or more URLs to extract content from (max 20).",
@@ -29,7 +25,7 @@ const TavilyExtractToolSchema = Type.Object({
 	})),
 	include_images: Type.Optional(Type.Boolean({ description: "Include image URLs in extraction results." }))
 }, { additionalProperties: false });
-function createTavilyExtractTool(api) {
+function createTavilyExtractTool(api, ctx) {
 	return {
 		name: "tavily_extract",
 		label: "Tavily Extract",
@@ -44,7 +40,7 @@ function createTavilyExtractTool(api) {
 			if (chunksPerSource !== void 0 && !query) throw new Error("tavily_extract requires query when chunks_per_source is set.");
 			const includeImages = rawParams.include_images === true;
 			return jsonResult(await runTavilyExtract({
-				cfg: api.config,
+				cfg: resolveTavilyToolConfig$1(api, ctx),
 				urls,
 				query,
 				extractDepth,
@@ -56,6 +52,9 @@ function createTavilyExtractTool(api) {
 }
 //#endregion
 //#region extensions/tavily/src/tavily-search-tool.ts
+function resolveTavilyToolConfig(api, ctx) {
+	return ctx?.getRuntimeConfig?.() ?? ctx?.runtimeConfig ?? ctx?.config ?? api.config;
+}
 const TavilySearchToolSchema = Type.Object({
 	query: Type.String({ description: "Search query string." }),
 	search_depth: optionalStringEnum(["basic", "advanced"], { description: "Search depth: \"basic\" (default, faster) or \"advanced\" (more thorough)." }),
@@ -79,7 +78,7 @@ const TavilySearchToolSchema = Type.Object({
 	include_domains: Type.Optional(Type.Array(Type.String(), { description: "Only include results from these domains." })),
 	exclude_domains: Type.Optional(Type.Array(Type.String(), { description: "Exclude results from these domains." }))
 }, { additionalProperties: false });
-function createTavilySearchTool(api) {
+function createTavilySearchTool(api, ctx) {
 	return {
 		name: "tavily_search",
 		label: "Tavily Search",
@@ -95,7 +94,7 @@ function createTavilySearchTool(api) {
 			const includeDomains = Array.isArray(rawParams.include_domains) ? rawParams.include_domains.filter(Boolean) : void 0;
 			const excludeDomains = Array.isArray(rawParams.exclude_domains) ? rawParams.exclude_domains.filter(Boolean) : void 0;
 			return jsonResult(await runTavilySearch({
-				cfg: api.config,
+				cfg: resolveTavilyToolConfig(api, ctx),
 				query,
 				searchDepth,
 				topic,
@@ -116,8 +115,8 @@ var tavily_default = definePluginEntry({
 	description: "Bundled Tavily search and extract plugin",
 	register(api) {
 		api.registerWebSearchProvider(createTavilyWebSearchProvider());
-		api.registerTool(createTavilySearchTool(api));
-		api.registerTool(createTavilyExtractTool(api));
+		api.registerTool((ctx) => createTavilySearchTool(api, ctx), { name: "tavily_search" });
+		api.registerTool((ctx) => createTavilyExtractTool(api, ctx), { name: "tavily_extract" });
 	}
 });
 //#endregion

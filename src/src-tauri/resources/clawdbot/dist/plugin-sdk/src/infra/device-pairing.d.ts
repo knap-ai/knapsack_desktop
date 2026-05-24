@@ -67,8 +67,10 @@ export type PairedDevice = {
     tokens?: Record<string, DeviceAuthToken>;
     createdAtMs: number;
     approvedAtMs: number;
+    lastSeenAtMs?: number;
+    lastSeenReason?: string;
 };
-export type PairedDeviceMetadataPatch = Pick<PairedDevice, "displayName" | "clientId" | "clientMode" | "remoteIp">;
+export type PairedDeviceMetadataPatch = Pick<PairedDevice, "displayName" | "platform" | "clientId" | "clientMode" | "remoteIp" | "lastSeenAtMs" | "lastSeenReason">;
 export type DevicePairingList = {
     pending: DevicePairingPendingRequest[];
     paired: PairedDevice[];
@@ -109,7 +111,7 @@ export declare function rejectDevicePairing(requestId: string, baseDir?: string)
 export declare function removePairedDevice(deviceId: string, baseDir?: string): Promise<{
     deviceId: string;
 } | null>;
-export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<PairedDeviceMetadataPatch>, baseDir?: string): Promise<void>;
+export declare function updatePairedDeviceMetadata(deviceId: string, patch: Partial<PairedDeviceMetadataPatch>, baseDir?: string): Promise<boolean>;
 export declare function summarizeDeviceTokens(tokens: Record<string, DeviceAuthToken> | undefined): DeviceAuthTokenSummary[] | undefined;
 export declare function verifyDeviceToken(params: {
     deviceId: string;

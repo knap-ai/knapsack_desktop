@@ -11,12 +11,8 @@ export declare function createFacadeResolutionKey(params: {
     dirName: string;
     artifactBasename: string;
     bundledPluginsDir?: string | null;
+    env?: NodeJS.ProcessEnv;
 }): string;
-export declare function resolveCachedFacadeModuleLocation<TLocation>(params: {
-    cache: Map<string, TLocation | null>;
-    key: string;
-    resolve: () => TLocation | null;
-}): TLocation | null;
 export declare function resolveFacadeBoundaryRoot(params: {
     modulePath: string;
     bundledPluginsDir?: string | null;

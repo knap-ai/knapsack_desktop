@@ -16,6 +16,14 @@ export declare function sendUnauthorized(res: ServerResponse): void;
 export declare function sendRateLimited(res: ServerResponse, retryAfterMs?: number): void;
 export declare function sendGatewayAuthFailure(res: ServerResponse, authResult: GatewayAuthResult): void;
 export declare function sendInvalidRequest(res: ServerResponse, message: string): void;
+export declare function buildMissingScopeForbiddenBody(missingScope: string | undefined): {
+    ok: boolean;
+    error: {
+        type: string;
+        message: string;
+    };
+};
+export declare function sendMissingScopeForbidden(res: ServerResponse, missingScope: string | undefined): void;
 export declare function readJsonBodyOrError(req: IncomingMessage, res: ServerResponse, maxBytes: number): Promise<unknown>;
 export declare function writeDone(res: ServerResponse): void;
 export declare function setSseHeaders(res: ServerResponse): void;

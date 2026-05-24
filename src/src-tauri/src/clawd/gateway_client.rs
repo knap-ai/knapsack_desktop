@@ -22,7 +22,7 @@ use tokio_tungstenite::{connect_async, tungstenite::{client::IntoClientRequest, 
 use crate::clawd::gateway_supervisor;
 
 const GATEWAY_WS_URL: &str = "ws://127.0.0.1:18789";
-const PROTOCOL_VERSION: u32 = 3;
+const PROTOCOL_VERSION: u32 = 4;
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
 
 // Backpressure: cap concurrent in-flight requests.

@@ -1,15 +1,9 @@
 import { z, type ZodType } from "zod";
-export declare const DeliveryModeFieldSchema: z.ZodPipe<z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodEnum<{
-    announce: "announce";
-    deliver: "deliver";
-    none: "none";
-    webhook: "webhook";
-}>>, z.ZodTransform<"announce" | "none" | "webhook", "announce" | "deliver" | "none" | "webhook">>;
-export declare const LowercaseNonEmptyStringFieldSchema: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
-export declare const TrimmedNonEmptyStringFieldSchema: z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>;
-export declare const DeliveryThreadIdFieldSchema: z.ZodUnion<readonly [z.ZodPipe<z.ZodTransform<unknown, unknown>, z.ZodString>, z.ZodNumber]>;
+export declare const LowercaseNonEmptyStringFieldSchema: z.ZodPreprocess<z.ZodString>;
+export declare const TrimmedNonEmptyStringFieldSchema: z.ZodPreprocess<z.ZodString>;
+export declare const DeliveryThreadIdFieldSchema: z.ZodUnion<readonly [z.ZodPreprocess<z.ZodString>, z.ZodNumber]>;
 export declare const TimeoutSecondsFieldSchema: z.ZodPipe<z.ZodNumber, z.ZodTransform<number, number>>;
-export type ParsedDeliveryInput = {
+type ParsedDeliveryInput = {
     mode?: "announce" | "none" | "webhook";
     channel?: string;
     to?: string;
@@ -18,3 +12,4 @@ export type ParsedDeliveryInput = {
 };
 export declare function parseDeliveryInput(input: Record<string, unknown>): ParsedDeliveryInput;
 export declare function parseOptionalField<T>(schema: ZodType<T>, value: unknown): T | undefined;
+export {};

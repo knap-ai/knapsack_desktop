@@ -3,10 +3,6 @@ export declare function loadBundledWebSearchProviderEntriesFromDir(params: {
     dirName: string;
     pluginId: string;
 }): PluginWebSearchProviderEntry[] | null;
-export declare function loadBundledRuntimeWebSearchProviderEntriesFromDir(params: {
-    dirName: string;
-    pluginId: string;
-}): PluginWebSearchProviderEntry[] | null;
 export declare function loadBundledWebFetchProviderEntriesFromDir(params: {
     dirName: string;
     pluginId: string;

@@ -4,6 +4,7 @@ import type { CachedRuntimeState } from "./runtime-cache.js";
 export declare function resolveManagerRuntimeCapabilities(params: {
     runtime: AcpRuntime;
     handle: AcpRuntimeHandle;
+    includeStatusConfigOptionKeys?: boolean;
 }): Promise<AcpRuntimeCapabilities>;
 export declare function applyManagerRuntimeControls(params: {
     sessionKey: string;

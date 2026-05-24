@@ -1,2 +1,2 @@
-import { t as __testing } from "../../perplexity-web-search-provider.runtime-Du8Jbgl2.js";
-export { __testing };
+import { n as testing } from "../../perplexity-web-search-provider.runtime-COwyH0HC.js";
+export { testing as __testing, testing };

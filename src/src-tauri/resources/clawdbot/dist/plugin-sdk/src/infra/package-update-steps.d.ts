@@ -8,7 +8,7 @@ export type PackageUpdateStepResult = {
     stdoutTail?: string | null;
     stderrTail?: string | null;
 };
-export type PackageUpdateStepRunner = (params: {
+type PackageUpdateStepRunner = (params: {
     name: string;
     argv: string[];
     cwd?: string;
@@ -32,3 +32,4 @@ export declare function runGlobalPackageUpdateSteps(params: {
     afterVersion: string | null;
     failedStep: PackageUpdateStepResult | null;
 }>;
+export {};

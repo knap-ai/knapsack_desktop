@@ -6,6 +6,8 @@ export declare function stripUnknownConfigKeys(config: OpenClawConfig): {
     removed: string[];
 };
 export declare function noteOpencodeProviderOverrides(cfg: OpenClawConfig): void;
+export declare function collectImplicitFallbackClobberWarnings(cfg: OpenClawConfig): string[];
+export declare function noteImplicitFallbackClobberWarnings(cfg: OpenClawConfig): void;
 export declare function noteIncludeConfinementWarning(snapshot: {
     path?: string | null;
     issues?: Array<{

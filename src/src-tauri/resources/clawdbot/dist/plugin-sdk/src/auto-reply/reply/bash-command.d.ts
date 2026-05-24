@@ -16,4 +16,3 @@ export declare function handleBashChatCommand(params: {
         }>;
     };
 }): Promise<ReplyPayload>;
-export declare function resetBashChatCommandForTests(): void;

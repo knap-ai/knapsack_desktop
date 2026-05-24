@@ -30,7 +30,7 @@ export declare function shouldUseEnvHttpProxyForUrl(targetUrl: string, env?: Nod
  * - Entries separated by commas OR whitespace (undici splits on `/[,\s]/`)
  * - Case-insensitive
  * - Empty or missing → no bypass
- * - `*` → bypass everything
+ * - Bare `*` value → bypass everything
  * - Exact hostname match
  * - Leading-dot match (`.example.com` matches `foo.example.com`)
  * - Leading `*.` wildcard match (`*.example.com` matches `foo.example.com`);
@@ -39,6 +39,9 @@ export declare function shouldUseEnvHttpProxyForUrl(targetUrl: string, env?: Nod
  * - Subdomain suffix match (`openai.com` matches `api.openai.com`)
  * - Optional `:port` suffix; when present, must match target port
  * - IPv6 literals in bracketed form (`[::1]`)
+ * - OpenClaw extension: IPv4 CIDR and octet-wildcard entries
+ *   (`100.64.0.0/10`, `100.64.*`) bypass the trusted env proxy mode before
+ *   undici's EnvHttpProxyAgent is selected.
  *
  * Undici does not export its matcher, so this is a targeted reimplementation
  * kept in sync with the upstream file above. Paired with

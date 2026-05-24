@@ -10,7 +10,6 @@ export declare function respondInvalidParams(params: {
     validator: ValidatorFn;
 }): void;
 export declare function respondUnavailableOnThrow(respond: RespondFn, fn: () => Promise<void>): Promise<void>;
-export declare function uniqueSortedStrings(values: unknown[]): string[];
 export declare function respondUnavailableOnNodeInvokeError<T extends {
     ok: boolean;
     error?: unknown;

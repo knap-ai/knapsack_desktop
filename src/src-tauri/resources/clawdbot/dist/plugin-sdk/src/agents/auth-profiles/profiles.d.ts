@@ -5,6 +5,11 @@ export declare function setAuthProfileOrder(params: {
     provider: string;
     order?: string[] | null;
 }): Promise<AuthProfileStore | null>;
+export declare function promoteAuthProfileInOrder(params: {
+    agentDir?: string;
+    provider: string;
+    profileId: string;
+}): Promise<AuthProfileStore | null>;
 export declare function upsertAuthProfile(params: {
     profileId: string;
     credential: AuthProfileCredential;
@@ -19,7 +24,12 @@ export declare function removeProviderAuthProfilesWithLock(params: {
     provider: string;
     agentDir?: string;
 }): Promise<AuthProfileStore | null>;
-export declare function markAuthProfileGood(params: {
+export declare function clearLastGoodProfileWithLock(params: {
+    provider: string;
+    profileId: string;
+    agentDir?: string;
+}): Promise<AuthProfileStore | null>;
+export declare function markAuthProfileSuccess(params: {
     store: AuthProfileStore;
     provider: string;
     profileId: string;

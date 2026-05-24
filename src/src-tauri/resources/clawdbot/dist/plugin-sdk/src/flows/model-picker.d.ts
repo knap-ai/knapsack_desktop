@@ -32,6 +32,8 @@ export declare function promptModelAllowlist(params: {
     prompter: WizardPrompter;
     message?: string;
     agentDir?: string;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
     allowedKeys?: string[];
     initialSelections?: string[];
     preferredProvider?: string;

@@ -41,11 +41,12 @@ export type PluginNpmIntegrityDriftParams = {
     resolution: NpmSpecResolution;
 };
 type PluginInstallPolicyRequest = {
-    kind: "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";
+    kind: "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm" | "plugin-git";
     requestedSpecifier?: string;
 };
 type PackageInstallCommonParams = InstallSafetyOverrides & {
     extensionsDir?: string;
+    npmDir?: string;
     timeoutMs?: number;
     logger?: PluginInstallLogger;
     mode?: "install" | "update";
@@ -54,6 +55,11 @@ type PackageInstallCommonParams = InstallSafetyOverrides & {
     requirePluginManifest?: boolean;
     installPolicyRequest?: PluginInstallPolicyRequest;
 };
+export declare function installPluginFromInstalledPackageDir(params: {
+    additionalDependencyPackageDirs?: string[];
+    packageDir: string;
+    dependencyScanRootDir?: string;
+} & PackageInstallCommonParams): Promise<InstallPluginResult>;
 export declare function installPluginFromArchive(params: {
     archivePath: string;
 } & PackageInstallCommonParams): Promise<InstallPluginResult>;
@@ -72,6 +78,7 @@ export declare function installPluginFromFile(params: {
 export declare function installPluginFromNpmSpec(params: InstallSafetyOverrides & {
     spec: string;
     extensionsDir?: string;
+    npmDir?: string;
     timeoutMs?: number;
     logger?: PluginInstallLogger;
     mode?: "install" | "update";
@@ -80,6 +87,20 @@ export declare function installPluginFromNpmSpec(params: InstallSafetyOverrides 
     expectedIntegrity?: string;
     onIntegrityDrift?: (params: PluginNpmIntegrityDriftParams) => boolean | Promise<boolean>;
 }): Promise<InstallPluginResult>;
+export declare function installPluginFromNpmPackArchive(params: InstallSafetyOverrides & {
+    archivePath: string;
+    extensionsDir?: string;
+    npmDir?: string;
+    timeoutMs?: number;
+    logger?: PluginInstallLogger;
+    mode?: "install" | "update";
+    dryRun?: boolean;
+    expectedPluginId?: string;
+    expectedIntegrity?: string;
+    onIntegrityDrift?: (params: PluginNpmIntegrityDriftParams) => boolean | Promise<boolean>;
+}): Promise<InstallPluginResult & {
+    npmTarballName?: string;
+}>;
 export declare function installPluginFromPath(params: {
     path: string;
 } & PackageInstallCommonParams): Promise<InstallPluginResult>;

@@ -1,4 +1,5 @@
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import { type EventSessionRoutingPolicy } from "../infra/event-session-routing.js";
 import { type ExecHost, type ExecApprovalDecision, type ExecTarget } from "../infra/exec-approvals.js";
 import type { ProcessSession } from "./bash-process-registry.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
@@ -6,7 +7,7 @@ import type { BashSandboxConfig } from "./bash-tools.shared.js";
 export { applyPathPrepend, findPathKey, normalizePathPrepend } from "../infra/path-prepend.js";
 export { normalizeExecAsk, normalizeExecHost, normalizeExecSecurity, normalizeExecTarget, } from "../infra/exec-approvals.js";
 import type { RunExit } from "../process/supervisor/types.js";
-import { type DeliveryContext } from "../utils/delivery-context.js";
+import { type DeliveryContext } from "../utils/delivery-context.shared.js";
 export { execSchema } from "./bash-tools.schemas.js";
 /**
  * Detect cursor key mode from PTY output chunk.
@@ -87,7 +88,15 @@ export declare function emitExecSystemEvent(text: string, opts: {
     sessionKey?: string;
     contextKey?: string;
     deliveryContext?: DeliveryContext;
+    /** `session.mainKey` from the runtime config; pass-through of `undefined`
+     *  falls back to the literal "main" default in `resolveEventSessionKey`. */
+    mainKey?: string;
+    /** `session.scope` from the runtime config; needed so global-scope
+     *  agents route cron-run events to the "global" queue. */
+    sessionScope?: "per-sender" | "global";
+    eventRouting?: EventSessionRoutingPolicy;
 }): void;
+export { renderExecUpdateText } from "./bash-tools.exec-output.js";
 export declare function formatExecFailureReason(params: {
     failureKind: ExecExitFailureKind;
     exitSignal: NodeJS.Signals | number | null;
@@ -109,6 +118,7 @@ export declare function runExecProcess(opts: {
     execCommand?: string;
     workdir: string;
     env: Record<string, string>;
+    pathPrepend?: string[];
     sandbox?: BashSandboxConfig;
     containerWorkdir?: string | null;
     usePty: boolean;
@@ -119,6 +129,17 @@ export declare function runExecProcess(opts: {
     notifyOnExitEmptySuccess?: boolean;
     scopeKey?: string;
     sessionKey?: string;
+    /** `session.mainKey` from the runtime config; snapshotted onto the
+     *  ProcessSession so background-exit notifications can remap cron-run
+     *  keys without an ambient config load. Long-running background exits use
+     *  this start-time value even if config changes while the process runs. */
+    mainKey?: string;
+    /** `session.scope` from the runtime config; snapshotted alongside
+     *  `mainKey` so the cron-run remap can route global-scope agents to
+     *  the "global" queue instead of agent-main. */
+    sessionScope?: "per-sender" | "global";
+    /** Start-time routing policy for detached exec system events. */
+    eventRouting?: EventSessionRoutingPolicy;
     notifyDeliveryContext?: DeliveryContext;
     timeoutSec: number | null;
     onUpdate?: (partialResult: AgentToolResult<ExecToolDetails>) => void;

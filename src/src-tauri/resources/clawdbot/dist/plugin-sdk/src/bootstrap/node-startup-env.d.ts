@@ -1,5 +1,5 @@
 import { type EnvMap } from "./node-extra-ca-certs.js";
-export type NodeStartupTlsEnvironment = {
+type NodeStartupTlsEnvironment = {
     NODE_EXTRA_CA_CERTS?: string;
     NODE_USE_SYSTEM_CA?: string;
 };
@@ -10,3 +10,4 @@ export declare function resolveNodeStartupTlsEnvironment(params?: {
     includeDarwinDefaults?: boolean;
     accessSync?: (path: string, mode?: number) => void;
 }): NodeStartupTlsEnvironment;
+export {};

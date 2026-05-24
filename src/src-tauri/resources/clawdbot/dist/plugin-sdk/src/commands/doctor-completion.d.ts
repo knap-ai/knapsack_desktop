@@ -20,7 +20,7 @@ export type DoctorCompletionOptions = {
  * - If profile has completion but no cache: auto-generate cache and upgrade profile
  * - If no completion at all: prompt to install (with user confirmation)
  */
-export declare function doctorShellCompletion(runtime: RuntimeEnv, prompter: DoctorPrompter, options?: DoctorCompletionOptions): Promise<void>;
+export declare function doctorShellCompletion(_runtime: RuntimeEnv, prompter: DoctorPrompter, options?: DoctorCompletionOptions): Promise<void>;
 /**
  * Ensure completion cache exists. Used during setup/update to fix
  * cases where profile has completion but no cache.

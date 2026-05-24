@@ -3,7 +3,7 @@ type RouteLike = {
     sessionKey: string;
 };
 type RoutePeerLike = {
-    kind: string;
+    kind: "direct" | "group" | "channel";
     id: string | number;
 };
 type InboundEnvelopeFormatParams<TEnvelope> = {

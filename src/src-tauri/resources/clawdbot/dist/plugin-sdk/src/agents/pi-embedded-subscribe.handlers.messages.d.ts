@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentEvent, AgentMessage } from "@earendil-works/pi-agent-core";
 import { type ReplyDirectiveParseResult } from "../auto-reply/reply/reply-directives.js";
 import { type AssistantPhase } from "../shared/chat-message-content.js";
 import type { BlockReplyPayload } from "./pi-embedded-payloads.js";

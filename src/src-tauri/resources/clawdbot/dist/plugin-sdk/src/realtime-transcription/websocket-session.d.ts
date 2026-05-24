@@ -11,10 +11,11 @@ export type RealtimeTranscriptionWebSocketTransport = {
 };
 export type RealtimeTranscriptionWebSocketSessionOptions<Event = unknown> = {
     callbacks: RealtimeTranscriptionSessionCallbacks;
+    connectClosedBeforeReadyMessage?: string;
     connectTimeoutMessage?: string;
     connectTimeoutMs?: number;
     closeTimeoutMs?: number;
-    headers?: Record<string, string>;
+    headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
     maxQueuedBytes?: number;
     maxReconnectAttempts?: number;
     onClose?: (transport: RealtimeTranscriptionWebSocketTransport) => void;
@@ -26,6 +27,6 @@ export type RealtimeTranscriptionWebSocketSessionOptions<Event = unknown> = {
     reconnectDelayMs?: number;
     reconnectLimitMessage?: string;
     sendAudio: (audio: Buffer, transport: RealtimeTranscriptionWebSocketTransport) => void;
-    url: string | (() => string);
+    url: string | (() => string | Promise<string>);
 };
 export declare function createRealtimeTranscriptionWebSocketSession<Event = unknown>(options: RealtimeTranscriptionWebSocketSessionOptions<Event>): RealtimeTranscriptionSession;

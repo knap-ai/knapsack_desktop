@@ -1,44 +1,10 @@
 {
   "entries": [
     {
-      "name": "@openclaw/bluebubbles",
-      "version": "2026.4.25",
-      "description": "OpenClaw BlueBubbles channel plugin",
-      "openclaw": {
-        "channel": {
-          "id": "bluebubbles",
-          "label": "BlueBubbles",
-          "selectionLabel": "BlueBubbles (macOS app)",
-          "detailLabel": "BlueBubbles",
-          "docsPath": "/channels/bluebubbles",
-          "docsLabel": "bluebubbles",
-          "blurb": "iMessage via the BlueBubbles mac app + REST API.",
-          "aliases": [
-            "bb"
-          ],
-          "preferOver": [
-            "imessage"
-          ],
-          "systemImage": "bubble.left.and.text.bubble.right",
-          "order": 75,
-          "cliAddOptions": [
-            {
-              "flags": "--webhook-path <path>",
-              "description": "BlueBubbles webhook path"
-            }
-          ]
-        },
-        "install": {
-          "npmSpec": "@openclaw/bluebubbles",
-          "defaultChoice": "npm",
-          "minHostVersion": ">=2026.4.10"
-        }
-      }
-    },
-    {
       "name": "@openclaw/discord",
-      "version": "2026.4.25",
       "description": "OpenClaw Discord channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "discord",
@@ -50,26 +16,21 @@
           "blurb": "very well supported right now.",
           "systemImage": "bubble.left.and.bubble.right",
           "markdownCapable": true,
-          "commands": {
-            "nativeCommandsAutoEnabled": true,
-            "nativeSkillsAutoEnabled": true
-          },
-          "configuredState": {
-            "specifier": "./configured-state",
-            "exportName": "hasDiscordConfiguredState"
-          }
+          "preferSessionLookupForAnnounceTarget": true
         },
         "install": {
           "npmSpec": "@openclaw/discord",
           "defaultChoice": "npm",
-          "minHostVersion": ">=2026.4.10"
+          "minHostVersion": ">=2026.4.10",
+          "allowInvalidConfigRecovery": true
         }
       }
     },
     {
       "name": "@openclaw/feishu",
-      "version": "2026.4.25",
-      "description": "OpenClaw Feishu/Lark channel plugin (community maintained by @m1heng)",
+      "description": "OpenClaw Feishu/Lark channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "feishu",
@@ -92,9 +53,141 @@
       }
     },
     {
+      "name": "@openclaw/googlechat",
+      "description": "OpenClaw Google Chat channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "googlechat",
+          "label": "Google Chat",
+          "selectionLabel": "Google Chat (Chat API)",
+          "detailLabel": "Google Chat",
+          "docsPath": "/channels/googlechat",
+          "docsLabel": "googlechat",
+          "blurb": "Google Workspace Chat app with HTTP webhook.",
+          "aliases": [
+            "gchat",
+            "google-chat"
+          ],
+          "order": 55,
+          "systemImage": "message.badge",
+          "markdownCapable": true,
+          "doctorCapabilities": {
+            "dmAllowFromMode": "nestedOnly",
+            "groupModel": "route",
+            "groupAllowFromFallbackToAllowFrom": false,
+            "warnOnEmptyGroupSenderAllowlist": false
+          },
+          "cliAddOptions": [
+            {
+              "flags": "--webhook-path <path>",
+              "description": "Google Chat webhook path"
+            },
+            {
+              "flags": "--webhook-url <url>",
+              "description": "Google Chat webhook URL"
+            },
+            {
+              "flags": "--audience-type <type>",
+              "description": "Google Chat audience type (app-url|project-number)"
+            },
+            {
+              "flags": "--audience <value>",
+              "description": "Google Chat audience value (app URL or project number)"
+            }
+          ]
+        },
+        "install": {
+          "npmSpec": "@openclaw/googlechat",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.4.10"
+        }
+      }
+    },
+    {
+      "name": "@openclaw/line",
+      "description": "OpenClaw LINE channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "line",
+          "label": "LINE",
+          "selectionLabel": "LINE (Messaging API)",
+          "detailLabel": "LINE Bot",
+          "docsPath": "/channels/line",
+          "docsLabel": "line",
+          "blurb": "LINE Messaging API webhook bot.",
+          "systemImage": "message",
+          "order": 75,
+          "quickstartAllowFrom": true
+        },
+        "install": {
+          "npmSpec": "@openclaw/line",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.4.10"
+        }
+      }
+    },
+    {
+      "name": "@openclaw/matrix",
+      "description": "OpenClaw Matrix channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "matrix",
+          "label": "Matrix",
+          "selectionLabel": "Matrix (plugin)",
+          "docsPath": "/channels/matrix",
+          "docsLabel": "matrix",
+          "blurb": "open protocol; install the plugin to enable.",
+          "order": 70,
+          "quickstartAllowFrom": true,
+          "doctorCapabilities": {
+            "dmAllowFromMode": "nestedOnly",
+            "groupModel": "sender",
+            "groupAllowFromFallbackToAllowFrom": false,
+            "warnOnEmptyGroupSenderAllowlist": true
+          },
+          "cliAddOptions": [
+            {
+              "flags": "--homeserver <url>",
+              "description": "Matrix homeserver URL"
+            },
+            {
+              "flags": "--user-id <id>",
+              "description": "Matrix user ID"
+            },
+            {
+              "flags": "--access-token <token>",
+              "description": "Matrix access token"
+            },
+            {
+              "flags": "--device-name <name>",
+              "description": "Matrix device name"
+            },
+            {
+              "flags": "--initial-sync-limit <n>",
+              "description": "Matrix initial sync limit"
+            }
+          ]
+        },
+        "install": {
+          "clawhubSpec": "clawhub:@openclaw/matrix",
+          "npmSpec": "@openclaw/matrix",
+          "defaultChoice": "clawhub",
+          "minHostVersion": ">=2026.4.10",
+          "allowInvalidConfigRecovery": true
+        }
+      }
+    },
+    {
       "name": "@openclaw/msteams",
-      "version": "2026.4.25",
       "description": "OpenClaw Microsoft Teams channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "msteams",
@@ -106,13 +199,7 @@
           "aliases": [
             "teams"
           ],
-          "order": 60,
-          "doctorCapabilities": {
-            "dmAllowFromMode": "topOnly",
-            "groupModel": "hybrid",
-            "groupAllowFromFallbackToAllowFrom": false,
-            "warnOnEmptyGroupSenderAllowlist": true
-          }
+          "order": 60
         },
         "install": {
           "npmSpec": "@openclaw/msteams",
@@ -123,8 +210,9 @@
     },
     {
       "name": "@openclaw/nextcloud-talk",
-      "version": "2026.4.25",
       "description": "OpenClaw Nextcloud Talk channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "nextcloud-talk",
@@ -149,8 +237,9 @@
     },
     {
       "name": "@openclaw/nostr",
-      "version": "2026.4.25",
       "description": "OpenClaw Nostr channel plugin for NIP-04 encrypted DMs",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "nostr",
@@ -160,17 +249,7 @@
           "docsLabel": "nostr",
           "blurb": "Decentralized protocol; encrypted DMs via NIP-04.",
           "order": 55,
-          "quickstartAllowFrom": true,
-          "cliAddOptions": [
-            {
-              "flags": "--private-key <key>",
-              "description": "Nostr private key (nsec... or hex)"
-            },
-            {
-              "flags": "--relay-urls <list>",
-              "description": "Nostr relay URLs (comma-separated)"
-            }
-          ]
+          "quickstartAllowFrom": true
         },
         "install": {
           "npmSpec": "@openclaw/nostr",
@@ -180,37 +259,53 @@
       }
     },
     {
-      "name": "openclaw-plugin-yuanbao",
-      "description": "OpenClaw Yuanbao channel plugin by the Tencent Yuanbao team.",
+      "name": "@tencent-weixin/openclaw-weixin",
+      "description": "OpenClaw Weixin channel plugin by the Tencent Weixin team.",
       "source": "external",
       "kind": "channel",
       "openclaw": {
+        "plugin": {
+          "id": "openclaw-weixin",
+          "label": "Weixin"
+        },
         "channel": {
-          "id": "openclaw-plugin-yuanbao",
-          "label": "Yuanbao",
-          "selectionLabel": "Yuanbao (元宝)",
-          "detailLabel": "Yuanbao",
-          "docsPath": "/plugins/community#yuanbao",
-          "docsLabel": "yuanbao",
-          "blurb": "Tencent Yuanbao AI assistant conversation channel.",
+          "id": "openclaw-weixin",
+          "label": "Weixin",
+          "selectionLabel": "Weixin（微信）",
+          "detailLabel": "Weixin",
+          "docsPath": "/channels/wechat",
+          "docsLabel": "weixin",
+          "blurb": "Personal WeChat messaging via QR-code login.",
           "aliases": [
-            "yb",
-            "tencent-yuanbao",
-            "元宝"
+            "weixin",
+            "wechat",
+            "微信"
           ],
-          "order": 85
+          "order": 75
+        },
+        "channelConfigs": {
+          "openclaw-weixin": {
+            "label": "Weixin",
+            "description": "Personal WeChat conversation channel.",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
         },
         "install": {
-          "npmSpec": "openclaw-plugin-yuanbao@2.11.0",
+          "npmSpec": "@tencent-weixin/openclaw-weixin@2.4.3",
           "defaultChoice": "npm",
-          "expectedIntegrity": "sha512-lYmBrU71ox3v7dzRqaltvzTXPcMjjgYrNqpBj5HIBkXgEFkXRRG8wplXg9Fub41/FjsSPn3WAbYpdTc+k+jsHg=="
+          "expectedIntegrity": "sha512-dPQbidUNWigC6V10vGW4i+GLH09x+6zUhafZRjuxkJ9GDu8o62WBsnUTojp4KqUH756hz+t2v9khiCRSi0dBDw==",
+          "minHostVersion": ">=2026.3.22"
         }
       }
     },
     {
       "name": "@openclaw/qqbot",
-      "version": "2026.4.26",
       "description": "OpenClaw QQ Bot channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "qqbot",
@@ -230,11 +325,113 @@
       }
     },
     {
+      "name": "@openclaw/slack",
+      "description": "OpenClaw Slack channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "slack",
+          "label": "Slack",
+          "selectionLabel": "Slack (Socket Mode)",
+          "detailLabel": "Slack Bot",
+          "docsPath": "/channels/slack",
+          "docsLabel": "slack",
+          "blurb": "supported (Socket Mode).",
+          "systemImage": "number",
+          "markdownCapable": true
+        },
+        "install": {
+          "npmSpec": "@openclaw/slack",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.5.12-beta.1",
+          "allowInvalidConfigRecovery": true
+        }
+      }
+    },
+    {
+      "name": "@openclaw/synology-chat",
+      "description": "Synology Chat channel plugin for OpenClaw",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "synology-chat",
+          "label": "Synology Chat",
+          "selectionLabel": "Synology Chat (Webhook)",
+          "docsPath": "/channels/synology-chat",
+          "docsLabel": "synology-chat",
+          "blurb": "Connect your Synology NAS Chat to OpenClaw with full agent capabilities.",
+          "order": 90
+        },
+        "install": {
+          "npmSpec": "@openclaw/synology-chat",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.4.10"
+        }
+      }
+    },
+    {
+      "name": "@openclaw/tlon",
+      "description": "OpenClaw Tlon/Urbit channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "tlon",
+          "label": "Tlon",
+          "selectionLabel": "Tlon (Urbit)",
+          "docsPath": "/channels/tlon",
+          "docsLabel": "tlon",
+          "blurb": "decentralized messaging on Urbit; install the plugin to enable.",
+          "order": 90,
+          "quickstartAllowFrom": true
+        },
+        "install": {
+          "npmSpec": "@openclaw/tlon",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.4.10"
+        }
+      }
+    },
+    {
+      "name": "@openclaw/twitch",
+      "description": "OpenClaw Twitch channel plugin",
+      "source": "official",
+      "kind": "channel",
+      "openclaw": {
+        "channel": {
+          "id": "twitch",
+          "label": "Twitch",
+          "selectionLabel": "Twitch (Chat)",
+          "docsPath": "/channels/twitch",
+          "blurb": "Twitch chat integration",
+          "aliases": [
+            "twitch-chat"
+          ]
+        },
+        "install": {
+          "npmSpec": "@openclaw/twitch",
+          "defaultChoice": "npm",
+          "minHostVersion": ">=2026.4.10"
+        }
+      }
+    },
+    {
       "name": "@wecom/wecom-openclaw-plugin",
       "description": "OpenClaw WeCom channel plugin by the Tencent WeCom team.",
       "source": "external",
       "kind": "channel",
       "openclaw": {
+        "plugin": {
+          "id": "wecom-openclaw-plugin",
+          "label": "WeCom"
+        },
+        "contracts": {
+          "tools": [
+            "wecom_mcp"
+          ]
+        },
         "channel": {
           "id": "wecom",
           "label": "WeCom",
@@ -250,17 +447,28 @@
           ],
           "order": 45
         },
+        "channelConfigs": {
+          "wecom": {
+            "label": "WeCom",
+            "description": "Enterprise WeChat conversation channel.",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
         "install": {
-          "npmSpec": "@wecom/wecom-openclaw-plugin@2026.4.23",
+          "npmSpec": "@wecom/wecom-openclaw-plugin@2026.5.7",
           "defaultChoice": "npm",
-          "expectedIntegrity": "sha512-bnzfdIEEu1/LFvcdyjaTkyxt27w6c7dqhkPezU62OWaqmcdFsUGR3T55USK/O9pIKsNcnL1Tnu1pqKYCWHFgWQ=="
+          "expectedIntegrity": "sha512-TCkP9as00WfEhgFWG8YL/rcmaWGIshAki2HQh83nTRccGfVBCoGjrEboTTqq3yDmK9koWTV11zi8u8A4dNtvug=="
         }
       }
     },
     {
       "name": "@openclaw/whatsapp",
-      "version": "2026.4.25",
       "description": "OpenClaw WhatsApp channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "whatsapp",
@@ -270,29 +478,71 @@
           "docsPath": "/channels/whatsapp",
           "docsLabel": "whatsapp",
           "blurb": "works with your own number; recommend a separate phone + eSIM.",
-          "systemImage": "message",
-          "persistedAuthState": {
-            "specifier": "./auth-presence",
-            "exportName": "hasAnyWhatsAppAuth"
-          },
-          "cliAddOptions": [
-            {
-              "flags": "--auth-dir <path>",
-              "description": "WhatsApp auth directory override"
-            }
-          ]
+          "systemImage": "message"
         },
         "install": {
+          "clawhubSpec": "clawhub:@openclaw/whatsapp",
           "npmSpec": "@openclaw/whatsapp",
-          "defaultChoice": "npm",
+          "defaultChoice": "clawhub",
           "minHostVersion": ">=2026.4.25"
         }
       }
     },
     {
+      "name": "openclaw-plugin-yuanbao",
+      "description": "OpenClaw Yuanbao channel plugin by the Tencent Yuanbao team.",
+      "source": "external",
+      "kind": "channel",
+      "openclaw": {
+        "plugin": {
+          "id": "openclaw-plugin-yuanbao",
+          "label": "Yuanbao"
+        },
+        "contracts": {
+          "tools": [
+            "query_group_info",
+            "query_session_members",
+            "yuanbao_remind"
+          ]
+        },
+        "channel": {
+          "id": "yuanbao",
+          "label": "Yuanbao",
+          "selectionLabel": "Yuanbao (元宝)",
+          "detailLabel": "Yuanbao",
+          "docsPath": "/plugins/community#yuanbao",
+          "docsLabel": "yuanbao",
+          "blurb": "Tencent Yuanbao AI assistant conversation channel.",
+          "aliases": [
+            "yuanbao",
+            "yb",
+            "tencent-yuanbao",
+            "元宝"
+          ],
+          "order": 85
+        },
+        "channelConfigs": {
+          "yuanbao": {
+            "label": "Yuanbao",
+            "description": "Tencent Yuanbao AI assistant channel.",
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "install": {
+          "npmSpec": "openclaw-plugin-yuanbao@2.13.1",
+          "defaultChoice": "npm",
+          "expectedIntegrity": "sha512-lH2I9/nsmrg7l0YJJSQhOSpWMEFBAa6FwKbZcRLDFHDT2+mOZkHa44XE+8KYN4VmorlUdAxHzpZQmVr7C98IuA=="
+        }
+      }
+    },
+    {
       "name": "@openclaw/zalo",
-      "version": "2026.4.25",
       "description": "OpenClaw Zalo channel plugin",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "zalo",
@@ -316,8 +566,9 @@
     },
     {
       "name": "@openclaw/zalouser",
-      "version": "2026.4.25",
       "description": "OpenClaw Zalo Personal Account plugin via native zca-js integration",
+      "source": "official",
+      "kind": "channel",
       "openclaw": {
         "channel": {
           "id": "zalouser",
@@ -330,13 +581,7 @@
             "zlu"
           ],
           "order": 85,
-          "quickstartAllowFrom": false,
-          "doctorCapabilities": {
-            "dmAllowFromMode": "topOnly",
-            "groupModel": "hybrid",
-            "groupAllowFromFallbackToAllowFrom": false,
-            "warnOnEmptyGroupSenderAllowlist": false
-          }
+          "quickstartAllowFrom": false
         },
         "install": {
           "npmSpec": "@openclaw/zalouser",

@@ -24,12 +24,6 @@ export declare function extractFastDirective(body?: string): {
     rawLevel?: string;
     hasDirective: boolean;
 };
-export declare function extractNoticeDirective(body?: string): {
-    cleaned: string;
-    noticeLevel?: NoticeLevel;
-    rawLevel?: string;
-    hasDirective: boolean;
-};
 export declare function extractElevatedDirective(body?: string): {
     cleaned: string;
     elevatedLevel?: ElevatedLevel;

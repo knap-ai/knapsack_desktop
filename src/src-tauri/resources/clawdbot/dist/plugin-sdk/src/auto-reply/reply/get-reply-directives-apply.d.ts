@@ -10,6 +10,10 @@ import type { createModelSelectionState } from "./model-selection.js";
 import type { TypingController } from "./typing.js";
 type AgentDefaults = NonNullable<OpenClawConfig["agents"]>["defaults"];
 type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];
+export declare function formatModelOverrideResetEvent(params: {
+    rejectedRef?: string;
+    initialModelLabel: string;
+}): string;
 export type ApplyDirectiveResult = {
     kind: "reply";
     reply: ReplyPayload | ReplyPayload[] | undefined;
@@ -32,6 +36,7 @@ export declare function applyInlineDirectiveOverrides(params: {
     cfg: OpenClawConfig;
     agentId: string;
     agentDir: string;
+    workspaceDir: string;
     agentCfg: AgentDefaults;
     agentEntry?: AgentEntry;
     sessionEntry: SessionEntry;

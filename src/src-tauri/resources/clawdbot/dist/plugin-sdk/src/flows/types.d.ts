@@ -1,10 +1,10 @@
-export type FlowDocsLink = {
+type FlowDocsLink = {
     path: string;
     label?: string;
 };
-export type FlowContributionKind = "channel" | "core" | "provider" | "search";
-export type FlowContributionSurface = "auth-choice" | "health" | "model-picker" | "setup";
-export type FlowOptionGroup = {
+type FlowContributionKind = "channel" | "core" | "provider" | "search";
+type FlowContributionSurface = "auth-choice" | "health" | "model-picker" | "setup";
+type FlowOptionGroup = {
     id: string;
     label: string;
     hint?: string;
@@ -26,3 +26,4 @@ export type FlowContribution<Value extends string = string> = {
     source?: string;
 };
 export declare function sortFlowContributionsByLabel<T extends FlowContribution>(contributions: readonly T[]): T[];
+export {};

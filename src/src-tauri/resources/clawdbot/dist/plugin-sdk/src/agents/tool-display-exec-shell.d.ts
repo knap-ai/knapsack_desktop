@@ -10,7 +10,6 @@ export declare function positionalArgs(words: string[], from?: number, optionsWi
 export declare function firstPositional(words: string[], from?: number, optionsWithValue?: string[]): string | undefined;
 export declare function trimLeadingEnv(words: string[]): string[];
 export declare function unwrapShellWrapper(command: string): string;
-export declare function scanTopLevelChars(command: string, visit: (char: string, index: number) => boolean | void): void;
 export declare function splitTopLevelStages(command: string): string[];
 export declare function splitTopLevelPipes(command: string): string[];
 export declare function stripShellPreamble(command: string): PreambleResult;

@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { GatewayAuthConfig } from "../config/config.js";
+import type { GatewayAuthConfig } from "../config/types.gateway.js";
 import { type TailscaleWhoisIdentity } from "../infra/tailscale.js";
 import { type AuthRateLimiter } from "./auth-rate-limit.js";
 import { type ResolvedGatewayAuth } from "./auth-resolve.js";

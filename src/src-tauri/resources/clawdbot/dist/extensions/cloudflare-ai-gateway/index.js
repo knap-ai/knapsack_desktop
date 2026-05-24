@@ -1,20 +1,24 @@
-import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
-import { n as ensureAuthProfileStore } from "../../store-D-8DaAtv.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
-import { n as listProfilesForProvider } from "../../profile-list-zV5Cv5VC.js";
-import { i as upsertAuthProfile } from "../../profiles-CrHNjqxk.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-DHREnmQa.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-byAcxGN1.js";
-import "../../provider-auth-LNc11avL.js";
-import { n as CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../models-ogi_dCa8.js";
-import { t as buildCloudflareAiGatewayCatalogProvider } from "../../catalog-provider-q3L27xFd.js";
-import { r as buildCloudflareAiGatewayConfigPatch, t as applyCloudflareAiGatewayConfig } from "../../onboard-C69Viput.js";
+import { c as normalizeOptionalString } from "../../string-coerce-DyL154ka.js";
+import { n as ensureAuthProfileStore } from "../../store-BMQkMM4l.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CsdRhsMj.js";
+import { n as listProfilesForProvider } from "../../profile-list-C0HtPlut.js";
+import { s as upsertAuthProfileWithLock } from "../../profiles-9GB1thhi.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-DMNIEm93.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-BZ5Z8RV6.js";
+import "../../provider-auth-BtRKd5us.js";
+import { n as CLOUDFLARE_AI_GATEWAY_DEFAULT_MODEL_REF } from "../../models-CuqyJ_Cc.js";
+import { t as buildCloudflareAiGatewayCatalogProvider } from "../../catalog-provider-f5YYO5YZ.js";
+import { r as buildCloudflareAiGatewayConfigPatch, t as applyCloudflareAiGatewayConfig } from "../../onboard-B5XN6DVp.js";
+import { r as wrapCloudflareAiGatewayProviderStream } from "../../stream-wrappers-IZBZyl_j.js";
 //#region extensions/cloudflare-ai-gateway/index.ts
 const PROVIDER_ID = "cloudflare-ai-gateway";
 const PROVIDER_ENV_VAR = "CLOUDFLARE_AI_GATEWAY_API_KEY";
 const PROFILE_ID = "cloudflare-ai-gateway:default";
+async function upsertAuthProfileWithLockOrThrow(params) {
+	if (!await upsertAuthProfileWithLock(params)) throw new Error("Failed to update auth profile store; the auth store lock may be busy. Wait a moment and retry.");
+}
 function readRequiredTextInput(value) {
 	return typeof value === "string" ? value.trim() : "";
 }
@@ -127,7 +131,7 @@ var cloudflare_ai_gateway_default = definePluginEntry({
 							}
 						});
 						if (!credential) return null;
-						upsertAuthProfile({
+						await upsertAuthProfileWithLockOrThrow({
 							profileId: PROFILE_ID,
 							credential,
 							agentDir: ctx.agentDir
@@ -159,7 +163,8 @@ var cloudflare_ai_gateway_default = definePluginEntry({
 					return null;
 				}
 			},
-			classifyFailoverReason: ({ errorMessage }) => /\bworkers?_ai\b.*\b(?:rate|limit|quota)\b/i.test(errorMessage) ? "rate_limit" : void 0
+			classifyFailoverReason: ({ errorMessage }) => /\bworkers?_ai\b.*\b(?:rate|limit|quota)\b/i.test(errorMessage) ? "rate_limit" : void 0,
+			wrapStreamFn: wrapCloudflareAiGatewayProviderStream
 		});
 	}
 });

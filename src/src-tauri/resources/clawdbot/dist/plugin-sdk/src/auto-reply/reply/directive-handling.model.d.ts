@@ -20,6 +20,7 @@ export declare function maybeHandleModelDirectiveInfo(params: {
         name?: string;
     }>;
     resetModelOverride: boolean;
+    workspaceDir?: string;
     surface?: string;
-    sessionEntry?: Pick<SessionEntry, "modelProvider" | "model">;
+    sessionEntry?: Pick<SessionEntry, "modelProvider" | "model"> & Partial<Pick<SessionEntry, "agentHarnessId" | "agentRuntimeOverride">>;
 }): Promise<ReplyPayload | undefined>;

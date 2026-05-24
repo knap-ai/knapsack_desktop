@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src/src-tauri/resources/clawdbot/node_modules
-          key: clawdbot-nm-windows-${{ hashFiles('src/src-tauri/resources/clawdbot/package-lock.json') }}
+          key: clawdbot-nm-windows-${{ hashFiles('src/src-tauri/resources/clawdbot/npm-shrinkwrap.json') }}
           restore-keys: |
             clawdbot-nm-windows-
 
@@ -62,6 +62,10 @@ jobs:
       - name: Install bundled plugin runtime deps
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
+
+      - name: Report clawdbot duplicates before prune
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs
 
       - name: Run prebuild scripts
         working-directory: src
@@ -95,6 +99,10 @@ jobs:
       - name: Verify clawdbot bundle integrity
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
+
+      - name: Enforce clawdbot duplicate gate
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs --enforce
 
       - name: Build frontend
         # Must run BEFORE Pack (below) — the prebuild hook calls

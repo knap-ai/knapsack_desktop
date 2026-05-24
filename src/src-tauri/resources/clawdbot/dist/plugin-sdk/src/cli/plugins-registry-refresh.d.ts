@@ -10,5 +10,7 @@ export declare function refreshPluginRegistryAfterConfigMutation(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     installRecords?: Awaited<ReturnType<typeof loadInstalledPluginIndexInstallRecords>>;
+    policyPluginIds?: readonly string[];
+    traceCommand?: string;
     logger?: PluginRegistryRefreshLogger;
 }): Promise<void>;

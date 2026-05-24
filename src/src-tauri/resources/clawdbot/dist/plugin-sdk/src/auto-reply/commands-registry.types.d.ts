@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/types.js";
 import type { CommandArgValues } from "./commands-args.types.js";
-export type { CommandArgValue, CommandArgValues, CommandArgs } from "./commands-args.types.js";
+import type { ThinkingCatalogEntry } from "./thinking.shared.js";
+export type { CommandArgValues, CommandArgs } from "./commands-args.types.js";
 export type CommandScope = "text" | "native" | "both";
 /**
  * Controls progressive disclosure of commands in the UI.
@@ -10,11 +11,12 @@ export type CommandScope = "text" | "native" | "both";
  */
 export type CommandTier = "essential" | "standard" | "power";
 export type CommandCategory = "session" | "options" | "status" | "management" | "media" | "tools" | "docks";
-export type CommandArgType = "string" | "number" | "boolean";
+type CommandArgType = "string" | "number" | "boolean";
 export type CommandArgChoiceContext = {
     cfg?: OpenClawConfig;
     provider?: string;
     model?: string;
+    catalog?: ThinkingCatalogEntry[];
     command: ChatCommandDefinition;
     arg: CommandArgDefinition;
 };
@@ -22,7 +24,7 @@ export type CommandArgChoice = string | {
     value: string;
     label: string;
 };
-export type CommandArgChoicesProvider = (context: CommandArgChoiceContext) => CommandArgChoice[];
+type CommandArgChoicesProvider = (context: CommandArgChoiceContext) => CommandArgChoice[];
 export type CommandArgDefinition = {
     name: string;
     description: string;
@@ -40,7 +42,10 @@ export type CommandArgsParsing = "none" | "positional";
 export type ChatCommandDefinition = {
     key: string;
     nativeName?: string;
+    nativeAliases?: string[];
     description: string;
+    /** Localized descriptions for native command surfaces that support them. */
+    descriptionLocalizations?: Record<string, string>;
     textAliases: string[];
     acceptsArgs?: boolean;
     args?: CommandArgDefinition[];
@@ -55,6 +60,7 @@ export type ChatCommandDefinition = {
 export type NativeCommandSpec = {
     name: string;
     description: string;
+    descriptionLocalizations?: Record<string, string>;
     acceptsArgs: boolean;
     args?: CommandArgDefinition[];
 };

@@ -1,7 +1,7 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
-import { i as SYNTHETIC_DEFAULT_MODEL_REF } from "../../models-DNNTCuaE.js";
-import { t as applySyntheticConfig } from "../../onboard-DA6nPhUx.js";
-import { t as buildSyntheticProvider } from "../../provider-catalog-DJo-E9Si.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-DYbqN6AQ.js";
+import { r as SYNTHETIC_DEFAULT_MODEL_REF } from "../../models-DVAi2b9h2.js";
+import { t as applySyntheticConfig } from "../../onboard-DaNXT1Xk.js";
+import { t as buildSyntheticProvider } from "../../provider-catalog-ofsXVnsR.js";
 var synthetic_default = defineSingleProviderPluginEntry({
 	id: "synthetic",
 	name: "Synthetic Provider",

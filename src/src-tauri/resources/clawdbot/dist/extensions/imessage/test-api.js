@@ -1,7 +1,7 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
-import { n as resolveOutboundSendDep } from "../../send-deps-BqoHh6Cq.js";
-import "../../text-runtime-DfALcXL5.js";
-import { c as collectStatusIssuesFromLastError } from "../../status-helpers-C00ai5Oy.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-DyL154ka.js";
+import { n as resolveOutboundSendDep } from "../../send-deps-B-rmeTVl.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { c as collectStatusIssuesFromLastError } from "../../status-helpers-CnvYAK73.js";
 //#region extensions/imessage/src/imessage.test-plugin.ts
 function normalizeIMessageTestHandle(raw) {
 	let trimmed = raw.trim();
@@ -31,6 +31,12 @@ function normalizeIMessageTestHandle(raw) {
 }
 const defaultIMessageOutbound = {
 	deliveryMode: "direct",
+	deliveryCapabilities: { durableFinal: {
+		text: true,
+		media: true,
+		replyTo: true,
+		messageSendingHooks: true
+	} },
 	sendText: async ({ to, text, accountId, replyToId, deps, cfg }) => {
 		return {
 			channel: "imessage",
@@ -54,6 +60,35 @@ const defaultIMessageOutbound = {
 		};
 	}
 };
+const defaultIMessageActions = {
+	describeMessageTool: () => ({ actions: [
+		"react",
+		"edit",
+		"unsend",
+		"reply",
+		"sendWithEffect",
+		"upload-file",
+		"renameGroup",
+		"setGroupIcon",
+		"addParticipant",
+		"removeParticipant",
+		"leaveGroup"
+	] }),
+	supportsAction: ({ action }) => new Set([
+		"react",
+		"edit",
+		"unsend",
+		"reply",
+		"sendWithEffect",
+		"upload-file",
+		"sendAttachment",
+		"renameGroup",
+		"setGroupIcon",
+		"addParticipant",
+		"removeParticipant",
+		"leaveGroup"
+	]).has(action)
+};
 const createIMessageTestPlugin = (params) => ({
 	id: "imessage",
 	meta: {
@@ -73,6 +108,7 @@ const createIMessageTestPlugin = (params) => ({
 		resolveAccount: () => ({})
 	},
 	status: { collectStatusIssues: (accounts) => collectStatusIssuesFromLastError("imessage", accounts) },
+	actions: params?.actions ?? defaultIMessageActions,
 	outbound: params?.outbound ?? defaultIMessageOutbound,
 	messaging: {
 		targetResolver: {

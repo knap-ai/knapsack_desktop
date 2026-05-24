@@ -47,6 +47,17 @@ export type CrestodianOperation = {
 } | {
     kind: "models";
 } | {
+    kind: "plugin-list";
+} | {
+    kind: "plugin-search";
+    query: string;
+} | {
+    kind: "plugin-install";
+    spec: string;
+} | {
+    kind: "plugin-uninstall";
+    pluginId: string;
+} | {
     kind: "audit";
 } | {
     kind: "create-agent";
@@ -88,6 +99,10 @@ export type CrestodianCommandDeps = {
     runGatewayRestart?: () => Promise<void>;
     runGatewayStart?: () => Promise<void>;
     runGatewayStop?: () => Promise<void>;
+    runPluginInstall?: (spec: string, runtime: RuntimeEnv) => Promise<void>;
+    runPluginUninstall?: (pluginId: string, runtime: RuntimeEnv) => Promise<void>;
+    runPluginsList?: (runtime: RuntimeEnv) => Promise<void>;
+    runPluginsSearch?: (query: string, runtime: RuntimeEnv) => Promise<void>;
     runTui?: (opts: {
         local: boolean;
         session?: string;

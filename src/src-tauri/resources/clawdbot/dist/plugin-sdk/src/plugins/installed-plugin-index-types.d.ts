@@ -1,8 +1,9 @@
 import type { OpenClawConfig } from "../config/types.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { PluginCompatCode } from "./compat/registry.js";
-import type { PluginCandidate } from "./discovery.js";
+import type { PluginCandidate, PluginDiscoveryResult } from "./discovery.js";
 import type { PluginInstallSourceInfo } from "./install-source-info.js";
+import type { InstalledPluginFileSignature } from "./installed-plugin-index-hash.js";
 import type { PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginDiagnostic } from "./manifest-types.js";
 import type { PluginPackageChannel } from "./manifest.js";
@@ -16,8 +17,8 @@ export type InstalledPluginStartupInfo = {
     deferConfiguredChannelFullLoadUntilAfterListen: boolean;
     agentHarnesses: readonly string[];
 };
-export type InstalledPluginInstallRecordInfo = Pick<PluginInstallRecord, "source" | "spec" | "sourcePath" | "installPath" | "version" | "resolvedName" | "resolvedVersion" | "resolvedSpec" | "integrity" | "shasum" | "resolvedAt" | "installedAt" | "clawhubUrl" | "clawhubPackage" | "clawhubFamily" | "clawhubChannel" | "marketplaceName" | "marketplaceSource" | "marketplacePlugin">;
-export type InstalledPluginPackageChannelInfo = Pick<PluginPackageChannel, "id" | "label" | "blurb" | "preferOver" | "commands">;
+export type InstalledPluginInstallRecordInfo = Pick<PluginInstallRecord, "source" | "spec" | "sourcePath" | "installPath" | "version" | "resolvedName" | "resolvedVersion" | "resolvedSpec" | "integrity" | "shasum" | "resolvedAt" | "installedAt" | "clawhubUrl" | "clawhubPackage" | "clawhubFamily" | "clawhubChannel" | "artifactKind" | "artifactFormat" | "npmIntegrity" | "npmShasum" | "npmTarballName" | "clawpackSha256" | "clawpackSpecVersion" | "clawpackManifestSha256" | "clawpackSize" | "gitUrl" | "gitRef" | "gitCommit" | "marketplaceName" | "marketplaceSource" | "marketplacePlugin">;
+export type InstalledPluginPackageChannelInfo = PluginPackageChannel;
 export type InstalledPluginIndexRecord = {
     pluginId: string;
     packageName?: string;
@@ -37,6 +38,7 @@ export type InstalledPluginIndexRecord = {
     packageChannel?: InstalledPluginPackageChannelInfo;
     manifestPath: string;
     manifestHash: string;
+    manifestFile?: InstalledPluginFileSignature;
     format?: PluginManifestRecord["format"];
     bundleFormat?: PluginManifestRecord["bundleFormat"];
     source?: string;
@@ -44,11 +46,13 @@ export type InstalledPluginIndexRecord = {
     packageJson?: {
         path: string;
         hash: string;
+        fileSignature?: InstalledPluginFileSignature;
     };
     rootDir: string;
     origin: PluginManifestRecord["origin"];
     enabled: boolean;
     enabledByDefault?: boolean;
+    enabledByDefaultOnPlatforms?: readonly string[];
     syntheticAuthRefs?: readonly string[];
     startup: InstalledPluginStartupInfo;
     compat: readonly PluginCompatCode[];
@@ -73,11 +77,12 @@ export type LoadInstalledPluginIndexParams = {
     stateDir?: string;
     pluginIndexFilePath?: string;
     installRecords?: Record<string, PluginInstallRecord>;
-    cache?: boolean;
     candidates?: PluginCandidate[];
     diagnostics?: PluginDiagnostic[];
+    discovery?: PluginDiscoveryResult;
     now?: () => Date;
 };
 export type RefreshInstalledPluginIndexParams = LoadInstalledPluginIndexParams & {
     reason: InstalledPluginIndexRefreshReason;
+    policyPluginIds?: readonly string[];
 };

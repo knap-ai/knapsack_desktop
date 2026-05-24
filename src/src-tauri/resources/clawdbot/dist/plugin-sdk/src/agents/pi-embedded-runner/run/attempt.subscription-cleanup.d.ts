@@ -1,4 +1,5 @@
 import type { SubscribeEmbeddedPiSessionParams } from "../../pi-embedded-subscribe.types.js";
+export declare const EMBEDDED_ABORT_SETTLE_TIMEOUT_MS: number;
 type IdleAwareAgent = {
     waitForIdle?: (() => Promise<void>) | undefined;
 };
@@ -13,18 +14,12 @@ export declare function cleanupEmbeddedAttemptResources(params: {
         agent: IdleAwareAgent | null | undefined;
         sessionManager: ToolResultFlushManager | null | undefined;
         timeoutMs?: number;
-        clearPendingOnTimeout?: boolean;
     }) => Promise<void>;
     session?: {
         agent?: unknown;
         dispose(): void;
     };
     sessionManager: unknown;
-    releaseWsSession: (sessionId: string, options?: {
-        allowPool?: boolean;
-    }) => void;
-    allowWsSessionPool?: boolean;
-    sessionId: string;
     bundleMcpRuntime?: {
         dispose(): Promise<void> | void;
     };
@@ -34,5 +29,10 @@ export declare function cleanupEmbeddedAttemptResources(params: {
     sessionLock: {
         release(): Promise<void> | void;
     };
+    aborted?: boolean;
+    abortSettlePromise?: Promise<unknown> | null;
+    skipSessionFlush?: boolean;
+    runId?: string;
+    sessionId?: string;
 }): Promise<void>;
 export {};

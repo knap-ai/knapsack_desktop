@@ -3,3 +3,4 @@ export { asObjectRecord, hasLegacyAccountStreamingAliases, hasLegacyStreamingAli
 export type { CompatMutationResult, LegacyStreamingAliasOptions, NormalizeLegacyChannelAccountParams, } from "../config/channel-compat-normalization.js";
 export { detectPluginInstallPathIssue, formatPluginInstallPathIssue, } from "../infra/plugin-install-path-warnings.js";
 export { removePluginFromConfig } from "../plugins/uninstall.js";
+export type { DoctorSessionRouteStateOwner } from "../plugins/doctor-session-route-state-owner-types.js";

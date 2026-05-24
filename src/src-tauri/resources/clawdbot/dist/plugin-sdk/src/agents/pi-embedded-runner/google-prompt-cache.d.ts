@@ -1,5 +1,5 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { buildGuardedModelFetch } from "../provider-transport-fetch.js";
 type CustomEntryLike = {
     type?: unknown;
@@ -7,7 +7,7 @@ type CustomEntryLike = {
     data?: unknown;
 };
 type GooglePromptCacheSessionManager = {
-    appendCustomEntry(customType: string, data?: unknown): unknown;
+    appendCustomEntry(customType: string, data?: unknown): void | Promise<void>;
     getEntries(): CustomEntryLike[];
 };
 type GooglePromptCacheModel = Model<Api> & {

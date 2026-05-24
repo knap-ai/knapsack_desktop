@@ -31,8 +31,3 @@ export declare function resolveEffectiveBlockStreamingConfig(params: {
     coalescing: BlockStreamingCoalescing;
 };
 export declare function resolveBlockStreamingChunking(cfg: OpenClawConfig | undefined, provider?: string, accountId?: string | null): BlockStreamingChunking;
-export declare function resolveBlockStreamingCoalescing(cfg: OpenClawConfig | undefined, provider?: string, accountId?: string | null, chunking?: {
-    minChars: number;
-    maxChars: number;
-    breakPreference: "paragraph" | "newline" | "sentence";
-}): BlockStreamingCoalescing | undefined;

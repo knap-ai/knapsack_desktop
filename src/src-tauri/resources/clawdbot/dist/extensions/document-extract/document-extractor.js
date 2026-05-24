@@ -1,10 +1,14 @@
+import { createRequire } from "node:module";
+import path from "node:path";
 //#region extensions/document-extract/document-extractor.ts
 const CANVAS_MODULE = "@napi-rs/canvas";
 const PDFJS_MODULE = "pdfjs-dist/legacy/build/pdf.mjs";
 const MAX_EXTRACTED_TEXT_CHARS = 2e5;
 const MAX_RENDER_DIMENSION = 1e4;
+const require = createRequire(import.meta.url);
 let canvasModulePromise = null;
 let pdfJsModulePromise = null;
+let pdfJsStandardFontDataPath = null;
 async function loadCanvasModule() {
 	if (!canvasModulePromise) canvasModulePromise = import(CANVAS_MODULE).catch((err) => {
 		canvasModulePromise = null;
@@ -18,6 +22,13 @@ async function loadPdfJsModule() {
 		throw new Error("Optional dependency pdfjs-dist is required for PDF extraction", { cause: err });
 	});
 	return pdfJsModulePromise;
+}
+function resolvePdfJsStandardFontDataPath() {
+	if (!pdfJsStandardFontDataPath) {
+		const pdfJsPackageJsonPath = require.resolve("pdfjs-dist/package.json");
+		pdfJsStandardFontDataPath = path.join(path.dirname(pdfJsPackageJsonPath), "standard_fonts") + "/";
+	}
+	return pdfJsStandardFontDataPath;
 }
 function appendTextWithinLimit(parts, pageText, currentLength) {
 	if (!pageText) return currentLength;
@@ -55,7 +66,8 @@ function resolveRenderPlan(viewport, remainingPixels) {
 async function extractPdfContent(request) {
 	const pdf = await (await loadPdfJsModule()).getDocument({
 		data: new Uint8Array(request.buffer),
-		disableWorker: true
+		disableWorker: true,
+		standardFontDataUrl: resolvePdfJsStandardFontDataPath()
 	}).promise;
 	const effectivePages = request.pageNumbers ? request.pageNumbers.filter((p) => p >= 1 && p <= pdf.numPages).slice(0, request.maxPages) : Array.from({ length: Math.min(pdf.numPages, request.maxPages) }, (_, i) => i + 1);
 	const textParts = [];

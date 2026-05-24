@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../config/types.js";
 import { createPluginActivationSource, normalizePluginsConfig } from "../plugins/config-state.js";
 import { type PluginManifestRecord } from "../plugins/manifest-registry.js";
-export type FacadePluginManifestLike = Pick<PluginManifestRecord, "id" | "origin" | "enabledByDefault" | "rootDir" | "channels">;
+export type FacadePluginManifestLike = Pick<PluginManifestRecord, "id" | "origin" | "enabledByDefault" | "enabledByDefaultOnPlatforms" | "rootDir" | "channels">;
 type FacadeModuleLocation = {
     modulePath: string;
     boundaryRoot: string;
@@ -70,5 +70,4 @@ export declare function resolveActivatedBundledPluginPublicSurfaceAccessOrThrow(
     pluginId?: string;
     reason?: string;
 };
-export declare function resetFacadeActivationCheckRuntimeStateForTest(): void;
 export {};

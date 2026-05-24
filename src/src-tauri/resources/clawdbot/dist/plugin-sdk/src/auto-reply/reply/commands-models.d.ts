@@ -18,12 +18,17 @@ export type ModelsRuntimeChoice = {
     label: string;
     description: string;
 };
-export declare function buildModelsProviderData(cfg: OpenClawConfig, agentId?: string): Promise<ModelsProviderData>;
+export declare function buildModelsProviderData(cfg: OpenClawConfig, agentId?: string, options?: {
+    view?: "default" | "all";
+    workspaceDir?: string;
+}): Promise<ModelsProviderData>;
 export declare function formatModelsAvailableHeader(params: {
     provider: string;
     total: number;
     cfg: OpenClawConfig;
+    agentId?: string;
     agentDir?: string;
+    workspaceDir?: string;
     sessionEntry?: ModelsCommandSessionEntry;
 }): string;
 export declare function resolveModelsCommandReply(params: {
@@ -33,6 +38,7 @@ export declare function resolveModelsCommandReply(params: {
     currentModel?: string;
     agentId?: string;
     agentDir?: string;
+    workspaceDir?: string;
     sessionEntry?: ModelsCommandSessionEntry;
 }): Promise<ReplyPayload | null>;
 export declare const handleModelsCommand: CommandHandler;

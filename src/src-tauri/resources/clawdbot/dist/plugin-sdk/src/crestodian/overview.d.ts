@@ -1,5 +1,7 @@
-import { type LocalCommandProbe } from "./probes.js";
-export type CrestodianAgentSummary = {
+import { resolveOpenClawReferencePaths } from "../agents/docs-path.js";
+import { readConfigFileSnapshot, resolveConfigPath, resolveGatewayPort, type OpenClawConfig } from "../config/config.js";
+import { probeGatewayUrl, probeLocalCommand, type LocalCommandProbe } from "./probes.js";
+type CrestodianAgentSummary = {
     id: string;
     name?: string;
     isDefault: boolean;
@@ -38,9 +40,27 @@ export type CrestodianOverview = {
         sourceUrl: string;
     };
 };
+type GatewayConnectionDetails = {
+    url: string;
+    urlSource: string;
+    remoteFallbackNote?: string;
+};
+type CrestodianOverviewDependencies = {
+    readConfigFileSnapshot?: typeof readConfigFileSnapshot;
+    resolveConfigPath?: typeof resolveConfigPath;
+    resolveGatewayPort?: typeof resolveGatewayPort;
+    buildGatewayConnectionDetails?: (input: {
+        config: OpenClawConfig;
+        configPath: string;
+    }) => GatewayConnectionDetails;
+    probeLocalCommand?: typeof probeLocalCommand;
+    probeGatewayUrl?: typeof probeGatewayUrl;
+    resolveOpenClawReferencePaths?: typeof resolveOpenClawReferencePaths;
+};
 export declare function loadCrestodianOverview(opts?: {
     env?: NodeJS.ProcessEnv;
+    deps?: CrestodianOverviewDependencies;
 }): Promise<CrestodianOverview>;
 export declare function formatCrestodianOverview(overview: CrestodianOverview): string;
-export declare function recommendCrestodianNextStep(overview: CrestodianOverview): string;
 export declare function formatCrestodianStartupMessage(overview: CrestodianOverview): string;
+export {};

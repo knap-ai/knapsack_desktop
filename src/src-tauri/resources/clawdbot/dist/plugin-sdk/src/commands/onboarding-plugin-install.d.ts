@@ -6,6 +6,8 @@ export type OnboardingPluginInstallEntry = {
     pluginId: string;
     label: string;
     install: PluginPackageInstall;
+    trustedSourceLinkedOfficialInstall?: boolean;
+    preferRemoteInstall?: boolean;
 };
 export type OnboardingPluginInstallStatus = "installed" | "skipped" | "failed" | "timed_out";
 export type OnboardingPluginInstallResult = {
@@ -21,4 +23,5 @@ export declare function ensureOnboardingPluginInstalled(params: {
     runtime: RuntimeEnv;
     workspaceDir?: string;
     promptInstall?: boolean;
+    autoConfirmSingleSource?: boolean;
 }): Promise<OnboardingPluginInstallResult>;

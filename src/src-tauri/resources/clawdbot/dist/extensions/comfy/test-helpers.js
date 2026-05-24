@@ -1,5 +1,5 @@
-import { n as vi, t as globalExpect } from "../../test.DNmyFkvJ-DOV9M35C.js";
-import { i as provider_auth_runtime_exports } from "../../provider-auth-runtime-Brialwug.js";
+import { a as provider_auth_runtime_exports } from "../../provider-auth-runtime-COV17c31.js";
+import { expect, vi } from "vitest";
 //#region extensions/comfy/test-helpers.ts
 function buildComfyConfig(config) {
 	return { plugins: { entries: { comfy: { config } } } };
@@ -9,7 +9,7 @@ function buildLegacyComfyConfig(config) {
 }
 function parseComfyJsonBody(fetchWithSsrFGuardMock, call) {
 	const body = (fetchWithSsrFGuardMock.mock.calls[call - 1]?.[0])?.init?.body;
-	globalExpect(body).toBeTruthy();
+	expect(body).toBeTruthy();
 	if (typeof body !== "string") throw new Error(`Missing Comfy request body for fetch call ${call}`);
 	return JSON.parse(body);
 }

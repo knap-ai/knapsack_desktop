@@ -1,5 +1,5 @@
-import type { Component } from "@mariozechner/pi-tui";
-import { type SelectItem, type SelectListTheme } from "@mariozechner/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
+import { type SelectItem, type SelectListTheme } from "@earendil-works/pi-tui";
 export interface FilterableSelectItem extends SelectItem {
     /** Additional searchable fields beyond label */
     searchText?: string;

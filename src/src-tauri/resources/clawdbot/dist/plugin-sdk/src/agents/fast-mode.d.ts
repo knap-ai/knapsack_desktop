@@ -1,6 +1,6 @@
 import type { SessionEntry } from "../config/sessions.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type FastModeState = {
+type FastModeState = {
     enabled: boolean;
     source: "session" | "agent" | "config" | "default";
 };
@@ -11,3 +11,4 @@ export declare function resolveFastModeState(params: {
     agentId?: string;
     sessionEntry?: Pick<SessionEntry, "fastMode"> | undefined;
 }): FastModeState;
+export {};

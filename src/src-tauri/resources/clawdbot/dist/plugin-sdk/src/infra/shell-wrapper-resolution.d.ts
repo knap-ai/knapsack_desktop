@@ -1,13 +1,12 @@
 export declare const POSIX_SHELL_WRAPPERS: Set<"ash" | "bash" | "dash" | "fish" | "ksh" | "sh" | "zsh">;
-export declare const WINDOWS_CMD_WRAPPERS: Set<string>;
 export declare const POWERSHELL_WRAPPERS: Set<string>;
-export type ShellWrapperCommand = {
+type ShellWrapperCommand = {
     isWrapper: boolean;
     command: string | null;
 };
 export declare function isShellWrapperExecutable(token: string): boolean;
 export declare function isShellWrapperInvocation(argv: string[]): boolean;
-export type ShellMultiplexerUnwrapResult = {
+type ShellMultiplexerUnwrapResult = {
     kind: "not-wrapper";
 } | {
     kind: "blocked";
@@ -21,4 +20,7 @@ export declare function unwrapKnownShellMultiplexerInvocation(argv: string[]): S
 export declare function hasEnvManipulationBeforeShellWrapper(argv: string[]): boolean;
 export declare function resolveShellWrapperTransportArgv(argv: string[]): string[] | null;
 export declare function extractShellWrapperInlineCommand(argv: string[]): string | null;
+export declare function extractBindableShellWrapperInlineCommand(argv: string[], rawCommand?: string | null): string | null;
 export declare function extractShellWrapperCommand(argv: string[], rawCommand?: string | null): ShellWrapperCommand;
+export declare function isBlockedShellWrapperCommand(argv: string[], rawCommand?: string | null): boolean;
+export {};

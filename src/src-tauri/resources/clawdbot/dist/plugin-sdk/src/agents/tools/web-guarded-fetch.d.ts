@@ -9,6 +9,10 @@ export declare function withTrustedWebToolsEndpoint<T>(params: WebToolEndpointFe
     response: Response;
     finalUrl: string;
 }) => Promise<T>): Promise<T>;
+export declare function withSelfHostedWebToolsEndpoint<T>(params: WebToolEndpointFetchOptions, run: (result: {
+    response: Response;
+    finalUrl: string;
+}) => Promise<T>): Promise<T>;
 export declare function withStrictWebToolsEndpoint<T>(params: WebToolEndpointFetchOptions, run: (result: {
     response: Response;
     finalUrl: string;

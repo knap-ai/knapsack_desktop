@@ -1,6 +1,6 @@
 import { type SafeBinProfile, type SafeBinProfileFixture, type SafeBinProfileFixtures } from "./exec-safe-bin-policy.js";
 import { type WritableTrustedSafeBinDir } from "./exec-safe-bin-trust.js";
-export type ExecSafeBinConfigScope = {
+type ExecSafeBinConfigScope = {
     safeBins?: string[] | null;
     safeBinProfiles?: SafeBinProfileFixtures | null;
     safeBinTrustedDirs?: string[] | null;
@@ -23,3 +23,4 @@ export declare function resolveExecSafeBinRuntimePolicy(params: {
     unprofiledInterpreterSafeBins: string[];
     writableTrustedSafeBinDirs: ReadonlyArray<WritableTrustedSafeBinDir>;
 };
+export {};

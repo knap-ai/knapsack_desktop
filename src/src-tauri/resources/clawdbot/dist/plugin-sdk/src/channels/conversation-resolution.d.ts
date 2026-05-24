@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type ConversationResolutionSource = "command-provider" | "focused-binding" | "command-fallback" | "inbound-provider" | "inbound-bundled-artifact" | "inbound-bundled-plugin" | "inbound-fallback";
-export type ConversationResolution = {
+type ConversationResolutionSource = "command-provider" | "focused-binding" | "command-fallback" | "inbound-provider" | "inbound-bundled-artifact" | "inbound-bundled-plugin" | "inbound-fallback";
+type ConversationResolution = {
     canonical: {
         channel: string;
         accountId: string;
@@ -28,7 +28,7 @@ export type ResolveCommandConversationResolutionInput = {
     nativeChannelId?: string | null;
     includePlacementHint?: boolean;
 };
-export type ResolveInboundConversationResolutionInput = {
+type ResolveInboundConversationResolutionInput = {
     cfg: OpenClawConfig;
     channel?: string | null;
     accountId?: string | null;
@@ -42,3 +42,4 @@ export type ResolveInboundConversationResolutionInput = {
 export declare function resolveChannelDefaultBindingPlacement(rawChannel?: string | null): "current" | "child" | undefined;
 export declare function resolveCommandConversationResolution(params: ResolveCommandConversationResolutionInput): ConversationResolution | null;
 export declare function resolveInboundConversationResolution(params: ResolveInboundConversationResolutionInput): ConversationResolution | null;
+export {};

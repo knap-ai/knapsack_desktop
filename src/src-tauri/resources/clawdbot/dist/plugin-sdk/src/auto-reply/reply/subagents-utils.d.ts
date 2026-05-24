@@ -14,6 +14,7 @@ export declare function resolveSubagentTargetFromRuns(params: {
     token: string | undefined;
     recentWindowMinutes: number;
     label: (entry: SubagentRunRecord) => string;
+    aliases?: (entry: SubagentRunRecord) => string[];
     isActive?: (entry: SubagentRunRecord) => boolean;
     errors: {
         missingTarget: string;

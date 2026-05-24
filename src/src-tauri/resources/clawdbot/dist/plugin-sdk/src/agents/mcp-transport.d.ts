@@ -1,5 +1,5 @@
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-export type ResolvedMcpTransport = {
+type ResolvedMcpTransport = {
     transport: Transport;
     description: string;
     transportType: "stdio" | "sse" | "streamable-http";
@@ -7,3 +7,4 @@ export type ResolvedMcpTransport = {
     detachStderr?: () => void;
 };
 export declare function resolveMcpTransport(serverName: string, rawServer: unknown): ResolvedMcpTransport | null;
+export {};

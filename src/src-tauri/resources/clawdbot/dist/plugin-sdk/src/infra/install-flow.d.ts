@@ -1,6 +1,6 @@
 import type { Stats } from "node:fs";
 import { type ArchiveLogger } from "./archive.js";
-export type ExistingInstallPathResult = {
+type ExistingInstallPathResult = {
     ok: true;
     resolvedPath: string;
     stat: Stats;
@@ -16,9 +16,10 @@ export declare function withExtractedArchiveRoot<TResult extends {
     tempDirPrefix: string;
     timeoutMs: number;
     logger?: ArchiveLogger;
-    rootMarkers?: string[];
+    rootMarkers?: readonly string[];
     onExtracted: (rootDir: string) => Promise<TResult>;
 }): Promise<TResult | {
     ok: false;
     error: string;
 }>;
+export {};

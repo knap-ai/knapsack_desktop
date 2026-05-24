@@ -1,5 +1,8 @@
 {
   "id": "imessage",
+  "activation": {
+    "onStartup": false
+  },
   "channels": [
     "imessage"
   ],
@@ -52,6 +55,45 @@
           },
           "remoteHost": {
             "type": "string"
+          },
+          "actions": {
+            "type": "object",
+            "properties": {
+              "reactions": {
+                "type": "boolean"
+              },
+              "edit": {
+                "type": "boolean"
+              },
+              "unsend": {
+                "type": "boolean"
+              },
+              "reply": {
+                "type": "boolean"
+              },
+              "sendWithEffect": {
+                "type": "boolean"
+              },
+              "renameGroup": {
+                "type": "boolean"
+              },
+              "setGroupIcon": {
+                "type": "boolean"
+              },
+              "addParticipant": {
+                "type": "boolean"
+              },
+              "removeParticipant": {
+                "type": "boolean"
+              },
+              "leaveGroup": {
+                "type": "boolean"
+              },
+              "sendAttachment": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
           },
           "service": {
             "anyOf": [
@@ -175,6 +217,11 @@
             "exclusiveMinimum": 0,
             "maximum": 9007199254740991
           },
+          "probeTimeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
           "textChunkLimit": {
             "type": "integer",
             "exclusiveMinimum": 0,
@@ -210,6 +257,20 @@
               }
             },
             "additionalProperties": false
+          },
+          "sendReadReceipts": {
+            "type": "boolean"
+          },
+          "reactionNotifications": {
+            "type": "string",
+            "enum": [
+              "off",
+              "own",
+              "all"
+            ]
+          },
+          "coalesceSameSenderDms": {
+            "type": "boolean"
           },
           "groups": {
             "type": "object",
@@ -275,10 +336,42 @@
                     },
                     "additionalProperties": false
                   }
+                },
+                "systemPrompt": {
+                  "type": "string"
                 }
               },
               "additionalProperties": false
             }
+          },
+          "catchup": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "maxAgeMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "perRunLimit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "firstRunLookbackMinutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 720
+              },
+              "maxFailureRetries": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
           },
           "heartbeat": {
             "type": "object",
@@ -353,6 +446,45 @@
                 },
                 "remoteHost": {
                   "type": "string"
+                },
+                "actions": {
+                  "type": "object",
+                  "properties": {
+                    "reactions": {
+                      "type": "boolean"
+                    },
+                    "edit": {
+                      "type": "boolean"
+                    },
+                    "unsend": {
+                      "type": "boolean"
+                    },
+                    "reply": {
+                      "type": "boolean"
+                    },
+                    "sendWithEffect": {
+                      "type": "boolean"
+                    },
+                    "renameGroup": {
+                      "type": "boolean"
+                    },
+                    "setGroupIcon": {
+                      "type": "boolean"
+                    },
+                    "addParticipant": {
+                      "type": "boolean"
+                    },
+                    "removeParticipant": {
+                      "type": "boolean"
+                    },
+                    "leaveGroup": {
+                      "type": "boolean"
+                    },
+                    "sendAttachment": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
                 },
                 "service": {
                   "anyOf": [
@@ -476,6 +608,11 @@
                   "exclusiveMinimum": 0,
                   "maximum": 9007199254740991
                 },
+                "probeTimeoutMs": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
                 "textChunkLimit": {
                   "type": "integer",
                   "exclusiveMinimum": 0,
@@ -511,6 +648,20 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "sendReadReceipts": {
+                  "type": "boolean"
+                },
+                "reactionNotifications": {
+                  "type": "string",
+                  "enum": [
+                    "off",
+                    "own",
+                    "all"
+                  ]
+                },
+                "coalesceSameSenderDms": {
+                  "type": "boolean"
                 },
                 "groups": {
                   "type": "object",
@@ -576,10 +727,42 @@
                           },
                           "additionalProperties": false
                         }
+                      },
+                      "systemPrompt": {
+                        "type": "string"
                       }
                     },
                     "additionalProperties": false
                   }
+                },
+                "catchup": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "maxAgeMinutes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 720
+                    },
+                    "perRunLimit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 500
+                    },
+                    "firstRunLookbackMinutes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 720
+                    },
+                    "maxFailureRetries": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 1000
+                    }
+                  },
+                  "additionalProperties": false
                 },
                 "heartbeat": {
                   "type": "object",
@@ -627,7 +810,7 @@
         "additionalProperties": false
       },
       "label": "iMessage",
-      "description": "this is still a work in progress.",
+      "description": "Local iMessage/SMS through the imsg bridge, including private API message actions when enabled.",
       "uiHints": {
         "": {
           "label": "iMessage",

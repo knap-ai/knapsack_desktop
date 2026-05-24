@@ -1,5 +1,5 @@
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { ImageContent } from "@mariozechner/pi-ai";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { ImageContent } from "@earendil-works/pi-ai";
 import { type ImageSanitizationLimits } from "./image-sanitization.js";
 type ToolContentBlock = AgentToolResult<unknown>["content"][number];
 export declare function sanitizeContentBlocksImages(blocks: ToolContentBlock[], label: string, opts?: ImageSanitizationLimits): Promise<ToolContentBlock[]>;

@@ -31,6 +31,7 @@ export declare const ProtocolSchemas: {
             bootstrapToken: import("typebox").TOptional<import("typebox").TString>;
             deviceToken: import("typebox").TOptional<import("typebox").TString>;
             password: import("typebox").TOptional<import("typebox").TString>;
+            approvalRuntimeToken: import("typebox").TOptional<import("typebox").TString>;
         }>>;
         locale: import("typebox").TOptional<import("typebox").TString>;
         userAgent: import("typebox").TOptional<import("typebox").TString>;
@@ -86,7 +87,7 @@ export declare const ProtocolSchemas: {
                 channel: import("typebox").TString;
             }>>;
         }>;
-        canvasHostUrl: import("typebox").TOptional<import("typebox").TString>;
+        pluginSurfaceUrls: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TString>>;
         auth: import("typebox").TObject<{
             deviceToken: import("typebox").TOptional<import("typebox").TString>;
             role: import("typebox").TString;
@@ -230,11 +231,41 @@ export declare const ProtocolSchemas: {
         retryable: import("typebox").TOptional<import("typebox").TBoolean>;
         retryAfterMs: import("typebox").TOptional<import("typebox").TInteger>;
     }>;
+    EnvironmentStatus: import("typebox").TString;
+    EnvironmentSummary: import("typebox").TObject<{
+        id: import("typebox").TString;
+        type: import("typebox").TString;
+        label: import("typebox").TOptional<import("typebox").TString>;
+        status: import("typebox").TString;
+        capabilities: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+    }>;
+    EnvironmentsListParams: import("typebox").TObject<{}>;
+    EnvironmentsListResult: import("typebox").TObject<{
+        environments: import("typebox").TArray<import("typebox").TObject<{
+            id: import("typebox").TString;
+            type: import("typebox").TString;
+            label: import("typebox").TOptional<import("typebox").TString>;
+            status: import("typebox").TString;
+            capabilities: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        }>>;
+    }>;
+    EnvironmentsStatusParams: import("typebox").TObject<{
+        environmentId: import("typebox").TString;
+    }>;
+    EnvironmentsStatusResult: import("typebox").TObject<{
+        id: import("typebox").TString;
+        type: import("typebox").TString;
+        label: import("typebox").TOptional<import("typebox").TString>;
+        status: import("typebox").TString;
+        capabilities: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+    }>;
     AgentEvent: import("typebox").TObject<{
         runId: import("typebox").TString;
         seq: import("typebox").TInteger;
         stream: import("typebox").TString;
         ts: import("typebox").TInteger;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        isHeartbeat: import("typebox").TOptional<import("typebox").TBoolean>;
         data: import("typebox").TRecord<"^.*$", import("typebox").TUnknown>;
     }>;
     MessageActionParams: import("typebox").TObject<{
@@ -246,6 +277,7 @@ export declare const ProtocolSchemas: {
         senderIsOwner: import("typebox").TOptional<import("typebox").TBoolean>;
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
         sessionId: import("typebox").TOptional<import("typebox").TString>;
+        inboundTurnKind: import("typebox").TOptional<import("typebox").TString>;
         agentId: import("typebox").TOptional<import("typebox").TString>;
         toolContext: import("typebox").TOptional<import("typebox").TObject<{
             currentChannelId: import("typebox").TOptional<import("typebox").TString>;
@@ -266,12 +298,16 @@ export declare const ProtocolSchemas: {
         message: import("typebox").TOptional<import("typebox").TString>;
         mediaUrl: import("typebox").TOptional<import("typebox").TString>;
         mediaUrls: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        asVoice: import("typebox").TOptional<import("typebox").TBoolean>;
         gifPlayback: import("typebox").TOptional<import("typebox").TBoolean>;
         channel: import("typebox").TOptional<import("typebox").TString>;
         accountId: import("typebox").TOptional<import("typebox").TString>;
         agentId: import("typebox").TOptional<import("typebox").TString>;
         replyToId: import("typebox").TOptional<import("typebox").TString>;
         threadId: import("typebox").TOptional<import("typebox").TString>;
+        forceDocument: import("typebox").TOptional<import("typebox").TBoolean>;
+        silent: import("typebox").TOptional<import("typebox").TBoolean>;
+        parseMode: import("typebox").TOptional<import("typebox").TLiteral<"HTML">>;
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
         idempotencyKey: import("typebox").TString;
     }>;
@@ -319,6 +355,7 @@ export declare const ProtocolSchemas: {
         bootstrapContextMode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"full">, import("typebox").TLiteral<"lightweight">]>>;
         bootstrapContextRunKind: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"default">, import("typebox").TLiteral<"heartbeat">, import("typebox").TLiteral<"cron">]>>;
         acpTurnSource: import("typebox").TOptional<import("typebox").TLiteral<"manual_spawn">>;
+        internalRuntimeHandoffId: import("typebox").TOptional<import("typebox").TString>;
         internalEvents: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
             type: import("typebox").TLiteral<"task_completion">;
             source: import("typebox").TString;
@@ -329,6 +366,15 @@ export declare const ProtocolSchemas: {
             status: import("typebox").TString;
             statusLabel: import("typebox").TString;
             result: import("typebox").TString;
+            attachments: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                type: import("typebox").TOptional<import("typebox").TString>;
+                path: import("typebox").TOptional<import("typebox").TString>;
+                url: import("typebox").TOptional<import("typebox").TString>;
+                mediaUrl: import("typebox").TOptional<import("typebox").TString>;
+                filePath: import("typebox").TOptional<import("typebox").TString>;
+                mimeType: import("typebox").TOptional<import("typebox").TString>;
+                name: import("typebox").TOptional<import("typebox").TString>;
+            }>>>;
             mediaUrls: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
             statsLine: import("typebox").TOptional<import("typebox").TString>;
             replyInstruction: import("typebox").TString;
@@ -340,6 +386,7 @@ export declare const ProtocolSchemas: {
             sourceChannel: import("typebox").TOptional<import("typebox").TString>;
             sourceTool: import("typebox").TOptional<import("typebox").TString>;
         }>>;
+        sourceReplyDeliveryMode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"automatic">, import("typebox").TLiteral<"message_tool_only">]>>;
         voiceWakeTrigger: import("typebox").TOptional<import("typebox").TString>;
         idempotencyKey: import("typebox").TString;
         label: import("typebox").TOptional<import("typebox").TString>;
@@ -364,6 +411,7 @@ export declare const ProtocolSchemas: {
     WakeParams: import("typebox").TObject<{
         mode: import("typebox").TUnion<[import("typebox").TLiteral<"now">, import("typebox").TLiteral<"next-heartbeat">]>;
         text: import("typebox").TString;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
     }>;
     NodePairRequestParams: import("typebox").TObject<{
         nodeId: import("typebox").TString;
@@ -376,6 +424,7 @@ export declare const ProtocolSchemas: {
         modelIdentifier: import("typebox").TOptional<import("typebox").TString>;
         caps: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
         commands: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        permissions: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TBoolean>>;
         remoteIp: import("typebox").TOptional<import("typebox").TString>;
         silent: import("typebox").TOptional<import("typebox").TBoolean>;
     }>;
@@ -427,6 +476,23 @@ export declare const ProtocolSchemas: {
         payload: import("typebox").TOptional<import("typebox").TUnknown>;
         payloadJSON: import("typebox").TOptional<import("typebox").TString>;
     }>;
+    NodeEventResult: import("typebox").TObject<{
+        ok: import("typebox").TBoolean;
+        event: import("typebox").TString;
+        handled: import("typebox").TBoolean;
+        reason: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    NodePresenceAlivePayload: import("typebox").TObject<{
+        trigger: import("typebox").TString;
+        sentAtMs: import("typebox").TOptional<import("typebox").TInteger>;
+        displayName: import("typebox").TOptional<import("typebox").TString>;
+        version: import("typebox").TOptional<import("typebox").TString>;
+        platform: import("typebox").TOptional<import("typebox").TString>;
+        deviceFamily: import("typebox").TOptional<import("typebox").TString>;
+        modelIdentifier: import("typebox").TOptional<import("typebox").TString>;
+        pushTransport: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    NodePresenceAliveReason: import("typebox").TString;
     NodePendingDrainParams: import("typebox").TObject<{
         maxItems: import("typebox").TOptional<import("typebox").TInteger>;
     }>;
@@ -491,6 +557,13 @@ export declare const ProtocolSchemas: {
     SecretsResolveParams: import("typebox").TObject<{
         commandName: import("typebox").TString;
         targetIds: import("typebox").TArray<import("typebox").TString>;
+        allowedPaths: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        forcedActivePaths: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        optionalActivePaths: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        providerOverrides: import("typebox").TOptional<import("typebox").TObject<{
+            webSearch: import("typebox").TOptional<import("typebox").TString>;
+            webFetch: import("typebox").TOptional<import("typebox").TString>;
+        }>>;
     }>;
     SecretsResolveAssignment: import("typebox").TObject<{
         path: import("typebox").TOptional<import("typebox").TString>;
@@ -509,9 +582,11 @@ export declare const ProtocolSchemas: {
     }>;
     SessionsListParams: import("typebox").TObject<{
         limit: import("typebox").TOptional<import("typebox").TInteger>;
+        offset: import("typebox").TOptional<import("typebox").TInteger>;
         activeMinutes: import("typebox").TOptional<import("typebox").TInteger>;
         includeGlobal: import("typebox").TOptional<import("typebox").TBoolean>;
         includeUnknown: import("typebox").TOptional<import("typebox").TBoolean>;
+        configuredAgentsOnly: import("typebox").TOptional<import("typebox").TBoolean>;
         includeDerivedTitles: import("typebox").TOptional<import("typebox").TBoolean>;
         includeLastMessage: import("typebox").TOptional<import("typebox").TBoolean>;
         label: import("typebox").TOptional<import("typebox").TString>;
@@ -519,10 +594,23 @@ export declare const ProtocolSchemas: {
         agentId: import("typebox").TOptional<import("typebox").TString>;
         search: import("typebox").TOptional<import("typebox").TString>;
     }>;
+    SessionsCleanupParams: import("typebox").TObject<{
+        agent: import("typebox").TOptional<import("typebox").TString>;
+        allAgents: import("typebox").TOptional<import("typebox").TBoolean>;
+        enforce: import("typebox").TOptional<import("typebox").TBoolean>;
+        activeKey: import("typebox").TOptional<import("typebox").TString>;
+        fixMissing: import("typebox").TOptional<import("typebox").TBoolean>;
+        fixDmScope: import("typebox").TOptional<import("typebox").TBoolean>;
+    }>;
     SessionsPreviewParams: import("typebox").TObject<{
         keys: import("typebox").TArray<import("typebox").TString>;
         limit: import("typebox").TOptional<import("typebox").TInteger>;
         maxChars: import("typebox").TOptional<import("typebox").TInteger>;
+    }>;
+    SessionsDescribeParams: import("typebox").TObject<{
+        key: import("typebox").TString;
+        includeDerivedTitles: import("typebox").TOptional<import("typebox").TBoolean>;
+        includeLastMessage: import("typebox").TOptional<import("typebox").TBoolean>;
     }>;
     SessionsResolveParams: import("typebox").TObject<{
         key: import("typebox").TOptional<import("typebox").TString>;
@@ -555,6 +643,15 @@ export declare const ProtocolSchemas: {
             leafId: import("typebox").TOptional<import("typebox").TString>;
             entryId: import("typebox").TOptional<import("typebox").TString>;
         }>;
+    }>;
+    SessionOperationEvent: import("typebox").TObject<{
+        operationId: import("typebox").TString;
+        operation: import("typebox").TLiteral<"compact">;
+        phase: import("typebox").TUnion<[import("typebox").TLiteral<"start">, import("typebox").TLiteral<"end">]>;
+        sessionKey: import("typebox").TString;
+        ts: import("typebox").TInteger;
+        completed: import("typebox").TOptional<import("typebox").TBoolean>;
+        reason: import("typebox").TOptional<import("typebox").TString>;
     }>;
     SessionsCompactionListParams: import("typebox").TObject<{
         key: import("typebox").TString;
@@ -696,6 +793,7 @@ export declare const ProtocolSchemas: {
         label: import("typebox").TOptional<import("typebox").TString>;
         model: import("typebox").TOptional<import("typebox").TString>;
         parentSessionKey: import("typebox").TOptional<import("typebox").TString>;
+        emitCommandHooks: import("typebox").TOptional<import("typebox").TBoolean>;
         task: import("typebox").TOptional<import("typebox").TString>;
         message: import("typebox").TOptional<import("typebox").TString>;
     }>;
@@ -714,8 +812,9 @@ export declare const ProtocolSchemas: {
         key: import("typebox").TString;
     }>;
     SessionsAbortParams: import("typebox").TObject<{
-        key: import("typebox").TString;
+        key: import("typebox").TOptional<import("typebox").TString>;
         runId: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
     }>;
     SessionsPatchParams: import("typebox").TObject<{
         key: import("typebox").TString;
@@ -737,8 +836,22 @@ export declare const ProtocolSchemas: {
         spawnDepth: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TInteger, import("typebox").TNull]>>;
         subagentRole: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"orchestrator">, import("typebox").TLiteral<"leaf">, import("typebox").TNull]>>;
         subagentControlScope: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"children">, import("typebox").TLiteral<"none">, import("typebox").TNull]>>;
+        inheritedToolAllow: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TArray<import("typebox").TString>, import("typebox").TNull]>>;
+        inheritedToolDeny: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TArray<import("typebox").TString>, import("typebox").TNull]>>;
         sendPolicy: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"allow">, import("typebox").TLiteral<"deny">, import("typebox").TNull]>>;
         groupActivation: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"mention">, import("typebox").TLiteral<"always">, import("typebox").TNull]>>;
+    }>;
+    SessionsPluginPatchParams: import("typebox").TObject<{
+        key: import("typebox").TString;
+        pluginId: import("typebox").TString;
+        namespace: import("typebox").TString;
+        value: import("typebox").TOptional<import("typebox").TUnknown>;
+        unset: import("typebox").TOptional<import("typebox").TBoolean>;
+    }>;
+    SessionsPluginPatchResult: import("typebox").TObject<{
+        ok: import("typebox").TLiteral<true>;
+        key: import("typebox").TString;
+        value: import("typebox").TOptional<import("typebox").TUnknown>;
     }>;
     SessionsResetParams: import("typebox").TObject<{
         key: import("typebox").TString;
@@ -755,12 +868,132 @@ export declare const ProtocolSchemas: {
     }>;
     SessionsUsageParams: import("typebox").TObject<{
         key: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
         startDate: import("typebox").TOptional<import("typebox").TString>;
         endDate: import("typebox").TOptional<import("typebox").TString>;
         mode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"utc">, import("typebox").TLiteral<"gateway">, import("typebox").TLiteral<"specific">]>>;
+        range: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"7d">, import("typebox").TLiteral<"30d">, import("typebox").TLiteral<"90d">, import("typebox").TLiteral<"1y">, import("typebox").TLiteral<"all">]>>;
+        groupBy: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"instance">, import("typebox").TLiteral<"family">]>>;
+        includeHistorical: import("typebox").TOptional<import("typebox").TBoolean>;
         utcOffset: import("typebox").TOptional<import("typebox").TString>;
         limit: import("typebox").TOptional<import("typebox").TInteger>;
         includeContextWeight: import("typebox").TOptional<import("typebox").TBoolean>;
+    }>;
+    TaskSummary: import("typebox").TObject<{
+        id: import("typebox").TString;
+        kind: import("typebox").TOptional<import("typebox").TString>;
+        runtime: import("typebox").TOptional<import("typebox").TString>;
+        status: import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>;
+        title: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        childSessionKey: import("typebox").TOptional<import("typebox").TString>;
+        ownerKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
+        taskId: import("typebox").TOptional<import("typebox").TString>;
+        flowId: import("typebox").TOptional<import("typebox").TString>;
+        parentTaskId: import("typebox").TOptional<import("typebox").TString>;
+        sourceId: import("typebox").TOptional<import("typebox").TString>;
+        createdAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+        updatedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+        startedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+        endedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+        progressSummary: import("typebox").TOptional<import("typebox").TString>;
+        terminalSummary: import("typebox").TOptional<import("typebox").TString>;
+        error: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TasksListParams: import("typebox").TObject<{
+        status: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>, import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>>]>>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        limit: import("typebox").TOptional<import("typebox").TInteger>;
+        cursor: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TasksListResult: import("typebox").TObject<{
+        tasks: import("typebox").TArray<import("typebox").TObject<{
+            id: import("typebox").TString;
+            kind: import("typebox").TOptional<import("typebox").TString>;
+            runtime: import("typebox").TOptional<import("typebox").TString>;
+            status: import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>;
+            title: import("typebox").TOptional<import("typebox").TString>;
+            agentId: import("typebox").TOptional<import("typebox").TString>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            childSessionKey: import("typebox").TOptional<import("typebox").TString>;
+            ownerKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            flowId: import("typebox").TOptional<import("typebox").TString>;
+            parentTaskId: import("typebox").TOptional<import("typebox").TString>;
+            sourceId: import("typebox").TOptional<import("typebox").TString>;
+            createdAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            updatedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            startedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            endedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            progressSummary: import("typebox").TOptional<import("typebox").TString>;
+            terminalSummary: import("typebox").TOptional<import("typebox").TString>;
+            error: import("typebox").TOptional<import("typebox").TString>;
+        }>>;
+        nextCursor: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TasksGetParams: import("typebox").TObject<{
+        taskId: import("typebox").TString;
+    }>;
+    TasksGetResult: import("typebox").TObject<{
+        task: import("typebox").TObject<{
+            id: import("typebox").TString;
+            kind: import("typebox").TOptional<import("typebox").TString>;
+            runtime: import("typebox").TOptional<import("typebox").TString>;
+            status: import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>;
+            title: import("typebox").TOptional<import("typebox").TString>;
+            agentId: import("typebox").TOptional<import("typebox").TString>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            childSessionKey: import("typebox").TOptional<import("typebox").TString>;
+            ownerKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            flowId: import("typebox").TOptional<import("typebox").TString>;
+            parentTaskId: import("typebox").TOptional<import("typebox").TString>;
+            sourceId: import("typebox").TOptional<import("typebox").TString>;
+            createdAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            updatedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            startedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            endedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            progressSummary: import("typebox").TOptional<import("typebox").TString>;
+            terminalSummary: import("typebox").TOptional<import("typebox").TString>;
+            error: import("typebox").TOptional<import("typebox").TString>;
+        }>;
+    }>;
+    TasksCancelParams: import("typebox").TObject<{
+        taskId: import("typebox").TString;
+        reason: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TasksCancelResult: import("typebox").TObject<{
+        found: import("typebox").TBoolean;
+        cancelled: import("typebox").TBoolean;
+        reason: import("typebox").TOptional<import("typebox").TString>;
+        task: import("typebox").TOptional<import("typebox").TObject<{
+            id: import("typebox").TString;
+            kind: import("typebox").TOptional<import("typebox").TString>;
+            runtime: import("typebox").TOptional<import("typebox").TString>;
+            status: import("typebox").TUnion<[import("typebox").TLiteral<"queued">, import("typebox").TLiteral<"running">, import("typebox").TLiteral<"completed">, import("typebox").TLiteral<"failed">, import("typebox").TLiteral<"cancelled">, import("typebox").TLiteral<"timed_out">]>;
+            title: import("typebox").TOptional<import("typebox").TString>;
+            agentId: import("typebox").TOptional<import("typebox").TString>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            childSessionKey: import("typebox").TOptional<import("typebox").TString>;
+            ownerKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            flowId: import("typebox").TOptional<import("typebox").TString>;
+            parentTaskId: import("typebox").TOptional<import("typebox").TString>;
+            sourceId: import("typebox").TOptional<import("typebox").TString>;
+            createdAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            updatedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            startedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            endedAt: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TInteger]>>;
+            progressSummary: import("typebox").TOptional<import("typebox").TString>;
+            terminalSummary: import("typebox").TOptional<import("typebox").TString>;
+            error: import("typebox").TOptional<import("typebox").TString>;
+        }>>;
     }>;
     ConfigGetParams: import("typebox").TObject<{}>;
     ConfigSetParams: import("typebox").TObject<{
@@ -816,6 +1049,7 @@ export declare const ProtocolSchemas: {
     ConfigSchemaLookupResult: import("typebox").TObject<{
         path: import("typebox").TString;
         schema: import("typebox").TUnknown;
+        reloadKind: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"restart">, import("typebox").TLiteral<"hot">, import("typebox").TLiteral<"none">]>>;
         hint: import("typebox").TOptional<import("typebox").TObject<{
             label: import("typebox").TOptional<import("typebox").TString>;
             help: import("typebox").TOptional<import("typebox").TString>;
@@ -834,6 +1068,7 @@ export declare const ProtocolSchemas: {
             type: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TArray<import("typebox").TString>]>>;
             required: import("typebox").TBoolean;
             hasChildren: import("typebox").TBoolean;
+            reloadKind: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"restart">, import("typebox").TLiteral<"hot">, import("typebox").TLiteral<"none">]>>;
             hint: import("typebox").TOptional<import("typebox").TObject<{
                 label: import("typebox").TOptional<import("typebox").TString>;
                 help: import("typebox").TOptional<import("typebox").TString>;
@@ -870,6 +1105,7 @@ export declare const ProtocolSchemas: {
         type: import("typebox").TUnion<[import("typebox").TLiteral<"note">, import("typebox").TLiteral<"select">, import("typebox").TLiteral<"text">, import("typebox").TLiteral<"confirm">, import("typebox").TLiteral<"multiselect">, import("typebox").TLiteral<"progress">, import("typebox").TLiteral<"action">]>;
         title: import("typebox").TOptional<import("typebox").TString>;
         message: import("typebox").TOptional<import("typebox").TString>;
+        format: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"plain">]>>;
         options: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
             value: import("typebox").TUnknown;
             label: import("typebox").TString;
@@ -887,6 +1123,7 @@ export declare const ProtocolSchemas: {
             type: import("typebox").TUnion<[import("typebox").TLiteral<"note">, import("typebox").TLiteral<"select">, import("typebox").TLiteral<"text">, import("typebox").TLiteral<"confirm">, import("typebox").TLiteral<"multiselect">, import("typebox").TLiteral<"progress">, import("typebox").TLiteral<"action">]>;
             title: import("typebox").TOptional<import("typebox").TString>;
             message: import("typebox").TOptional<import("typebox").TString>;
+            format: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"plain">]>>;
             options: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
                 value: import("typebox").TUnknown;
                 label: import("typebox").TString;
@@ -907,6 +1144,7 @@ export declare const ProtocolSchemas: {
             type: import("typebox").TUnion<[import("typebox").TLiteral<"note">, import("typebox").TLiteral<"select">, import("typebox").TLiteral<"text">, import("typebox").TLiteral<"confirm">, import("typebox").TLiteral<"multiselect">, import("typebox").TLiteral<"progress">, import("typebox").TLiteral<"action">]>;
             title: import("typebox").TOptional<import("typebox").TString>;
             message: import("typebox").TOptional<import("typebox").TString>;
+            format: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"plain">]>>;
             options: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
                 value: import("typebox").TUnknown;
                 label: import("typebox").TString;
@@ -929,75 +1167,142 @@ export declare const ProtocolSchemas: {
         enabled: import("typebox").TBoolean;
         phase: import("typebox").TOptional<import("typebox").TString>;
     }>;
-    TalkConfigParams: import("typebox").TObject<{
-        includeSecrets: import("typebox").TOptional<import("typebox").TBoolean>;
+    TalkEvent: import("typebox").TObject<{
+        id: import("typebox").TString;
+        type: import("typebox").TUnion<[import("typebox").TLiteral<"session.started">, import("typebox").TLiteral<"session.ready">, import("typebox").TLiteral<"session.closed">, import("typebox").TLiteral<"session.error">, import("typebox").TLiteral<"session.replaced">, import("typebox").TLiteral<"turn.started">, import("typebox").TLiteral<"turn.ended">, import("typebox").TLiteral<"turn.cancelled">, import("typebox").TLiteral<"capture.started">, import("typebox").TLiteral<"capture.stopped">, import("typebox").TLiteral<"capture.cancelled">, import("typebox").TLiteral<"capture.once">, import("typebox").TLiteral<"input.audio.delta">, import("typebox").TLiteral<"input.audio.committed">, import("typebox").TLiteral<"transcript.delta">, import("typebox").TLiteral<"transcript.done">, import("typebox").TLiteral<"output.text.delta">, import("typebox").TLiteral<"output.text.done">, import("typebox").TLiteral<"output.audio.started">, import("typebox").TLiteral<"output.audio.delta">, import("typebox").TLiteral<"output.audio.done">, import("typebox").TLiteral<"tool.call">, import("typebox").TLiteral<"tool.progress">, import("typebox").TLiteral<"tool.result">, import("typebox").TLiteral<"tool.error">, import("typebox").TLiteral<"usage.metrics">, import("typebox").TLiteral<"latency.metrics">, import("typebox").TLiteral<"health.changed">]>;
+        sessionId: import("typebox").TString;
+        turnId: import("typebox").TOptional<import("typebox").TString>;
+        captureId: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        timestamp: import("typebox").TString;
+        mode: import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>;
+        transport: import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>;
+        brain: import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>;
+        provider: import("typebox").TOptional<import("typebox").TString>;
+        final: import("typebox").TOptional<import("typebox").TBoolean>;
+        callId: import("typebox").TOptional<import("typebox").TString>;
+        itemId: import("typebox").TOptional<import("typebox").TString>;
+        parentId: import("typebox").TOptional<import("typebox").TString>;
+        payload: import("typebox").TUnknown;
     }>;
-    TalkConfigResult: import("typebox").TObject<{
-        config: import("typebox").TObject<{
-            talk: import("typebox").TOptional<import("typebox").TObject<{
-                provider: import("typebox").TOptional<import("typebox").TString>;
-                providers: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TObject<{
-                    apiKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TUnion<[import("typebox").TObject<{
-                        source: import("typebox").TLiteral<"env">;
-                        provider: import("typebox").TString;
-                        id: import("typebox").TString;
-                    }>, import("typebox").TObject<{
-                        source: import("typebox").TLiteral<"file">;
-                        provider: import("typebox").TString;
-                        id: import("typebox").TString;
-                    }>, import("typebox").TObject<{
-                        source: import("typebox").TLiteral<"exec">;
-                        provider: import("typebox").TString;
-                        id: import("typebox").TString;
-                    }>]>]>>;
+    TalkCatalogParams: import("typebox").TObject<{}>;
+    TalkCatalogResult: import("typebox").TObject<{
+        modes: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>;
+        transports: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>;
+        brains: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>;
+        speech: import("typebox").TObject<{
+            activeProvider: import("typebox").TOptional<import("typebox").TString>;
+            providers: import("typebox").TArray<import("typebox").TObject<{
+                id: import("typebox").TString;
+                label: import("typebox").TString;
+                configured: import("typebox").TBoolean;
+                models: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                voices: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                defaultModel: import("typebox").TOptional<import("typebox").TString>;
+                modes: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>>;
+                transports: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>>;
+                brains: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>>;
+                inputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
                 }>>>;
-                resolved: import("typebox").TObject<{
-                    provider: import("typebox").TString;
-                    config: import("typebox").TObject<{
-                        apiKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TUnion<[import("typebox").TObject<{
-                            source: import("typebox").TLiteral<"env">;
-                            provider: import("typebox").TString;
-                            id: import("typebox").TString;
-                        }>, import("typebox").TObject<{
-                            source: import("typebox").TLiteral<"file">;
-                            provider: import("typebox").TString;
-                            id: import("typebox").TString;
-                        }>, import("typebox").TObject<{
-                            source: import("typebox").TLiteral<"exec">;
-                            provider: import("typebox").TString;
-                            id: import("typebox").TString;
-                        }>]>]>>;
-                    }>;
-                }>;
-                speechLocale: import("typebox").TOptional<import("typebox").TString>;
-                interruptOnSpeech: import("typebox").TOptional<import("typebox").TBoolean>;
-                silenceTimeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
+                outputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
+                }>>>;
+                supportsBrowserSession: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsBargeIn: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsToolCalls: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsVideoFrames: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsSessionResumption: import("typebox").TOptional<import("typebox").TBoolean>;
             }>>;
-            session: import("typebox").TOptional<import("typebox").TObject<{
-                mainKey: import("typebox").TOptional<import("typebox").TString>;
+        }>;
+        transcription: import("typebox").TObject<{
+            activeProvider: import("typebox").TOptional<import("typebox").TString>;
+            providers: import("typebox").TArray<import("typebox").TObject<{
+                id: import("typebox").TString;
+                label: import("typebox").TString;
+                configured: import("typebox").TBoolean;
+                models: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                voices: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                defaultModel: import("typebox").TOptional<import("typebox").TString>;
+                modes: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>>;
+                transports: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>>;
+                brains: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>>;
+                inputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
+                }>>>;
+                outputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
+                }>>>;
+                supportsBrowserSession: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsBargeIn: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsToolCalls: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsVideoFrames: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsSessionResumption: import("typebox").TOptional<import("typebox").TBoolean>;
             }>>;
-            ui: import("typebox").TOptional<import("typebox").TObject<{
-                seamColor: import("typebox").TOptional<import("typebox").TString>;
+        }>;
+        realtime: import("typebox").TObject<{
+            activeProvider: import("typebox").TOptional<import("typebox").TString>;
+            providers: import("typebox").TArray<import("typebox").TObject<{
+                id: import("typebox").TString;
+                label: import("typebox").TString;
+                configured: import("typebox").TBoolean;
+                models: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                voices: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+                defaultModel: import("typebox").TOptional<import("typebox").TString>;
+                modes: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>>;
+                transports: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>>;
+                brains: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>>;
+                inputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
+                }>>>;
+                outputAudioFormats: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+                    encoding: import("typebox").TUnion<[import("typebox").TLiteral<"pcm16">, import("typebox").TLiteral<"g711_ulaw">]>;
+                    sampleRateHz: import("typebox").TInteger;
+                    channels: import("typebox").TInteger;
+                }>>>;
+                supportsBrowserSession: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsBargeIn: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsToolCalls: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsVideoFrames: import("typebox").TOptional<import("typebox").TBoolean>;
+                supportsSessionResumption: import("typebox").TOptional<import("typebox").TBoolean>;
             }>>;
         }>;
     }>;
-    TalkRealtimeSessionParams: import("typebox").TObject<{
+    TalkClientCreateParams: import("typebox").TObject<{
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
         provider: import("typebox").TOptional<import("typebox").TString>;
         model: import("typebox").TOptional<import("typebox").TString>;
         voice: import("typebox").TOptional<import("typebox").TString>;
+        vadThreshold: import("typebox").TOptional<import("typebox").TNumber>;
+        silenceDurationMs: import("typebox").TOptional<import("typebox").TInteger>;
+        prefixPaddingMs: import("typebox").TOptional<import("typebox").TInteger>;
+        reasoningEffort: import("typebox").TOptional<import("typebox").TString>;
+        mode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>;
+        transport: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>;
+        brain: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>;
     }>;
-    TalkRealtimeSessionResult: import("typebox").TUnion<[import("typebox").TObject<{
+    TalkClientCreateResult: import("typebox").TUnion<[import("typebox").TObject<{
         provider: import("typebox").TString;
-        transport: import("typebox").TOptional<import("typebox").TLiteral<"webrtc-sdp">>;
+        transport: import("typebox").TLiteral<"webrtc">;
         clientSecret: import("typebox").TString;
         offerUrl: import("typebox").TOptional<import("typebox").TString>;
+        offerHeaders: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TString>>;
         model: import("typebox").TOptional<import("typebox").TString>;
         voice: import("typebox").TOptional<import("typebox").TString>;
         expiresAt: import("typebox").TOptional<import("typebox").TNumber>;
     }>, import("typebox").TObject<{
         provider: import("typebox").TString;
-        transport: import("typebox").TLiteral<"json-pcm-websocket">;
+        transport: import("typebox").TLiteral<"provider-websocket">;
         protocol: import("typebox").TString;
         clientSecret: import("typebox").TString;
         websocketUrl: import("typebox").TString;
@@ -1033,24 +1338,224 @@ export declare const ProtocolSchemas: {
         voice: import("typebox").TOptional<import("typebox").TString>;
         expiresAt: import("typebox").TOptional<import("typebox").TNumber>;
     }>]>;
-    TalkRealtimeRelayAudioParams: import("typebox").TObject<{
-        relaySessionId: import("typebox").TString;
+    TalkClientToolCallParams: import("typebox").TObject<{
+        sessionKey: import("typebox").TString;
+        callId: import("typebox").TString;
+        name: import("typebox").TString;
+        args: import("typebox").TOptional<import("typebox").TUnknown>;
+        relaySessionId: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TalkClientToolCallResult: import("typebox").TObject<{
+        runId: import("typebox").TString;
+        idempotencyKey: import("typebox").TString;
+    }>;
+    TalkConfigParams: import("typebox").TObject<{
+        includeSecrets: import("typebox").TOptional<import("typebox").TBoolean>;
+    }>;
+    TalkConfigResult: import("typebox").TObject<{
+        config: import("typebox").TObject<{
+            talk: import("typebox").TOptional<import("typebox").TObject<{
+                provider: import("typebox").TOptional<import("typebox").TString>;
+                providers: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TObject<{
+                    apiKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TUnion<[import("typebox").TObject<{
+                        source: import("typebox").TLiteral<"env">;
+                        provider: import("typebox").TString;
+                        id: import("typebox").TString;
+                    }>, import("typebox").TObject<{
+                        source: import("typebox").TLiteral<"file">;
+                        provider: import("typebox").TString;
+                        id: import("typebox").TUnsafe<string>;
+                    }>, import("typebox").TObject<{
+                        source: import("typebox").TLiteral<"exec">;
+                        provider: import("typebox").TString;
+                        id: import("typebox").TString;
+                    }>]>]>>;
+                }>>>;
+                realtime: import("typebox").TOptional<import("typebox").TObject<{
+                    provider: import("typebox").TOptional<import("typebox").TString>;
+                    providers: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TObject<{
+                        apiKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TUnion<[import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"env">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TString;
+                        }>, import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"file">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TUnsafe<string>;
+                        }>, import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"exec">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TString;
+                        }>]>]>>;
+                    }>>>;
+                    model: import("typebox").TOptional<import("typebox").TString>;
+                    voice: import("typebox").TOptional<import("typebox").TString>;
+                    instructions: import("typebox").TOptional<import("typebox").TString>;
+                    mode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>;
+                    transport: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>;
+                    brain: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>;
+                }>>;
+                resolved: import("typebox").TOptional<import("typebox").TObject<{
+                    provider: import("typebox").TString;
+                    config: import("typebox").TObject<{
+                        apiKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TUnion<[import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"env">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TString;
+                        }>, import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"file">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TUnsafe<string>;
+                        }>, import("typebox").TObject<{
+                            source: import("typebox").TLiteral<"exec">;
+                            provider: import("typebox").TString;
+                            id: import("typebox").TString;
+                        }>]>]>>;
+                    }>;
+                }>>;
+                consultThinkingLevel: import("typebox").TOptional<import("typebox").TString>;
+                consultFastMode: import("typebox").TOptional<import("typebox").TBoolean>;
+                speechLocale: import("typebox").TOptional<import("typebox").TString>;
+                interruptOnSpeech: import("typebox").TOptional<import("typebox").TBoolean>;
+                silenceTimeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
+            }>>;
+            session: import("typebox").TOptional<import("typebox").TObject<{
+                mainKey: import("typebox").TOptional<import("typebox").TString>;
+            }>>;
+            ui: import("typebox").TOptional<import("typebox").TObject<{
+                seamColor: import("typebox").TOptional<import("typebox").TString>;
+            }>>;
+        }>;
+    }>;
+    TalkSessionAppendAudioParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
         audioBase64: import("typebox").TString;
         timestamp: import("typebox").TOptional<import("typebox").TNumber>;
     }>;
-    TalkRealtimeRelayMarkParams: import("typebox").TObject<{
-        relaySessionId: import("typebox").TString;
-        markName: import("typebox").TOptional<import("typebox").TString>;
+    TalkSessionCancelOutputParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+        turnId: import("typebox").TOptional<import("typebox").TString>;
+        reason: import("typebox").TOptional<import("typebox").TString>;
     }>;
-    TalkRealtimeRelayStopParams: import("typebox").TObject<{
-        relaySessionId: import("typebox").TString;
+    TalkSessionCancelTurnParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+        turnId: import("typebox").TOptional<import("typebox").TString>;
+        reason: import("typebox").TOptional<import("typebox").TString>;
     }>;
-    TalkRealtimeRelayToolResultParams: import("typebox").TObject<{
-        relaySessionId: import("typebox").TString;
+    TalkSessionCreateParams: import("typebox").TObject<{
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        provider: import("typebox").TOptional<import("typebox").TString>;
+        model: import("typebox").TOptional<import("typebox").TString>;
+        voice: import("typebox").TOptional<import("typebox").TString>;
+        vadThreshold: import("typebox").TOptional<import("typebox").TNumber>;
+        silenceDurationMs: import("typebox").TOptional<import("typebox").TInteger>;
+        prefixPaddingMs: import("typebox").TOptional<import("typebox").TInteger>;
+        reasoningEffort: import("typebox").TOptional<import("typebox").TString>;
+        mode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>>;
+        transport: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>>;
+        brain: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>>;
+        ttlMs: import("typebox").TOptional<import("typebox").TInteger>;
+    }>;
+    TalkSessionCreateResult: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+        provider: import("typebox").TOptional<import("typebox").TString>;
+        mode: import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>;
+        transport: import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>;
+        brain: import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>;
+        relaySessionId: import("typebox").TOptional<import("typebox").TString>;
+        transcriptionSessionId: import("typebox").TOptional<import("typebox").TString>;
+        handoffId: import("typebox").TOptional<import("typebox").TString>;
+        roomId: import("typebox").TOptional<import("typebox").TString>;
+        roomUrl: import("typebox").TOptional<import("typebox").TString>;
+        token: import("typebox").TOptional<import("typebox").TString>;
+        audio: import("typebox").TOptional<import("typebox").TUnknown>;
+        model: import("typebox").TOptional<import("typebox").TString>;
+        voice: import("typebox").TOptional<import("typebox").TString>;
+        expiresAt: import("typebox").TOptional<import("typebox").TNumber>;
+    }>;
+    TalkSessionJoinParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+        token: import("typebox").TString;
+    }>;
+    TalkSessionJoinResult: import("typebox").TObject<{
+        id: import("typebox").TString;
+        roomId: import("typebox").TString;
+        roomUrl: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        sessionId: import("typebox").TOptional<import("typebox").TString>;
+        channel: import("typebox").TOptional<import("typebox").TString>;
+        target: import("typebox").TOptional<import("typebox").TString>;
+        provider: import("typebox").TOptional<import("typebox").TString>;
+        model: import("typebox").TOptional<import("typebox").TString>;
+        voice: import("typebox").TOptional<import("typebox").TString>;
+        mode: import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>;
+        transport: import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>;
+        brain: import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>;
+        createdAt: import("typebox").TNumber;
+        expiresAt: import("typebox").TNumber;
+        room: import("typebox").TObject<{
+            activeClientId: import("typebox").TOptional<import("typebox").TString>;
+            activeTurnId: import("typebox").TOptional<import("typebox").TString>;
+            recentTalkEvents: import("typebox").TArray<import("typebox").TObject<{
+                id: import("typebox").TString;
+                type: import("typebox").TUnion<[import("typebox").TLiteral<"session.started">, import("typebox").TLiteral<"session.ready">, import("typebox").TLiteral<"session.closed">, import("typebox").TLiteral<"session.error">, import("typebox").TLiteral<"session.replaced">, import("typebox").TLiteral<"turn.started">, import("typebox").TLiteral<"turn.ended">, import("typebox").TLiteral<"turn.cancelled">, import("typebox").TLiteral<"capture.started">, import("typebox").TLiteral<"capture.stopped">, import("typebox").TLiteral<"capture.cancelled">, import("typebox").TLiteral<"capture.once">, import("typebox").TLiteral<"input.audio.delta">, import("typebox").TLiteral<"input.audio.committed">, import("typebox").TLiteral<"transcript.delta">, import("typebox").TLiteral<"transcript.done">, import("typebox").TLiteral<"output.text.delta">, import("typebox").TLiteral<"output.text.done">, import("typebox").TLiteral<"output.audio.started">, import("typebox").TLiteral<"output.audio.delta">, import("typebox").TLiteral<"output.audio.done">, import("typebox").TLiteral<"tool.call">, import("typebox").TLiteral<"tool.progress">, import("typebox").TLiteral<"tool.result">, import("typebox").TLiteral<"tool.error">, import("typebox").TLiteral<"usage.metrics">, import("typebox").TLiteral<"latency.metrics">, import("typebox").TLiteral<"health.changed">]>;
+                sessionId: import("typebox").TString;
+                turnId: import("typebox").TOptional<import("typebox").TString>;
+                captureId: import("typebox").TOptional<import("typebox").TString>;
+                seq: import("typebox").TInteger;
+                timestamp: import("typebox").TString;
+                mode: import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>;
+                transport: import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>;
+                brain: import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>;
+                provider: import("typebox").TOptional<import("typebox").TString>;
+                final: import("typebox").TOptional<import("typebox").TBoolean>;
+                callId: import("typebox").TOptional<import("typebox").TString>;
+                itemId: import("typebox").TOptional<import("typebox").TString>;
+                parentId: import("typebox").TOptional<import("typebox").TString>;
+                payload: import("typebox").TUnknown;
+            }>>;
+        }>;
+    }>;
+    TalkSessionTurnParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+        turnId: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    TalkSessionTurnResult: import("typebox").TObject<{
+        ok: import("typebox").TBoolean;
+        turnId: import("typebox").TOptional<import("typebox").TString>;
+        events: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+            id: import("typebox").TString;
+            type: import("typebox").TUnion<[import("typebox").TLiteral<"session.started">, import("typebox").TLiteral<"session.ready">, import("typebox").TLiteral<"session.closed">, import("typebox").TLiteral<"session.error">, import("typebox").TLiteral<"session.replaced">, import("typebox").TLiteral<"turn.started">, import("typebox").TLiteral<"turn.ended">, import("typebox").TLiteral<"turn.cancelled">, import("typebox").TLiteral<"capture.started">, import("typebox").TLiteral<"capture.stopped">, import("typebox").TLiteral<"capture.cancelled">, import("typebox").TLiteral<"capture.once">, import("typebox").TLiteral<"input.audio.delta">, import("typebox").TLiteral<"input.audio.committed">, import("typebox").TLiteral<"transcript.delta">, import("typebox").TLiteral<"transcript.done">, import("typebox").TLiteral<"output.text.delta">, import("typebox").TLiteral<"output.text.done">, import("typebox").TLiteral<"output.audio.started">, import("typebox").TLiteral<"output.audio.delta">, import("typebox").TLiteral<"output.audio.done">, import("typebox").TLiteral<"tool.call">, import("typebox").TLiteral<"tool.progress">, import("typebox").TLiteral<"tool.result">, import("typebox").TLiteral<"tool.error">, import("typebox").TLiteral<"usage.metrics">, import("typebox").TLiteral<"latency.metrics">, import("typebox").TLiteral<"health.changed">]>;
+            sessionId: import("typebox").TString;
+            turnId: import("typebox").TOptional<import("typebox").TString>;
+            captureId: import("typebox").TOptional<import("typebox").TString>;
+            seq: import("typebox").TInteger;
+            timestamp: import("typebox").TString;
+            mode: import("typebox").TUnion<[import("typebox").TLiteral<"realtime">, import("typebox").TLiteral<"stt-tts">, import("typebox").TLiteral<"transcription">]>;
+            transport: import("typebox").TUnion<[import("typebox").TLiteral<"webrtc">, import("typebox").TLiteral<"provider-websocket">, import("typebox").TLiteral<"gateway-relay">, import("typebox").TLiteral<"managed-room">]>;
+            brain: import("typebox").TUnion<[import("typebox").TLiteral<"agent-consult">, import("typebox").TLiteral<"direct-tools">, import("typebox").TLiteral<"none">]>;
+            provider: import("typebox").TOptional<import("typebox").TString>;
+            final: import("typebox").TOptional<import("typebox").TBoolean>;
+            callId: import("typebox").TOptional<import("typebox").TString>;
+            itemId: import("typebox").TOptional<import("typebox").TString>;
+            parentId: import("typebox").TOptional<import("typebox").TString>;
+            payload: import("typebox").TUnknown;
+        }>>>;
+    }>;
+    TalkSessionSubmitToolResultParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
         callId: import("typebox").TString;
         result: import("typebox").TUnknown;
+        options: import("typebox").TOptional<import("typebox").TObject<{
+            suppressResponse: import("typebox").TOptional<import("typebox").TBoolean>;
+            willContinue: import("typebox").TOptional<import("typebox").TBoolean>;
+        }>>;
     }>;
-    TalkRealtimeRelayOkResult: import("typebox").TObject<{
+    TalkSessionCloseParams: import("typebox").TObject<{
+        sessionId: import("typebox").TString;
+    }>;
+    TalkSessionOkResult: import("typebox").TObject<{
         ok: import("typebox").TBoolean;
     }>;
     TalkSpeakParams: import("typebox").TObject<{
@@ -1080,6 +1585,7 @@ export declare const ProtocolSchemas: {
     ChannelsStatusParams: import("typebox").TObject<{
         probe: import("typebox").TOptional<import("typebox").TBoolean>;
         timeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
+        channel: import("typebox").TOptional<import("typebox").TString>;
     }>;
     ChannelsStatusResult: import("typebox").TObject<{
         ts: import("typebox").TInteger;
@@ -1131,8 +1637,23 @@ export declare const ProtocolSchemas: {
             application: import("typebox").TOptional<import("typebox").TUnknown>;
         }>>>;
         channelDefaultAccountId: import("typebox").TRecord<"^.*$", import("typebox").TString>;
+        eventLoop: import("typebox").TOptional<import("typebox").TObject<{
+            degraded: import("typebox").TBoolean;
+            reasons: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"event_loop_delay">, import("typebox").TLiteral<"event_loop_utilization">, import("typebox").TLiteral<"cpu">]>>;
+            intervalMs: import("typebox").TInteger;
+            delayP99Ms: import("typebox").TNumber;
+            delayMaxMs: import("typebox").TNumber;
+            utilization: import("typebox").TNumber;
+            cpuCoreRatio: import("typebox").TNumber;
+        }>>;
+        partial: import("typebox").TOptional<import("typebox").TBoolean>;
+        warnings: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
     }>;
     ChannelsStartParams: import("typebox").TObject<{
+        channel: import("typebox").TString;
+        accountId: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    ChannelsStopParams: import("typebox").TObject<{
         channel: import("typebox").TString;
         accountId: import("typebox").TOptional<import("typebox").TString>;
     }>;
@@ -1165,6 +1686,11 @@ export declare const ProtocolSchemas: {
         model: import("typebox").TOptional<import("typebox").TObject<{
             primary: import("typebox").TOptional<import("typebox").TString>;
             fallbacks: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        }>>;
+        agentRuntime: import("typebox").TOptional<import("typebox").TObject<{
+            id: import("typebox").TString;
+            fallback: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"pi">, import("typebox").TLiteral<"none">]>>;
+            source: import("typebox").TUnion<[import("typebox").TLiteral<"env">, import("typebox").TLiteral<"agent">, import("typebox").TLiteral<"defaults">, import("typebox").TLiteral<"model">, import("typebox").TLiteral<"provider">, import("typebox").TLiteral<"implicit">]>;
         }>>;
     }>;
     AgentsCreateParams: import("typebox").TObject<{
@@ -1259,6 +1785,95 @@ export declare const ProtocolSchemas: {
             content: import("typebox").TOptional<import("typebox").TString>;
         }>;
     }>;
+    ArtifactSummary: import("typebox").TObject<{
+        id: import("typebox").TString;
+        type: import("typebox").TString;
+        title: import("typebox").TString;
+        mimeType: import("typebox").TOptional<import("typebox").TString>;
+        sizeBytes: import("typebox").TOptional<import("typebox").TInteger>;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
+        taskId: import("typebox").TOptional<import("typebox").TString>;
+        messageSeq: import("typebox").TOptional<import("typebox").TInteger>;
+        source: import("typebox").TOptional<import("typebox").TString>;
+        download: import("typebox").TObject<{
+            mode: import("typebox").TUnion<[import("typebox").TLiteral<"bytes">, import("typebox").TLiteral<"url">, import("typebox").TLiteral<"unsupported">]>;
+        }>;
+    }>;
+    ArtifactsListParams: import("typebox").TObject<{
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
+        taskId: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    ArtifactsListResult: import("typebox").TObject<{
+        artifacts: import("typebox").TArray<import("typebox").TObject<{
+            id: import("typebox").TString;
+            type: import("typebox").TString;
+            title: import("typebox").TString;
+            mimeType: import("typebox").TOptional<import("typebox").TString>;
+            sizeBytes: import("typebox").TOptional<import("typebox").TInteger>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            messageSeq: import("typebox").TOptional<import("typebox").TInteger>;
+            source: import("typebox").TOptional<import("typebox").TString>;
+            download: import("typebox").TObject<{
+                mode: import("typebox").TUnion<[import("typebox").TLiteral<"bytes">, import("typebox").TLiteral<"url">, import("typebox").TLiteral<"unsupported">]>;
+            }>;
+        }>>;
+    }>;
+    ArtifactsGetParams: import("typebox").TObject<{
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
+        taskId: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+        artifactId: import("typebox").TString;
+    }>;
+    ArtifactsGetResult: import("typebox").TObject<{
+        artifact: import("typebox").TObject<{
+            id: import("typebox").TString;
+            type: import("typebox").TString;
+            title: import("typebox").TString;
+            mimeType: import("typebox").TOptional<import("typebox").TString>;
+            sizeBytes: import("typebox").TOptional<import("typebox").TInteger>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            messageSeq: import("typebox").TOptional<import("typebox").TInteger>;
+            source: import("typebox").TOptional<import("typebox").TString>;
+            download: import("typebox").TObject<{
+                mode: import("typebox").TUnion<[import("typebox").TLiteral<"bytes">, import("typebox").TLiteral<"url">, import("typebox").TLiteral<"unsupported">]>;
+            }>;
+        }>;
+    }>;
+    ArtifactsDownloadParams: import("typebox").TObject<{
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
+        taskId: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+        artifactId: import("typebox").TString;
+    }>;
+    ArtifactsDownloadResult: import("typebox").TObject<{
+        artifact: import("typebox").TObject<{
+            id: import("typebox").TString;
+            type: import("typebox").TString;
+            title: import("typebox").TString;
+            mimeType: import("typebox").TOptional<import("typebox").TString>;
+            sizeBytes: import("typebox").TOptional<import("typebox").TInteger>;
+            sessionKey: import("typebox").TOptional<import("typebox").TString>;
+            runId: import("typebox").TOptional<import("typebox").TString>;
+            taskId: import("typebox").TOptional<import("typebox").TString>;
+            messageSeq: import("typebox").TOptional<import("typebox").TInteger>;
+            source: import("typebox").TOptional<import("typebox").TString>;
+            download: import("typebox").TObject<{
+                mode: import("typebox").TUnion<[import("typebox").TLiteral<"bytes">, import("typebox").TLiteral<"url">, import("typebox").TLiteral<"unsupported">]>;
+            }>;
+        }>;
+        encoding: import("typebox").TOptional<import("typebox").TLiteral<"base64">>;
+        data: import("typebox").TOptional<import("typebox").TString>;
+        url: import("typebox").TOptional<import("typebox").TString>;
+    }>;
     AgentsListParams: import("typebox").TObject<{}>;
     AgentsListResult: import("typebox").TObject<{
         defaultId: import("typebox").TString;
@@ -1279,6 +1894,11 @@ export declare const ProtocolSchemas: {
                 primary: import("typebox").TOptional<import("typebox").TString>;
                 fallbacks: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
             }>>;
+            agentRuntime: import("typebox").TOptional<import("typebox").TObject<{
+                id: import("typebox").TString;
+                fallback: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"pi">, import("typebox").TLiteral<"none">]>>;
+                source: import("typebox").TUnion<[import("typebox").TLiteral<"env">, import("typebox").TLiteral<"agent">, import("typebox").TLiteral<"defaults">, import("typebox").TLiteral<"model">, import("typebox").TLiteral<"provider">, import("typebox").TLiteral<"implicit">]>;
+            }>>;
         }>>;
     }>;
     ModelChoice: import("typebox").TObject<{
@@ -1289,7 +1909,9 @@ export declare const ProtocolSchemas: {
         contextWindow: import("typebox").TOptional<import("typebox").TInteger>;
         reasoning: import("typebox").TOptional<import("typebox").TBoolean>;
     }>;
-    ModelsListParams: import("typebox").TObject<{}>;
+    ModelsListParams: import("typebox").TObject<{
+        view: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"default">, import("typebox").TLiteral<"configured">, import("typebox").TLiteral<"all">]>>;
+    }>;
     ModelsListResult: import("typebox").TObject<{
         models: import("typebox").TArray<import("typebox").TObject<{
             id: import("typebox").TString;
@@ -1368,6 +1990,8 @@ export declare const ProtocolSchemas: {
         source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">]>;
         pluginId: import("typebox").TOptional<import("typebox").TString>;
         optional: import("typebox").TOptional<import("typebox").TBoolean>;
+        risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+        tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
         defaultProfiles: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"minimal">, import("typebox").TLiteral<"coding">, import("typebox").TLiteral<"messaging">, import("typebox").TLiteral<"full">]>>;
     }>;
     ToolCatalogGroup: import("typebox").TObject<{
@@ -1382,6 +2006,8 @@ export declare const ProtocolSchemas: {
             source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">]>;
             pluginId: import("typebox").TOptional<import("typebox").TString>;
             optional: import("typebox").TOptional<import("typebox").TBoolean>;
+            risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+            tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
             defaultProfiles: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"minimal">, import("typebox").TLiteral<"coding">, import("typebox").TLiteral<"messaging">, import("typebox").TLiteral<"full">]>>;
         }>>;
     }>;
@@ -1403,6 +2029,8 @@ export declare const ProtocolSchemas: {
                 source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">]>;
                 pluginId: import("typebox").TOptional<import("typebox").TString>;
                 optional: import("typebox").TOptional<import("typebox").TBoolean>;
+                risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+                tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
                 defaultProfiles: import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"minimal">, import("typebox").TLiteral<"coding">, import("typebox").TLiteral<"messaging">, import("typebox").TLiteral<"full">]>>;
             }>>;
         }>>;
@@ -1419,6 +2047,8 @@ export declare const ProtocolSchemas: {
         source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">, import("typebox").TLiteral<"channel">]>;
         pluginId: import("typebox").TOptional<import("typebox").TString>;
         channelId: import("typebox").TOptional<import("typebox").TString>;
+        risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+        tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
     }>;
     ToolsEffectiveGroup: import("typebox").TObject<{
         id: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">, import("typebox").TLiteral<"channel">]>;
@@ -1432,6 +2062,8 @@ export declare const ProtocolSchemas: {
             source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">, import("typebox").TLiteral<"channel">]>;
             pluginId: import("typebox").TOptional<import("typebox").TString>;
             channelId: import("typebox").TOptional<import("typebox").TString>;
+            risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+            tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
         }>>;
     }>;
     ToolsEffectiveResult: import("typebox").TObject<{
@@ -1449,7 +2081,35 @@ export declare const ProtocolSchemas: {
                 source: import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">, import("typebox").TLiteral<"channel">]>;
                 pluginId: import("typebox").TOptional<import("typebox").TString>;
                 channelId: import("typebox").TOptional<import("typebox").TString>;
+                risk: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"low">, import("typebox").TLiteral<"medium">, import("typebox").TLiteral<"high">]>>;
+                tags: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
             }>>;
+        }>>;
+    }>;
+    ToolsInvokeParams: import("typebox").TObject<{
+        name: import("typebox").TString;
+        args: import("typebox").TOptional<import("typebox").TRecord<"^.*$", import("typebox").TUnknown>>;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
+        confirm: import("typebox").TOptional<import("typebox").TBoolean>;
+        idempotencyKey: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    ToolsInvokeError: import("typebox").TObject<{
+        code: import("typebox").TString;
+        message: import("typebox").TString;
+        details: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>;
+    ToolsInvokeResult: import("typebox").TObject<{
+        ok: import("typebox").TBoolean;
+        toolName: import("typebox").TString;
+        output: import("typebox").TOptional<import("typebox").TUnknown>;
+        requiresApproval: import("typebox").TOptional<import("typebox").TBoolean>;
+        approvalId: import("typebox").TOptional<import("typebox").TString>;
+        source: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"core">, import("typebox").TLiteral<"plugin">, import("typebox").TLiteral<"mcp">, import("typebox").TLiteral<"channel">, import("typebox").TString]>>;
+        error: import("typebox").TOptional<import("typebox").TObject<{
+            code: import("typebox").TString;
+            message: import("typebox").TString;
+            details: import("typebox").TOptional<import("typebox").TUnknown>;
         }>>;
     }>;
     SkillsBinsParams: import("typebox").TObject<{}>;
@@ -1497,6 +2157,23 @@ export declare const ProtocolSchemas: {
             image: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         }>, import("typebox").TNull]>>;
     }>;
+    SkillsUploadBeginParams: import("typebox").TObject<{
+        kind: import("typebox").TLiteral<"skill-archive">;
+        slug: import("typebox").TString;
+        sizeBytes: import("typebox").TInteger;
+        sha256: import("typebox").TOptional<import("typebox").TString>;
+        force: import("typebox").TOptional<import("typebox").TBoolean>;
+        idempotencyKey: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    SkillsUploadChunkParams: import("typebox").TObject<{
+        uploadId: import("typebox").TString;
+        offset: import("typebox").TInteger;
+        dataBase64: import("typebox").TString;
+    }>;
+    SkillsUploadCommitParams: import("typebox").TObject<{
+        uploadId: import("typebox").TString;
+        sha256: import("typebox").TOptional<import("typebox").TString>;
+    }>;
     SkillsInstallParams: import("typebox").TUnion<[import("typebox").TObject<{
         name: import("typebox").TString;
         installId: import("typebox").TString;
@@ -1507,6 +2184,13 @@ export declare const ProtocolSchemas: {
         slug: import("typebox").TString;
         version: import("typebox").TOptional<import("typebox").TString>;
         force: import("typebox").TOptional<import("typebox").TBoolean>;
+        timeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
+    }>, import("typebox").TObject<{
+        source: import("typebox").TLiteral<"upload">;
+        uploadId: import("typebox").TString;
+        slug: import("typebox").TString;
+        force: import("typebox").TOptional<import("typebox").TBoolean>;
+        sha256: import("typebox").TOptional<import("typebox").TString>;
         timeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
     }>]>;
     SkillsUpdateParams: import("typebox").TUnion<[import("typebox").TObject<{
@@ -1560,6 +2244,7 @@ export declare const ProtocolSchemas: {
         }>]>;
         delivery: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1572,6 +2257,7 @@ export declare const ProtocolSchemas: {
             to: import("typebox").TOptional<import("typebox").TString>;
         }>, import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1584,6 +2270,7 @@ export declare const ProtocolSchemas: {
             to: import("typebox").TOptional<import("typebox").TString>;
         }>, import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1611,13 +2298,29 @@ export declare const ProtocolSchemas: {
             lastRunStatus: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"ok">, import("typebox").TLiteral<"error">, import("typebox").TLiteral<"skipped">]>>;
             lastStatus: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"ok">, import("typebox").TLiteral<"error">, import("typebox").TLiteral<"skipped">]>>;
             lastError: import("typebox").TOptional<import("typebox").TString>;
-            lastErrorReason: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"auth">, import("typebox").TLiteral<"format">, import("typebox").TLiteral<"rate_limit">, import("typebox").TLiteral<"billing">, import("typebox").TLiteral<"timeout">, import("typebox").TLiteral<"model_not_found">, import("typebox").TLiteral<"empty_response">, import("typebox").TLiteral<"no_error_details">, import("typebox").TLiteral<"unclassified">, import("typebox").TLiteral<"unknown">]>>;
+            lastDiagnostics: import("typebox").TOptional<import("typebox").TObject<{
+                summary: import("typebox").TOptional<import("typebox").TString>;
+                entries: import("typebox").TArray<import("typebox").TObject<{
+                    ts: import("typebox").TInteger;
+                    source: import("typebox").TUnion<[import("typebox").TLiteral<"cron-preflight">, import("typebox").TLiteral<"cron-setup">, import("typebox").TLiteral<"model-preflight">, import("typebox").TLiteral<"agent-run">, import("typebox").TLiteral<"tool">, import("typebox").TLiteral<"exec">, import("typebox").TLiteral<"delivery">]>;
+                    severity: import("typebox").TUnion<[import("typebox").TLiteral<"info">, import("typebox").TLiteral<"warn">, import("typebox").TLiteral<"error">]>;
+                    message: import("typebox").TString;
+                    toolName: import("typebox").TOptional<import("typebox").TString>;
+                    exitCode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TNumber, import("typebox").TNull]>>;
+                    truncated: import("typebox").TOptional<import("typebox").TBoolean>;
+                }>>;
+            }>>;
+            lastDiagnosticSummary: import("typebox").TOptional<import("typebox").TString>;
+            lastErrorReason: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"auth">, import("typebox").TLiteral<"format">, import("typebox").TLiteral<"rate_limit">, import("typebox").TLiteral<"billing">, import("typebox").TLiteral<"server_error">, import("typebox").TLiteral<"timeout">, import("typebox").TLiteral<"model_not_found">, import("typebox").TLiteral<"empty_response">, import("typebox").TLiteral<"no_error_details">, import("typebox").TLiteral<"unclassified">, import("typebox").TLiteral<"unknown">]>>;
             lastDurationMs: import("typebox").TOptional<import("typebox").TInteger>;
             consecutiveErrors: import("typebox").TOptional<import("typebox").TInteger>;
             consecutiveSkipped: import("typebox").TOptional<import("typebox").TInteger>;
             lastDelivered: import("typebox").TOptional<import("typebox").TBoolean>;
             lastDeliveryStatus: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"delivered">, import("typebox").TLiteral<"not-delivered">, import("typebox").TLiteral<"unknown">, import("typebox").TLiteral<"not-requested">]>>;
             lastDeliveryError: import("typebox").TOptional<import("typebox").TString>;
+            lastFailureNotificationDelivered: import("typebox").TOptional<import("typebox").TBoolean>;
+            lastFailureNotificationDeliveryStatus: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"delivered">, import("typebox").TLiteral<"not-delivered">, import("typebox").TLiteral<"unknown">, import("typebox").TLiteral<"not-requested">]>>;
+            lastFailureNotificationDeliveryError: import("typebox").TOptional<import("typebox").TString>;
             lastFailureAlertAtMs: import("typebox").TOptional<import("typebox").TInteger>;
         }>;
     }>;
@@ -1629,8 +2332,14 @@ export declare const ProtocolSchemas: {
         enabled: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"all">, import("typebox").TLiteral<"enabled">, import("typebox").TLiteral<"disabled">]>>;
         sortBy: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"nextRunAtMs">, import("typebox").TLiteral<"updatedAtMs">, import("typebox").TLiteral<"name">]>>;
         sortDir: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"asc">, import("typebox").TLiteral<"desc">]>>;
+        agentId: import("typebox").TOptional<import("typebox").TString>;
     }>;
     CronStatusParams: import("typebox").TObject<{}>;
+    CronGetParams: import("typebox").TUnion<[import("typebox").TObject<{
+        id: import("typebox").TString;
+    }>, import("typebox").TObject<{
+        jobId: import("typebox").TString;
+    }>]>;
     CronAddParams: import("typebox").TObject<{
         agentId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         sessionKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
@@ -1669,6 +2378,7 @@ export declare const ProtocolSchemas: {
         }>]>;
         delivery: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1681,6 +2391,7 @@ export declare const ProtocolSchemas: {
             to: import("typebox").TOptional<import("typebox").TString>;
         }>, import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1693,6 +2404,7 @@ export declare const ProtocolSchemas: {
             to: import("typebox").TOptional<import("typebox").TString>;
         }>, import("typebox").TObject<{
             channel: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"last">, import("typebox").TString]>>;
+            threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
             accountId: import("typebox").TOptional<import("typebox").TString>;
             bestEffort: import("typebox").TOptional<import("typebox").TBoolean>;
             failureDestination: import("typebox").TOptional<import("typebox").TObject<{
@@ -1733,6 +2445,7 @@ export declare const ProtocolSchemas: {
         scope: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"job">, import("typebox").TLiteral<"all">]>>;
         id: import("typebox").TOptional<import("typebox").TString>;
         jobId: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
         limit: import("typebox").TOptional<import("typebox").TInteger>;
         offset: import("typebox").TOptional<import("typebox").TInteger>;
         statuses: import("typebox").TOptional<import("typebox").TArray<import("typebox").TUnion<[import("typebox").TLiteral<"ok">, import("typebox").TLiteral<"error">, import("typebox").TLiteral<"skipped">]>>>;
@@ -1749,11 +2462,29 @@ export declare const ProtocolSchemas: {
         status: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"ok">, import("typebox").TLiteral<"error">, import("typebox").TLiteral<"skipped">]>>;
         error: import("typebox").TOptional<import("typebox").TString>;
         summary: import("typebox").TOptional<import("typebox").TString>;
+        diagnostics: import("typebox").TOptional<import("typebox").TObject<{
+            summary: import("typebox").TOptional<import("typebox").TString>;
+            entries: import("typebox").TArray<import("typebox").TObject<{
+                ts: import("typebox").TInteger;
+                source: import("typebox").TUnion<[import("typebox").TLiteral<"cron-preflight">, import("typebox").TLiteral<"cron-setup">, import("typebox").TLiteral<"model-preflight">, import("typebox").TLiteral<"agent-run">, import("typebox").TLiteral<"tool">, import("typebox").TLiteral<"exec">, import("typebox").TLiteral<"delivery">]>;
+                severity: import("typebox").TUnion<[import("typebox").TLiteral<"info">, import("typebox").TLiteral<"warn">, import("typebox").TLiteral<"error">]>;
+                message: import("typebox").TString;
+                toolName: import("typebox").TOptional<import("typebox").TString>;
+                exitCode: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TNumber, import("typebox").TNull]>>;
+                truncated: import("typebox").TOptional<import("typebox").TBoolean>;
+            }>>;
+        }>>;
         delivered: import("typebox").TOptional<import("typebox").TBoolean>;
         deliveryStatus: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"delivered">, import("typebox").TLiteral<"not-delivered">, import("typebox").TLiteral<"unknown">, import("typebox").TLiteral<"not-requested">]>>;
         deliveryError: import("typebox").TOptional<import("typebox").TString>;
+        failureNotificationDelivery: import("typebox").TOptional<import("typebox").TObject<{
+            delivered: import("typebox").TOptional<import("typebox").TBoolean>;
+            status: import("typebox").TUnion<[import("typebox").TLiteral<"delivered">, import("typebox").TLiteral<"not-delivered">, import("typebox").TLiteral<"unknown">, import("typebox").TLiteral<"not-requested">]>;
+            error: import("typebox").TOptional<import("typebox").TString>;
+        }>>;
         sessionId: import("typebox").TOptional<import("typebox").TString>;
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        runId: import("typebox").TOptional<import("typebox").TString>;
         runAtMs: import("typebox").TOptional<import("typebox").TInteger>;
         durationMs: import("typebox").TOptional<import("typebox").TInteger>;
         nextRunAtMs: import("typebox").TOptional<import("typebox").TInteger>;
@@ -1910,6 +2641,11 @@ export declare const ProtocolSchemas: {
         host: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         security: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         ask: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
+        warningText: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
+        commandSpans: import("typebox").TOptional<import("typebox").TArray<import("typebox").TObject<{
+            startIndex: import("typebox").TInteger;
+            endIndex: import("typebox").TInteger;
+        }>>>;
         agentId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         resolvedPath: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
         sessionKey: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNull]>>;
@@ -1931,6 +2667,7 @@ export declare const ProtocolSchemas: {
         severity: import("typebox").TOptional<import("typebox").TString>;
         toolName: import("typebox").TOptional<import("typebox").TString>;
         toolCallId: import("typebox").TOptional<import("typebox").TString>;
+        allowedDecisions: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
         agentId: import("typebox").TOptional<import("typebox").TString>;
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
         turnSourceChannel: import("typebox").TOptional<import("typebox").TString>;
@@ -1943,6 +2680,61 @@ export declare const ProtocolSchemas: {
     PluginApprovalResolveParams: import("typebox").TObject<{
         id: import("typebox").TString;
         decision: import("typebox").TString;
+    }>;
+    PluginControlUiDescriptor: import("typebox").TObject<{
+        id: import("typebox").TString;
+        pluginId: import("typebox").TString;
+        pluginName: import("typebox").TOptional<import("typebox").TString>;
+        surface: import("typebox").TUnion<[import("typebox").TLiteral<"session">, import("typebox").TLiteral<"tool">, import("typebox").TLiteral<"run">, import("typebox").TLiteral<"settings">]>;
+        label: import("typebox").TString;
+        description: import("typebox").TOptional<import("typebox").TString>;
+        placement: import("typebox").TOptional<import("typebox").TString>;
+        schema: import("typebox").TOptional<import("typebox").TUnknown>;
+        requiredScopes: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+    }>;
+    PluginsSessionActionFailureResult: import("typebox").TObject<{
+        ok: import("typebox").TLiteral<false>;
+        error: import("typebox").TString;
+        code: import("typebox").TOptional<import("typebox").TString>;
+        details: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>;
+    PluginsSessionActionParams: import("typebox").TObject<{
+        pluginId: import("typebox").TString;
+        actionId: import("typebox").TString;
+        sessionKey: import("typebox").TOptional<import("typebox").TString>;
+        payload: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>;
+    PluginsSessionActionResult: import("typebox").TUnion<[import("typebox").TObject<{
+        ok: import("typebox").TLiteral<true>;
+        result: import("typebox").TOptional<import("typebox").TUnknown>;
+        continueAgent: import("typebox").TOptional<import("typebox").TBoolean>;
+        reply: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>, import("typebox").TObject<{
+        ok: import("typebox").TLiteral<false>;
+        error: import("typebox").TString;
+        code: import("typebox").TOptional<import("typebox").TString>;
+        details: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>]>;
+    PluginsSessionActionSuccessResult: import("typebox").TObject<{
+        ok: import("typebox").TLiteral<true>;
+        result: import("typebox").TOptional<import("typebox").TUnknown>;
+        continueAgent: import("typebox").TOptional<import("typebox").TBoolean>;
+        reply: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>;
+    PluginsUiDescriptorsParams: import("typebox").TObject<{}>;
+    PluginsUiDescriptorsResult: import("typebox").TObject<{
+        ok: import("typebox").TLiteral<true>;
+        descriptors: import("typebox").TArray<import("typebox").TObject<{
+            id: import("typebox").TString;
+            pluginId: import("typebox").TString;
+            pluginName: import("typebox").TOptional<import("typebox").TString>;
+            surface: import("typebox").TUnion<[import("typebox").TLiteral<"session">, import("typebox").TLiteral<"tool">, import("typebox").TLiteral<"run">, import("typebox").TLiteral<"settings">]>;
+            label: import("typebox").TString;
+            description: import("typebox").TOptional<import("typebox").TString>;
+            placement: import("typebox").TOptional<import("typebox").TString>;
+            schema: import("typebox").TOptional<import("typebox").TUnknown>;
+            requiredScopes: import("typebox").TOptional<import("typebox").TArray<import("typebox").TString>>;
+        }>>;
     }>;
     DevicePairListParams: import("typebox").TObject<{}>;
     DevicePairApproveParams: import("typebox").TObject<{
@@ -1993,8 +2785,10 @@ export declare const ProtocolSchemas: {
     }>;
     ChatSendParams: import("typebox").TObject<{
         sessionKey: import("typebox").TString;
+        sessionId: import("typebox").TOptional<import("typebox").TString>;
         message: import("typebox").TString;
         thinking: import("typebox").TOptional<import("typebox").TString>;
+        fastMode: import("typebox").TOptional<import("typebox").TBoolean>;
         deliver: import("typebox").TOptional<import("typebox").TBoolean>;
         originatingChannel: import("typebox").TOptional<import("typebox").TString>;
         originatingTo: import("typebox").TOptional<import("typebox").TString>;
@@ -2021,17 +2815,87 @@ export declare const ProtocolSchemas: {
         message: import("typebox").TString;
         label: import("typebox").TOptional<import("typebox").TString>;
     }>;
-    ChatEvent: import("typebox").TObject<{
+    ChatDeltaEvent: import("typebox").TObject<{
         runId: import("typebox").TString;
         sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
         seq: import("typebox").TInteger;
-        state: import("typebox").TUnion<[import("typebox").TLiteral<"delta">, import("typebox").TLiteral<"final">, import("typebox").TLiteral<"aborted">, import("typebox").TLiteral<"error">]>;
+        state: import("typebox").TLiteral<"delta">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        deltaText: import("typebox").TString;
+        replace: import("typebox").TOptional<import("typebox").TBoolean>;
+        usage: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>;
+    ChatFinalEvent: import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"final">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        usage: import("typebox").TOptional<import("typebox").TUnknown>;
+        stopReason: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    ChatAbortedEvent: import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"aborted">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        stopReason: import("typebox").TOptional<import("typebox").TString>;
+    }>;
+    ChatErrorEvent: import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"error">;
         message: import("typebox").TOptional<import("typebox").TUnknown>;
         errorMessage: import("typebox").TOptional<import("typebox").TString>;
         errorKind: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"refusal">, import("typebox").TLiteral<"timeout">, import("typebox").TLiteral<"rate_limit">, import("typebox").TLiteral<"context_length">, import("typebox").TLiteral<"unknown">]>>;
         usage: import("typebox").TOptional<import("typebox").TUnknown>;
         stopReason: import("typebox").TOptional<import("typebox").TString>;
     }>;
+    ChatEvent: import("typebox").TUnion<[import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"delta">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        deltaText: import("typebox").TString;
+        replace: import("typebox").TOptional<import("typebox").TBoolean>;
+        usage: import("typebox").TOptional<import("typebox").TUnknown>;
+    }>, import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"final">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        usage: import("typebox").TOptional<import("typebox").TUnknown>;
+        stopReason: import("typebox").TOptional<import("typebox").TString>;
+    }>, import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"aborted">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        stopReason: import("typebox").TOptional<import("typebox").TString>;
+    }>, import("typebox").TObject<{
+        runId: import("typebox").TString;
+        sessionKey: import("typebox").TString;
+        spawnedBy: import("typebox").TOptional<import("typebox").TString>;
+        seq: import("typebox").TInteger;
+        state: import("typebox").TLiteral<"error">;
+        message: import("typebox").TOptional<import("typebox").TUnknown>;
+        errorMessage: import("typebox").TOptional<import("typebox").TString>;
+        errorKind: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TLiteral<"refusal">, import("typebox").TLiteral<"timeout">, import("typebox").TLiteral<"rate_limit">, import("typebox").TLiteral<"context_length">, import("typebox").TLiteral<"unknown">]>>;
+        usage: import("typebox").TOptional<import("typebox").TUnknown>;
+        stopReason: import("typebox").TOptional<import("typebox").TString>;
+    }>]>;
     UpdateStatusParams: import("typebox").TObject<{}>;
     UpdateRunParams: import("typebox").TObject<{
         sessionKey: import("typebox").TOptional<import("typebox").TString>;
@@ -2042,6 +2906,7 @@ export declare const ProtocolSchemas: {
             threadId: import("typebox").TOptional<import("typebox").TUnion<[import("typebox").TString, import("typebox").TNumber]>>;
         }>>;
         note: import("typebox").TOptional<import("typebox").TString>;
+        continuationMessage: import("typebox").TOptional<import("typebox").TString>;
         restartDelayMs: import("typebox").TOptional<import("typebox").TInteger>;
         timeoutMs: import("typebox").TOptional<import("typebox").TInteger>;
     }>;
@@ -2053,4 +2918,4 @@ export declare const ProtocolSchemas: {
         restartExpectedMs: import("typebox").TOptional<import("typebox").TInteger>;
     }>;
 };
-export declare const PROTOCOL_VERSION: 3;
+export { MIN_CLIENT_PROTOCOL_VERSION, MIN_PROBE_PROTOCOL_VERSION, PROTOCOL_VERSION, } from "../version.js";

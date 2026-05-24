@@ -1,12 +1,12 @@
 import type { PathAliasPolicy } from "../../infra/path-alias-guards.js";
-import type { SafeOpenSyncAllowedType } from "../../infra/safe-open-sync.js";
-import { type BoundaryFileOpenResult } from "./fs-bridge-path-safety.runtime.js";
+import { type RootFileOpenResult } from "./fs-bridge-path-safety.runtime.js";
 import type { SandboxResolvedFsPath, SandboxFsMount } from "./fs-paths.js";
+type BoundaryAllowedType = "file" | "directory";
 export type PathSafetyOptions = {
     action: string;
     aliasPolicy?: PathAliasPolicy;
     requireWritable?: boolean;
-    allowedType?: SafeOpenSyncAllowedType;
+    allowedType?: BoundaryAllowedType;
 };
 export type PathSafetyCheck = {
     target: SandboxResolvedFsPath;
@@ -42,7 +42,7 @@ export declare class SandboxFsPathGuard {
     });
     assertPathChecks(checks: PathSafetyCheck[]): Promise<void>;
     assertPathSafety(target: SandboxResolvedFsPath, options: PathSafetyOptions): Promise<void>;
-    openReadableFile(target: SandboxResolvedFsPath): Promise<BoundaryFileOpenResult & {
+    openReadableFile(target: SandboxResolvedFsPath): Promise<RootFileOpenResult & {
         ok: true;
     }>;
     private resolveRequiredMount;

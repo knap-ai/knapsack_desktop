@@ -9,7 +9,7 @@ export type InstallSecurityScanResult = {
         reason: string;
     };
 };
-export type PluginInstallRequestKind = "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";
+export type PluginInstallRequestKind = "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm" | "plugin-git";
 export type SkillInstallSpecMetadata = {
     id?: string;
     kind: "brew" | "node" | "go" | "uv" | "download";
@@ -25,6 +25,11 @@ export type SkillInstallSpecMetadata = {
     stripComponents?: number;
     targetDir?: string;
 };
+export type PackageExecutableScanMetadata = {
+    runtimeExtensions?: readonly string[];
+    runtimeSetupEntry?: string;
+    setupEntry?: string;
+};
 export declare function scanBundleInstallSource(params: InstallSafetyOverrides & {
     logger: InstallScanLogger;
     pluginId: string;
@@ -38,6 +43,7 @@ export declare function scanPackageInstallSource(params: InstallSafetyOverrides 
     extensions: string[];
     logger: InstallScanLogger;
     packageDir: string;
+    packageMetadata?: PackageExecutableScanMetadata;
     pluginId: string;
     requestKind?: PluginInstallRequestKind;
     requestedSpecifier?: string;
@@ -47,9 +53,14 @@ export declare function scanPackageInstallSource(params: InstallSafetyOverrides 
     version?: string;
 }): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanInstalledPackageDependencyTree(params: {
+    additionalPackageDirs?: string[];
+    allowManagedNpmRootPackagePeerSymlinks?: boolean;
+    dangerouslyForceUnsafeInstall?: boolean;
+    dependencyScanRootDir?: string;
     logger: InstallScanLogger;
     packageDir: string;
     pluginId: string;
+    trustedSourceLinkedOfficialInstall?: boolean;
 }): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanFileInstallSource(params: InstallSafetyOverrides & {
     filePath: string;

@@ -1,6 +1,5 @@
 import type { ChannelApprovalCapability, ChannelApprovalNativeAdapter } from "../channels/plugins/types.adapters.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { resolveApprovalOverGateway } from "./approval-gateway-resolver.js";
 import { CHANNEL_APPROVAL_NATIVE_RUNTIME_CONTEXT_CAPABILITY, createLazyChannelApprovalNativeRuntimeAdapter } from "./approval-handler-adapter-runtime.js";
 import type { ApprovalRequest, ApprovalResolved, ChannelApprovalKind, ChannelApprovalNativeRuntimeAdapter, ChannelApprovalNativeRuntimeSpec } from "./approval-handler-runtime-types.js";
 import type { ChannelNativeApprovalDeliveryCallbacks, ChannelNativeApprovalTransportSpec } from "./approval-native-runtime-types.js";
@@ -8,12 +7,11 @@ import type { ExpiredApprovalView, PendingApprovalView, ResolvedApprovalView } f
 import type { ExecApprovalChannelRuntime } from "./exec-approval-channel-runtime.js";
 import type { ExecApprovalChannelRuntimeEventKind } from "./exec-approval-channel-runtime.types.js";
 export type { ApprovalActionView, ApprovalMetadataView, ApprovalViewModel, ExecApprovalExpiredView, ExecApprovalPendingView, ExecApprovalResolvedView, ExpiredApprovalView, PendingApprovalView, PluginApprovalExpiredView, PluginApprovalPendingView, PluginApprovalResolvedView, ResolvedApprovalView, } from "./approval-view-model.types.js";
-export { resolveApprovalOverGateway };
 export { CHANNEL_APPROVAL_NATIVE_RUNTIME_CONTEXT_CAPABILITY, createLazyChannelApprovalNativeRuntimeAdapter, };
-export type { ApprovalRequest, ApprovalResolved, ChannelApprovalCapabilityHandlerContext, ChannelApprovalKind, ChannelApprovalNativeAvailabilityAdapter, ChannelApprovalNativeFinalAction, ChannelApprovalNativeInteractionAdapter, ChannelApprovalNativeObserveAdapter, ChannelApprovalNativePresentationAdapter, ChannelApprovalNativeRuntimeAdapter, ChannelApprovalNativeRuntimeSpec, ChannelApprovalNativeTransportAdapter, } from "./approval-handler-runtime-types.js";
+export type { ChannelApprovalCapabilityHandlerContext, ChannelApprovalNativeAvailabilityAdapter, ChannelApprovalNativeFinalAction, ChannelApprovalNativeInteractionAdapter, ChannelApprovalNativeObserveAdapter, ChannelApprovalNativePresentationAdapter, ChannelApprovalNativeRuntimeAdapter, ChannelApprovalNativeRuntimeSpec, ChannelApprovalNativeTransportAdapter, } from "./approval-handler-runtime-types.js";
 export type ChannelApprovalHandler<TRequest extends ApprovalRequest = ApprovalRequest, TResolved extends ApprovalResolved = ApprovalResolved> = ExecApprovalChannelRuntime<TRequest, TResolved>;
 export declare function createChannelApprovalNativeRuntimeAdapter<TPendingPayload, TPreparedTarget, TPendingEntry, TBinding = unknown, TFinalPayload = unknown, TPendingView extends PendingApprovalView = PendingApprovalView, TResolvedView extends ResolvedApprovalView = ResolvedApprovalView, TExpiredView extends ExpiredApprovalView = ExpiredApprovalView>(spec: ChannelApprovalNativeRuntimeSpec<TPendingPayload, TPreparedTarget, TPendingEntry, TBinding, TFinalPayload, TPendingView, TResolvedView, TExpiredView>): ChannelApprovalNativeRuntimeAdapter<TPendingPayload, TPreparedTarget, TPendingEntry, TBinding, TFinalPayload>;
-export type ChannelApprovalHandlerRuntimeSpec<TRequest extends ApprovalRequest> = {
+type ChannelApprovalHandlerRuntimeSpec<TRequest extends ApprovalRequest> = {
     label: string;
     clientDisplayName: string;
     cfg: OpenClawConfig;
@@ -28,15 +26,15 @@ export type ChannelApprovalHandlerRuntimeSpec<TRequest extends ApprovalRequest> 
     shouldHandle: (request: TRequest) => boolean;
     nowMs?: () => number;
 };
-export type ChannelApprovalHandlerContentSpec<TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest> = {
+type ChannelApprovalHandlerContentSpec<TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest> = {
     buildPendingContent: (params: {
         request: TRequest;
         approvalKind: ChannelApprovalKind;
         nowMs: number;
     }) => TPendingContent | Promise<TPendingContent>;
 };
-export type ChannelApprovalHandlerTransportSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest> = ChannelNativeApprovalTransportSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest>;
-export type ChannelApprovalHandlerLifecycleSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest, TResolved extends ApprovalResolved = ApprovalResolved> = ChannelNativeApprovalDeliveryCallbacks<TPendingEntry, TPreparedTarget, TPendingContent, TRequest> & {
+type ChannelApprovalHandlerTransportSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest> = ChannelNativeApprovalTransportSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest>;
+type ChannelApprovalHandlerLifecycleSpec<TPendingEntry, TPreparedTarget, TPendingContent, TRequest extends ApprovalRequest = ApprovalRequest, TResolved extends ApprovalResolved = ApprovalResolved> = ChannelNativeApprovalDeliveryCallbacks<TPendingEntry, TPreparedTarget, TPendingContent, TRequest> & {
     finalizeResolved: (params: {
         request: TRequest;
         resolved: TResolved;

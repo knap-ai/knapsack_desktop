@@ -66,6 +66,7 @@ export declare function resolveStatusJsonOutput(params: {
         } | null;
         error: string | null;
         authWarning: string | null;
+        modelPricing?: unknown;
     };
     gatewayService: {
         label: string;

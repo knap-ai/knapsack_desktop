@@ -1,4 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginManifestRegistry } from "./manifest-registry.js";
+import { type PluginModuleLoaderFactory } from "./plugin-module-loader-cache.js";
 import type { CliBackendPlugin, PluginConfigMigration, PluginSetupAutoEnableProbe, ProviderPlugin } from "./types.js";
 type SetupProviderEntry = {
     pluginId: string;
@@ -35,21 +37,14 @@ type SetupAutoEnableReason = {
     pluginId: string;
     reason: string;
 };
-export declare const __testing: {
-    readonly maxSetupLookupCacheEntries: number;
-    readonly setMaxSetupLookupCacheEntriesForTest: (value?: number) => void;
-    readonly getCacheSizes: () => {
-        setupRegistry: number;
-        setupProvider: number;
-        setupCliBackend: number;
-    };
-};
 export declare function clearPluginSetupRegistryCache(): void;
+export declare function setPluginSetupRegistryModuleLoaderFactoryForTest(factory: PluginModuleLoaderFactory | undefined): void;
 export declare function resolvePluginSetupRegistry(params?: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     pluginIds?: readonly string[];
+    manifestRegistry?: PluginManifestRegistry;
 }): PluginSetupRegistry;
 export declare function resolvePluginSetupProvider(params: {
     provider: string;
@@ -77,5 +72,6 @@ export declare function resolvePluginSetupAutoEnableReasons(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     pluginIds?: readonly string[];
+    manifestRegistry?: PluginManifestRegistry;
 }): SetupAutoEnableReason[];
 export {};

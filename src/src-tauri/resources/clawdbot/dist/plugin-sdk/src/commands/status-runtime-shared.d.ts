@@ -5,7 +5,12 @@ export declare function resolveStatusSecurityAudit(params: {
     config: OpenClawConfig;
     sourceConfig: OpenClawConfig;
 }): Promise<import("../security/audit.types.ts").SecurityAuditReport>;
-export declare function resolveStatusUsageSummary(timeoutMs?: number): Promise<import("../infra/provider-usage.types.ts").UsageSummary>;
+type StatusUsageSummaryOptions = {
+    config: OpenClawConfig;
+    timeoutMs?: number;
+    agentDir?: string;
+};
+export declare function resolveStatusUsageSummary(params: StatusUsageSummaryOptions): Promise<import("../infra/provider-usage.types.ts").UsageSummary>;
 export declare function loadStatusProviderUsageModule(): Promise<typeof import("../infra/provider-usage.js")>;
 export declare function resolveStatusGatewayHealth(params: {
     config: OpenClawConfig;
@@ -24,6 +29,16 @@ export declare function resolveStatusGatewayHealthSafe(params: {
 }): Promise<HealthSummary | {
     error: string;
 }>;
+export declare function resolveStatusGatewayDiagnosticsSafe(params: {
+    config: OpenClawConfig;
+    timeoutMs?: number;
+    gatewayReachable: boolean;
+    callOverrides?: {
+        url: string;
+        token?: string;
+        password?: string;
+    };
+}): Promise<unknown>;
 export declare function resolveStatusLastHeartbeat(params: {
     config: OpenClawConfig;
     timeoutMs?: number;
@@ -38,6 +53,7 @@ export declare function resolveStatusServiceSummaries(): Promise<[{
     loadedText: string;
     runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
     runtimeShort: string | null;
+    layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
 }, {
     label: string;
     installed: boolean | null;
@@ -47,6 +63,7 @@ export declare function resolveStatusServiceSummaries(): Promise<[{
     loadedText: string;
     runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
     runtimeShort: string | null;
+    layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
 }]>;
 type StatusUsageSummary = Awaited<ReturnType<typeof resolveStatusUsageSummary>>;
 type StatusGatewayHealth = Awaited<ReturnType<typeof resolveStatusGatewayHealth>>;
@@ -58,7 +75,7 @@ export declare function resolveStatusRuntimeDetails(params: {
     deep?: boolean;
     gatewayReachable: boolean;
     suppressHealthErrors?: boolean;
-    resolveUsage?: (timeoutMs?: number) => Promise<StatusUsageSummary>;
+    resolveUsage?: (input: StatusUsageSummaryOptions) => Promise<StatusUsageSummary>;
     resolveHealth?: (input: {
         config: OpenClawConfig;
         timeoutMs?: number;
@@ -76,6 +93,7 @@ export declare function resolveStatusRuntimeDetails(params: {
         loadedText: string;
         runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
         runtimeShort: string | null;
+        layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
     };
     nodeService: {
         label: string;
@@ -86,6 +104,7 @@ export declare function resolveStatusRuntimeDetails(params: {
         loadedText: string;
         runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
         runtimeShort: string | null;
+        layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
     };
 }>;
 export declare function resolveStatusRuntimeSnapshot(params: {
@@ -101,7 +120,7 @@ export declare function resolveStatusRuntimeSnapshot(params: {
         config: OpenClawConfig;
         sourceConfig: OpenClawConfig;
     }) => Promise<StatusSecurityAudit>;
-    resolveUsage?: (timeoutMs?: number) => Promise<StatusUsageSummary>;
+    resolveUsage?: (input: StatusUsageSummaryOptions) => Promise<StatusUsageSummary>;
     resolveHealth?: (input: {
         config: OpenClawConfig;
         timeoutMs?: number;
@@ -119,6 +138,7 @@ export declare function resolveStatusRuntimeSnapshot(params: {
         loadedText: string;
         runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
         runtimeShort: string | null;
+        layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
     };
     nodeService: {
         label: string;
@@ -129,6 +149,7 @@ export declare function resolveStatusRuntimeSnapshot(params: {
         loadedText: string;
         runtime: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["runtime"];
         runtimeShort: string | null;
+        layout: Awaited<ReturnType<typeof import("./status.service-summary.ts").readServiceStatusSummary>>["layout"];
     };
     securityAudit: import("../security/audit.types.ts").SecurityAuditReport | undefined;
 }>;

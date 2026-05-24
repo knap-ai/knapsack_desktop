@@ -15,4 +15,5 @@ export declare function resolveSessionAuthProfileOverride(params: {
     sessionKey?: string;
     storePath?: string;
     isNewSession: boolean;
+    acceptedProviderIds?: string[];
 }): Promise<string | undefined>;

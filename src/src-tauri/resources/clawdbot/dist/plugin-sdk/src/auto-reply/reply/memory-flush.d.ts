@@ -37,16 +37,3 @@ export declare function shouldRunPreflightCompaction(params: {
  * important for both the token-based and transcript-size–based trigger paths.
  */
 export declare function hasAlreadyFlushedForCurrentCompaction(entry: Pick<SessionEntry, "compactionCount" | "memoryFlushCompactionCount">): boolean;
-/**
- * Compute a lightweight content hash from the tail of a session transcript.
- * Used for state-based flush deduplication — if the hash hasn't changed since
- * the last flush, the context is effectively the same and flushing again would
- * produce duplicate memory entries.
- *
- * Hash input: `messages.length` + content of the last 3 user/assistant messages.
- * Algorithm: SHA-256 truncated to 16 hex chars (collision-resistant enough for dedup).
- */
-export declare function computeContextHash(messages: Array<{
-    role?: string;
-    content?: unknown;
-}>): string;

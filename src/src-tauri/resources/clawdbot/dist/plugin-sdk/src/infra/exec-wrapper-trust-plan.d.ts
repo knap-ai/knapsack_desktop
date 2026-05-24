@@ -1,4 +1,4 @@
-export type ExecWrapperTrustPlan = {
+type ExecWrapperTrustPlan = {
     argv: string[];
     policyArgv: string[];
     wrapperChain: string[];
@@ -8,3 +8,4 @@ export type ExecWrapperTrustPlan = {
     shellInlineCommand: string | null;
 };
 export declare function resolveExecWrapperTrustPlan(argv: string[], maxDepth?: number): ExecWrapperTrustPlan;
+export {};

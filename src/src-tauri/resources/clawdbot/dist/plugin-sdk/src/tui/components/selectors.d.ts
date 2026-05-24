@@ -1,4 +1,4 @@
-import { type SelectItem, type SettingItem, SettingsList } from "@mariozechner/pi-tui";
+import { type SelectItem, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 import { FilterableSelectList, type FilterableSelectItem } from "./filterable-select-list.js";
 import { SearchableSelectList } from "./searchable-select-list.js";
 export declare function createSearchableSelectList(items: SelectItem[], maxVisible?: number): SearchableSelectList;

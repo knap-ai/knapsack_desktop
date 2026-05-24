@@ -9,4 +9,6 @@ export declare function emitResetCommandHooks(params: {
     sessionEntry?: HandleCommandsParams["sessionEntry"];
     previousSessionEntry?: HandleCommandsParams["previousSessionEntry"];
     workspaceDir: string;
-}): Promise<void>;
+}): Promise<{
+    routedReply: boolean;
+}>;

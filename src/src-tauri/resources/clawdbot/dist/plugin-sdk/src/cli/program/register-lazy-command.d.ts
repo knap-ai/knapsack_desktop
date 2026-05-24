@@ -10,5 +10,5 @@ type RegisterLazyCommandParams = {
     removeNames?: string[];
     register: () => Promise<void> | void;
 };
-export declare function registerLazyCommand({ program, name, description, options, removeNames, register }: RegisterLazyCommandParams): void;
+export declare function registerLazyCommand({ program, name, description, options, removeNames, register, }: RegisterLazyCommandParams): void;
 export {};

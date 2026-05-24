@@ -1,9 +1,9 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type OwnerDisplaySetting = {
+type OwnerDisplaySetting = {
     ownerDisplay?: "raw" | "hash";
     ownerDisplaySecret?: string;
 };
-export type OwnerDisplaySecretResolution = {
+type OwnerDisplaySecretResolution = {
     config: OpenClawConfig;
     generatedSecret?: string;
 };
@@ -17,3 +17,4 @@ export declare function resolveOwnerDisplaySetting(config?: OpenClawConfig): Own
  * Returns updated config and generated secret when autofill was needed.
  */
 export declare function ensureOwnerDisplaySecret(config: OpenClawConfig, generateSecret?: () => string): OwnerDisplaySecretResolution;
+export {};

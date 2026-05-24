@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { PluginWebSearchProviderEntry, WebSearchProviderToolDefinition } from "../plugins/web-provider-types.js";
+import type { PluginWebSearchProviderEntry, WebSearchProviderToolDefinition } from "../plugins/types.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
 import type { ResolveWebSearchDefinitionParams, RunWebSearchParams, RunWebSearchResult, RuntimeWebSearchConfig as WebSearchConfig } from "./runtime-types.js";
 export type { ListWebSearchProvidersParams, ResolveWebSearchDefinitionParams, RunWebSearchParams, RunWebSearchResult, RuntimeWebSearchConfig, RuntimeWebSearchProviderEntry, RuntimeWebSearchToolDefinition, } from "./runtime-types.js";
@@ -9,7 +9,7 @@ export declare function resolveWebSearchEnabled(params: {
     sandboxed?: boolean;
 }): boolean;
 export declare function isWebSearchProviderConfigured(params: {
-    provider: Pick<PluginWebSearchProviderEntry, "credentialPath" | "id" | "envVars" | "getConfiguredCredentialValue" | "getCredentialValue" | "requiresCredential">;
+    provider: Pick<PluginWebSearchProviderEntry, "credentialPath" | "id" | "authProviderId" | "envVars" | "getConfiguredCredentialValue" | "getConfiguredCredentialFallback" | "getCredentialValue" | "requiresCredential">;
     config?: OpenClawConfig;
 }): boolean;
 export declare function listWebSearchProviders(params?: {
@@ -21,8 +21,22 @@ export declare function listConfiguredWebSearchProviders(params?: {
 export declare function resolveWebSearchProviderId(params: {
     search?: WebSearchConfig;
     config?: OpenClawConfig;
+    agentDir?: string;
     providers?: PluginWebSearchProviderEntry[];
 }): string;
+declare function resolveExplicitWebSearchProviderId(params: {
+    search?: WebSearchConfig;
+    runtimeWebSearch?: RuntimeWebSearchMetadata;
+    providerId?: string;
+    includeRuntimeSelection?: boolean;
+}): string | undefined;
+declare function resolveExplicitWebSearchProviderPluginIds(params: {
+    config?: OpenClawConfig;
+    search?: WebSearchConfig;
+    runtimeWebSearch?: RuntimeWebSearchMetadata;
+    providerId?: string;
+    includeRuntimeSelection?: boolean;
+}): readonly string[] | undefined;
 export declare function resolveWebSearchDefinition(options?: ResolveWebSearchDefinitionParams): {
     provider: PluginWebSearchProviderEntry;
     definition: WebSearchProviderToolDefinition;
@@ -35,10 +49,13 @@ declare function hasExplicitWebSearchSelection(params: {
     providers?: PluginWebSearchProviderEntry[];
 }): boolean;
 export declare function runWebSearch(params: RunWebSearchParams): Promise<RunWebSearchResult>;
-export declare const __testing: {
+export declare const testing: {
     resolveSearchConfig: typeof resolveSearchConfig;
     resolveSearchProvider: typeof resolveWebSearchProviderId;
     resolveWebSearchProviderId: typeof resolveWebSearchProviderId;
     resolveWebSearchCandidates: typeof resolveWebSearchCandidates;
+    resolveExplicitWebSearchProviderId: typeof resolveExplicitWebSearchProviderId;
+    resolveExplicitWebSearchProviderPluginIds: typeof resolveExplicitWebSearchProviderPluginIds;
     hasExplicitWebSearchSelection: typeof hasExplicitWebSearchSelection;
 };
+export { testing as __testing };

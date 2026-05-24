@@ -1,4 +1,4 @@
-import { type PluginJitiLoaderFactory } from "../plugins/jiti-loader-cache.js";
+import { type PluginModuleLoaderFactory } from "../plugins/plugin-module-loader-cache.js";
 export declare function createLazyFacadeObjectValue<T extends object>(load: () => T): T;
 export declare function createLazyFacadeArrayValue<T extends readonly unknown[]>(load: () => T): T;
 export type FacadeModuleLocation = {
@@ -20,8 +20,7 @@ export declare function loadBundledPluginPublicSurfaceModule<T extends object>(p
     dirName: string;
     artifactBasename: string;
     trackedPluginId?: string | (() => string);
-    env?: NodeJS.ProcessEnv;
 }): Promise<T>;
 export declare function listImportedBundledPluginFacadeIds(): string[];
 export declare function resetFacadeLoaderStateForTest(): void;
-export declare function setFacadeLoaderJitiFactoryForTest(factory: PluginJitiLoaderFactory | undefined): void;
+export declare function setFacadeLoaderSourceTransformFactoryForTest(factory: PluginModuleLoaderFactory | undefined): void;

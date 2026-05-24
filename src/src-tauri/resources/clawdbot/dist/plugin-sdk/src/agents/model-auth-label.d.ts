@@ -5,5 +5,7 @@ export declare function resolveModelAuthLabel(params: {
     cfg?: OpenClawConfig;
     sessionEntry?: Partial<Pick<SessionEntry, "authProfileOverride">>;
     agentDir?: string;
+    workspaceDir?: string;
     includeExternalProfiles?: boolean;
+    acceptedProviderIds?: readonly string[];
 }): string | undefined;

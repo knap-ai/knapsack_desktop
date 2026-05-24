@@ -1,5 +1,5 @@
 import { type GatewayBonjourBeacon, type GatewayDiscoveryResolvedEndpoint } from "./bonjour-discovery.js";
-export type GatewayDiscoveryTarget = {
+type GatewayDiscoveryTarget = {
     title: string;
     domain: string;
     endpoint: GatewayDiscoveryResolvedEndpoint | null;
@@ -22,3 +22,4 @@ export declare function serializeGatewayDiscoveryBeacon(beacon: GatewayBonjourBe
     sshPort: number | null;
     wsUrl: string | null;
 };
+export {};

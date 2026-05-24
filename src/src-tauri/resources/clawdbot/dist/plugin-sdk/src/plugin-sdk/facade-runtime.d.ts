@@ -16,9 +16,14 @@ type BundledPluginPublicSurfaceParams = {
     env?: NodeJS.ProcessEnv;
 };
 type FacadeActivationCheckRuntimeModule = typeof import("./facade-activation-check.runtime.js");
+declare function setFacadeActivationCheckRuntimeForTest(module: FacadeActivationCheckRuntimeModule): void;
 declare function loadFacadeModuleAtLocationSync<T extends object>(params: {
     location: FacadeModuleLocation;
     trackedPluginId: string | (() => string);
+    runtimeDeps?: {
+        pluginId: string;
+        env?: NodeJS.ProcessEnv;
+    };
     loadModule?: (modulePath: string) => T;
 }): T;
 export declare function loadBundledPluginPublicSurfaceModuleSync<T extends object>(params: BundledPluginPublicSurfaceParams): T;
@@ -38,7 +43,8 @@ export declare function tryLoadActivatedBundledPluginPublicSurfaceModuleSync<T e
     env?: NodeJS.ProcessEnv;
 }): T | null;
 export declare function resetFacadeRuntimeStateForTest(): void;
-export declare const __testing: {
+export declare const testing: {
+    setFacadeActivationCheckRuntimeForTest: typeof setFacadeActivationCheckRuntimeForTest;
     loadFacadeModuleAtLocationSync: typeof loadFacadeModuleAtLocationSync;
     resolveRegistryPluginModuleLocationFromRegistry: typeof resolveRegistryPluginModuleLocationFromRecords;
     resolveFacadeModuleLocation: typeof resolveFacadeModuleLocation;
@@ -56,3 +62,4 @@ export declare const __testing: {
     };
     resolveTrackedFacadePluginId: (params: BundledPluginPublicSurfaceParams) => string;
 };
+export { testing as __testing };

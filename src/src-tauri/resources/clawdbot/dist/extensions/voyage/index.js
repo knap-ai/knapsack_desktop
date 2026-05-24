@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as voyageMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-DevCWiWd.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as voyageMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-DAaZRDxq.js";
 //#region extensions/voyage/index.ts
 var voyage_default = definePluginEntry({
 	id: "voyage",

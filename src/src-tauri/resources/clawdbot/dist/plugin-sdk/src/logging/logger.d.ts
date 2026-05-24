@@ -1,4 +1,5 @@
 import { Logger as TsLogger } from "tslog";
+import type { OpenClawConfig } from "../config/types.js";
 import { shouldSkipMutatingLoggingConfigRead } from "./config.js";
 import { type LogLevel } from "./levels.js";
 import type { LoggerSettings } from "./types.js";
@@ -14,6 +15,8 @@ type ResolvedSettings = {
     maxFileBytes: number;
 };
 export type LoggerResolvedSettings = ResolvedSettings;
+type LoggerConfigLoader = () => OpenClawConfig["logging"] | undefined;
+export declare function setLoggerConfigLoaderForTests(loader?: LoggerConfigLoader): void;
 export declare function isFileLogLevelEnabled(level: LogLevel): boolean;
 export declare function getLogger(): TsLogger<LogObj>;
 export declare function getChildLogger(bindings?: Record<string, unknown>, opts?: {
@@ -33,6 +36,9 @@ export type PinoLikeLogger = {
 export declare function getResolvedLoggerSettings(): LoggerResolvedSettings;
 export declare function setLoggerOverride(settings: LoggerSettings | null): void;
 export declare function resetLogger(): void;
-export declare const __test__: {
+export declare const testApi: {
+    resolveActiveLogFile: typeof resolveActiveLogFile;
     shouldSkipMutatingLoggingConfigRead: typeof shouldSkipMutatingLoggingConfigRead;
 };
+export { testApi as __test__ };
+declare function resolveActiveLogFile(file: string): string;

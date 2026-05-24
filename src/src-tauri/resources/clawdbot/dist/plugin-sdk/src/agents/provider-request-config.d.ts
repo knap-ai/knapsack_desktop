@@ -1,4 +1,4 @@
-import type { Api } from "@mariozechner/pi-ai";
+import type { Api } from "@earendil-works/pi-ai";
 import type { ModelDefinitionConfig } from "../config/types.js";
 import type { ConfiguredModelProviderRequest, ConfiguredProviderRequest } from "../config/types.provider-request.js";
 import type { PinnedDispatcherPolicy } from "../infra/net/ssrf.js";
@@ -41,7 +41,7 @@ export type ProviderRequestTransportOverrides = {
 export type ModelProviderRequestTransportOverrides = ProviderRequestTransportOverrides & {
     allowPrivateNetwork?: boolean;
 };
-export type ResolvedProviderRequestAuthConfig = {
+type ResolvedProviderRequestAuthConfig = {
     configured: false;
     mode: "provider-default" | "authorization-bearer";
     injectAuthorizationHeader: boolean;
@@ -59,7 +59,7 @@ export type ResolvedProviderRequestAuthConfig = {
     prefix?: string;
     injectAuthorizationHeader: false;
 };
-export type ResolvedProviderRequestProxyConfig = {
+type ResolvedProviderRequestProxyConfig = {
     configured: false;
 } | {
     configured: true;
@@ -71,7 +71,7 @@ export type ResolvedProviderRequestProxyConfig = {
     proxyUrl: string;
     tls: ResolvedProviderRequestTlsConfig;
 };
-export type ResolvedProviderRequestTlsConfig = {
+type ResolvedProviderRequestTlsConfig = {
     configured: false;
 } | {
     configured: true;
@@ -82,7 +82,7 @@ export type ResolvedProviderRequestTlsConfig = {
     serverName?: string;
     rejectUnauthorized?: boolean;
 };
-export type ResolvedProviderRequestExtraHeadersConfig = {
+type ResolvedProviderRequestExtraHeadersConfig = {
     configured: boolean;
     headers?: Record<string, string>;
 };
@@ -96,9 +96,10 @@ export type ResolvedProviderRequestConfig = {
     tls: ResolvedProviderRequestTlsConfig;
     policy: ProviderRequestPolicyResolution;
 };
-export type ProviderRequestHeaderPrecedence = "caller-wins" | "defaults-win";
-export type ResolvedProviderRequestPolicyConfig = ResolvedProviderRequestConfig & {
+type ProviderRequestHeaderPrecedence = "caller-wins" | "defaults-win";
+type ResolvedProviderRequestPolicyConfig = ResolvedProviderRequestConfig & {
     allowPrivateNetwork: boolean;
+    privateNetworkExplicitlyDenied: boolean;
     capabilities: ProviderRequestCapabilities;
 };
 type ResolveProviderRequestPolicyConfigParams = {
@@ -125,7 +126,6 @@ export declare function mergeProviderRequestOverrides(...overrides: Array<Provid
 export declare function mergeModelProviderRequestOverrides(...overrides: Array<ModelProviderRequestTransportOverrides | undefined>): ModelProviderRequestTransportOverrides | undefined;
 export declare function normalizeBaseUrl(baseUrl: string | undefined, fallback: string): string;
 export declare function normalizeBaseUrl(baseUrl: string | undefined, fallback?: string): string | undefined;
-export declare function mergeProviderRequestHeaders(...headerSets: Array<Record<string, string> | undefined>): Record<string, string> | undefined;
 export declare function sanitizeRuntimeProviderRequestOverrides(request: ProviderRequestTransportOverrides | undefined): ProviderRequestTransportOverrides | undefined;
 export declare function buildProviderRequestDispatcherPolicy(request: Pick<ResolvedProviderRequestConfig, "proxy" | "tls">): PinnedDispatcherPolicy | undefined;
 export declare function buildProviderRequestTlsClientOptions(request: Pick<ResolvedProviderRequestConfig, "tls">): Record<string, unknown> | undefined;

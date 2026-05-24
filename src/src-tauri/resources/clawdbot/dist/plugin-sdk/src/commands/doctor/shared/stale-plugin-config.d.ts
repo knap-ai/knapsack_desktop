@@ -1,9 +1,11 @@
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
-type StalePluginSurface = "allow" | "entries" | "channel" | "heartbeat" | "modelByChannel";
+import { type PluginSlotKey } from "../../../plugins/slots.js";
+type StalePluginSurface = "allow" | "deny" | "entries" | "slot" | "channel" | "heartbeat" | "modelByChannel";
 type StalePluginConfigHit = {
     pluginId: string;
     pathLabel: string;
     surface: StalePluginSurface;
+    slotKey?: PluginSlotKey;
 };
 export declare function isStalePluginAutoRepairBlocked(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): boolean;
 export declare function scanStalePluginConfig(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): StalePluginConfigHit[];
@@ -12,7 +14,9 @@ export declare function collectStalePluginConfigWarnings(params: {
     doctorFixCommand: string;
     autoRepairBlocked?: boolean;
 }): string[];
-export declare function maybeRepairStalePluginConfig(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): {
+export declare function maybeRepairStalePluginConfig(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv, params?: {
+    preservePluginIds?: Iterable<string>;
+}): {
     config: OpenClawConfig;
     changes: string[];
 };

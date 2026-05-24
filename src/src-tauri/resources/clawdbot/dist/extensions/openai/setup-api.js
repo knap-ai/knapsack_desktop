@@ -1,6 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as buildOpenAICodexCliBackend } from "../../cli-backend-CNjcdP1x.js";
-import { a as OPENAI_CODEX_LOGIN_HINT, i as OPENAI_CODEX_DEVICE_PAIRING_LABEL, n as OPENAI_API_KEY_WIZARD_GROUP, o as OPENAI_CODEX_LOGIN_LABEL, r as OPENAI_CODEX_DEVICE_PAIRING_HINT, s as OPENAI_CODEX_WIZARD_GROUP, t as OPENAI_API_KEY_LABEL } from "../../auth-choice-copy-Cz76-FpT.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { a as OPENAI_CHATGPT_DEVICE_PAIRING_LABEL, c as OPENAI_CODEX_API_KEY_BACKUP_HINT, d as OPENAI_CODEX_DEVICE_PAIRING_LABEL, f as OPENAI_CODEX_LOGIN_HINT, i as OPENAI_CHATGPT_DEVICE_PAIRING_HINT, l as OPENAI_CODEX_API_KEY_BACKUP_LABEL, m as OPENAI_CODEX_WIZARD_GROUP, n as OPENAI_API_KEY_LABEL, o as OPENAI_CHATGPT_LOGIN_HINT, p as OPENAI_CODEX_LOGIN_LABEL, s as OPENAI_CHATGPT_LOGIN_LABEL, t as OPENAI_ACCOUNT_WIZARD_GROUP, u as OPENAI_CODEX_DEVICE_PAIRING_HINT } from "../../auth-choice-copy-CI2uePXw.js";
 //#region extensions/openai/setup-api.ts
 async function runOpenAIProviderAuthMethod(methodId, ctx) {
 	const { buildOpenAIProvider } = await import("./openai-provider.js");
@@ -20,18 +19,52 @@ function buildOpenAISetupProvider() {
 		label: "OpenAI",
 		docsPath: "/providers/models",
 		envVars: ["OPENAI_API_KEY"],
-		auth: [{
-			id: "api-key",
-			label: OPENAI_API_KEY_LABEL,
-			hint: "Use your OpenAI API key directly",
-			kind: "api_key",
-			wizard: {
-				choiceId: "openai-api-key",
-				choiceLabel: OPENAI_API_KEY_LABEL,
-				...OPENAI_API_KEY_WIZARD_GROUP
+		auth: [
+			{
+				id: "oauth",
+				label: OPENAI_CHATGPT_LOGIN_LABEL,
+				hint: OPENAI_CHATGPT_LOGIN_HINT,
+				kind: "oauth",
+				wizard: {
+					choiceId: "openai",
+					choiceLabel: OPENAI_CHATGPT_LOGIN_LABEL,
+					choiceHint: OPENAI_CHATGPT_LOGIN_HINT,
+					assistantPriority: -40,
+					assistantVisibility: "manual-only",
+					...OPENAI_ACCOUNT_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAICodexProviderAuthMethod("oauth", ctx)
 			},
-			run: async (ctx) => runOpenAIProviderAuthMethod("api-key", ctx)
-		}]
+			{
+				id: "device-code",
+				label: OPENAI_CHATGPT_DEVICE_PAIRING_LABEL,
+				hint: OPENAI_CHATGPT_DEVICE_PAIRING_HINT,
+				kind: "device_code",
+				wizard: {
+					choiceId: "openai-device-code",
+					choiceLabel: OPENAI_CHATGPT_DEVICE_PAIRING_LABEL,
+					choiceHint: OPENAI_CHATGPT_DEVICE_PAIRING_HINT,
+					assistantPriority: -10,
+					assistantVisibility: "manual-only",
+					...OPENAI_ACCOUNT_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAICodexProviderAuthMethod("device-code", ctx)
+			},
+			{
+				id: "api-key",
+				label: OPENAI_API_KEY_LABEL,
+				hint: "Use your OpenAI API key directly",
+				kind: "api_key",
+				wizard: {
+					choiceId: "openai-api-key",
+					choiceLabel: OPENAI_API_KEY_LABEL,
+					choiceHint: "Use your OpenAI API key directly",
+					assistantPriority: 5,
+					...OPENAI_ACCOUNT_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAIProviderAuthMethod("api-key", ctx)
+			}
+		]
 	};
 }
 function buildOpenAICodexSetupProvider() {
@@ -39,33 +72,52 @@ function buildOpenAICodexSetupProvider() {
 		id: "openai-codex",
 		label: "OpenAI Codex",
 		docsPath: "/providers/models",
-		auth: [{
-			id: "oauth",
-			label: OPENAI_CODEX_LOGIN_LABEL,
-			hint: OPENAI_CODEX_LOGIN_HINT,
-			kind: "oauth",
-			wizard: {
-				choiceId: "openai-codex",
-				choiceLabel: OPENAI_CODEX_LOGIN_LABEL,
-				choiceHint: OPENAI_CODEX_LOGIN_HINT,
-				assistantPriority: -30,
-				...OPENAI_CODEX_WIZARD_GROUP
+		auth: [
+			{
+				id: "oauth",
+				label: OPENAI_CODEX_LOGIN_LABEL,
+				hint: OPENAI_CODEX_LOGIN_HINT,
+				kind: "oauth",
+				wizard: {
+					choiceId: "openai-codex",
+					choiceLabel: OPENAI_CODEX_LOGIN_LABEL,
+					choiceHint: OPENAI_CODEX_LOGIN_HINT,
+					assistantPriority: -30,
+					onboardingFeatured: true,
+					...OPENAI_CODEX_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAICodexProviderAuthMethod("oauth", ctx)
 			},
-			run: async (ctx) => runOpenAICodexProviderAuthMethod("oauth", ctx)
-		}, {
-			id: "device-code",
-			label: OPENAI_CODEX_DEVICE_PAIRING_LABEL,
-			hint: OPENAI_CODEX_DEVICE_PAIRING_HINT,
-			kind: "device_code",
-			wizard: {
-				choiceId: "openai-codex-device-code",
-				choiceLabel: OPENAI_CODEX_DEVICE_PAIRING_LABEL,
-				choiceHint: OPENAI_CODEX_DEVICE_PAIRING_HINT,
-				assistantPriority: -10,
-				...OPENAI_CODEX_WIZARD_GROUP
+			{
+				id: "device-code",
+				label: OPENAI_CODEX_DEVICE_PAIRING_LABEL,
+				hint: OPENAI_CODEX_DEVICE_PAIRING_HINT,
+				kind: "device_code",
+				wizard: {
+					choiceId: "openai-codex-device-code",
+					choiceLabel: OPENAI_CODEX_DEVICE_PAIRING_LABEL,
+					choiceHint: OPENAI_CODEX_DEVICE_PAIRING_HINT,
+					assistantPriority: -10,
+					...OPENAI_CODEX_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAICodexProviderAuthMethod("device-code", ctx)
 			},
-			run: async (ctx) => runOpenAICodexProviderAuthMethod("device-code", ctx)
-		}]
+			{
+				id: "api-key",
+				label: OPENAI_CODEX_API_KEY_BACKUP_LABEL,
+				hint: OPENAI_CODEX_API_KEY_BACKUP_HINT,
+				kind: "api_key",
+				wizard: {
+					choiceId: "openai-codex-api-key",
+					choiceLabel: OPENAI_CODEX_API_KEY_BACKUP_LABEL,
+					choiceHint: OPENAI_CODEX_API_KEY_BACKUP_HINT,
+					assistantPriority: 5,
+					assistantVisibility: "manual-only",
+					...OPENAI_CODEX_WIZARD_GROUP
+				},
+				run: async (ctx) => runOpenAICodexProviderAuthMethod("api-key", ctx)
+			}
+		]
 	};
 }
 var setup_api_default = definePluginEntry({
@@ -75,8 +127,7 @@ var setup_api_default = definePluginEntry({
 	register(api) {
 		api.registerProvider(buildOpenAISetupProvider());
 		api.registerProvider(buildOpenAICodexSetupProvider());
-		api.registerCliBackend(buildOpenAICodexCliBackend());
 	}
 });
 //#endregion
-export { setup_api_default as default };
+export { buildOpenAICodexSetupProvider, buildOpenAISetupProvider, setup_api_default as default };

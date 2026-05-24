@@ -12,11 +12,12 @@ export type ProviderAuthChoiceMetadata = {
     groupId?: string;
     groupLabel?: string;
     groupHint?: string;
+    onboardingFeatured?: boolean;
     optionKey?: string;
     cliFlag?: string;
     cliOption?: string;
     cliDescription?: string;
-    onboardingScopes?: ("text-inference" | "image-generation")[];
+    onboardingScopes?: ("text-inference" | "image-generation" | "music-generation")[];
 };
 export type ProviderOnboardAuthFlag = {
     optionKey: string;

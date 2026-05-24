@@ -4,6 +4,7 @@ export declare function formatRateLimitOrOverloadedErrorCopy(raw: string): strin
 export declare function formatTransportErrorCopy(raw: string): string | undefined;
 export declare function formatDiskSpaceErrorCopy(raw: string): string | undefined;
 export declare function isInvalidStreamingEventOrderError(raw: string): boolean;
+export declare function isStreamingJsonParseError(raw: string): boolean;
 export declare function getApiErrorPayloadFingerprint(raw?: string): string | null;
 export declare function isRawApiErrorPayload(raw?: string): boolean;
 export declare function isLikelyHttpErrorText(raw: string): boolean;

@@ -8,4 +8,6 @@ export declare function matchesExpectedPluginId(params: {
     npmPluginId: string;
 }): boolean;
 export declare function resolveDefaultPluginExtensionsDir(env?: NodeJS.ProcessEnv, homedir?: () => string): string;
+export declare function resolveDefaultPluginNpmDir(env?: NodeJS.ProcessEnv, homedir?: () => string): string;
+export declare function resolveDefaultPluginGitDir(env?: NodeJS.ProcessEnv, homedir?: () => string): string;
 export declare function resolvePluginInstallDir(pluginId: string, extensionsDir?: string): string;

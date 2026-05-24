@@ -1,19 +1,22 @@
-import { n as isWSL2Sync } from "../../wsl-C4GCiuy8.js";
-import { r as describeImagesWithModel, t as describeImageWithModel } from "../../image-runtime-WuEL-GZW.js";
-import "../../media-understanding-BkzEkGaw.js";
-import { b as buildOpenAICompatibleReplayPolicy, r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { n as buildApiKeyCredential } from "../../provider-auth-helpers-byAcxGN1.js";
-import "../../provider-auth-LNc11avL.js";
-import "../../runtime-env-CnUCUUx1.js";
-import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
-import { i as buildOllamaProvider, t as readProviderBaseUrl } from "../../provider-base-url-DttoVyCf.js";
-import { i as promptAndConfigureOllama, n as configureOllamaNonInteractive, r as ensureOllamaModelPulled } from "../../setup-DhUe8mAT.js";
-import { d as resolveConfiguredOllamaProviderConfig, l as isOllamaCompatProvider, o as createConfiguredOllamaCompatStreamWrapper, s as createConfiguredOllamaStreamFn } from "../../stream-DqtY6hzn.js";
-import "../../api-B-f2-bMd.js";
-import { i as shouldUseSyntheticOllamaAuth, n as OLLAMA_PROVIDER_ID, r as resolveOllamaDiscoveryResult, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-DpKWxumG.js";
-import { n as createOllamaEmbeddingProvider, t as DEFAULT_OLLAMA_EMBEDDING_MODEL } from "../../embedding-provider-D2H_gTZY.js";
-import { t as createOllamaWebSearchProvider } from "../../web-search-provider-BVmhoR1c.js";
+import { n as isWSL2Sync } from "../../wsl-2-jVkfxN.js";
+import { r as describeImagesWithModel, t as describeImageWithModel } from "../../image-runtime-Dye6Uj6e.js";
+import "../../media-understanding-C_qxfCIa.js";
+import { a as buildOpenAICompatibleReplayPolicy } from "../../provider-replay-helpers-BHVsUct1.js";
+import "../../runtime-env-BtvWnLRh.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DtsPmvDx.js";
+import { n as buildApiKeyCredential } from "../../provider-auth-helpers-BZ5Z8RV6.js";
+import "../../provider-auth-BtRKd5us.js";
+import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-DWa7yCpn.js";
+import "../../defaults-Ct4-oW82.js";
+import { i as buildOllamaProvider, l as queryOllamaModelShowInfo, r as buildOllamaModelDefinition, t as readProviderBaseUrl } from "../../provider-base-url-CrecHiog.js";
+import { i as promptAndConfigureOllama, n as configureOllamaNonInteractive, r as ensureOllamaModelPulled } from "../../setup-fXWhcJhl.js";
+import { d as resolveConfiguredOllamaProviderConfig, l as isOllamaCompatProvider, o as createConfiguredOllamaCompatStreamWrapper, s as createConfiguredOllamaStreamFn } from "../../stream-DcS_ejJS.js";
+import "../../api-FTzA6POj.js";
+import { n as resolveThinkingProfile } from "../../provider-policy-api-B-HOzv3B.js";
+import { i as shouldUseSyntheticOllamaAuth, n as OLLAMA_PROVIDER_ID, r as resolveOllamaDiscoveryResult, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-ROvQIBGQ.js";
+import { n as createOllamaEmbeddingProvider, t as DEFAULT_OLLAMA_EMBEDDING_MODEL } from "../../embedding-provider-CvVtKgB6.js";
+import { t as createOllamaWebSearchProvider } from "../../web-search-provider-qpePEaOb.js";
 import { access } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -119,6 +122,50 @@ function usesOllamaOpenAICompatTransport(model) {
 		api: "openai-completions"
 	});
 }
+function buildNativeOllamaReplayPolicy() {
+	return {
+		...buildOpenAICompatibleReplayPolicy("openai-completions", { sanitizeToolCallIds: false }),
+		sanitizeToolCallIds: false
+	};
+}
+const dynamicModelCache = /* @__PURE__ */ new Map();
+function buildDynamicCacheKey(provider, baseUrl) {
+	return `${provider}\0${baseUrl ?? ""}`;
+}
+function hasOllamaDiscoverySignal(providerConfig) {
+	return Boolean(process.env.OLLAMA_API_KEY?.trim()) || shouldUseSyntheticOllamaAuth(providerConfig) || Boolean(providerConfig?.apiKey);
+}
+function toDynamicOllamaModel(params) {
+	const input = (params.model.input ?? ["text"]).filter((value) => value === "text" || value === "image");
+	return {
+		id: params.model.id,
+		name: params.model.name ?? params.model.id,
+		provider: params.provider,
+		api: "ollama",
+		baseUrl: readProviderBaseUrl(params.providerConfig) ?? "",
+		reasoning: params.model.reasoning ?? false,
+		input: input.length > 0 ? input : ["text"],
+		cost: params.model.cost ?? {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0
+		},
+		contextWindow: params.model.contextWindow ?? 8192,
+		maxTokens: params.model.maxTokens ?? 8192,
+		...params.model.compat ? { compat: params.model.compat } : {},
+		...params.model.params ? { params: params.model.params } : {}
+	};
+}
+async function resolveRequestedDynamicOllamaModel(params) {
+	const showInfo = await queryOllamaModelShowInfo(readProviderBaseUrl(params.providerConfig) ?? "http://127.0.0.1:11434", params.modelId);
+	if (typeof showInfo.contextWindow !== "number" && (showInfo.capabilities?.length ?? 0) === 0) return;
+	return toDynamicOllamaModel({
+		provider: params.provider,
+		providerConfig: params.providerConfig,
+		model: buildOllamaModelDefinition(params.modelId, showInfo.contextWindow, showInfo.capabilities)
+	});
+}
 var ollama_default = definePluginEntry({
 	id: "ollama",
 	name: "Ollama Provider",
@@ -176,7 +223,7 @@ var ollama_default = definePluginEntry({
 					});
 				}
 			}],
-			discovery: {
+			catalog: {
 				order: "late",
 				run: async (ctx) => await resolveOllamaDiscoveryResult({
 					ctx,
@@ -222,19 +269,10 @@ var ollama_default = definePluginEntry({
 				});
 			},
 			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
-			buildReplayPolicy: (ctx) => ctx.modelApi === "ollama" ? buildOpenAICompatibleReplayPolicy("openai-completions") : buildOpenAICompatibleReplayPolicy(ctx.modelApi),
+			buildReplayPolicy: (ctx) => ctx.modelApi === "ollama" ? buildNativeOllamaReplayPolicy() : buildOpenAICompatibleReplayPolicy(ctx.modelApi),
 			contributeResolvedModelCompat: ({ model }) => usesOllamaOpenAICompatTransport(model) ? { supportsUsageInStreaming: true } : void 0,
 			resolveReasoningOutputMode: () => "native",
-			resolveThinkingProfile: ({ reasoning }) => ({
-				levels: reasoning === true ? [
-					{ id: "off" },
-					{ id: "low" },
-					{ id: "medium" },
-					{ id: "high" },
-					{ id: "max" }
-				] : [{ id: "off" }],
-				defaultLevel: "off"
-			}),
+			resolveThinkingProfile,
 			wrapStreamFn: createConfiguredOllamaCompatStreamWrapper,
 			createEmbeddingProvider: async ({ config, model, provider: embeddingProvider, remote }) => {
 				const { provider, client } = await createOllamaEmbeddingProvider({
@@ -258,6 +296,36 @@ var ollama_default = definePluginEntry({
 				};
 			},
 			shouldDeferSyntheticProfileAuth: ({ resolvedApiKey }) => resolvedApiKey?.trim() === OLLAMA_DEFAULT_API_KEY,
+			prepareDynamicModel: async (ctx) => {
+				const providerConfig = resolveConfiguredOllamaProviderConfig({
+					config: ctx.config,
+					providerId: ctx.provider
+				});
+				if (!hasOllamaDiscoverySignal(providerConfig)) return;
+				const baseUrl = readProviderBaseUrl(providerConfig);
+				const provider = await buildOllamaProvider(baseUrl, { quiet: true });
+				const dynamicModels = (provider.models ?? []).map((model) => toDynamicOllamaModel({
+					provider: ctx.provider,
+					providerConfig: provider,
+					model
+				}));
+				if (!dynamicModels.some((model) => model.id === ctx.modelId)) {
+					const requestedModel = await resolveRequestedDynamicOllamaModel({
+						provider: ctx.provider,
+						providerConfig: provider,
+						modelId: ctx.modelId
+					});
+					if (requestedModel) dynamicModels.push(requestedModel);
+				}
+				dynamicModelCache.set(buildDynamicCacheKey(ctx.provider, baseUrl), dynamicModels);
+			},
+			resolveDynamicModel: (ctx) => {
+				const providerConfig = resolveConfiguredOllamaProviderConfig({
+					config: ctx.config,
+					providerId: ctx.provider
+				});
+				return dynamicModelCache.get(buildDynamicCacheKey(ctx.provider, readProviderBaseUrl(providerConfig)))?.find((model) => model.id === ctx.modelId);
+			},
 			buildUnknownModelHint: () => "Ollama requires authentication to be registered as a provider. Set OLLAMA_API_KEY=\"ollama-local\" (any value works) or run \"openclaw configure\". See: https://docs.openclaw.ai/providers/ollama"
 		});
 	}

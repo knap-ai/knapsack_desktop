@@ -1,5 +1,6 @@
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import type { ToolHandlerContext } from "./pi-embedded-subscribe.handlers.types.js";
+export declare function countActiveToolExecutions(runId: string): number;
 export declare function handleToolExecutionStart(ctx: ToolHandlerContext, evt: AgentEvent & {
     toolName: string;
     toolCallId: string;

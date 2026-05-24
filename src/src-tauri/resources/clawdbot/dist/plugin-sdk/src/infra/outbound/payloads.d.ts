@@ -25,6 +25,7 @@ export type OutboundPayloadJson = {
     channelData?: Record<string, unknown>;
 };
 export type OutboundPayloadPlan = {
+    sourceIndex: number;
     payload: ReplyPayload;
     parts: ReturnType<typeof resolveSendableOutboundReplyParts>;
     hasPresentation: boolean;
@@ -36,14 +37,6 @@ type OutboundPayloadPlanContext = {
     sessionKey?: string;
     surface?: string;
     conversationType?: SilentReplyConversationType;
-    /**
-     * When true, bare silent payloads are dropped instead of being rewritten to
-     * visible fallback text. Set by callers that know the parent session has at
-     * least one pending spawned child whose completion will deliver the real
-     * reply. If omitted, the outbound plan consults the registered runtime query
-     * (see `pending-spawn-query.ts`).
-     */
-    hasPendingSpawnedChildren?: boolean;
     extractMarkdownImages?: boolean;
 };
 export type OutboundPayloadMirror = {

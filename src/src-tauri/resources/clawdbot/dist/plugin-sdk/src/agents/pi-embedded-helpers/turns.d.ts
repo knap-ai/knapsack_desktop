@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 /**
  * Validates and fixes conversation turn sequences for Gemini API.
  * Gemini requires strict alternating user→assistant→tool→user pattern.

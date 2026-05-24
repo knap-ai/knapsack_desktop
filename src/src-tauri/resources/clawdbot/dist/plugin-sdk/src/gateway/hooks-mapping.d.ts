@@ -20,17 +20,17 @@ export type HookMappingResolved = {
     timeoutSeconds?: number;
     transform?: HookMappingTransformResolved;
 };
-export type HookMappingTransformResolved = {
+type HookMappingTransformResolved = {
     modulePath: string;
     exportName?: string;
 };
-export type HookMappingContext = {
+type HookMappingContext = {
     payload: Record<string, unknown>;
     headers: Record<string, string>;
     url: URL;
     path: string;
 };
-export type HookAction = {
+type HookAction = {
     kind: "wake";
     text: string;
     mode: "now" | "next-heartbeat";
@@ -50,8 +50,7 @@ export type HookAction = {
     thinking?: string;
     timeoutSeconds?: number;
 };
-export type HookSessionKeyTemplateSource = "static" | "templated";
-export type HookMappingResult = {
+type HookMappingResult = {
     ok: true;
     action: HookAction;
 } | {
@@ -67,3 +66,4 @@ export declare function resolveHookMappings(hooks?: HooksConfig, opts?: {
 }): HookMappingResolved[];
 export declare function applyHookMappings(mappings: HookMappingResolved[], ctx: HookMappingContext): Promise<HookMappingResult | null>;
 export declare function hasHookTemplateExpressions(template: string): boolean;
+export {};

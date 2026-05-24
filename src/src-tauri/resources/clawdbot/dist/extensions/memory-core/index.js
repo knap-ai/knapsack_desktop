@@ -1,136 +1,16 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
-import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
-import { o as parseAgentSessionKey } from "../../session-key-utils-naHBWFyS.js";
-import { p as resolveSessionAgentId } from "../../agent-scope-i10se9ty.js";
-import { n as asNullableRecord } from "../../record-coerce-BJUjz44D.js";
-import { n as parseNonNegativeByteSize } from "../../zod-schema-DjRHIl0Z.js";
-import { G as resolveMemoryDreamingConfig, J as resolveMemoryDreamingWorkspaces, U as resolveMemoryCorePluginConfig$1, W as resolveMemoryDeepDreamingConfig } from "../../dreaming-B_EmO0tQ.js";
-import { l as listMemoryCorpusSupplements } from "../../memory-state-DRkxUnJQ.js";
-import { t as loadCombinedSessionStoreForGateway } from "../../combined-store-gateway-IXcczRzK.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-D3yEVrkk.js";
-import "../../pi-settings-BIyj5b9L.js";
-import { f as readNumberParam, g as readStringParam, i as asToolParamsRecord, l as jsonResult } from "../../common-C4RGIxnG.js";
-import { a as resolveEffectiveSessionToolsVisibility, r as createSessionVisibilityGuard, t as createAgentToAgentPolicy } from "../../session-visibility-DUIfu36I.js";
-import { n as resolveCronStyleNow } from "../../current-time-CNz0_Ppu.js";
-import { t as resolveMemorySearchConfig } from "../../memory-search-BkPKyCZS.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import "../../error-runtime-CrtIwOpQ.js";
-import { n as resolveTranscriptStemToSessionKeys, t as extractTranscriptStemFromSessionsMemoryHit } from "../../session-transcript-hit-B4W7Q06S.js";
-import "../../memory-core-host-runtime-core-BsWPAkin.js";
-import { i as resolveMemoryHostEventLogPath } from "../../events-ZT31JuP2.js";
-import "../../memory-core-host-events-MsPuZvfr.js";
-import "../../memory-core-host-status-DkRuy0l5.js";
-import { l as recordShortTermRecalls } from "../../short-term-promotion-BVtAvwJ3.js";
-import "../../dreaming-shared-De0YN-Rb.js";
-import { t as registerMemoryCli } from "../../cli-CiHSc09r.js";
-import { n as resolveShortTermPromotionDreamingConfig, t as registerShortTermPromotionDreaming } from "../../dreaming-IJthLYjI.js";
-import { o as registerBuiltInMemoryEmbeddingProviders } from "../../manager-ICKYl3BU.js";
-import { t as memoryRuntime } from "../../runtime-provider-DBC2jp8c.js";
-import path from "node:path";
-import fs from "node:fs/promises";
-import { Type } from "typebox";
-//#region extensions/memory-core/src/dreaming-command.ts
-function resolveMemoryCorePluginConfig(cfg) {
-	return asNullableRecord(asNullableRecord(cfg.plugins?.entries?.["memory-core"])?.config) ?? {};
-}
-function updateDreamingEnabledInConfig(cfg, enabled) {
-	const entries = { ...cfg.plugins?.entries };
-	const existingEntry = asNullableRecord(entries["memory-core"]) ?? {};
-	const existingConfig = asNullableRecord(existingEntry.config) ?? {};
-	const existingSleep = asNullableRecord(existingConfig.dreaming) ?? {};
-	entries["memory-core"] = {
-		...existingEntry,
-		config: {
-			...existingConfig,
-			dreaming: {
-				...existingSleep,
-				enabled
-			}
-		}
-	};
-	return {
-		...cfg,
-		plugins: {
-			...cfg.plugins,
-			entries
-		}
-	};
-}
-function formatEnabled(value) {
-	return value ? "on" : "off";
-}
-function formatPhaseGuide() {
-	return [
-		"- implementation detail: each sweep runs light -> REM -> deep.",
-		"- deep is the only stage that writes durable entries to MEMORY.md.",
-		"- DREAMS.md is for human-readable dreaming summaries and diary entries."
-	].join("\n");
-}
-function formatStatus(cfg) {
-	const pluginConfig = resolveMemoryCorePluginConfig(cfg);
-	const dreaming = resolveMemoryDreamingConfig({
-		pluginConfig,
-		cfg
-	});
-	const deep = resolveShortTermPromotionDreamingConfig({
-		pluginConfig,
-		cfg
-	});
-	const timezone = dreaming.timezone ? ` (${dreaming.timezone})` : "";
-	return [
-		"Dreaming status:",
-		`- enabled: ${formatEnabled(dreaming.enabled)}${timezone}`,
-		`- sweep cadence: ${dreaming.frequency}`,
-		`- promotion policy: score>=${deep.minScore}, recalls>=${deep.minRecallCount}, uniqueQueries>=${deep.minUniqueQueries}`
-	].join("\n");
-}
-function formatUsage(includeStatus) {
-	return [
-		"Usage: /dreaming status",
-		"Usage: /dreaming on|off",
-		"",
-		includeStatus,
-		"",
-		"Phases:",
-		formatPhaseGuide()
-	].join("\n");
-}
-function requiresAdminToMutateDreaming(gatewayClientScopes) {
-	return Array.isArray(gatewayClientScopes) && !gatewayClientScopes.includes("operator.admin");
-}
-function registerDreamingCommand(api) {
-	api.registerCommand({
-		name: "dreaming",
-		description: "Enable or disable memory dreaming.",
-		acceptsArgs: true,
-		handler: async (ctx) => {
-			const [firstToken = ""] = (ctx.args?.trim() ?? "").split(/\s+/).filter(Boolean).map((token) => normalizeLowercaseStringOrEmpty(token));
-			const currentConfig = api.runtime.config.current();
-			if (!firstToken || firstToken === "help" || firstToken === "options" || firstToken === "phases") return { text: formatUsage(formatStatus(currentConfig)) };
-			if (firstToken === "status") return { text: formatStatus(currentConfig) };
-			if (firstToken === "on" || firstToken === "off") {
-				if (requiresAdminToMutateDreaming(ctx.gatewayClientScopes)) return { text: "⚠️ /dreaming on|off requires operator.admin for gateway clients." };
-				const enabled = firstToken === "on";
-				const nextConfig = updateDreamingEnabledInConfig(currentConfig, enabled);
-				await api.runtime.config.replaceConfigFile({
-					nextConfig,
-					afterWrite: { mode: "auto" }
-				});
-				return { text: [
-					`Dreaming ${enabled ? "enabled" : "disabled"}.`,
-					"",
-					formatStatus(nextConfig)
-				].join("\n") };
-			}
-			return { text: formatUsage(formatStatus(currentConfig)) };
-		}
-	});
-}
-//#endregion
-//#region extensions/memory-core/src/flush-plan.ts
-const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4e3;
-const DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
+import { v as resolveSessionAgentIds } from "../../agent-scope-CtLXGcWm.js";
+import { n as parseNonNegativeByteSize } from "../../zod-schema-Dsy5tXpj.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-CFv3Qu_v.js";
+import { c as jsonResult } from "../../common-E9YpX7pB.js";
+import "../../pi-settings-3KMJpQrg.js";
+import { n as resolveCronStyleNow } from "../../current-time-DEwZwyQB.js";
+import { t as resolveMemorySearchConfig } from "../../memory-search-BEQRq9yG.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../memory-core-host-runtime-core-CkZUvQ_1.js";
+import { t as resolveMemoryBackendConfig } from "../../backend-config-9Mpek5eW.js";
+import "../../memory-core-host-runtime-files-DO0lUO6j.js";
+import { t as registerShortTermPromotionDreaming } from "../../dreaming-tnHCUW-G.js";
+import { i as registerBuiltInMemoryEmbeddingProviders } from "../../provider-adapters-DLvfgy7S.js";
 const MEMORY_FLUSH_TARGET_HINT = "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).";
 const MEMORY_FLUSH_APPEND_ONLY_HINT = "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.";
 const MEMORY_FLUSH_READ_ONLY_HINT = "Treat workspace bootstrap/reference files such as MEMORY.md, DREAMS.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.";
@@ -206,6 +86,7 @@ function buildMemoryFlushPlan(params = {}) {
 		softThresholdTokens,
 		forceFlushTranscriptBytes,
 		reserveTokensFloor,
+		model: defaults?.model?.trim() || void 0,
 		prompt: appendCurrentTimeLine(promptBase.replaceAll("YYYY-MM-DD", dateStamp), timeLine),
 		systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", dateStamp),
 		relativePath
@@ -228,549 +109,137 @@ const buildPromptSection = ({ availableTools, citationsMode }) => {
 	return lines;
 };
 //#endregion
-//#region extensions/memory-core/src/public-artifacts.ts
-async function pathExists(inputPath) {
-	try {
-		await fs.access(inputPath);
-		return true;
-	} catch {
-		return false;
-	}
+//#region extensions/memory-core/index.ts
+let memoryToolsModulePromise;
+let runtimeProviderModulePromise;
+function loadMemoryToolsModule() {
+	memoryToolsModulePromise ??= import("../../tools-CYnPl55e.js");
+	return memoryToolsModulePromise;
 }
-async function listMarkdownFilesRecursive(rootDir) {
-	const entries = await fs.readdir(rootDir, { withFileTypes: true }).catch(() => []);
-	const files = [];
-	for (const entry of entries) {
-		const fullPath = path.join(rootDir, entry.name);
-		if (entry.isDirectory()) {
-			files.push(...await listMarkdownFilesRecursive(fullPath));
-			continue;
-		}
-		if (entry.isFile() && entry.name.endsWith(".md")) files.push(fullPath);
-	}
-	return files.toSorted((left, right) => left.localeCompare(right));
+function loadRuntimeProviderModule() {
+	runtimeProviderModulePromise ??= import("../../runtime-provider-BI3ORPic.js");
+	return runtimeProviderModulePromise;
 }
-async function collectWorkspaceArtifacts(params) {
-	const artifacts = [];
-	const workspaceEntries = new Set((await fs.readdir(params.workspaceDir, { withFileTypes: true }).catch(() => [])).filter((entry) => entry.isFile()).map((entry) => entry.name));
-	for (const relativePath of ["MEMORY.md"]) {
-		if (!workspaceEntries.has(relativePath)) continue;
-		const absolutePath = path.join(params.workspaceDir, relativePath);
-		artifacts.push({
-			kind: "memory-root",
-			workspaceDir: params.workspaceDir,
-			relativePath,
-			absolutePath,
-			agentIds: [...params.agentIds],
-			contentType: "markdown"
-		});
-	}
-	const memoryDir = path.join(params.workspaceDir, "memory");
-	for (const absolutePath of await listMarkdownFilesRecursive(memoryDir)) {
-		const relativePath = path.relative(params.workspaceDir, absolutePath).replace(/\\/g, "/");
-		artifacts.push({
-			kind: relativePath.startsWith("memory/dreaming/") ? "dream-report" : "daily-note",
-			workspaceDir: params.workspaceDir,
-			relativePath,
-			absolutePath,
-			agentIds: [...params.agentIds],
-			contentType: "markdown"
-		});
-	}
-	const eventLogPath = resolveMemoryHostEventLogPath(params.workspaceDir);
-	if (await pathExists(eventLogPath)) artifacts.push({
-		kind: "event-log",
-		workspaceDir: params.workspaceDir,
-		relativePath: path.relative(params.workspaceDir, eventLogPath).replace(/\\/g, "/"),
-		absolutePath: eventLogPath,
-		agentIds: [...params.agentIds],
-		contentType: "json"
-	});
-	const deduped = /* @__PURE__ */ new Map();
-	for (const artifact of artifacts) deduped.set(`${artifact.workspaceDir}\0${artifact.relativePath}\0${artifact.kind}`, artifact);
-	return [...deduped.values()];
+function getToolConfig(options) {
+	return options.getConfig?.() ?? options.config;
 }
-async function listMemoryCorePublicArtifacts(params) {
-	const workspaces = resolveMemoryDreamingWorkspaces(params.cfg);
-	const artifacts = [];
-	for (const workspace of workspaces) artifacts.push(...await collectWorkspaceArtifacts({
-		workspaceDir: workspace.workspaceDir,
-		agentIds: workspace.agentIds
-	}));
-	return artifacts;
-}
-//#endregion
-//#region extensions/memory-core/src/session-search-visibility.ts
-async function filterMemorySearchHitsBySessionVisibility(params) {
-	const visibility = resolveEffectiveSessionToolsVisibility({
-		cfg: params.cfg,
-		sandboxed: params.sandboxed
-	});
-	const a2aPolicy = createAgentToAgentPolicy(params.cfg);
-	const guard = params.requesterSessionKey ? await createSessionVisibilityGuard({
-		action: "history",
-		requesterSessionKey: params.requesterSessionKey,
-		visibility,
-		a2aPolicy
-	}) : null;
-	const { store: combinedSessionStore } = loadCombinedSessionStoreForGateway(params.cfg);
-	const next = [];
-	for (const hit of params.hits) {
-		if (hit.source !== "sessions") {
-			next.push(hit);
-			continue;
-		}
-		if (!params.requesterSessionKey || !guard) continue;
-		const stem = extractTranscriptStemFromSessionsMemoryHit(hit.path);
-		if (!stem) continue;
-		const keys = resolveTranscriptStemToSessionKeys({
-			store: combinedSessionStore,
-			stem
-		});
-		if (keys.length === 0) continue;
-		if (!keys.some((key) => guard.check(key).allowed)) continue;
-		next.push(hit);
-	}
-	return next;
-}
-//#endregion
-//#region extensions/memory-core/src/tools.citations.ts
-function resolveMemoryCitationsMode(cfg) {
-	const mode = cfg.memory?.citations;
-	if (mode === "on" || mode === "off" || mode === "auto") return mode;
-	return "auto";
-}
-function decorateCitations(results, include) {
-	if (!include) return results.map((entry) => ({
-		...entry,
-		citation: void 0
-	}));
-	return results.map((entry) => {
-		const citation = formatCitation(entry);
-		const snippet = `${entry.snippet.trim()}\n\nSource: ${citation}`;
-		return {
-			...entry,
-			citation,
-			snippet
-		};
-	});
-}
-function formatCitation(entry) {
-	const lineRange = entry.startLine === entry.endLine ? `#L${entry.startLine}` : `#L${entry.startLine}-L${entry.endLine}`;
-	return `${entry.path}${lineRange}`;
-}
-function clampResultsByInjectedChars(results, budget) {
-	if (!budget || budget <= 0) return results;
-	let remaining = budget;
-	const clamped = [];
-	for (const entry of results) {
-		if (remaining <= 0) break;
-		const snippet = entry.snippet ?? "";
-		if (snippet.length <= remaining) {
-			clamped.push(entry);
-			remaining -= snippet.length;
-		} else {
-			const trimmed = snippet.slice(0, Math.max(0, remaining));
-			clamped.push({
-				...entry,
-				snippet: trimmed
-			});
-			break;
-		}
-	}
-	return clamped;
-}
-function shouldIncludeCitations(params) {
-	if (params.mode === "on") return true;
-	if (params.mode === "off") return false;
-	return deriveChatTypeFromSessionKey(params.sessionKey) === "direct";
-}
-function deriveChatTypeFromSessionKey(sessionKey) {
-	const parsed = parseAgentSessionKey(sessionKey);
-	if (!parsed?.rest) return "direct";
-	const tokens = new Set(normalizeLowercaseStringOrEmpty(parsed.rest).split(":").filter(Boolean));
-	if (tokens.has("channel")) return "channel";
-	if (tokens.has("group")) return "group";
-	return "direct";
-}
-//#endregion
-//#region extensions/memory-core/src/tools.shared.ts
-let memoryToolRuntimePromise = null;
-async function loadMemoryToolRuntime() {
-	memoryToolRuntimePromise ??= import("../../tools.runtime-D7wH-zLj.js");
-	return await memoryToolRuntimePromise;
-}
-const MemorySearchSchema = Type.Object({
-	query: Type.String(),
-	maxResults: Type.Optional(Type.Number()),
-	minScore: Type.Optional(Type.Number()),
-	corpus: Type.Optional(Type.Union([
-		Type.Literal("memory"),
-		Type.Literal("wiki"),
-		Type.Literal("all"),
-		Type.Literal("sessions")
-	]))
-});
-const MemoryGetSchema = Type.Object({
-	path: Type.String(),
-	from: Type.Optional(Type.Number()),
-	lines: Type.Optional(Type.Number()),
-	corpus: Type.Optional(Type.Union([
-		Type.Literal("memory"),
-		Type.Literal("wiki"),
-		Type.Literal("all")
-	]))
-});
-function resolveMemoryToolContext(options) {
-	const cfg = options.getConfig?.() ?? options.config;
-	if (!cfg) return null;
-	const agentId = resolveSessionAgentId({
+function hasMemoryToolContext(options) {
+	const cfg = getToolConfig(options);
+	if (!cfg) return false;
+	const { sessionAgentId: agentId } = resolveSessionAgentIds({
 		sessionKey: options.agentSessionKey,
-		config: cfg
+		config: cfg,
+		agentId: options.agentId
 	});
-	if (!resolveMemorySearchConfig(cfg, agentId)) return null;
-	return {
-		cfg,
-		agentId
+	return Boolean(resolveMemorySearchConfig(cfg, agentId));
+}
+const MemorySearchSchema = {
+	type: "object",
+	properties: {
+		query: { type: "string" },
+		maxResults: { type: "number" },
+		minScore: { type: "number" },
+		corpus: {
+			type: "string",
+			enum: [
+				"memory",
+				"wiki",
+				"all",
+				"sessions"
+			]
+		}
+	},
+	required: ["query"],
+	additionalProperties: false
+};
+const MemoryGetSchema = {
+	type: "object",
+	properties: {
+		path: { type: "string" },
+		from: { type: "number" },
+		lines: { type: "number" },
+		corpus: {
+			type: "string",
+			enum: [
+				"memory",
+				"wiki",
+				"all"
+			]
+		}
+	},
+	required: ["path"],
+	additionalProperties: false
+};
+function createLazyMemoryTool(params) {
+	if (!hasMemoryToolContext(params.options)) return null;
+	let toolPromise;
+	const loadTool = async () => {
+		toolPromise ??= loadMemoryToolsModule().then((module) => params.load(module, params.options));
+		return await toolPromise;
 	};
-}
-async function getMemoryManagerContext(params) {
-	return await getMemoryManagerContextWithPurpose({
-		...params,
-		purpose: void 0
-	});
-}
-async function getMemoryManagerContextWithPurpose(params) {
-	const { getMemorySearchManager } = await loadMemoryToolRuntime();
-	const { manager, error } = await getMemorySearchManager({
-		cfg: params.cfg,
-		agentId: params.agentId,
-		purpose: params.purpose
-	});
-	return manager ? { manager } : { error };
-}
-function createMemoryTool(params) {
-	const ctx = resolveMemoryToolContext(params.options);
-	if (!ctx) return null;
 	return {
 		label: params.label,
 		name: params.name,
 		description: params.description,
 		parameters: params.parameters,
-		execute: async (toolCallId, toolParams) => {
-			const latestCtx = resolveMemoryToolContext(params.options) ?? ctx;
-			return await params.execute(latestCtx)(toolCallId, toolParams);
+		execute: async (toolCallId, toolParams, signal, onUpdate) => {
+			const tool = await loadTool();
+			if (!tool) return jsonResult({
+				disabled: true,
+				unavailable: true,
+				error: "memory search unavailable"
+			});
+			return await tool.execute(toolCallId, toolParams, signal, onUpdate);
 		}
 	};
 }
-function buildMemorySearchUnavailableResult(error) {
-	const reason = (error ?? "memory search unavailable").trim() || "memory search unavailable";
-	const isQuotaError = /insufficient_quota|quota|429/.test(normalizeLowercaseStringOrEmpty(reason));
-	const warning = isQuotaError ? "Memory search is unavailable because the embedding provider quota is exhausted." : "Memory search is unavailable due to an embedding/provider error.";
-	const action = isQuotaError ? "Top up or switch embedding provider, then retry memory_search." : "Check embedding provider configuration and retry memory_search.";
-	return {
-		results: [],
-		disabled: true,
-		unavailable: true,
-		error: reason,
-		warning,
-		action,
-		debug: {
-			warning,
-			action,
-			error: reason
-		}
-	};
-}
-async function searchMemoryCorpusSupplements(params) {
-	if (params.corpus === "memory" || params.corpus === "sessions") return [];
-	const supplements = listMemoryCorpusSupplements();
-	if (supplements.length === 0) return [];
-	return (await Promise.all(supplements.map(async (registration) => await registration.supplement.search(params)))).flat().toSorted((left, right) => {
-		if (left.score !== right.score) return right.score - left.score;
-		return left.path.localeCompare(right.path);
-	}).slice(0, Math.max(1, params.maxResults ?? 10));
-}
-async function getMemoryCorpusSupplementResult(params) {
-	if (params.corpus === "memory" || params.corpus === "sessions") return null;
-	for (const registration of listMemoryCorpusSupplements()) {
-		const result = await registration.supplement.get(params);
-		if (result) return result;
-	}
-	return null;
-}
-//#endregion
-//#region extensions/memory-core/src/tools.ts
-function buildRecallKey(result) {
-	return `${result.source}:${result.path}:${result.startLine}:${result.endLine}`;
-}
-function resolveRecallTrackingResults(rawResults, surfacedResults) {
-	if (surfacedResults.length === 0 || rawResults.length === 0) return surfacedResults;
-	const rawByKey = /* @__PURE__ */ new Map();
-	for (const raw of rawResults) {
-		const key = buildRecallKey(raw);
-		if (!rawByKey.has(key)) rawByKey.set(key, raw);
-	}
-	return surfacedResults.map((surfaced) => rawByKey.get(buildRecallKey(surfaced)) ?? surfaced);
-}
-function queueShortTermRecallTracking(params) {
-	const trackingResults = resolveRecallTrackingResults(params.rawResults, params.surfacedResults);
-	recordShortTermRecalls({
-		workspaceDir: params.workspaceDir,
-		query: params.query,
-		results: trackingResults,
-		timezone: params.timezone
-	}).catch(() => {});
-}
-function normalizeActiveMemoryQmdSearchMode(value) {
-	return value === "inherit" || value === "search" || value === "vsearch" || value === "query" ? value : "search";
-}
-function isActiveMemorySessionKey(sessionKey) {
-	return typeof sessionKey === "string" && sessionKey.includes(":active-memory:");
-}
-function resolveActiveMemoryQmdSearchModeOverride(cfg, sessionKey) {
-	if (!isActiveMemorySessionKey(sessionKey)) return;
-	const entry = cfg.plugins?.entries?.["active-memory"];
-	const entryRecord = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : void 0;
-	const searchMode = normalizeActiveMemoryQmdSearchMode((entryRecord?.config && typeof entryRecord.config === "object" && !Array.isArray(entryRecord.config) ? entryRecord.config : void 0)?.qmd?.searchMode);
-	return searchMode === "inherit" ? void 0 : searchMode;
-}
-async function getSupplementMemoryReadResult(params) {
-	const supplement = await getMemoryCorpusSupplementResult({
-		lookup: params.relPath,
-		fromLine: params.from,
-		lineCount: params.lines,
-		agentSessionKey: params.agentSessionKey,
-		corpus: params.corpus
-	});
-	if (!supplement) return null;
-	const { content, ...rest } = supplement;
-	return {
-		...rest,
-		text: content
-	};
-}
-async function resolveMemoryReadFailureResult(params) {
-	if (params.requestedCorpus === "all") {
-		const supplement = await getSupplementMemoryReadResult({
-			relPath: params.relPath,
-			from: params.from,
-			lines: params.lines,
-			agentSessionKey: params.agentSessionKey,
-			corpus: params.requestedCorpus
-		});
-		if (supplement) return jsonResult(supplement);
-	}
-	const message = formatErrorMessage(params.error);
-	return jsonResult({
-		path: params.relPath,
-		text: "",
-		disabled: true,
-		error: message
-	});
-}
-async function executeMemoryReadResult(params) {
-	try {
-		return jsonResult(await params.read());
-	} catch (error) {
-		return await resolveMemoryReadFailureResult({
-			error,
-			requestedCorpus: params.requestedCorpus,
-			relPath: params.relPath,
-			from: params.from,
-			lines: params.lines,
-			agentSessionKey: params.agentSessionKey
-		});
-	}
-}
-function createMemorySearchTool(options) {
-	return createMemoryTool({
+function createLazyMemorySearchTool(options) {
+	return createLazyMemoryTool({
 		options,
 		label: "Memory Search",
 		name: "memory_search",
 		description: "Mandatory recall step: semantically search MEMORY.md + memory/*.md (and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos. Optional `corpus=wiki` or `corpus=all` also searches registered compiled-wiki supplements. `corpus=memory` restricts hits to indexed memory files (excludes session transcript chunks from ranking). `corpus=sessions` restricts hits to indexed session transcripts (same visibility rules as session history tools). If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
 		parameters: MemorySearchSchema,
-		execute: ({ cfg, agentId }) => async (_toolCallId, params) => {
-			const rawParams = asToolParamsRecord(params);
-			const query = readStringParam(rawParams, "query", { required: true });
-			const maxResults = readNumberParam(rawParams, "maxResults");
-			const minScore = readNumberParam(rawParams, "minScore");
-			const requestedCorpus = readStringParam(rawParams, "corpus");
-			const { resolveMemoryBackendConfig } = await loadMemoryToolRuntime();
-			const shouldQueryMemory = requestedCorpus !== "wiki";
-			const shouldQuerySupplements = requestedCorpus === "wiki" || requestedCorpus === "all";
-			const memory = shouldQueryMemory ? await getMemoryManagerContext({
-				cfg,
-				agentId
-			}) : null;
-			if (shouldQueryMemory && memory && "error" in memory && !shouldQuerySupplements) return jsonResult(buildMemorySearchUnavailableResult(memory.error));
-			try {
-				const citationsMode = resolveMemoryCitationsMode(cfg);
-				const includeCitations = shouldIncludeCitations({
-					mode: citationsMode,
-					sessionKey: options.agentSessionKey
-				});
-				const searchStartedAt = Date.now();
-				let rawResults = [];
-				let surfacedMemoryResults = [];
-				let provider;
-				let model;
-				let fallback;
-				let searchMode;
-				let searchDebug;
-				if (shouldQueryMemory && memory && !("error" in memory)) {
-					const runtimeDebug = [];
-					const qmdSearchModeOverride = resolveActiveMemoryQmdSearchModeOverride(cfg, options.agentSessionKey);
-					const searchSources = requestedCorpus === "sessions" ? ["sessions"] : requestedCorpus === "memory" ? ["memory"] : void 0;
-					rawResults = await memory.manager.search(query, {
-						maxResults,
-						minScore,
-						sessionKey: options.agentSessionKey,
-						qmdSearchModeOverride,
-						onDebug: (debug) => {
-							runtimeDebug.push(debug);
-						},
-						...searchSources ? { sources: searchSources } : {}
-					});
-					rawResults = await filterMemorySearchHitsBySessionVisibility({
-						cfg,
-						requesterSessionKey: options.agentSessionKey,
-						sandboxed: options.sandboxed === true,
-						hits: rawResults
-					});
-					if (requestedCorpus === "sessions") rawResults = rawResults.filter((hit) => hit.source === "sessions");
-					else if (requestedCorpus === "memory") rawResults = rawResults.filter((hit) => hit.source === "memory");
-					const status = memory.manager.status();
-					const decorated = decorateCitations(rawResults, includeCitations);
-					const resolved = resolveMemoryBackendConfig({
-						cfg,
-						agentId
-					});
-					const memoryResults = status.backend === "qmd" ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars) : decorated;
-					surfacedMemoryResults = memoryResults.map((result) => ({
-						...result,
-						corpus: "memory"
-					}));
-					const sleepTimezone = resolveMemoryDeepDreamingConfig({
-						pluginConfig: resolveMemoryCorePluginConfig$1(cfg),
-						cfg
-					}).timezone;
-					queueShortTermRecallTracking({
-						workspaceDir: status.workspaceDir,
-						query,
-						rawResults,
-						surfacedResults: memoryResults,
-						timezone: sleepTimezone
-					});
-					provider = status.provider;
-					model = status.model;
-					fallback = status.fallback;
-					const latestDebug = runtimeDebug.at(-1);
-					searchMode = latestDebug?.effectiveMode;
-					searchDebug = {
-						backend: status.backend,
-						configuredMode: latestDebug?.configuredMode,
-						effectiveMode: status.backend === "qmd" ? latestDebug?.effectiveMode ?? latestDebug?.configuredMode : "n/a",
-						fallback: latestDebug?.fallback,
-						searchMs: Math.max(0, Date.now() - searchStartedAt),
-						hits: rawResults.length
-					};
-				}
-				const supplementResults = shouldQuerySupplements ? await searchMemoryCorpusSupplements({
-					query,
-					maxResults,
-					agentSessionKey: options.agentSessionKey,
-					corpus: requestedCorpus
-				}) : [];
-				return jsonResult({
-					results: [...surfacedMemoryResults, ...supplementResults].toSorted((left, right) => {
-						if (left.score !== right.score) return right.score - left.score;
-						return left.path.localeCompare(right.path);
-					}).slice(0, Math.max(1, maxResults ?? 10)),
-					provider,
-					model,
-					fallback,
-					citations: citationsMode,
-					mode: searchMode,
-					debug: searchDebug
-				});
-			} catch (err) {
-				return jsonResult(buildMemorySearchUnavailableResult(formatErrorMessage(err)));
-			}
-		}
+		load: (module, loadOptions) => module.createMemorySearchTool(loadOptions)
 	});
 }
-function createMemoryGetTool(options) {
-	return createMemoryTool({
+function createLazyMemoryGetTool(options) {
+	return createLazyMemoryTool({
 		options,
 		label: "Memory Get",
 		name: "memory_get",
 		description: "Safe exact excerpt read from MEMORY.md or memory/*.md. Defaults to a bounded excerpt when lines are omitted, includes truncation/continuation info when more content exists, and `corpus=wiki` reads from registered compiled-wiki supplements.",
 		parameters: MemoryGetSchema,
-		execute: ({ cfg, agentId }) => async (_toolCallId, params) => {
-			const rawParams = asToolParamsRecord(params);
-			const relPath = readStringParam(rawParams, "path", { required: true });
-			const from = readNumberParam(rawParams, "from", { integer: true });
-			const lines = readNumberParam(rawParams, "lines", { integer: true });
-			const requestedCorpus = readStringParam(rawParams, "corpus");
-			const { readAgentMemoryFile, resolveMemoryBackendConfig } = await loadMemoryToolRuntime();
-			if (requestedCorpus === "wiki") return jsonResult(await getSupplementMemoryReadResult({
-				relPath,
-				from: from ?? void 0,
-				lines: lines ?? void 0,
-				agentSessionKey: options.agentSessionKey,
-				corpus: requestedCorpus
-			}) ?? {
-				path: relPath,
-				text: "",
-				disabled: true,
-				error: "wiki corpus result not found"
-			});
-			if (resolveMemoryBackendConfig({
-				cfg,
-				agentId
-			}).backend === "builtin") return await executeMemoryReadResult({
-				read: async () => await readAgentMemoryFile({
-					cfg,
-					agentId,
-					relPath,
-					from: from ?? void 0,
-					lines: lines ?? void 0
-				}),
-				requestedCorpus,
-				relPath,
-				from: from ?? void 0,
-				lines: lines ?? void 0,
-				agentSessionKey: options.agentSessionKey
-			});
-			const memory = await getMemoryManagerContextWithPurpose({
-				cfg,
-				agentId,
-				purpose: "status"
-			});
-			if ("error" in memory) return jsonResult({
-				path: relPath,
-				text: "",
-				disabled: true,
-				error: memory.error
-			});
-			return await executeMemoryReadResult({
-				read: async () => await memory.manager.readFile({
-					relPath,
-					from: from ?? void 0,
-					lines: lines ?? void 0
-				}),
-				requestedCorpus,
-				relPath,
-				from: from ?? void 0,
-				lines: lines ?? void 0,
-				agentSessionKey: options.agentSessionKey
-			});
-		}
+		load: (module, loadOptions) => module.createMemoryGetTool(loadOptions)
 	});
 }
-//#endregion
-//#region extensions/memory-core/index.ts
+function resolveMemoryToolOptions(ctx) {
+	const getConfig = () => ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
+	return {
+		config: getConfig(),
+		getConfig,
+		agentId: ctx.agentId,
+		agentSessionKey: ctx.sessionKey,
+		sandboxed: ctx.sandboxed
+	};
+}
+const memoryRuntime = {
+	async getMemorySearchManager(params) {
+		const { memoryRuntime: runtime } = await loadRuntimeProviderModule();
+		return await runtime.getMemorySearchManager(params);
+	},
+	resolveMemoryBackendConfig(params) {
+		return resolveMemoryBackendConfig(params);
+	},
+	async closeAllMemorySearchManagers() {
+		const { memoryRuntime: runtime } = await loadRuntimeProviderModule();
+		await runtime.closeAllMemorySearchManagers?.();
+	},
+	async closeMemorySearchManager(params) {
+		const { memoryRuntime: runtime } = await loadRuntimeProviderModule();
+		await runtime.closeMemorySearchManager?.(params);
+	}
+};
 var memory_core_default = definePluginEntry({
 	id: "memory-core",
 	name: "Memory (Core)",
@@ -779,31 +248,28 @@ var memory_core_default = definePluginEntry({
 	register(api) {
 		registerBuiltInMemoryEmbeddingProviders(api);
 		registerShortTermPromotionDreaming(api);
-		registerDreamingCommand(api);
 		api.registerMemoryCapability({
 			promptBuilder: buildPromptSection,
 			flushPlanResolver: buildMemoryFlushPlan,
 			runtime: memoryRuntime,
-			publicArtifacts: { listArtifacts: listMemoryCorePublicArtifacts }
+			publicArtifacts: { async listArtifacts(params) {
+				const { listMemoryCorePublicArtifacts } = await import("../../public-artifacts-DMRAFDSy.js");
+				return await listMemoryCorePublicArtifacts(params);
+			} }
 		});
-		api.registerTool((ctx) => {
-			const getConfig = () => ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
-			return createMemorySearchTool({
-				config: getConfig(),
-				getConfig,
-				agentSessionKey: ctx.sessionKey,
-				sandboxed: ctx.sandboxed
-			});
-		}, { names: ["memory_search"] });
-		api.registerTool((ctx) => {
-			const getConfig = () => ctx.getRuntimeConfig?.() ?? ctx.runtimeConfig ?? ctx.config;
-			return createMemoryGetTool({
-				config: getConfig(),
-				getConfig,
-				agentSessionKey: ctx.sessionKey
-			});
-		}, { names: ["memory_get"] });
-		api.registerCli(({ program }) => {
+		api.registerTool((ctx) => createLazyMemorySearchTool(resolveMemoryToolOptions(ctx)), { names: ["memory_search"] });
+		api.registerTool((ctx) => createLazyMemoryGetTool(resolveMemoryToolOptions(ctx)), { names: ["memory_get"] });
+		api.registerCommand({
+			name: "dreaming",
+			description: "Enable or disable memory dreaming.",
+			acceptsArgs: true,
+			handler: async (ctx) => {
+				const { handleDreamingCommand } = await import("../../dreaming-command-H1Y83PIm.js");
+				return await handleDreamingCommand(api, ctx);
+			}
+		});
+		api.registerCli(async ({ program }) => {
+			const { registerMemoryCli } = await import("./cli.js");
 			registerMemoryCli(program);
 		}, { descriptors: [{
 			name: "memory",
@@ -813,4 +279,4 @@ var memory_core_default = definePluginEntry({
 	}
 });
 //#endregion
-export { DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES, DEFAULT_MEMORY_FLUSH_PROMPT, DEFAULT_MEMORY_FLUSH_SOFT_TOKENS, buildMemoryFlushPlan, buildPromptSection, memory_core_default as default };
+export { memory_core_default as default };

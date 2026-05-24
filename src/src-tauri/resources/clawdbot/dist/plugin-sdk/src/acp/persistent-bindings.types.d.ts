@@ -21,7 +21,7 @@ export type ResolvedConfiguredAcpBinding = {
     spec: ConfiguredAcpBindingSpec;
     record: SessionBindingRecord;
 };
-export type AcpBindingConfigShape = {
+type AcpBindingConfigShape = {
     mode?: string;
     cwd?: string;
     backend?: string;

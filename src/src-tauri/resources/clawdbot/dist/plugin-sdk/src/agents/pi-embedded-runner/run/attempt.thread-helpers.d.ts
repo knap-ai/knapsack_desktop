@@ -12,20 +12,6 @@ export declare function resolveAttemptSpawnWorkspaceDir(params: {
     } | null;
     resolvedWorkspace: string;
 }): string | undefined;
-export declare function shouldUseOpenAIWebSocketTransport(params: {
-    provider: string;
-    modelApi?: string | null;
-    modelBaseUrl?: string | null;
-}): boolean;
-export declare function shouldAppendAttemptCacheTtl(params: {
-    timedOutDuringCompaction: boolean;
-    compactionOccurredThisAttempt: boolean;
-    config?: OpenClawConfig;
-    provider: string;
-    modelId: string;
-    modelApi?: string;
-    isCacheTtlEligibleProvider: (provider: string, modelId: string, modelApi?: string) => boolean;
-}): boolean;
 export declare function appendAttemptCacheTtlIfNeeded(params: {
     sessionManager: {
         appendCustomEntry?: (customType: string, data: unknown) => void;

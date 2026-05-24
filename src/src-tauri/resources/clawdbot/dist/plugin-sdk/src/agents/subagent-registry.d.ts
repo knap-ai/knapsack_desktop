@@ -1,13 +1,14 @@
 import type { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
 import { getRuntimeConfig } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ResolveContextEngineOptions } from "../context-engine/registry.js";
 import type { ContextEngine } from "../context-engine/types.js";
 import { callGateway } from "../gateway/call.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import type { DeliveryContext } from "../utils/delivery-context.types.js";
 import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from "./runtime-plugins.js";
 import { type RegisterSubagentRunParams } from "./subagent-registry-run-manager.js";
-import { getSubagentRunsSnapshotForRead, persistSubagentRunsToDisk, restoreSubagentRunsFromDisk } from "./subagent-registry-state.js";
+import { getSubagentRunsSnapshotForRead, persistSubagentRunsToDisk, persistSubagentRunsToDiskOrThrow, restoreSubagentRunsFromDisk } from "./subagent-registry-state.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
 import { resolveAgentTimeoutMs } from "./timeout.js";
 export type { SubagentRunRecord } from "./subagent-registry.types.js";
@@ -21,12 +22,13 @@ type SubagentRegistryDeps = {
     getRuntimeConfig: typeof getRuntimeConfig;
     onAgentEvent: typeof onAgentEvent;
     persistSubagentRunsToDisk: typeof persistSubagentRunsToDisk;
+    persistSubagentRunsToDiskOrThrow: typeof persistSubagentRunsToDiskOrThrow;
     resolveAgentTimeoutMs: typeof resolveAgentTimeoutMs;
     restoreSubagentRunsFromDisk: typeof restoreSubagentRunsFromDisk;
     runSubagentAnnounceFlow: SubagentAnnounceModule["runSubagentAnnounceFlow"];
     ensureContextEnginesInitialized?: () => void;
     ensureRuntimePluginsLoaded?: typeof ensureRuntimePluginsLoadedFn;
-    resolveContextEngine?: (cfg: OpenClawConfig) => Promise<ContextEngine>;
+    resolveContextEngine?: (cfg?: OpenClawConfig, options?: ResolveContextEngineOptions) => Promise<ContextEngine>;
 };
 export declare function scheduleSubagentOrphanRecovery(params?: {
     delayMs?: number;
@@ -45,7 +47,7 @@ export declare function registerSubagentRun(params: RegisterSubagentRunParams): 
 export declare function resetSubagentRegistryForTests(opts?: {
     persist?: boolean;
 }): void;
-export declare const __testing: {
+export declare const testing: {
     readonly sweepOnceForTests: () => Promise<void>;
     readonly setDepsForTest: (overrides?: Partial<SubagentRegistryDeps>) => void;
 };
@@ -80,3 +82,5 @@ export declare function listDescendantRunsForRequester(rootSessionKey: string): 
 export declare function getSubagentRunByChildSessionKey(childSessionKey: string): SubagentRunRecord | null;
 export declare function getLatestSubagentRunByChildSessionKey(childSessionKey: string): SubagentRunRecord | null;
 export declare function initSubagentRegistry(): void;
+export { listSessionMaintenanceProtectedSubagentSessionKeys } from "./subagent-registry-maintenance.js";
+export { testing as __testing };

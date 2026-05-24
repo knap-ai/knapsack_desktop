@@ -1,5 +1,5 @@
-export type PollCreationParamKind = "string" | "stringArray" | "number" | "boolean";
-export type PollCreationParamDef = {
+type PollCreationParamKind = "string" | "stringArray" | "number" | "boolean";
+type PollCreationParamDef = {
     kind: PollCreationParamKind;
 };
 declare const SHARED_POLL_CREATION_PARAM_DEFS: {

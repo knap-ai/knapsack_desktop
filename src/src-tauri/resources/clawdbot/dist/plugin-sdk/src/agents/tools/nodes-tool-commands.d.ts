@@ -1,7 +1,6 @@
 import { jsonResult } from "./common.js";
 import type { GatewayCallOptions } from "./gateway.js";
-export declare const BLOCKED_INVOKE_COMMANDS: Set<string>;
-export declare const NODE_READ_ACTION_COMMANDS: {
+declare const NODE_READ_ACTION_COMMANDS: {
     readonly camera_list: "camera.list";
     readonly notifications_list: "notifications.list";
     readonly device_status: "device.status";
@@ -23,9 +22,4 @@ export declare function executeNodeCommandAction(params: {
     }>;
     details: Record<string, unknown>;
 }>;
-export declare function invokeNodeCommandPayload(params: {
-    gatewayOpts: GatewayCallOptions;
-    node: string;
-    command: string;
-    commandParams?: Record<string, unknown>;
-}): Promise<unknown>;
+export {};

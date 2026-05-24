@@ -1,2 +1,2 @@
-import { t as isFireworksKimiModelId } from "../../model-id-DqJW8d2_.js";
+import { t as isFireworksKimiModelId } from "../../model-id-BhN5iHky.js";
 export { isFireworksKimiModelId };

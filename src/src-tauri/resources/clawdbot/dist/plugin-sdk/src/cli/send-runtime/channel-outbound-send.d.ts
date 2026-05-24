@@ -1,8 +1,10 @@
 import type { ChannelId } from "../../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { OutboundDeliveryFormattingOptions } from "../../infra/outbound/formatting.js";
 import type { OutboundMediaAccess } from "../../media/load-options.js";
 type RuntimeSendOpts = {
     cfg?: OpenClawConfig;
+    blocks?: unknown;
     mediaUrl?: string;
     mediaAccess?: OutboundMediaAccess;
     mediaLocalRoots?: readonly string[];
@@ -15,8 +17,10 @@ type RuntimeSendOpts = {
     replyToMessageId?: string | number;
     silent?: boolean;
     forceDocument?: boolean;
+    formatting?: OutboundDeliveryFormattingOptions;
     gifPlayback?: boolean;
     gatewayClientScopes?: readonly string[];
+    textMode?: "markdown" | "html";
 };
 export declare function createChannelOutboundRuntimeSend(params: {
     channelId: ChannelId;

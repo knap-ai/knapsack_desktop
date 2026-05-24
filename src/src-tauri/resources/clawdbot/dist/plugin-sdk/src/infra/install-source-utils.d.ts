@@ -1,3 +1,4 @@
+import { type NpmProjectInstallEnvOptions } from "./npm-install-env.js";
 export type NpmSpecResolution = {
     name?: string;
     version?: string;
@@ -15,6 +16,7 @@ export type NpmResolutionFields = {
     resolvedAt?: string;
 };
 export declare function buildNpmResolutionFields(resolution?: NpmSpecResolution): NpmResolutionFields;
+export declare function createNpmMetadataEnv(scope?: Pick<NpmProjectInstallEnvOptions, "npmConfigCwd">): NodeJS.ProcessEnv;
 export declare function resolveNpmSpecMetadata(params: {
     spec: string;
     timeoutMs?: number;
@@ -44,6 +46,18 @@ export declare function packNpmSpecToArchive(params: {
 }): Promise<{
     ok: true;
     archivePath: string;
+    metadata: NpmSpecResolution;
+} | {
+    ok: false;
+    error: string;
+}>;
+export declare function resolveNpmPackArchiveMetadata(params: {
+    archivePath: string;
+    timeoutMs?: number;
+}): Promise<{
+    ok: true;
+    archivePath: string;
+    tarballName: string;
     metadata: NpmSpecResolution;
 } | {
     ok: false;

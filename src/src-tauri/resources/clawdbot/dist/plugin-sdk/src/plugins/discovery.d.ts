@@ -1,6 +1,8 @@
+import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { PluginBundleFormat, PluginDiagnostic, PluginFormat } from "./manifest-types.js";
-import { type PluginManifest, type OpenClawPackageManifest } from "./manifest.js";
+import { type PluginManifest, type OpenClawPackageManifest, type PackageManifest } from "./manifest.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
+import { type PluginDependencySpecMap } from "./status-dependencies.js";
 export type PluginCandidate = {
     idHint: string;
     source: string;
@@ -15,19 +17,21 @@ export type PluginCandidate = {
     packageDescription?: string;
     packageDir?: string;
     packageManifest?: OpenClawPackageManifest;
+    packageDependencies?: PluginDependencySpecMap;
+    packageOptionalDependencies?: PluginDependencySpecMap;
     bundledManifest?: PluginManifest;
     bundledManifestPath?: string;
+    rawPackageManifest?: PackageManifest;
 };
 export type PluginDiscoveryResult = {
     candidates: PluginCandidate[];
     diagnostics: PluginDiagnostic[];
 };
-export declare function clearPluginDiscoveryCache(): void;
 export type CandidateBlockReason = "source_escapes_root" | "path_stat_failed" | "path_world_writable" | "path_suspicious_ownership";
 export declare function discoverOpenClawPlugins(params: {
     workspaceDir?: string;
     extraPaths?: string[];
+    installRecords?: Record<string, PluginInstallRecord>;
     ownershipUid?: number | null;
-    cache?: boolean;
     env?: NodeJS.ProcessEnv;
 }): PluginDiscoveryResult;

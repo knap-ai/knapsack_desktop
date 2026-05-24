@@ -7,5 +7,13 @@ export declare function getPluginCommandSpecs(provider?: string, options?: {
 }): Array<{
     name: string;
     description: string;
+    descriptionLocalizations?: Record<string, string>;
+    acceptsArgs: boolean;
+}>;
+/** Resolve plugin command specs for a provider's native naming surface without support gating. */
+export declare function listProviderPluginCommandSpecs(provider?: string): Array<{
+    name: string;
+    description: string;
+    descriptionLocalizations?: Record<string, string>;
     acceptsArgs: boolean;
 }>;

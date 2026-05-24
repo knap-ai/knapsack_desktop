@@ -1,6 +1,6 @@
 import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type ChannelDefaultAccountContext = {
+type ChannelDefaultAccountContext = {
     accountIds: string[];
     defaultAccountId: string;
     account: unknown;
@@ -13,8 +13,9 @@ export type ChannelDefaultAccountContext = {
      */
     degraded: boolean;
 };
-export type ChannelAccountContextMode = "strict" | "read_only";
+type ChannelAccountContextMode = "strict" | "read_only";
 export declare function resolveDefaultChannelAccountContext(plugin: ChannelPlugin, cfg: OpenClawConfig, options?: {
     mode?: ChannelAccountContextMode;
     commandName?: string;
 }): Promise<ChannelDefaultAccountContext>;
+export {};

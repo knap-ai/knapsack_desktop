@@ -2,7 +2,7 @@ import type { DispatchReplyWithBufferedBlockDispatcher } from "../auto-reply/rep
 import type { FinalizedMsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { OutboundReplyPayload } from "./reply-payload.js";
-export { createPreCryptoDirectDmAuthorizer, resolveInboundDirectDmAccessWithRuntime, type DirectDmCommandAuthorizationRuntime, type ResolvedInboundDirectDmAccess, } from "./direct-dm-access.js";
+export { createPreCryptoDirectDmAuthorizer, resolveInboundDirectDmAccessWithRuntime, type AccessGroupMembershipResolver, type DirectDmCommandAuthorizationRuntime, type ResolvedInboundDirectDmAccess, } from "./direct-dm-access.js";
 export { createDirectDmPreCryptoGuardPolicy, type DirectDmPreCryptoGuardPolicy, type DirectDmPreCryptoGuardPolicyOverrides, } from "./direct-dm-guard-policy.js";
 type DirectDmRoutePeer = {
     kind: "direct";

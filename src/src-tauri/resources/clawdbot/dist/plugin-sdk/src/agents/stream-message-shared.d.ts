@@ -1,5 +1,5 @@
-import type { AssistantMessage, StopReason, Usage } from "@mariozechner/pi-ai";
-export type StreamModelDescriptor = {
+import type { AssistantMessage, StopReason, Usage } from "@earendil-works/pi-ai";
+type StreamModelDescriptor = {
     api: string;
     provider: string;
     id: string;
@@ -34,3 +34,4 @@ export declare function buildStreamErrorAssistantMessage(params: {
     stopReason: "error";
     errorMessage: string;
 };
+export {};

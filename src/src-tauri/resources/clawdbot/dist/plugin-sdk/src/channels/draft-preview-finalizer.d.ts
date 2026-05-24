@@ -1,11 +1,15 @@
-export type DraftPreviewFinalizerDraft<TId> = {
-    flush: () => Promise<void>;
-    id: () => TId | undefined;
-    seal?: () => Promise<void>;
-    discardPending?: () => Promise<void>;
-    clear: () => Promise<void>;
-};
-export type DraftPreviewFinalizerResult = "normal-delivered" | "normal-skipped" | "preview-finalized";
+import { type LivePreviewFinalizerDraft, type LivePreviewFinalizerResultKind } from "./message/live.js";
+/**
+ * @deprecated Use `LivePreviewFinalizerDraft` from `openclaw/plugin-sdk/channel-message`.
+ */
+export type DraftPreviewFinalizerDraft<TId> = LivePreviewFinalizerDraft<TId>;
+/**
+ * @deprecated Use `LivePreviewFinalizerResult` from `openclaw/plugin-sdk/channel-message`.
+ */
+export type DraftPreviewFinalizerResult = Exclude<LivePreviewFinalizerResultKind, "preview-retained">;
+/**
+ * @deprecated Use `deliverFinalizableLivePreview` from `openclaw/plugin-sdk/channel-message`.
+ */
 export declare function deliverFinalizableDraftPreview<TPayload, TId, TEdit>(params: {
     kind: "tool" | "block" | "final";
     payload: TPayload;

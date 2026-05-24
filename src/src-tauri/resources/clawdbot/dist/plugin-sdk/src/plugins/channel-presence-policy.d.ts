@@ -20,7 +20,6 @@ export declare function resolveConfiguredChannelPresencePolicy(params: {
     activationSourceConfig?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
-    cache?: boolean;
     includePersistedAuthState?: boolean;
     manifestRecords?: readonly PluginManifestRecord[];
 }): ConfiguredChannelPresencePolicyEntry[];
@@ -31,7 +30,6 @@ export declare function listConfiguredAnnounceChannelIdsForConfig(params: {
     activationSourceConfig?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
-    cache?: boolean;
 }): string[];
 export declare function resolveDiscoverableScopedChannelPluginIds(params: {
     config: OpenClawConfig;
@@ -39,7 +37,6 @@ export declare function resolveDiscoverableScopedChannelPluginIds(params: {
     channelIds: readonly string[];
     workspaceDir?: string;
     env: NodeJS.ProcessEnv;
-    cache?: boolean;
     manifestRecords?: readonly PluginManifestRecord[];
 }): string[];
 export declare function resolveConfiguredChannelPluginIds(params: {

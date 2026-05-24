@@ -5,4 +5,3 @@ export declare function getDetachedTaskLifecycleRuntimeRegistration(): DetachedT
 export declare function getRegisteredDetachedTaskLifecycleRuntime(): DetachedTaskLifecycleRuntime | undefined;
 export declare function restoreDetachedTaskLifecycleRuntimeRegistration(registration: DetachedTaskLifecycleRuntimeRegistration | undefined): void;
 export declare function clearDetachedTaskLifecycleRuntimeRegistration(): void;
-export declare const _resetDetachedTaskLifecycleRuntimeRegistration: typeof clearDetachedTaskLifecycleRuntimeRegistration;

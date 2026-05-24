@@ -1,2 +1,2 @@
-import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-CLgUhRx1.js";
+import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-uhItFoQp.js";
 export { createKimiWebSearchProvider };

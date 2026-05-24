@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 export declare const CHARS_PER_TOKEN_ESTIMATE = 4;
 export declare const TOOL_RESULT_CHARS_PER_TOKEN_ESTIMATE = 2;
 export type MessageCharEstimateCache = WeakMap<AgentMessage, number>;

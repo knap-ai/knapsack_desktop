@@ -6,11 +6,29 @@ export declare function resolveSubagentToolPolicy(cfg?: OpenClawConfig, depth?: 
 export declare function resolveSubagentToolPolicyForSession(cfg: OpenClawConfig | undefined, sessionKey: string, opts?: {
     store?: SessionCapabilityStore;
 }): SandboxToolPolicy;
+export declare function resolveInheritedToolPolicyForSession(cfg: OpenClawConfig | undefined, sessionKey: string | undefined | null, opts?: {
+    store?: SessionCapabilityStore;
+}): SandboxToolPolicy | undefined;
 export declare function filterToolsByPolicy(tools: AnyAgentTool[], policy?: SandboxToolPolicy): AnyAgentTool[];
-export declare function resolveGroupContextFromSessionKey(sessionKey?: string | null): {
-    channel?: string;
-    groupIds?: string[];
+type ToolPolicyConfig = {
+    allow?: string[];
+    alsoAllow?: string[];
+    deny?: string[];
+    profile?: string;
 };
+export declare function resolveTrustedGroupId(params: {
+    groupId?: string | null;
+    sessionKey?: string | null;
+    spawnedBy?: string | null;
+}): {
+    groupId: string | null | undefined;
+    dropped: boolean;
+};
+export declare function resolveProviderToolPolicy(params: {
+    byProvider?: Record<string, ToolPolicyConfig>;
+    modelProvider?: string;
+    modelId?: string;
+}): ToolPolicyConfig | undefined;
 export declare function resolveEffectiveToolPolicy(params: {
     config?: OpenClawConfig;
     sessionKey?: string;

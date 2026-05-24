@@ -1,8 +1,11 @@
 export { AUTH_PROFILE_FILENAME, AUTH_STATE_FILENAME, LEGACY_AUTH_FILENAME, } from "./path-constants.js";
 export declare const AUTH_STORE_VERSION = 1;
+/** @deprecated Anthropic provider-owned CLI profile id; do not use from third-party plugins. */
 export declare const CLAUDE_CLI_PROFILE_ID = "anthropic:claude-cli";
+/** @deprecated OpenAI Codex provider-owned CLI profile id; do not use from third-party plugins. */
 export declare const CODEX_CLI_PROFILE_ID = "openai-codex:codex-cli";
 export declare const OPENAI_CODEX_DEFAULT_PROFILE_ID = "openai-codex:default";
+/** @deprecated MiniMax provider-owned CLI profile id; do not use from third-party plugins. */
 export declare const MINIMAX_CLI_PROFILE_ID = "minimax-portal:minimax-cli";
 export declare const AUTH_STORE_LOCK_OPTIONS: {
     readonly retries: {

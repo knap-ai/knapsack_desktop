@@ -8,6 +8,7 @@ on:
       - "src/scripts/**"
       - "src/package.json"
       - "src/package-lock.json"
+      - "src/src-tauri/resources/clawdbot/npm-shrinkwrap.json"
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
@@ -19,6 +20,7 @@ on:
       - "src/scripts/**"
       - "src/package.json"
       - "src/package-lock.json"
+      - "src/src-tauri/resources/clawdbot/npm-shrinkwrap.json"
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
@@ -43,7 +45,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: src/src-tauri/resources/clawdbot/package-lock.json
+          cache-dependency-path: src/src-tauri/resources/clawdbot/npm-shrinkwrap.json
 
       - name: Install clawdbot dependencies
         working-directory: src/src-tauri/resources/clawdbot
@@ -52,6 +54,14 @@ jobs:
       - name: Install bundled plugin runtime deps
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
+
+      - name: Report clawdbot duplicates before prune
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs
+
+      - name: Smoke-test gateway live timing
+        working-directory: src
+        run: node scripts/smoke-test-gateway-live.cjs
 
       - name: Prepare bundled Node.js
         working-directory: src
@@ -64,6 +74,10 @@ jobs:
       - name: Verify clawdbot bundle integrity
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
+
+      - name: Enforce clawdbot duplicate gate
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs --enforce
 
   rust-gateway-regressions:
     name: Rust gateway regressions

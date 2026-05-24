@@ -1,5 +1,5 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as buildInworldSpeechProvider } from "../../speech-provider-CDJpn2nL.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as buildInworldSpeechProvider } from "../../speech-provider-CNgEXw3H.js";
 //#region extensions/inworld/index.ts
 var inworld_default = definePluginEntry({
 	id: "inworld",

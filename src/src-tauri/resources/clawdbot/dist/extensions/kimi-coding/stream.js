@@ -1,2 +1,2 @@
-import { i as wrapKimiProviderStream, n as createKimiToolCallMarkupWrapper, r as resolveKimiThinkingType, t as createKimiThinkingWrapper } from "../../stream-DJpTrqhp.js";
-export { createKimiThinkingWrapper, createKimiToolCallMarkupWrapper, resolveKimiThinkingType, wrapKimiProviderStream };
+import { a as wrapKimiProviderStream, i as resolveKimiThinkingType, n as createKimiToolCallMarkupWrapper, r as resolveKimiThinkingConfig, t as createKimiThinkingWrapper } from "../../stream-BD8nlCXf.js";
+export { createKimiThinkingWrapper, createKimiToolCallMarkupWrapper, resolveKimiThinkingConfig, resolveKimiThinkingType, wrapKimiProviderStream };

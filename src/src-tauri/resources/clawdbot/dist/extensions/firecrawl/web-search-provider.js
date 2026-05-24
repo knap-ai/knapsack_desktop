@@ -1,2 +1,2 @@
-import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-BQ3HRoRt.js";
+import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-BRxGTvit.js";
 export { createFirecrawlWebSearchProvider };

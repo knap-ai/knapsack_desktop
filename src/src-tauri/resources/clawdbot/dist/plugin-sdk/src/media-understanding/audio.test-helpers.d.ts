@@ -1,4 +1,3 @@
-export declare function resolveRequestUrl(input: RequestInfo | URL): string;
 export declare function installPinnedHostnameTestHooks(): void;
 export declare function createAuthCaptureJsonFetch(responseBody: unknown): {
     fetchFn: ((_input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) & {

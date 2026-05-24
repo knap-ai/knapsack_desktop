@@ -1,2 +1,2 @@
-import { n as buildKilocodeProviderWithDiscovery, t as buildKilocodeProvider } from "../../provider-catalog-Dl7O0G9H.js";
+import { n as buildKilocodeProviderWithDiscovery, t as buildKilocodeProvider } from "../../provider-catalog-Bq9XxKHz.js";
 export { buildKilocodeProvider, buildKilocodeProviderWithDiscovery };

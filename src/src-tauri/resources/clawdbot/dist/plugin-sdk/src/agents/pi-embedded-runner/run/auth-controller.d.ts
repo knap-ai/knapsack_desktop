@@ -1,4 +1,4 @@
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ThinkLevel } from "../../../auto-reply/thinking.js";
 import { type AuthProfileStore } from "../../auth-profiles.js";
 import { type ResolvedProviderAuth } from "../../model-auth.js";

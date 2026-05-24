@@ -18,10 +18,6 @@ type SummarySessionsLike = {
         contextTokens?: number | null;
     };
 };
-export declare function countActiveStatusAgents(params: {
-    agentStatus: AgentStatusLike;
-    activeThresholdMs?: number;
-}): number;
 export declare function buildStatusAllAgentsValue(params: {
     agentStatus: AgentStatusLike;
     activeThresholdMs?: number;

@@ -4,6 +4,8 @@ export type HeartbeatTask = {
     prompt: string;
 };
 export declare const HEARTBEAT_PROMPT = "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.";
+export declare const HEARTBEAT_RESPONSE_TOOL_INSTRUCTIONS = "Use heartbeat_respond to report the wake outcome. Set notify=false when nothing needs the user's attention. Set notify=true with notificationText only when the user should be interrupted.";
+export declare const HEARTBEAT_RESPONSE_TOOL_PROMPT = "Read HEARTBEAT.md if it exists (workspace context). Follow it strictly. Do not infer or repeat old tasks from prior chats. Use heartbeat_respond to report the wake outcome. Set notify=false when nothing needs the user's attention. Set notify=true with notificationText only when the user should be interrupted.";
 export declare const HEARTBEAT_TRANSCRIPT_PROMPT = "[OpenClaw heartbeat poll]";
 export declare const DEFAULT_HEARTBEAT_EVERY = "30m";
 export declare const DEFAULT_HEARTBEAT_ACK_MAX_CHARS = 300;
@@ -22,7 +24,8 @@ export declare const DEFAULT_HEARTBEAT_ACK_MAX_CHARS = 300;
  */
 export declare function isHeartbeatContentEffectivelyEmpty(content: string | undefined | null): boolean;
 export declare function resolveHeartbeatPrompt(raw?: string): string;
-export type StripHeartbeatMode = "heartbeat" | "message";
+export declare function resolveHeartbeatPromptForResponseTool(raw?: string): string;
+type StripHeartbeatMode = "heartbeat" | "message";
 export declare function stripHeartbeatToken(raw?: string, opts?: {
     mode?: StripHeartbeatMode;
     maxAckChars?: number;
@@ -45,3 +48,4 @@ export declare function parseHeartbeatTasks(content: string): HeartbeatTask[];
  * Check if a task is due based on its interval and last run time.
  */
 export declare function isTaskDue(lastRunMs: number | undefined, interval: string, nowMs: number): boolean;
+export {};

@@ -1,18 +1,13 @@
-import { f as readNumberParam, g as readStringParam, l as jsonResult, m as readStringArrayParam } from "../../common-C4RGIxnG.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import "../../provider-web-search-fsZ6HXjy.js";
-import { i as runFirecrawlSearch, r as runFirecrawlScrape } from "../../firecrawl-client-BBFFscnc.js";
-import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-DzN33Qx9.js";
-import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-BQ3HRoRt.js";
+import { r as optionalStringEnum } from "../../typebox-CjEaoMel.js";
+import { c as jsonResult, f as readNumberParam, g as readStringParam, m as readStringArrayParam } from "../../common-E9YpX7pB.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../channel-actions-DMN7G5RZ.js";
+import "../../provider-web-search-DNIStESL.js";
+import { i as runFirecrawlSearch, r as runFirecrawlScrape } from "../../firecrawl-client-C_C8qfe7.js";
+import { t as createFirecrawlWebFetchProvider } from "../../firecrawl-fetch-provider-CxwHa5XX.js";
+import { t as createFirecrawlWebSearchProvider } from "../../firecrawl-search-provider-BRxGTvit.js";
 import { Type } from "typebox";
 //#region extensions/firecrawl/src/firecrawl-scrape-tool.ts
-function optionalStringEnum(values, options = {}) {
-	return Type.Optional(Type.Unsafe({
-		type: "string",
-		enum: [...values],
-		...options
-	}));
-}
 const FirecrawlScrapeToolSchema = Type.Object({
 	url: Type.String({ description: "HTTP or HTTPS URL to scrape via Firecrawl." }),
 	extractMode: optionalStringEnum(["markdown", "text"], { description: "Extraction mode (\"markdown\" or \"text\"). Default: markdown." }),

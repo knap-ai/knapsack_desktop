@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type ToolFsPolicy = {
-    workspaceOnly: boolean;
-};
+import type { ToolFsPolicy } from "./tool-fs-policy.types.js";
+export type { ToolFsPolicy } from "./tool-fs-policy.types.js";
 export declare function createToolFsPolicy(params: {
     workspaceOnly?: boolean;
 }): ToolFsPolicy;

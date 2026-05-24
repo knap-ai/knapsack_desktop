@@ -1,4 +1,4 @@
-import { type Component, type SelectItem, type SelectListTheme } from "@mariozechner/pi-tui";
+import { type Component, type SelectItem, type SelectListTheme } from "@earendil-works/pi-tui";
 export interface SearchableSelectListTheme extends SelectListTheme {
     searchPrompt: (text: string) => string;
     searchInput: (text: string) => string;

@@ -1,3 +1,4 @@
+import type { CommandQueueEnqueueOptions } from "./command-queue.types.js";
 /**
  * Dedicated error type thrown when a queued command is rejected because
  * its lane was cleared.  Callers that fire-and-forget enqueued tasks can
@@ -7,29 +8,48 @@ export declare class CommandLaneClearedError extends Error {
     constructor(lane?: string);
 }
 /**
+ * Dedicated error type thrown when an active command exceeds its caller-owned
+ * lane timeout. The underlying task may still be unwinding, but the lane is
+ * released so queued work is not blocked forever.
+ */
+export declare class CommandLaneTaskTimeoutError extends Error {
+    constructor(lane: string, timeoutMs: number);
+}
+export declare function isCommandLaneTaskTimeoutError(err: unknown, lane?: string): boolean;
+/**
  * Dedicated error type thrown when a new command is rejected because the
  * gateway is currently draining for restart.
  */
 export declare class GatewayDrainingError extends Error {
     constructor();
 }
+export type CommandLaneSnapshot = {
+    lane: string;
+    queuedCount: number;
+    activeCount: number;
+    maxConcurrent: number;
+    draining: boolean;
+    generation: number;
+};
 /**
  * Mark gateway as draining for restart so new enqueues fail fast with
  * `GatewayDrainingError` instead of being silently killed on shutdown.
  */
 export declare function markGatewayDraining(): void;
 export declare function setCommandLaneConcurrency(lane: string, maxConcurrent: number): void;
-export declare function enqueueCommandInLane<T>(lane: string, task: () => Promise<T>, opts?: {
-    warnAfterMs?: number;
-    onWait?: (waitMs: number, queuedAhead: number) => void;
-}): Promise<T>;
-export declare function enqueueCommand<T>(task: () => Promise<T>, opts?: {
-    warnAfterMs?: number;
-    onWait?: (waitMs: number, queuedAhead: number) => void;
-}): Promise<T>;
+export declare function enqueueCommandInLane<T>(lane: string, task: () => Promise<T>, opts?: CommandQueueEnqueueOptions): Promise<T>;
+export declare function enqueueCommand<T>(task: () => Promise<T>, opts?: CommandQueueEnqueueOptions): Promise<T>;
 export declare function getQueueSize(lane?: string): number;
+export declare function getCommandLaneSnapshot(lane?: string): CommandLaneSnapshot;
+export declare function getCommandLaneSnapshots(): CommandLaneSnapshot[];
 export declare function getTotalQueueSize(): number;
 export declare function clearCommandLane(lane?: string): number;
+/**
+ * Force a single lane back to idle and immediately pump any queued entries.
+ * Used only by recovery paths after the owner has already attempted to abort
+ * the active work; stale completions from the previous generation are ignored.
+ */
+export declare function resetCommandLane(lane?: string): number;
 /**
  * Test-only hard reset that discards all queue state, including preserved
  * queued work from previous generations. Use this when a suite needs an

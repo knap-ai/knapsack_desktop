@@ -6,6 +6,13 @@ import type { ensureRuntimePluginsLoaded as ensureRuntimePluginsLoadedFn } from 
 import { type SubagentRunOutcome } from "./subagent-announce-output.js";
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
+import type { SubagentSessionCompletion } from "./subagent-session-reconciliation.js";
+export declare function markSubagentRunPausedAfterYield(params: {
+    entry: SubagentRunRecord;
+    startedAt?: number;
+    endedAt?: number;
+    now?: number;
+}): boolean;
 export type RegisterSubagentRunParams = {
     runId: string;
     childSessionKey: string;
@@ -14,9 +21,11 @@ export type RegisterSubagentRunParams = {
     requesterOrigin?: DeliveryContext;
     requesterDisplayKey: string;
     task: string;
+    taskName?: string;
     cleanup: "delete" | "keep";
     label?: string;
     model?: string;
+    agentDir?: string;
     workspaceDir?: string;
     runTimeoutSeconds?: number;
     expectsCompletionMessage?: boolean;
@@ -30,6 +39,7 @@ export declare function createSubagentRunManager(params: {
     resumedRuns: Set<string>;
     endedHookInFlightRunIds: Set<string>;
     persist(): void;
+    persistOrThrow(): void;
     callGateway: typeof callGateway;
     getRuntimeConfig: typeof getRuntimeConfig;
     ensureRuntimePluginsLoaded: typeof ensureRuntimePluginsLoadedFn | ((args: {
@@ -47,9 +57,15 @@ export declare function createSubagentRunManager(params: {
         delayMs?: number;
         maxRetries?: number;
     }): void;
+    resolveSubagentSessionCompletion(args: {
+        childSessionKey: string;
+        fallbackEndedAt: number;
+        notBeforeMs?: number;
+    }): SubagentSessionCompletion | null;
     notifyContextEngineSubagentEnded(args: {
         childSessionKey: string;
         reason: "completed" | "deleted" | "released";
+        agentDir?: string;
         workspaceDir?: string;
     }): Promise<void>;
     completeCleanupBookkeeping(args: {

@@ -18,3 +18,9 @@ export declare function resolveNextHeartbeatDueMs(params: {
         nextDueMs: number;
     };
 }): number;
+export declare function seekNextActivePhaseDueMs(params: {
+    startMs: number;
+    intervalMs: number;
+    phaseMs: number;
+    isActive?: (ms: number) => boolean;
+}): number;

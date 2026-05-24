@@ -1,6 +1,10 @@
-/** Normalize webhook paths into the canonical registry form used by route lookup. */
+/**
+ * @deprecated Compatibility subpath. Import webhook path helpers from
+ * `openclaw/plugin-sdk/webhook-ingress` instead.
+ */
+/** @deprecated Import from `openclaw/plugin-sdk/webhook-ingress` instead. */
 export declare function normalizeWebhookPath(raw: string): string;
-/** Resolve the effective webhook path from explicit path, URL, or default fallback. */
+/** @deprecated Import from `openclaw/plugin-sdk/webhook-ingress` instead. */
 export declare function resolveWebhookPath(params: {
     webhookPath?: string;
     webhookUrl?: string;

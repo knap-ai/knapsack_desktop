@@ -3,6 +3,24 @@ export type ModelCatalogInput = "text" | "image" | "document";
 export type ModelCatalogDiscovery = "static" | "refreshable" | "runtime";
 export type ModelCatalogStatus = "available" | "preview" | "deprecated" | "disabled";
 export type ModelCatalogSource = "manifest" | "provider-index" | "cache" | "config" | "runtime-refresh";
+export type UnifiedModelCatalogKind = "text" | "image_generation" | "video_generation" | "music_generation";
+export type UnifiedModelCatalogSource = "manifest" | "provider-index" | "static" | "live" | "cache" | "configured" | "runtime-refresh";
+export type UnifiedModelCatalogEntry<TCapabilities = unknown> = {
+    kind: UnifiedModelCatalogKind;
+    provider: string;
+    model: string;
+    label?: string;
+    source: UnifiedModelCatalogSource;
+    default?: boolean;
+    configured?: boolean;
+    capabilities?: TCapabilities;
+    modes?: readonly string[];
+    authEnvVars?: readonly string[];
+    docsPath?: string;
+    fetchedAt?: number;
+    expiresAt?: number;
+    warnings?: readonly string[];
+};
 export type ModelCatalogTieredCost = {
     input: number;
     output: number;
@@ -51,6 +69,10 @@ export type ModelCatalogSuppression = {
     provider: string;
     model: string;
     reason?: string;
+    when?: {
+        baseUrlHosts?: string[];
+        providerConfigApiIn?: string[];
+    };
 };
 export type ModelCatalog = {
     providers?: Record<string, ModelCatalogProvider>;

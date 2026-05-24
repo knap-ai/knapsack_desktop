@@ -6,7 +6,9 @@ export type OnboardMode = "local" | "remote";
  * Auth choices are plugin-owned contract ids plus a few legacy aliases that
  * are normalized elsewhere (for example `oauth` -> `setup-token`).
  */
-export type BuiltInAuthChoice = "oauth" | "setup-token" | "token" | "apiKey" | "custom-api-key" | "skip";
+type BuiltInAuthChoice =
+/** @deprecated Use `setup-token`. */
+"oauth" | "setup-token" | "token" | "apiKey" | "custom-api-key" | "skip";
 export type AuthChoice = BuiltInAuthChoice | (string & {});
 /** Auth choice groups are plugin-owned ids plus the core `custom` bucket. */
 export type AuthChoiceGroupId = "custom" | (string & {});
@@ -16,7 +18,6 @@ export type GatewayBind = "loopback" | "lan" | "auto" | "custom" | "tailnet";
 export type TailscaleMode = "off" | "serve" | "funnel";
 export type NodeManagerChoice = "npm" | "pnpm" | "bun";
 export type ChannelChoice = ChannelId;
-export type ProviderChoice = ChannelChoice;
 export type { SecretInputMode } from "../plugins/provider-auth-types.js";
 type OnboardDynamicProviderOptions = {
     /**
@@ -55,6 +56,7 @@ export type OnboardOptions = OnboardDynamicProviderOptions & {
     customModelId?: string;
     customProviderId?: string;
     customCompatibility?: "openai" | "anthropic";
+    customImageInput?: boolean;
     gatewayPort?: number;
     gatewayBind?: GatewayBind;
     gatewayAuth?: GatewayAuthChoice;
@@ -73,6 +75,8 @@ export type OnboardOptions = OnboardDynamicProviderOptions & {
     skipSearch?: boolean;
     skipHealth?: boolean;
     skipUi?: boolean;
+    suppressGatewayTokenOutput?: boolean;
+    skipHooks?: boolean;
     nodeManager?: NodeManagerChoice;
     remoteUrl?: string;
     remoteToken?: string;

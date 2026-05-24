@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ExecApprovalRequest } from "./exec-approvals.js";
 import type { PluginApprovalRequest } from "./plugin-approvals.js";
-export { doesApprovalRequestMatchChannelAccount, resolveApprovalRequestAccountId, resolveApprovalRequestChannelAccountId, } from "./approval-request-account-binding.js";
 export type ExecApprovalSessionTarget = {
     channel?: string;
     to: string;
@@ -47,3 +46,4 @@ export declare function resolveApprovalRequestSessionTarget(params: {
     request: ApprovalRequestLike;
 }): ExecApprovalSessionTarget | null;
 export declare function resolveApprovalRequestOriginTarget<TTarget>(params: ApprovalRequestOriginTargetResolver<TTarget>): TTarget | null;
+export {};

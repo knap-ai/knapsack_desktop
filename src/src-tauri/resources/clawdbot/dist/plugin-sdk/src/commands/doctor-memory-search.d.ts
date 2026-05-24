@@ -16,5 +16,6 @@ export declare function noteMemorySearchHealth(cfg: OpenClawConfig, opts?: {
         checked: boolean;
         ready: boolean;
         error?: string;
+        skipped?: boolean;
     };
 }): Promise<void>;

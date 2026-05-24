@@ -7,6 +7,7 @@ export interface ExportCommandSessionTarget {
 }
 export declare function parseExportCommandOutputPath(commandBodyNormalized: string, aliases: readonly string[]): {
     outputPath?: string;
+    error?: string;
 };
 export declare function resolveExportCommandSessionTarget(params: HandleCommandsParams): ExportCommandSessionTarget | ReplyPayload;
 export declare function isReplyPayload(value: ExportCommandSessionTarget | ReplyPayload): value is ReplyPayload;

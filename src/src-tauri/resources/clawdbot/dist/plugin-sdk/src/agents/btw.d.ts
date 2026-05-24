@@ -1,7 +1,7 @@
 import type { GetReplyOptions } from "../auto-reply/get-reply-options.types.js";
 import type { ReplyPayload } from "../auto-reply/reply-payload.js";
 import type { ReasoningLevel, ThinkLevel } from "../auto-reply/thinking.js";
-import { type SessionEntry } from "../config/sessions.js";
+import type { SessionEntry as StoredSessionEntry } from "../config/sessions.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type BlockReplyChunking } from "./pi-embedded-block-chunker.js";
 type RunBtwSideQuestionParams = {
@@ -10,8 +10,8 @@ type RunBtwSideQuestionParams = {
     provider: string;
     model: string;
     question: string;
-    sessionEntry: SessionEntry;
-    sessionStore?: Record<string, SessionEntry>;
+    sessionEntry: StoredSessionEntry;
+    sessionStore?: Record<string, StoredSessionEntry>;
     sessionKey?: string;
     storePath?: string;
     resolvedThinkLevel?: ThinkLevel;
@@ -20,6 +20,9 @@ type RunBtwSideQuestionParams = {
     resolvedBlockStreamingBreak?: "text_end" | "message_end";
     opts?: GetReplyOptions;
     isNewSession: boolean;
+    messageChannel?: string;
+    messageProvider?: string;
+    currentChannelId?: string;
 };
 export declare function runBtwSideQuestion(params: RunBtwSideQuestionParams): Promise<ReplyPayload | undefined>;
 export {};

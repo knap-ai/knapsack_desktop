@@ -22,7 +22,6 @@ export declare function prepareScopedSetupConfig(params: {
     alwaysUseAccounts?: boolean;
     migrateBaseName?: boolean;
 }): OpenClawConfig;
-export declare function clearSetupPromotionRuntimeModuleCache(): void;
 export declare function applySetupAccountConfigPatch(params: {
     cfg: OpenClawConfig;
     channelKey: string;

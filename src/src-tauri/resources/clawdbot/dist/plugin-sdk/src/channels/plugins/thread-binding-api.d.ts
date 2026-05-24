@@ -14,7 +14,4 @@ export declare function resolveBundledChannelThreadBindingDefaultPlacement(chann
 export declare function resolveBundledChannelThreadBindingInboundConversation(params: ThreadBindingInboundConversationParams & {
     channelId: string;
 }): ThreadBindingConversationRef | null | undefined;
-export declare const __testing: {
-    clearThreadBindingApiCache: () => void;
-};
 export {};

@@ -1,6 +1,8 @@
-import { _ as resolveStateDir } from "../../paths-B2cMK-wd.js";
-import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
-import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
+import { y as resolveStateDir } from "../../paths-Cw7f9XhU.js";
+import { i as formatErrorMessage } from "../../errors-b3ZrCRlt.js";
+import "../../fs-safe-CV86zY9G.js";
+import { t as appendRegularFile } from "../../regular-file-DaVeNX32.js";
+import { t as createSubsystemLogger } from "../../subsystem-DSPWLoK5.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -39,15 +41,17 @@ const logCommand = async (event) => {
 		const stateDir = resolveStateDir(process.env, os.homedir);
 		const logDir = path.join(stateDir, "logs");
 		await fs.mkdir(logDir, { recursive: true });
-		const logFile = path.join(logDir, "commands.log");
-		const logLine = JSON.stringify({
-			timestamp: event.timestamp.toISOString(),
-			action: event.action,
-			sessionKey: event.sessionKey,
-			senderId: event.context.senderId ?? "unknown",
-			source: event.context.commandSource ?? "unknown"
-		}) + "\n";
-		await fs.appendFile(logFile, logLine, "utf-8");
+		await appendRegularFile({
+			filePath: path.join(logDir, "commands.log"),
+			content: JSON.stringify({
+				timestamp: event.timestamp.toISOString(),
+				action: event.action,
+				sessionKey: event.sessionKey,
+				senderId: event.context.senderId ?? "unknown",
+				source: event.context.commandSource ?? "unknown"
+			}) + "\n",
+			rejectSymlinkParents: true
+		});
 	} catch (err) {
 		const message = formatErrorMessage(err);
 		log.error(`Failed to log command: ${message}`);

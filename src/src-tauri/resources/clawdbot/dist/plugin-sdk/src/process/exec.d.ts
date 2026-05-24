@@ -24,9 +24,11 @@ export type CommandOptions = {
     timeoutMs: number;
     cwd?: string;
     input?: string;
+    baseEnv?: NodeJS.ProcessEnv;
     env?: NodeJS.ProcessEnv;
     windowsVerbatimArguments?: boolean;
     noOutputTimeoutMs?: number;
+    signal?: AbortSignal;
 };
 export declare function resolveProcessExitCode(params: {
     explicitCode: number | null | undefined;
@@ -36,10 +38,12 @@ export declare function resolveProcessExitCode(params: {
     timedOut: boolean;
     noOutputTimedOut: boolean;
     killIssuedByTimeout: boolean;
+    killIssuedByAbort?: boolean;
 }): number | null;
 export declare function resolveCommandEnv(params: {
     argv: string[];
     env?: NodeJS.ProcessEnv;
     baseEnv?: NodeJS.ProcessEnv;
+    platform?: NodeJS.Platform;
 }): NodeJS.ProcessEnv;
 export declare function runCommandWithTimeout(argv: string[], optionsOrTimeout: number | CommandOptions): Promise<SpawnResult>;

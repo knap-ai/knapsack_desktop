@@ -2,10 +2,10 @@ export { resolveSandboxBrowserConfig, resolveSandboxConfigForAgent, resolveSandb
 export { DEFAULT_SANDBOX_BROWSER_IMAGE, DEFAULT_SANDBOX_COMMON_IMAGE, DEFAULT_SANDBOX_IMAGE, } from "./sandbox/constants.js";
 export { ensureSandboxWorkspaceForSession, resolveSandboxContext } from "./sandbox/context.js";
 export { getSandboxBackendFactory, getSandboxBackendManager, registerSandboxBackend, requireSandboxBackendFactory, } from "./sandbox/backend.js";
-export { buildSandboxCreateArgs } from "./sandbox/docker.js";
+export { buildSandboxCreateArgs, isDockerDaemonUnavailable } from "./sandbox/docker.js";
 export { listSandboxBrowsers, listSandboxContainers, removeSandboxBrowserContainer, removeSandboxContainer, type SandboxBrowserInfo, type SandboxContainerInfo, } from "./sandbox/manage.js";
 export { formatSandboxToolPolicyBlockedMessage, resolveSandboxRuntimeStatus, } from "./sandbox/runtime-status.js";
-export { resolveSandboxToolPolicyForAgent } from "./sandbox/tool-policy.js";
+export { isToolAllowed, resolveSandboxToolPolicyForAgent } from "./sandbox/tool-policy.js";
 export type { SandboxFsBridge, SandboxFsStat, SandboxResolvedPath } from "./sandbox/fs-bridge.js";
 export { buildExecRemoteCommand, buildRemoteCommand, buildSshSandboxArgv, createSshSandboxSessionFromConfigText, createSshSandboxSessionFromSettings, disposeSshSandboxSession, runSshSandboxCommand, shellEscape, uploadDirectoryToSshTarget, } from "./sandbox/ssh.js";
 export { sanitizeEnvVars } from "./sandbox/sanitize-env-vars.js";

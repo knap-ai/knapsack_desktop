@@ -16,5 +16,6 @@ export declare function buildGatewayConnectionDetailsWithResolvers(options?: {
     url?: string;
     configPath?: string;
     urlSource?: "cli" | "env";
+    ignoreEnvUrlOverride?: boolean;
 }, resolvers?: GatewayConnectionDetailResolvers): GatewayConnectionDetails;
 export {};

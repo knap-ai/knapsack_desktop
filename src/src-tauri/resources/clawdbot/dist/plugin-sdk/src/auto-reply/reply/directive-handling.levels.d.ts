@@ -14,6 +14,7 @@ export declare function resolveCurrentDirectiveLevels(params: {
     agentCfg?: {
         thinkingDefault?: unknown;
         verboseDefault?: unknown;
+        reasoningDefault?: unknown;
         elevatedDefault?: unknown;
     };
     resolveDefaultThinkingLevel: () => Promise<ThinkLevel | undefined>;

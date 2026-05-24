@@ -10,6 +10,17 @@ export type ConfiguredProviderCatalogEntry = {
     reasoning?: boolean;
     input?: Array<"text" | "image" | "audio" | "video" | "document">;
 };
+export declare function getCachedLiveCatalogValue<T>(params: {
+    keyParts: readonly unknown[];
+    load: () => Promise<T>;
+    ttlMs?: number;
+    now?: () => number;
+}): Promise<T>;
+export declare function clearLiveCatalogCacheForTests(): void;
+export declare function buildManifestModelProviderConfig(params: {
+    providerId: string;
+    catalog: unknown;
+}): ModelProviderConfig;
 export declare function readConfiguredProviderCatalogEntries(params: {
     config?: OpenClawConfig;
     providerId: string;

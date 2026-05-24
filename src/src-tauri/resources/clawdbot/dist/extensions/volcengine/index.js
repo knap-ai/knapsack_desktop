@@ -1,10 +1,11 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
-import { m as ensureModelAllowlistEntry } from "../../provider-onboard-DXwevr7q.js";
-import "../../provider-auth-api-key-brLkyScu.js";
-import { c as DOUBAO_MODEL_CATALOG, i as DOUBAO_CODING_MODEL_CATALOG } from "../../models-D0WXcInB.js";
-import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-D7qTHvXU.js";
-import { n as buildVolcengineSpeechProvider } from "../../speech-provider-B6v2wNID.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-E_5Yag4W.js";
+import { m as ensureModelAllowlistEntry } from "../../provider-onboard-MLXAQX8H.js";
+import "../../provider-auth-api-key-C06h8GOX.js";
+import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-wn341Uo6.js";
+import { i as DOUBAO_MODEL_CATALOG, r as DOUBAO_CODING_MODEL_CATALOG } from "../../models-DafvOE9o.js";
+import { n as applyVolcengineToolSchemaCompat } from "../../api-CuOxlP51.js";
+import { t as buildVolcengineSpeechProvider } from "../../speech-provider-Cd_jJU48.js";
 //#region extensions/volcengine/index.ts
 const PROVIDER_ID = "volcengine";
 const VOLCENGINE_DEFAULT_MODEL_REF = "volcengine-plan/ark-code-latest";
@@ -18,6 +19,7 @@ var volcengine_default = definePluginEntry({
 			label: "Volcengine",
 			docsPath: "/concepts/model-providers#volcano-engine-doubao",
 			envVars: ["VOLCANO_ENGINE_API_KEY"],
+			hookAliases: ["volcengine-plan"],
 			auth: [createProviderApiKeyAuthMethod({
 				providerId: PROVIDER_ID,
 				methodId: "api-key",
@@ -76,7 +78,8 @@ var volcengine_default = definePluginEntry({
 					contextWindow: entry.contextWindow
 				}));
 				return [...volcengineModels, ...volcenginePlanModels];
-			}
+			},
+			normalizeResolvedModel: ({ model }) => applyVolcengineToolSchemaCompat(model)
 		});
 		api.registerSpeechProvider(buildVolcengineSpeechProvider());
 	}

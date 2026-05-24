@@ -1,8 +1,8 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { MemoryCitationsMode } from "../../config/types.memory.js";
-import type { ContextEngine, ContextEnginePromptCacheInfo, ContextEngineRuntimeContext } from "../../context-engine/types.js";
+import type { ContextEngine, ContextEngineRuntimeContext } from "../../context-engine/types.js";
 import { buildAfterTurnRuntimeContext, buildAfterTurnRuntimeContextFromUsage } from "../pi-embedded-runner/run/attempt.prompt-helpers.js";
-import type { EmbeddedRunAttemptParams } from "../pi-embedded-runner/run/types.js";
+import type { SessionWriteLockAcquireTimeoutConfig } from "../session-write-lock.js";
 export type HarnessContextEngine = ContextEngine;
 /**
  * Run optional bootstrap + bootstrap maintenance for a harness-owned context engine.
@@ -13,9 +13,10 @@ export declare function bootstrapHarnessContextEngine(params: {
     sessionId: string;
     sessionKey?: string;
     sessionFile: string;
-    sessionManager: unknown;
+    sessionManager?: unknown;
     runtimeContext?: ContextEngineRuntimeContext;
     runMaintenance?: typeof runHarnessContextEngineMaintenance;
+    config?: SessionWriteLockAcquireTimeoutConfig;
     warn: (message: string) => void;
 }): Promise<void>;
 /**
@@ -48,7 +49,8 @@ export declare function finalizeHarnessContextEngineTurn(params: {
     tokenBudget?: number;
     runtimeContext?: ContextEngineRuntimeContext;
     runMaintenance?: typeof runHarnessContextEngineMaintenance;
-    sessionManager: unknown;
+    sessionManager?: unknown;
+    config?: SessionWriteLockAcquireTimeoutConfig;
     warn: (message: string) => void;
 }): Promise<{
     postTurnFinalizationSucceeded: boolean;
@@ -73,11 +75,10 @@ export declare function runHarnessContextEngineMaintenance(params: {
     sessionManager?: unknown;
     runtimeContext?: ContextEngineRuntimeContext;
     executionMode?: "foreground" | "background";
+    onDeferredMaintenance?: (promise: Promise<void>) => void;
+    config?: SessionWriteLockAcquireTimeoutConfig;
 }): Promise<import("../../context-engine/types.js").TranscriptRewriteResult | undefined>;
 /**
  * Return true when a non-legacy context engine should affect plugin harness behavior.
  */
 export declare function isActiveHarnessContextEngine(contextEngine: ContextEngine | undefined): contextEngine is ContextEngine;
-export type HarnessContextEnginePromptCacheInfo = ContextEnginePromptCacheInfo;
-export type HarnessContextEngineRuntimeContext = ContextEngineRuntimeContext;
-export type HarnessEmbeddedRunAttemptParams = EmbeddedRunAttemptParams;

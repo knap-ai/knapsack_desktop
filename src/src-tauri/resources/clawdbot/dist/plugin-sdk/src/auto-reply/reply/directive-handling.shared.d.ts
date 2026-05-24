@@ -1,6 +1,4 @@
-import type { ElevatedLevel, ReasoningLevel } from "./directives.js";
 export declare const formatDirectiveAck: (text: string) => string;
-export declare const formatOptionsLine: (options: string) => string;
 export declare const withOptions: (line: string, options: string) => string;
 export declare const formatElevatedRuntimeHint: () => string;
 export declare const formatInternalExecPersistenceDeniedText: () => string;
@@ -13,8 +11,6 @@ declare function canPersistInternalDirective(params: {
 }): boolean;
 export declare const canPersistInternalExecDirective: typeof canPersistInternalDirective;
 export declare const canPersistInternalVerboseDirective: typeof canPersistInternalDirective;
-export declare const formatElevatedEvent: (level: ElevatedLevel) => "Elevated ASK - exec runs on host; approvals may still apply." | "Elevated FULL - exec runs on host with auto-approval." | "Elevated OFF - exec stays in sandbox.";
-export declare const formatReasoningEvent: (level: ReasoningLevel) => "Reasoning OFF - hide <think>." | "Reasoning ON - include <think>." | "Reasoning STREAM - emit live <think>.";
 export declare function enqueueModeSwitchEvents(params: {
     enqueueSystemEvent: (text: string, meta: {
         sessionKey: string;

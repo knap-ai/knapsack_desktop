@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { hasMeaningfulConversationContent, isRealConversationMessage } from "../compaction-real-conversation.js";
 import { computeAdaptiveChunkRatio, isOversizedForSummary, summarizeInStages } from "../compaction.js";
 import { appendSummarySection, auditSummaryQuality, buildCompactionStructureInstructions, buildStructuredFallbackSummary, extractOpaqueIdentifiers } from "./compaction-safeguard-quality.js";
@@ -37,7 +37,7 @@ declare function formatSplitTurnContextSection(messages: AgentMessage[]): string
  */
 declare function readWorkspaceContextForSummary(): Promise<string>;
 export default function compactionSafeguardExtension(api: ExtensionAPI): void;
-export declare const __testing: {
+export declare const testing: {
     readonly setSummarizeInStagesForTest: (next?: typeof summarizeInStages) => void;
     readonly collectToolFailures: typeof collectToolFailures;
     readonly formatToolFailuresSection: typeof formatToolFailuresSection;
@@ -68,4 +68,4 @@ export declare const __testing: {
     readonly MAX_FILE_OPS_LIST_CHARS: 900;
     readonly SUMMARY_TRUNCATED_MARKER: "\n\n[Compaction summary truncated to fit budget]";
 };
-export {};
+export { testing as __testing };

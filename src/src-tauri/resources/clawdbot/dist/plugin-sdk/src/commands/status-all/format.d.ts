@@ -1,6 +1,5 @@
 import type { OpenClawConfig } from "../../config/types.js";
 import { type UpdateCheckResult } from "../../infra/update-check.js";
-export { formatDurationPrecise } from "../../infra/format-time/format-duration.ts";
 export { formatTimeAgo } from "../../infra/format-time/format-relative.ts";
 export type StatusOverviewRow = {
     Item: string;
@@ -192,6 +191,7 @@ export declare function buildGatewayStatusJsonPayload(params: {
     gatewayProbe: {
         connectLatencyMs?: number | null;
         error?: string | null;
+        health?: unknown;
     } | null | undefined;
     gatewaySelf: {
         host?: string | null;
@@ -215,5 +215,6 @@ export declare function buildGatewayStatusJsonPayload(params: {
     } | null;
     error: string | null;
     authWarning: string | null;
+    modelPricing?: unknown;
 };
 export declare function redactSecrets(text: string): string;

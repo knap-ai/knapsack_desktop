@@ -1,4 +1,4 @@
-import { t as inspectTelegramAccount } from "./account-inspect-DnM0EeZx.js";
+import { t as inspectTelegramAccount } from "../../account-inspect-BaUmkBp5.js";
 //#region extensions/telegram/account-inspect-api.ts
 function inspectTelegramReadOnlyAccount(cfg, accountId) {
 	return inspectTelegramAccount({

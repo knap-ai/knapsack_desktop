@@ -1,4 +1,4 @@
-import { Container } from "@mariozechner/pi-tui";
+import { Container } from "@earendil-works/pi-tui";
 type ToolResultContent = {
     type?: string;
     text?: string;

@@ -1,12 +1,12 @@
-import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-Bqo51Ufw.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
-import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-7qasVyCl.js";
-import "../../provider-stream-family-Wl9gUeDn.js";
-import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-BJp4gaEc.js";
-import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-C0ATUL10.js";
-import "../../api-G1k882WJ.js";
-import { r as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-BfqC_i4T.js";
-import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-CLgUhRx1.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-DtsPmvDx.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-DYbqN6AQ.js";
+import { i as MOONSHOT_THINKING_STREAM_HOOKS } from "../../provider-stream-B32dNOmb.js";
+import "../../provider-stream-family-CGsj5YYd.js";
+import { a as buildMoonshotProvider, i as applyMoonshotNativeStreamingUsageCompat } from "../../provider-catalog-0bGkrp95.js";
+import { n as applyMoonshotConfig, r as applyMoonshotConfigCn, t as MOONSHOT_DEFAULT_MODEL_REF } from "../../onboard-DclWIHvu.js";
+import "../../api-gh374_qR.js";
+import { n as moonshotMediaUnderstandingProvider } from "../../media-understanding-provider-DOttywn-.js";
+import { t as createKimiWebSearchProvider } from "../../kimi-web-search-provider-uhItFoQp.js";
 var moonshot_default = defineSingleProviderPluginEntry({
 	id: "moonshot",
 	name: "Moonshot Provider",
@@ -45,7 +45,8 @@ var moonshot_default = defineSingleProviderPluginEntry({
 		applyNativeStreamingUsageCompat: ({ providerConfig }) => applyMoonshotNativeStreamingUsageCompat(providerConfig),
 		...buildProviderReplayFamilyHooks({
 			family: "openai-compatible",
-			sanitizeToolCallIds: false
+			sanitizeToolCallIds: false,
+			dropReasoningFromHistory: false
 		}),
 		...MOONSHOT_THINKING_STREAM_HOOKS,
 		resolveThinkingProfile: () => ({

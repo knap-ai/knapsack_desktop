@@ -1,6 +1,4 @@
 import { type DiagnosticEventPayload, type DiagnosticMemoryUsage } from "../infra/diagnostic-events.js";
-export declare const DEFAULT_DIAGNOSTIC_STABILITY_CAPACITY = 1000;
-export declare const DEFAULT_DIAGNOSTIC_STABILITY_LIMIT = 50;
 export declare const MAX_DIAGNOSTIC_STABILITY_LIMIT = 1000;
 export type DiagnosticStabilityEventRecord = {
     seq: number;
@@ -16,9 +14,14 @@ export type DiagnosticStabilityEventRecord = {
     outcome?: string;
     mode?: string;
     level?: string;
+    phase?: string;
     detector?: string;
     deliveryKind?: string;
+    talkEventType?: string;
+    transport?: string;
+    brain?: string;
     toolName?: string;
+    activeWorkKind?: string;
     pairedToolName?: string;
     provider?: string;
     model?: string;
@@ -30,6 +33,7 @@ export type DiagnosticStabilityEventRecord = {
     commandLength?: number;
     exitCode?: number;
     timedOut?: boolean;
+    final?: boolean;
     costUsd?: number;
     count?: number;
     bytes?: number;
@@ -37,14 +41,25 @@ export type DiagnosticStabilityEventRecord = {
     thresholdBytes?: number;
     rssGrowthBytes?: number;
     windowMs?: number;
+    eventLoopDelayP99Ms?: number;
+    eventLoopDelayMaxMs?: number;
+    eventLoopUtilization?: number;
+    cpuCoreRatio?: number;
     ageMs?: number;
     queueDepth?: number;
     queueSize?: number;
+    queueLength?: number;
     waitMs?: number;
     failureKind?: string;
     active?: number;
     waiting?: number;
     queued?: number;
+    droppedEvents?: number;
+    droppedTrustedEvents?: number;
+    droppedUntrustedEvents?: number;
+    droppedPriorityEvents?: number;
+    maxQueueLength?: number;
+    drainBatchSize?: number;
     webhooks?: {
         received: number;
         processed: number;
@@ -89,17 +104,12 @@ export type DiagnosticStabilitySnapshot = {
         };
     };
 };
-export type DiagnosticStabilityQuery = {
-    limit?: number;
-    type?: string;
-    sinceSeq?: number;
-};
-export type DiagnosticStabilityQueryInput = {
+type DiagnosticStabilityQueryInput = {
     limit?: unknown;
     type?: unknown;
     sinceSeq?: unknown;
 };
-export type NormalizedDiagnosticStabilityQuery = {
+type NormalizedDiagnosticStabilityQuery = {
     limit: number;
     type: string | undefined;
     sinceSeq: number | undefined;
@@ -120,3 +130,4 @@ export declare function selectDiagnosticStabilitySnapshot(snapshot: DiagnosticSt
     sinceSeq?: number;
 }): DiagnosticStabilitySnapshot;
 export declare function resetDiagnosticStabilityRecorderForTest(): void;
+export {};

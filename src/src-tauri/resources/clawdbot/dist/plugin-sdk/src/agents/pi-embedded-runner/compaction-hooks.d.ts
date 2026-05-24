@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 export declare function runPostCompactionSideEffects(params: {
@@ -52,6 +52,12 @@ export declare function runBeforeCompactionHooks(params: {
     workspaceDir: string;
     messageProvider?: string;
     metrics: ReturnType<typeof buildBeforeCompactionHookMetrics>;
+    onHookMessages?: (payload: {
+        phase: "before";
+        messages: string[];
+        sessionId: string;
+        sessionKey: string;
+    }) => void | Promise<void>;
 }): Promise<{
     hookSessionKey: string;
     missingSessionKey: boolean;
@@ -77,4 +83,10 @@ export declare function runAfterCompactionHooks(params: {
     summaryLength?: number;
     tokensBefore?: number;
     firstKeptEntryId?: string;
+    onHookMessages?: (payload: {
+        phase: "after";
+        messages: string[];
+        sessionId: string;
+        sessionKey: string;
+    }) => void | Promise<void>;
 }): Promise<void>;

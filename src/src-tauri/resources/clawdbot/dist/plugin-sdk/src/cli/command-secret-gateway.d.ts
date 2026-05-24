@@ -13,7 +13,7 @@ type ResolveCommandSecretsResult = {
 export type CommandSecretResolutionMode = "enforce_resolved" | "read_only_status" | "read_only_operational";
 type LegacyCommandSecretResolutionMode = "strict" | "summary" | "operational_readonly";
 type CommandSecretResolutionModeInput = CommandSecretResolutionMode | LegacyCommandSecretResolutionMode;
-export type CommandSecretTargetState = "resolved_gateway" | "resolved_local" | "inactive_surface" | "unresolved";
+type CommandSecretTargetState = "resolved_gateway" | "resolved_local" | "inactive_surface" | "unresolved";
 type CommandSecretGatewayDeps = {
     analyzeCommandSecretAssignmentsFromSnapshot: typeof analyzeCommandSecretAssignmentsFromSnapshot;
     collectConfigAssignments: typeof collectConfigAssignments;
@@ -21,7 +21,7 @@ type CommandSecretGatewayDeps = {
     resolveManifestContractOwnerPluginId: typeof resolveManifestContractOwnerPluginId;
     resolveRuntimeWebTools: typeof resolveRuntimeWebTools;
 };
-export declare const __testing: {
+export declare const testing: {
     setDepsForTest(overrides: Partial<CommandSecretGatewayDeps>): () => void;
     resetDepsForTest(): void;
 };
@@ -31,5 +31,7 @@ export declare function resolveCommandSecretRefsViaGateway(params: {
     targetIds: Set<string>;
     mode?: CommandSecretResolutionModeInput;
     allowedPaths?: ReadonlySet<string>;
+    forcedActivePaths?: ReadonlySet<string>;
+    optionalActivePaths?: ReadonlySet<string>;
 }): Promise<ResolveCommandSecretsResult>;
-export {};
+export { testing as __testing };

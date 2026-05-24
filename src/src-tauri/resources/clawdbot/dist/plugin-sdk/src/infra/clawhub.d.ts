@@ -7,6 +7,127 @@ export type ClawHubPackageCompatibility = {
     pluginSdkVersion?: string;
     minGatewayVersion?: string;
 };
+export type ClawHubPackageHostTarget = {
+    os?: string | null;
+    arch?: string | null;
+    libc?: string | null;
+    key?: string | null;
+};
+export type ClawHubPackageEnvironmentSummary = {
+    requiresLocalDesktop?: boolean;
+    requiresBrowser?: boolean;
+    requiresAudioDevice?: boolean;
+    requiresNetwork?: boolean;
+    requiresExternalServices?: string[];
+    requiresOsPermissions?: string[];
+    supportsRemoteHost?: boolean;
+    knownUnsupported?: string[];
+};
+export type ClawHubPackageArtifactSummary = {
+    kind?: string | null;
+    sha256?: string | null;
+    size?: number | null;
+    format?: string | null;
+    npmIntegrity?: string | null;
+    npmShasum?: string | null;
+    npmTarballName?: string | null;
+    npmUnpackedSize?: number | null;
+    npmFileCount?: number | null;
+    downloadUrl?: string | null;
+    tarballUrl?: string | null;
+    legacyDownloadUrl?: string | null;
+};
+export type ClawHubArtifactKind = "legacy-zip" | "npm-pack";
+export type ClawHubArtifactScanState = "pending" | "clean" | "suspicious" | "malicious" | "not-run" | (string & {});
+export type ClawHubArtifactModerationState = "approved" | "quarantined" | "revoked" | (string & {});
+export type ClawHubPackageSecurityState = "pending" | "approved" | "limited" | "quarantined" | "rejected" | "revoked" | (string & {});
+export type ClawHubResolvedArtifact = {
+    source: "clawhub";
+    artifactKind: "legacy-zip";
+    packageName: string;
+    version: string;
+    downloadUrl?: string | null;
+    artifactSha256?: string | null;
+    scanState?: ClawHubArtifactScanState | null;
+    moderationState?: ClawHubArtifactModerationState | null;
+} | {
+    source: "clawhub";
+    artifactKind: "npm-pack";
+    packageName: string;
+    version: string;
+    downloadUrl?: string | null;
+    npmIntegrity: string;
+    npmShasum?: string | null;
+    artifactSha256?: string | null;
+    scanState?: ClawHubArtifactScanState | null;
+    moderationState?: ClawHubArtifactModerationState | null;
+};
+export type ClawHubPackageArtifactResolverResponse = {
+    package?: {
+        name?: string | null;
+        displayName?: string | null;
+        family?: ClawHubPackageFamily | (string & {}) | null;
+    } | null;
+    version?: ({
+        version?: string | null;
+        createdAt?: number | null;
+        changelog?: string | null;
+        distTags?: string[];
+        files?: unknown[];
+        sha256hash?: string | null;
+        compatibility?: ClawHubPackageCompatibility | null;
+        artifact?: ClawHubPackageArtifactSummary | null;
+        clawpack?: ClawHubPackageClawPackSummary | null;
+    } & Record<string, unknown>) | string | null;
+    artifact?: ClawHubResolvedArtifact | null;
+};
+export type ClawHubPackageSecurityResponse = {
+    packageId?: string | null;
+    releaseId?: string | null;
+    state: ClawHubPackageSecurityState;
+    reasonCode?: string | null;
+    moderatorNote?: string | null;
+    actorId?: string | null;
+    createdAt?: number | null;
+    scanState?: ClawHubArtifactScanState | null;
+    moderationState?: ClawHubArtifactModerationState | null;
+};
+export type ClawHubPackageClawPackSummary = {
+    available: boolean;
+    specVersion?: number | null;
+    format?: string | null;
+    sha256?: string | null;
+    size?: number | null;
+    fileCount?: number | null;
+    manifestSha256?: string | null;
+    npmIntegrity?: string | null;
+    npmShasum?: string | null;
+    npmTarballName?: string | null;
+    builtAt?: number | null;
+    buildVersion?: string | null;
+    hostTargets?: ClawHubPackageHostTarget[];
+    environment?: ClawHubPackageEnvironmentSummary | null;
+    runtimeBundles?: unknown[];
+};
+export type ClawHubPackageReadinessPhase = "planned" | "published" | "clawpack-ready" | "legacy-zip-only" | "metadata-ready" | "blocked" | "ready-for-openclaw" | (string & {});
+export type ClawHubPackageReadiness = {
+    ready?: boolean | null;
+    readyForOpenClaw?: boolean | null;
+    installReady?: boolean | null;
+    phase?: ClawHubPackageReadinessPhase | null;
+    status?: ClawHubPackageReadinessPhase | null;
+    package?: {
+        name?: string | null;
+        family?: ClawHubPackageFamily | (string & {}) | null;
+        channel?: ClawHubPackageChannel | (string & {}) | null;
+        isOfficial?: boolean | null;
+    } | null;
+    packageName?: string | null;
+    artifactKind?: ClawHubArtifactKind | (string & {}) | null;
+    blockers?: string[];
+    scanState?: ClawHubArtifactScanState | null;
+    moderationState?: ClawHubArtifactModerationState | null;
+};
 export type ClawHubPackageListItem = {
     name: string;
     displayName: string;
@@ -22,6 +143,11 @@ export type ClawHubPackageListItem = {
     capabilityTags?: string[];
     executesCode?: boolean;
     verificationTier?: string | null;
+    clawpackAvailable?: boolean;
+    hostTargetKeys?: string[];
+    environmentFlags?: string[];
+    artifact?: ClawHubPackageArtifactSummary | null;
+    clawpack?: ClawHubPackageClawPackSummary;
 };
 export type ClawHubPackageDetail = {
     package: (ClawHubPackageListItem & {
@@ -48,6 +174,8 @@ export type ClawHubPackageDetail = {
             hasProvenance?: boolean;
             scanStatus?: string;
         } | null;
+        artifact?: ClawHubPackageArtifactSummary | null;
+        clawpack?: ClawHubPackageClawPackSummary;
     }) | null;
     owner?: {
         handle?: string | null;
@@ -68,7 +196,7 @@ export type ClawHubPackageVersion = {
         distTags?: string[];
         files?: Array<{
             path: string;
-            size: number;
+            size?: number;
             sha256: string;
             contentType?: string;
         }>;
@@ -80,6 +208,8 @@ export type ClawHubPackageVersion = {
         verification?: ClawHubPackageDetail["package"] extends infer T ? T extends {
             verification?: infer C;
         } ? C : never : never;
+        artifact?: ClawHubPackageArtifactSummary | null;
+        clawpack?: ClawHubPackageClawPackSummary;
     } | null;
 };
 export type ClawHubPackageSearchResult = {
@@ -141,6 +271,13 @@ export type ClawHubSkillListResponse = {
 export type ClawHubDownloadResult = {
     archivePath: string;
     integrity: string;
+    sha256Hex: string;
+    artifact: "archive" | "clawpack";
+    clawpackHeaderSha256?: string;
+    clawpackHeaderSpecVersion?: number;
+    npmIntegrity?: string;
+    npmShasum?: string;
+    npmTarballName?: string;
     cleanup: () => Promise<void>;
 };
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -156,7 +293,6 @@ export declare class ClawHubRequestError extends Error {
 }
 export declare function resolveClawHubAuthToken(): Promise<string | undefined>;
 export declare function resolveClawHubBaseUrl(baseUrl?: string): string;
-export declare function formatSha256Integrity(bytes: Uint8Array): string;
 export declare function normalizeClawHubSha256Integrity(value: string): string | null;
 export declare function normalizeClawHubSha256Hex(value: string): string | null;
 export declare function fetchClawHubPackageDetail(params: {
@@ -174,6 +310,29 @@ export declare function fetchClawHubPackageVersion(params: {
     timeoutMs?: number;
     fetchImpl?: FetchLike;
 }): Promise<ClawHubPackageVersion>;
+export declare function fetchClawHubPackageArtifact(params: {
+    name: string;
+    version: string;
+    baseUrl?: string;
+    token?: string;
+    timeoutMs?: number;
+    fetchImpl?: FetchLike;
+}): Promise<ClawHubPackageArtifactResolverResponse>;
+export declare function fetchClawHubPackageSecurity(params: {
+    name: string;
+    version: string;
+    baseUrl?: string;
+    token?: string;
+    timeoutMs?: number;
+    fetchImpl?: FetchLike;
+}): Promise<ClawHubPackageSecurityResponse>;
+export declare function fetchClawHubPackageReadiness(params: {
+    name: string;
+    baseUrl?: string;
+    token?: string;
+    timeoutMs?: number;
+    fetchImpl?: FetchLike;
+}): Promise<ClawHubPackageReadiness>;
 export declare function searchClawHubPackages(params: {
     query: string;
     family?: ClawHubPackageFamily;
@@ -209,6 +368,7 @@ export declare function downloadClawHubPackageArchive(params: {
     name: string;
     version?: string;
     tag?: string;
+    artifact?: "archive" | "clawpack";
     baseUrl?: string;
     token?: string;
     timeoutMs?: number;

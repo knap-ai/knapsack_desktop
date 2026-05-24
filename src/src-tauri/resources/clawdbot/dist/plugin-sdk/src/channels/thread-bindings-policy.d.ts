@@ -7,7 +7,9 @@ export type ThreadBindingSpawnPolicy = {
     accountId: string;
     enabled: boolean;
     spawnEnabled: boolean;
+    defaultSpawnContext: ThreadBindingSpawnContext;
 };
+export type ThreadBindingSpawnContext = "isolated" | "fork";
 export declare function supportsAutomaticThreadBindingSpawn(channel: string): boolean;
 export declare function requiresNativeThreadContextForThreadHere(channel: string): boolean;
 export declare function resolveThreadBindingPlacementForCurrentContext(params: {

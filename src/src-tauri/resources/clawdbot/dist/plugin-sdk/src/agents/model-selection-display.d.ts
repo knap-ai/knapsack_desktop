@@ -1,21 +1,21 @@
 type ModelDisplaySelectionParams = {
-    runtimeProvider?: string | null;
-    runtimeModel?: string | null;
-    overrideProvider?: string | null;
-    overrideModel?: string | null;
-    fallbackModel?: string | null;
+    runtimeProvider?: unknown;
+    runtimeModel?: unknown;
+    overrideProvider?: unknown;
+    overrideModel?: unknown;
+    fallbackModel?: unknown;
 };
 export declare function resolveModelDisplayRef(params: ModelDisplaySelectionParams): string | undefined;
 export declare function resolveModelDisplayName(params: ModelDisplaySelectionParams): string;
 type SessionInfoModelSelectionParams = {
-    currentProvider?: string | null;
-    currentModel?: string | null;
-    defaultProvider?: string | null;
-    defaultModel?: string | null;
-    entryProvider?: string | null;
-    entryModel?: string | null;
-    overrideProvider?: string | null;
-    overrideModel?: string | null;
+    currentProvider?: unknown;
+    currentModel?: unknown;
+    defaultProvider?: unknown;
+    defaultModel?: unknown;
+    entryProvider?: unknown;
+    entryModel?: unknown;
+    overrideProvider?: unknown;
+    overrideModel?: unknown;
 };
 export declare function resolveSessionInfoModelSelection(params: SessionInfoModelSelectionParams): {
     modelProvider?: string;

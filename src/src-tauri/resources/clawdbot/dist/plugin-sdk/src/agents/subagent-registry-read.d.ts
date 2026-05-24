@@ -1,5 +1,7 @@
+import { type SubagentRunReadIndex } from "./subagent-registry-queries.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
 export { getSubagentSessionRuntimeMs, getSubagentSessionStartedAt, resolveSubagentSessionStatus, } from "./subagent-session-metrics.js";
+export declare function buildSubagentRunReadIndex(now?: number): SubagentRunReadIndex;
 export declare function listSubagentRunsForController(controllerSessionKey: string): SubagentRunRecord[];
 export declare function countActiveDescendantRuns(rootSessionKey: string): number;
 export declare function listDescendantRunsForRequester(rootSessionKey: string): SubagentRunRecord[];

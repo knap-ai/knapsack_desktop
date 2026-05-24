@@ -1,4 +1,4 @@
-export type McpLoopbackRuntime = {
+type McpLoopbackRuntime = {
     port: number;
     ownerToken: string;
     nonOwnerToken: string;
@@ -18,7 +18,9 @@ export declare function createMcpLoopbackServerConfig(port: number): {
                 "x-openclaw-agent-id": string;
                 "x-openclaw-account-id": string;
                 "x-openclaw-message-channel": string;
+                "x-openclaw-inbound-event-kind": string;
             };
         };
     };
 };
+export {};

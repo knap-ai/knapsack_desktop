@@ -1,14 +1,17 @@
 import type { ChannelHeartbeatDeps } from "../channels/plugins/types.public.js";
 import type { AgentDefaultsConfig } from "../config/types.agent-defaults.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { type CommandLaneSnapshot } from "../process/command-queue.js";
 import { type RuntimeEnv } from "../runtime.js";
 import { isCronSystemEvent } from "./heartbeat-events-filter.js";
-import { areHeartbeatsEnabled, type HeartbeatRunResult, setHeartbeatsEnabled } from "./heartbeat-wake.js";
+import { areHeartbeatsEnabled, type HeartbeatRunResult, type HeartbeatWakeIntent, type HeartbeatWakeSource, setHeartbeatsEnabled } from "./heartbeat-wake.js";
 import type { OutboundSendDeps } from "./outbound/deliver.js";
 export type HeartbeatDeps = OutboundSendDeps & ChannelHeartbeatDeps & {
     getReplyFromConfig?: typeof import("./heartbeat-runner.runtime.js").getReplyFromConfig;
     runtime?: RuntimeEnv;
     getQueueSize?: (lane?: string) => number;
+    getCommandLaneSnapshots?: () => readonly CommandLaneSnapshot[];
+    isReplyRunActive?: (sessionKey: string) => boolean;
     nowMs?: () => number;
 };
 export { areHeartbeatsEnabled, setHeartbeatsEnabled };
@@ -25,6 +28,8 @@ export declare function runHeartbeatOnce(opts: {
     agentId?: string;
     sessionKey?: string;
     heartbeat?: HeartbeatConfig;
+    source?: HeartbeatWakeSource;
+    intent?: HeartbeatWakeIntent;
     reason?: string;
     deps?: HeartbeatDeps;
 }): Promise<HeartbeatRunResult>;

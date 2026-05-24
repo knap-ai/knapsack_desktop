@@ -1,4 +1,4 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { ClientToolDefinition } from "./run/params.js";
 /**
  * Pi built-in tools that remain present in the embedded runtime even when
@@ -15,4 +15,11 @@ export declare function collectAllowedToolNames(params: {
 export declare function collectRegisteredToolNames(tools: Array<{
     name?: string;
 }>): Set<string>;
+export declare function collectCoreBuiltinToolNames(tools: Array<{
+    name?: string;
+}>, options?: {
+    isPluginTool?: (tool: {
+        name?: string;
+    }) => boolean;
+}): Set<string>;
 export declare function toSessionToolAllowlist(allowedToolNames: Iterable<string>): string[];

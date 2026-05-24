@@ -1,10 +1,10 @@
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
-import "../../provider-auth-api-key-brLkyScu.js";
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-D-up-AZr.js";
-import { a as buildArceeProvider, c as toArceeOpenRouterModelId, i as buildArceeOpenRouterProvider, s as normalizeArceeOpenRouterBaseUrl } from "../../provider-catalog-DWpzM6Cv.js";
-import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-nJsCzl4X.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-DtsPmvDx.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-E_5Yag4W.js";
+import "../../provider-auth-api-key-C06h8GOX.js";
+import { a as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BLp5nwNN.js";
+import { a as buildArceeProvider, i as buildArceeOpenRouterProvider, o as normalizeArceeOpenRouterBaseUrl, s as toArceeOpenRouterModelId } from "../../provider-catalog-owmbi19B.js";
+import { i as applyArceeOpenRouterConfig, n as ARCEE_OPENROUTER_DEFAULT_MODEL_REF, r as applyArceeConfig, t as ARCEE_DEFAULT_MODEL_REF } from "../../onboard-C5nI2dU0.js";
 //#region extensions/arcee/index.ts
 const PROVIDER_ID = "arcee";
 const ARCEE_WIZARD_GROUP = {

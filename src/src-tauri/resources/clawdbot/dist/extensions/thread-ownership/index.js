@@ -1,10 +1,12 @@
-import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
-import { n as fetchWithSsrFGuard } from "../../fetch-guard-8smVA_M-.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
-import { d as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../../ssrf-policy-BMzLPvV8.js";
-import "../../api-CmmA-O9S.js";
+import { c as normalizeOptionalString } from "../../string-coerce-DyL154ka.js";
+import { b as escapeRegExp } from "../../utils-sBTEdeml.js";
+import { n as fetchWithSsrFGuard } from "../../fetch-guard-BEAbHb5H.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-DWa7yCpn.js";
+import { u as ssrfPolicyFromDangerouslyAllowPrivateNetwork } from "../../ssrf-policy-CIwd6x-p.js";
+import "../../text-utility-runtime-CaGXarh9.js";
+import "../../api-BAwiNYK3.js";
 //#region extensions/thread-ownership/index.ts
 const mentionedThreads = /* @__PURE__ */ new Map();
 const MENTION_TTL_MS = 300 * 1e3;
@@ -13,9 +15,6 @@ function isThreadOwnershipConfig(value) {
 }
 function resolveThreadToken(value) {
 	return typeof value === "string" || typeof value === "number" ? String(value) : "";
-}
-function escapeRegExp(value) {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function resolveSlackConversationId(value) {
 	const raw = normalizeOptionalString(value) ?? "";

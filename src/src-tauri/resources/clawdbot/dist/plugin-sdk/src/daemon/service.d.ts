@@ -1,6 +1,6 @@
 import type { GatewayServiceRuntime } from "./service-runtime.js";
-import type { GatewayServiceCommandConfig, GatewayServiceControlArgs, GatewayServiceEnv, GatewayServiceEnvArgs, GatewayServiceInstallArgs, GatewayServiceManageArgs, GatewayServiceRestartResult, GatewayServiceStartResult, GatewayServiceStageArgs, GatewayServiceState } from "./service-types.js";
-export type { GatewayServiceCommandConfig, GatewayServiceControlArgs, GatewayServiceEnv, GatewayServiceEnvArgs, GatewayServiceInstallArgs, GatewayServiceManageArgs, GatewayServiceRestartResult, GatewayServiceStartResult, GatewayServiceStageArgs, GatewayServiceState, } from "./service-types.js";
+import type { GatewayServiceCommandConfig, GatewayServiceControlArgs, GatewayServiceEnv, GatewayServiceEnvArgs, GatewayServiceInstallArgs, GatewayServiceManageArgs, GatewayServiceRestartResult, GatewayServiceStartRepairIssue, GatewayServiceStartResult, GatewayServiceStageArgs, GatewayServiceState } from "./service-types.js";
+export type { GatewayServiceCommandConfig, GatewayServiceControlArgs, GatewayServiceEnv, GatewayServiceEnvArgs, GatewayServiceInstallArgs, GatewayServiceManageArgs, GatewayServiceRestartResult, GatewayServiceStartRepairIssue, GatewayServiceStartResult, GatewayServiceStageArgs, GatewayServiceState, } from "./service-types.js";
 export type GatewayService = {
     label: string;
     loadedText: string;
@@ -14,6 +14,7 @@ export type GatewayService = {
     readCommand: (env: GatewayServiceEnv) => Promise<GatewayServiceCommandConfig | null>;
     readRuntime: (env: GatewayServiceEnv) => Promise<GatewayServiceRuntime>;
 };
+export declare function formatGatewayServiceStartRepairIssues(issues: GatewayServiceStartRepairIssue[]): string;
 export declare function readGatewayServiceState(service: GatewayService, args?: GatewayServiceEnvArgs): Promise<GatewayServiceState>;
 export declare function startGatewayService(service: GatewayService, args: GatewayServiceControlArgs): Promise<GatewayServiceStartResult>;
 export declare function describeGatewayServiceRestart(serviceNoun: string, result: GatewayServiceRestartResult): {

@@ -1,6 +1,12 @@
-import { c as listNativeCommandSpecsForConfig, d as resolveCommandArgMenu, i as formatCommandArgMenuTitle, l as parseCommandArgs, n as buildCommandTextFromArgs, r as findCommandByNativeName, s as listNativeCommandSpecs } from "../commands-registry-DPcvwVIV.js";
-import { n as resolveControlCommandGate, t as resolveCommandAuthorizedFromAuthorizers } from "../command-gating-CAzf7x74.js";
-import { t as resolveCommandAuthorization } from "../command-auth-FiEcN4sx.js";
-import { t as resolveStoredModelOverride } from "../stored-model-override-IS5oTEk1.js";
-import { t as resolveNativeCommandSessionTargets } from "../native-command-session-targets-BPJw-Qat.js";
-export { buildCommandTextFromArgs, findCommandByNativeName, formatCommandArgMenuTitle, listNativeCommandSpecs, listNativeCommandSpecsForConfig, parseCommandArgs, resolveCommandArgMenu, resolveCommandAuthorization, resolveCommandAuthorizedFromAuthorizers, resolveControlCommandGate, resolveNativeCommandSessionTargets, resolveStoredModelOverride };
+import { n as resolveControlCommandGate, t as resolveCommandAuthorizedFromAuthorizers } from "../command-gating-BZR3snoF.js";
+import { n as listProviderPluginCommandSpecs } from "../command-specs-ByDvK7rB.js";
+import { n as listChatCommands } from "../commands-registry-list--98FRviq.js";
+import { n as maybeResolveTextAlias, r as normalizeCommandBody } from "../commands-registry-normalize-CnHNsvCE.js";
+import { c as parseCommandArgs, d as serializeCommandArgs, i as formatCommandArgMenuTitle, n as buildCommandTextFromArgs, o as listNativeCommandSpecs, r as findCommandByNativeName, s as listNativeCommandSpecsForConfig, u as resolveCommandArgMenu } from "../commands-registry-Bthd8JBl.js";
+import { n as resolveStoredModelOverride } from "../stored-model-override-DwKmC9nn.js";
+import { t as resolveCommandAuthorization } from "../command-auth-B6j-kluy.js";
+import { i as shouldComputeCommandAuthorized, t as hasControlCommand } from "../command-detection-CC0FOFv2.js";
+import { t as resolveNativeCommandSessionTargets } from "../native-command-session-targets-Bjf_5-ck.js";
+import { t as listSkillCommandsForAgents } from "../skill-commands-dLqoqLxl.js";
+import "../command-auth-native-BhcKSceK.js";
+export { buildCommandTextFromArgs, findCommandByNativeName, formatCommandArgMenuTitle, hasControlCommand, listChatCommands, listNativeCommandSpecs, listNativeCommandSpecsForConfig, listProviderPluginCommandSpecs, listSkillCommandsForAgents, maybeResolveTextAlias, normalizeCommandBody, parseCommandArgs, resolveCommandArgMenu, resolveCommandAuthorization, resolveCommandAuthorizedFromAuthorizers, resolveControlCommandGate, resolveNativeCommandSessionTargets, resolveStoredModelOverride, serializeCommandArgs, shouldComputeCommandAuthorized };

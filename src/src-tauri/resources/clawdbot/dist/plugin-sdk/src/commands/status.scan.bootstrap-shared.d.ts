@@ -1,12 +1,5 @@
 import type { OpenClawConfig } from "../config/types.js";
 import type { UpdateCheckResult } from "../infra/update-check.js";
-export declare function buildColdStartUpdateResult(): UpdateCheckResult;
-export declare function buildColdStartAgentLocalStatuses(): {
-    defaultId: string;
-    agents: never[];
-    totalSessions: number;
-    bootstrapPendingCount: number;
-};
 export declare function buildColdStartStatusSummary(): {
     runtimeVersion: null;
     heartbeat: {
@@ -28,11 +21,6 @@ export declare function buildColdStartStatusSummary(): {
         byAgent: never[];
     };
 };
-export declare function shouldSkipStatusScanNetworkChecks(params: {
-    coldStart: boolean;
-    hasConfiguredChannels: boolean;
-    all?: boolean;
-}): boolean;
 type StatusScanExecRunner = (command: string, args: string[], opts?: number | {
     timeoutMs?: number;
     maxBuffer?: number;
@@ -54,15 +42,9 @@ type StatusScanCoreBootstrapParams<TAgentStatus> = {
         timeoutMs: number;
         fetchGit: boolean;
         includeRegistry: boolean;
+        updateConfigChannel?: string | null;
     }) => Promise<UpdateCheckResult>;
     getAgentLocalStatuses: (cfg: OpenClawConfig) => Promise<TAgentStatus>;
-};
-type StatusScanBootstrapParams<TAgentStatus, TSummary> = StatusScanCoreBootstrapParams<TAgentStatus> & {
-    sourceConfig: OpenClawConfig;
-    getStatusSummary: (params: {
-        config: OpenClawConfig;
-        sourceConfig: OpenClawConfig;
-    }) => Promise<TSummary>;
 };
 export declare function createStatusScanCoreBootstrap<TAgentStatus>(params: StatusScanCoreBootstrapParams<TAgentStatus>): Promise<{
     tailscaleMode: import("../config/types.gateway.ts").GatewayTailscaleMode;
@@ -72,15 +54,5 @@ export declare function createStatusScanCoreBootstrap<TAgentStatus>(params: Stat
     gatewayProbePromise: Promise<import("./status.scan.shared.js").GatewayProbeSnapshot>;
     skipColdStartNetworkChecks: boolean;
     resolveTailscaleHttpsUrl: () => Promise<string | null>;
-}>;
-export declare function createStatusScanBootstrap<TAgentStatus, TSummary>(params: StatusScanBootstrapParams<TAgentStatus, TSummary>): Promise<{
-    tailscaleMode: import("../config/types.gateway.ts").GatewayTailscaleMode;
-    tailscaleDnsPromise: Promise<string | null>;
-    updatePromise: Promise<UpdateCheckResult>;
-    agentStatusPromise: Promise<TAgentStatus>;
-    gatewayProbePromise: Promise<import("./status.scan.shared.js").GatewayProbeSnapshot>;
-    skipColdStartNetworkChecks: boolean;
-    resolveTailscaleHttpsUrl: () => Promise<string | null>;
-    summaryPromise: Promise<TSummary>;
 }>;
 export {};

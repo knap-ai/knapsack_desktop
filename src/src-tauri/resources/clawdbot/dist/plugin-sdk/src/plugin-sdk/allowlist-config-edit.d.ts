@@ -81,7 +81,10 @@ export declare function buildDmGroupAccountAllowlistAdapter<ResolvedAccount>(par
     channelId: ChannelId;
     resolveAccount: AllowlistAccountResolver<ResolvedAccount>;
     normalize: AllowlistNormalizer;
-    resolveDmAllowFrom: (account: ResolvedAccount) => Array<string | number> | null | undefined;
+    resolveDmAllowFrom: (account: ResolvedAccount, context: {
+        cfg: OpenClawConfig;
+        accountId?: string | null;
+    }) => Array<string | number> | null | undefined;
     resolveGroupAllowFrom: (account: ResolvedAccount) => Array<string | number> | null | undefined;
     resolveDmPolicy?: (account: ResolvedAccount) => string | null | undefined;
     resolveGroupPolicy?: (account: ResolvedAccount) => string | null | undefined;
@@ -92,7 +95,10 @@ export declare function buildLegacyDmAccountAllowlistAdapter<ResolvedAccount>(pa
     channelId: ChannelId;
     resolveAccount: AllowlistAccountResolver<ResolvedAccount>;
     normalize: AllowlistNormalizer;
-    resolveDmAllowFrom: (account: ResolvedAccount) => Array<string | number> | null | undefined;
+    resolveDmAllowFrom: (account: ResolvedAccount, context: {
+        cfg: OpenClawConfig;
+        accountId?: string | null;
+    }) => Array<string | number> | null | undefined;
     resolveGroupPolicy?: (account: ResolvedAccount) => string | null | undefined;
     resolveGroupOverrides?: (account: ResolvedAccount) => AllowlistGroupOverride[] | undefined;
 }): Pick<ChannelAllowlistAdapter, "supportsScope" | "readConfig" | "applyConfigEdit">;

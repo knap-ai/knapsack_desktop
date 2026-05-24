@@ -5,11 +5,11 @@ type ExecPolicyConfig = {
     security?: ExecSecurity;
     ask?: ExecAsk;
 };
-export type ExecPolicyHostSummary = {
+type ExecPolicyHostSummary = {
     requested: ExecTarget;
     requestedSource: string;
 };
-export type ExecPolicyFieldSummary<TValue extends ExecSecurity | ExecAsk> = {
+type ExecPolicyFieldSummary<TValue extends ExecSecurity | ExecAsk> = {
     requested: TValue;
     requestedSource: string;
     host: TValue;
@@ -30,7 +30,7 @@ export type ExecPolicyScopeSnapshot = {
     };
     allowedDecisions: readonly ExecApprovalDecision[];
 };
-export type ExecPolicyScopeSummary = Omit<ExecPolicyScopeSnapshot, "allowedDecisions">;
+type ExecPolicyScopeSummary = Omit<ExecPolicyScopeSnapshot, "allowedDecisions">;
 export declare function collectExecPolicyScopeSnapshots(params: {
     cfg: OpenClawConfig;
     approvals: ExecApprovalsFile;

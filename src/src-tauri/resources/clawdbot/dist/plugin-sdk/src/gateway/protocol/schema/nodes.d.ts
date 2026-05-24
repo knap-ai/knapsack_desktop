@@ -1,4 +1,21 @@
 import { Type } from "typebox";
+export declare const NodePresenceAliveReasonSchema: Type.TString;
+export declare const NodePresenceAlivePayloadSchema: Type.TObject<{
+    trigger: Type.TString;
+    sentAtMs: Type.TOptional<Type.TInteger>;
+    displayName: Type.TOptional<Type.TString>;
+    version: Type.TOptional<Type.TString>;
+    platform: Type.TOptional<Type.TString>;
+    deviceFamily: Type.TOptional<Type.TString>;
+    modelIdentifier: Type.TOptional<Type.TString>;
+    pushTransport: Type.TOptional<Type.TString>;
+}>;
+export declare const NodeEventResultSchema: Type.TObject<{
+    ok: Type.TBoolean;
+    event: Type.TString;
+    handled: Type.TBoolean;
+    reason: Type.TOptional<Type.TString>;
+}>;
 export declare const NodePairRequestParamsSchema: Type.TObject<{
     nodeId: Type.TString;
     displayName: Type.TOptional<Type.TString>;
@@ -10,6 +27,7 @@ export declare const NodePairRequestParamsSchema: Type.TObject<{
     modelIdentifier: Type.TOptional<Type.TString>;
     caps: Type.TOptional<Type.TArray<Type.TString>>;
     commands: Type.TOptional<Type.TArray<Type.TString>>;
+    permissions: Type.TOptional<Type.TRecord<"^.*$", Type.TBoolean>>;
     remoteIp: Type.TOptional<Type.TString>;
     silent: Type.TOptional<Type.TBoolean>;
 }>;

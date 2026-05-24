@@ -5,4 +5,5 @@ export declare function resolveActiveRunQueueAction(params: {
     isHeartbeat: boolean;
     shouldFollowup: boolean;
     queueMode: QueueSettings["mode"];
+    resetTriggered?: boolean;
 }): ActiveRunQueueAction;

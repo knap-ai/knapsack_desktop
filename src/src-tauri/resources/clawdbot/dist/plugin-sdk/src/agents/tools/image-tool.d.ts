@@ -3,9 +3,10 @@ import { resolveAutoMediaKeyProviders, resolveDefaultMediaModel } from "../../me
 import { getMediaUnderstandingProvider } from "../../media-understanding/provider-registry.js";
 import { buildProviderRegistry } from "../../media-understanding/runner.js";
 import { describeImageWithModel, describeImagesWithModel } from "../../plugin-sdk/media-understanding.js";
+import type { AuthProfileStore } from "../auth-profiles/types.js";
 import { coerceImageAssistantText, decodeDataUrl, hasImageReasoningOnlyResponse, type ImageModelConfig } from "./image-tool.helpers.js";
 import { type AnyAgentTool, type SandboxFsBridge, type ToolFsPolicy } from "./tool-runtime.helpers.js";
-export declare const __testing: {
+export declare const testing: {
     readonly decodeDataUrl: typeof decodeDataUrl;
     readonly coerceImageAssistantText: typeof coerceImageAssistantText;
     readonly hasImageReasoningOnlyResponse: typeof hasImageReasoningOnlyResponse;
@@ -31,6 +32,8 @@ declare function resolveImageToolMaxTokens(modelMaxTokens: number | undefined, r
 export declare function resolveImageModelConfigForTool(params: {
     cfg?: OpenClawConfig;
     agentDir: string;
+    workspaceDir?: string;
+    authStore?: AuthProfileStore;
 }): ImageModelConfig | null;
 type ImageSandboxConfig = {
     root: string;
@@ -39,10 +42,16 @@ type ImageSandboxConfig = {
 export declare function createImageTool(options?: {
     config?: OpenClawConfig;
     agentDir?: string;
+    authProfileStore?: AuthProfileStore;
     workspaceDir?: string;
     sandbox?: ImageSandboxConfig;
     fsPolicy?: ToolFsPolicy;
     /** If true, the model has native vision capability and images in the prompt are auto-injected */
     modelHasVision?: boolean;
+    /**
+     * Avoid resolving auto image-provider/model candidates while registering the
+     * tool. The concrete image model is still resolved before execution.
+     */
+    deferAutoModelResolution?: boolean;
 }): AnyAgentTool | null;
-export {};
+export { testing as __testing };

@@ -1,44 +1,49 @@
-import { _ as resolveStateDir } from "../../paths-B2cMK-wd.js";
-import { n as VERSION } from "../../version-vQIvyCe_.js";
-import { i as getChildLogger, v as normalizeLogLevel } from "../../logger-BYIbL3gn.js";
-import { a as shouldLogVerbose } from "../../globals-CJu56k75.js";
-import { a as logWarn } from "../../logger-mz_TsqXj.js";
-import { r as runCommandWithTimeout } from "../../exec-C4nQnfsK.js";
-import { b as resolveAgentDir, x as resolveAgentWorkspaceDir } from "../../agent-scope-i10se9ty.js";
-import { i as getRuntimeConfig } from "../../io-CFdEhZuM.js";
-import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../../defaults-CRz26M83.js";
-import { n as mutateConfigFile, r as replaceConfigFile } from "../../config--k_1dtUP.js";
-import "../../logging-D6k9oiB3.js";
-import { c as resolveThinkingProfile, p as normalizeThinkLevel } from "../../thinking-DhTFkZJF.js";
-import { p as resolveThinkingDefault } from "../../model-selection-GlsOqTDm.js";
-import { n as createLazyRuntimeMethodBinder, r as createLazyRuntimeModule, t as createLazyRuntimeMethod } from "../../lazy-runtime-CM7XIBjC.js";
-import { a as getImageMetadata, l as resizeToJpeg } from "../../image-ops-B5o_jjbN.js";
-import { _ as mediaKindFromMime, n as detectMime } from "../../mime-B-vvNIo6.js";
-import { n as resolveAgentIdentity } from "../../identity-CviweAtG.js";
-import { i as resolveSessionFilePath, u as resolveStorePath } from "../../paths-CHP3g1Fg.js";
-import { i as normalizeDeliveryContext } from "../../delivery-context.shared-Bmv0a_G3.js";
-import { t as loadSessionStore } from "../../store-load-DLuD4etm.js";
-import { i as saveSessionStore } from "../../store-CR7YmZjp.js";
-import { n as onSessionTranscriptUpdate } from "../../transcript-events-CI8Ym6av.js";
-import { l as onAgentEvent } from "../../agent-events-1--MOtpo.js";
-import { l as ensureAgentWorkspace } from "../../workspace-Ddypv-c6.js";
-import { n as listRuntimeImageGenerationProviders, t as generateImage } from "../../runtime-DyZ75cuV.js";
-import { t as loadWebMedia } from "../../web-media-9UYLzIiN.js";
-import { n as listRuntimeMusicGenerationProviders, t as generateMusic } from "../../runtime-IZRdPiOh.js";
-import { n as requestHeartbeatNow } from "../../heartbeat-wake-FxHI2o_9.js";
-import { i as enqueueSystemEvent } from "../../system-events-BOVw40Do.js";
-import { A as finishFlow, F as requestFlowCancel, L as resumeFlow, O as failFlow, R as setFlowWaiting, T as createManagedTaskFlow, f as listTasksForFlowId } from "../../task-registry-y5PQSAS1.js";
-import { n as summarizeTaskRecords } from "../../task-registry.summary-NyGop591.js";
-import "../../runtime-internal-DHN5-gEN.js";
-import { _ as resolveTaskFlowForLookupTokenForOwner, d as runTaskInFlowForOwner, g as listTaskFlowsForOwner, h as getTaskFlowByIdForOwner, l as getFlowTaskSummary, m as findLatestTaskFlowForOwner, r as cancelFlowByIdForOwner, t as cancelDetachedTaskRunById } from "../../task-executor-CB95tnsh.js";
-import { a as getTaskByIdForOwner, o as listTasksForRelatedSessionKeyForOwner, r as findLatestTaskForRelatedSessionKeyForOwner, s as resolveTaskForLookupTokenForOwner } from "../../task-owner-access-D8uN2rND.js";
-import { t as resolveAgentTimeoutMs } from "../../timeout-DEUZP4Cb.js";
-import { n as listRuntimeVideoGenerationProviders, t as generateVideo } from "../../runtime--0cMos2d.js";
-import { a as runWebSearch, r as listWebSearchProviders } from "../../runtime-Cngcq-4j.js";
-import { t as RequestScopedSubagentRuntimeError } from "../../error-runtime-CrtIwOpQ.js";
-import { i as setGatewaySubagentRuntime, n as gatewaySubagentState, r as setGatewayNodesRuntime, t as clearGatewaySubagentRuntime } from "../../gateway-bindings-Ckjy42-e.js";
-import { t as createRuntimeChannel } from "../../runtime-channel-B43lRvH5.js";
-import { r as isVoiceCompatibleAudio } from "../../audio-BSyh0N-y.js";
+import { y as resolveStateDir } from "../../paths-Cw7f9XhU.js";
+import { n as VERSION } from "../../version-CQfgAE7_.js";
+import "../../agent-scope-CtLXGcWm.js";
+import { a as resolveAgentDir, o as resolveAgentWorkspaceDir } from "../../agent-scope-config-CMp71_27.js";
+import { r as getChildLogger, v as normalizeLogLevel } from "../../logger-Dg9dVaLI.js";
+import { a as shouldLogVerbose } from "../../globals-YU5FjfZK.js";
+import { a as logWarn } from "../../logger-0o2znY2U.js";
+import { r as runCommandWithTimeout } from "../../exec-D4bhAbbv.js";
+import { i as getRuntimeConfig } from "../../io-DoswVvYe.js";
+import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../../defaults-mDjiWzE5.js";
+import { c as resolveThinkingProfile, p as normalizeThinkLevel } from "../../thinking-DNSlsULp.js";
+import { i as replaceConfigFile, n as mutateConfigFile } from "../../mutate-DLC8bveh.js";
+import "../../config-B6Oplu5W.js";
+import { l as onAgentEvent } from "../../agent-events-BuYtWSh4.js";
+import { o as normalizeDeliveryContext } from "../../delivery-context.shared-CBmB9dF7.js";
+import { i as resolveSessionFilePath, u as resolveStorePath } from "../../paths-Bg3PO6Gj.js";
+import { t as loadSessionStore } from "../../store-load-z4thf6ld.js";
+import { c as saveSessionStore, d as updateSessionStoreEntry, f as upsertSessionEntry, i as patchSessionEntry, n as getSessionEntry, r as listSessionEntries, u as updateSessionStore } from "../../store-BmtchQvp.js";
+import { _ as mediaKindFromMime, n as detectMime } from "../../mime-DppuT-pZ.js";
+import { n as onSessionTranscriptUpdate } from "../../transcript-events-ClYG_P1o.js";
+import { t as getPluginRuntimeGatewayRequestScope } from "../../gateway-request-scope-B9qYB9tg.js";
+import "../../logging-B2Kt4cNB.js";
+import { r as buildConfiguredModelCatalog } from "../../model-selection-shared-ClxdEp4X.js";
+import { m as resolveThinkingDefault } from "../../model-selection-P-81eBKx.js";
+import { r as resolveAgentTimeoutMs } from "../../task-completion-contract-D5t-_eBh.js";
+import { o as requestHeartbeat } from "../../heartbeat-wake-BEc0M8hq.js";
+import { a as enqueueSystemEvent } from "../../system-events-11EG3LzK.js";
+import { m as listTasksForFlowId } from "../../task-registry-B9ljq8Nk.js";
+import { n as summarizeTaskRecords } from "../../task-registry.summary-BwpoHlXv.js";
+import "../../runtime-internal-2F71tA3B.js";
+import { _ as resolveTaskFlowForLookupTokenForOwner, g as listTaskFlowsForOwner, h as getTaskFlowByIdForOwner, l as getFlowTaskSummary, m as findLatestTaskFlowForOwner, t as cancelDetachedTaskRunById } from "../../task-executor-BGVJzIov.js";
+import { a as generateMusic, o as listRuntimeMusicGenerationProviders } from "../../openclaw-tools-QeySpphx.js";
+import { l as ensureAgentWorkspace } from "../../workspace-DTx8zuCN.js";
+import { c as getImageMetadata, p as resizeToJpeg } from "../../media-services-CLFjOJQs.js";
+import { a as createLazyRuntimeSurface, n as createLazyRuntimeMethodBinder, r as createLazyRuntimeModule, t as createLazyRuntimeMethod } from "../../lazy-runtime-D-7_JraP.js";
+import { n as listRuntimeImageGenerationProviders, t as generateImage } from "../../runtime-DXmZDQh5.js";
+import { t as loadWebMedia } from "../../web-media-GlH39bZn.js";
+import { n as resolveAgentIdentity } from "../../identity-nYw-h8DL.js";
+import { a as getTaskByIdForOwner, o as listTasksForRelatedSessionKeyForOwner, r as findLatestTaskForRelatedSessionKeyForOwner, s as resolveTaskForLookupTokenForOwner } from "../../task-owner-access-MrVYMLx_.js";
+import { n as listRuntimeVideoGenerationProviders, t as generateVideo } from "../../runtime-CivQQNy1.js";
+import { i as runWebSearch, r as listWebSearchProviders } from "../../runtime-JrxuINJZ.js";
+import { t as RequestScopedSubagentRuntimeError } from "../../error-runtime-DGHc7DZw.js";
+import { i as setGatewaySubagentRuntime, n as gatewaySubagentState, r as setGatewayNodesRuntime, t as clearGatewaySubagentRuntime } from "../../gateway-bindings-BnMgV9Pk.js";
+import { t as createRuntimeChannel } from "../../runtime-channel-C8aOXxeo.js";
+import { r as isVoiceCompatibleAudio } from "../../audio-CVFIRHpA.js";
+import { t as createRuntimeTaskFlow } from "../../runtime-taskflow-B64iDlJR.js";
 //#region src/plugins/runtime/runtime-cache.ts
 function defineCachedValue(target, key, create) {
 	let cached;
@@ -57,7 +62,12 @@ function defineCachedValue(target, key, create) {
 }
 //#endregion
 //#region src/plugins/runtime/runtime-agent.ts
-const loadEmbeddedPiRuntime = createLazyRuntimeModule(() => import("../../runtime-embedded-pi.runtime-DkNLKCrA.js"));
+const loadEmbeddedPiRuntime = createLazyRuntimeModule(() => import("../../runtime-embedded-pi.runtime-BSVWINwZ.js"));
+function resolveRuntimeThinkingCatalog(params) {
+	if (params.catalog) return params.catalog;
+	const configuredCatalog = buildConfiguredModelCatalog({ cfg: getRuntimeConfig() });
+	return configuredCatalog.length > 0 ? configuredCatalog : void 0;
+}
 function createRuntimeAgent() {
 	const agentRuntime = {
 		defaults: {
@@ -70,7 +80,10 @@ function createRuntimeAgent() {
 		resolveThinkingDefault,
 		normalizeThinkingLevel: normalizeThinkLevel,
 		resolveThinkingPolicy: (params) => {
-			const profile = resolveThinkingProfile(params);
+			const profile = resolveThinkingProfile({
+				...params,
+				catalog: resolveRuntimeThinkingCatalog(params)
+			});
 			const policy = { levels: profile.levels.map(({ id, label }) => ({
 				id,
 				label
@@ -87,8 +100,14 @@ function createRuntimeAgent() {
 	defineCachedValue(agentRuntime, "runEmbeddedPiAgent", () => createLazyRuntimeMethod(loadEmbeddedPiRuntime, (runtime) => runtime.runEmbeddedPiAgent));
 	defineCachedValue(agentRuntime, "session", () => ({
 		resolveStorePath,
+		getSessionEntry,
+		listSessionEntries,
+		patchSessionEntry,
+		upsertSessionEntry,
 		loadSessionStore,
 		saveSessionStore,
+		updateSessionStore,
+		updateSessionStoreEntry,
 		resolveSessionFilePath
 	}));
 	return agentRuntime;
@@ -97,10 +116,23 @@ function createRuntimeAgent() {
 //#region src/plugins/runtime/runtime-config.ts
 const RUNTIME_CONFIG_LOAD_WRITE_COMPAT_CODE = "runtime-config-load-write";
 const warnedDeprecatedConfigApis = /* @__PURE__ */ new Set();
+function formatDeprecatedConfigApiSubject(name) {
+	const scope = getPluginRuntimeGatewayRequestScope();
+	if (!scope?.pluginId) return `plugin runtime config.${name}()`;
+	return `plugin "${scope.pluginId}" runtime config.${name}()`;
+}
+function formatDeprecatedConfigApiSource() {
+	const scope = getPluginRuntimeGatewayRequestScope();
+	return scope?.pluginSource ? ` Source: ${scope.pluginSource}` : "";
+}
+function formatDeprecatedConfigApiWarningKey(name) {
+	return `${name}:${getPluginRuntimeGatewayRequestScope()?.pluginId ?? "anonymous"}`;
+}
 function warnDeprecatedConfigApiOnce(name, replacement) {
-	if (warnedDeprecatedConfigApis.has(name)) return;
-	warnedDeprecatedConfigApis.add(name);
-	logWarn(`plugin runtime config.${name}() is deprecated (${RUNTIME_CONFIG_LOAD_WRITE_COMPAT_CODE}); use ${replacement}.`);
+	const warningKey = formatDeprecatedConfigApiWarningKey(name);
+	if (warnedDeprecatedConfigApis.has(warningKey)) return;
+	warnedDeprecatedConfigApis.add(warningKey);
+	logWarn(`${formatDeprecatedConfigApiSubject(name)} is deprecated (${RUNTIME_CONFIG_LOAD_WRITE_COMPAT_CODE}); use ${replacement}.${formatDeprecatedConfigApiSource()}`);
 }
 function createRuntimeConfig() {
 	return {
@@ -137,16 +169,25 @@ function createRuntimeEvents() {
 }
 //#endregion
 //#region src/plugins/runtime/runtime-logging.ts
+function writeRuntimeLog(log, message, meta) {
+	if (meta && Object.keys(meta).length > 0) {
+		log(meta, message);
+		return;
+	}
+	log(message);
+}
 function createRuntimeLogging() {
 	return {
 		shouldLogVerbose,
 		getChildLogger: (bindings, opts) => {
 			const logger = getChildLogger(bindings, { level: opts?.level ? normalizeLogLevel(opts.level) : void 0 });
 			return {
-				debug: (message) => logger.debug?.(message),
-				info: (message) => logger.info(message),
-				warn: (message) => logger.warn(message),
-				error: (message) => logger.error(message)
+				debug: (message, meta) => {
+					if (logger.debug) writeRuntimeLog(logger.debug.bind(logger), message, meta);
+				},
+				info: (message, meta) => writeRuntimeLog(logger.info.bind(logger), message, meta),
+				warn: (message, meta) => writeRuntimeLog(logger.warn.bind(logger), message, meta),
+				error: (message, meta) => writeRuntimeLog(logger.error.bind(logger), message, meta)
 			};
 		}
 	};
@@ -178,10 +219,20 @@ function formatNativeDependencyHint(params) {
 }
 //#endregion
 //#region src/plugins/runtime/runtime-system.ts
-const runHeartbeatOnceInternal = createLazyRuntimeMethod(createLazyRuntimeModule(() => import("../../heartbeat-runner-BEerFDgl.js")), (runtime) => runtime.runHeartbeatOnce);
+const runHeartbeatOnceInternal = createLazyRuntimeMethod(createLazyRuntimeModule(() => import("../../heartbeat-runner-DRgLbaWI.js")), (runtime) => runtime.runHeartbeatOnce);
 function createRuntimeSystem() {
+	const requestHeartbeatNow = (opts) => requestHeartbeat({
+		source: opts?.source ?? "other",
+		intent: opts?.intent ?? "immediate",
+		reason: opts?.reason,
+		coalesceMs: opts?.coalesceMs,
+		agentId: opts?.agentId,
+		sessionKey: opts?.sessionKey,
+		heartbeat: opts?.heartbeat
+	});
 	return {
 		enqueueSystemEvent,
+		requestHeartbeat,
 		requestHeartbeatNow,
 		runHeartbeatOnce: (opts) => {
 			const { reason, agentId, sessionKey, heartbeat } = opts ?? {};
@@ -194,252 +245,6 @@ function createRuntimeSystem() {
 		},
 		runCommandWithTimeout,
 		formatNativeDependencyHint
-	};
-}
-//#endregion
-//#region src/plugins/runtime/runtime-taskflow.ts
-function assertSessionKey$1(sessionKey, errorMessage) {
-	const normalized = sessionKey?.trim();
-	if (!normalized) throw new Error(errorMessage);
-	return normalized;
-}
-function asManagedTaskFlowRecord(flow) {
-	if (!flow || flow.syncMode !== "managed" || !flow.controllerId) return;
-	return flow;
-}
-function resolveManagedFlowForOwner(params) {
-	const flow = getTaskFlowByIdForOwner({
-		flowId: params.flowId,
-		callerOwnerKey: params.ownerKey
-	});
-	if (!flow) return {
-		ok: false,
-		code: "not_found"
-	};
-	const managed = asManagedTaskFlowRecord(flow);
-	if (!managed) return {
-		ok: false,
-		code: "not_managed",
-		current: flow
-	};
-	return {
-		ok: true,
-		flow: managed
-	};
-}
-function mapFlowUpdateResult(result) {
-	if (result.applied) {
-		const managed = asManagedTaskFlowRecord(result.flow);
-		if (!managed) return {
-			applied: false,
-			code: "not_managed",
-			current: result.flow
-		};
-		return {
-			applied: true,
-			flow: managed
-		};
-	}
-	return {
-		applied: false,
-		code: result.reason,
-		...result.current ? { current: result.current } : {}
-	};
-}
-function createBoundTaskFlowRuntime(params) {
-	const ownerKey = assertSessionKey$1(params.sessionKey, "TaskFlow runtime requires a bound sessionKey.");
-	const requesterOrigin = params.requesterOrigin ? normalizeDeliveryContext(params.requesterOrigin) : void 0;
-	return {
-		sessionKey: ownerKey,
-		...requesterOrigin ? { requesterOrigin } : {},
-		createManaged: (input) => createManagedTaskFlow({
-			ownerKey,
-			controllerId: input.controllerId,
-			requesterOrigin,
-			status: input.status,
-			notifyPolicy: input.notifyPolicy,
-			goal: input.goal,
-			currentStep: input.currentStep,
-			stateJson: input.stateJson,
-			waitJson: input.waitJson,
-			cancelRequestedAt: input.cancelRequestedAt,
-			createdAt: input.createdAt,
-			updatedAt: input.updatedAt,
-			endedAt: input.endedAt
-		}),
-		get: (flowId) => getTaskFlowByIdForOwner({
-			flowId,
-			callerOwnerKey: ownerKey
-		}),
-		list: () => listTaskFlowsForOwner({ callerOwnerKey: ownerKey }),
-		findLatest: () => findLatestTaskFlowForOwner({ callerOwnerKey: ownerKey }),
-		resolve: (token) => resolveTaskFlowForLookupTokenForOwner({
-			token,
-			callerOwnerKey: ownerKey
-		}),
-		getTaskSummary: (flowId) => {
-			const flow = getTaskFlowByIdForOwner({
-				flowId,
-				callerOwnerKey: ownerKey
-			});
-			return flow ? getFlowTaskSummary(flow.flowId) : void 0;
-		},
-		setWaiting: (input) => {
-			const flow = resolveManagedFlowForOwner({
-				flowId: input.flowId,
-				ownerKey
-			});
-			if (!flow.ok) return {
-				applied: false,
-				code: flow.code,
-				...flow.current ? { current: flow.current } : {}
-			};
-			return mapFlowUpdateResult(setFlowWaiting({
-				flowId: flow.flow.flowId,
-				expectedRevision: input.expectedRevision,
-				currentStep: input.currentStep,
-				stateJson: input.stateJson,
-				waitJson: input.waitJson,
-				blockedTaskId: input.blockedTaskId,
-				blockedSummary: input.blockedSummary,
-				updatedAt: input.updatedAt
-			}));
-		},
-		resume: (input) => {
-			const flow = resolveManagedFlowForOwner({
-				flowId: input.flowId,
-				ownerKey
-			});
-			if (!flow.ok) return {
-				applied: false,
-				code: flow.code,
-				...flow.current ? { current: flow.current } : {}
-			};
-			return mapFlowUpdateResult(resumeFlow({
-				flowId: flow.flow.flowId,
-				expectedRevision: input.expectedRevision,
-				status: input.status,
-				currentStep: input.currentStep,
-				stateJson: input.stateJson,
-				updatedAt: input.updatedAt
-			}));
-		},
-		finish: (input) => {
-			const flow = resolveManagedFlowForOwner({
-				flowId: input.flowId,
-				ownerKey
-			});
-			if (!flow.ok) return {
-				applied: false,
-				code: flow.code,
-				...flow.current ? { current: flow.current } : {}
-			};
-			return mapFlowUpdateResult(finishFlow({
-				flowId: flow.flow.flowId,
-				expectedRevision: input.expectedRevision,
-				stateJson: input.stateJson,
-				updatedAt: input.updatedAt,
-				endedAt: input.endedAt
-			}));
-		},
-		fail: (input) => {
-			const flow = resolveManagedFlowForOwner({
-				flowId: input.flowId,
-				ownerKey
-			});
-			if (!flow.ok) return {
-				applied: false,
-				code: flow.code,
-				...flow.current ? { current: flow.current } : {}
-			};
-			return mapFlowUpdateResult(failFlow({
-				flowId: flow.flow.flowId,
-				expectedRevision: input.expectedRevision,
-				stateJson: input.stateJson,
-				blockedTaskId: input.blockedTaskId,
-				blockedSummary: input.blockedSummary,
-				updatedAt: input.updatedAt,
-				endedAt: input.endedAt
-			}));
-		},
-		requestCancel: (input) => {
-			const flow = resolveManagedFlowForOwner({
-				flowId: input.flowId,
-				ownerKey
-			});
-			if (!flow.ok) return {
-				applied: false,
-				code: flow.code,
-				...flow.current ? { current: flow.current } : {}
-			};
-			return mapFlowUpdateResult(requestFlowCancel({
-				flowId: flow.flow.flowId,
-				expectedRevision: input.expectedRevision,
-				cancelRequestedAt: input.cancelRequestedAt
-			}));
-		},
-		cancel: ({ flowId, cfg }) => cancelFlowByIdForOwner({
-			cfg,
-			flowId,
-			callerOwnerKey: ownerKey
-		}),
-		runTask: (input) => {
-			const created = runTaskInFlowForOwner({
-				flowId: input.flowId,
-				callerOwnerKey: ownerKey,
-				runtime: input.runtime,
-				sourceId: input.sourceId,
-				childSessionKey: input.childSessionKey,
-				parentTaskId: input.parentTaskId,
-				agentId: input.agentId,
-				runId: input.runId,
-				label: input.label,
-				task: input.task,
-				preferMetadata: input.preferMetadata,
-				notifyPolicy: input.notifyPolicy,
-				deliveryStatus: input.deliveryStatus,
-				status: input.status,
-				startedAt: input.startedAt,
-				lastEventAt: input.lastEventAt,
-				progressSummary: input.progressSummary
-			});
-			if (!created.created) return {
-				created: false,
-				found: created.found,
-				reason: created.reason ?? "Task was not created.",
-				...created.flow ? { flow: created.flow } : {}
-			};
-			const managed = asManagedTaskFlowRecord(created.flow);
-			if (!managed) return {
-				created: false,
-				found: true,
-				reason: "TaskFlow does not accept managed child tasks.",
-				flow: created.flow
-			};
-			if (!created.task) return {
-				created: false,
-				found: true,
-				reason: "Task was not created.",
-				flow: created.flow
-			};
-			return {
-				created: true,
-				flow: managed,
-				task: created.task
-			};
-		}
-	};
-}
-function createRuntimeTaskFlow() {
-	return {
-		bindSession: (params) => createBoundTaskFlowRuntime({
-			sessionKey: params.sessionKey,
-			requesterOrigin: params.requesterOrigin
-		}),
-		fromToolContext: (ctx) => createBoundTaskFlowRuntime({
-			sessionKey: assertSessionKey$1(ctx.sessionKey, "TaskFlow runtime requires tool context with a sessionKey."),
-			requesterOrigin: ctx.deliveryContext
-		})
 	};
 }
 //#endregion
@@ -646,18 +451,20 @@ function createRuntimeTasks(params) {
 	return {
 		runs: createRuntimeTaskRuns(),
 		flows: createRuntimeTaskFlows(),
+		managedFlows: params.legacyTaskFlow,
 		flow: params.legacyTaskFlow
 	};
 }
 //#endregion
 //#region src/plugins/runtime/index.ts
-const loadTtsRuntime = createLazyRuntimeModule(() => import("../../tts-BZ0WQP3A.js"));
-const loadMediaUnderstandingRuntime = createLazyRuntimeModule(() => import("../../runtime-CvS-JXQf.js"));
-const loadModelAuthRuntime = createLazyRuntimeModule(() => import("../../runtime-model-auth.runtime-Dtb8IHjN.js"));
+const loadTtsRuntime = createLazyRuntimeModule(() => import("../../tts-BR8tjmU5.js"));
+const loadMediaUnderstandingRuntime = createLazyRuntimeModule(() => import("../../runtime-DCr5jvcG.js"));
+const loadModelAuthRuntime = createLazyRuntimeModule(() => import("../../runtime-model-auth.runtime-DMuIHBwb.js"));
 function createRuntimeTts() {
 	const bindTtsRuntime = createLazyRuntimeMethodBinder(loadTtsRuntime);
 	return {
 		textToSpeech: bindTtsRuntime((runtime) => runtime.textToSpeech),
+		textToSpeechStream: bindTtsRuntime((runtime) => runtime.textToSpeechStream),
 		textToSpeechTelephony: bindTtsRuntime((runtime) => runtime.textToSpeechTelephony),
 		listVoices: bindTtsRuntime((runtime) => runtime.listSpeechVoices)
 	};
@@ -668,6 +475,7 @@ function createRuntimeMediaUnderstandingFacade() {
 		runFile: bindMediaUnderstandingRuntime((runtime) => runtime.runMediaUnderstandingFile),
 		describeImageFile: bindMediaUnderstandingRuntime((runtime) => runtime.describeImageFile),
 		describeImageFileWithModel: bindMediaUnderstandingRuntime((runtime) => runtime.describeImageFileWithModel),
+		extractStructuredWithModel: bindMediaUnderstandingRuntime((runtime) => runtime.extractStructuredWithModel),
 		describeVideoFile: bindMediaUnderstandingRuntime((runtime) => runtime.describeVideoFile),
 		transcribeAudioFile: bindMediaUnderstandingRuntime((runtime) => runtime.transcribeAudioFile)
 	};
@@ -690,6 +498,15 @@ function createRuntimeMusicGeneration() {
 		listProviders: (params) => listRuntimeMusicGenerationProviders(params)
 	};
 }
+function createRuntimeLlmFacade() {
+	const loadLlm = createLazyRuntimeSurface(() => import("../../runtime-llm.runtime-V0ZKFXwq.js"), (m) => m.createRuntimeLlm({
+		getConfig: getRuntimeConfig,
+		authority: { allowComplete: true }
+	}));
+	return { complete: async (params) => {
+		return (await loadLlm()).complete(params);
+	} };
+}
 function createRuntimeModelAuth() {
 	const getApiKeyForModel = createLazyRuntimeMethod(loadModelAuthRuntime, (runtime) => runtime.getApiKeyForModel);
 	const getRuntimeAuthForModel = createLazyRuntimeMethod(loadModelAuthRuntime, (runtime) => runtime.getRuntimeAuthForModel);
@@ -697,7 +514,8 @@ function createRuntimeModelAuth() {
 	return {
 		getApiKeyForModel: (params) => getApiKeyForModel({
 			model: params.model,
-			cfg: params.cfg
+			cfg: params.cfg,
+			workspaceDir: params.workspaceDir
 		}),
 		getRuntimeAuthForModel: (params) => getRuntimeAuthForModel({
 			model: params.model,
@@ -706,7 +524,8 @@ function createRuntimeModelAuth() {
 		}),
 		resolveApiKeyForProvider: (params) => resolveApiKeyForProvider({
 			provider: params.provider,
-			cfg: params.cfg
+			cfg: params.cfg,
+			workspaceDir: params.workspaceDir
 		})
 	};
 }
@@ -773,7 +592,12 @@ function createPluginRuntime(_options = {}) {
 		channel: createRuntimeChannel(),
 		events: createRuntimeEvents(),
 		logging: createRuntimeLogging(),
-		state: { resolveStateDir },
+		state: {
+			resolveStateDir,
+			openKeyedStore: () => {
+				throw new Error("openKeyedStore is only available through the plugin runtime proxy.");
+			}
+		},
 		tasks,
 		taskFlow
 	};
@@ -784,6 +608,7 @@ function createPluginRuntime(_options = {}) {
 	defineCachedValue(runtime, "imageGeneration", createRuntimeImageGeneration);
 	defineCachedValue(runtime, "videoGeneration", createRuntimeVideoGeneration);
 	defineCachedValue(runtime, "musicGeneration", createRuntimeMusicGeneration);
+	defineCachedValue(runtime, "llm", createRuntimeLlmFacade);
 	return runtime;
 }
 //#endregion

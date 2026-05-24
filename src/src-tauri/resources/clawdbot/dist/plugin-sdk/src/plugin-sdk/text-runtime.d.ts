@@ -1,3 +1,7 @@
+/**
+ * @deprecated Broad public SDK barrel. Prefer focused text/chunking/logging
+ * subpaths and avoid adding new imports here.
+ */
 export * from "../logger.js";
 export * from "../logging/diagnostic.js";
 export * from "../logging/logger.js";

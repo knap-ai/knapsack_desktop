@@ -4,21 +4,9 @@ import { type SecretInput } from "../config/types.secrets.js";
 import type { PluginWebSearchProviderEntry } from "../plugins/types.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import type { FlowContribution, FlowOption } from "./types.js";
 export type SearchProvider = NonNullable<NonNullable<NonNullable<NonNullable<OpenClawConfig["tools"]>["web"]>["search"]>["provider"]>;
-export type SearchProviderSetupOption = FlowOption & {
-    value: SearchProvider;
-};
-export type SearchProviderSetupContribution = FlowContribution & {
-    kind: "search";
-    surface: "setup";
-    provider: PluginWebSearchProviderEntry;
-    option: SearchProviderSetupOption;
-    source: "runtime";
-};
 export declare function listSearchProviderOptions(config?: OpenClawConfig): readonly PluginWebSearchProviderEntry[];
 export declare function resolveSearchProviderOptions(config?: OpenClawConfig): readonly PluginWebSearchProviderEntry[];
-export declare function resolveSearchProviderSetupContributions(config?: OpenClawConfig): SearchProviderSetupContribution[];
 export declare function hasKeyInEnv(entry: Pick<PluginWebSearchProviderEntry, "envVars">): boolean;
 export declare function resolveExistingKey(config: OpenClawConfig, provider: SearchProvider): string | undefined;
 export declare function hasExistingKey(config: OpenClawConfig, provider: SearchProvider): boolean;

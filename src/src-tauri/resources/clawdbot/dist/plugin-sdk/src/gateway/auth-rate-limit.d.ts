@@ -31,12 +31,6 @@ export declare const AUTH_RATE_LIMIT_SCOPE_DEFAULT = "default";
 export declare const AUTH_RATE_LIMIT_SCOPE_SHARED_SECRET = "shared-secret";
 export declare const AUTH_RATE_LIMIT_SCOPE_DEVICE_TOKEN = "device-token";
 export declare const AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH = "hook-auth";
-export interface RateLimitEntry {
-    /** Timestamps (epoch ms) of recent failed attempts inside the window. */
-    attempts: number[];
-    /** If set, requests from this IP are blocked until this epoch-ms instant. */
-    lockedUntil?: number;
-}
 export interface RateLimitCheckResult {
     /** Whether the request is allowed to proceed. */
     allowed: boolean;

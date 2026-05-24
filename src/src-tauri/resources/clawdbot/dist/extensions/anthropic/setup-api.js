@@ -1,5 +1,5 @@
-import { buildAnthropicCliBackend } from "./cli-backend.js";
-import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as buildAnthropicCliBackend } from "../../cli-backend-C20Lx4wR.js";
 //#region extensions/anthropic/setup-api.ts
 var setup_api_default = definePluginEntry({
 	id: "anthropic",

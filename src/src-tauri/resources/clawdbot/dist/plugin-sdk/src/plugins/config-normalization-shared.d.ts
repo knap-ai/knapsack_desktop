@@ -13,11 +13,19 @@ export type NormalizedPluginsConfig = {
         hooks?: {
             allowPromptInjection?: boolean;
             allowConversationAccess?: boolean;
+            timeoutMs?: number;
+            timeouts?: Record<string, number>;
         };
         subagent?: {
             allowModelOverride?: boolean;
             allowedModels?: string[];
             hasAllowedModelsConfig?: boolean;
+        };
+        llm?: {
+            allowModelOverride?: boolean;
+            allowedModels?: string[];
+            hasAllowedModelsConfig?: boolean;
+            allowAgentIdOverride?: boolean;
         };
         config?: unknown;
     }>;

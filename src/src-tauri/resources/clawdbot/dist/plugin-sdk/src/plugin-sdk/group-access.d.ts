@@ -1,3 +1,7 @@
+/**
+ * @deprecated Public SDK subpath has no bundled extension production imports.
+ * Use resolveChannelMessageIngress from channel-ingress-runtime instead.
+ */
 import { resolveOpenProviderRuntimeGroupPolicy } from "../config/runtime-group-policy.js";
 import type { GroupPolicy } from "../config/types.base.js";
 export { resolveOpenProviderRuntimeGroupPolicy };
@@ -21,19 +25,19 @@ export type MatchedGroupAccessDecision = {
     groupPolicy: GroupPolicy;
     reason: MatchedGroupAccessReason;
 };
-/** Downgrade sender-scoped group policy to open mode when no allowlist is configured. */
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveSenderScopedGroupPolicy(params: {
     groupPolicy: GroupPolicy;
     groupAllowFrom: string[];
 }): GroupPolicy;
-/** Evaluate route-level group access after policy, route match, and enablement checks. */
+/** @deprecated Use route descriptors with `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function evaluateGroupRouteAccessForPolicy(params: {
     groupPolicy: GroupPolicy;
     routeAllowlistConfigured: boolean;
     routeMatched: boolean;
     routeEnabled?: boolean;
 }): GroupRouteAccessDecision;
-/** Evaluate generic allowlist match state for channels that compare derived group identifiers. */
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function evaluateMatchedGroupAccessForPolicy(params: {
     groupPolicy: GroupPolicy;
     allowlistConfigured: boolean;
@@ -41,7 +45,7 @@ export declare function evaluateMatchedGroupAccessForPolicy(params: {
     requireMatchInput?: boolean;
     hasMatchInput?: boolean;
 }): MatchedGroupAccessDecision;
-/** Evaluate sender access for an already-resolved group policy and allowlist. */
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function evaluateSenderGroupAccessForPolicy(params: {
     groupPolicy: GroupPolicy;
     providerMissingFallbackApplied?: boolean;
@@ -49,7 +53,7 @@ export declare function evaluateSenderGroupAccessForPolicy(params: {
     senderId: string;
     isSenderAllowed: (senderId: string, allowFrom: string[]) => boolean;
 }): SenderGroupAccessDecision;
-/** Resolve provider fallback policy first, then evaluate sender access against that result. */
+/** @deprecated Use `resolveOpenProviderRuntimeGroupPolicy` plus `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function evaluateSenderGroupAccess(params: {
     providerConfigPresent: boolean;
     configuredGroupPolicy?: GroupPolicy;

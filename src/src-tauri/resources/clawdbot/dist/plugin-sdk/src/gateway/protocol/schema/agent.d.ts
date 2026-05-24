@@ -1,4 +1,13 @@
 import { Type } from "typebox";
+export declare const AgentGeneratedAttachmentSchema: Type.TObject<{
+    type: Type.TOptional<Type.TString>;
+    path: Type.TOptional<Type.TString>;
+    url: Type.TOptional<Type.TString>;
+    mediaUrl: Type.TOptional<Type.TString>;
+    filePath: Type.TOptional<Type.TString>;
+    mimeType: Type.TOptional<Type.TString>;
+    name: Type.TOptional<Type.TString>;
+}>;
 export declare const AgentInternalEventSchema: Type.TObject<{
     type: Type.TLiteral<"task_completion">;
     source: Type.TString;
@@ -9,6 +18,15 @@ export declare const AgentInternalEventSchema: Type.TObject<{
     status: Type.TString;
     statusLabel: Type.TString;
     result: Type.TString;
+    attachments: Type.TOptional<Type.TArray<Type.TObject<{
+        type: Type.TOptional<Type.TString>;
+        path: Type.TOptional<Type.TString>;
+        url: Type.TOptional<Type.TString>;
+        mediaUrl: Type.TOptional<Type.TString>;
+        filePath: Type.TOptional<Type.TString>;
+        mimeType: Type.TOptional<Type.TString>;
+        name: Type.TOptional<Type.TString>;
+    }>>>;
     mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
     statsLine: Type.TOptional<Type.TString>;
     replyInstruction: Type.TString;
@@ -18,6 +36,8 @@ export declare const AgentEventSchema: Type.TObject<{
     seq: Type.TInteger;
     stream: Type.TString;
     ts: Type.TInteger;
+    spawnedBy: Type.TOptional<Type.TString>;
+    isHeartbeat: Type.TOptional<Type.TBoolean>;
     data: Type.TRecord<"^.*$", Type.TUnknown>;
 }>;
 export declare const MessageActionToolContextSchema: Type.TObject<{
@@ -41,6 +61,7 @@ export declare const MessageActionParamsSchema: Type.TObject<{
     senderIsOwner: Type.TOptional<Type.TBoolean>;
     sessionKey: Type.TOptional<Type.TString>;
     sessionId: Type.TOptional<Type.TString>;
+    inboundTurnKind: Type.TOptional<Type.TString>;
     agentId: Type.TOptional<Type.TString>;
     toolContext: Type.TOptional<Type.TObject<{
         currentChannelId: Type.TOptional<Type.TString>;
@@ -61,6 +82,7 @@ export declare const SendParamsSchema: Type.TObject<{
     message: Type.TOptional<Type.TString>;
     mediaUrl: Type.TOptional<Type.TString>;
     mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
+    asVoice: Type.TOptional<Type.TBoolean>;
     gifPlayback: Type.TOptional<Type.TBoolean>;
     channel: Type.TOptional<Type.TString>;
     accountId: Type.TOptional<Type.TString>;
@@ -70,6 +92,12 @@ export declare const SendParamsSchema: Type.TObject<{
     replyToId: Type.TOptional<Type.TString>;
     /** Thread id (channel-specific meaning, e.g. Telegram forum topic id). */
     threadId: Type.TOptional<Type.TString>;
+    /** Force document-style media sends where supported. */
+    forceDocument: Type.TOptional<Type.TBoolean>;
+    /** Send silently (no notification) where supported. */
+    silent: Type.TOptional<Type.TBoolean>;
+    /** Channel-specific parse mode for formatted text. */
+    parseMode: Type.TOptional<Type.TLiteral<"HTML">>;
     /** Optional session key for mirroring delivered output back into the transcript. */
     sessionKey: Type.TOptional<Type.TString>;
     idempotencyKey: Type.TString;
@@ -122,6 +150,7 @@ export declare const AgentParamsSchema: Type.TObject<{
     bootstrapContextMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"full">, Type.TLiteral<"lightweight">]>>;
     bootstrapContextRunKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"default">, Type.TLiteral<"heartbeat">, Type.TLiteral<"cron">]>>;
     acpTurnSource: Type.TOptional<Type.TLiteral<"manual_spawn">>;
+    internalRuntimeHandoffId: Type.TOptional<Type.TString>;
     internalEvents: Type.TOptional<Type.TArray<Type.TObject<{
         type: Type.TLiteral<"task_completion">;
         source: Type.TString;
@@ -132,6 +161,15 @@ export declare const AgentParamsSchema: Type.TObject<{
         status: Type.TString;
         statusLabel: Type.TString;
         result: Type.TString;
+        attachments: Type.TOptional<Type.TArray<Type.TObject<{
+            type: Type.TOptional<Type.TString>;
+            path: Type.TOptional<Type.TString>;
+            url: Type.TOptional<Type.TString>;
+            mediaUrl: Type.TOptional<Type.TString>;
+            filePath: Type.TOptional<Type.TString>;
+            mimeType: Type.TOptional<Type.TString>;
+            name: Type.TOptional<Type.TString>;
+        }>>>;
         mediaUrls: Type.TOptional<Type.TArray<Type.TString>>;
         statsLine: Type.TOptional<Type.TString>;
         replyInstruction: Type.TString;
@@ -143,6 +181,7 @@ export declare const AgentParamsSchema: Type.TObject<{
         sourceChannel: Type.TOptional<Type.TString>;
         sourceTool: Type.TOptional<Type.TString>;
     }>>;
+    sourceReplyDeliveryMode: Type.TOptional<Type.TUnion<[Type.TLiteral<"automatic">, Type.TLiteral<"message_tool_only">]>>;
     voiceWakeTrigger: Type.TOptional<Type.TString>;
     idempotencyKey: Type.TString;
     label: Type.TOptional<Type.TString>;
@@ -167,4 +206,5 @@ export declare const AgentWaitParamsSchema: Type.TObject<{
 export declare const WakeParamsSchema: Type.TObject<{
     mode: Type.TUnion<[Type.TLiteral<"now">, Type.TLiteral<"next-heartbeat">]>;
     text: Type.TString;
+    sessionKey: Type.TOptional<Type.TString>;
 }>;

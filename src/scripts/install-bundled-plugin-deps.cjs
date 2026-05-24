@@ -32,6 +32,16 @@ const EXTENSIONS_DIR = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
 //   download at runtime anyway; not needed for messaging workflows)
 const SKIP_PLUGINS = new Set(['diffs']);
 
+// Upstream packages occasionally omit the bundle staging hint for plugins that
+// Knapsack must ship ready-to-run. Apply those fixes at build time so first
+// launch never needs to repair signed resources.
+const FORCE_STAGE_RUNTIME_DEPS = new Set(['browser']);
+
+// Channels that Knapsack exposes directly in the UI need their own dependency
+// trees bundled with the extension. Root node_modules is still useful for shared
+// resolution, but it is not enough for channel-local imports and verifier gates.
+const FORCE_EXTENSION_LOCAL_DEPS = new Set(['slack', 'whatsapp']);
+
 if (!fs.existsSync(EXTENSIONS_DIR)) {
   console.log('[install-bundled-plugin-deps] dist/extensions not found — skipping.');
   process.exit(0);
@@ -63,11 +73,27 @@ for (const entry of entries) {
     continue;
   }
 
-  const needsStage = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true;
+  if (FORCE_STAGE_RUNTIME_DEPS.has(pluginName) && pkg?.openclaw?.bundle?.stageRuntimeDependencies !== true) {
+    pkg.openclaw = pkg.openclaw || {};
+    pkg.openclaw.bundle = pkg.openclaw.bundle || {};
+    pkg.openclaw.bundle.stageRuntimeDependencies = true;
+    fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
+    console.log(`[install-bundled-plugin-deps] ${pluginName}: repaired stageRuntimeDependencies=true`);
+  }
+
+  const forceLocalDeps = FORCE_EXTENSION_LOCAL_DEPS.has(pluginName);
+  const needsStage = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true || forceLocalDeps;
   if (!needsStage) continue;
 
   const deps = Object.keys(pkg.dependencies || {});
   if (deps.length === 0) continue;
+
+  const missingRootDeps = deps.filter((dep) => !fs.existsSync(path.join(CLAWDBOT_DIR, 'node_modules', dep)));
+  if (!forceLocalDeps && missingRootDeps.length === 0) {
+    console.log(`[install-bundled-plugin-deps] ${pluginName}: satisfied by root node_modules`);
+    alreadyPresent++;
+    continue;
+  }
 
   // Skip if all deps are already installed (e.g. re-running during development).
   const nmDir = path.join(pluginDir, 'node_modules');
@@ -120,6 +146,7 @@ for (const entry of entries) {
 
   let pkg;
   try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { continue; }
+  if (FORCE_EXTENSION_LOCAL_DEPS.has(pluginName)) continue;
   if (pkg?.openclaw?.bundle?.stageRuntimeDependencies !== true) continue;
 
   for (const dep of Object.keys(pkg.dependencies || {})) {

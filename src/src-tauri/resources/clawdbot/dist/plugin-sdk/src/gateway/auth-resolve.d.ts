@@ -1,4 +1,4 @@
-import type { GatewayAuthConfig, GatewayTailscaleMode, GatewayTrustedProxyConfig } from "../config/config.js";
+import type { GatewayAuthConfig, GatewayTailscaleMode, GatewayTrustedProxyConfig } from "../config/types.gateway.js";
 export type ResolvedGatewayAuthMode = "none" | "token" | "password" | "trusted-proxy";
 export type ResolvedGatewayAuthModeSource = "override" | "config" | "password" | "token" | "default";
 export type ResolvedGatewayAuth = {

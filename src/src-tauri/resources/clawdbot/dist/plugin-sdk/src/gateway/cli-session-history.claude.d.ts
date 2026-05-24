@@ -10,4 +10,12 @@ export declare function readClaudeCliSessionMessages(params: {
     cliSessionId: string;
     homeDir?: string;
 }): TranscriptLikeMessage[];
+export type ClaudeCliFallbackSeed = {
+    summaryText?: string;
+    recentTurns: TranscriptLikeMessage[];
+};
+export declare function readClaudeCliFallbackSeed(params: {
+    cliSessionId: string;
+    homeDir?: string;
+}): ClaudeCliFallbackSeed | undefined;
 export {};

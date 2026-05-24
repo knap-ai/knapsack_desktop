@@ -1,13 +1,30 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
-import { i as applyXaiModelCompat } from "../../provider-tools-CjZl3FJf.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
-import { i as VENICE_DEFAULT_MODEL_REF } from "../../models-ntl9WtnV.js";
-import { t as buildVeniceProvider } from "../../provider-catalog-CxK3Qt8-.js";
-import { t as applyVeniceConfig } from "../../onboard-Cw0RKaZw.js";
-import { t as createVeniceDeepSeekV4Wrapper } from "../../stream-BXRJeoMq.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-DyL154ka.js";
+import { t as applyModelCompatPatch } from "../../provider-model-compat-CmPOKTzc.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import "../../provider-model-shared-DtsPmvDx.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-DYbqN6AQ.js";
+import { n as VENICE_DEFAULT_MODEL_REF } from "../../models-BMwVknJE.js";
+import { t as buildVeniceProvider } from "../../provider-catalog-DbzAC_Pc.js";
+import { t as applyVeniceConfig } from "../../onboard-DcMXiKC_.js";
+import { t as createVeniceDeepSeekV4Wrapper } from "../../stream-vxng89oQ.js";
 //#region extensions/venice/index.ts
 const PROVIDER_ID = "venice";
+const XAI_UNSUPPORTED_SCHEMA_KEYWORDS = [
+	"minLength",
+	"maxLength",
+	"minItems",
+	"maxItems",
+	"minContains",
+	"maxContains"
+];
+function applyXaiModelCompat(model) {
+	return applyModelCompatPatch(model, {
+		toolSchemaProfile: "xai",
+		unsupportedToolSchemaKeywords: [...XAI_UNSUPPORTED_SCHEMA_KEYWORDS],
+		nativeWebSearchTool: true,
+		toolCallArgumentsEncoding: "html-entities"
+	});
+}
 function isXaiBackedVeniceModel(modelId) {
 	return normalizeLowercaseStringOrEmpty(modelId).includes("grok");
 }

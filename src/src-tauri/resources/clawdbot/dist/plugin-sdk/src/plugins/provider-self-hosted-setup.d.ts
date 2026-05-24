@@ -40,6 +40,7 @@ export declare function discoverOpenAICompatibleSelfHostedProvider<T extends Rec
     providerId: string;
     buildProvider: (params: {
         apiKey?: string;
+        baseUrl?: string;
     }) => Promise<T>;
 }): Promise<{
     provider: T & {

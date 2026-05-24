@@ -1,6 +1,9 @@
-import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-Bje8XVt9.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { a as normalizeLowercaseStringOrEmpty, s as normalizeOptionalLowercaseString } from "../../string-coerce-DyL154ka.js";
+import { n as replaceFileAtomic } from "../../replace-file-C7_Inj8B.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../security-runtime-CcSekjBd.js";
+import "../../runtime-api-DFyJm8VS.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 //#region extensions/phone-control/index.ts
@@ -80,14 +83,17 @@ async function readArmState(statePath) {
 	}
 }
 async function writeArmState(statePath, state) {
-	await fs.mkdir(path.dirname(statePath), { recursive: true });
 	if (!state) {
 		try {
 			await fs.unlink(statePath);
 		} catch {}
 		return;
 	}
-	await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+	await replaceFileAtomic({
+		filePath: statePath,
+		content: `${JSON.stringify(state, null, 2)}\n`,
+		tempPrefix: ".phone-control-arm"
+	});
 }
 function normalizeDenyList(cfg) {
 	return uniqSorted([...cfg.gateway?.nodes?.denyCommands ?? []]);
@@ -133,16 +139,16 @@ async function disarmNow(params) {
 			restored.push(cmd);
 		}
 	}
-	if (removed.length > 0 || restored.length > 0) {
-		const next = patchConfigNodeLists(cfg, {
-			allowCommands: uniqSorted([...allow]),
-			denyCommands: uniqSorted([...deny])
-		});
-		await api.runtime.config.replaceConfigFile({
-			nextConfig: next,
-			afterWrite: { mode: "auto" }
-		});
-	}
+	if (removed.length > 0 || restored.length > 0) await api.runtime.config.mutateConfigFile({
+		afterWrite: { mode: "auto" },
+		mutate: (draft) => {
+			const next = patchConfigNodeLists(draft, {
+				allowCommands: uniqSorted([...allow]),
+				denyCommands: uniqSorted([...deny])
+			});
+			Object.assign(draft, next);
+		}
+	});
 	await writeArmState(statePath, null);
 	api.logger.info(`phone-control: disarmed (${reason}) stateDir=${stateDir}`);
 	return {
@@ -261,13 +267,15 @@ var phone_control_default = definePluginEntry({
 						}
 						if (denySet.delete(cmd)) removedFromDeny.push(cmd);
 					}
-					const next = patchConfigNodeLists(cfg, {
-						allowCommands: uniqSorted([...allowSet]),
-						denyCommands: uniqSorted([...denySet])
-					});
-					await api.runtime.config.replaceConfigFile({
-						nextConfig: next,
-						afterWrite: { mode: "auto" }
+					await api.runtime.config.mutateConfigFile({
+						afterWrite: { mode: "auto" },
+						mutate: (draft) => {
+							const next = patchConfigNodeLists(draft, {
+								allowCommands: uniqSorted([...allowSet]),
+								denyCommands: uniqSorted([...denySet])
+							});
+							Object.assign(draft, next);
+						}
 					});
 					await writeArmState(statePath, {
 						version: STATE_VERSION,

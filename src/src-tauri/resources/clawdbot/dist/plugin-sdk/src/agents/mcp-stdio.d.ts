@@ -1,4 +1,4 @@
-type StdioMcpServerLaunchConfig = {
+export type StdioMcpServerLaunchConfig = {
     command: string;
     args?: string[];
     env?: Record<string, string>;
@@ -15,4 +15,4 @@ export declare function resolveStdioMcpServerLaunchConfig(raw: unknown, options?
     onDroppedEnv?: (key: string, value: unknown) => void;
 }): StdioMcpServerLaunchResult;
 export declare function describeStdioMcpServerLaunchConfig(config: StdioMcpServerLaunchConfig): string;
-export type { StdioMcpServerLaunchConfig, StdioMcpServerLaunchResult };
+export {};

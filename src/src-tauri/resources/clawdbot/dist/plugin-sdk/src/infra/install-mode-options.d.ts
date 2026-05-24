@@ -1,10 +1,10 @@
-export type InstallMode = "install" | "update";
-export type InstallModeOptions<TLogger> = {
+type InstallMode = "install" | "update";
+type InstallModeOptions<TLogger> = {
     logger?: TLogger;
     mode?: InstallMode;
     dryRun?: boolean;
 };
-export type TimedInstallModeOptions<TLogger> = InstallModeOptions<TLogger> & {
+type TimedInstallModeOptions<TLogger> = InstallModeOptions<TLogger> & {
     timeoutMs?: number;
 };
 export declare function resolveInstallModeOptions<TLogger>(params: InstallModeOptions<TLogger>, defaultLogger: TLogger): {
@@ -18,3 +18,4 @@ export declare function resolveTimedInstallModeOptions<TLogger>(params: TimedIns
     mode: InstallMode;
     dryRun: boolean;
 };
+export {};

@@ -9,6 +9,7 @@ export declare function resolveGatewayClientBootstrap(params: {
 }): Promise<{
     url: string;
     urlSource: string;
+    preauthHandshakeTimeoutMs?: number;
     auth: {
         token?: string;
         password?: string;

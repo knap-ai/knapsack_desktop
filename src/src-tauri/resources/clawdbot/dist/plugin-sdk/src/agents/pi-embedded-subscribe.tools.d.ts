@@ -1,4 +1,8 @@
 import type { MessagingToolSend } from "./pi-embedded-messaging.types.js";
+export declare function buildToolLifecycleErrorResult(error: unknown): {
+    details: Record<string, unknown>;
+};
+export declare function sanitizeToolArgs(args: unknown): unknown;
 export declare function sanitizeToolResult(result: unknown): unknown;
 export declare function extractToolResultText(result: unknown): string | undefined;
 export declare function isToolResultMediaTrusted(toolName?: string, result?: unknown): boolean;
@@ -15,7 +19,7 @@ export declare function filterToolResultMediaUrls(toolName: string | undefined, 
  * returns base64 image data but no file path; those need a different delivery
  * path like saving to a temp file).
  */
-export type ToolResultMediaArtifact = {
+type ToolResultMediaArtifact = {
     mediaUrls: string[];
     audioAsVoice?: boolean;
     trustedLocalMedia?: boolean;
@@ -23,6 +27,8 @@ export type ToolResultMediaArtifact = {
 export declare function extractToolResultMediaArtifact(result: unknown): ToolResultMediaArtifact | undefined;
 export declare function extractToolResultMediaPaths(result: unknown): string[];
 export declare function isToolResultError(result: unknown): boolean;
+export declare function extractToolErrorCode(result: unknown): string | undefined;
 export declare function isToolResultTimedOut(result: unknown): boolean;
 export declare function extractToolErrorMessage(result: unknown): string | undefined;
 export declare function extractMessagingToolSend(toolName: string, args: Record<string, unknown>): MessagingToolSend | undefined;
+export {};

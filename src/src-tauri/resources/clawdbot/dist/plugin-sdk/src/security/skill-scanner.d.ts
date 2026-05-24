@@ -12,11 +12,16 @@ export type SkillScanSummary = {
     critical: number;
     warn: number;
     info: number;
+    truncated: boolean;
     findings: SkillScanFinding[];
 };
 export type SkillScanOptions = {
     excludeTestFiles?: boolean;
+    includeHiddenDirectories?: boolean;
+    includeNestedNodeModulesTestFiles?: boolean;
+    includeNodeModules?: boolean;
     includeFiles?: string[];
+    onlyIncludeFiles?: boolean;
     maxFiles?: number;
     maxFileBytes?: number;
 };

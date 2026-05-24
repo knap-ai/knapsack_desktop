@@ -15,7 +15,7 @@ export type MusicGenerationSourceImage = {
     fileName?: string;
     metadata?: Record<string, unknown>;
 };
-export type MusicGenerationProviderConfiguredContext = {
+type MusicGenerationProviderConfiguredContext = {
     cfg?: OpenClawConfig;
     agentDir?: string;
 };
@@ -48,7 +48,9 @@ export type MusicGenerationModeCapabilities = {
     maxTracks?: number;
     maxDurationSeconds?: number;
     supportsLyrics?: boolean;
+    supportsLyricsByModel?: Readonly<Record<string, boolean>>;
     supportsInstrumental?: boolean;
+    supportsInstrumentalByModel?: Readonly<Record<string, boolean>>;
     supportsDuration?: boolean;
     supportsFormat?: boolean;
     supportedFormats?: readonly MusicGenerationOutputFormat[];
@@ -76,3 +78,4 @@ export type MusicGenerationProvider = {
     isConfigured?: (ctx: MusicGenerationProviderConfiguredContext) => boolean;
     generateMusic: (req: MusicGenerationRequest) => Promise<MusicGenerationResult>;
 };
+export {};

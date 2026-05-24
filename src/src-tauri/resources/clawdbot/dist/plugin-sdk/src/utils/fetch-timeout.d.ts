@@ -1,11 +1,15 @@
-/** Returns a bound abort relay for use as an event listener. */
-export declare function bindAbortRelay(controller: AbortController): () => void;
-export declare function buildTimeoutAbortSignal(params: {
+type TimeoutAbortSignalParams = {
     timeoutMs?: number;
     signal?: AbortSignal;
-}): {
+    operation?: string;
+    url?: string;
+};
+/** Returns a bound abort relay for use as an event listener. */
+export declare function bindAbortRelay(controller: AbortController): () => void;
+export declare function buildTimeoutAbortSignal(params: TimeoutAbortSignalParams): {
     signal?: AbortSignal;
     cleanup: () => void;
+    refresh: () => void;
 };
 /**
  * Fetch wrapper that adds timeout support via AbortController.
@@ -18,3 +22,4 @@ export declare function buildTimeoutAbortSignal(params: {
  * @throws AbortError if the request times out
  */
 export declare function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, fetchFn?: typeof fetch): Promise<Response>;
+export {};

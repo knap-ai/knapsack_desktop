@@ -1,5 +1,5 @@
-import { createTokenjuiceAgentToolResultMiddleware } from "./tool-result-middleware.js";
-import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as createTokenjuiceAgentToolResultMiddleware } from "../../tool-result-middleware-CIKwEDyc.js";
 //#region extensions/tokenjuice/index.ts
 var tokenjuice_default = definePluginEntry({
 	id: "tokenjuice",

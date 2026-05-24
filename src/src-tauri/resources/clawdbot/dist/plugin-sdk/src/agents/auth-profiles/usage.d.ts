@@ -1,18 +1,14 @@
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { saveAuthProfileStore, updateAuthProfileStoreWithLock } from "./store.js";
-import type { AuthProfileFailureReason, AuthProfileStore } from "./types.js";
+import type { AuthProfileBlockedSource, AuthProfileFailureReason, AuthProfileStore } from "./types.js";
 export { clearExpiredCooldowns, getSoonestCooldownExpiry, isProfileInCooldown, resolveProfileUnusableUntil, } from "./usage-state.js";
-export declare const __testing: {
+export declare function setAuthProfileFailureHook(hook: (() => void) | undefined): void;
+export declare const testing: {
     setDepsForTest(overrides: Partial<{
         saveAuthProfileStore: typeof saveAuthProfileStore;
         updateAuthProfileStoreWithLock: typeof updateAuthProfileStoreWithLock;
     }> | null): void;
 };
-type WhamCooldownProbeResult = {
-    cooldownMs: number;
-    reason: string;
-};
-export declare function probeWhamForCooldown(store: AuthProfileStore, profileId: string): Promise<WhamCooldownProbeResult | null>;
 /**
  * Infer the most likely reason all candidate profiles are currently unavailable.
  *
@@ -24,15 +20,6 @@ export declare function resolveProfilesUnavailableReason(params: {
     profileIds: string[];
     now?: number;
 }): AuthProfileFailureReason | null;
-/**
- * Mark a profile as successfully used. Resets error count and updates lastUsed.
- * Uses store lock to avoid overwriting concurrent usage updates.
- */
-export declare function markAuthProfileUsed(params: {
-    store: AuthProfileStore;
-    profileId: string;
-    agentDir?: string;
-}): Promise<void>;
 export declare function calculateAuthProfileCooldownMs(errorCount: number): number;
 export declare function resolveProfileUnusableUntilForDisplay(store: AuthProfileStore, profileId: string): number | null;
 /**
@@ -45,6 +32,15 @@ export declare function markAuthProfileFailure(params: {
     profileId: string;
     reason: AuthProfileFailureReason;
     cfg?: OpenClawConfig;
+    agentDir?: string;
+    runId?: string;
+    modelId?: string;
+}): Promise<void>;
+export declare function markAuthProfileBlockedUntil(params: {
+    store: AuthProfileStore;
+    profileId: string;
+    blockedUntil: number;
+    source: AuthProfileBlockedSource;
     agentDir?: string;
     runId?: string;
     modelId?: string;
@@ -69,3 +65,4 @@ export declare function clearAuthProfileCooldown(params: {
     profileId: string;
     agentDir?: string;
 }): Promise<void>;
+export { testing as __testing };

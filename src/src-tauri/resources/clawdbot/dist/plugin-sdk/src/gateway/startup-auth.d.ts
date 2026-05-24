@@ -1,4 +1,5 @@
-import type { GatewayAuthConfig, GatewayTailscaleConfig, OpenClawConfig } from "../config/config.js";
+import type { GatewayAuthConfig, GatewayTailscaleConfig } from "../config/types.gateway.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveGatewayAuth, type ResolvedGatewayAuth } from "./auth.js";
 export { assertGatewayAuthNotKnownWeak } from "./known-weak-gateway-secrets.js";
 export declare function mergeGatewayAuthConfig(base?: GatewayAuthConfig, override?: GatewayAuthConfig): GatewayAuthConfig;
@@ -8,6 +9,10 @@ export declare function ensureGatewayStartupAuth(params: {
     env?: NodeJS.ProcessEnv;
     authOverride?: GatewayAuthConfig;
     tailscaleOverride?: GatewayTailscaleConfig;
+    /**
+     * Legacy startup option retained for external callers. Startup-generated auth
+     * is runtime-only; durable auth changes must go through explicit config tools.
+     */
     persist?: boolean;
     baseHash?: string;
 }): Promise<{

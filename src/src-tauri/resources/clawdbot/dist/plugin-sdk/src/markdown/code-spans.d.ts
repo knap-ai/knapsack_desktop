@@ -3,8 +3,9 @@ export type InlineCodeState = {
     ticks: number;
 };
 export declare function createInlineCodeState(): InlineCodeState;
-export type CodeSpanIndex = {
+type CodeSpanIndex = {
     inlineState: InlineCodeState;
     isInside: (index: number) => boolean;
 };
 export declare function buildCodeSpanIndex(text: string, inlineState?: InlineCodeState): CodeSpanIndex;
+export {};

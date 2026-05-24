@@ -42,6 +42,14 @@ export type RuntimeWebProviderSelectionParams<TProvider extends {
         config: OpenClawConfig;
         toolConfig: TToolConfig;
     }) => unknown;
+    readConfiguredCredentialFallback?: (params: {
+        provider: TProvider;
+        config: OpenClawConfig;
+        toolConfig: TToolConfig;
+    }) => {
+        path: string;
+        value: unknown;
+    } | undefined;
     resolveSecretInput: (params: {
         value: unknown;
         path: string;
@@ -62,9 +70,6 @@ export type RuntimeWebProviderSelectionParams<TProvider extends {
     }) => Promise<void>;
 };
 export declare function ensureObject(target: Record<string, unknown>, key: string): Record<string, unknown>;
-export declare function normalizeKnownProvider(value: unknown, providers: Array<{
-    id: string;
-}>): string | undefined;
 export declare function hasConfiguredSecretRef(value: unknown, defaults: SecretDefaults | undefined): boolean;
 export type RuntimeWebProviderSurface<TProvider extends {
     id: string;
@@ -97,6 +102,14 @@ export type ResolveRuntimeWebProviderSurfaceParams<TProvider extends {
         config: OpenClawConfig;
         toolConfig: TToolConfig;
     }) => unknown;
+    readConfiguredCredentialFallback?: (params: {
+        provider: TProvider;
+        config: OpenClawConfig;
+        toolConfig: TToolConfig;
+    }) => {
+        path: string;
+        value: unknown;
+    } | undefined;
     ignoreKeylessProvidersForConfiguredSurface?: boolean;
     emptyProvidersWhenSurfaceMissing?: boolean;
     normalizeConfiguredProviderAgainstActiveProviders?: boolean;

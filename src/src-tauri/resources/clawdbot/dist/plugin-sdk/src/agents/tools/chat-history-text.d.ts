@@ -4,5 +4,4 @@ export declare function stripToolMessages(messages: unknown[]): unknown[];
  * This ensures user-facing text doesn't leak internal tool representations.
  */
 export declare function sanitizeTextContent(text: string): string;
-export declare function hasAssistantPhaseMetadata(message: unknown): boolean;
 export declare function extractAssistantText(message: unknown): string | undefined;

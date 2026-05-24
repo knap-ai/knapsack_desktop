@@ -4,6 +4,11 @@ import type { ExecApprovalRequest } from "./exec-approvals.js";
 import type { PluginApprovalRequest } from "./plugin-approvals.js";
 type GatewayRequestFn = <T = unknown>(method: string, params: Record<string, unknown>) => Promise<T>;
 type ApprovalRequest = ExecApprovalRequest | PluginApprovalRequest;
+export declare function hasActiveApprovalNativeRouteRuntime(params: {
+    approvalKind: ChannelApprovalKind;
+    channel?: string | null;
+    accountId?: string | null;
+}): boolean;
 export declare function createApprovalNativeRouteReporter(params: {
     handledKinds: ReadonlySet<ChannelApprovalKind>;
     channel?: string;

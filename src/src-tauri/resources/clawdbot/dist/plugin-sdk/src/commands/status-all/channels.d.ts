@@ -10,6 +10,8 @@ export type ChannelRow = {
 export declare function buildChannelsTable(cfg: OpenClawConfig, opts?: {
     showSecrets?: boolean;
     sourceConfig?: OpenClawConfig;
+    includeSetupFallbackPlugins?: boolean;
+    liveChannelStatus?: unknown;
 }): Promise<{
     rows: ChannelRow[];
     details: Array<{

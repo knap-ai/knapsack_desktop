@@ -1,5 +1,5 @@
 import type { MusicGenerationIgnoredOverride, MusicGenerationNormalization, MusicGenerationOutputFormat, MusicGenerationProvider, MusicGenerationSourceImage } from "./types.js";
-export type ResolvedMusicGenerationOverrides = {
+type ResolvedMusicGenerationOverrides = {
     lyrics?: string;
     instrumental?: boolean;
     durationSeconds?: number;
@@ -16,3 +16,4 @@ export declare function resolveMusicGenerationOverrides(params: {
     format?: MusicGenerationOutputFormat;
     inputImages?: MusicGenerationSourceImage[];
 }): ResolvedMusicGenerationOverrides;
+export {};

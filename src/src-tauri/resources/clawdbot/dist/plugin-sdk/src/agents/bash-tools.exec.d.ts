@@ -7,6 +7,7 @@ declare function validateScriptFileForShellBleed(params: {
     command: string;
     workdir: string;
 }): Promise<void>;
+declare function parseOpenClawChannelsLoginShellCommand(raw: string): boolean;
 export declare function createExecTool(defaults?: ExecToolDefaults): AgentToolWithMeta<typeof execSchema, ExecToolDetails>;
 export declare const execTool: AgentToolWithMeta<import("typebox").TObject<{
     command: import("typebox").TString;
@@ -17,11 +18,13 @@ export declare const execTool: AgentToolWithMeta<import("typebox").TObject<{
     timeout: import("typebox").TOptional<import("typebox").TNumber>;
     pty: import("typebox").TOptional<import("typebox").TBoolean>;
     elevated: import("typebox").TOptional<import("typebox").TBoolean>;
-    host: import("typebox").TOptional<import("typebox").TString>;
+    host: import("typebox").TOptional<import("typebox").TUnsafe<"auto" | "gateway" | "node" | "sandbox">>;
     security: import("typebox").TOptional<import("typebox").TString>;
     ask: import("typebox").TOptional<import("typebox").TString>;
     node: import("typebox").TOptional<import("typebox").TString>;
 }>, ExecToolDetails>;
-export declare const __testing: {
+export declare const testing: {
+    parseOpenClawChannelsLoginShellCommand: typeof parseOpenClawChannelsLoginShellCommand;
     validateScriptFileForShellBleed: typeof validateScriptFileForShellBleed;
 };
+export { testing as __testing };

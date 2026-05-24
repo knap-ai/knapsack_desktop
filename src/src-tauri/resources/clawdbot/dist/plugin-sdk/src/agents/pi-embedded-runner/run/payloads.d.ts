@@ -1,6 +1,10 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { SourceReplyDeliveryMode } from "../../../auto-reply/get-reply-options.types.js";
+import { type HeartbeatToolResponse } from "../../../auto-reply/heartbeat-tool-response.js";
+import { type ReplyPayload } from "../../../auto-reply/reply-payload.js";
 import type { ReasoningLevel, ThinkLevel, VerboseLevel } from "../../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import type { MessagingToolSourceReplyPayload } from "../../pi-embedded-messaging.types.js";
 import type { ToolResultFormat } from "../../pi-embedded-subscribe.shared-types.js";
 import { type ToolErrorSummary } from "../../tool-error-summary.js";
 type ToolMetaEntry = {
@@ -11,6 +15,7 @@ export declare function buildEmbeddedRunPayloads(params: {
     assistantTexts: string[];
     toolMetas: ToolMetaEntry[];
     lastAssistant: AssistantMessage | undefined;
+    currentAssistant?: AssistantMessage | null;
     lastToolError?: ToolErrorSummary;
     config?: OpenClawConfig;
     isCronTrigger?: boolean;
@@ -24,16 +29,12 @@ export declare function buildEmbeddedRunPayloads(params: {
     suppressToolErrorWarnings?: boolean;
     inlineToolResultsAllowed: boolean;
     didSendViaMessagingTool?: boolean;
+    messagingToolSourceReplyPayloads?: MessagingToolSourceReplyPayload[];
+    sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
+    agentId?: string;
+    runId?: string;
+    runAborted?: boolean;
     didSendDeterministicApprovalPrompt?: boolean;
-}): Array<{
-    text?: string;
-    mediaUrl?: string;
-    mediaUrls?: string[];
-    replyToId?: string;
-    isError?: boolean;
-    isReasoning?: boolean;
-    audioAsVoice?: boolean;
-    replyToTag?: boolean;
-    replyToCurrent?: boolean;
-}>;
+    heartbeatToolResponse?: HeartbeatToolResponse;
+}): ReplyPayload[];
 export {};

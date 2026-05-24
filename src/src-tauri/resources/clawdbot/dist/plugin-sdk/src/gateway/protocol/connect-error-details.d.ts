@@ -9,12 +9,14 @@ export declare const ConnectErrorDetailCodes: {
     readonly AUTH_PASSWORD_NOT_CONFIGURED: "AUTH_PASSWORD_NOT_CONFIGURED";
     readonly AUTH_BOOTSTRAP_TOKEN_INVALID: "AUTH_BOOTSTRAP_TOKEN_INVALID";
     readonly AUTH_DEVICE_TOKEN_MISMATCH: "AUTH_DEVICE_TOKEN_MISMATCH";
+    readonly AUTH_SCOPE_MISMATCH: "AUTH_SCOPE_MISMATCH";
     readonly AUTH_RATE_LIMITED: "AUTH_RATE_LIMITED";
     readonly AUTH_TAILSCALE_IDENTITY_MISSING: "AUTH_TAILSCALE_IDENTITY_MISSING";
     readonly AUTH_TAILSCALE_PROXY_MISSING: "AUTH_TAILSCALE_PROXY_MISSING";
     readonly AUTH_TAILSCALE_WHOIS_FAILED: "AUTH_TAILSCALE_WHOIS_FAILED";
     readonly AUTH_TAILSCALE_IDENTITY_MISMATCH: "AUTH_TAILSCALE_IDENTITY_MISMATCH";
     readonly CONTROL_UI_ORIGIN_NOT_ALLOWED: "CONTROL_UI_ORIGIN_NOT_ALLOWED";
+    readonly PROTOCOL_MISMATCH: "PROTOCOL_MISMATCH";
     readonly CONTROL_UI_DEVICE_IDENTITY_REQUIRED: "CONTROL_UI_DEVICE_IDENTITY_REQUIRED";
     readonly DEVICE_IDENTITY_REQUIRED: "DEVICE_IDENTITY_REQUIRED";
     readonly DEVICE_AUTH_INVALID: "DEVICE_AUTH_INVALID";
@@ -44,6 +46,9 @@ export type PairingConnectErrorDetails = {
     reason?: ConnectPairingRequiredReason;
     requestId?: string;
     remediationHint?: string;
+    recommendedNextStep?: ConnectRecoveryNextStep;
+    retryable?: boolean;
+    pauseReconnect?: boolean;
     deviceId?: string;
     requestedRole?: string;
     requestedScopes?: string[];
@@ -58,12 +63,14 @@ export declare function readConnectErrorRecoveryAdvice(details: unknown): Connec
 export declare function normalizePairingConnectRequestId(value: unknown): string | undefined;
 export declare function describePairingConnectRequirement(reason: ConnectPairingRequiredReason | undefined): string;
 export declare function buildPairingConnectErrorMessage(reason: ConnectPairingRequiredReason | undefined): string;
-export declare function buildPairingConnectRemediationHint(reason: ConnectPairingRequiredReason | undefined): string;
 export declare function buildPairingConnectRecoveryTitle(reason: ConnectPairingRequiredReason | undefined): string;
 export declare function buildPairingConnectErrorDetails(params: {
     reason: ConnectPairingRequiredReason | undefined;
     requestId?: string;
     remediationHint?: string;
+    recommendedNextStep?: ConnectRecoveryNextStep;
+    retryable?: boolean;
+    pauseReconnect?: boolean;
     deviceId?: string;
     requestedRole?: string;
     requestedScopes?: string[];

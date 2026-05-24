@@ -4,6 +4,7 @@ type DoctorPrompterLike = {
     confirmRuntimeRepair: (params: {
         message: string;
         initialValue?: boolean;
+        requiresInteractiveConfirmation?: boolean;
     }) => Promise<boolean>;
     note?: typeof note;
 };
@@ -29,5 +30,6 @@ export declare function detectMacCloudSyncedStateDir(stateDir: string, deps?: {
     storage: "iCloud Drive" | "CloudStorage provider";
 } | null;
 export declare function noteStateIntegrity(cfg: OpenClawConfig, prompter: DoctorPrompterLike, configPath?: string): Promise<void>;
+export declare function collectWorkspaceBackupTip(workspaceDir: string): string | null;
 export declare function noteWorkspaceBackupTip(workspaceDir: string): void;
 export {};

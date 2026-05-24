@@ -1,5 +1,5 @@
-export type ConfigSetMode = "value" | "json" | "ref_builder" | "provider_builder" | "batch";
-export type ConfigSetModeResolution = {
+type ConfigSetMode = "value" | "json" | "ref_builder" | "provider_builder" | "batch";
+type ConfigSetModeResolution = {
     ok: true;
     mode: ConfigSetMode;
 } | {
@@ -12,3 +12,4 @@ export declare function resolveConfigSetMode(params: {
     hasProviderBuilderOptions: boolean;
     strictJson: boolean;
 }): ConfigSetModeResolution;
+export {};

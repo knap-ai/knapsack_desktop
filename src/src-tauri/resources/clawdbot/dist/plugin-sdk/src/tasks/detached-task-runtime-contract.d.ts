@@ -84,6 +84,7 @@ export type DetachedTaskDeliveryStatusParams = {
 export type DetachedTaskCancelParams = {
     cfg: OpenClawConfig;
     taskId: string;
+    reason?: string;
 };
 export type DetachedTaskCancelResult = {
     found: boolean;

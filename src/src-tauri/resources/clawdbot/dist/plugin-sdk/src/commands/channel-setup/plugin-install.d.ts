@@ -17,6 +17,7 @@ export declare function ensureChannelSetupPluginInstalled(params: {
     runtime: RuntimeEnv;
     workspaceDir?: string;
     promptInstall?: boolean;
+    autoConfirmSingleSource?: boolean;
 }): Promise<InstallResult>;
 export declare function reloadChannelSetupPluginRegistry(params: {
     cfg: OpenClawConfig;
@@ -36,7 +37,6 @@ export declare function loadChannelSetupPluginRegistrySnapshotForChannel(params:
     channel: string;
     pluginId?: string;
     workspaceDir?: string;
-    installRuntimeDeps?: boolean;
     forceSetupOnlyChannelPlugins?: boolean;
 }): PluginRegistry;
 export {};

@@ -1,4 +1,3 @@
-export declare function isToolDocBlockStart(line: string): boolean;
 export declare function summarizeToolDescriptionText(params: {
     rawDescription?: string | null;
     displaySummary?: string | null;

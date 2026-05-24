@@ -22,7 +22,6 @@ export type DaemonActionResponse = {
         notLoadedText: string;
     };
 };
-export declare function emitDaemonActionJson(payload: DaemonActionResponse): void;
 export declare function buildDaemonHintItems(hints: string[] | undefined): DaemonHintItem[] | undefined;
 export declare function buildDaemonServiceSnapshot(service: GatewayService, loaded: boolean): {
     label: string;
@@ -30,7 +29,6 @@ export declare function buildDaemonServiceSnapshot(service: GatewayService, load
     loadedText: string;
     notLoadedText: string;
 };
-export declare function createNullWriter(): Writable;
 export declare function createDaemonActionContext(params: {
     action: DaemonAction;
     json: boolean;

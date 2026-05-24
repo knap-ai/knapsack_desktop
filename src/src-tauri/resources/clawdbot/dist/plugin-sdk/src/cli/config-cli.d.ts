@@ -1,10 +1,27 @@
 import type { Command } from "commander";
 import { type RuntimeEnv } from "../runtime.js";
 import { type ConfigSetOptions } from "./config-set-input.js";
+type ConfigPatchOptions = {
+    file?: string | undefined;
+    stdin?: boolean | undefined;
+    dryRun?: boolean | undefined;
+    allowExec?: boolean | undefined;
+    json?: boolean | undefined;
+    replacePath?: string[] | undefined;
+};
+type ConfigUnsetOptions = {
+    dryRun?: boolean | undefined;
+    allowExec?: boolean | undefined;
+    json?: boolean | undefined;
+};
 export declare function runConfigSet(opts: {
     path?: string;
     value?: string;
     cliOptions: ConfigSetOptions;
+    runtime?: RuntimeEnv;
+}): Promise<void>;
+export declare function runConfigPatch(opts: {
+    cliOptions: ConfigPatchOptions;
     runtime?: RuntimeEnv;
 }): Promise<void>;
 export declare function runConfigGet(opts: {
@@ -14,6 +31,7 @@ export declare function runConfigGet(opts: {
 }): Promise<void>;
 export declare function runConfigUnset(opts: {
     path: string;
+    cliOptions?: ConfigUnsetOptions;
     runtime?: RuntimeEnv;
 }): Promise<void>;
 export declare function runConfigFile(opts: {
@@ -27,3 +45,4 @@ export declare function runConfigValidate(opts?: {
     runtime?: RuntimeEnv;
 }): Promise<void>;
 export declare function registerConfigCli(program: Command): void;
+export {};

@@ -1,9 +1,11 @@
 import type { SkillCommandSpec } from "../agents/skills.js";
 import type { OpenClawConfig } from "../config/types.js";
-import type { ChatCommandDefinition, CommandArgDefinition, CommandArgs, NativeCommandSpec, ShouldHandleTextCommandsParams } from "./commands-registry.types.js";
+import type { ChatCommandDefinition, CommandArgDefinition, CommandArgs, NativeCommandSpec } from "./commands-registry.types.js";
+import type { ThinkingCatalogEntry } from "./thinking.shared.js";
 export { isCommandEnabled, listChatCommands, listChatCommandsForConfig, } from "./commands-registry-list.js";
 export { getCommandDetection, maybeResolveTextAlias, normalizeCommandBody, resolveTextCommand, } from "./commands-registry-normalize.js";
-export type { ChatCommandDefinition, CommandArgChoiceContext, CommandArgDefinition, CommandArgMenuSpec, CommandArgValues, CommandArgs, CommandDetection, CommandNormalizeOptions, CommandScope, CommandTier, NativeCommandSpec, ShouldHandleTextCommandsParams, } from "./commands-registry.types.js";
+export { isNativeCommandSurface, shouldHandleTextCommands } from "./commands-text-routing.js";
+export type { ChatCommandDefinition, CommandArgChoiceContext, CommandArgDefinition, CommandArgMenuSpec, CommandArgValues, CommandArgs, CommandDetection, CommandNormalizeOptions, CommandScope, NativeCommandSpec, ShouldHandleTextCommandsParams, } from "./commands-registry.types.js";
 type NativeCommandProviderLookupOptions = {
     includeBundledChannelFallback?: boolean;
 };
@@ -30,6 +32,7 @@ export declare function resolveCommandArgChoices(params: {
     cfg?: OpenClawConfig;
     provider?: string;
     model?: string;
+    catalog?: ThinkingCatalogEntry[];
 }): ResolvedCommandArgChoice[];
 export declare function resolveCommandArgMenu(params: {
     command: ChatCommandDefinition;
@@ -37,6 +40,7 @@ export declare function resolveCommandArgMenu(params: {
     cfg?: OpenClawConfig;
     provider?: string;
     model?: string;
+    catalog?: ThinkingCatalogEntry[];
 }): {
     arg: CommandArgDefinition;
     choices: ResolvedCommandArgChoice[];
@@ -47,5 +51,3 @@ export declare function formatCommandArgMenuTitle(params: {
     menu: NonNullable<ReturnType<typeof resolveCommandArgMenu>>;
 }): string;
 export declare function isCommandMessage(raw: string): boolean;
-export declare function isNativeCommandSurface(surface?: string): boolean;
-export declare function shouldHandleTextCommands(params: ShouldHandleTextCommandsParams): boolean;

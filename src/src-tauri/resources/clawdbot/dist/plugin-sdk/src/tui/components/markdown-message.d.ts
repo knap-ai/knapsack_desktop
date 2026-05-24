@@ -1,4 +1,4 @@
-import { Container } from "@mariozechner/pi-tui";
+import { Container } from "@earendil-works/pi-tui";
 import { HyperlinkMarkdown } from "./hyperlink-markdown.js";
 type MarkdownOptions = ConstructorParameters<typeof HyperlinkMarkdown>[4];
 export declare class MarkdownMessageComponent extends Container {

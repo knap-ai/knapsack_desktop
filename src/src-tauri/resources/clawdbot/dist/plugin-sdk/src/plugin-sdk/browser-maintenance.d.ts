@@ -1,3 +1,4 @@
+export { movePathToTrash, type MovePathToTrashOptions } from "./browser-trash.js";
 type CloseTrackedBrowserTabsParams = {
     sessionKeys: Array<string | undefined>;
     closeTab?: (tab: {
@@ -8,5 +9,3 @@ type CloseTrackedBrowserTabsParams = {
     onWarn?: (message: string) => void;
 };
 export declare function closeTrackedBrowserTabsForSessions(params: CloseTrackedBrowserTabsParams): Promise<number>;
-export declare function movePathToTrash(targetPath: string): Promise<string>;
-export {};

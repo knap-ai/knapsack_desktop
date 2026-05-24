@@ -9,8 +9,16 @@ export declare function applyModelOverrideToSessionEntry(params: {
     selection: ModelOverrideSelection;
     profileOverride?: string;
     profileOverrideSource?: "auto" | "user";
+    preserveAuthProfileOverride?: boolean;
     selectionSource?: "auto" | "user";
     markLiveSwitchPending?: boolean;
+}): {
+    updated: boolean;
+};
+export declare function repairProviderWrappedModelOverride(params: {
+    entry: SessionEntry;
+    defaultProvider: string;
+    defaultModel?: string;
 }): {
     updated: boolean;
 };

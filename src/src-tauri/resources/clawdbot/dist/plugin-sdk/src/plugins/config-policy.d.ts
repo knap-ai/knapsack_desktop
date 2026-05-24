@@ -18,10 +18,6 @@ export declare function resolvePluginActivationState(params: {
     autoEnabledReason?: string;
 }): PluginActivationState;
 export declare const hasExplicitPluginConfig: typeof hasExplicitPluginConfigShared;
-export declare const resolveEnableState: (id: string, origin: PluginOrigin, config: SharedNormalizedPluginsConfig, enabledByDefault?: boolean) => {
-    enabled: boolean;
-    reason?: string;
-};
 export declare const isBundledChannelEnabledByChannelConfig: typeof isBundledChannelEnabledByChannelConfigShared;
 type PolicyEffectiveActivationParams = {
     id: string;
@@ -32,10 +28,6 @@ type PolicyEffectiveActivationParams = {
     sourceConfig?: NormalizedPluginsConfig;
     sourceRootConfig?: OpenClawConfig;
     autoEnabledReason?: string;
-};
-export declare const resolveEffectiveEnableState: (params: PolicyEffectiveActivationParams) => {
-    enabled: boolean;
-    reason?: string;
 };
 export declare function resolveEffectivePluginActivationState(params: PolicyEffectiveActivationParams): PluginActivationState;
 export declare function resolveMemorySlotDecision(params: {

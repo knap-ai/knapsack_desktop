@@ -1,12 +1,16 @@
-export { resolveOpenAIStrictToolSetting, resolvesToNativeOpenAIStrictTools, } from "./openai-strict-tool-setting.js";
+export { resolveOpenAIStrictToolSetting } from "./openai-strict-tool-setting.js";
+type ToolSchemaCompatInput = {
+    unsupportedToolSchemaKeywords?: unknown;
+    omitEmptyArrayItems?: unknown;
+};
 type ToolWithParameters = {
     name?: unknown;
     parameters: unknown;
 };
-export declare function normalizeStrictOpenAIJsonSchema(schema: unknown): unknown;
-export declare function normalizeOpenAIStrictToolParameters<T>(schema: T, strict: boolean): T;
+export declare function normalizeStrictOpenAIJsonSchema(schema: unknown, modelCompat?: ToolSchemaCompatInput | null): unknown;
+export declare function normalizeOpenAIStrictToolParameters<T>(schema: T, strict: boolean, modelCompat?: ToolSchemaCompatInput | null): T;
 export declare function isStrictOpenAIJsonSchemaCompatible(schema: unknown): boolean;
-export type OpenAIStrictToolSchemaDiagnostic = {
+type OpenAIStrictToolSchemaDiagnostic = {
     toolIndex: number;
     toolName?: string;
     violations: string[];

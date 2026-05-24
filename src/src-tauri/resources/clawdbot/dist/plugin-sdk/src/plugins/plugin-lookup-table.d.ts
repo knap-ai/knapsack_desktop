@@ -1,12 +1,9 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { type GatewayStartupPluginPlan } from "./channel-plugin-ids.js";
 import { type PluginMetadataSnapshot, type PluginMetadataSnapshotOwnerMaps } from "./plugin-metadata-snapshot.js";
 import type { PluginRegistrySnapshot } from "./plugin-registry-snapshot.js";
 export type PluginLookUpTableOwnerMaps = PluginMetadataSnapshotOwnerMaps;
-export type PluginLookUpTableStartupPlan = {
-    channelPluginIds: readonly string[];
-    configuredDeferredChannelPluginIds: readonly string[];
-    pluginIds: readonly string[];
-};
+export type PluginLookUpTableStartupPlan = GatewayStartupPluginPlan;
 export type PluginLookUpTableMetrics = {
     registrySnapshotMs: number;
     manifestRegistryMs: number;

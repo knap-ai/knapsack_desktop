@@ -11,6 +11,7 @@ type StatusGatewayConnection = {
 type StatusGatewayProbe = {
     connectLatencyMs?: number | null;
     error?: string | null;
+    health?: unknown;
 } | null;
 type StatusGatewayAuth = {
     token?: string;
@@ -98,5 +99,6 @@ export declare function buildStatusGatewayJsonPayloadFromSurface(params: {
     } | null;
     error: string | null;
     authWarning: string | null;
+    modelPricing?: unknown;
 };
 export {};

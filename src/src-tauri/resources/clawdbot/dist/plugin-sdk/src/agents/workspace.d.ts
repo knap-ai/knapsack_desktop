@@ -38,6 +38,12 @@ export declare function reconcileWorkspaceBootstrapCompletion(dir: string): Prom
 export declare function ensureAgentWorkspace(params?: {
     dir?: string;
     ensureBootstrapFiles?: boolean;
+    /**
+     * List of optional bootstrap filenames to skip writing.
+     * Applies only to SOUL.md, USER.md, HEARTBEAT.md, IDENTITY.md.
+     * Required workspace setup such as AGENTS.md and TOOLS.md still runs.
+     */
+    skipOptionalBootstrapFiles?: string[];
 }): Promise<{
     dir: string;
     agentsPath?: string;

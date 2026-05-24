@@ -1,3 +1,4 @@
+import type { CommandExplanationSummary } from "./command-analysis/explain.js";
 import { resolveAllowAlwaysPatternEntries } from "./exec-approvals-allowlist.js";
 import type { ExecCommandSegment } from "./exec-approvals-analysis.js";
 import type { ExecAllowlistEntry } from "./exec-approvals.types.js";
@@ -8,8 +9,10 @@ export type ExecHost = "sandbox" | "gateway" | "node";
 export type ExecTarget = "auto" | ExecHost;
 export type ExecSecurity = "deny" | "allowlist" | "full";
 export type ExecAsk = "off" | "on-miss" | "always";
+export declare const EXEC_TARGET_VALUES: readonly ExecTarget[];
 export declare function normalizeExecHost(value?: string | null): ExecHost | null;
 export declare function normalizeExecTarget(value?: string | null): ExecTarget | null;
+export declare function requireValidExecTarget(value?: unknown): ExecTarget | null;
 export declare function normalizeExecSecurity(value?: string | null): ExecSecurity | null;
 export declare function normalizeExecAsk(value?: string | null): ExecAsk | null;
 export type SystemRunApprovalBinding = {
@@ -33,6 +36,10 @@ export type SystemRunApprovalPlan = {
     sessionKey: string | null;
     mutableFileOperand?: SystemRunApprovalFileOperand | null;
 };
+export type ExecApprovalCommandSpan = {
+    startIndex: number;
+    endIndex: number;
+};
 export type ExecApprovalRequestPayload = {
     command: string;
     commandPreview?: string | null;
@@ -45,6 +52,9 @@ export type ExecApprovalRequestPayload = {
     host?: string | null;
     security?: string | null;
     ask?: string | null;
+    warningText?: string | null;
+    commandAnalysis?: CommandExplanationSummary | null;
+    commandSpans?: ExecApprovalCommandSpan[];
     allowedDecisions?: readonly ExecApprovalDecision[];
     agentId?: string | null;
     resolvedPath?: string | null;

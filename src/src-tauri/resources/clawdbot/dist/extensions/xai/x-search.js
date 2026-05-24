@@ -1,12 +1,12 @@
-import { i as getRuntimeConfigSnapshot } from "../../runtime-snapshot-DLisEE8Y.js";
-import { g as readStringParam, l as jsonResult, m as readStringArrayParam } from "../../common-C4RGIxnG.js";
-import { i as readCache, l as writeCache, o as resolveCacheTtlMs, s as resolveTimeoutSeconds } from "../../web-shared-60FKu8ja.js";
-import "../../runtime-config-snapshot-g89jlXDA.js";
-import "../../provider-web-search-fsZ6HXjy.js";
-import { r as resolveXaiToolApiKey, t as isXaiToolEnabled } from "../../tool-auth-shared-rw2beS8G.js";
-import { t as resolveEffectiveXSearchConfig } from "../../x-search-config-BNegJLZ-.js";
-import { n as createXSearchToolDefinition, t as buildMissingXSearchApiKeyPayload } from "../../x-search-tool-shared-PZU50qCU.js";
-import { a as resolveXaiXSearchMaxTurns, i as resolveXaiXSearchInlineCitations, n as buildXaiXSearchPayload, o as resolveXaiXSearchModel, r as requestXaiXSearch } from "../../x-search-shared-D9E_FymV.js";
+import { i as getRuntimeConfigSnapshot } from "../../runtime-snapshot-DgdkBEdP.js";
+import { c as jsonResult, g as readStringParam, m as readStringArrayParam } from "../../common-E9YpX7pB.js";
+import { i as readCache, l as writeCache, o as resolveCacheTtlMs, s as resolveTimeoutSeconds } from "../../web-shared-CYJpPo1M.js";
+import "../../runtime-config-snapshot-BBsNBtE3.js";
+import "../../provider-web-search-DNIStESL.js";
+import { r as resolveXaiToolApiKeyWithAuth, t as isXaiToolEnabled } from "../../tool-auth-shared-1307P-Z2.js";
+import { t as resolveEffectiveXSearchConfig } from "../../x-search-config-BhpqeUob.js";
+import { n as createXSearchToolDefinition, t as buildMissingXSearchApiKeyPayload } from "../../x-search-tool-shared-CZWnGcJ7.js";
+import { a as resolveXaiXSearchInlineCitations, i as resolveXaiXSearchEndpoint, n as buildXaiXSearchPayload, o as resolveXaiXSearchMaxTurns, r as requestXaiXSearch, s as resolveXaiXSearchModel } from "../../x-search-shared-DES161vI.js";
 //#region extensions/xai/x-search.ts
 var PluginToolInputError = class extends Error {
 	constructor(message) {
@@ -31,11 +31,12 @@ function resolveXSearchEnabled(params) {
 	return isXaiToolEnabled({
 		enabled: params.config?.enabled,
 		runtimeConfig: params.runtimeConfig,
-		sourceConfig: params.cfg
+		sourceConfig: params.cfg,
+		auth: params.auth
 	});
 }
-function resolveXSearchApiKey(params) {
-	return resolveXaiToolApiKey(params);
+async function resolveXSearchApiKey(params) {
+	return await resolveXaiToolApiKeyWithAuth(params);
 }
 function normalizeOptionalIsoDate(value, label) {
 	if (!value) return;
@@ -51,6 +52,7 @@ function buildXSearchCacheKey(params) {
 	return JSON.stringify([
 		"x_search",
 		params.model,
+		params.endpoint,
 		params.query,
 		params.inlineCitations,
 		params.maxTurns ?? null,
@@ -68,12 +70,14 @@ function createXSearchTool(options) {
 	if (!resolveXSearchEnabled({
 		cfg: options?.config,
 		config: xSearchConfig,
-		runtimeConfig: runtimeConfig ?? void 0
+		runtimeConfig: runtimeConfig ?? void 0,
+		auth: options?.auth
 	})) return null;
 	return createXSearchToolDefinition(async (_toolCallId, args) => {
-		const apiKey = resolveXSearchApiKey({
+		const apiKey = await resolveXSearchApiKey({
 			sourceConfig: options?.config,
-			runtimeConfig: runtimeConfig ?? void 0
+			runtimeConfig: runtimeConfig ?? void 0,
+			auth: options?.auth
 		});
 		if (!apiKey) return jsonResult(buildMissingXSearchApiKeyPayload());
 		const query = readStringParam(args, "query", { required: true });
@@ -93,11 +97,13 @@ function createXSearchTool(options) {
 		};
 		const xSearchConfigRecord = xSearchConfig;
 		const model = resolveXaiXSearchModel(xSearchConfigRecord);
+		const endpoint = resolveXaiXSearchEndpoint(xSearchConfigRecord);
 		const inlineCitations = resolveXaiXSearchInlineCitations(xSearchConfigRecord);
 		const maxTurns = resolveXaiXSearchMaxTurns(xSearchConfigRecord);
 		const cacheKey = buildXSearchCacheKey({
 			query,
 			model,
+			endpoint,
 			inlineCitations,
 			maxTurns,
 			options: {
@@ -117,6 +123,7 @@ function createXSearchTool(options) {
 		const startedAt = Date.now();
 		const result = await requestXaiXSearch({
 			apiKey,
+			endpoint,
 			model,
 			timeoutSeconds: resolveTimeoutSeconds(xSearchConfig?.timeoutSeconds, 30),
 			inlineCitations,

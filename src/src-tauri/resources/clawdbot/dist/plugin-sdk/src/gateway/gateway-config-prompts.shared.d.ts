@@ -14,8 +14,6 @@ export declare const TAILSCALE_EXPOSURE_OPTIONS: readonly [{
 }];
 export declare const TAILSCALE_MISSING_BIN_NOTE_LINES: readonly ["Tailscale binary not found in PATH or /Applications.", "Ensure Tailscale is installed from:", "  https://tailscale.com/download/mac", "", "You can continue setup, but serve/funnel will fail at runtime."];
 export declare const TAILSCALE_DOCS_LINES: readonly ["Docs:", "https://docs.openclaw.ai/gateway/tailscale", "https://docs.openclaw.ai/web"];
-export declare function buildTailnetHttpsOrigin(rawHost: string): string | null;
-export declare function appendAllowedOrigin(existing: string[] | undefined, origin: string): string[];
 export declare function maybeAddTailnetOriginToControlUiAllowedOrigins(params: {
     config: OpenClawConfig;
     tailscaleMode: string;

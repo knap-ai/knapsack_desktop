@@ -1,2 +1,2 @@
-import { n as getActiveMemorySearchManager, t as closeActiveMemorySearchManagers } from "../memory-host-search-C9Vu1xnO.js";
-export { closeActiveMemorySearchManagers, getActiveMemorySearchManager };
+import { n as closeActiveMemorySearchManagers, r as getActiveMemorySearchManager, t as closeActiveMemorySearchManager } from "../memory-host-search-nxwQAw_R.js";
+export { closeActiveMemorySearchManager, closeActiveMemorySearchManagers, getActiveMemorySearchManager };

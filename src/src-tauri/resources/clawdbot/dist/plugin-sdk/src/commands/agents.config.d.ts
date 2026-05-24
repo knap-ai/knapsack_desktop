@@ -21,7 +21,6 @@ type AgentEntry = NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[num
 export type AgentIdentity = AgentIdentityFile;
 export { listAgentEntries };
 export declare function findAgentEntryIndex(list: AgentEntry[], agentId: string): number;
-export declare function parseIdentityMarkdown(content: string): AgentIdentity;
 export declare function loadAgentIdentity(workspace: string): AgentIdentity | null;
 export declare function buildAgentSummaries(cfg: OpenClawConfig): AgentSummary[];
 export declare function applyAgentConfig(cfg: OpenClawConfig, params: {

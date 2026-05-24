@@ -11,6 +11,10 @@ export type ResolvedAgentConfig = {
     verboseDefault?: AgentDefaultsConfig["verboseDefault"];
     reasoningDefault?: AgentEntry["reasoningDefault"];
     fastModeDefault?: AgentEntry["fastModeDefault"];
+    contextInjection?: AgentEntry["contextInjection"];
+    bootstrapMaxChars?: AgentEntry["bootstrapMaxChars"];
+    bootstrapTotalMaxChars?: AgentEntry["bootstrapTotalMaxChars"];
+    experimental?: AgentDefaultsConfig["experimental"];
     skills?: AgentEntry["skills"];
     memorySearch?: AgentEntry["memorySearch"];
     humanDelay?: AgentEntry["humanDelay"];
@@ -20,6 +24,7 @@ export type ResolvedAgentConfig = {
     identity?: AgentEntry["identity"];
     groupChat?: AgentEntry["groupChat"];
     subagents?: AgentEntry["subagents"];
+    runRetries?: AgentEntry["runRetries"];
     embeddedPi?: AgentEntry["embeddedPi"];
     sandbox?: AgentEntry["sandbox"];
     tools?: AgentEntry["tools"];
@@ -31,4 +36,5 @@ export declare function resolveAgentConfig(cfg: OpenClawConfig, agentId: string)
 export declare function resolveAgentContextLimits(cfg: OpenClawConfig | undefined, agentId?: string | null): AgentContextLimitsConfig | undefined;
 export declare function resolveAgentWorkspaceDir(cfg: OpenClawConfig, agentId: string, env?: NodeJS.ProcessEnv): string;
 export declare function resolveAgentDir(cfg: OpenClawConfig, agentId: string, env?: NodeJS.ProcessEnv): string;
+export declare function resolveDefaultAgentDir(cfg: OpenClawConfig, env?: NodeJS.ProcessEnv): string;
 export {};

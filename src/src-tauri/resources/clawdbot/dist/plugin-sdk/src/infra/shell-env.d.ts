@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-export type ShellEnvFallbackResult = {
+type ShellEnvFallbackResult = {
     ok: true;
     applied: string[];
     skippedReason?: never;
@@ -12,7 +12,7 @@ export type ShellEnvFallbackResult = {
     error: string;
     applied: [];
 };
-export type ShellEnvFallbackOptions = {
+type ShellEnvFallbackOptions = {
     enabled: boolean;
     env: NodeJS.ProcessEnv;
     expectedKeys: string[];
@@ -32,3 +32,4 @@ export declare function getShellPathFromLoginShell(opts: {
 }): string | null;
 export declare function resetShellPathCacheForTests(): void;
 export declare function getShellEnvAppliedKeys(): string[];
+export {};

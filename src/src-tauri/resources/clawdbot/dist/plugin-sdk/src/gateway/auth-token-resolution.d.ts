@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type SecretInputUnresolvedReasonStyle } from "./resolve-configured-secret-input-string.js";
-export type GatewayAuthTokenResolutionSource = "explicit" | "config" | "secretRef" | "env";
-export type GatewayAuthTokenEnvFallback = "never" | "no-secret-ref" | "always";
+type GatewayAuthTokenResolutionSource = "explicit" | "config" | "secretRef" | "env";
+type GatewayAuthTokenEnvFallback = "never" | "no-secret-ref" | "always";
 export declare function resolveGatewayAuthToken(params: {
     cfg: OpenClawConfig;
     env: NodeJS.ProcessEnv;
@@ -14,3 +14,4 @@ export declare function resolveGatewayAuthToken(params: {
     secretRefConfigured: boolean;
     unresolvedRefReason?: string;
 }>;
+export {};

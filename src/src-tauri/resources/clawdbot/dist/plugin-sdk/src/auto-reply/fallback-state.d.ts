@@ -1,9 +1,6 @@
 import type { FallbackNoticeState } from "../status/fallback-notice-state.js";
 import type { RuntimeFallbackAttempt } from "./reply/agent-runner-execution.js";
 export { resolveActiveFallbackState, type FallbackNoticeState, } from "../status/fallback-notice-state.js";
-export declare function formatFallbackAttemptReason(attempt: RuntimeFallbackAttempt): string;
-export declare function buildFallbackReasonSummary(attempts: RuntimeFallbackAttempt[]): string;
-export declare function buildFallbackAttemptSummaries(attempts: RuntimeFallbackAttempt[]): string[];
 export declare function buildFallbackNotice(params: {
     selectedProvider: string;
     selectedModel: string;
@@ -16,7 +13,7 @@ export declare function buildFallbackClearedNotice(params: {
     selectedModel: string;
     previousActiveModel?: string;
 }): string;
-export type ResolvedFallbackTransition = {
+type ResolvedFallbackTransition = {
     selectedModelRef: string;
     activeModelRef: string;
     fallbackActive: boolean;

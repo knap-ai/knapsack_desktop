@@ -6,6 +6,8 @@ type EventHandlerChatLog = {
         isError?: boolean;
     }) => void;
     addSystem: (text: string) => void;
+    addPendingSystem: (runId: string, text: string) => void;
+    dismissPendingSystem: (runId: string) => void;
     updateAssistant: (text: string, runId: string) => void;
     finalizeAssistant: (text: string, runId: string) => void;
     dropAssistant: (runId: string) => void;
@@ -44,6 +46,8 @@ export declare function createEventHandlers(context: EventHandlerContext): {
     handleChatEvent: (payload: unknown) => void;
     handleAgentEvent: (payload: unknown) => void;
     handleBtwEvent: (payload: unknown) => void;
+    pauseStreamingWatchdog: () => void;
+    reconnectStreamingWatchdog: () => void;
     dispose: () => void;
 };
 export {};

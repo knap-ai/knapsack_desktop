@@ -1,8 +1,9 @@
-import { drainPendingDeliveries as coreDrainPendingDeliveries, type DeliverFn } from "../infra/outbound/delivery-queue.js";
-type DrainPendingDeliveriesOptions = Omit<Parameters<typeof coreDrainPendingDeliveries>[0], "deliver"> & {
-    deliver?: DeliverFn;
-};
-export declare function drainPendingDeliveries(opts: DrainPendingDeliveriesOptions): Promise<void>;
+/**
+ * @deprecated Compatibility shim only. Keep old plugins working, but do not
+ * add new imports here and do not use this subpath from repo code.
+ * Prefer focused openclaw/plugin-sdk/<domain> runtime subpaths instead.
+ */
+export * from "./delivery-queue-runtime.js";
 export * from "../infra/backoff.js";
 export * from "../infra/channel-activity.js";
 export * from "../infra/dedupe.js";

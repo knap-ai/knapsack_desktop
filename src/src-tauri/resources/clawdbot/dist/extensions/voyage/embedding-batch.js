@@ -1,2 +1,2 @@
-import { n as runVoyageEmbeddingBatches, t as VOYAGE_BATCH_ENDPOINT } from "../../embedding-batch-cYLYwJ_c.js";
-export { VOYAGE_BATCH_ENDPOINT, runVoyageEmbeddingBatches };
+import { t as runVoyageEmbeddingBatches } from "../../embedding-batch-EwDreDe4.js";
+export { runVoyageEmbeddingBatches };

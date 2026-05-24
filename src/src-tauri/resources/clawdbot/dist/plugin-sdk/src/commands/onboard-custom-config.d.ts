@@ -1,5 +1,17 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type SecretInput } from "../config/types.secrets.js";
+/**
+ * Wizard default for non-Azure custom APIs when context length is unknown.
+ * Mirrors the generic persisted custom-model catalog fallback and leaves enough
+ * room above the default compaction reserve floor in `pi-settings.ts`.
+ */
+export declare const CUSTOM_PROVIDER_DEFAULT_CONTEXT_WINDOW_TOKENS = 128000;
+export type CustomModelImageInputInference = {
+    supportsImageInput: boolean;
+    confidence: "known" | "unknown";
+};
+export declare function resolveCustomModelImageInputInference(modelId: string): CustomModelImageInputInference;
+export declare function inferCustomModelSupportsImageInput(modelId: string): boolean;
 export type CustomApiCompatibility = "openai" | "anthropic";
 export type CustomApiResult = {
     config: OpenClawConfig;
@@ -15,6 +27,7 @@ export type ApplyCustomApiConfigParams = {
     apiKey?: SecretInput;
     providerId?: string;
     alias?: string;
+    supportsImageInput?: boolean;
 };
 export type ParseNonInteractiveCustomApiFlagsParams = {
     baseUrl?: string;
@@ -22,6 +35,7 @@ export type ParseNonInteractiveCustomApiFlagsParams = {
     compatibility?: string;
     apiKey?: string;
     providerId?: string;
+    supportsImageInput?: boolean;
 };
 export type ParsedNonInteractiveCustomApiFlags = {
     baseUrl: string;
@@ -29,6 +43,7 @@ export type ParsedNonInteractiveCustomApiFlags = {
     compatibility: CustomApiCompatibility;
     apiKey?: string;
     providerId?: string;
+    supportsImageInput?: boolean;
 };
 export type CustomApiErrorCode = "missing_required" | "invalid_compatibility" | "invalid_base_url" | "invalid_model_id" | "invalid_provider_id" | "invalid_alias";
 export declare class CustomApiError extends Error {
@@ -51,7 +66,7 @@ export declare function resolveCustomModelAliasError(params: {
     cfg: OpenClawConfig;
     modelRef: string;
 }): string | undefined;
-export type VerificationRequest = {
+type VerificationRequest = {
     endpoint: string;
     headers: Record<string, string>;
     body: Record<string, unknown>;
@@ -70,3 +85,4 @@ export declare function buildAnthropicVerificationProbeRequest(params: {
 export declare function resolveCustomProviderId(params: ResolveCustomProviderIdParams): ResolvedCustomProviderId;
 export declare function parseNonInteractiveCustomApiFlags(params: ParseNonInteractiveCustomApiFlagsParams): ParsedNonInteractiveCustomApiFlags;
 export declare function applyCustomApiConfig(params: ApplyCustomApiConfigParams): CustomApiResult;
+export {};

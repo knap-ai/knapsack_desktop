@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { type ProviderModelPickerEntry } from "../plugins/provider-wizard.js";
+import type { ProviderModelPickerEntry } from "../plugins/provider-wizard.js";
 import type { FlowContribution } from "./types.js";
-export type ProviderModelPickerFlowEntry = ProviderModelPickerEntry;
-export type ProviderModelPickerFlowContribution = FlowContribution & {
+type ProviderModelPickerFlowEntry = ProviderModelPickerEntry;
+type ProviderModelPickerFlowContribution = FlowContribution & {
     kind: "provider";
     surface: "model-picker";
     providerId: string;
@@ -19,3 +19,4 @@ export declare function resolveProviderModelPickerFlowContributions(params?: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
 }): ProviderModelPickerFlowContribution[];
+export {};

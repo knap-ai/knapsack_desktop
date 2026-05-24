@@ -30,6 +30,7 @@ export declare const WizardStepSchema: Type.TObject<{
     type: Type.TUnion<[Type.TLiteral<"note">, Type.TLiteral<"select">, Type.TLiteral<"text">, Type.TLiteral<"confirm">, Type.TLiteral<"multiselect">, Type.TLiteral<"progress">, Type.TLiteral<"action">]>;
     title: Type.TOptional<Type.TString>;
     message: Type.TOptional<Type.TString>;
+    format: Type.TOptional<Type.TUnion<[Type.TLiteral<"plain">]>>;
     options: Type.TOptional<Type.TArray<Type.TObject<{
         value: Type.TUnknown;
         label: Type.TString;
@@ -47,6 +48,7 @@ export declare const WizardNextResultSchema: Type.TObject<{
         type: Type.TUnion<[Type.TLiteral<"note">, Type.TLiteral<"select">, Type.TLiteral<"text">, Type.TLiteral<"confirm">, Type.TLiteral<"multiselect">, Type.TLiteral<"progress">, Type.TLiteral<"action">]>;
         title: Type.TOptional<Type.TString>;
         message: Type.TOptional<Type.TString>;
+        format: Type.TOptional<Type.TUnion<[Type.TLiteral<"plain">]>>;
         options: Type.TOptional<Type.TArray<Type.TObject<{
             value: Type.TUnknown;
             label: Type.TString;
@@ -67,6 +69,7 @@ export declare const WizardStartResultSchema: Type.TObject<{
         type: Type.TUnion<[Type.TLiteral<"note">, Type.TLiteral<"select">, Type.TLiteral<"text">, Type.TLiteral<"confirm">, Type.TLiteral<"multiselect">, Type.TLiteral<"progress">, Type.TLiteral<"action">]>;
         title: Type.TOptional<Type.TString>;
         message: Type.TOptional<Type.TString>;
+        format: Type.TOptional<Type.TUnion<[Type.TLiteral<"plain">]>>;
         options: Type.TOptional<Type.TArray<Type.TObject<{
             value: Type.TUnknown;
             label: Type.TString;

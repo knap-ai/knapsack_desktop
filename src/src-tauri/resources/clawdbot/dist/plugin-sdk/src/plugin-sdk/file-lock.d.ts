@@ -1,3 +1,4 @@
+import "../infra/fs-safe-defaults.js";
 export type FileLockOptions = {
     retries: {
         retries: number;
@@ -13,8 +14,13 @@ export type FileLockHandle = {
     release: () => Promise<void>;
 };
 export declare const FILE_LOCK_TIMEOUT_ERROR_CODE = "file_lock_timeout";
+export declare const FILE_LOCK_STALE_ERROR_CODE = "file_lock_stale";
 export type FileLockTimeoutError = Error & {
     code: typeof FILE_LOCK_TIMEOUT_ERROR_CODE;
+    lockPath: string;
+};
+export type FileLockStaleError = Error & {
+    code: typeof FILE_LOCK_STALE_ERROR_CODE;
     lockPath: string;
 };
 export declare function resetFileLockStateForTest(): void;

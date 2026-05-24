@@ -21,6 +21,7 @@ export interface OpenRouterModelCapabilities {
     name: string;
     input: Array<"text" | "image">;
     reasoning: boolean;
+    supportsTools?: boolean;
     contextWindow: number;
     maxTokens: number;
     cost: {
@@ -31,17 +32,13 @@ export interface OpenRouterModelCapabilities {
     };
 }
 /**
- * Ensure the cache is populated. Checks in-memory first, then disk, then
- * triggers a background API fetch as a last resort.
- * Does not block — returns immediately.
- */
-export declare function ensureOpenRouterModelCache(): void;
-/**
  * Ensure capabilities for a specific model are available before first use.
  *
  * Known cached entries return immediately. Unknown entries wait for at most
  * one catalog fetch, then leave sync resolution to read from the populated
  * cache on the same request.
+ *
+ * @deprecated OpenRouter provider-owned catalog helper; do not use from third-party plugins.
  */
 export declare function loadOpenRouterModelCapabilities(modelId: string): Promise<void>;
 /**
@@ -49,5 +46,7 @@ export declare function loadOpenRouterModelCapabilities(modelId: string): Promis
  *
  * If a model is not found but the cache exists, a background refresh is
  * triggered in case it's a newly added model not yet in the cache.
+ *
+ * @deprecated OpenRouter provider-owned catalog helper; do not use from third-party plugins.
  */
 export declare function getOpenRouterModelCapabilities(modelId: string): OpenRouterModelCapabilities | undefined;

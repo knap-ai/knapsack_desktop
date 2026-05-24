@@ -1,4 +1,4 @@
-import type { EnvSanitizationOptions } from "./sanitize-env-vars.js";
+import { type EnvSanitizationOptions } from "./sanitize-env-vars.js";
 type ExecDockerRawOptions = {
     allowFailure?: boolean;
     input?: Buffer | string;
@@ -23,6 +23,7 @@ export declare function resolveDockerSpawnInvocation(args: string[], runtime?: D
 export declare function execDockerRaw(args: string[], opts?: ExecDockerRawOptions): Promise<ExecDockerRawResult>;
 import type { SandboxConfig, SandboxDockerConfig } from "./types.js";
 export type ExecDockerOptions = ExecDockerRawOptions;
+export declare function resolveDockerEnvPolicyEpoch(env: Record<string, string | undefined> | undefined): "explicit-config-env-v1" | undefined;
 export declare function execDocker(args: string[], opts?: ExecDockerOptions): Promise<{
     stdout: string;
     stderr: string;
@@ -33,6 +34,8 @@ export declare function readDockerContainerEnvVar(containerName: string, envVar:
 export declare function readDockerNetworkDriver(network: string): Promise<string | null>;
 export declare function readDockerNetworkGateway(network: string): Promise<string | null>;
 export declare function readDockerPort(containerName: string, port: number): Promise<number | null>;
+export declare function isDockerDaemonUnavailable(stderr: string): boolean;
+export declare function formatDockerDaemonUnavailableError(stderr: string): string;
 export declare function ensureDockerImage(image: string): Promise<void>;
 export declare function dockerContainerState(name: string): Promise<{
     exists: boolean;
@@ -50,6 +53,11 @@ export declare function buildSandboxCreateArgs(params: {
     allowSourcesOutsideAllowedRoots?: boolean;
     allowReservedContainerTargets?: boolean;
     allowContainerNamespaceJoin?: boolean;
+    /**
+     * @deprecated Docker container creation now treats cfg.env as explicit sandbox
+     * configuration and ignores host-env name filters. This field is kept so SDK
+     * callers with existing object literals do not hit excess-property failures.
+     */
     envSanitizationOptions?: EnvSanitizationOptions;
 }): string[];
 export declare function ensureSandboxContainer(params: {

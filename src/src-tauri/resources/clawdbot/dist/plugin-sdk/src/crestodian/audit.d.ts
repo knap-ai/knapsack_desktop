@@ -1,4 +1,4 @@
-export type CrestodianAuditEntry = {
+type CrestodianAuditEntry = {
     timestamp: string;
     operation: string;
     summary: string;
@@ -12,3 +12,4 @@ export declare function appendCrestodianAuditEntry(entry: Omit<CrestodianAuditEn
     env?: NodeJS.ProcessEnv;
     auditPath?: string;
 }): Promise<string>;
+export {};

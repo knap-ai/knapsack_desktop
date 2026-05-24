@@ -11,8 +11,10 @@ export type OpenClawPluginToolOptions = {
     workspaceDir?: string;
     config?: OpenClawConfig;
     fsPolicy?: ToolFsPolicy;
+    modelProvider?: string;
+    modelId?: string;
     requesterSenderId?: string | null;
-    senderIsOwner?: boolean;
+    requesterAgentIdOverride?: string;
     sessionId?: string;
     sandboxBrowserBridgeUrl?: string;
     allowHostBrowserControl?: boolean;
@@ -35,6 +37,11 @@ export declare function resolveOpenClawPluginToolInputs(params: {
         agentId: string;
         sessionKey: string | undefined;
         sessionId: string | undefined;
+        activeModel: {
+            provider?: string | undefined;
+            modelId?: string | undefined;
+            modelRef?: string | undefined;
+        } | undefined;
         browser: {
             sandboxBridgeUrl: string | undefined;
             allowHostControl: boolean | undefined;
@@ -45,7 +52,6 @@ export declare function resolveOpenClawPluginToolInputs(params: {
         agentAccountId: string | undefined;
         deliveryContext: import("../utils/delivery-context.types.ts").DeliveryContext | undefined;
         requesterSenderId: string | undefined;
-        senderIsOwner: boolean | undefined;
         sandboxed: boolean | undefined;
     };
     allowGatewaySubagentBinding: boolean | undefined;

@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 export { createMoonshotThinkingWrapper, resolveMoonshotThinkingKeep, resolveMoonshotThinkingType, } from "./moonshot-thinking-stream-wrappers.js";
 export declare function shouldApplySiliconFlowThinkingOffCompat(params: {

@@ -1,22 +1,30 @@
-import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
-import { u as resolveGatewayPort } from "../../paths-B2cMK-wd.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-WEYPFjsW.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { n as resolveGatewayBindUrl, t as resolveTailnetHostWithRunner } from "../../tailscale-status-TIS3YuXv.js";
-import { t as runPluginCommandWithTimeout } from "../../run-command-Dn8XvLAC.js";
-import { c as renderQrPngDataUrl, l as writeQrPngTempFile } from "../../media-runtime-BVjLGcae.js";
-import { t as PAIRING_SETUP_BOOTSTRAP_PROFILE } from "../../device-bootstrap-profile-BB7Yi_yP.js";
-import { l as listDevicePairing } from "../../device-pairing-wkouYy9B.js";
-import { i as issueDeviceBootstrapToken, o as revokeDeviceBootstrapToken, t as clearDeviceBootstrapTokens } from "../../device-bootstrap-C0mqX0qI.js";
-import "../../api-DKxf0G6T.js";
-import { i as registerPairingNotifierService, n as formatPendingRequests, r as handleNotifyCommand, t as armPairNotifyOnce } from "../../notify-Di4dCYgN.js";
-import { n as selectPendingApprovalRequest, t as approvePendingPairingRequest } from "../../pair-command-approve-D3oki1cg.js";
-import { n as resolvePairingCommandAuthState, t as buildMissingPairingScopeReply } from "../../pair-command-auth-DDhV5rfk.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString } from "../../string-coerce-DyL154ka.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
 import path from "node:path";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 //#region extensions/device-pair/index.ts
+let devicePairApiModulePromise;
+let notifyModulePromise;
+let pairCommandApproveModulePromise;
+let pairCommandAuthModulePromise;
+function loadDevicePairApiModule() {
+	devicePairApiModulePromise ??= import("./api.js");
+	return devicePairApiModulePromise;
+}
+function loadNotifyModule() {
+	notifyModulePromise ??= import("./notify.js");
+	return notifyModulePromise;
+}
+function loadPairCommandApproveModule() {
+	pairCommandApproveModulePromise ??= import("./pair-command-approve.js");
+	return pairCommandApproveModulePromise;
+}
+function loadPairCommandAuthModule() {
+	pairCommandAuthModulePromise ??= import("./pair-command-auth.js");
+	return pairCommandAuthModulePromise;
+}
 function formatDurationMinutes(expiresAtMs) {
 	const msRemaining = Math.max(0, expiresAtMs - Date.now());
 	const minutes = Math.max(1, Math.ceil(msRemaining / 6e4));
@@ -57,17 +65,22 @@ const QR_CHANNEL_SENDERS = {
 		...accountId ? { accountId } : {}
 	}) }
 };
+const GATEWAY_SCHEME_WITHOUT_AUTHORITY_RE = /^(?:https?|wss?):(?!\/\/)/i;
+const SCHEME_LIKE_PATH_RE = /^[A-Za-z][A-Za-z0-9+.-]*:\//;
 function normalizeUrl(raw, schemeFallback) {
 	const candidate = normalizeOptionalString(raw);
 	if (!candidate) return null;
+	if (GATEWAY_SCHEME_WITHOUT_AUTHORITY_RE.test(candidate)) return null;
 	const parsedUrl = parseNormalizedGatewayUrl(candidate);
 	if (parsedUrl) return parsedUrl;
+	if (candidate.includes("://") || SCHEME_LIKE_PATH_RE.test(candidate)) return null;
 	const hostPort = normalizeOptionalString(candidate.split("/", 1)[0]) ?? "";
-	return hostPort ? `${schemeFallback}://${hostPort}` : null;
+	return hostPort ? parseNormalizedGatewayUrl(`${schemeFallback}://${hostPort}`) : null;
 }
 function parseNormalizedGatewayUrl(raw) {
 	try {
 		const parsed = new URL(raw);
+		if (parsed.username || parsed.password) return null;
 		const scheme = parsed.protocol.slice(0, -1);
 		const normalizedScheme = scheme === "http" ? "ws" : scheme === "https" ? "wss" : scheme;
 		if (!(normalizedScheme === "ws" || normalizedScheme === "wss")) return null;
@@ -77,6 +90,25 @@ function parseNormalizedGatewayUrl(raw) {
 		return null;
 	}
 }
+function describeSecureMobilePairingFix(source) {
+	return "Tailscale and public mobile pairing require a secure gateway URL (wss://) or Tailscale Serve/Funnel." + (source ? ` Resolved source: ${source}.` : "") + " Fix: use a private LAN address, prefer gateway.tailscale.mode=serve, or set gateway.remote.url / plugins.entries.device-pair.config.publicUrl to a wss:// URL. ws:// setup codes are only valid for localhost/loopback, private LAN addresses, .local hosts, or the Android emulator.";
+}
+function normalizeHostForIpCheck(host) {
+	let normalized = normalizeLowercaseStringOrEmpty(host);
+	if (normalized.startsWith("[") && normalized.endsWith("]")) normalized = normalized.slice(1, -1);
+	if (normalized.endsWith(".")) normalized = normalized.slice(0, -1);
+	const zoneIndex = normalized.indexOf("%");
+	if (zoneIndex >= 0) normalized = normalized.slice(0, zoneIndex);
+	return normalized;
+}
+function isLoopbackHost(host) {
+	const normalized = normalizeHostForIpCheck(host);
+	if (!normalized) return false;
+	if (normalized === "localhost" || normalized === "0.0.0.0" || normalized === "::") return true;
+	const octets = parseIPv4Octets(normalized);
+	if (octets) return octets[0] === 127;
+	return normalized === "::1" || normalized === "0:0:0:0:0:0:0:1";
+}
 function resolveScheme(cfg, opts) {
 	if (opts?.forceSecure) return "wss";
 	return cfg.gateway?.tls?.enabled === true ? "wss" : "ws";
@@ -84,6 +116,7 @@ function resolveScheme(cfg, opts) {
 function parseIPv4Octets(address) {
 	const parts = address.split(".");
 	if (parts.length !== 4) return null;
+	if (parts.some((part) => !/^\d+$/.test(part))) return null;
 	const octets = parts.map((part) => Number.parseInt(part, 10));
 	if (octets.some((value) => !Number.isFinite(value) || value < 0 || value > 255)) return null;
 	return octets;
@@ -97,11 +130,35 @@ function isPrivateIPv4(address) {
 	if (a === 192 && b === 168) return true;
 	return false;
 }
+function isPrivateLanCleartextHost(host) {
+	const normalized = normalizeHostForIpCheck(host);
+	if (normalized.endsWith(".local")) return true;
+	if (isPrivateIPv4(normalized)) return true;
+	const octets = parseIPv4Octets(normalized);
+	if (!octets) return false;
+	return octets[0] === 169 && octets[1] === 254;
+}
 function isTailnetIPv4(address) {
 	const octets = parseIPv4Octets(address);
 	if (!octets) return false;
 	const [a, b] = octets;
 	return a === 100 && b >= 64 && b <= 127;
+}
+function isMobilePairingCleartextAllowedHost(host) {
+	const normalized = normalizeHostForIpCheck(host);
+	return isLoopbackHost(normalized) || normalized === "10.0.2.2" || isPrivateLanCleartextHost(normalized);
+}
+function validateMobilePairingUrl(url, source) {
+	let parsed;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return "Resolved mobile pairing URL is invalid.";
+	}
+	const protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol === "http:" ? "ws:" : parsed.protocol;
+	if (protocol === "wss:") return null;
+	if (protocol !== "ws:" || isMobilePairingCleartextAllowedHost(parsed.hostname)) return null;
+	return describeSecureMobilePairingFix(source);
 }
 function pickMatchingIPv4(predicate) {
 	const nets = os.networkInterfaces();
@@ -125,6 +182,7 @@ function pickTailnetIPv4() {
 	return pickMatchingIPv4(isTailnetIPv4);
 }
 async function resolveTailnetHost() {
+	const { resolveTailnetHostWithRunner, runPluginCommandWithTimeout } = await loadDevicePairApiModule();
 	return await resolveTailnetHostWithRunner((argv, opts) => runPluginCommandWithTimeout({
 		argv,
 		timeoutMs: opts.timeoutMs
@@ -154,6 +212,7 @@ function resolveRequiredAuthLabel(mode, values) {
 	return values.password ? { label: "password" } : { error: "Gateway auth is set to password, but no password is configured." };
 }
 async function resolveGatewayUrl(api) {
+	const { resolveGatewayBindUrl, resolveGatewayPort } = await loadDevicePairApiModule();
 	const cfg = api.config;
 	const pluginCfg = api.pluginConfig ?? {};
 	const scheme = resolveScheme(cfg);
@@ -167,6 +226,9 @@ async function resolveGatewayUrl(api) {
 		};
 		return { error: "Configured publicUrl is invalid." };
 	}
+	const configuredRemoteUrl = normalizeOptionalString(cfg.gateway?.remote?.url);
+	const remoteUrl = configuredRemoteUrl ? normalizeUrl(configuredRemoteUrl, scheme) : null;
+	if (configuredRemoteUrl && !remoteUrl) return { error: "Configured gateway.remote.url is invalid." };
 	const tailscaleMode = cfg.gateway?.tailscale?.mode ?? "off";
 	if (tailscaleMode === "serve" || tailscaleMode === "funnel") {
 		const host = await resolveTailnetHost();
@@ -176,14 +238,10 @@ async function resolveGatewayUrl(api) {
 			source: `gateway.tailscale.mode=${tailscaleMode}`
 		};
 	}
-	const remoteUrl = normalizeOptionalString(cfg.gateway?.remote?.url);
-	if (remoteUrl) {
-		const url = normalizeUrl(remoteUrl, scheme);
-		if (url) return {
-			url,
-			source: "gateway.remote.url"
-		};
-	}
+	if (remoteUrl) return {
+		url: remoteUrl,
+		source: "gateway.remote.url"
+	};
 	const bindResult = resolveGatewayBindUrl({
 		bind: cfg.gateway?.bind,
 		customBindHost: cfg.gateway?.customBindHost,
@@ -194,6 +252,13 @@ async function resolveGatewayUrl(api) {
 	});
 	if (bindResult) return bindResult;
 	return { error: "Gateway is only bound to loopback. Set gateway.bind=lan, enable tailscale serve, or configure plugins.entries.device-pair.config.publicUrl." };
+}
+async function resolveMobilePairingGatewayUrl(api) {
+	const result = await resolveGatewayUrl(api);
+	if (!result.url) return result;
+	const mobilePairingUrlError = validateMobilePairingUrl(result.url, result.source);
+	if (mobilePairingUrlError) return { error: mobilePairingUrlError };
+	return result;
 }
 function encodeSetupCode(payload) {
 	const json = JSON.stringify(payload);
@@ -295,19 +360,8 @@ function resolveQrReplyTarget(ctx) {
 	}
 	return normalizeOptionalString(ctx.senderId) || normalizeOptionalString(ctx.from) || normalizeOptionalString(ctx.to) || "";
 }
-const PAIR_SETUP_NON_ISSUING_ACTIONS = new Set([
-	"approve",
-	"cleanup",
-	"clear",
-	"notify",
-	"pending",
-	"revoke",
-	"status"
-]);
-function issuesPairSetupCode(action) {
-	return !action || action === "qr" || !PAIR_SETUP_NON_ISSUING_ACTIONS.has(action);
-}
 async function issueSetupPayload(url) {
+	const { issueDeviceBootstrapToken, PAIRING_SETUP_BOOTSTRAP_PROFILE } = await loadDevicePairApiModule();
 	const issuedBootstrap = await issueDeviceBootstrapToken({ profile: PAIRING_SETUP_BOOTSTRAP_PROFILE });
 	return {
 		url,
@@ -340,28 +394,51 @@ var device_pair_default = definePluginEntry({
 	name: "Device Pair",
 	description: "QR/bootstrap pairing helpers for OpenClaw devices",
 	register(api) {
-		registerPairingNotifierService(api);
+		let notifierService;
+		api.registerService({
+			id: "device-pair-notifier",
+			start: async (ctx) => {
+				const { createPairingNotifierService } = await loadNotifyModule();
+				notifierService = createPairingNotifierService(api);
+				await notifierService.start(ctx);
+			},
+			stop: async (ctx) => {
+				await notifierService?.stop?.(ctx);
+				notifierService = void 0;
+			}
+		});
 		api.registerCommand({
 			name: "pair",
 			description: "Generate setup codes and approve device pairing requests.",
 			acceptsArgs: true,
+			requiredScopes: ["operator.pairing"],
 			handler: async (ctx) => {
 				const tokens = (normalizeOptionalString(ctx.args) ?? "").split(/\s+/).filter(Boolean);
 				const action = normalizeLowercaseStringOrEmpty(tokens[0]);
 				const gatewayClientScopes = Array.isArray(ctx.gatewayClientScopes) ? ctx.gatewayClientScopes : void 0;
+				const { buildMissingPairingScopeReply, resolvePairingCommandAuthState } = await loadPairCommandAuthModule();
 				const authState = resolvePairingCommandAuthState({
 					channel: ctx.channel,
-					gatewayClientScopes
+					gatewayClientScopes,
+					senderIsOwner: ctx.senderIsOwner
 				});
 				api.logger.info?.(`device-pair: /pair invoked channel=${ctx.channel} sender=${ctx.senderId ?? "unknown"} action=${action || "new"}`);
-				if (action === "status" || action === "pending") return { text: formatPendingRequests((await listDevicePairing()).pending) };
-				if (action === "notify") return await handleNotifyCommand({
-					api,
-					ctx,
-					action: normalizeLowercaseStringOrEmpty(tokens[1]) || "status"
-				});
+				if (authState.isMissingPairingPrivilege) return buildMissingPairingScopeReply();
+				if (action === "status" || action === "pending") {
+					const [{ listDevicePairing }, { formatPendingRequests }] = await Promise.all([loadDevicePairApiModule(), loadNotifyModule()]);
+					return { text: formatPendingRequests((await listDevicePairing()).pending) };
+				}
+				if (action === "notify") {
+					const notifyAction = normalizeLowercaseStringOrEmpty(tokens[1]) || "status";
+					const { handleNotifyCommand } = await loadNotifyModule();
+					return await handleNotifyCommand({
+						api,
+						ctx,
+						action: notifyAction
+					});
+				}
 				if (action === "approve") {
-					if (authState.isMissingInternalPairingPrivilege) return buildMissingPairingScopeReply();
+					const [{ listDevicePairing }, { approvePendingPairingRequest, selectPendingApprovalRequest }] = await Promise.all([loadDevicePairApiModule(), loadPairCommandApproveModule()]);
 					const selected = selectPendingApprovalRequest({
 						pending: (await listDevicePairing()).pending,
 						requested: normalizeOptionalString(tokens[1])
@@ -375,14 +452,13 @@ var device_pair_default = definePluginEntry({
 					});
 				}
 				if (action === "cleanup" || action === "clear" || action === "revoke") {
-					if (authState.isMissingInternalPairingPrivilege) return buildMissingPairingScopeReply();
+					const { clearDeviceBootstrapTokens } = await loadDevicePairApiModule();
 					const cleared = await clearDeviceBootstrapTokens();
 					return { text: cleared.removed > 0 ? `Invalidated ${cleared.removed} unused setup code${cleared.removed === 1 ? "" : "s"}.` : "No unused setup codes were active." };
 				}
 				const authLabelResult = resolveAuthLabel(api.config);
 				if (authLabelResult.error) return { text: `Error: ${authLabelResult.error}` };
-				if (issuesPairSetupCode(action) && authState.isMissingInternalPairingPrivilege) return buildMissingPairingScopeReply();
-				const urlResult = await resolveGatewayUrl(api);
+				const urlResult = await resolveMobilePairingGatewayUrl(api);
 				if (!urlResult.url) return { text: `Error: ${urlResult.error ?? "Gateway URL unavailable."}` };
 				const authLabel = authLabelResult.label ?? "auth";
 				if (action === "qr") {
@@ -390,6 +466,7 @@ var device_pair_default = definePluginEntry({
 					const target = resolveQrReplyTarget(ctx);
 					let autoNotifyArmed = false;
 					if (channel === "telegram" && target) try {
+						const { armPairNotifyOnce } = await loadNotifyModule();
 						autoNotifyArmed = await armPairNotifyOnce({
 							api,
 							ctx
@@ -408,6 +485,7 @@ var device_pair_default = definePluginEntry({
 					if (target && canSendQrPngToChannel(channel)) {
 						let qrFilePath;
 						try {
+							const { resolvePreferredOpenClawTmpDir, writeQrPngTempFile } = await loadDevicePairApiModule();
 							qrFilePath = (await writeQrPngTempFile(setupCode, {
 								tmpRoot: resolvePreferredOpenClawTmpDir(),
 								dirPrefix: "device-pair-qr-",
@@ -425,6 +503,7 @@ var device_pair_default = definePluginEntry({
 								qrFilePath
 							})) return { text: `QR code sent above.\nExpires: ${formatDurationMinutes(payload.expiresAtMs)}\nIMPORTANT: Run /pair cleanup after pairing finishes.` };
 						} catch (err) {
+							const { revokeDeviceBootstrapToken } = await loadDevicePairApiModule();
 							api.logger.warn?.(`device-pair: QR image send failed channel=${channel}, falling back (${err?.message ?? err})`);
 							await revokeDeviceBootstrapToken({ token: payload.bootstrapToken }).catch(() => {});
 							payload = await issueSetupPayload(urlResult.url);
@@ -440,8 +519,10 @@ var device_pair_default = definePluginEntry({
 					if (channel === "webchat") {
 						let qrDataUrl;
 						try {
+							const { renderQrPngDataUrl } = await loadDevicePairApiModule();
 							qrDataUrl = await renderQrPngDataUrl(setupCode);
 						} catch (err) {
+							const { revokeDeviceBootstrapToken } = await loadDevicePairApiModule();
 							api.logger.warn?.(`device-pair: webchat QR render failed, falling back (${err?.message ?? err})`);
 							await revokeDeviceBootstrapToken({ token: payload.bootstrapToken }).catch(() => {});
 							payload = await issueSetupPayload(urlResult.url);

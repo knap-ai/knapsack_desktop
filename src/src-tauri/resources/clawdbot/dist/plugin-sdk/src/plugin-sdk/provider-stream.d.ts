@@ -1,14 +1,21 @@
 import type { ProviderPlugin } from "../plugins/types.js";
-export { applyAnthropicEphemeralCacheControlMarkers, applyAnthropicPayloadPolicyToParams, buildCopilotDynamicHeaders, composeProviderStreamWrappers, createBedrockNoCacheWrapper, createMoonshotThinkingWrapper, createToolStreamWrapper, createZaiToolStreamWrapper, defaultToolStreamExtraParams, hasCopilotVisionInput, isAnthropicBedrockModel, isOpenAICompatibleThinkingEnabled, type ProviderStreamWrapperFactory, resolveAnthropicPayloadPolicy, resolveMoonshotThinkingType, streamWithPayloadPatch, } from "./provider-stream-shared.js";
+export { applyAnthropicEphemeralCacheControlMarkers, applyAnthropicPayloadPolicyToParams, composeProviderStreamWrappers, createAnthropicThinkingPrefillPayloadWrapper, createMoonshotThinkingWrapper, createToolStreamWrapper, createZaiToolStreamWrapper, defaultToolStreamExtraParams, isOpenAICompatibleThinkingEnabled, type ProviderStreamWrapperFactory, resolveAnthropicPayloadPolicy, resolveMoonshotThinkingType, streamWithPayloadPatch, stripTrailingAnthropicAssistantPrefillWhenThinking, } from "./provider-stream-shared.js";
 export type ProviderStreamFamily = "google-thinking" | "kilocode-thinking" | "moonshot-thinking" | "minimax-fast-mode" | "openai-responses-defaults" | "openrouter-thinking" | "tool-stream-default-on";
 type ProviderStreamFamilyHooks = Pick<ProviderPlugin, "wrapStreamFn">;
 export declare function buildProviderStreamFamilyHooks(family: ProviderStreamFamily): ProviderStreamFamilyHooks;
+/** @deprecated Google provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const GOOGLE_THINKING_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated Kilocode provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const KILOCODE_THINKING_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated Moonshot provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const MOONSHOT_THINKING_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated MiniMax provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const MINIMAX_FAST_MODE_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated OpenAI provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const OPENAI_RESPONSES_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated OpenRouter provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const OPENROUTER_THINKING_STREAM_HOOKS: ProviderStreamFamilyHooks;
+/** @deprecated Provider-owned stream hook shortcut; use local provider hooks instead. */
 export declare const TOOL_STREAM_DEFAULT_ON_HOOKS: ProviderStreamFamilyHooks;
 export { createAnthropicToolPayloadCompatibilityWrapper, createOpenAIAnthropicToolPayloadCompatibilityWrapper, } from "../agents/pi-embedded-runner/anthropic-family-tool-payload-compat.js";
 export { createGoogleThinkingPayloadWrapper, sanitizeGoogleThinkingPayload, } from "../agents/pi-embedded-runner/google-stream-wrappers.js";

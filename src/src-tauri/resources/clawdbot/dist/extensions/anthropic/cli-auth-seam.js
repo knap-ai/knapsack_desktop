@@ -1,13 +1,2 @@
-import { readClaudeCliCredentialsCached } from "openclaw/plugin-sdk/provider-auth";
-//#region extensions/anthropic/cli-auth-seam.ts
-function readClaudeCliCredentialsForSetup() {
-	return readClaudeCliCredentialsCached();
-}
-function readClaudeCliCredentialsForSetupNonInteractive() {
-	return readClaudeCliCredentialsCached({ allowKeychainPrompt: false });
-}
-function readClaudeCliCredentialsForRuntime() {
-	return readClaudeCliCredentialsCached({ allowKeychainPrompt: false });
-}
-//#endregion
+import { n as readClaudeCliCredentialsForSetup, r as readClaudeCliCredentialsForSetupNonInteractive, t as readClaudeCliCredentialsForRuntime } from "../../cli-auth-seam-CIW1ksPk.js";
 export { readClaudeCliCredentialsForRuntime, readClaudeCliCredentialsForSetup, readClaudeCliCredentialsForSetupNonInteractive };

@@ -1,3 +1,5 @@
+import type { PluginInstallRecord } from "../../config/types.plugins.js";
+import type { PluginDiscoveryResult } from "../../plugins/discovery.js";
 import { type PluginInstallSourceInfo } from "../../plugins/install-source-info.js";
 import type { PluginPackageInstall } from "../../plugins/manifest.js";
 import type { PluginOrigin } from "../../plugins/plugin-origin.types.js";
@@ -16,14 +18,18 @@ export type ChannelUiCatalog = {
     systemImages: Record<string, string>;
     byId: Record<string, ChannelUiMetaEntry>;
 };
+export type ChannelPluginCatalogInstall = PluginPackageInstall & ({
+    clawhubSpec: string;
+} | {
+    npmSpec: string;
+});
 export type ChannelPluginCatalogEntry = {
     id: string;
     pluginId?: string;
     origin?: PluginOrigin;
+    trustedSourceLinkedOfficialInstall?: boolean;
     meta: ChannelMeta;
-    install: PluginPackageInstall & {
-        npmSpec: string;
-    };
+    install: ChannelPluginCatalogInstall;
     installSource?: PluginInstallSourceInfo;
 };
 type CatalogOptions = {
@@ -32,6 +38,8 @@ type CatalogOptions = {
     officialCatalogPaths?: string[];
     env?: NodeJS.ProcessEnv;
     excludeWorkspace?: boolean;
+    installRecords?: Record<string, PluginInstallRecord>;
+    discovery?: PluginDiscoveryResult;
 };
 export declare function buildChannelUiCatalog(plugins: Array<{
     id: string;

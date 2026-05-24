@@ -16,6 +16,7 @@ type SummaryLike = Pick<StatusSummary, "tasks" | "taskAudit" | "heartbeat" | "se
 type MemoryLike = MemoryStatusSnapshot | null;
 type MemoryPluginLike = MemoryPluginStatus;
 type SessionsRecentLike = SessionStatus;
+type EventLoopHealthLike = NonNullable<HealthSummary["eventLoop"]>;
 export type StatusMemoryStateResolvers = {
     resolveMemoryVectorState: (value: NonNullable<MemoryStatusSnapshot["vector"]>) => {
         state: string;
@@ -65,6 +66,7 @@ export declare function buildStatusMemoryValue(params: {
     ok: (value: string) => string;
     warn: (value: string) => string;
     muted: (value: string) => string;
+    memoryUnavailableLabel?: string;
 } & StatusMemoryStateResolvers): string;
 export declare function buildStatusSecurityAuditLines(params: {
     securityAudit: {
@@ -97,6 +99,7 @@ export declare function buildStatusHealthRows(params: {
     warn: (value: string) => string;
     muted: (value: string) => string;
 }): Record<string, string>[];
+export declare function formatEventLoopHealthDetail(eventLoop: EventLoopHealthLike): string;
 export declare function buildStatusSessionsRows(params: {
     recent: SessionsRecentLike[];
     verbose?: boolean;
@@ -107,12 +110,20 @@ export declare function buildStatusSessionsRows(params: {
     muted: (value: string) => string;
 }): {
     Key: string;
-    Kind: string;
+    Kind: import("../sessions/classify-session-kind.ts").SessionKind;
     Age: string;
     Model: string;
+    Runtime: string;
     Tokens: string;
     Cache?: string | undefined;
 }[];
+export declare function buildStatusModelSelectionLines(params: {
+    recent: SessionsRecentLike[];
+    limit?: number;
+    shortenText: (value: string, maxLen: number) => string;
+    warn: (value: string) => string;
+    muted: (value: string) => string;
+}): string[];
 export declare function buildStatusFooterLines(params: {
     updateHint: string | null;
     warn: (value: string) => string;

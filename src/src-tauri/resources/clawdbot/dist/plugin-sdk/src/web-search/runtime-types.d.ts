@@ -6,13 +6,16 @@ type WebSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer
 } ? Search : undefined : undefined;
 export type ResolveWebSearchDefinitionParams = {
     config?: OpenClawConfig;
+    agentDir?: string;
     sandboxed?: boolean;
     runtimeWebSearch?: RuntimeWebSearchMetadata;
     providerId?: string;
     preferRuntimeProviders?: boolean;
+    preferInputConfig?: boolean;
 };
 export type RunWebSearchParams = ResolveWebSearchDefinitionParams & {
     args: Record<string, unknown>;
+    signal?: AbortSignal;
 };
 export type RunWebSearchResult = {
     provider: string;

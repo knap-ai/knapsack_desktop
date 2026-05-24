@@ -1,5 +1,4 @@
 import type { FailoverReason } from "../../pi-embedded-helpers.js";
-export type RunFailoverDecisionAction = "continue_normal" | "rotate_profile" | "fallback_model" | "surface_error" | "return_error_payload";
 export type RunFailoverDecision = {
     action: "continue_normal";
 } | {
@@ -27,6 +26,7 @@ type RetryLimitDecisionParams = {
 };
 type PromptDecisionParams = {
     stage: "prompt";
+    allowFormatRetry?: boolean;
     aborted: boolean;
     externalAbort: boolean;
     fallbackConfigured: boolean;
@@ -36,13 +36,16 @@ type PromptDecisionParams = {
 };
 type AssistantDecisionParams = {
     stage: "assistant";
+    allowFormatRetry?: boolean;
     aborted: boolean;
     externalAbort: boolean;
     fallbackConfigured: boolean;
     failoverFailure: boolean;
     failoverReason: FailoverReason | null;
     timedOut: boolean;
+    idleTimedOut: boolean;
     timedOutDuringCompaction: boolean;
+    timedOutDuringToolExecution: boolean;
     profileRotated: boolean;
 };
 export type RunFailoverDecisionParams = RetryLimitDecisionParams | PromptDecisionParams | AssistantDecisionParams;

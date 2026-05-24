@@ -1,4 +1,4 @@
-import type { Component, TUI } from "@mariozechner/pi-tui";
+import type { Component, TUI } from "@earendil-works/pi-tui";
 import type { SessionsPatchResult } from "../gateway/protocol/index.js";
 import type { ChatLog } from "./components/chat-log.js";
 import type { TuiBackend } from "./tui-backend.js";

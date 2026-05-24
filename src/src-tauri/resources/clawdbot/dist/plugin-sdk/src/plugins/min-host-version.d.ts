@@ -1,4 +1,4 @@
-export declare const MIN_HOST_VERSION_FORMAT = "openclaw.install.minHostVersion must use a semver floor in the form \">=x.y.z\"";
+export declare const MIN_HOST_VERSION_FORMAT = "openclaw.install.minHostVersion must use a semver floor in the form \">=x.y.z[-prerelease][+build]\"";
 export type MinHostVersionRequirement = {
     raw: string;
     minimumLabel: string;
@@ -20,9 +20,12 @@ export type MinHostVersionCheckResult = {
     requirement: MinHostVersionRequirement;
     currentVersion: string;
 };
-export declare function parseMinHostVersionRequirement(raw: unknown): MinHostVersionRequirement | null;
+export declare function parseMinHostVersionRequirement(raw: unknown, options?: {
+    allowLegacyBareSemver?: boolean;
+}): MinHostVersionRequirement | null;
 export declare function validateMinHostVersion(raw: unknown): string | null;
 export declare function checkMinHostVersion(params: {
     currentVersion: string | undefined;
     minHostVersion: unknown;
+    allowLegacyBareSemver?: boolean;
 }): MinHostVersionCheckResult;

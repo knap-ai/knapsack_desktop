@@ -9,10 +9,13 @@ export declare function getHealthSnapshot(params?: {
     probe?: boolean;
     includeSensitive?: boolean;
     runtimeSnapshot?: ChannelRuntimeSnapshot;
+    eventLoop?: HealthSummary["eventLoop"];
 }): Promise<HealthSummary>;
 export declare function healthCommand(opts: {
     json?: boolean;
     timeoutMs?: number;
     verbose?: boolean;
     config?: OpenClawConfig;
+    token?: string;
+    password?: string;
 }, runtime: RuntimeEnv): Promise<void>;

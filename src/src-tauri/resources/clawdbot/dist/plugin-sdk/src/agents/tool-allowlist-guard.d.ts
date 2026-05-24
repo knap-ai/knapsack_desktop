@@ -1,10 +1,12 @@
-export type ExplicitToolAllowlistSource = {
+type ExplicitToolAllowlistSource = {
     label: string;
     entries: string[];
+    enforceWhenToolsDisabled?: boolean;
 };
 export declare function collectExplicitToolAllowlistSources(sources: Array<{
     label: string;
     allow?: string[];
+    enforceWhenToolsDisabled?: boolean;
 }>): ExplicitToolAllowlistSource[];
 export declare function buildEmptyExplicitToolAllowlistError(params: {
     sources: ExplicitToolAllowlistSource[];
@@ -12,3 +14,4 @@ export declare function buildEmptyExplicitToolAllowlistError(params: {
     toolsEnabled: boolean;
     disableTools?: boolean;
 }): Error | null;
+export {};

@@ -15,6 +15,7 @@ export type AcpDispatchDeliveryCoordinator = {
     getAccumulatedBlockText: () => string;
     getAccumulatedVisibleBlockText: () => string;
     getAccumulatedBlockTtsText: () => string;
+    getAccumulatedFinalText: () => string;
     settleVisibleText: () => Promise<void>;
     hasDeliveredFinalReply: () => boolean;
     hasDeliveredVisibleText: () => boolean;
@@ -32,8 +33,10 @@ export declare function createAcpDispatchDeliveryCoordinator(params: {
     sessionTtsAuto?: TtsAutoMode;
     ttsChannel?: string;
     suppressUserDelivery?: boolean;
+    suppressReplyLifecycle?: boolean;
     shouldRouteToOriginating: boolean;
     originatingChannel?: string;
     originatingTo?: string;
     onReplyStart?: () => Promise<void> | void;
+    abortSignal?: AbortSignal;
 }): AcpDispatchDeliveryCoordinator;

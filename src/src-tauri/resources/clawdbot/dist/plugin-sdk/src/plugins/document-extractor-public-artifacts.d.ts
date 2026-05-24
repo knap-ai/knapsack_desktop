@@ -3,4 +3,3 @@ export declare function loadBundledDocumentExtractorEntriesFromDir(params: {
     dirName: string;
     pluginId: string;
 }): PluginDocumentExtractorEntry[] | null;
-export declare function hasBundledDocumentExtractorPublicArtifact(pluginId: string): boolean;

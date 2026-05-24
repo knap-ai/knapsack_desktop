@@ -1,4 +1,4 @@
-export type AgentTraceBase = {
+type AgentTraceBase = {
     runId?: string;
     sessionId?: string;
     sessionKey?: string;
@@ -8,3 +8,4 @@ export type AgentTraceBase = {
     workspaceDir?: string;
 };
 export declare function buildAgentTraceBase(params: AgentTraceBase): AgentTraceBase;
+export {};

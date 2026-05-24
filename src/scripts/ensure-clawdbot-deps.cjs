@@ -30,7 +30,8 @@ function runNpmInstall(cwd, label) {
   // Prefer `npm ci` when a lockfile is present — it does a clean install from the
   // lockfile and catches version mismatches that `npm install` silently ignores.
   // Falls back to `npm install` when no lockfile exists (e.g. target debug dir).
-  const hasLockfile = fs.existsSync(path.join(cwd, 'package-lock.json'));
+  const hasLockfile = fs.existsSync(path.join(cwd, 'npm-shrinkwrap.json'))
+    || fs.existsSync(path.join(cwd, 'package-lock.json'));
   const cmd = hasLockfile
     ? 'npm ci --ignore-scripts --no-audit --no-fund'
     : 'npm install --omit=dev --ignore-scripts --no-audit --no-fund';
@@ -65,8 +66,10 @@ function needsMainInstall(clawdbotDir) {
   }
 }
 
-function findPluginsNeedingRuntimeDeps(extensionsDir) {
+function findPluginsNeedingRuntimeDeps(clawdbotDir) {
+  const extensionsDir = path.join(clawdbotDir, 'dist', 'extensions');
   if (!fs.existsSync(extensionsDir)) return [];
+  const rootNodeModules = path.join(clawdbotDir, 'node_modules');
   const plugins = [];
   for (const entry of fs.readdirSync(extensionsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -76,10 +79,15 @@ function findPluginsNeedingRuntimeDeps(extensionsDir) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       const staged = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true;
       if (!staged) continue;
+      const pluginDeps = Object.keys(pkg.dependencies || {});
+      // Prefer the root bundle's node_modules. This avoids extension-local
+      // installs for upstream package.json files that contain workspace: deps.
+      if (pluginDeps.length > 0 && pluginDeps.every(dep => fs.existsSync(path.join(rootNodeModules, dep)))) {
+        continue;
+      }
       // Skip if the plugin's own node_modules already has all deps.
       const pluginNodeModules = path.join(extensionsDir, entry.name, 'node_modules');
       if (fs.existsSync(pluginNodeModules)) {
-        const pluginDeps = Object.keys(pkg.dependencies || {});
         const allPresent = pluginDeps.every(dep => fs.existsSync(path.join(pluginNodeModules, dep)));
         if (allPresent) continue;
       }
@@ -114,7 +122,7 @@ for (const dir of clawdbotDirs) {
 for (const dir of clawdbotDirs) {
   const extensionsDir = path.join(dir, 'dist', 'extensions');
   if (!fs.existsSync(extensionsDir)) continue;
-  const pluginsToInstall = findPluginsNeedingRuntimeDeps(extensionsDir);
+  const pluginsToInstall = findPluginsNeedingRuntimeDeps(dir);
   if (pluginsToInstall.length > 0) {
     console.log(
       `[ensure-clawdbot-deps] Installing runtime deps for ${pluginsToInstall.length} bundled plugin(s) in ${path.relative(path.join(__dirname, '..'), extensionsDir)}: ${pluginsToInstall.join(', ')}`,

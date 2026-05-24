@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { EmbeddedRunTrigger } from "./params.js";
 /**
@@ -14,6 +14,11 @@ export declare function resolveLlmIdleTimeoutMs(params?: {
     trigger?: EmbeddedRunTrigger;
     runTimeoutMs?: number;
     modelRequestTimeoutMs?: number;
+    model?: {
+        baseUrl?: string;
+        id?: string;
+        provider?: string;
+    };
 }): number;
 /**
  * Wraps a stream function with idle timeout detection.

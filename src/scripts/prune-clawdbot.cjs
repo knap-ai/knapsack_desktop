@@ -77,10 +77,10 @@ for (const ext of UNUSED_EXTENSIONS) {
 // resolved at runtime from node_modules/chalk/ (a minimal shim committed to git).
 // Removing it causes ERR_MODULE_NOT_FOUND on gateway startup.
 const UNUSED_PACKAGES = [
-  '@node-llama-cpp', 'node-llama-cpp', 'pdfjs-dist', '@napi-rs', '@img',
-  'sharp', '@larksuiteoapi', 'typescript', '@cloudflare',
-  'web-streams-polyfill', 'bun-types', '@lydell/node-pty',
-  '@mozilla/readability', 'linkedom', 'signal-utils', 'sqlite-vec',
+  '@node-llama-cpp', 'node-llama-cpp', '@napi-rs', '@img',
+  'sharp', '@larksuiteoapi', '@cloudflare',
+  'web-streams-polyfill', 'bun-types',
+  'signal-utils', 'sqlite-vec',
   // jimp is new in openclaw 2026.4.15 and adds ~10k files (including test image
   // snapshots). Not needed for the Knapsack-bundled gateway use case.
   'jimp', '@jimp',
@@ -262,6 +262,15 @@ const LONG_PATH_PACKAGE_SUBDIRS = [
   path.join('@mistralai', 'mistralai', 'src'),
 ];
 
+const EXTENSION_UNUSED_PACKAGES = [
+  // Optional native image acceleration pulled in under WhatsApp/Jimp. The
+  // channel only needs Jimp's JS QR/media path for Knapsack's bundled runtime,
+  // and keeping Sharp adds platform-native payloads that push WhatsApp over the
+  // extension-local size gate.
+  '@img',
+  'sharp',
+];
+
 if (fs.existsSync(distExtensionsDir)) {
   try {
     for (const extEntry of fs.readdirSync(distExtensionsDir, { withFileTypes: true })) {
@@ -278,6 +287,12 @@ if (fs.existsSync(distExtensionsDir)) {
           const target = path.join(extNodeModules, subdir);
           if (rmDir(target)) {
             console.log(`[prune-clawdbot]     removed long-path subdir: ${extEntry.name}/node_modules/${subdir.replace(/\\/g, '/')}`);
+          }
+        }
+        for (const pkg of EXTENSION_UNUSED_PACKAGES) {
+          const target = path.join(extNodeModules, pkg);
+          if (rmDir(target)) {
+            console.log(`[prune-clawdbot]     removed extension package: ${extEntry.name}/node_modules/${pkg}`);
           }
         }
 

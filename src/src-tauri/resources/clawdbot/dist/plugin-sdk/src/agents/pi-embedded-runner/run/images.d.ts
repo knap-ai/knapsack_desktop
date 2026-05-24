@@ -1,4 +1,4 @@
-import type { ImageContent } from "@mariozechner/pi-ai";
+import type { ImageContent } from "@earendil-works/pi-ai";
 import type { PromptImageOrderEntry } from "../../../media/prompt-image-order.js";
 import type { SandboxFsBridge } from "../../sandbox/fs-bridge.js";
 /**
@@ -22,6 +22,7 @@ export declare function splitPromptAndAttachmentRefs(params: {
     prompt: string;
     refs: DetectedImageRef[];
     imageOrder?: PromptImageOrderEntry[];
+    existingImageCount?: number;
 }): {
     promptRefs: DetectedImageRef[];
     attachmentRefs: DetectedImageRef[];

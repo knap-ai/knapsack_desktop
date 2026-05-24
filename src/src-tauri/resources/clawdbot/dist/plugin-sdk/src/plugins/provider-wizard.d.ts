@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { ProviderAuthMethod, ProviderPlugin, ProviderPluginWizardSetup } from "./types.js";
-export declare const PROVIDER_PLUGIN_CHOICE_PREFIX = "provider-plugin:";
 export type ProviderWizardOption = {
     value: string;
     label: string;
@@ -9,15 +8,22 @@ export type ProviderWizardOption = {
     groupId: string;
     groupLabel: string;
     groupHint?: string;
-    onboardingScopes?: Array<"text-inference" | "image-generation">;
+    onboardingScopes?: Array<"text-inference" | "image-generation" | "music-generation">;
     assistantPriority?: number;
     assistantVisibility?: "visible" | "manual-only";
+    onboardingFeatured?: boolean;
 };
 export type ProviderModelPickerEntry = {
     value: string;
     label: string;
     hint?: string;
 };
+type ProviderWizardProvidersResolver = (params: {
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+}) => ProviderPlugin[];
+export declare function setProviderWizardProvidersResolverForTest(resolver: ProviderWizardProvidersResolver | undefined): () => void;
 export declare function buildProviderPluginMethodChoice(providerId: string, methodId: string): string;
 export declare function resolveProviderWizardOptions(params: {
     config?: OpenClawConfig;
@@ -45,3 +51,4 @@ export declare function runProviderModelSelectedHook(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
 }): Promise<void>;
+export {};

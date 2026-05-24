@@ -27,9 +27,15 @@ export type UpdateRunResult = {
     durationMs: number;
     postUpdate?: {
         plugins?: {
-            status: "ok" | "skipped" | "error";
+            status: "ok" | "warning" | "skipped" | "error";
             reason?: string;
             changed: boolean;
+            warnings?: Array<{
+                pluginId?: string;
+                reason: string;
+                message: string;
+                guidance: string[];
+            }>;
             sync: {
                 changed: boolean;
                 switchedToBundled: string[];
@@ -85,6 +91,7 @@ type UpdateRunnerOptions = {
     tag?: string;
     channel?: UpdateChannel;
     devTargetRef?: string;
+    deferConfiguredPluginInstallRepair?: boolean;
     timeoutMs?: number;
     runCommand?: CommandRunner;
     progress?: UpdateStepProgress;

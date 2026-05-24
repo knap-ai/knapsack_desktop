@@ -189,6 +189,11 @@ export declare const ExecApprovalRequestParamsSchema: Type.TObject<{
     host: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
     security: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
     ask: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    warningText: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
+    commandSpans: Type.TOptional<Type.TArray<Type.TObject<{
+        startIndex: Type.TInteger;
+        endIndex: Type.TInteger;
+    }>>>;
     agentId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
     resolvedPath: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;
     sessionKey: Type.TOptional<Type.TUnion<[Type.TString, Type.TNull]>>;

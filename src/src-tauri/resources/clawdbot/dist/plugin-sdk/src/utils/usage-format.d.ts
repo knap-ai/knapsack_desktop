@@ -36,6 +36,7 @@ export type UsageTotals = {
 };
 export declare function formatTokenCount(value?: number): string;
 export declare function formatUsd(value?: number): string | undefined;
+export declare function resolveModelCostConfigFingerprint(config?: OpenClawConfig): string;
 export declare function resolveModelCostConfig(params: {
     provider?: string;
     model?: string;
@@ -46,4 +47,4 @@ export declare function estimateUsageCost(params: {
     usage?: NormalizedUsage | UsageTotals | null;
     cost?: ModelCostConfig;
 }): number | undefined;
-export declare function __resetUsageFormatCachesForTest(): void;
+export declare function resetUsageFormatCachesForTest(): void;

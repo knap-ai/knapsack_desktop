@@ -1,4 +1,4 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 export type ApplyPatchSummary = {
@@ -6,11 +6,11 @@ export type ApplyPatchSummary = {
     modified: string[];
     deleted: string[];
 };
-export type ApplyPatchResult = {
+type ApplyPatchResult = {
     summary: ApplyPatchSummary;
     text: string;
 };
-export type ApplyPatchToolDetails = {
+type ApplyPatchToolDetails = {
     summary: ApplyPatchSummary;
 };
 type SandboxApplyPatchConfig = {

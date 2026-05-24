@@ -3,6 +3,7 @@ import type { AgentToolWithMeta } from "./tools/common.js";
 export type ProcessToolDefaults = {
     cleanupMs?: number;
     hasCronTool?: boolean;
+    inputWaitIdleMs?: number;
     scopeKey?: string;
 };
 export declare function createProcessTool(defaults?: ProcessToolDefaults): AgentToolWithMeta<typeof processSchema, unknown>;

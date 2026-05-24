@@ -1,5 +1,5 @@
 import type { PluginInstallRecord } from "../config/types.plugins.js";
-export type PluginInstallPathIssue = {
+type PluginInstallPathIssue = {
     kind: "custom-path" | "missing-path";
     pluginId: string;
     path: string;
@@ -15,3 +15,4 @@ export declare function formatPluginInstallPathIssue(params: {
     repoInstallCommand?: string | null;
     formatCommand?: (command: string) => string;
 }): string[];
+export {};

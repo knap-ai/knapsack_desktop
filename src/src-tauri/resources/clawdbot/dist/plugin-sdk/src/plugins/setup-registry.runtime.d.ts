@@ -1,3 +1,4 @@
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 type SetupRegistryRuntimeModule = Pick<typeof import("./setup-registry.js"), "resolvePluginSetupCliBackend">;
 type SetupCliBackendRuntimeEntry = {
     pluginId: string;
@@ -5,11 +6,15 @@ type SetupCliBackendRuntimeEntry = {
         id: string;
     };
 };
-export declare const __testing: {
+type SetupCliBackendRuntimeLookupParams = {
+    backend: string;
+    config?: OpenClawConfig;
+    workspaceDir?: string;
+    env?: NodeJS.ProcessEnv;
+};
+export declare const testing: {
     resetRuntimeState(): void;
     setRuntimeModuleForTest(module: SetupRegistryRuntimeModule | null | undefined): void;
 };
-export declare function resolvePluginSetupCliBackendRuntime(params: {
-    backend: string;
-}): SetupCliBackendRuntimeEntry | undefined;
-export {};
+export declare function resolvePluginSetupCliBackendRuntime(params: SetupCliBackendRuntimeLookupParams): SetupCliBackendRuntimeEntry | undefined;
+export { testing as __testing };

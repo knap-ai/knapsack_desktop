@@ -1,4 +1,4 @@
-export type SystemRunCommandValidation = {
+type SystemRunCommandValidation = {
     ok: true;
     shellPayload: string | null;
     commandText: string;
@@ -8,7 +8,7 @@ export type SystemRunCommandValidation = {
     message: string;
     details?: Record<string, unknown>;
 };
-export type ResolvedSystemRunCommand = {
+type ResolvedSystemRunCommand = {
     ok: true;
     argv: string[];
     commandText: string;
@@ -34,3 +34,4 @@ export declare function resolveSystemRunCommandRequest(params: {
     command?: unknown;
     rawCommand?: unknown;
 }): ResolvedSystemRunCommand;
+export {};

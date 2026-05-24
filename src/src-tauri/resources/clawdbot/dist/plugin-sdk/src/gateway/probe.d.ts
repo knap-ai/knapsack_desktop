@@ -51,7 +51,9 @@ export declare function probeGateway(opts: {
     url: string;
     auth?: GatewayProbeAuth;
     timeoutMs: number;
+    preauthHandshakeTimeoutMs?: number;
     includeDetails?: boolean;
     detailLevel?: "none" | "presence" | "full";
     tlsFingerprint?: string;
+    env?: NodeJS.ProcessEnv;
 }): Promise<GatewayProbeResult>;

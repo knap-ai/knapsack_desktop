@@ -1,6 +1,7 @@
 import type { FallbackAttempt } from "../agents/model-fallback.types.js";
 import type { AgentModelConfig } from "../config/types.agents-shared.js";
 import type { OpenClawConfig } from "../config/types.js";
+import { getProviderEnvVars as getDefaultProviderEnvVars } from "../secrets/provider-env-vars.js";
 import type { MediaGenerationNormalizationMetadataInput, MediaNormalizationEntry, MediaNormalizationValue } from "./normalization.types.js";
 export type ParsedProviderModelRef = {
     provider: string;
@@ -14,9 +15,16 @@ export declare function recordCapabilityCandidateFailure(params: {
     error: unknown;
 }): void;
 export declare function hasMediaNormalizationEntry<TValue extends MediaNormalizationValue>(entry: MediaNormalizationEntry<TValue> | undefined): entry is MediaNormalizationEntry<TValue>;
+export declare function resolveMediaProviderDefaultTimeoutMs(timeoutMs: number | undefined): number | undefined;
+export declare function resolveMediaProviderRequestTimeoutMs(params: {
+    timeoutMs?: number;
+    providerDefaultTimeoutMs?: number;
+}): number | undefined;
 type CapabilityProviderCandidate = {
     id: string;
+    aliases?: readonly string[];
     defaultModel?: string | null;
+    models?: readonly string[];
     isConfigured?: (ctx: {
         cfg?: OpenClawConfig;
         agentDir?: string;
@@ -66,4 +74,5 @@ export declare function buildNoCapabilityModelConfiguredMessage(params: {
         defaultModel?: string | null;
     }>;
     fallbackSampleRef?: string;
+    getProviderEnvVars?: typeof getDefaultProviderEnvVars;
 }): string;

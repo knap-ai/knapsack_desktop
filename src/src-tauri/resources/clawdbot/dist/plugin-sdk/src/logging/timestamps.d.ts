@@ -1,6 +1,6 @@
 export declare function isValidTimeZone(tz: string): boolean;
-export type TimestampStyle = "short" | "medium" | "long";
-export type FormatTimestampOptions = {
+type TimestampStyle = "short" | "medium" | "long";
+type FormatTimestampOptions = {
     style?: TimestampStyle;
     timeZone?: string;
 };
@@ -10,3 +10,4 @@ export declare function formatTimestamp(date: Date, options?: FormatTimestampOpt
  * This function will be removed in a future version.
  */
 export declare function formatLocalIsoWithOffset(now: Date, timeZone?: string): string;
+export {};

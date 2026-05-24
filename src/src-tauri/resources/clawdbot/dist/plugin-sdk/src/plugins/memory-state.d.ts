@@ -61,6 +61,7 @@ export type MemoryFlushPlan = {
     softThresholdTokens: number;
     forceFlushTranscriptBytes: number;
     reserveTokensFloor: number;
+    model?: string;
     prompt: string;
     systemPrompt: string;
     relativePath: string;
@@ -83,7 +84,7 @@ export type MemoryPluginRuntime = {
     getMemorySearchManager(params: {
         cfg: OpenClawConfig;
         agentId: string;
-        purpose?: "default" | "status";
+        purpose?: "default" | "status" | "cli";
     }): Promise<{
         manager: RegisteredMemorySearchManager | null;
         error?: string;
@@ -92,6 +93,10 @@ export type MemoryPluginRuntime = {
         cfg: OpenClawConfig;
         agentId: string;
     }): MemoryRuntimeBackendConfig;
+    closeMemorySearchManager?(params: {
+        cfg: OpenClawConfig;
+        agentId: string;
+    }): Promise<void>;
     closeAllMemorySearchManagers?(): Promise<void>;
 };
 export type MemoryPluginPublicArtifactContentType = "markdown" | "json" | "text";
@@ -122,9 +127,6 @@ type MemoryPluginState = {
     capability?: MemoryPluginCapabilityRegistration;
     corpusSupplements: MemoryCorpusSupplementRegistration[];
     promptSupplements: MemoryPromptSupplementRegistration[];
-    promptBuilder?: MemoryPromptSectionBuilder;
-    flushPlanResolver?: MemoryFlushPlanResolver;
-    runtime?: MemoryPluginRuntime;
 };
 export declare function registerMemoryCorpusSupplement(pluginId: string, supplement: MemoryCorpusSupplement): void;
 export declare function registerMemoryCapability(pluginId: string, capability: MemoryPluginCapability): void;
@@ -132,6 +134,7 @@ export declare function getMemoryCapabilityRegistration(): MemoryPluginCapabilit
 export declare function listMemoryCorpusSupplements(): MemoryCorpusSupplementRegistration[];
 /** @deprecated Use registerMemoryCapability(pluginId, { promptBuilder }) instead. */
 export declare function registerMemoryPromptSection(builder: MemoryPromptSectionBuilder): void;
+export declare function registerMemoryPromptSectionForPlugin(pluginId: string, builder: MemoryPromptSectionBuilder): void;
 export declare function registerMemoryPromptSupplement(pluginId: string, builder: MemoryPromptSectionBuilder): void;
 export declare function buildMemoryPromptSection(params: {
     availableTools: Set<string>;
@@ -141,6 +144,7 @@ export declare function getMemoryPromptSectionBuilder(): MemoryPromptSectionBuil
 export declare function listMemoryPromptSupplements(): MemoryPromptSupplementRegistration[];
 /** @deprecated Use registerMemoryCapability(pluginId, { flushPlanResolver }) instead. */
 export declare function registerMemoryFlushPlanResolver(resolver: MemoryFlushPlanResolver): void;
+export declare function registerMemoryFlushPlanResolverForPlugin(pluginId: string, resolver: MemoryFlushPlanResolver): void;
 export declare function resolveMemoryFlushPlan(params: {
     cfg?: OpenClawConfig;
     nowMs?: number;
@@ -148,6 +152,7 @@ export declare function resolveMemoryFlushPlan(params: {
 export declare function getMemoryFlushPlanResolver(): MemoryFlushPlanResolver | undefined;
 /** @deprecated Use registerMemoryCapability(pluginId, { runtime }) instead. */
 export declare function registerMemoryRuntime(runtime: MemoryPluginRuntime): void;
+export declare function registerMemoryRuntimeForPlugin(pluginId: string, runtime: MemoryPluginRuntime): void;
 export declare function getMemoryRuntime(): MemoryPluginRuntime | undefined;
 export declare function hasMemoryRuntime(): boolean;
 export declare function listActiveMemoryPublicArtifacts(params: {
@@ -155,5 +160,5 @@ export declare function listActiveMemoryPublicArtifacts(params: {
 }): Promise<MemoryPluginPublicArtifact[]>;
 export declare function restoreMemoryPluginState(state: MemoryPluginState): void;
 export declare function clearMemoryPluginState(): void;
-export declare const _resetMemoryPluginState: typeof clearMemoryPluginState;
+export declare const resetMemoryPluginState: typeof clearMemoryPluginState;
 export {};

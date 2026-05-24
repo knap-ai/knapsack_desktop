@@ -1,4 +1,4 @@
-import type { TUI } from "@mariozechner/pi-tui";
+import type { TUI } from "@earendil-works/pi-tui";
 import type { SessionsPatchResult } from "../gateway/protocol/index.js";
 import type { ChatLog } from "./components/chat-log.js";
 import type { TuiAgentsList, TuiBackend } from "./tui-backend.js";
@@ -22,6 +22,7 @@ type SessionActionContext = {
     updateAutocompleteProvider: () => void;
     setActivityStatus: (text: string) => void;
     clearLocalRunIds?: () => void;
+    rememberSessionKey?: (sessionKey: string) => void | Promise<void>;
 };
 export declare function createSessionActions(context: SessionActionContext): {
     applyAgentsResult: (result: TuiAgentsList) => void;

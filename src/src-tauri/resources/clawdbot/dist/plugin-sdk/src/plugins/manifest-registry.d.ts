@@ -1,18 +1,23 @@
 import type { OpenClawConfig } from "../config/types.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
-import { type PluginCandidate } from "./discovery.js";
+import { type PluginCandidate, type PluginDiscoveryResult } from "./discovery.js";
 import type { PluginManifestCommandAlias } from "./manifest-command-aliases.js";
 import type { PluginBundleFormat, PluginConfigUiHint, PluginDiagnostic, PluginFormat } from "./manifest-types.js";
-import { type OpenClawPackageManifest, type PluginManifestActivation, type PluginManifestConfigContracts, type PluginManifest, type PluginManifestChannelCommandDefaults, type PluginManifestChannelConfig, type PluginManifestContracts, type PluginManifestMediaUnderstandingProviderMetadata, type PluginManifestModelCatalog, type PluginManifestModelIdNormalization, type PluginManifestModelPricing, type PluginManifestModelSupport, type PluginManifestProviderEndpoint, type PluginManifestProviderRequest, type PluginManifestQaRunner, type PluginManifestSetup } from "./manifest.js";
+import { type OpenClawPackageManifest, type PluginManifestActivation, type PluginManifestConfigContracts, type PluginManifest, type PluginManifestCapabilityProviderMetadata, type PluginManifestChannelCommandDefaults, type PluginManifestChannelConfig, type PluginManifestContracts, type PluginManifestMediaUnderstandingProviderMetadata, type PluginManifestModelCatalog, type PluginManifestModelIdNormalization, type PluginManifestModelPricing, type PluginManifestModelSupport, type PluginManifestProviderEndpoint, type PluginManifestProviderRequest, type PluginManifestQaRunner, type PluginManifestSetup, type PluginManifestToolMetadata, type PluginPackageChannel, type PluginPackageInstall } from "./manifest.js";
 import type { PluginKind } from "./plugin-kind.types.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
-export type PluginManifestContractListKey = "speechProviders" | "externalAuthProviders" | "mediaUnderstandingProviders" | "documentExtractors" | "realtimeVoiceProviders" | "realtimeTranscriptionProviders" | "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders" | "memoryEmbeddingProviders" | "webContentExtractors" | "webFetchProviders" | "webSearchProviders" | "migrationProviders";
+import type { PluginDependencySpecMap } from "./status-dependencies.js";
+export type PluginManifestContractListKey = "speechProviders" | "externalAuthProviders" | "embeddingProviders" | "mediaUnderstandingProviders" | "documentExtractors" | "realtimeVoiceProviders" | "realtimeTranscriptionProviders" | "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders" | "memoryEmbeddingProviders" | "webContentExtractors" | "webFetchProviders" | "webSearchProviders" | "migrationProviders" | "gatewayMethodDispatch";
 export type PluginManifestRecord = {
     id: string;
     name?: string;
     description?: string;
     version?: string;
+    packageName?: string;
+    packageVersion?: string;
+    packageDescription?: string;
     enabledByDefault?: boolean;
+    enabledByDefaultOnPlatforms?: string[];
     autoEnableWhenConfiguredProviders?: string[];
     legacyPluginIds?: string[];
     format?: PluginFormat;
@@ -38,6 +43,12 @@ export type PluginManifestRecord = {
     providerAuthChoices?: PluginManifest["providerAuthChoices"];
     activation?: PluginManifestActivation;
     setup?: PluginManifestSetup;
+    packageManifest?: OpenClawPackageManifest;
+    packageDependencies?: PluginDependencySpecMap;
+    packageOptionalDependencies?: PluginDependencySpecMap;
+    packageChannel?: PluginPackageChannel;
+    packageInstall?: PluginPackageInstall;
+    trustedOfficialInstall?: boolean;
     qaRunners?: PluginManifestQaRunner[];
     skills: string[];
     settingsFiles?: string[];
@@ -54,6 +65,10 @@ export type PluginManifestRecord = {
     configUiHints?: Record<string, PluginConfigUiHint>;
     contracts?: PluginManifestContracts;
     mediaUnderstandingProviderMetadata?: Record<string, PluginManifestMediaUnderstandingProviderMetadata>;
+    imageGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    videoGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    musicGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    toolMetadata?: Record<string, PluginManifestToolMetadata>;
     configContracts?: PluginManifestConfigContracts;
     channelConfigs?: Record<string, PluginManifestChannelConfig>;
     channelCatalogMeta?: {
@@ -73,14 +88,13 @@ export type BundledChannelConfigCollector = (params: {
     manifest: PluginManifest;
     packageManifest?: OpenClawPackageManifest;
 }) => Record<string, PluginManifestChannelConfig> | undefined;
-export { clearPluginManifestRegistryCache } from "./manifest-registry-state.js";
 export declare function loadPluginManifestRegistry(params?: {
     config?: OpenClawConfig;
     workspaceDir?: string;
-    cache?: boolean;
     env?: NodeJS.ProcessEnv;
     candidates?: PluginCandidate[];
     diagnostics?: PluginDiagnostic[];
     installRecords?: Record<string, PluginInstallRecord>;
     bundledChannelConfigCollector?: BundledChannelConfigCollector;
+    discovery?: PluginDiscoveryResult;
 }): PluginManifestRegistry;

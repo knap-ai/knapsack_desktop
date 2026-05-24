@@ -1,11 +1,12 @@
 import type { SessionEntry } from "../config/sessions/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
-export type SubagentListItem = {
+type SubagentListItem = {
     index: number;
     line: string;
     runId: string;
     sessionKey: string;
+    taskName?: string;
     label: string;
     task: string;
     status: string;
@@ -18,13 +19,13 @@ export type SubagentListItem = {
     startedAt?: number;
     endedAt?: number;
 };
-export type BuiltSubagentList = {
+type BuiltSubagentList = {
     total: number;
     active: SubagentListItem[];
     recent: SubagentListItem[];
     text: string;
 };
-export type SessionEntryResolution = {
+type SessionEntryResolution = {
     storePath: string;
     entry: SessionEntry | undefined;
 };
@@ -47,3 +48,4 @@ export declare function buildSubagentList(params: {
     recentMinutes: number;
     taskMaxChars?: number;
 }): BuiltSubagentList;
+export {};

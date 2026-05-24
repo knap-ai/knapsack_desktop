@@ -21,6 +21,7 @@ export type DepsStatus = {
 };
 export type RegistryStatus = {
     latestVersion: string | null;
+    tag?: string;
     error?: string;
 };
 export type NpmTagStatus = {
@@ -55,6 +56,10 @@ export declare function checkDepsStatus(params: {
 export declare function fetchNpmLatestVersion(params?: {
     timeoutMs?: number;
 }): Promise<RegistryStatus>;
+export declare function fetchNpmRegistryVersionForChannel(params: {
+    channel: UpdateChannel;
+    timeoutMs?: number;
+}): Promise<RegistryStatus>;
 export declare function fetchNpmPackageTargetStatus(params: {
     target: string;
     timeoutMs?: number;
@@ -76,4 +81,5 @@ export declare function checkUpdateStatus(params: {
     timeoutMs?: number;
     fetchGit?: boolean;
     includeRegistry?: boolean;
+    registryChannel?: UpdateChannel;
 }): Promise<UpdateCheckResult>;

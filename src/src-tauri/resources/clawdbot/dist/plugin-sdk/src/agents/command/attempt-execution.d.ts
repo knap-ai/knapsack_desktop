@@ -1,3 +1,6 @@
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { formatAcpErrorChain } from "../../acp/runtime/errors.js";
+import type { AcpRuntimeEvent } from "../../acp/runtime/types.js";
 import type { ThinkLevel, VerboseLevel } from "../../auto-reply/thinking.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
@@ -6,7 +9,7 @@ import { type EmbeddedPiRunResult } from "../pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../skills.js";
 import { resolveAgentRunContext } from "./run-context.js";
 import type { AgentCommandOpts } from "./types.js";
-export { claudeCliSessionTranscriptHasContent, createAcpVisibleTextAccumulator, resolveFallbackRetryPrompt, sessionFileHasContent, } from "./attempt-execution.helpers.js";
+export { createAcpVisibleTextAccumulator, sessionFileHasContent, } from "./attempt-execution.helpers.js";
 export declare function persistAcpTurnTranscript(params: {
     body: string;
     transcriptBody?: string;
@@ -19,6 +22,7 @@ export declare function persistAcpTurnTranscript(params: {
     sessionAgentId: string;
     threadId?: string | number;
     sessionCwd: string;
+    config: OpenClawConfig;
 }): Promise<SessionEntry | undefined>;
 export declare function persistCliTurnTranscript(params: {
     body: string;
@@ -32,10 +36,13 @@ export declare function persistCliTurnTranscript(params: {
     sessionAgentId: string;
     threadId?: string | number;
     sessionCwd: string;
+    config: OpenClawConfig;
+    embeddedAssistantGapFill?: boolean;
 }): Promise<SessionEntry | undefined>;
 export declare function runAgentAttempt(params: {
     providerOverride: string;
     modelOverride: string;
+    originalProvider: string;
     cfg: OpenClawConfig;
     sessionEntry: SessionEntry | undefined;
     sessionId: string;
@@ -46,11 +53,10 @@ export declare function runAgentAttempt(params: {
     body: string;
     isFallbackRetry: boolean;
     resolvedThinkLevel: ThinkLevel;
+    fastMode?: boolean;
     timeoutMs: number;
     runId: string;
-    opts: AgentCommandOpts & {
-        senderIsOwner: boolean;
-    };
+    opts: AgentCommandOpts;
     runContext: ReturnType<typeof resolveAgentRunContext>;
     spawnedBy: string | undefined;
     messageChannel: ReturnType<typeof resolveMessageChannel>;
@@ -60,12 +66,19 @@ export declare function runAgentAttempt(params: {
     onAgentEvent: (evt: {
         stream: string;
         data?: Record<string, unknown>;
+        sessionKey?: string;
     }) => void;
+    deferTerminalLifecycleEnd?: boolean;
     authProfileProvider: string;
     sessionStore?: Record<string, SessionEntry>;
     storePath?: string;
     allowTransientCooldownProbe?: boolean;
+    modelFallbacksOverride?: string[];
     sessionHasHistory?: boolean;
+    suppressPromptPersistenceOnRetry?: boolean;
+    onUserMessagePersisted?: (message: Extract<AgentMessage, {
+        role: "user";
+    }>) => void;
 }): Promise<EmbeddedPiRunResult>;
 export declare function buildAcpResult(params: {
     payloadText: string;
@@ -84,13 +97,26 @@ export declare function emitAcpLifecycleStart(params: {
     runId: string;
     startedAt: number;
 }): void;
+export declare function emitAcpPromptSubmitted(params: {
+    runId: string;
+    sessionKey?: string;
+    at: number;
+}): void;
+export declare function emitAcpRuntimeEvent(params: {
+    runId: string;
+    event: AcpRuntimeEvent;
+    sessionKey?: string;
+}): void;
 export declare function emitAcpLifecycleEnd(params: {
     runId: string;
 }): void;
 export declare function emitAcpLifecycleError(params: {
     runId: string;
-    message: string;
+    error: unknown;
+    sessionKey?: string;
 }): void;
+/** @deprecated use formatAcpErrorChain from src/acp/runtime/errors.ts */
+export declare const formatAcpLifecycleError: typeof formatAcpErrorChain;
 export declare function emitAcpAssistantDelta(params: {
     runId: string;
     text: string;

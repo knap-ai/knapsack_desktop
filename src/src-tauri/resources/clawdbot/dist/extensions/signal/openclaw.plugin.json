@@ -1,5 +1,8 @@
 {
   "id": "signal",
+  "activation": {
+    "onStartup": false
+  },
   "channels": [
     "signal"
   ],
@@ -355,6 +358,14 @@
           },
           "responsePrefix": {
             "type": "string"
+          },
+          "apiMode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "native",
+              "container"
+            ]
           },
           "accounts": {
             "type": "object",

@@ -14,12 +14,14 @@ export type MediaAttachmentCacheOptions = {
     localPathRoots?: readonly string[];
     includeDefaultLocalPathRoots?: boolean;
     ssrfPolicy?: SsrFPolicy;
+    workspaceDir?: string;
 };
 export declare class MediaAttachmentCache {
     private readonly entries;
     private readonly attachments;
     private readonly localPathRoots;
     private readonly ssrfPolicy;
+    private readonly workspaceDir?;
     private canonicalLocalPathRoots?;
     constructor(attachments: MediaAttachment[], options?: MediaAttachmentCacheOptions);
     getBuffer(params: {
@@ -38,6 +40,5 @@ export declare class MediaAttachmentCache {
     private ensureLocalStat;
     private getCanonicalLocalPathRoots;
     private readLocalBuffer;
-    private resolveCanonicalLocalPath;
 }
 export {};

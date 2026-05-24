@@ -1,8 +1,11 @@
+import "./fs-safe-defaults.js";
 export { resolvePreferredOpenClawTmpDir } from "./tmp-openclaw-dir.js";
-export type TempDownloadTarget = {
+type TempDownloadTarget = {
     dir: string;
     path: string;
+    file(fileName?: string): string;
     cleanup: () => Promise<void>;
+    [Symbol.asyncDispose](): Promise<void>;
 };
 export declare function sanitizeTempFileName(fileName: string): string;
 export declare function buildRandomTempFilePath(params: {

@@ -1,6 +1,8 @@
+import type { ReplyPayload } from "../../auto-reply/reply-payload.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { OutboundMediaAccess } from "../../media/load-options.js";
 import { type GatewayClientMode, type GatewayClientName } from "../../utils/message-channel.js";
-import { type OutboundDeliveryResult, type OutboundSendDeps } from "./deliver.js";
+import { type OutboundDeliveryResult, type OutboundDeliveryQueuePolicy, type OutboundSendDeps } from "./deliver.js";
 import type { OutboundMirror } from "./mirror.js";
 export type MessageGatewayOptions = {
     url?: string;
@@ -30,6 +32,7 @@ type MessageSendParams = {
     channel?: string;
     mediaUrl?: string;
     mediaUrls?: string[];
+    asVoice?: boolean;
     gifPlayback?: boolean;
     forceDocument?: boolean;
     accountId?: string;
@@ -37,6 +40,9 @@ type MessageSendParams = {
     threadId?: string | number;
     dryRun?: boolean;
     bestEffort?: boolean;
+    queuePolicy?: OutboundDeliveryQueuePolicy;
+    payloads?: ReplyPayload[];
+    mediaAccess?: OutboundMediaAccess;
     deps?: OutboundSendDeps;
     cfg?: OpenClawConfig;
     gateway?: MessageGatewayOptions;
@@ -44,6 +50,7 @@ type MessageSendParams = {
     mirror?: OutboundMirror;
     abortSignal?: AbortSignal;
     silent?: boolean;
+    parseMode?: "HTML";
 };
 export type MessageSendResult = {
     channel: string;

@@ -29,12 +29,17 @@ export type GatewayPortHealthSnapshot = {
     portUsage: PortUsage;
     healthy: boolean;
 };
+type GatewayRestartProbeAuth = {
+    token?: string;
+    password?: string;
+};
 export declare function inspectGatewayRestart(params: {
     service: GatewayService;
     port: number;
     env?: NodeJS.ProcessEnv;
     expectedVersion?: string | null;
     includeUnknownListenersAsStale?: boolean;
+    probeAuth?: GatewayRestartProbeAuth;
 }): Promise<GatewayRestartSnapshot>;
 export declare function waitForGatewayHealthyRestart(params: {
     service: GatewayService;
@@ -53,3 +58,4 @@ export declare function waitForGatewayHealthyListener(params: {
 export declare function renderRestartDiagnostics(snapshot: GatewayRestartSnapshot): string[];
 export declare function renderGatewayPortHealthDiagnostics(snapshot: GatewayPortHealthSnapshot): string[];
 export declare function terminateStaleGatewayPids(pids: number[]): Promise<number[]>;
+export {};

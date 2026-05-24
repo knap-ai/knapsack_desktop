@@ -1,10 +1,10 @@
 export type HttpMcpTransportType = "sse" | "streamable-http";
-export type HttpMcpServerLaunchConfig = {
+type HttpMcpServerLaunchConfig = {
     transportType: HttpMcpTransportType;
     url: string;
     headers?: Record<string, string>;
 };
-export type HttpMcpServerLaunchResult = {
+type HttpMcpServerLaunchResult = {
     ok: true;
     config: HttpMcpServerLaunchConfig;
 } | {
@@ -17,3 +17,4 @@ export declare function resolveHttpMcpServerLaunchConfig(raw: unknown, options?:
     onMalformedHeaders?: (value: unknown) => void;
 }): HttpMcpServerLaunchResult;
 export declare function describeHttpMcpServerLaunchConfig(config: HttpMcpServerLaunchConfig): string;
+export {};

@@ -12,4 +12,3 @@ export declare function normalizeLegacyDeliveryInput(params: {
     delivery: Record<string, unknown> | undefined;
     mutated: boolean;
 };
-export declare function stripLegacyDeliveryFields(payload: Record<string, unknown>): void;

@@ -1,3 +1,5 @@
+export declare const ACCESS_GROUP_ALLOW_FROM_PREFIX = "accessGroup:";
+export declare function parseAccessGroupAllowFromEntry(entry: string): string | null;
 export declare function mergeDmAllowFromSources(params: {
     allowFrom?: Array<string | number>;
     storeAllowFrom?: Array<string | number>;

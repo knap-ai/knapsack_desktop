@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 export declare function decodeStrictBase64(value: string, maxDecodedBytes: number): Buffer | null;
-export type SubagentInlineAttachment = {
+type SubagentInlineAttachment = {
     name: string;
     content: string;
     encoding?: "utf8" | "base64";
@@ -11,13 +11,13 @@ export type SubagentAttachmentReceiptFile = {
     bytes: number;
     sha256: string;
 };
-export type SubagentAttachmentReceipt = {
+type SubagentAttachmentReceipt = {
     count: number;
     totalBytes: number;
     files: SubagentAttachmentReceiptFile[];
     relDir: string;
 };
-export type MaterializeSubagentAttachmentsResult = {
+type MaterializeSubagentAttachmentsResult = {
     status: "ok";
     receipt: SubagentAttachmentReceipt;
     absDir: string;
@@ -34,6 +34,8 @@ export type MaterializeSubagentAttachmentsResult = {
 export declare function materializeSubagentAttachments(params: {
     config: OpenClawConfig;
     targetAgentId: string;
+    workspaceDir?: string;
     attachments?: SubagentInlineAttachment[];
     mountPathHint?: string;
 }): Promise<MaterializeSubagentAttachmentsResult | null>;
+export {};

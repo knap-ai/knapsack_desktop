@@ -1,2 +1,2 @@
-import { n as buildVolcengineSpeechProvider, t as VOLCENGINE_VOICES } from "../../speech-provider-B6v2wNID.js";
-export { VOLCENGINE_VOICES, buildVolcengineSpeechProvider };
+import { t as buildVolcengineSpeechProvider } from "../../speech-provider-Cd_jJU48.js";
+export { buildVolcengineSpeechProvider };

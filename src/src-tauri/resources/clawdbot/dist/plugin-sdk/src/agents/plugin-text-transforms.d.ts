@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { PluginTextReplacement, PluginTextTransforms } from "../plugins/cli-backend.types.js";
 export declare function mergePluginTextTransforms(...transforms: Array<PluginTextTransforms | undefined>): PluginTextTransforms | undefined;
 export declare function applyPluginTextReplacements(text: string, replacements?: PluginTextReplacement[]): string;

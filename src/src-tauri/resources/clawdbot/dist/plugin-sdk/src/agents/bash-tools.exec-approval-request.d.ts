@@ -1,4 +1,4 @@
-import type { ExecAsk, ExecSecurity, SystemRunApprovalPlan } from "../infra/exec-approvals.js";
+import type { ExecApprovalCommandSpan, ExecAsk, ExecSecurity, SystemRunApprovalPlan } from "../infra/exec-approvals.js";
 export type RequestExecApprovalDecisionParams = {
     id: string;
     command?: string;
@@ -10,6 +10,8 @@ export type RequestExecApprovalDecisionParams = {
     host: "gateway" | "node";
     security: ExecSecurity;
     ask: ExecAsk;
+    warningText?: string;
+    commandSpans?: ExecApprovalCommandSpan[];
     agentId?: string;
     resolvedPath?: string;
     sessionKey?: string;
@@ -41,6 +43,9 @@ type HostExecApprovalParams = {
     nodeId?: string;
     security: ExecSecurity;
     ask: ExecAsk;
+    warningText?: string;
+    commandSpans?: ExecApprovalCommandSpan[];
+    commandHighlighting?: boolean;
     agentId?: string;
     resolvedPath?: string;
     sessionKey?: string;

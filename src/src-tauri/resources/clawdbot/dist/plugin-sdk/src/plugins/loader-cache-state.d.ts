@@ -8,6 +8,7 @@ export declare class PluginLoaderCacheState<T> {
     get maxEntries(): number;
     setMaxEntriesForTest(value?: number): void;
     clear(): void;
+    clearCachedRegistries(): void;
     get(cacheKey: string): T | undefined;
     set(cacheKey: string, state: T): void;
     isLoadInFlight(cacheKey: string): boolean;

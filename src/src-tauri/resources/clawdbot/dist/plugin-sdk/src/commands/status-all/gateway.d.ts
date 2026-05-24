@@ -2,4 +2,3 @@ export declare function readFileTailLines(filePath: string, maxLines: number): P
 export declare function summarizeLogTail(rawLines: string[], opts?: {
     maxLines?: number;
 }): string[];
-export { pickGatewaySelfPresence } from "../gateway-presence.js";

@@ -1,6 +1,6 @@
 import { type NpmIntegrityDrift, type NpmSpecResolution } from "./install-source-utils.js";
 import { type NpmIntegrityDriftPayload } from "./npm-integrity.js";
-export type NpmSpecArchiveInstallFlowResult<TResult extends {
+type NpmSpecArchiveInstallFlowResult<TResult extends {
     ok: boolean;
 }> = {
     ok: false;
@@ -54,3 +54,4 @@ export declare function installFromNpmSpecArchive<TResult extends {
         archivePath: string;
     }) => Promise<TResult>;
 }): Promise<NpmSpecArchiveInstallFlowResult<TResult>>;
+export {};

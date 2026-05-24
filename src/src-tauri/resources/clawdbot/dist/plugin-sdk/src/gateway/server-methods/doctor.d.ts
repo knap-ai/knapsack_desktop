@@ -107,5 +107,69 @@ export type DoctorMemoryDreamActionPayload = {
     dedupedEntries?: number;
     keptEntries?: number;
 };
+export type DoctorMemoryRemHarnessCandidatePayload = {
+    key: string;
+    path: string;
+    startLine: number;
+    endLine: number;
+    snippet: string;
+    recallCount: number;
+    uniqueQueries: number;
+    avgScore: number;
+    maxScore: number;
+    ageDays: number;
+    firstRecalledAt: string;
+    lastRecalledAt: string;
+    promoted: boolean;
+    promotedAt?: string;
+};
+export type DoctorMemoryRemHarnessCandidateTruthPayload = {
+    snippet: string;
+    confidence: number;
+};
+export type DoctorMemoryRemHarnessGroundedFilePayload = {
+    path: string;
+    renderedMarkdown: string;
+};
+export type DoctorMemoryRemHarnessSuccessPayload = {
+    ok: true;
+    agentId: string;
+    workspaceDir: string;
+    remConfig: {
+        enabled: boolean;
+        lookbackDays: number;
+        limit: number;
+        minPatternStrength: number;
+    };
+    deepConfig: {
+        minScore: number;
+        minRecallCount: number;
+        minUniqueQueries: number;
+        recencyHalfLifeDays: number;
+        maxAgeDays: number | null;
+    };
+    rem: {
+        skipped: boolean;
+        sourceEntryCount: number;
+        reflections: string[];
+        candidateTruths: DoctorMemoryRemHarnessCandidateTruthPayload[];
+        bodyLines: string[];
+    };
+    grounded: {
+        scannedFiles: number;
+        files: DoctorMemoryRemHarnessGroundedFilePayload[];
+    } | null;
+    deep: {
+        candidateLimit: number;
+        truncated: boolean;
+        candidates: DoctorMemoryRemHarnessCandidatePayload[];
+    };
+};
+export type DoctorMemoryRemHarnessErrorPayload = {
+    ok: false;
+    agentId: string;
+    workspaceDir: string;
+    error: string;
+};
 export declare const doctorHandlers: GatewayRequestHandlers;
 export {};

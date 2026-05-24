@@ -37,6 +37,11 @@ export type ReplyOperation = {
     attachBackend(handle: ReplyBackendHandle): void;
     detachBackend(handle: ReplyBackendHandle): void;
     complete(): void;
+    /**
+     * Complete the operation, clear active-run state, then run follow-up work.
+     * Use when the follow-up can create another ReplyOperation for this session.
+     */
+    completeThen(afterClear: () => void): void;
     fail(code: Exclude<ReplyOperationFailureCode, "aborted_by_user">, cause?: unknown): void;
     abortByUser(): void;
     abortForRestart(): void;
@@ -70,12 +75,15 @@ export declare function isReplyRunActiveForSessionId(sessionId: string): boolean
 export declare function isReplyRunStreamingForSessionId(sessionId: string): boolean;
 export declare function queueReplyRunMessage(sessionId: string, text: string): boolean;
 export declare function abortReplyRunBySessionId(sessionId: string): boolean;
+export declare function forceClearReplyRunBySessionId(sessionId: string, cause?: unknown): boolean;
 export declare function waitForReplyRunEndBySessionId(sessionId: string, timeoutMs?: number): Promise<boolean>;
 export declare function abortActiveReplyRuns(opts: {
     mode: "all" | "compacting";
 }): boolean;
 export declare function getActiveReplyRunCount(): number;
 export declare function listActiveReplyRunSessionIds(): string[];
-export declare const __testing: {
+export declare function listActiveReplyRunSessionKeys(): string[];
+export declare const testing: {
     resetReplyRunRegistry(): void;
 };
+export { testing as __testing };

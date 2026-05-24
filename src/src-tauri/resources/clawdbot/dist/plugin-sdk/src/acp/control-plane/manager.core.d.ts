@@ -4,7 +4,6 @@ import { type AcpCloseSessionInput, type AcpCloseSessionResult, type AcpInitiali
 export declare class AcpSessionManager {
     private readonly deps;
     private readonly actorQueue;
-    private readonly actorTailBySession;
     private readonly runtimeCache;
     private readonly activeTurnBySession;
     private readonly turnLatencyStats;
@@ -84,6 +83,7 @@ export declare class AcpSessionManager {
     private getCachedRuntimeState;
     private setCachedRuntimeState;
     private clearCachedRuntimeState;
+    private closeCachedRuntimeState;
     private clearCachedRuntimeStateIfHandleMatches;
     private runtimeHandlesMatch;
     private runtimeHandleMatchesMeta;

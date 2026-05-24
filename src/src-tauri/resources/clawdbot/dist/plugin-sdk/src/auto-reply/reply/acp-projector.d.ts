@@ -16,6 +16,7 @@ export declare function createAcpReplyProjector(params: {
     cfg: OpenClawConfig;
     shouldSendToolSummaries: boolean;
     deliver: (kind: ReplyDispatchKind, payload: ReplyPayload, meta?: AcpProjectedDeliveryMeta) => Promise<boolean>;
+    onProgress?: () => void;
     provider?: string;
     accountId?: string;
 }): AcpReplyProjector;

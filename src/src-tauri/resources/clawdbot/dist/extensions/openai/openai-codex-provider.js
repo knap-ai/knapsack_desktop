@@ -1,2 +1,2 @@
-import { t as buildOpenAICodexProviderPlugin } from "../../openai-codex-provider-Bn2XPXMP.js";
+import { t as buildOpenAICodexProviderPlugin } from "../../openai-codex-provider-Ctr20mI5.js";
 export { buildOpenAICodexProviderPlugin };

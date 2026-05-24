@@ -127,6 +127,42 @@ function resolveRelativeJsImport(importerPath, specifier) {
   return `${resolved}.js`;
 }
 
+const tarEntryCache = new Map();
+
+function listTarEntries(tarPath) {
+  if (tarEntryCache.has(tarPath)) return tarEntryCache.get(tarPath);
+  const result = spawnSync('tar', ['-tf', tarPath], {
+    encoding: 'utf8',
+    maxBuffer: 50 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    console.error(`[verify-clawdbot] CRITICAL: unable to inspect ${path.relative(CLAWDBOT_DIR, tarPath)}`);
+    if (result.stderr) console.error(result.stderr.trim());
+    errors++;
+    tarEntryCache.set(tarPath, []);
+    return [];
+  }
+  const entries = result.stdout
+    .split(/\r?\n/)
+    .map((entry) => entry.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, ''))
+    .filter(Boolean);
+  tarEntryCache.set(tarPath, entries);
+  return entries;
+}
+
+function extensionDependencyExists(extensionDir, dependencyName) {
+  const nodeModules = path.join(extensionDir, 'node_modules');
+  if (fs.existsSync(path.join(nodeModules, dependencyName))) return true;
+
+  const tarPath = path.join(extensionDir, 'node_modules.tar');
+  if (!fs.existsSync(tarPath)) return false;
+
+  const dependencyPrefix = `node_modules/${dependencyName}`;
+  return listTarEntries(tarPath).some(
+    (entry) => entry === dependencyPrefix || entry.startsWith(`${dependencyPrefix}/`)
+  );
+}
+
 const distDir = path.join(CLAWDBOT_DIR, 'dist');
 const relativeImportRegexes = [
   /(?:^|[;\n]\s*)import\s+(?:[^"';]+?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g,
@@ -172,6 +208,39 @@ if (fs.existsSync(extensionsDir)) {
     console.error(`[verify-clawdbot] SUSPICIOUS: only ${extensionsWithPlugin.length} extensions have plugin metadata — expected many more`);
     errors++;
   }
+
+  for (const requiredChannel of ['telegram', 'slack', 'imessage', 'whatsapp']) {
+    const dir = path.join(extensionsDir, requiredChannel);
+    const pkg = path.join(dir, 'package.json');
+    if (!fs.existsSync(dir) || !fs.existsSync(pkg)) {
+      console.error(`[verify-clawdbot] CRITICAL: required Knapsack channel extension missing: ${requiredChannel}`);
+      errors++;
+      continue;
+    }
+    const packageJson = JSON.parse(fs.readFileSync(pkg, 'utf8'));
+    const channelId = packageJson?.openclaw?.channel?.id;
+    if (channelId !== requiredChannel) {
+      console.error(`[verify-clawdbot] CRITICAL: ${requiredChannel} package.json does not declare openclaw.channel.id=${requiredChannel}`);
+      errors++;
+    }
+  }
+
+  const whatsappExtensionDir = path.join(extensionsDir, 'whatsapp');
+  for (const requiredDep of ['baileys', 'jimp', '@pinojs/redact', 'whatsapp-rust-bridge']) {
+    if (!extensionDependencyExists(whatsappExtensionDir, requiredDep)) {
+      console.error(`[verify-clawdbot] CRITICAL: WhatsApp bundled dependency missing: ${requiredDep}`);
+      errors++;
+    }
+  }
+  const whatsappPkgPath = path.join(extensionsDir, 'whatsapp', 'package.json');
+  if (fs.existsSync(whatsappPkgPath)) {
+    const whatsappPkg = JSON.parse(fs.readFileSync(whatsappPkgPath, 'utf8'));
+    const authSpecifier = whatsappPkg?.openclaw?.channel?.persistedAuthState?.specifier;
+    if (authSpecifier !== './dist/auth-presence.js') {
+      console.error('[verify-clawdbot] CRITICAL: WhatsApp persistedAuthState must point at built dist/auth-presence.js');
+      errors++;
+    }
+  }
 }
 
 // Bundled extension modules import the SDK through the package name `openclaw`.
@@ -191,8 +260,8 @@ if (!sdkAliasChunk) {
     console.error('[verify-clawdbot] CRITICAL: plugin Jiti loader must disable fsCache to keep signed app bundles sealed');
     errors++;
   }
-  if (!content.includes('if (isBundledPluginDistModulePath(modulePath)) return false;')) {
-    console.error('[verify-clawdbot] CRITICAL: bundled dist/extensions modules must not use native import; openclaw SDK aliases are required');
+  if (!content.includes('if (isBundledPluginDistModulePath(modulePath)) return shouldPreferNativeModuleLoad(modulePath);')) {
+    console.error('[verify-clawdbot] CRITICAL: bundled dist/extensions modules should prefer native loading for built JS to avoid signed-bundle Jiti transpilation');
     errors++;
   }
 }
@@ -206,13 +275,26 @@ if (fs.existsSync(rootAliasPath)) {
   }
 }
 
+const modelCatalogChunks = fs.existsSync(distDir)
+  ? fs.readdirSync(distDir).filter((name) => /^model-catalog-.*\.js$/.test(name))
+  : [];
+let modelCatalogEntry = null;
+for (const name of modelCatalogChunks) {
+  const candidate = path.join(distDir, name);
+  const content = fs.readFileSync(candidate, 'utf8');
+  if (content.includes('loadModelCatalog') && content.includes('findModelCatalogEntry')) {
+    modelCatalogEntry = candidate;
+    break;
+  }
+}
+
 if (process.platform === 'win32') {
   console.log('[verify-clawdbot] bundled model catalog smoke: skipped on Windows CI; static sealed-bundle loader checks still apply ✓');
-} else if (sdkAliasChunk && fs.existsSync(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js'))) {
-  const modelCatalogUrl = pathToFileURL(path.join(CLAWDBOT_DIR, 'dist', 'model-catalog-Bb7i0Ftu.js')).href;
+} else if (sdkAliasChunk && modelCatalogEntry) {
+  const modelCatalogUrl = pathToFileURL(modelCatalogEntry).href;
   const smoke = spawnSync(process.execPath, ['--input-type=module', '-e', `
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = ${JSON.stringify(extensionsDir)};
-    process.env.OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS = 'codex';
+    process.env.OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS = 'openai,anthropic';
     const catalog = await import(${JSON.stringify(modelCatalogUrl)});
     const models = await catalog.loadModelCatalog({ readOnly: true, useCache: false });
     if (!Array.isArray(models)) throw new Error('model catalog did not return an array');
@@ -222,7 +304,7 @@ if (process.platform === 'win32') {
     env: {
       ...process.env,
       OPENCLAW_BUNDLED_PLUGINS_DIR: extensionsDir,
-      OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: 'codex',
+      OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: 'openai,anthropic',
     },
     encoding: 'utf8',
     timeout: 120000,
@@ -273,24 +355,41 @@ const CRITICAL_PACKAGES = [
   'json5',
   'tar',
   'jszip',
-  'https-proxy-agent',
   'markdown-it',
-  '@mariozechner/pi-coding-agent',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-agent-core',
   'typebox',
+  '@clack/core',
   '@clack/prompts',
+  '@agentclientprotocol/sdk',
   '@modelcontextprotocol/sdk',
+  '@openclaw/fs-safe',
+  '@openclaw/proxyline',
   'file-type',
   // jiti is used by gateway dist chunks for plugin loading.  Must be v2+
   // (v2 exports createJiti; v1 does not, causing a runtime SyntaxError).
   'jiti',
   // added in openclaw 2026.4.26
   'web-push',
+  // added/kept in openclaw 2026.5.x startup and gateway paths
+  'express',
+  'kysely',
+  'grammy',
+  '@google/genai',
+  'playwright-core',
+  'qrcode',
+  'tokenjuice',
+  'tslog',
 ];
 
 // Packages that must be a specific minimum major version.
 // A wrong-major install (e.g. jiti v1 when v2 is required) is as bad as missing.
 const REQUIRED_MAJOR_VERSIONS = {
   jiti: 2,
+  zod: 4,
+  undici: 8,
+  typebox: 1,
 };
 
 const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');

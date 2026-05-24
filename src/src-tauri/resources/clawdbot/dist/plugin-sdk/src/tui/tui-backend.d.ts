@@ -1,7 +1,8 @@
-import type { SessionsListParams, SessionsPatchParams, SessionsPatchResult } from "../gateway/protocol/index.js";
+import type { CommandEntry, CommandsListParams, SessionsListParams, SessionsPatchParams, SessionsPatchResult } from "../gateway/protocol/index.js";
 import type { ResponseUsageMode, SessionInfo, SessionScope } from "./tui-types.js";
 export type ChatSendOptions = {
     sessionKey: string;
+    sessionId?: string | null;
     message: string;
     thinking?: string;
     deliver?: boolean;
@@ -17,12 +18,19 @@ export type TuiSessionList = {
     ts: number;
     path: string;
     count: number;
+    totalCount?: number;
+    limitApplied?: number;
+    hasMore?: boolean;
     defaults?: {
         model?: string | null;
         modelProvider?: string | null;
         contextTokens?: number | null;
+        thinkingLevels?: Array<{
+            id: string;
+            label: string;
+        }>;
     };
-    sessions: Array<Pick<SessionInfo, "thinkingLevel" | "fastMode" | "verboseLevel" | "reasoningLevel" | "model" | "contextTokens" | "inputTokens" | "outputTokens" | "totalTokens" | "modelProvider" | "displayName"> & {
+    sessions: Array<Pick<SessionInfo, "thinkingLevel" | "thinkingLevels" | "fastMode" | "verboseLevel" | "reasoningLevel" | "model" | "contextTokens" | "inputTokens" | "outputTokens" | "totalTokens" | "modelProvider" | "displayName"> & {
         key: string;
         sessionId?: string;
         updatedAt?: number | null;
@@ -35,6 +43,12 @@ export type TuiSessionList = {
         space?: string;
         subject?: string;
         chatType?: string;
+        origin?: {
+            label?: string;
+            provider?: string;
+            surface?: string;
+        };
+        lastChannel?: string;
         lastProvider?: string;
         lastTo?: string;
         lastAccountId?: string;
@@ -72,7 +86,7 @@ export type TuiBackend = {
         received: number;
     }) => void;
     start: () => void;
-    stop: () => void;
+    stop: () => void | Promise<void>;
     sendChat: (opts: ChatSendOptions) => Promise<{
         runId: string;
     }>;
@@ -93,4 +107,5 @@ export type TuiBackend = {
     resetSession: (key: string, reason?: "new" | "reset") => Promise<unknown>;
     getGatewayStatus: () => Promise<unknown>;
     listModels: () => Promise<TuiModelChoice[]>;
+    listCommands?: (opts?: CommandsListParams) => Promise<CommandEntry[]>;
 };

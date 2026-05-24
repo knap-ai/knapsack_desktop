@@ -1,6 +1,7 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import { SessionManager } from "@mariozechner/pi-coding-agent";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { type SessionWriteLockAcquireTimeoutConfig } from "../session-write-lock.js";
 /**
  * Default hard cap for a single live tool result text block.
  *
@@ -94,6 +95,7 @@ export declare function truncateOversizedToolResultsInSession(params: {
     maxCharsOverride?: number;
     sessionId?: string;
     sessionKey?: string;
+    config?: SessionWriteLockAcquireTimeoutConfig;
 }): Promise<{
     truncated: boolean;
     truncatedCount: number;

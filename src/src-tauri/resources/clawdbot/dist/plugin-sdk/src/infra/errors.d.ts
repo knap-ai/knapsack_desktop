@@ -10,6 +10,11 @@ export declare function isErrno(err: unknown): err is NodeJS.ErrnoException;
  */
 export declare function hasErrnoCode(err: unknown, code: string): boolean;
 export declare function formatErrorMessage(err: unknown): string;
+/**
+ * Render a non-Error `cause` value (string, number, plain object, etc.) for inclusion in
+ * a flattened error chain. Returns `[object Object]`-free text without throwing.
+ */
+export declare function stringifyNonErrorCause(value: unknown): string;
 export declare function formatUncaughtError(err: unknown): string;
 export type ErrorKind = "refusal" | "timeout" | "rate_limit" | "context_length" | "unknown";
 export declare function detectErrorKind(err: unknown): ErrorKind | undefined;

@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { EventSessionRoutingPolicy } from "../infra/event-session-routing.js";
 import type { TerminationReason } from "../process/supervisor/types.js";
 import type { DeliveryContext } from "../utils/delivery-context.js";
 export type ProcessStatus = "running" | "completed" | "failed" | "killed";
@@ -7,12 +8,28 @@ export type SessionStdin = {
     end: () => void;
     destroy?: () => void;
     destroyed?: boolean;
+    writable?: boolean;
+    writableEnded?: boolean;
+    writableFinished?: boolean;
 };
 export interface ProcessSession {
     id: string;
     command: string;
     scopeKey?: string;
     sessionKey?: string;
+    /** `session.mainKey` from the runtime config, snapshotted at exec start.
+     *  Used by background-exit notifications to remap cron-run keys to the
+     *  agent's main queue without an ambient config load. If config changes
+     *  while the process runs, the exit notification follows the start-time
+     *  session contract. */
+    mainKey?: string;
+    /** `session.scope` from the runtime config; required so the cron-run remap
+     *  can route global-scope agents to the literal "global" queue instead
+     *  of an agent-main queue the heartbeat never drains. Snapshotted with
+     *  `mainKey` for the same start-time routing reason. */
+    sessionScope?: "per-sender" | "global";
+    /** Start-time routing policy for detached exec system events. */
+    eventRouting?: EventSessionRoutingPolicy;
     notifyDeliveryContext?: DeliveryContext;
     notifyOnExit?: boolean;
     notifyOnExitEmptySuccess?: boolean;

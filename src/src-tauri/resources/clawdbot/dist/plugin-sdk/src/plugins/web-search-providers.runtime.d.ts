@@ -1,10 +1,6 @@
 import type { PluginLoadOptions } from "./loader.js";
 import { type PluginManifestRecord } from "./manifest-registry.js";
 import type { PluginWebSearchProviderEntry } from "./types.js";
-declare function resetWebSearchProviderSnapshotCacheForTests(): void;
-export declare const __testing: {
-    readonly resetWebSearchProviderSnapshotCacheForTests: typeof resetWebSearchProviderSnapshotCacheForTests;
-};
 export declare function resolvePluginWebSearchProviders(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
@@ -24,4 +20,3 @@ export declare function resolveRuntimeWebSearchProviders(params: {
     onlyPluginIds?: readonly string[];
     origin?: PluginManifestRecord["origin"];
 }): PluginWebSearchProviderEntry[];
-export {};

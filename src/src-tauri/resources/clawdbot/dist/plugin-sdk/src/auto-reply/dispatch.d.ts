@@ -6,7 +6,7 @@ import type { ReplyDispatcher } from "./reply/reply-dispatcher.types.js";
 import type { FinalizedMsgContext, MsgContext } from "./templating.js";
 import type { GetReplyOptions } from "./types.js";
 export type DispatchInboundResult = DispatchFromConfigResult;
-export { withReplyDispatcher } from "./dispatch-dispatcher.js";
+export { settleReplyDispatcher, withReplyDispatcher } from "./dispatch-dispatcher.js";
 export declare function dispatchInboundMessage(params: {
     ctx: MsgContext | FinalizedMsgContext;
     cfg: OpenClawConfig;

@@ -1,9 +1,9 @@
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import { type InterpreterInlineEvalHit } from "../infra/command-analysis/inline-eval.js";
 import { type ExecAsk, type ExecSecurity, type SystemRunApprovalPlan } from "../infra/exec-approvals.js";
-import { detectInterpreterInlineEvalArgv } from "../infra/exec-inline-eval.js";
 import type { ExecuteNodeHostCommandParams } from "./bash-tools.exec-host-node.types.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
-export type NodeExecutionTarget = {
+type NodeExecutionTarget = {
     nodeId: string;
     platform?: string | null;
     argv: string[];
@@ -12,7 +12,7 @@ export type NodeExecutionTarget = {
     runTimeoutSec: number;
     supportsSystemRunPrepare: boolean;
 };
-export type PreparedNodeRun = {
+type PreparedNodeRun = {
     plan: SystemRunApprovalPlan;
     argv: string[];
     rawCommand: string;
@@ -20,11 +20,11 @@ export type PreparedNodeRun = {
     agentId: string | undefined;
     sessionKey: string | undefined;
 };
-export type NodeApprovalAnalysis = {
+type NodeApprovalAnalysis = {
     analysisOk: boolean;
     allowlistSatisfied: boolean;
     durableApprovalSatisfied: boolean;
-    inlineEvalHit: ReturnType<typeof detectInterpreterInlineEvalArgv>;
+    inlineEvalHit: InterpreterInlineEvalHit | null;
 };
 export declare function shouldSkipNodeApprovalPrepare(params: {
     hostSecurity: ExecSecurity;
@@ -44,6 +44,10 @@ export declare function buildNodeSystemRunInvoke(params: {
     cwd: string | undefined;
     agentId: string | undefined;
     sessionKey: string | undefined;
+    turnSourceChannel?: string;
+    turnSourceTo?: string;
+    turnSourceAccountId?: string;
+    turnSourceThreadId?: string | number;
     approved?: boolean;
     approvalDecision?: "allow-once" | "allow-always" | null;
     runId?: string;
@@ -66,3 +70,4 @@ export declare function analyzeNodeApprovalRequirement(params: {
     hostSecurity: ExecSecurity;
     hostAsk: ExecAsk;
 }): Promise<NodeApprovalAnalysis>;
+export {};

@@ -11,17 +11,17 @@ export type HooksConfigResolved = {
     agentPolicy: HookAgentPolicyResolved;
     sessionPolicy: HookSessionPolicyResolved;
 };
-export type HookAgentPolicyResolved = {
+type HookAgentPolicyResolved = {
     defaultAgentId: string;
     knownAgentIds: Set<string>;
     allowedAgentIds?: Set<string>;
 };
-export type HookSessionPolicyResolved = {
+type HookSessionPolicyResolved = {
     defaultSessionKey?: string;
     allowRequestSessionKey: boolean;
     allowedSessionKeyPrefixes?: string[];
 };
-export type HookSessionKeySource = "request" | "mapping-static" | "mapping-templated";
+type HookSessionKeySource = "request" | "mapping-static" | "mapping-templated";
 export declare function resolveHooksConfig(cfg: OpenClawConfig): HooksConfigResolved | null;
 export declare function isSessionKeyAllowedByPrefix(sessionKey: string, prefixes: string[]): boolean;
 export declare function extractHookToken(req: IncomingMessage): string | undefined;
@@ -43,7 +43,7 @@ export declare function normalizeWakePayload(payload: Record<string, unknown>): 
     ok: false;
     error: string;
 };
-export type HookAgentPayload = {
+type HookAgentPayload = {
     message: string;
     name: string;
     agentId?: string;
@@ -59,6 +59,7 @@ export type HookAgentPayload = {
 };
 export type HookAgentDispatchPayload = Omit<HookAgentPayload, "sessionKey"> & {
     sessionKey: string;
+    sourcePath: string;
     allowUnsafeExternalContent?: boolean;
     externalContentSource?: HookExternalContentSource;
 };
@@ -73,7 +74,6 @@ export declare function resolveHookIdempotencyKey(params: {
 export declare function resolveHookTargetAgentId(hooksConfig: HooksConfigResolved, agentId: string | undefined): string | undefined;
 export declare function isHookAgentAllowed(hooksConfig: HooksConfigResolved, agentId: string | undefined): boolean;
 export declare const getHookAgentPolicyError: () => string;
-export declare const getHookSessionKeyRequestPolicyError: () => string;
 export declare const getHookSessionKeyPrefixError: (prefixes: string[]) => string;
 export declare function resolveHookSessionKey(params: {
     hooksConfig: HooksConfigResolved;
