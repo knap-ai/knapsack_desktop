@@ -4,31 +4,35 @@
   "providers": [
     "google",
     "google-gemini-cli",
-    "google-vertex"
+    "google-vertex",
+    "google-antigravity"
   ],
   "autoEnableWhenConfiguredProviders": [
-    "google-gemini-cli"
+    "google-gemini-cli",
+    "google-antigravity"
   ],
   "modelIdNormalization": {
     "providers": {
       "google": {
         "aliases": {
-          "gemini-3-pro": "gemini-3-pro-preview",
+          "gemini-3-pro": "gemini-3.1-pro-preview",
           "gemini-3-flash": "gemini-3-flash-preview",
           "gemini-3.1-pro": "gemini-3.1-pro-preview",
           "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
           "gemini-3.1-flash": "gemini-3-flash-preview",
-          "gemini-3.1-flash-preview": "gemini-3-flash-preview"
+          "gemini-3.1-flash-preview": "gemini-3-flash-preview",
+          "gemini-3.5-flash-preview": "gemini-3.5-flash"
         }
       },
       "google-vertex": {
         "aliases": {
-          "gemini-3-pro": "gemini-3-pro-preview",
+          "gemini-3-pro": "gemini-3.1-pro-preview",
           "gemini-3-flash": "gemini-3-flash-preview",
           "gemini-3.1-pro": "gemini-3.1-pro-preview",
           "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
           "gemini-3.1-flash": "gemini-3-flash-preview",
-          "gemini-3.1-flash-preview": "gemini-3-flash-preview"
+          "gemini-3.1-flash-preview": "gemini-3-flash-preview",
+          "gemini-3.5-flash-preview": "gemini-3.5-flash"
         }
       }
     }
@@ -36,6 +40,14 @@
   "modelPricing": {
     "providers": {
       "google-gemini-cli": {
+        "openRouter": {
+          "provider": "google"
+        },
+        "liteLLM": {
+          "provider": "google"
+        }
+      },
+      "google-antigravity": {
         "openRouter": {
           "provider": "google"
         },
@@ -77,6 +89,9 @@
       },
       "google-vertex": {
         "family": "google"
+      },
+      "google-antigravity": {
+        "family": "google"
       }
     }
   },
@@ -109,6 +124,16 @@
       "choiceId": "google-gemini-cli",
       "choiceLabel": "Gemini CLI OAuth",
       "choiceHint": "Google OAuth with project-aware token payload",
+      "groupId": "google",
+      "groupLabel": "Google",
+      "groupHint": "Gemini API key + OAuth"
+    },
+    {
+      "provider": "google-antigravity",
+      "method": "oauth",
+      "choiceId": "google-antigravity",
+      "choiceLabel": "Antigravity CLI OAuth",
+      "choiceHint": "Google Antigravity CLI keyring/browser sign-in",
       "groupId": "google",
       "groupLabel": "Google",
       "groupHint": "Gemini API key + OAuth"
@@ -198,6 +223,58 @@
           }
         }
       }
+    }
+  },
+  "modelCatalog": {
+    "providers": {
+      "google": [
+        {
+          "id": "gemini-3.5-flash",
+          "label": "Gemini 3.5 Flash"
+        },
+        {
+          "id": "gemini-3.1-pro-preview",
+          "label": "Gemini 3.1 Pro Preview"
+        },
+        {
+          "id": "gemini-3.1-pro-preview-customtools",
+          "label": "Gemini 3.1 Pro Preview Custom Tools"
+        },
+        {
+          "id": "gemini-3-flash-preview",
+          "label": "Gemini 3 Flash Preview"
+        }
+      ],
+      "google-antigravity": [
+        {
+          "id": "gemini-3.5-flash",
+          "label": "Gemini 3.5 Flash"
+        },
+        {
+          "id": "gemini-3.1-pro-high",
+          "label": "Gemini 3.1 Pro High"
+        },
+        {
+          "id": "gemini-3.1-pro-low",
+          "label": "Gemini 3.1 Pro Low"
+        },
+        {
+          "id": "gemini-3-flash",
+          "label": "Gemini 3 Flash"
+        },
+        {
+          "id": "claude-sonnet-4-6-thinking",
+          "label": "Claude Sonnet 4.6 Thinking"
+        },
+        {
+          "id": "claude-opus-4-6-thinking",
+          "label": "Claude Opus 4.6 Thinking"
+        },
+        {
+          "id": "gpt-oss-120b",
+          "label": "GPT OSS 120B"
+        }
+      ]
     }
   }
 }

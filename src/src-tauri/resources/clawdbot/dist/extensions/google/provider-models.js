@@ -6,6 +6,7 @@ const GOOGLE_ANTIGRAVITY_PROVIDER_ID = "google-antigravity";
 const GEMINI_2_5_PRO_PREFIX = "gemini-2.5-pro";
 const GEMINI_2_5_FLASH_LITE_PREFIX = "gemini-2.5-flash-lite";
 const GEMINI_2_5_FLASH_PREFIX = "gemini-2.5-flash";
+const GEMINI_3_5_FLASH_PREFIX = "gemini-3.5-flash";
 const GEMINI_3_1_PRO_PREFIX = "gemini-3.1-pro";
 const GEMINI_3_1_FLASH_LITE_PREFIX = "gemini-3.1-flash-lite";
 const GEMINI_3_1_FLASH_PREFIX = "gemini-3.1-flash";
@@ -16,10 +17,11 @@ const GEMMA_PREFIX = "gemma-";
 const GEMINI_2_5_PRO_TEMPLATE_IDS = ["gemini-2.5-pro"];
 const GEMINI_2_5_FLASH_LITE_TEMPLATE_IDS = ["gemini-2.5-flash-lite"];
 const GEMINI_2_5_FLASH_TEMPLATE_IDS = ["gemini-2.5-flash"];
-const GEMINI_3_1_PRO_TEMPLATE_IDS = ["gemini-3-pro-preview"];
+const GEMINI_3_5_FLASH_TEMPLATE_IDS = ["gemini-3.5-flash"];
+const GEMINI_3_1_PRO_TEMPLATE_IDS = ["gemini-3.1-pro-preview"];
 const GEMINI_3_1_FLASH_LITE_TEMPLATE_IDS = ["gemini-3.1-flash-lite-preview"];
 const GEMINI_3_1_FLASH_TEMPLATE_IDS = ["gemini-3-flash-preview"];
-const GEMINI_3_PRO_ANTIGRAVITY_TEMPLATE_IDS = ["gemini-3-pro-low", "gemini-3-pro-high"];
+const GEMINI_3_PRO_ANTIGRAVITY_TEMPLATE_IDS = ["gemini-3.1-pro-low", "gemini-3.1-pro-high"];
 const GEMINI_3_FLASH_ANTIGRAVITY_TEMPLATE_IDS = ["gemini-3-flash"];
 const GEMMA_TEMPLATE_IDS = GEMINI_3_1_FLASH_TEMPLATE_IDS;
 function cloneGoogleTemplateModel(params) {
@@ -81,6 +83,11 @@ function resolveGoogleGeminiForwardCompatModel(params) {
 		cliTemplateIds: GEMINI_3_1_FLASH_TEMPLATE_IDS,
 		preferExternalFirstForCli: true
 	};
+	else if (lower.startsWith(GEMINI_3_5_FLASH_PREFIX)) family = {
+		googleTemplateIds: GEMINI_3_5_FLASH_TEMPLATE_IDS,
+		cliTemplateIds: GEMINI_3_5_FLASH_TEMPLATE_IDS,
+		antigravityTemplateIds: GEMINI_3_5_FLASH_TEMPLATE_IDS
+	};
 	else if (lower.startsWith(GEMINI_3_1_PRO_PREFIX) || lower === GEMINI_PRO_LATEST_ID) {
 		family = {
 			googleTemplateIds: GEMINI_3_1_PRO_TEMPLATE_IDS,
@@ -123,7 +130,7 @@ function resolveGoogleGeminiForwardCompatModel(params) {
 }
 function isModernGoogleModel(modelId) {
 	const lower = normalizeOptionalLowercaseString(modelId) ?? "";
-	return lower.startsWith("gemini-2.5") || lower.startsWith("gemini-3") || lower === GEMINI_PRO_LATEST_ID || lower === GEMINI_FLASH_LATEST_ID || lower === GEMINI_FLASH_LITE_LATEST_ID || lower.startsWith(GEMMA_PREFIX);
+	return lower.startsWith("gemini-2.5") || lower.startsWith("gemini-3") || lower.startsWith("gemini-3.5") || lower === GEMINI_PRO_LATEST_ID || lower === GEMINI_FLASH_LATEST_ID || lower === GEMINI_FLASH_LITE_LATEST_ID || lower.startsWith(GEMMA_PREFIX);
 }
 //#endregion
 export { isModernGoogleModel, resolveGoogleGeminiForwardCompatModel };

@@ -638,17 +638,15 @@ and troubleshooting see the main [FAQ](/help/faq).
 
   </Accordion>
 
-  <Accordion title="How do I set up Gemini CLI OAuth?">
-    Gemini CLI uses a **plugin auth flow**, not a client id or secret in `openclaw.json`.
+  <Accordion title="How do I set up Antigravity CLI OAuth?">
+    Antigravity CLI uses a **plugin auth flow**, not a client id or secret in `openclaw.json`.
 
     Steps:
 
-    1. Install Gemini CLI locally so `gemini` is on `PATH`
-       - Homebrew: `brew install gemini-cli`
-       - npm: `npm install -g @google/gemini-cli`
+    1. Install Antigravity CLI locally so `agy` is on `PATH`: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
     2. Enable the plugin: `openclaw plugins enable google`
     3. Login: `openclaw models auth login --provider google-gemini-cli --set-default`
-    4. Default model after login: `google-gemini-cli/gemini-3-flash-preview`
+    4. Default model after login: `google-gemini-cli/gemini-3.5-flash`
     5. If requests fail, set `GOOGLE_CLOUD_PROJECT` or `GOOGLE_CLOUD_PROJECT_ID` on the gateway host
 
     This stores OAuth tokens in auth profiles on the gateway host. Details: [Model providers](/concepts/model-providers).

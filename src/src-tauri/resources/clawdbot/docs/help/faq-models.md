@@ -269,8 +269,8 @@ troubleshooting, see the main [FAQ](/help/faq).
     - `gpt` → `openai/gpt-5.5` for API-key setups, or `openai-codex/gpt-5.5` when configured for Codex OAuth
     - `gpt-mini` → `openai/gpt-5.4-mini`
     - `gpt-nano` → `openai/gpt-5.4-nano`
-    - `gemini` → `google/gemini-3.1-pro-preview`
-    - `gemini-flash` → `google/gemini-3-flash-preview`
+    - `gemini` → `google/gemini-3.5-flash`
+    - `gemini-flash` → `google/gemini-3.5-flash`
     - `gemini-flash-lite` → `google/gemini-3.1-flash-lite-preview`
 
     If you set your own alias with the same name, your value wins.
