@@ -8,8 +8,8 @@ export declare function isWriteMethod(method: string): boolean;
 export declare function isNodeRoleMethod(method: string): boolean;
 export declare function isAdminOnlyMethod(method: string): boolean;
 export declare function resolveRequiredOperatorScopeForMethod(method: string): OperatorScope | undefined;
-export declare function resolveLeastPrivilegeOperatorScopesForMethod(method: string): OperatorScope[];
-export declare function authorizeOperatorScopesForMethod(method: string, scopes: readonly string[]): {
+export declare function resolveLeastPrivilegeOperatorScopesForMethod(method: string, params?: unknown): OperatorScope[];
+export declare function authorizeOperatorScopesForMethod(method: string, scopes: readonly string[], params?: unknown): {
     allowed: true;
 } | {
     allowed: false;

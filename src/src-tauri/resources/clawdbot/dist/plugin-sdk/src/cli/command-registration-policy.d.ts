@@ -1,3 +1,4 @@
+export declare function isReservedNonPluginCommandRoot(primary: string | null | undefined): boolean;
 export declare function shouldRegisterPrimaryCommandOnly(argv: string[]): boolean;
 export declare function shouldSkipPluginCommandRegistration(params: {
     argv: string[];

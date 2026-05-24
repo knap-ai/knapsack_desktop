@@ -1,4 +1,4 @@
-import type { ExtensionFactory, SessionManager } from "@mariozechner/pi-coding-agent";
+import type { ExtensionFactory, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
 import { ensurePiCompactionReserveTokens } from "../pi-settings.js";

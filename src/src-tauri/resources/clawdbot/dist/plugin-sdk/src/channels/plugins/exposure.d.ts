@@ -6,4 +6,3 @@ export declare function resolveChannelExposure(meta: Pick<ChannelMeta, "exposure
 };
 export declare function isChannelVisibleInConfiguredLists(meta: Pick<ChannelMeta, "exposure" | "showConfigured" | "showInSetup">): boolean;
 export declare function isChannelVisibleInSetup(meta: Pick<ChannelMeta, "exposure" | "showConfigured" | "showInSetup">): boolean;
-export declare function isChannelVisibleInDocs(meta: Pick<ChannelMeta, "exposure" | "showConfigured" | "showInSetup">): boolean;

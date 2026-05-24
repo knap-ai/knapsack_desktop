@@ -43,14 +43,6 @@ export declare function resolveBundledWebProviderResolutionConfig(params: {
     activationSourceConfig?: PluginLoadOptions["config"];
     autoEnabledReasons: Record<string, string[]>;
 };
-export declare function buildWebProviderSnapshotCacheKey(params: {
-    config?: PluginLoadOptions["config"];
-    workspaceDir?: string;
-    bundledAllowlistCompat?: boolean;
-    onlyPluginIds?: readonly string[];
-    origin?: PluginManifestRecord["origin"];
-    envKey: string | Record<string, string>;
-}): string;
 export declare function mapRegistryProviders<TProvider extends {
     id: string;
 }>(params: {

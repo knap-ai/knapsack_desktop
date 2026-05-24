@@ -1,9 +1,9 @@
 import { Type, type TSchema } from "typebox";
-import { type DeliveryContext } from "../../utils/delivery-context.shared.js";
+import type { DeliveryContext } from "../../utils/delivery-context.shared.js";
 import { type AnyAgentTool } from "./common.js";
 import { callGatewayTool } from "./gateway.js";
 export declare const CronToolSchema: Type.TObject<{
-    action: Type.TUnsafe<"add" | "list" | "remove" | "run" | "runs" | "status" | "update" | "wake">;
+    action: Type.TUnsafe<"add" | "get" | "list" | "remove" | "run" | "runs" | "status" | "update" | "wake">;
     gatewayUrl: Type.TOptional<Type.TString>;
     gatewayToken: Type.TOptional<Type.TString>;
     timeoutMs: Type.TOptional<Type.TNumber>;
@@ -37,6 +37,7 @@ export declare const CronToolSchema: Type.TObject<{
             mode: Type.TOptional<Type.TUnsafe<"announce" | "none" | "webhook">>;
             channel: Type.TOptional<Type.TString>;
             to: Type.TOptional<Type.TString>;
+            threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
             bestEffort: Type.TOptional<Type.TBoolean>;
             accountId: Type.TOptional<Type.TString>;
             failureDestination: Type.TOptional<Type.TObject<{
@@ -84,6 +85,7 @@ export declare const CronToolSchema: Type.TObject<{
             mode: Type.TOptional<Type.TUnsafe<"announce" | "none" | "webhook">>;
             channel: Type.TOptional<Type.TString>;
             to: Type.TOptional<Type.TString>;
+            threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
             bestEffort: Type.TOptional<Type.TBoolean>;
             accountId: Type.TOptional<Type.TString>;
             failureDestination: Type.TOptional<Type.TObject<{
@@ -104,10 +106,12 @@ export declare const CronToolSchema: Type.TObject<{
     mode: Type.TOptional<Type.TUnsafe<"next-heartbeat" | "now">>;
     runMode: Type.TOptional<Type.TUnsafe<"due" | "force">>;
     contextMessages: Type.TOptional<Type.TNumber>;
+    agentId: Type.TOptional<Type.TString>;
 }>;
 type CronToolOptions = {
     agentSessionKey?: string;
     currentDeliveryContext?: DeliveryContext;
+    selfRemoveOnlyJobId?: string;
 };
 type GatewayToolCaller = typeof callGatewayTool;
 type CronToolDeps = {

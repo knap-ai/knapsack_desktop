@@ -1,3 +1,4 @@
+import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import { type ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
@@ -34,6 +35,7 @@ export declare function persistInlineDirectives(params: {
     gatewayClientScopes?: string[];
     senderIsOwner?: boolean;
     markLiveSwitchPending?: boolean;
+    thinkingCatalog?: ModelCatalogEntry[];
 }): Promise<{
     provider: string;
     model: string;

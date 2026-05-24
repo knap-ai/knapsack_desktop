@@ -1,4 +1,4 @@
-import { readClaudeCliCredentialsForRuntime } from "./cli-auth-seam.js";
+import { t as readClaudeCliCredentialsForRuntime } from "../../cli-auth-seam-CIW1ksPk.js";
 //#region extensions/anthropic/provider-discovery.ts
 const CLAUDE_CLI_BACKEND_ID = "claude-cli";
 function resolveClaudeCliSyntheticAuth() {
@@ -24,4 +24,4 @@ const anthropicProviderDiscovery = {
 	resolveSyntheticAuth: ({ provider }) => provider === CLAUDE_CLI_BACKEND_ID ? resolveClaudeCliSyntheticAuth() : void 0
 };
 //#endregion
-export { anthropicProviderDiscovery, anthropicProviderDiscovery as default };
+export { anthropicProviderDiscovery as default };

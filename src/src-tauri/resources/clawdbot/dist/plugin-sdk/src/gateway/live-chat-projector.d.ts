@@ -1,4 +1,4 @@
-export { resolveAssistantEventPhase } from "../shared/chat-message-content.js";
+export declare const MAX_LIVE_CHAT_BUFFER_CHARS = 500000;
 export declare function resolveMergedAssistantText(params: {
     previousText: string;
     nextText: string;

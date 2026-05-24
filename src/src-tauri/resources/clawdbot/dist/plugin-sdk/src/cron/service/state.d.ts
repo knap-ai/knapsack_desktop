@@ -1,20 +1,26 @@
 import type { CronConfig } from "../../config/types.cron.js";
 import type { HeartbeatRunResult, HeartbeatWakeRequest } from "../../infra/heartbeat-wake.js";
-import type { CronDeliveryStatus, CronDeliveryTrace, CronJob, CronJobCreate, CronJobPatch, CronMessageChannel, CronRunOutcome, CronRunStatus, CronRunTelemetry, CronStoreFile } from "../types.js";
+import type { DeliveryContext } from "../../utils/delivery-context.types.js";
+import type { CronAgentExecutionPhaseUpdate, CronAgentExecutionStarted, CronFailureNotificationDelivery, CronDeliveryStatus, CronDeliveryTrace, CronJob, CronJobCreate, CronJobPatch, CronRunDiagnostics, CronMessageChannel, CronRunOutcome, CronRunStatus, CronRunTelemetry, CronStoreFile } from "../types.js";
 export type CronEvent = {
     jobId: string;
     action: "added" | "updated" | "removed" | "started" | "finished";
+    /** Snapshot of the job at the time of the event. Present for all actions where the job is accessible. */
+    job?: CronJob;
     runAtMs?: number;
     durationMs?: number;
     status?: CronRunStatus;
     error?: string;
     summary?: string;
+    diagnostics?: CronRunDiagnostics;
     delivered?: boolean;
     deliveryStatus?: CronDeliveryStatus;
     deliveryError?: string;
+    failureNotificationDelivery?: CronFailureNotificationDelivery;
     delivery?: CronDeliveryTrace;
     sessionId?: string;
     sessionKey?: string;
+    runId?: string;
     nextRunAtMs?: number;
 } & CronRunTelemetry;
 export type Logger = {
@@ -48,26 +54,31 @@ export type CronServiceDeps = {
      * See: https://github.com/openclaw/openclaw/issues/18892
      */
     maxMissedJobsPerRestart?: number;
+    /**
+     * Delay before replaying missed agent-turn jobs found during gateway startup.
+     * Keeps model/tool bootstrap work out of the channel connect window.
+     */
+    startupDeferredMissedAgentJobDelayMs?: number;
     enqueueSystemEvent: (text: string, opts?: {
         agentId?: string;
         sessionKey?: string;
         contextKey?: string;
-        trusted?: boolean;
+        deliveryContext?: DeliveryContext;
     }) => void;
-    requestHeartbeatNow: (opts?: HeartbeatWakeRequest) => void;
+    requestHeartbeat: (opts: HeartbeatWakeRequest) => void;
     runHeartbeatOnce?: (opts?: {
+        source?: HeartbeatWakeRequest["source"];
+        intent?: HeartbeatWakeRequest["intent"];
         reason?: string;
         agentId?: string;
         sessionKey?: string;
         /** Optional heartbeat config override (e.g. target: "last" for cron-triggered heartbeats). */
-        heartbeat?: {
-            target?: string;
-        };
+        heartbeat?: HeartbeatWakeRequest["heartbeat"];
     }) => Promise<HeartbeatRunResult>;
     /**
      * WakeMode=now: max time to wait for runHeartbeatOnce to stop returning
      * { status:"skipped", reason:"requests-in-flight" } before falling back to
-     * requestHeartbeatNow.
+     * requestHeartbeat.
      */
     wakeNowHeartbeatBusyMaxWaitMs?: number;
     /** WakeMode=now: delay between runHeartbeatOnce retries while busy. */
@@ -76,7 +87,8 @@ export type CronServiceDeps = {
         job: CronJob;
         message: string;
         abortSignal?: AbortSignal;
-        onExecutionStarted?: () => void;
+        onExecutionStarted?: (info?: CronAgentExecutionStarted) => void;
+        onExecutionPhase?: (info: CronAgentExecutionPhaseUpdate) => void;
     }) => Promise<{
         summary?: string;
         /** Last non-empty agent text output (not truncated). */
@@ -94,6 +106,11 @@ export type CronServiceDeps = {
         deliveryAttempted?: boolean;
         delivery?: CronDeliveryTrace;
     } & CronRunOutcome & CronRunTelemetry>;
+    cleanupTimedOutAgentRun?: (params: {
+        job: CronJob;
+        timeoutMs: number;
+        execution?: CronAgentExecutionStarted;
+    }) => Promise<void>;
     sendCronFailureAlert?: (params: {
         job: CronJob;
         text: string;
@@ -120,6 +137,11 @@ export type CronServiceState = {
      * single broken job does not spam the log on every scheduler cycle.
      */
     warnedMissingSessionTargetJobIds: Set<string>;
+    /**
+     * Persisted job rows with non-canonical storage shape are skipped in memory
+     * until doctor/fix or an explicit config write repairs the store.
+     */
+    warnedInvalidPersistedJobKeys: Set<string>;
     storeLoadedAtMs: number | null;
     storeFileMtimeMs: number | null;
 };

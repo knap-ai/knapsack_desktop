@@ -1,4 +1,4 @@
-import { defineBundledChannelSetupEntry } from "openclaw/plugin-sdk/channel-entry-contract";
+import { n as defineBundledChannelSetupEntry } from "../../channel-entry-contract-BDMmGZzs.js";
 //#region extensions/telegram/setup-entry.ts
 var setup_entry_default = defineBundledChannelSetupEntry({
 	importMetaUrl: import.meta.url,

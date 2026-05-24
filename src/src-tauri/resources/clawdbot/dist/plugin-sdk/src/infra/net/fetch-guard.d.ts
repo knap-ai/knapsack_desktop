@@ -23,6 +23,7 @@ export type GuardedFetchOptions = {
     allowCrossOriginUnsafeRedirectReplay?: boolean;
     timeoutMs?: number;
     signal?: AbortSignal;
+    requireHttps?: boolean;
     policy?: SsrFPolicy;
     lookupFn?: LookupFn;
     dispatcherPolicy?: PinnedDispatcherPolicy;
@@ -40,6 +41,7 @@ export type GuardedFetchResult = {
     response: Response;
     finalUrl: string;
     release: () => Promise<void>;
+    refreshTimeout?: () => void;
 };
 type GuardedFetchPresetOptions = Omit<GuardedFetchOptions, "mode" | "proxy" | "dangerouslyAllowEnvProxyWithoutPinnedDns">;
 export declare function withStrictGuardedFetchMode(params: GuardedFetchPresetOptions): GuardedFetchOptions;

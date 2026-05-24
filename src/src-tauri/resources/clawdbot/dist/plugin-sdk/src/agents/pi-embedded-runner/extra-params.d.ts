@@ -1,16 +1,16 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { SimpleStreamOptions } from "@mariozechner/pi-ai";
-import type { SettingsManager } from "@mariozechner/pi-coding-agent";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import { prepareProviderExtraParams as prepareProviderExtraParamsRuntime, resolveProviderExtraParamsForTransport as resolveProviderExtraParamsForTransportRuntime, wrapProviderStreamFn as wrapProviderStreamFnRuntime } from "../../plugins/provider-hook-runtime.js";
+import { prepareProviderExtraParams as prepareProviderExtraParamsRuntime, type ProviderRuntimePluginHandle, resolveProviderExtraParamsForTransport as resolveProviderExtraParamsForTransportRuntime, wrapProviderStreamFn as wrapProviderStreamFnRuntime } from "../../plugins/provider-hook-runtime.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
+import type { AgentRuntimeTransport } from "../runtime-plan/types.js";
 declare const defaultProviderRuntimeDeps: {
     prepareProviderExtraParams: typeof prepareProviderExtraParamsRuntime;
     resolveProviderExtraParamsForTransport: typeof resolveProviderExtraParamsForTransportRuntime;
     wrapProviderStreamFn: typeof wrapProviderStreamFnRuntime;
 };
-export declare const __testing: {
+export declare const testing: {
     setProviderRuntimeDepsForTest(deps: Partial<typeof defaultProviderRuntimeDeps> | undefined): void;
     resetProviderRuntimeDepsForTest(): void;
 };
@@ -26,12 +26,7 @@ export declare function resolveExtraParams(params: {
     modelId: string;
     agentId?: string;
 }): Record<string, unknown> | undefined;
-type CacheRetentionStreamOptions = Partial<SimpleStreamOptions> & {
-    cacheRetention?: "none" | "short" | "long";
-    cachedContent?: string;
-    openaiWsWarmup?: boolean;
-};
-export type SupportedTransport = Exclude<CacheRetentionStreamOptions["transport"], undefined>;
+export type SupportedTransport = AgentRuntimeTransport;
 export declare function resolvePreparedExtraParams(params: {
     cfg: OpenClawConfig | undefined;
     provider: string;
@@ -44,6 +39,7 @@ export declare function resolvePreparedExtraParams(params: {
     resolvedExtraParams?: Record<string, unknown>;
     model?: ProviderRuntimeModel;
     resolvedTransport?: SupportedTransport;
+    providerRuntimeHandle?: ProviderRuntimePluginHandle;
 }): Record<string, unknown>;
 export declare function resolveAgentTransportOverride(params: {
     settingsManager: Pick<SettingsManager, "getGlobalSettings" | "getProjectSettings">;
@@ -66,4 +62,4 @@ export declare function applyExtraParamsToAgent(agent: {
 }): {
     effectiveExtraParams: Record<string, unknown>;
 };
-export {};
+export { testing as __testing };

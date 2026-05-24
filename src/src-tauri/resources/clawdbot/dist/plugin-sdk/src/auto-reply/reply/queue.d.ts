@@ -6,3 +6,5 @@ export { enqueueFollowupRun, getFollowupQueueDepth, resetRecentQueuedMessageIdDe
 export { resolveQueueSettings } from "./queue/settings-runtime.js";
 export { clearFollowupQueue, refreshQueuedFollowupSession } from "./queue/state.js";
 export type { FollowupRun, QueueDedupeMode, QueueDropPolicy, QueueMode, QueueSettings, } from "./queue/types.js";
+export { isFollowupRunAborted } from "./queue/types.js";
+export { completeFollowupRunLifecycle } from "./queue/types.js";

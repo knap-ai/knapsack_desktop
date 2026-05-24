@@ -9,7 +9,10 @@ export type RecoverySummary = {
 export type DeliverFn = (params: {
     cfg: OpenClawConfig;
 } & QueuedDeliveryPayload & {
+    deliveryQueueId?: string;
+    deliveryQueueStateDir?: string;
     skipQueue?: boolean;
+    deferCommitHooks?: boolean;
 }) => Promise<unknown>;
 export interface RecoveryLogger {
     info(msg: string): void;

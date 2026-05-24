@@ -1,5 +1,5 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 export { stripDowngradedToolCallText, stripMinimaxToolCallXml, } from "../shared/text/assistant-visible-text.js";
 export { stripModelSpecialTokens } from "../shared/text/model-special-tokens.js";
 export declare function isAssistantMessage(msg: AgentMessage | undefined): msg is AssistantMessage;
@@ -25,4 +25,6 @@ export declare function splitThinkingTaggedText(text: string): ThinkTaggedSplitB
 export declare function promoteThinkingTagsToBlocks(message: AssistantMessage): void;
 export declare function extractThinkingFromTaggedText(text: string): string;
 export declare function extractThinkingFromTaggedStream(text: string): string;
-export declare function inferToolMetaFromArgs(toolName: string, args: unknown): string | undefined;
+export declare function inferToolMetaFromArgs(toolName: string, args: unknown, options?: {
+    detailMode?: "explain" | "raw";
+}): string | undefined;

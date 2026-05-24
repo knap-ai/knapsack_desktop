@@ -13,8 +13,8 @@ Gemini Grounding.
 - Provider: `google`
 - Auth: `GEMINI_API_KEY` or `GOOGLE_API_KEY`
 - API: Google Gemini API
-- Runtime option: `agents.defaults.agentRuntime.id: "google-gemini-cli"`
-  reuses Antigravity CLI OAuth while keeping model refs canonical as `google/*`.
+- Runtime option: provider/model `agentRuntime.id: "google-gemini-cli"`
+  reuses Gemini CLI OAuth while keeping model refs canonical as `google/*`.
 
 ## Getting started
 
@@ -44,7 +44,7 @@ Choose your preferred auth method and follow the setup steps.
         {
           agents: {
             defaults: {
-              model: { primary: "google/gemini-3.5-flash" },
+              model: { primary: "google/gemini-3.1-pro-preview" },
             },
           },
         }
@@ -63,8 +63,8 @@ Choose your preferred auth method and follow the setup steps.
 
   </Tab>
 
-  <Tab title="Antigravity CLI (OAuth)">
-    **Best for:** reusing an existing Antigravity CLI login via PKCE OAuth instead of a separate API key.
+  <Tab title="Gemini CLI (OAuth)">
+    **Best for:** reusing an existing Gemini CLI login via PKCE OAuth instead of a separate API key.
 
     <Warning>
     The `google-gemini-cli` provider is an unofficial integration. Some users
@@ -72,15 +72,19 @@ Choose your preferred auth method and follow the setup steps.
     </Warning>
 
     <Steps>
-      <Step title="Install Antigravity CLI">
-        The local `agy` command must be available on `PATH`.
+      <Step title="Install the Gemini CLI">
+        The local `gemini` command must be available on `PATH`.
 
         ```bash
-        curl -fsSL https://antigravity.google/cli/install.sh | bash
+        # Homebrew
+        brew install gemini-cli
+
+        # or npm
+        npm install -g @google/gemini-cli
         ```
 
-        OpenClaw keeps legacy `google-gemini-cli` refs for compatibility, while
-        the forward Google coding CLI surface is Antigravity CLI.
+        OpenClaw supports both Homebrew installs and global npm installs, including
+        common Windows/npm layouts.
       </Step>
       <Step title="Log in via OAuth">
         ```bash
@@ -94,9 +98,11 @@ Choose your preferred auth method and follow the setup steps.
       </Step>
     </Steps>
 
-    - Default model: `google/gemini-3.5-flash`
+    - Default model: `google/gemini-3.1-pro-preview`
     - Runtime: `google-gemini-cli`
     - Alias: `gemini-cli`
+
+    Gemini 3.1 Pro's Gemini API model id is `gemini-3.1-pro-preview`. OpenClaw accepts the shorter `google/gemini-3.1-pro` as a convenience alias and normalizes it before provider calls.
 
     **Environment variables:**
 
@@ -106,18 +112,18 @@ Choose your preferred auth method and follow the setup steps.
     (Or the `GEMINI_CLI_*` variants.)
 
     <Note>
-    If Antigravity CLI OAuth requests fail after login, set `GOOGLE_CLOUD_PROJECT` or
+    If Gemini CLI OAuth requests fail after login, set `GOOGLE_CLOUD_PROJECT` or
     `GOOGLE_CLOUD_PROJECT_ID` on the gateway host and retry.
     </Note>
 
     <Note>
-    If login fails before the browser flow starts, make sure the local `agy`
+    If login fails before the browser flow starts, make sure the local `gemini`
     command is installed and on `PATH`.
     </Note>
 
     `google-gemini-cli/*` model refs are legacy compatibility aliases. New
     configs should use `google/*` model refs plus the `google-gemini-cli`
-    runtime when they want local Antigravity CLI execution.
+    runtime when they want local Gemini CLI execution.
 
   </Tab>
 </Tabs>
@@ -137,6 +143,36 @@ Choose your preferred auth method and follow the setup steps.
 | Web search (Grounding) | Yes                           |
 | Thinking/reasoning     | Yes (Gemini 2.5+ / Gemini 3+) |
 | Gemma 4 models         | Yes                           |
+
+## Web search
+
+The bundled `gemini` web-search provider uses Gemini Google Search grounding.
+Configure a dedicated search key under `plugins.entries.google.config.webSearch`,
+or let it reuse `models.providers.google.apiKey` after `GEMINI_API_KEY`:
+
+```json5
+{
+  plugins: {
+    entries: {
+      google: {
+        config: {
+          webSearch: {
+            apiKey: "AIza...", // optional if GEMINI_API_KEY or models.providers.google.apiKey is set
+            baseUrl: "https://generativelanguage.googleapis.com/v1beta", // falls back to models.providers.google.baseUrl
+            model: "gemini-2.5-flash",
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+Credential precedence is dedicated `webSearch.apiKey`, then `GEMINI_API_KEY`,
+then `models.providers.google.apiKey`. `webSearch.baseUrl` is optional and
+exists for operator proxies or compatible Gemini API endpoints; when omitted,
+Gemini web search reuses `models.providers.google.baseUrl`. See
+[Gemini search](/tools/gemini-search) for the provider-specific tool behavior.
 
 <Tip>
 Gemini 3 models use `thinkingLevel` rather than `thinkingBudget`. OpenClaw maps
@@ -190,8 +226,8 @@ The bundled `google` plugin also registers video generation through the shared
 
 - Default video model: `google/veo-3.1-fast-generate-preview`
 - Modes: text-to-video, image-to-video, and single-video reference flows
-- Supports `aspectRatio`, `resolution`, and `audio`
-- Current duration clamp: **4 to 8 seconds**
+- Supports `aspectRatio` (`16:9`, `9:16`) and `resolution` (`720P`, `1080P`); audio output is not supported by Veo today
+- Supported durations: **4, 6, or 8 seconds** (other values snap to the nearest allowed value)
 
 To use Google as the default video provider:
 
@@ -251,6 +287,11 @@ The bundled `google` speech provider uses the Gemini API TTS path with
 - Output: WAV for regular TTS attachments, Opus for voice-note targets, PCM for Talk/telephony
 - Voice-note output: Google PCM is wrapped as WAV and transcoded to 48 kHz Opus with `ffmpeg`
 
+Google's batch Gemini TTS path returns generated audio in the completed
+`generateContent` response. For lowest-latency spoken conversations, use the
+Google realtime voice provider backed by the Gemini Live API instead of batch
+TTS.
+
 To use Google as the default TTS provider:
 
 ```json5
@@ -307,6 +348,8 @@ Gemini Live API for backend audio bridges such as Voice Call and Google Meet.
 | Activity handling     | `...google.activityHandling`                                        | Google default, `start-of-activity-interrupts`                                        |
 | Turn coverage         | `...google.turnCoverage`                                            | Google default, `only-activity`                                                       |
 | Disable auto VAD      | `...google.automaticActivityDetectionDisabled`                      | `false`                                                                               |
+| Session resumption    | `...google.sessionResumption`                                       | `true`                                                                                |
+| Context compression   | `...google.contextWindowCompression`                                | `true`                                                                                |
 | API key               | `...google.apiKey`                                                  | Falls back to `models.providers.google.apiKey`, `GEMINI_API_KEY`, or `GOOGLE_API_KEY` |
 
 Example Voice Call realtime config:
@@ -355,9 +398,10 @@ Gateway relay transport, which keeps provider credentials on the Gateway.
 
 For maintainer live verification, run
 `OPENAI_API_KEY=... GEMINI_API_KEY=... node --import tsx scripts/dev/realtime-talk-live-smoke.ts`.
-The Google leg mints the same constrained Live API token shape used by Control
-UI Talk, opens the browser WebSocket endpoint, sends the initial setup payload,
-and waits for `setupComplete`.
+The smoke also covers OpenAI backend/WebRTC paths; the Google leg mints the same
+constrained Live API token shape used by Control UI Talk, opens the browser
+WebSocket endpoint, sends the initial setup payload, and waits for
+`setupComplete`.
 
 ## Advanced configuration
 

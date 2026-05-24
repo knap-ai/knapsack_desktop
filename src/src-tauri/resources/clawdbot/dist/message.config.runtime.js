@@ -1,1 +1,1 @@
-export * from "./message.config.runtime-uVL32MAo.js";
+export * from "./message.config.runtime-ByCeidp7.js";

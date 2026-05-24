@@ -1,4 +1,4 @@
-import { Editor } from "@mariozechner/pi-tui";
+import { Editor } from "@earendil-works/pi-tui";
 export declare class CustomEditor extends Editor {
     onEscape?: () => void;
     onCtrlC?: () => void;

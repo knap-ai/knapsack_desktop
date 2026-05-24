@@ -10,6 +10,8 @@ type ModelSelectionState = {
     allowedModelKeys: Set<string>;
     allowedModelCatalog: ModelCatalog;
     resetModelOverride: boolean;
+    resetModelOverrideRef?: string;
+    resolveThinkingCatalog: () => Promise<ModelCatalog | undefined>;
     resolveDefaultThinkingLevel: () => Promise<ThinkLevel>;
     /** Default reasoning level from model capability: "on" if model has reasoning, else "off". */
     resolveDefaultReasoningLevel: () => Promise<"on" | "off">;
@@ -31,12 +33,17 @@ export declare function createModelSelectionState(params: {
     storePath?: string;
     defaultProvider: string;
     defaultModel: string;
+    primaryProvider?: string;
+    primaryModel?: string;
     provider: string;
     model: string;
     hasModelDirective: boolean;
+    hasOneTurnModelOverride?: boolean;
+    skipStoredModelOverride?: boolean;
     /** True when heartbeat.model was explicitly resolved for this run.
      *  In that case, skip session-stored overrides so the heartbeat selection wins. */
     hasResolvedHeartbeatModelOverride?: boolean;
+    isHeartbeat?: boolean;
 }): Promise<ModelSelectionState>;
 export declare function resolveContextTokens(params: {
     cfg: OpenClawConfig;

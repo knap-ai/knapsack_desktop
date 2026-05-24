@@ -3,6 +3,7 @@ import { getTailnetHostname } from "../infra/tailscale.js";
 import type { MemoryProviderStatus } from "../memory-host-sdk/engine-storage.js";
 export { getTailnetHostname };
 type StatusMemoryManager = {
+    probeVectorStoreAvailability?(): Promise<boolean>;
     probeVectorAvailability(): Promise<boolean>;
     status(): MemoryProviderStatus;
     close?(): Promise<void>;

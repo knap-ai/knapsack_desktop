@@ -3,13 +3,10 @@ import { type SubagentTargetResolution } from "../auto-reply/reply/subagents-uti
 import { updateSessionStore } from "../config/sessions/store.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway } from "../gateway/call.js";
-import { buildSubagentList, createPendingDescendantCounter, isActiveSubagentRun, resolveSessionEntryForKey, type BuiltSubagentList, type SessionEntryResolution, type SubagentListItem } from "./subagent-list.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
 export declare const DEFAULT_RECENT_MINUTES = 30;
 export declare const MAX_RECENT_MINUTES: number;
 export declare const MAX_STEER_MESSAGE_CHARS = 4000;
-export declare const STEER_RATE_LIMIT_MS = 2000;
-export declare const STEER_ABORT_SETTLE_TIMEOUT_MS = 5000;
 type GatewayCaller = typeof callGateway;
 type UpdateSessionStore = typeof updateSessionStore;
 type AbortEmbeddedPiRun = (sessionId: string) => boolean;
@@ -20,8 +17,6 @@ export type ResolvedSubagentController = {
     callerIsSubagent: boolean;
     controlScope: "children" | "none";
 };
-export type { BuiltSubagentList, SessionEntryResolution, SubagentListItem };
-export { buildSubagentList, createPendingDescendantCounter, isActiveSubagentRun, resolveSessionEntryForKey, };
 export declare function resolveSubagentController(params: {
     cfg: OpenClawConfig;
     agentSessionKey?: string;
@@ -153,7 +148,7 @@ export declare function resolveControlledSubagentTarget(runs: SubagentRunRecord[
     recentMinutes?: number;
     isActive?: (entry: SubagentRunRecord) => boolean;
 }): SubagentTargetResolution;
-export declare const __testing: {
+export declare const testing: {
     setDepsForTest(overrides?: Partial<{
         callGateway: GatewayCaller;
         updateSessionStore: UpdateSessionStore;
@@ -161,3 +156,4 @@ export declare const __testing: {
         clearSessionQueues: ClearSessionQueues;
     }>): void;
 };
+export { testing as __testing };

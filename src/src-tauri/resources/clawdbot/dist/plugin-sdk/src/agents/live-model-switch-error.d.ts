@@ -1,4 +1,4 @@
-export type LiveSessionModelSelection = {
+type LiveSessionModelSelection = {
     provider: string;
     model: string;
     authProfileId?: string;
@@ -11,3 +11,4 @@ export declare class LiveSessionModelSwitchError extends Error {
     authProfileIdSource?: "auto" | "user";
     constructor(selection: LiveSessionModelSelection);
 }
+export {};

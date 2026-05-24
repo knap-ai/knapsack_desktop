@@ -1,6 +1,6 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 export type ToolCallIdMode = "strict" | "strict9";
-export type ToolCallLike = {
+type ToolCallLike = {
     id: string;
     name?: string;
 };
@@ -29,3 +29,4 @@ export declare function sanitizeToolCallIdsForCloudCodeAssist(messages: AgentMes
     preserveReplaySafeThinkingToolCallIds?: boolean;
     allowedToolNames?: Iterable<string>;
 }): AgentMessage[];
+export {};

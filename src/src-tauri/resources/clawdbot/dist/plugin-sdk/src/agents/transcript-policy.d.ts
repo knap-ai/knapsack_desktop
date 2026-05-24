@@ -1,4 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ProviderRuntimePluginHandle } from "../plugins/provider-hook-runtime.js";
 import type { ProviderRuntimeModel } from "../plugins/provider-runtime-model.types.js";
 import type { ToolCallIdMode } from "./tool-call-id.js";
 export type TranscriptSanitizeMode = "full" | "images-only";
@@ -33,4 +34,5 @@ export declare function resolveTranscriptPolicy(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     model?: ProviderRuntimeModel;
+    runtimeHandle?: ProviderRuntimePluginHandle;
 }): TranscriptPolicy;

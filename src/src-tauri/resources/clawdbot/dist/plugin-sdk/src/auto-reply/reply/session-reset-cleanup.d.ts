@@ -1,4 +1,4 @@
-import { type ClearSessionQueueResult } from "./queue.js";
+import { type ClearSessionQueueResult } from "./queue/cleanup.js";
 export type ClearSessionResetRuntimeStateResult = ClearSessionQueueResult & {
     systemEventsCleared: number;
 };

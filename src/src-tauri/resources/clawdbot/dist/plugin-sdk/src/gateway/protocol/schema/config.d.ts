@@ -44,6 +44,7 @@ export declare const UpdateRunParamsSchema: Type.TObject<{
         threadId: Type.TOptional<Type.TUnion<[Type.TString, Type.TNumber]>>;
     }>>;
     note: Type.TOptional<Type.TString>;
+    continuationMessage: Type.TOptional<Type.TString>;
     restartDelayMs: Type.TOptional<Type.TInteger>;
     timeoutMs: Type.TOptional<Type.TInteger>;
 }>;
@@ -80,6 +81,7 @@ export declare const ConfigSchemaLookupChildSchema: Type.TObject<{
     type: Type.TOptional<Type.TUnion<[Type.TString, Type.TArray<Type.TString>]>>;
     required: Type.TBoolean;
     hasChildren: Type.TBoolean;
+    reloadKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"restart">, Type.TLiteral<"hot">, Type.TLiteral<"none">]>>;
     hint: Type.TOptional<Type.TObject<{
         label: Type.TOptional<Type.TString>;
         help: Type.TOptional<Type.TString>;
@@ -96,6 +98,7 @@ export declare const ConfigSchemaLookupChildSchema: Type.TObject<{
 export declare const ConfigSchemaLookupResultSchema: Type.TObject<{
     path: Type.TString;
     schema: Type.TUnknown;
+    reloadKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"restart">, Type.TLiteral<"hot">, Type.TLiteral<"none">]>>;
     hint: Type.TOptional<Type.TObject<{
         label: Type.TOptional<Type.TString>;
         help: Type.TOptional<Type.TString>;
@@ -114,6 +117,7 @@ export declare const ConfigSchemaLookupResultSchema: Type.TObject<{
         type: Type.TOptional<Type.TUnion<[Type.TString, Type.TArray<Type.TString>]>>;
         required: Type.TBoolean;
         hasChildren: Type.TBoolean;
+        reloadKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"restart">, Type.TLiteral<"hot">, Type.TLiteral<"none">]>>;
         hint: Type.TOptional<Type.TObject<{
             label: Type.TOptional<Type.TString>;
             help: Type.TOptional<Type.TString>;

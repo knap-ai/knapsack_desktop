@@ -2776,6 +2776,16 @@ fn ensure_imessage_allowlist_config(cfg: &mut serde_json::Value) -> bool {
     patched = true;
   }
 
+  if current_policy == "disabled"
+    && ch.get("enabled").and_then(|value| value.as_bool()) != Some(false)
+  {
+    ch.insert("enabled".to_string(), serde_json::json!(false));
+    eprintln!(
+      "[clawd/service] Migrated iMessage dmPolicy=disabled to enabled=false"
+    );
+    patched = true;
+  }
+
   let needs_allow_from = ch
     .get("allowFrom")
     .map(|value| is_empty_allow_from(Some(value)))
@@ -12030,6 +12040,48 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn streaming_scalars_are_upgraded_for_current_openclaw_schema() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "telegram": {
+          "streaming": "partial",
+          "accounts": {
+            "default": { "streaming": "off" },
+            "legacy_bool": { "streaming": true }
+          }
+        },
+        "slack": {
+          "accounts": {
+            "default": { "streaming": { "mode": "partial" } }
+          }
+        }
+      }
+    });
+
+    assert!(sanitize_channel_allowlist_configs(&mut cfg));
+    assert_eq!(
+      cfg.pointer("/channels/telegram/streaming/mode")
+        .and_then(|v| v.as_str()),
+      Some("partial")
+    );
+    assert_eq!(
+      cfg.pointer("/channels/telegram/accounts/default/streaming/mode")
+        .and_then(|v| v.as_str()),
+      Some("off")
+    );
+    assert_eq!(
+      cfg.pointer("/channels/telegram/accounts/legacy_bool/streaming/mode")
+        .and_then(|v| v.as_str()),
+      Some("partial")
+    );
+    assert_eq!(
+      cfg.pointer("/channels/slack/accounts/default/streaming/mode")
+        .and_then(|v| v.as_str()),
+      Some("partial")
+    );
+  }
+
+  #[test]
   fn imessage_pairing_is_migrated_to_seeded_allowlist() {
     let mut cfg = serde_json::json!({
       "channels": {
@@ -12054,6 +12106,34 @@ mod crash_classifier_tests {
         .map(|arr| !arr.is_empty())
         .unwrap_or(false),
       "iMessage allowlist should be seeded so the gateway does not fall back to pairing"
+    );
+  }
+
+  #[test]
+  fn imessage_disabled_policy_disables_channel() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "imessage": {
+          "dmPolicy": "disabled",
+          "enabled": true,
+          "service": "auto",
+          "allowFrom": ["owner@example.com"]
+        }
+      }
+    });
+
+    assert!(sanitize_channel_allowlist_configs(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/channels/imessage/enabled")
+        .and_then(|v| v.as_bool()),
+      Some(false)
+    );
+    assert_eq!(
+      cfg
+        .pointer("/channels/imessage/dmPolicy")
+        .and_then(|v| v.as_str()),
+      Some("disabled")
     );
   }
 

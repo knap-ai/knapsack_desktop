@@ -2,10 +2,10 @@ import { SILENT_REPLY_TOKEN } from "../../../auto-reply/tokens.js";
 import type { EmbeddedPiExecutionContract } from "../../../config/types.agent-defaults.js";
 import type { EmbeddedRunLivenessState } from "../types.js";
 import type { EmbeddedRunAttemptResult } from "./types.js";
-type ReplayMetadataAttempt = Pick<EmbeddedRunAttemptResult, "toolMetas" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "successfulCronAdds">;
-type IncompleteTurnAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCall" | "currentAttemptAssistant" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "lastToolError" | "lastAssistant" | "replayMetadata" | "promptErrorSource" | "timedOutDuringCompaction">;
-type PlanningOnlyAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCall" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "lastToolError" | "lastAssistant" | "itemLifecycle" | "replayMetadata" | "toolMetas">;
-type SilentToolResultAttempt = Pick<EmbeddedRunAttemptResult, "clientToolCall" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "lastToolError" | "messagesSnapshot" | "toolMetas">;
+type ReplayMetadataAttempt = Pick<EmbeddedRunAttemptResult, "toolMetas" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "successfulCronAdds"> & Partial<Pick<EmbeddedRunAttemptResult, "messagingToolSentTargets" | "acceptedSessionSpawns">>;
+type IncompleteTurnAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCalls" | "currentAttemptAssistant" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "lastToolError" | "lastAssistant" | "replayMetadata" | "promptErrorSource" | "timedOutDuringCompaction"> & Partial<Pick<EmbeddedRunAttemptResult, "acceptedSessionSpawns">>;
+type PlanningOnlyAttempt = Pick<EmbeddedRunAttemptResult, "assistantTexts" | "clientToolCalls" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "didSendViaMessagingTool" | "lastToolError" | "lastAssistant" | "itemLifecycle" | "replayMetadata" | "messagingToolSentTexts" | "messagingToolSentMediaUrls" | "messagingToolSentTargets" | "toolMetas">;
+type SilentToolResultAttempt = Pick<EmbeddedRunAttemptResult, "clientToolCalls" | "yieldDetected" | "didSendDeterministicApprovalPrompt" | "lastToolError" | "messagesSnapshot" | "toolMetas">;
 type RunLivenessAttempt = Pick<EmbeddedRunAttemptResult, "lastAssistant" | "promptErrorSource" | "replayMetadata" | "timedOutDuringCompaction">;
 export declare function isIncompleteTerminalAssistantTurn(params: {
     hasAssistantVisibleText: boolean;
@@ -24,7 +24,6 @@ export type PlanningOnlyPlanDetails = {
     explanation: string;
     steps: string[];
 };
-export declare function hasCommittedUserVisibleToolDelivery(attempt: Pick<EmbeddedRunAttemptResult, "messagingToolSentTexts" | "messagingToolSentMediaUrls">): boolean;
 export declare function buildAttemptReplayMetadata(params: ReplayMetadataAttempt): EmbeddedRunAttemptResult["replayMetadata"];
 export declare function resolveAttemptReplayMetadata(attempt: {
     replayMetadata?: EmbeddedRunAttemptResult["replayMetadata"] | null;
@@ -55,7 +54,6 @@ export declare function resolveRunLivenessState(params: {
     attempt: RunLivenessAttempt;
     incompleteTurnText?: string | null;
 }): EmbeddedRunLivenessState;
-export declare function isReasoningOnlyAssistantTurn(message: unknown): boolean;
 export declare function shouldTreatEmptyAssistantReplyAsSilent(params: {
     allowEmptyAssistantReplyAsSilent?: boolean;
     payloadCount: number;

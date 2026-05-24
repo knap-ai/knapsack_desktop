@@ -11,6 +11,7 @@ export type ResolvedMemorySearchConfig = {
         baseUrl?: string;
         apiKey?: SecretInput;
         headers?: Record<string, string>;
+        nonBatchConcurrency?: number;
         batch?: {
             enabled: boolean;
             wait: boolean;

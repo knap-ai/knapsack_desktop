@@ -46,9 +46,17 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Report clawdbot duplicates before prune
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs
+
       - name: Smoke-test gateway plugin registration
         working-directory: src
         run: bash scripts/smoke-test-gateway-plugins.sh
+
+      - name: Smoke-test gateway live timing
+        working-directory: src
+        run: node scripts/smoke-test-gateway-live.cjs
 
       - name: Run prebuild scripts
         working-directory: src
@@ -62,6 +70,10 @@ jobs:
       - name: Verify clawdbot bundle integrity
         working-directory: src
         run: node scripts/verify-clawdbot-bundle.cjs
+
+      - name: Enforce clawdbot duplicate gate
+        working-directory: src
+        run: node scripts/report-clawdbot-duplicates.cjs --enforce
 
       - name: Build Tauri app (universal)
         working-directory: src

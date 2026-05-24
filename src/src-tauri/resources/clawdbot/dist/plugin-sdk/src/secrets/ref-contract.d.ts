@@ -1,7 +1,8 @@
 import { type SecretRef, type SecretRefSource } from "../config/types.secrets.js";
 export declare const SECRET_PROVIDER_ALIAS_PATTERN: RegExp;
 export declare const SINGLE_VALUE_FILE_REF_ID = "value";
-export declare const FILE_SECRET_REF_ID_PATTERN: RegExp;
+export declare const FILE_SECRET_REF_ID_ABSOLUTE_JSON_SCHEMA_PATTERN = "^/";
+export declare const FILE_SECRET_REF_ID_INVALID_ESCAPE_JSON_SCHEMA_PATTERN = "~(?:[^01]|$)";
 export declare const EXEC_SECRET_REF_ID_JSON_SCHEMA_PATTERN = "^(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$";
 export type ExecSecretRefIdValidationReason = "pattern" | "traversal-segment";
 export type ExecSecretRefIdValidationResult = {

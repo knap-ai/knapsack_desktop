@@ -17,6 +17,7 @@ export declare class ParentFlowLinkError extends Error {
 }
 export declare function isParentFlowLinkError(error: unknown): error is ParentFlowLinkError;
 export declare function ensureTaskRegistryReady(): void;
+export declare function reloadTaskRegistryFromStore(): void;
 export declare function maybeDeliverTaskTerminalUpdate(taskId: string): Promise<TaskRecord | null>;
 export declare function maybeDeliverTaskStateChangeUpdate(taskId: string, latestEvent?: TaskEventRecord): Promise<TaskRecord | null>;
 export declare function setTaskProgressById(params: {
@@ -137,6 +138,7 @@ export declare function linkTaskToFlowById(params: {
 export declare function cancelTaskById(params: {
     cfg: OpenClawConfig;
     taskId: string;
+    reason?: string;
 }): Promise<{
     found: boolean;
     cancelled: boolean;
@@ -144,6 +146,10 @@ export declare function cancelTaskById(params: {
     task?: TaskRecord;
 }>;
 export declare function listTaskRecords(): TaskRecord[];
+export declare function hasActiveTaskForChildSessionKey(params: {
+    sessionKey: string;
+    excludeTaskId?: string;
+}): boolean;
 export declare function getTaskRegistrySummary(): TaskRegistrySummary;
 export declare function getTaskRegistrySnapshot(): TaskRegistrySnapshot;
 export declare function getTaskById(taskId: string): TaskRecord | undefined;
@@ -154,6 +160,7 @@ export declare function listTasksForAgentId(agentId: string): TaskRecord[];
 export declare function findLatestTaskForOwnerKey(ownerKey: string): TaskRecord | undefined;
 export declare function findLatestTaskForFlowId(flowId: string): TaskRecord | undefined;
 export declare function listTasksForOwnerKey(ownerKey: string): TaskRecord[];
+export declare function listFreshTasksForOwnerKey(ownerKey: string): TaskRecord[];
 export declare function listTasksForFlowId(flowId: string): TaskRecord[];
 export declare function findLatestTaskForRelatedSessionKey(sessionKey: string): TaskRecord | undefined;
 export declare function listTasksForRelatedSessionKey(sessionKey: string): TaskRecord[];

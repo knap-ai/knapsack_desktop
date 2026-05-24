@@ -8,18 +8,14 @@ export type ScheduledTaskInfo = {
     lastRunResult?: string;
 };
 export declare function parseSchtasksQuery(output: string): ScheduledTaskInfo;
-export declare function deriveScheduledTaskRuntimeStatus(parsed: ScheduledTaskInfo): {
-    status: GatewayServiceRuntime["status"];
-    detail?: string;
-};
 export declare function stageScheduledTask({ stdout, ...args }: GatewayServiceInstallArgs): Promise<{
     scriptPath: string;
 }>;
 export declare function installScheduledTask(args: GatewayServiceInstallArgs): Promise<{
     scriptPath: string;
 }>;
-export declare function uninstallScheduledTask({ env, stdout }: GatewayServiceManageArgs): Promise<void>;
+export declare function uninstallScheduledTask({ env, stdout, }: GatewayServiceManageArgs): Promise<void>;
 export declare function stopScheduledTask({ stdout, env }: GatewayServiceControlArgs): Promise<void>;
-export declare function restartScheduledTask({ stdout, env }: GatewayServiceControlArgs): Promise<GatewayServiceRestartResult>;
+export declare function restartScheduledTask({ stdout, env, }: GatewayServiceControlArgs): Promise<GatewayServiceRestartResult>;
 export declare function isScheduledTaskInstalled(args: GatewayServiceEnvArgs): Promise<boolean>;
 export declare function readScheduledTaskRuntime(env?: GatewayServiceEnv): Promise<GatewayServiceRuntime>;

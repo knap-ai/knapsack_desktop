@@ -1,10 +1,14 @@
-export declare function stripToolCallXmlTags(text: string): string;
+export declare function stripToolCallXmlTags(text: string, options?: {
+    stripFunctionCallsXmlPayloads?: boolean;
+    stripFunctionResponseAfterPluralToolCalls?: boolean;
+}): string;
 /**
  * Strip malformed Minimax tool invocations that leak into text content.
  * Minimax sometimes embeds tool calls as XML in text blocks instead of
  * proper structured tool calls.
  */
 export declare function stripMinimaxToolCallXml(text: string): string;
+export declare function stripLegacyBracketToolCallBlocks(text: string): string;
 /**
  * Strip downgraded tool call text representations that leak into user-visible
  * text content when replaying history across providers.

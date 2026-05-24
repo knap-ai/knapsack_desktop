@@ -1,4 +1,4 @@
-import { type OAuthCredentials } from "@mariozechner/pi-ai/oauth";
+import { type OAuthCredentials } from "@earendil-works/pi-ai/oauth";
 import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 export declare function loginOpenAICodexOAuth(params: {

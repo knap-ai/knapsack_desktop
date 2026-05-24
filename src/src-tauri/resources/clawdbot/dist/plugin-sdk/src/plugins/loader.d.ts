@@ -1,13 +1,17 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
-import { type BundledRuntimeDepsInstallParams } from "./bundled-runtime-deps.js";
 import { type PluginActivationConfigSource } from "./config-state.js";
+import { type PluginDiscoveryResult } from "./discovery.js";
 import { toSafeImportPath } from "./import-specifier.js";
+import { shouldLoadChannelPluginInSetupRuntime } from "./loader-channel-setup.js";
+import { type PluginManifestRegistry } from "./manifest-registry.js";
+import { ensureOpenClawPluginSdkAlias } from "./plugin-sdk-dist-alias.js";
+import type { PluginRegistryParams } from "./registry-types.js";
 import { type PluginRegistry } from "./registry.js";
 import type { CreatePluginRuntimeOptions } from "./runtime/types.js";
-import { buildPluginLoaderAliasMap, buildPluginLoaderJitiOptions, listPluginSdkAliasCandidates, listPluginSdkExportedSubpaths, type PluginSdkResolutionPreference, resolveExtensionApiAlias, resolvePluginSdkAliasCandidateOrder, resolvePluginSdkAliasFile, resolvePluginRuntimeModulePath, resolvePluginSdkScopedAliasMap, shouldPreferNativeJiti } from "./sdk-alias.js";
-import type { PluginLogger } from "./types.js";
+import { buildPluginLoaderAliasMap, buildPluginLoaderJitiOptions, listPluginSdkAliasCandidates, listPluginSdkExportedSubpaths, type PluginSdkResolutionPreference, resolveExtensionApiAlias, resolvePluginSdkAliasCandidateOrder, resolvePluginSdkAliasFile, resolvePluginRuntimeModulePath, resolvePluginSdkScopedAliasMap, shouldPreferNativeModuleLoad } from "./sdk-alias.js";
+import type { OpenClawPluginApi, OpenClawPluginDefinition, PluginLogger } from "./types.js";
 export type PluginLoadResult = PluginRegistry;
 export { PluginLoadReentryError } from "./loader-cache-state.js";
 export type PluginLoadOptions = {
@@ -15,11 +19,16 @@ export type PluginLoadOptions = {
     activationSourceConfig?: OpenClawConfig;
     autoEnabledReasons?: Readonly<Record<string, string[]>>;
     workspaceDir?: string;
+    installRecords?: Record<string, PluginInstallRecord>;
     env?: NodeJS.ProcessEnv;
     logger?: PluginLogger;
     coreGatewayHandlers?: Record<string, GatewayRequestHandler>;
     coreGatewayMethodNames?: readonly string[];
+    hostServices?: PluginRegistryParams["hostServices"];
     runtimeOptions?: CreatePluginRuntimeOptions;
+    startupTrace?: {
+        detail: (name: string, metrics: ReadonlyArray<readonly [string, number | string]>) => void;
+    };
     pluginSdkResolution?: PluginSdkResolutionPreference;
     cache?: boolean;
     mode?: "full" | "validate";
@@ -32,11 +41,17 @@ export type PluginLoadOptions = {
      * via package metadata because their setup entry covers the pre-listen startup surface.
      */
     preferSetupRuntimeForChannelPlugins?: boolean;
+    /**
+     * For hot startup paths, prefer bundled plugin JS artifacts over source TS
+     * entrypoints when both are present in a source checkout.
+     */
+    preferBuiltPluginArtifacts?: boolean;
+    toolDiscovery?: boolean;
     activate?: boolean;
     loadModules?: boolean;
-    installBundledRuntimeDeps?: boolean;
     throwOnLoadError?: boolean;
-    bundledRuntimeDepsInstaller?: (params: BundledRuntimeDepsInstallParams) => void;
+    manifestRegistry?: PluginManifestRegistry;
+    discovery?: PluginDiscoveryResult;
 };
 export declare class PluginLoadFailureError extends Error {
     readonly pluginIds: string[];
@@ -44,8 +59,14 @@ export declare class PluginLoadFailureError extends Error {
     constructor(registry: PluginRegistry);
 }
 export declare function clearPluginLoaderCache(): void;
-declare function ensureOpenClawPluginSdkAlias(distRoot: string): void;
-export declare const __testing: {
+export declare function clearActivatedPluginRuntimeState(): void;
+export declare function clearPluginRegistryLoadCache(): void;
+declare function createGuardedPluginRegistrationApi(api: OpenClawPluginApi): {
+    api: OpenClawPluginApi;
+    close: () => void;
+};
+declare function runPluginRegisterSync(register: NonNullable<OpenClawPluginDefinition["register"]>, api: Parameters<NonNullable<OpenClawPluginDefinition["register"]>>[0]): void;
+export declare const testing: {
     buildPluginLoaderJitiOptions: typeof buildPluginLoaderJitiOptions;
     buildPluginLoaderAliasMap: typeof buildPluginLoaderAliasMap;
     listPluginSdkAliasCandidates: typeof listPluginSdkAliasCandidates;
@@ -57,8 +78,10 @@ export declare const __testing: {
     resolvePluginRuntimeModulePath: typeof resolvePluginRuntimeModulePath;
     ensureOpenClawPluginSdkAlias: typeof ensureOpenClawPluginSdkAlias;
     shouldLoadChannelPluginInSetupRuntime: typeof shouldLoadChannelPluginInSetupRuntime;
-    shouldPreferNativeJiti: typeof shouldPreferNativeJiti;
+    shouldPreferNativeModuleLoad: typeof shouldPreferNativeModuleLoad;
     toSafeImportPath: typeof toSafeImportPath;
+    createGuardedPluginRegistrationApi: typeof createGuardedPluginRegistrationApi;
+    runPluginRegisterSync: typeof runPluginRegisterSync;
     getCompatibleActivePluginRegistry: typeof getCompatibleActivePluginRegistry;
     resolvePluginLoadCacheContext: typeof resolvePluginLoadCacheContext;
     readonly maxPluginRegistryCacheEntries: number;
@@ -76,9 +99,9 @@ declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
     forceSetupOnlyChannelPlugins: boolean;
     requireSetupEntryForSetupOnlyChannelPlugins: boolean;
     preferSetupRuntimeForChannelPlugins: boolean;
+    preferBuiltPluginArtifacts: boolean;
     shouldActivate: boolean;
     shouldLoadModules: boolean;
-    shouldInstallBundledRuntimeDeps: boolean;
     runtimeSubagentMode: "default" | "explicit" | "gateway-bindable";
     installRecords: {
         [x: string]: PluginInstallRecord;
@@ -87,16 +110,10 @@ declare function resolvePluginLoadCacheContext(options?: PluginLoadOptions): {
 };
 declare function getCompatibleActivePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
 export declare function resolveRuntimePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
+export declare function getRuntimePluginRegistryForLoadOptions(options?: PluginLoadOptions): PluginRegistry | undefined;
 export declare function resolvePluginRegistryLoadCacheKey(options?: PluginLoadOptions): string;
 export declare function isPluginRegistryLoadInFlight(options?: PluginLoadOptions): boolean;
 export declare function resolveCompatibleRuntimePluginRegistry(options?: PluginLoadOptions): PluginRegistry | undefined;
-declare function shouldLoadChannelPluginInSetupRuntime(params: {
-    manifestChannels: string[];
-    setupSource?: string;
-    startupDeferConfiguredChannelFullLoadUntilAfterListen?: boolean;
-    cfg: OpenClawConfig;
-    env: NodeJS.ProcessEnv;
-    preferSetupRuntimeForChannelPlugins?: boolean;
-}): boolean;
 export declare function loadOpenClawPlugins(options?: PluginLoadOptions): PluginRegistry;
 export declare function loadOpenClawPluginCliRegistry(options?: PluginLoadOptions): Promise<PluginRegistry>;
+export { testing as __testing };

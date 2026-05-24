@@ -12,9 +12,9 @@ type BundledChannelEntryRuntimeContract = {
         accountInspect?: boolean;
     };
     register: (api: unknown) => void;
-    loadChannelPlugin: () => ChannelPlugin;
-    loadChannelSecrets?: () => ChannelPlugin["secrets"] | undefined;
-    loadChannelAccountInspector?: () => NonNullable<ChannelPlugin["config"]["inspectAccount"]>;
+    loadChannelPlugin: (options?: BundledEntryModuleLoadOptions) => ChannelPlugin;
+    loadChannelSecrets?: (options?: BundledEntryModuleLoadOptions) => ChannelPlugin["secrets"] | undefined;
+    loadChannelAccountInspector?: (options?: BundledEntryModuleLoadOptions) => NonNullable<ChannelPlugin["config"]["inspectAccount"]>;
     setChannelRuntime?: (runtime: PluginRuntime) => void;
 };
 type BundledChannelSetupEntryRuntimeContract = {
@@ -29,6 +29,7 @@ type BundledChannelSetupEntryRuntimeContract = {
     };
 };
 type BundledChannelPackageSetupFeature = "configPromotion" | "legacyStateMigrations" | "legacySessionSurfaces";
+export declare function describeBundledChannelLoadError(error: unknown, channelId: string): string;
 export declare function listBundledChannelPluginIds(): readonly ChannelId[];
 export declare function hasBundledChannelPackageSetupFeature(id: ChannelId, feature: BundledChannelPackageSetupFeature): boolean;
 export declare function listBundledChannelPlugins(): readonly ChannelPlugin[];
@@ -46,8 +47,8 @@ export declare function hasBundledChannelEntryFeature(id: ChannelId, feature: ke
 export declare function getBundledChannelAccountInspector(id: ChannelId): NonNullable<ChannelPlugin["config"]["inspectAccount"]> | undefined;
 export declare function getBundledChannelPlugin(id: ChannelId): ChannelPlugin | undefined;
 export declare function getBundledChannelSecrets(id: ChannelId): ChannelPlugin["secrets"] | undefined;
-export declare function getBundledChannelSetupPlugin(id: ChannelId): ChannelPlugin | undefined;
-export declare function getBundledChannelSetupSecrets(id: ChannelId): ChannelPlugin["secrets"] | undefined;
+export declare function getBundledChannelSetupPlugin(id: ChannelId, env?: NodeJS.ProcessEnv): ChannelPlugin | undefined;
+export declare function getBundledChannelSetupSecrets(id: ChannelId, env?: NodeJS.ProcessEnv): ChannelPlugin["secrets"] | undefined;
 export declare function requireBundledChannelPlugin(id: ChannelId): ChannelPlugin;
 export declare function setBundledChannelRuntime(id: ChannelId, runtime: PluginRuntime): void;
 export {};

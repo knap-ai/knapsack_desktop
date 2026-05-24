@@ -1,3 +1,4 @@
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 export type GatewayInjectedAbortMeta = {
     aborted: true;
     origin: "rpc" | "stop-command";
@@ -9,6 +10,9 @@ export type GatewayInjectedTranscriptAppendResult = {
     message?: Record<string, unknown>;
     error?: string;
 };
+export type GatewayInjectedTtsSupplementMarker = {
+    textSha256: string;
+};
 export declare function appendInjectedAssistantMessageToTranscript(params: {
     transcriptPath: string;
     message: string;
@@ -17,5 +21,7 @@ export declare function appendInjectedAssistantMessageToTranscript(params: {
     content?: Array<Record<string, unknown>>;
     idempotencyKey?: string;
     abortMeta?: GatewayInjectedAbortMeta;
+    ttsSupplement?: GatewayInjectedTtsSupplementMarker;
     now?: number;
-}): GatewayInjectedTranscriptAppendResult;
+    config?: OpenClawConfig;
+}): Promise<GatewayInjectedTranscriptAppendResult>;

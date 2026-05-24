@@ -15,16 +15,18 @@ type SkillsInstallDeps = {
     loadWorkspaceSkillEntries: typeof defaultLoadWorkspaceSkillEntries;
     resolveNodeInstallStateDir: () => string;
     resolveBrewExecutable: () => string | undefined;
+    isContainerEnvironment: () => boolean;
     resolveSkillsInstallPreferences: typeof defaultResolveSkillsInstallPreferences;
 };
-declare function resolveDefaultNodeInstallStateDir({ cwd, getuid, homedir, platform }?: {
+declare function resolveDefaultNodeInstallStateDir({ cwd, getuid, homedir, platform, }?: {
     cwd?: string;
     getuid?: () => number;
     homedir?: () => string;
     platform?: NodeJS.Platform;
 }): string;
 export declare function installSkill(params: SkillInstallRequest): Promise<SkillInstallResult>;
-export declare const __testing: {
+export declare const testing: {
     resolveDefaultNodeInstallStateDir: typeof resolveDefaultNodeInstallStateDir;
     setDepsForTest(overrides?: Partial<SkillsInstallDeps>): void;
 };
+export { testing as __testing };

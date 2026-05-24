@@ -31,7 +31,7 @@ export type ResolvedAgentRoute = {
     /** Match description for debugging/logging. */
     matchedBy: "binding.peer" | "binding.peer.parent" | "binding.peer.wildcard" | "binding.guild+roles" | "binding.guild" | "binding.team" | "binding.account" | "binding.channel" | "default";
 };
-export { DEFAULT_ACCOUNT_ID, DEFAULT_AGENT_ID } from "./session-key.js";
+export { DEFAULT_ACCOUNT_ID } from "./session-key.js";
 export declare function deriveLastRoutePolicy(params: {
     sessionKey: string;
     mainSessionKey: string;

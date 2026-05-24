@@ -17,7 +17,6 @@ export type ParsedSlashCommand = {
     ok: false;
     message: string;
 };
-export declare function parseSlashCommandActionArgs(raw: string, slash: string): SlashCommandParseResult;
 export declare function parseSlashCommandOrNull(raw: string, slash: string, opts: {
     invalidMessage: string;
     defaultAction?: string;

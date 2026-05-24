@@ -1,10 +1,10 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export { hasGatewayPasswordEnvCandidate, hasGatewayTokenEnvCandidate, trimCredentialToUndefined, trimToUndefined, } from "./credential-planner.js";
+export { hasGatewayPasswordEnvCandidate, hasGatewayTokenEnvCandidate, trimToUndefined, } from "./credential-planner.js";
 export type ExplicitGatewayAuth = {
     token?: string;
     password?: string;
 };
-export type ResolvedGatewayCredentials = {
+type ResolvedGatewayCredentials = {
     token?: string;
     password?: string;
 };
@@ -44,7 +44,4 @@ export declare function resolveGatewayProbeCredentialsFromConfig(params: {
     mode: GatewayCredentialMode;
     env?: NodeJS.ProcessEnv;
     explicitAuth?: ExplicitGatewayAuth;
-}): ResolvedGatewayCredentials;
-export declare function resolveGatewayDriftCheckCredentialsFromConfig(params: {
-    cfg: OpenClawConfig;
 }): ResolvedGatewayCredentials;

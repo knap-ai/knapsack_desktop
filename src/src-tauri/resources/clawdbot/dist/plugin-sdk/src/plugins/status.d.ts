@@ -62,6 +62,8 @@ export type PluginInspectReport = {
     policy: {
         allowPromptInjection?: boolean;
         allowConversationAccess?: boolean;
+        hookTimeoutMs?: number;
+        hookTimeouts?: Record<string, number>;
         allowModelOverride?: boolean;
         allowedModels: string[];
         hasAllowedModelsConfig: boolean;
@@ -72,10 +74,12 @@ export type PluginInspectReport = {
 type PluginReportParams = {
     config?: OpenClawConfig;
     effectiveOnly?: boolean;
+    onlyPluginIds?: readonly string[];
     workspaceDir?: string;
     /** Use an explicit env when plugin roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
     logger?: PluginLogger;
+    resolvedConfig?: OpenClawConfig;
 };
 export declare function buildPluginRegistrySnapshotReport(params?: PluginReportParams): PluginRegistryStatusReport;
 export declare function buildPluginSnapshotReport(params?: PluginReportParams): PluginStatusReport;
@@ -87,6 +91,7 @@ export declare function buildPluginInspectReport(params: {
     env?: NodeJS.ProcessEnv;
     logger?: PluginLogger;
     report?: PluginStatusReport;
+    resolvedConfig?: OpenClawConfig;
 }): PluginInspectReport | null;
 export declare function buildAllPluginInspectReports(params?: {
     config?: OpenClawConfig;

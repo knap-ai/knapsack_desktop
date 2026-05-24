@@ -1,6 +1,6 @@
 import type { AuthProfileStore } from "../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type MediaUnderstandingKind = "audio.transcription" | "video.description" | "image.description";
+type MediaUnderstandingKind = "audio.transcription" | "video.description" | "image.description";
 export type MediaUnderstandingCapability = "image" | "audio" | "video";
 export type MediaUnderstandingCapabilityRegistry = Map<string, {
     capabilities?: MediaUnderstandingCapability[];
@@ -19,7 +19,7 @@ export type MediaUnderstandingOutput = {
     provider: string;
     model?: string;
 };
-export type MediaUnderstandingDecisionOutcome = "success" | "failed" | "skipped" | "disabled" | "no-attachment" | "scope-deny";
+type MediaUnderstandingDecisionOutcome = "success" | "failed" | "skipped" | "disabled" | "no-attachment" | "scope-deny";
 export type MediaUnderstandingModelDecision = {
     provider?: string;
     model?: string;
@@ -27,8 +27,7 @@ export type MediaUnderstandingModelDecision = {
     outcome: "success" | "skipped" | "failed";
     reason?: string;
 };
-export type MediaUnderstandingAttemptOutcome = MediaUnderstandingModelDecision["outcome"];
-export type MediaUnderstandingAttachmentDecision = {
+type MediaUnderstandingAttachmentDecision = {
     attachmentIndex: number;
     attempts: MediaUnderstandingModelDecision[];
     chosen?: MediaUnderstandingModelDecision;
@@ -38,7 +37,7 @@ export type MediaUnderstandingDecision = {
     outcome: MediaUnderstandingDecisionOutcome;
     attachments: MediaUnderstandingAttachmentDecision[];
 };
-export type MediaUnderstandingProviderRequestAuthOverride = {
+type MediaUnderstandingProviderRequestAuthOverride = {
     mode: "provider-default";
 } | {
     mode: "authorization-bearer";
@@ -49,7 +48,7 @@ export type MediaUnderstandingProviderRequestAuthOverride = {
     value: string;
     prefix?: string;
 };
-export type MediaUnderstandingProviderRequestTlsOverride = {
+type MediaUnderstandingProviderRequestTlsOverride = {
     ca?: string;
     cert?: string;
     key?: string;
@@ -57,7 +56,7 @@ export type MediaUnderstandingProviderRequestTlsOverride = {
     serverName?: string;
     insecureSkipVerify?: boolean;
 };
-export type MediaUnderstandingProviderRequestProxyOverride = {
+type MediaUnderstandingProviderRequestProxyOverride = {
     mode: "env-proxy";
     tls?: MediaUnderstandingProviderRequestTlsOverride;
 } | {
@@ -65,7 +64,7 @@ export type MediaUnderstandingProviderRequestProxyOverride = {
     url: string;
     tls?: MediaUnderstandingProviderRequestTlsOverride;
 };
-export type MediaUnderstandingProviderRequestTransportOverrides = {
+type MediaUnderstandingProviderRequestTransportOverrides = {
     headers?: Record<string, string>;
     auth?: MediaUnderstandingProviderRequestAuthOverride;
     proxy?: MediaUnderstandingProviderRequestProxyOverride;
@@ -120,6 +119,7 @@ export type ImageDescriptionRequest = {
     preferredProfile?: string;
     authStore?: AuthProfileStore;
     agentDir: string;
+    workspaceDir?: string;
     cfg: OpenClawConfig;
     model: string;
     provider: string;
@@ -140,6 +140,7 @@ export type ImagesDescriptionRequest = {
     preferredProfile?: string;
     authStore?: AuthProfileStore;
     agentDir: string;
+    workspaceDir?: string;
     cfg: OpenClawConfig;
 };
 export type ImageDescriptionResult = {
@@ -149,6 +150,40 @@ export type ImageDescriptionResult = {
 export type ImagesDescriptionResult = {
     text: string;
     model?: string;
+};
+export type StructuredExtractionTextInput = {
+    type: "text";
+    text: string;
+};
+export type StructuredExtractionImageInput = {
+    type: "image";
+    buffer: Buffer;
+    fileName: string;
+    mime?: string;
+};
+export type StructuredExtractionInput = StructuredExtractionTextInput | StructuredExtractionImageInput;
+export type StructuredExtractionRequest = {
+    /** Image-first extraction input; callers must include at least one image. */
+    input: StructuredExtractionInput[];
+    instructions: string;
+    schemaName?: string;
+    jsonSchema?: unknown;
+    jsonMode?: boolean;
+    timeoutMs: number;
+    profile?: string;
+    preferredProfile?: string;
+    authStore?: AuthProfileStore;
+    agentDir: string;
+    cfg: OpenClawConfig;
+    model: string;
+    provider: string;
+};
+export type StructuredExtractionResult = {
+    text: string;
+    parsed?: unknown;
+    model?: string;
+    provider?: string;
+    contentType?: "json" | "text";
 };
 export type MediaUnderstandingProvider = {
     id: string;
@@ -160,4 +195,6 @@ export type MediaUnderstandingProvider = {
     describeVideo?: (req: VideoDescriptionRequest) => Promise<VideoDescriptionResult>;
     describeImage?: (req: ImageDescriptionRequest) => Promise<ImageDescriptionResult>;
     describeImages?: (req: ImagesDescriptionRequest) => Promise<ImagesDescriptionResult>;
+    extractStructured?: (req: StructuredExtractionRequest) => Promise<StructuredExtractionResult>;
 };
+export {};

@@ -1,9 +1,21 @@
 import type { ReplyPayload } from "../../auto-reply/types.js";
+import type { RenderedMessageBatchPlanItem } from "../../channels/message/types.js";
 import type { ReplyToMode } from "../../config/types.js";
 import type { OutboundDeliveryFormattingOptions } from "./formatting.js";
+import type { OutboundIdentity } from "./identity.js";
 import type { OutboundMirror } from "./mirror.js";
 import type { OutboundSessionContext } from "./session-context.js";
 import type { OutboundChannel } from "./targets.js";
+export type QueuedRenderedMessageBatchPlan = {
+    payloadCount: number;
+    textCount: number;
+    mediaCount: number;
+    voiceCount: number;
+    presentationCount: number;
+    interactiveCount: number;
+    channelDataCount: number;
+    items: readonly RenderedMessageBatchPlanItem[];
+};
 export type QueuedDeliveryPayload = {
     channel: Exclude<OutboundChannel, "none">;
     to: string;
@@ -14,10 +26,13 @@ export type QueuedDeliveryPayload = {
      * should produce the same result on replay.
      */
     payloads: ReplyPayload[];
+    /** Replayable projection summary captured when the durable send intent is created. */
+    renderedBatchPlan?: QueuedRenderedMessageBatchPlan;
     threadId?: string | number | null;
     replyToId?: string | null;
     replyToMode?: ReplyToMode;
     formatting?: OutboundDeliveryFormattingOptions;
+    identity?: OutboundIdentity;
     bestEffort?: boolean;
     gifPlayback?: boolean;
     forceDocument?: boolean;
@@ -34,6 +49,8 @@ export interface QueuedDelivery extends QueuedDeliveryPayload {
     retryCount: number;
     lastAttemptAt?: number;
     lastError?: string;
+    platformSendStartedAt?: number;
+    recoveryState?: "send_attempt_started" | "unknown_after_send";
 }
 export declare function resolveQueueDir(stateDir?: string): string;
 /** Ensure the queue directory (and failed/ subdirectory) exist. */
@@ -52,6 +69,8 @@ export declare function enqueueDelivery(params: QueuedDeliveryPayload, stateDir?
 export declare function ackDelivery(id: string, stateDir?: string): Promise<void>;
 /** Update a queue entry after a failed delivery attempt. */
 export declare function failDelivery(id: string, error: string, stateDir?: string): Promise<void>;
+export declare function markDeliveryPlatformSendAttemptStarted(id: string, stateDir?: string): Promise<void>;
+export declare function markDeliveryPlatformOutcomeUnknown(id: string, stateDir?: string): Promise<void>;
 /** Load a single pending delivery entry by ID from the queue directory. */
 export declare function loadPendingDelivery(id: string, stateDir?: string): Promise<QueuedDelivery | null>;
 /** Load all pending delivery entries from the queue directory. */

@@ -1,6 +1,7 @@
-import { _ as resolveStateDir } from "../paths-B2cMK-wd.js";
-import { c as normalizeAgentId } from "../session-key-hxP9B3Or.js";
-import { a as parseCrestodianOperation, i as isPersistentCrestodianOperation, n as executeCrestodianOperation, r as formatCrestodianPersistentPlan } from "../operations-RpPh9sAi.js";
+import { y as resolveStateDir } from "../paths-Cw7f9XhU.js";
+import { l as normalizeAgentId } from "../session-key-Bte0mmcq.js";
+import { m as writeJson, o as tryReadJson } from "../json-files-C2hqjU--.js";
+import { a as parseCrestodianOperation, i as isPersistentCrestodianOperation, n as executeCrestodianOperation, r as formatCrestodianPersistentPlan } from "../operations-Bw7QWTg3.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
@@ -133,7 +134,8 @@ function resolvePendingPath(input) {
 }
 async function readPending(pendingPath, now = /* @__PURE__ */ new Date()) {
 	try {
-		const parsed = JSON.parse(await fs.readFile(pendingPath, "utf8"));
+		const parsed = await tryReadJson(pendingPath);
+		if (!parsed) return null;
 		if (Date.parse(parsed.expiresAt) <= now.getTime()) {
 			await fs.rm(pendingPath, { force: true });
 			return null;
@@ -144,12 +146,11 @@ async function readPending(pendingPath, now = /* @__PURE__ */ new Date()) {
 	}
 }
 async function writePending(pendingPath, pending) {
-	await fs.mkdir(path.dirname(pendingPath), { recursive: true });
-	await fs.writeFile(pendingPath, `${JSON.stringify(pending, null, 2)}\n`, {
-		encoding: "utf8",
-		mode: 384
+	await writeJson(pendingPath, pending, {
+		dirMode: 448,
+		mode: 384,
+		trailingNewline: true
 	});
-	await fs.chmod(pendingPath, 384).catch(() => {});
 }
 function buildAuditDetails(input) {
 	return {
@@ -165,6 +166,7 @@ function formatPersistentPlan(operation) {
 }
 function formatUnsupportedRemoteOperation(operation) {
 	if (operation.kind === "open-tui") return ["Crestodian rescue cannot open the local TUI from a message channel.", "Use local `openclaw` for agent handoff, or ask for status, doctor, config, gateway, agents, or models."].join(" ");
+	if (operation.kind === "plugin-install") return ["Crestodian rescue cannot install plugins from a message channel by default because plugin install downloads executable code.", "Use local `openclaw crestodian` or `openclaw plugins install` instead."].join(" ");
 	return null;
 }
 async function runCrestodianRescueMessage(input) {

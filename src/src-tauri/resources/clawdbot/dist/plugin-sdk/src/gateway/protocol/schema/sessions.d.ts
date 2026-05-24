@@ -1,5 +1,14 @@
 import { Type } from "typebox";
 export declare const SessionCompactionCheckpointReasonSchema: Type.TUnion<[Type.TLiteral<"manual">, Type.TLiteral<"auto-threshold">, Type.TLiteral<"overflow-retry">, Type.TLiteral<"timeout-retry">]>;
+export declare const SessionOperationEventSchema: Type.TObject<{
+    operationId: Type.TString;
+    operation: Type.TLiteral<"compact">;
+    phase: Type.TUnion<[Type.TLiteral<"start">, Type.TLiteral<"end">]>;
+    sessionKey: Type.TString;
+    ts: Type.TInteger;
+    completed: Type.TOptional<Type.TBoolean>;
+    reason: Type.TOptional<Type.TString>;
+}>;
 export declare const SessionCompactionTranscriptReferenceSchema: Type.TObject<{
     sessionId: Type.TString;
     sessionFile: Type.TOptional<Type.TString>;
@@ -30,10 +39,20 @@ export declare const SessionCompactionCheckpointSchema: Type.TObject<{
     }>;
 }>;
 export declare const SessionsListParamsSchema: Type.TObject<{
+    /**
+     * Maximum rows to return. Omitted Gateway RPC calls use a bounded default
+     * to keep large session stores from monopolizing the event loop.
+     */
     limit: Type.TOptional<Type.TInteger>;
+    offset: Type.TOptional<Type.TInteger>;
     activeMinutes: Type.TOptional<Type.TInteger>;
     includeGlobal: Type.TOptional<Type.TBoolean>;
     includeUnknown: Type.TOptional<Type.TBoolean>;
+    /**
+     * Limit returned agent-scoped rows to agents currently present in config.
+     * Broad disk discovery remains the default for recovery/ACP consumers.
+     */
+    configuredAgentsOnly: Type.TOptional<Type.TBoolean>;
     /**
      * Read first 8KB of each session transcript to derive title from first user message.
      * Performs a file read per session - use `limit` to bound result set on large stores.
@@ -49,10 +68,23 @@ export declare const SessionsListParamsSchema: Type.TObject<{
     agentId: Type.TOptional<Type.TString>;
     search: Type.TOptional<Type.TString>;
 }>;
+export declare const SessionsCleanupParamsSchema: Type.TObject<{
+    agent: Type.TOptional<Type.TString>;
+    allAgents: Type.TOptional<Type.TBoolean>;
+    enforce: Type.TOptional<Type.TBoolean>;
+    activeKey: Type.TOptional<Type.TString>;
+    fixMissing: Type.TOptional<Type.TBoolean>;
+    fixDmScope: Type.TOptional<Type.TBoolean>;
+}>;
 export declare const SessionsPreviewParamsSchema: Type.TObject<{
     keys: Type.TArray<Type.TString>;
     limit: Type.TOptional<Type.TInteger>;
     maxChars: Type.TOptional<Type.TInteger>;
+}>;
+export declare const SessionsDescribeParamsSchema: Type.TObject<{
+    key: Type.TString;
+    includeDerivedTitles: Type.TOptional<Type.TBoolean>;
+    includeLastMessage: Type.TOptional<Type.TBoolean>;
 }>;
 export declare const SessionsResolveParamsSchema: Type.TObject<{
     key: Type.TOptional<Type.TString>;
@@ -69,6 +101,7 @@ export declare const SessionsCreateParamsSchema: Type.TObject<{
     label: Type.TOptional<Type.TString>;
     model: Type.TOptional<Type.TString>;
     parentSessionKey: Type.TOptional<Type.TString>;
+    emitCommandHooks: Type.TOptional<Type.TBoolean>;
     task: Type.TOptional<Type.TString>;
     message: Type.TOptional<Type.TString>;
 }>;
@@ -87,8 +120,9 @@ export declare const SessionsMessagesUnsubscribeParamsSchema: Type.TObject<{
     key: Type.TString;
 }>;
 export declare const SessionsAbortParamsSchema: Type.TObject<{
-    key: Type.TString;
+    key: Type.TOptional<Type.TString>;
     runId: Type.TOptional<Type.TString>;
+    agentId: Type.TOptional<Type.TString>;
 }>;
 export declare const SessionsPatchParamsSchema: Type.TObject<{
     key: Type.TString;
@@ -110,8 +144,22 @@ export declare const SessionsPatchParamsSchema: Type.TObject<{
     spawnDepth: Type.TOptional<Type.TUnion<[Type.TInteger, Type.TNull]>>;
     subagentRole: Type.TOptional<Type.TUnion<[Type.TLiteral<"orchestrator">, Type.TLiteral<"leaf">, Type.TNull]>>;
     subagentControlScope: Type.TOptional<Type.TUnion<[Type.TLiteral<"children">, Type.TLiteral<"none">, Type.TNull]>>;
+    inheritedToolAllow: Type.TOptional<Type.TUnion<[Type.TArray<Type.TString>, Type.TNull]>>;
+    inheritedToolDeny: Type.TOptional<Type.TUnion<[Type.TArray<Type.TString>, Type.TNull]>>;
     sendPolicy: Type.TOptional<Type.TUnion<[Type.TLiteral<"allow">, Type.TLiteral<"deny">, Type.TNull]>>;
     groupActivation: Type.TOptional<Type.TUnion<[Type.TLiteral<"mention">, Type.TLiteral<"always">, Type.TNull]>>;
+}>;
+export declare const SessionsPluginPatchParamsSchema: Type.TObject<{
+    key: Type.TString;
+    pluginId: Type.TString;
+    namespace: Type.TString;
+    value: Type.TOptional<Type.TUnknown>;
+    unset: Type.TOptional<Type.TBoolean>;
+}>;
+export declare const SessionsPluginPatchResultSchema: Type.TObject<{
+    ok: Type.TLiteral<true>;
+    key: Type.TString;
+    value: Type.TOptional<Type.TUnknown>;
 }>;
 export declare const SessionsResetParamsSchema: Type.TObject<{
     key: Type.TString;
@@ -261,14 +309,22 @@ export declare const SessionsCompactionRestoreResultSchema: Type.TObject<{
     }>;
 }>;
 export declare const SessionsUsageParamsSchema: Type.TObject<{
-    /** Specific session key to analyze; if omitted returns all sessions. */
+    /** Specific session key to analyze; if omitted returns sessions for the effective agent. */
     key: Type.TOptional<Type.TString>;
+    /** Agent scope for list-style usage queries. */
+    agentId: Type.TOptional<Type.TString>;
     /** Start date for range filter (YYYY-MM-DD). */
     startDate: Type.TOptional<Type.TString>;
     /** End date for range filter (YYYY-MM-DD). */
     endDate: Type.TOptional<Type.TString>;
     /** How start/end dates should be interpreted. Defaults to UTC when omitted. */
     mode: Type.TOptional<Type.TUnion<[Type.TLiteral<"utc">, Type.TLiteral<"gateway">, Type.TLiteral<"specific">]>>;
+    /** Preset range for usage queries when explicit start/end dates are omitted. */
+    range: Type.TOptional<Type.TUnion<[Type.TLiteral<"7d">, Type.TLiteral<"30d">, Type.TLiteral<"90d">, Type.TLiteral<"1y">, Type.TLiteral<"all">]>>;
+    /** Usage row grouping. `family` rolls up known rotated session ids for a logical key. */
+    groupBy: Type.TOptional<Type.TUnion<[Type.TLiteral<"instance">, Type.TLiteral<"family">]>>;
+    /** Backward-compatible alias for requesting family grouping. */
+    includeHistorical: Type.TOptional<Type.TBoolean>;
     /** UTC offset to use when mode is `specific` (for example, UTC-4 or UTC+5:30). */
     utcOffset: Type.TOptional<Type.TString>;
     /** Maximum sessions to return (default 50). */

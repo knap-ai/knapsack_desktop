@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import { type InstalledPluginIndexStoreInspection, type InstalledPluginIndexStoreOptions } from "../../../plugins/installed-plugin-index-store.js";
-import { type InstalledPluginIndex, type InstalledPluginIndexRecord, type LoadInstalledPluginIndexParams } from "../../../plugins/installed-plugin-index.js";
+import { type InstalledPluginIndex, type LoadInstalledPluginIndexParams } from "../../../plugins/installed-plugin-index.js";
 export declare const DISABLE_PLUGIN_REGISTRY_MIGRATION_ENV = "OPENCLAW_DISABLE_PLUGIN_REGISTRY_MIGRATION";
 export declare const FORCE_PLUGIN_REGISTRY_MIGRATION_ENV = "OPENCLAW_FORCE_PLUGIN_REGISTRY_MIGRATION";
 export type PluginRegistryInstallMigrationPreflightAction = "disabled" | "skip-existing" | "migrate";
@@ -27,11 +27,4 @@ export type PluginRegistryInstallMigrationParams = LoadInstalledPluginIndexParam
     readConfig?: () => Promise<OpenClawConfig> | OpenClawConfig;
 };
 export declare function preflightPluginRegistryInstallMigration(params?: PluginRegistryInstallMigrationParams): PluginRegistryInstallMigrationPreflight;
-export declare function listMigrationRelevantPluginRecords(params: {
-    index: InstalledPluginIndex;
-    config: OpenClawConfig;
-    installRecords: Record<string, unknown>;
-    workspaceDir?: string;
-    env?: NodeJS.ProcessEnv;
-}): readonly InstalledPluginIndexRecord[];
 export declare function migratePluginRegistryForInstall(params?: PluginRegistryInstallMigrationParams): Promise<PluginRegistryInstallMigrationResult>;

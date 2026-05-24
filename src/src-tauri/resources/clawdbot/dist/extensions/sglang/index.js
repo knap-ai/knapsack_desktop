@@ -1,7 +1,8 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { i as SGLANG_PROVIDER_LABEL, n as SGLANG_DEFAULT_BASE_URL, r as SGLANG_MODEL_PLACEHOLDER, t as SGLANG_DEFAULT_API_KEY_ENV_VAR } from "../../defaults-DasxD1la.js";
-import { t as buildSglangProvider } from "../../models-BMTEZZ16.js";
-import "../../api-CikX9V0a.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-DtsPmvDx.js";
+import { i as SGLANG_PROVIDER_LABEL, n as SGLANG_DEFAULT_BASE_URL, r as SGLANG_MODEL_PLACEHOLDER, t as SGLANG_DEFAULT_API_KEY_ENV_VAR } from "../../defaults-DEyguuem.js";
+import { t as buildSglangProvider } from "../../models-C1kSPyCV.js";
+import "../../api-C6cq0kI9.js";
 //#region extensions/sglang/index.ts
 const PROVIDER_ID = "sglang";
 async function loadProviderSetup() {
@@ -44,7 +45,7 @@ var sglang_default = definePluginEntry({
 					});
 				}
 			}],
-			discovery: {
+			catalog: {
 				order: "late",
 				run: async (ctx) => {
 					return await (await loadProviderSetup()).discoverOpenAICompatibleSelfHostedProvider({
@@ -54,6 +55,10 @@ var sglang_default = definePluginEntry({
 					});
 				}
 			},
+			...buildProviderReplayFamilyHooks({
+				family: "openai-compatible",
+				dropReasoningFromHistory: false
+			}),
 			wizard: {
 				setup: {
 					choiceId: "sglang",

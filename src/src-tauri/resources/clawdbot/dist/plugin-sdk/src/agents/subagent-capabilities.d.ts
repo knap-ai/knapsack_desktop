@@ -1,32 +1,35 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export declare const SUBAGENT_SESSION_ROLES: readonly ["main", "orchestrator", "leaf"];
-export type SubagentSessionRole = (typeof SUBAGENT_SESSION_ROLES)[number];
-export declare const SUBAGENT_CONTROL_SCOPES: readonly ["children", "none"];
-export type SubagentControlScope = (typeof SUBAGENT_CONTROL_SCOPES)[number];
-export type SessionCapabilityEntry = {
+export type SubagentSessionRole = "main" | "orchestrator" | "leaf";
+type SubagentControlScope = "children" | "none";
+type SessionCapabilityEntry = {
     sessionId?: unknown;
     spawnDepth?: unknown;
     subagentRole?: unknown;
     subagentControlScope?: unknown;
     spawnedBy?: unknown;
+    inheritedToolAllow?: unknown;
+    inheritedToolDeny?: unknown;
 };
-export type SessionCapabilityStore = Record<string, SessionCapabilityEntry>;
+export type SessionCapabilityStore = Record<string, {
+    sessionId?: unknown;
+    spawnDepth?: unknown;
+    subagentRole?: unknown;
+    subagentControlScope?: unknown;
+    spawnedBy?: unknown;
+    inheritedToolAllow?: unknown;
+    inheritedToolDeny?: unknown;
+}>;
 export declare function resolveSubagentCapabilityStore(sessionKey: string | undefined | null, opts?: {
     cfg?: OpenClawConfig;
     store?: SessionCapabilityStore;
 }): SessionCapabilityStore | undefined;
-export declare function resolveSubagentRoleForDepth(params: {
-    depth: number;
-    maxSpawnDepth?: number;
-}): SubagentSessionRole;
-export declare function resolveSubagentControlScopeForRole(role: SubagentSessionRole): SubagentControlScope;
 export declare function resolveSubagentCapabilities(params: {
     depth: number;
     maxSpawnDepth?: number;
 }): {
     depth: number;
-    role: "leaf" | "main" | "orchestrator";
-    controlScope: "children" | "none";
+    role: SubagentSessionRole;
+    controlScope: SubagentControlScope;
     canSpawn: boolean;
     canControlChildren: boolean;
 };
@@ -40,8 +43,17 @@ export declare function resolveStoredSubagentCapabilities(sessionKey: string | u
     store?: SessionCapabilityStore;
 }): {
     depth: number;
-    role: "leaf" | "main" | "orchestrator";
-    controlScope: "children" | "none";
+    role: SubagentSessionRole;
+    controlScope: SubagentControlScope;
     canSpawn: boolean;
     canControlChildren: boolean;
 };
+export declare function resolveStoredSubagentInheritedToolDenylist(sessionKey: string | undefined | null, opts?: {
+    cfg?: OpenClawConfig;
+    store?: SessionCapabilityStore;
+}): string[];
+export declare function resolveStoredSubagentInheritedToolAllowlist(sessionKey: string | undefined | null, opts?: {
+    cfg?: OpenClawConfig;
+    store?: SessionCapabilityStore;
+}): string[];
+export {};

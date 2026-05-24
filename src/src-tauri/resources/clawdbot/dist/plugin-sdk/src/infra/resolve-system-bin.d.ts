@@ -6,7 +6,7 @@
  *   directories appended after system dirs. Use for tool binaries like
  *   ffmpeg that are rarely available via the OS itself.
  */
-export type SystemBinTrust = "strict" | "standard";
+type SystemBinTrust = "strict" | "standard";
 /**
  * Resolve a binary name to an absolute path by searching only trusted system
  * directories. Returns `null` when the binary is not found. Results are cached
@@ -21,6 +21,7 @@ export declare function resolveSystemBin(name: string, opts?: {
     extraDirs?: readonly string[];
 }): string | null;
 /** Visible for tests: the computed trusted directories. */
-export declare function _getTrustedDirs(trust?: SystemBinTrust): readonly string[];
+export declare function getTrustedDirsForTest(trust?: SystemBinTrust): readonly string[];
 /** Reset cache and optionally override the executable-check function (for tests). */
-export declare function _resetResolveSystemBin(overrideIsExecutable?: (p: string) => boolean): void;
+export declare function resetResolveSystemBin(overrideIsExecutable?: (p: string) => boolean): void;
+export {};

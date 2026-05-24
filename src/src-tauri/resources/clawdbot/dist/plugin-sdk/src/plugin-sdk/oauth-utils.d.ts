@@ -1,6 +1,14 @@
-/** Encode a flat object as application/x-www-form-urlencoded form data. */
+/**
+ * Encode a flat object as application/x-www-form-urlencoded form data.
+ *
+ * @deprecated OAuth provider-owned helper; keep this local to provider plugins instead.
+ */
 export declare function toFormUrlEncoded(data: Record<string, string>): string;
-/** Generate a PKCE verifier/challenge pair suitable for OAuth authorization flows. */
+/**
+ * Generate a PKCE verifier/challenge pair suitable for OAuth authorization flows.
+ *
+ * @deprecated OAuth provider-owned helper; keep this local to provider plugins instead.
+ */
 export declare function generatePkceVerifierChallenge(): {
     verifier: string;
     challenge: string;

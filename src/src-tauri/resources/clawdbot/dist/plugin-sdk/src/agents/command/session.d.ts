@@ -16,6 +16,10 @@ type SessionKeyResolution = {
     sessionStore: Record<string, SessionEntry>;
     storePath: string;
 };
+export declare function buildExplicitSessionIdSessionKey(params: {
+    sessionId: string;
+    agentId?: string;
+}): string;
 /**
  * Resolve an existing stored session key for a session id from a specific agent store.
  * This scopes the lookup to the target store without implicitly converting `agentId`

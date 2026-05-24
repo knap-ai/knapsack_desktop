@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type Skill } from "./skill-contract.js";
 import type { SkillEligibilityContext, SkillEntry, SkillSnapshot } from "./types.js";
+declare function compactHomePath(filePath: string, homes: readonly string[]): string;
 /**
  * Compact skill catalog: name + location only (no description).
  * Used as a fallback when the full format exceeds the char budget,
@@ -11,6 +12,9 @@ export declare function buildWorkspaceSkillSnapshot(workspaceDir: string, opts?:
     snapshotVersion?: number;
 }): SkillSnapshot;
 export declare function buildWorkspaceSkillsPrompt(workspaceDir: string, opts?: WorkspaceSkillBuildOptions): string;
+export declare const testing: {
+    compactHomePath: typeof compactHomePath;
+};
 type WorkspaceSkillBuildOptions = {
     config?: OpenClawConfig;
     managedSkillsDir?: string;
@@ -32,6 +36,7 @@ export declare function loadWorkspaceSkillEntries(workspaceDir: string, opts?: {
     config?: OpenClawConfig;
     managedSkillsDir?: string;
     bundledSkillsDir?: string;
+    pluginSkillsDir?: string;
     skillFilter?: string[];
     agentId?: string;
     eligibility?: SkillEligibilityContext;
@@ -60,4 +65,4 @@ export declare function filterWorkspaceSkillEntriesWithOptions(entries: SkillEnt
     skillFilter?: string[];
     eligibility?: SkillEligibilityContext;
 }): SkillEntry[];
-export {};
+export { testing as __testing };

@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { AuthProfileFailureReason } from "../../auth-profiles.js";
 import { FailoverError } from "../../failover-error.js";
@@ -27,6 +27,7 @@ export declare function handleAssistantFailover(params: {
     timedOut: boolean;
     idleTimedOut: boolean;
     timedOutDuringCompaction: boolean;
+    timedOutDuringToolExecution: boolean;
     allowSameModelIdleTimeoutRetry: boolean;
     assistantProfileFailureReason: AuthProfileFailureReason | null;
     lastProfileId?: string;

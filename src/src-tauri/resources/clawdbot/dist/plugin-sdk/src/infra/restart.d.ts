@@ -1,18 +1,28 @@
 import { findGatewayPidsOnPortSync } from "./restart-stale-pids.js";
 import type { RestartAttempt } from "./restart.types.js";
 export type { RestartAttempt } from "./restart.types.js";
+export declare const DEFAULT_RESTART_DEFERRAL_TIMEOUT_MS = 300000;
 export { findGatewayPidsOnPortSync };
+export declare function resetGatewayRestartStateForInProcessRestart(): void;
 export type RestartAuditInfo = {
     actor?: string;
     deviceId?: string;
     clientIp?: string;
     changedPaths?: string[];
 };
+export type GatewayRestartIntent = {
+    reason?: string;
+    force?: boolean;
+    waitMs?: number;
+};
 export declare function writeGatewayRestartIntentSync(opts: {
     env?: NodeJS.ProcessEnv;
     targetPid?: number;
+    intent?: GatewayRestartIntent;
+    reason?: string;
 }): boolean;
 export declare function clearGatewayRestartIntentSync(env?: NodeJS.ProcessEnv): void;
+export declare function consumeGatewayRestartIntentPayloadSync(env?: NodeJS.ProcessEnv, now?: number): GatewayRestartIntent | null;
 export declare function consumeGatewayRestartIntentSync(env?: NodeJS.ProcessEnv, now?: number): boolean;
 /**
  * Register a callback that scheduleGatewaySigusr1Restart checks before emitting SIGUSR1.
@@ -49,6 +59,7 @@ export type RestartEmitHooks = {
     beforeEmit?: () => Promise<void>;
     afterEmitRejected?: () => Promise<void>;
 };
+export declare function resolveGatewayRestartDeferralTimeoutMs(timeoutMs: unknown): number | undefined;
 /**
  * Poll pending work until it drains, then emit one restart signal.
  * A positive maxWaitMs keeps the old capped behavior for explicit configs.
@@ -69,7 +80,7 @@ export type ScheduledRestart = {
     signal: "SIGUSR1";
     delayMs: number;
     reason?: string;
-    mode: "emit" | "signal";
+    mode: "emit" | "signal" | "supervisor";
     coalesced: boolean;
     cooldownMsApplied: number;
 };
@@ -78,7 +89,10 @@ export declare function scheduleGatewaySigusr1Restart(opts?: {
     reason?: string;
     audit?: RestartAuditInfo;
     emitHooks?: RestartEmitHooks;
+    skipDeferral?: boolean;
+    skipCooldown?: boolean;
 }): ScheduledRestart;
-export declare const __testing: {
+export declare const testing: {
     resetSigusr1State(): void;
 };
+export { testing as __testing };

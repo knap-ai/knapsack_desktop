@@ -1,6 +1,6 @@
-import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-CDAQsjZ7.js";
-import "../../runtime-env-CnUCUUx1.js";
-import { getOAuthApiKey as getOAuthApiKey$1, refreshOpenAICodexToken as refreshOpenAICodexToken$1 } from "@mariozechner/pi-ai/oauth";
+import { r as ensureGlobalUndiciEnvProxyDispatcher } from "../../undici-global-dispatcher-B3DjrQKu.js";
+import "../../runtime-env-BtvWnLRh.js";
+import { getOAuthApiKey as getOAuthApiKey$1, refreshOpenAICodexToken as refreshOpenAICodexToken$1 } from "@earendil-works/pi-ai/oauth";
 //#region extensions/openai/openai-codex-provider.runtime.ts
 function createOpenAICodexProviderRuntime(deps) {
 	return {

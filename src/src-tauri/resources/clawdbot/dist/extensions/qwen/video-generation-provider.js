@@ -1,2 +1,2 @@
-import { t as buildQwenVideoGenerationProvider } from "../../video-generation-provider-jV19Fx9T.js";
+import { t as buildQwenVideoGenerationProvider } from "../../video-generation-provider-Csz-Bd93.js";
 export { buildQwenVideoGenerationProvider };

@@ -1,4 +1,5 @@
 import type { cleanupBrowserSessionsForLifecycleEnd } from "../browser-lifecycle-cleanup.js";
+import type { callGateway as defaultCallGateway } from "../gateway/call.js";
 import { type SubagentRunOutcome } from "./subagent-announce-output.js";
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
@@ -25,9 +26,11 @@ export declare function createSubagentRegistryLifecycleController(params: {
     notifyContextEngineSubagentEnded(args: {
         childSessionKey: string;
         reason: "completed" | "deleted";
+        agentDir?: string;
         workspaceDir?: string;
     }): Promise<void>;
     resumeSubagentRun(runId: string): void;
+    callGateway: typeof defaultCallGateway;
     captureSubagentCompletionReply: CaptureSubagentCompletionReply;
     cleanupBrowserSessionsForLifecycleEnd?: typeof cleanupBrowserSessionsForLifecycleEnd;
     runSubagentAnnounceFlow: RunSubagentAnnounceFlow;

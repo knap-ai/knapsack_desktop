@@ -1,4 +1,4 @@
-import { n as buildBytePlusProvider, t as buildBytePlusCodingProvider } from "../../provider-catalog-aDuP0vfO.js";
+import { n as buildBytePlusProvider, t as buildBytePlusCodingProvider } from "../../provider-catalog-DF5v1UBj.js";
 //#region extensions/byteplus/provider-discovery.ts
 const bytePlusProviderDiscovery = [{
 	id: "byteplus",
@@ -20,4 +20,4 @@ const bytePlusProviderDiscovery = [{
 	}
 }];
 //#endregion
-export { bytePlusProviderDiscovery, bytePlusProviderDiscovery as default };
+export { bytePlusProviderDiscovery as default };

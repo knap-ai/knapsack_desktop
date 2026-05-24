@@ -15,6 +15,13 @@ export declare function withTrustedWebSearchEndpoint<T>(params: {
     url: string;
     timeoutSeconds: number;
     init: RequestInit;
+    signal?: AbortSignal;
+}, run: (response: Response) => Promise<T>): Promise<T>;
+export declare function withSelfHostedWebSearchEndpoint<T>(params: {
+    url: string;
+    timeoutSeconds: number;
+    init: RequestInit;
+    signal?: AbortSignal;
 }, run: (response: Response) => Promise<T>): Promise<T>;
 export declare function postTrustedWebToolsJson<T>(params: {
     url: string;
@@ -24,11 +31,11 @@ export declare function postTrustedWebToolsJson<T>(params: {
     errorLabel: string;
     maxErrorBytes?: number;
     extraHeaders?: Record<string, string>;
+    signal?: AbortSignal;
 }, parseResponse: (response: Response) => Promise<T>): Promise<T>;
 export declare function throwWebSearchApiError(res: Response, providerLabel: string): Promise<never>;
 export declare function resolveSiteName(url: string | undefined): string | undefined;
 export declare const FRESHNESS_TO_RECENCY: Record<string, string>;
-export declare const RECENCY_TO_FRESHNESS: Record<string, string>;
 export declare function isoToPerplexityDate(iso: string): string | undefined;
 export declare function normalizeToIsoDate(value: string): string | undefined;
 export declare function parseIsoDateRange(params: {

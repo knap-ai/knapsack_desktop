@@ -10,11 +10,6 @@ type SlotPluginRecord = {
 export declare function normalizeKinds(kind?: PluginKind | PluginKind[]): PluginKind[];
 /** Check whether a plugin's kind field includes a specific kind. */
 export declare function hasKind(kind: PluginKind | PluginKind[] | undefined, target: PluginKind): boolean;
-/**
- * Returns the slot key for a single-kind plugin.
- * For multi-kind plugins use `slotKeysForPluginKind` instead.
- */
-export declare function slotKeyForPluginKind(kind?: PluginKind): PluginSlotKey | null;
 /** Order-insensitive equality check for two kind values (string or array). */
 export declare function kindsEqual(a: PluginKind | PluginKind[] | undefined, b: PluginKind | PluginKind[] | undefined): boolean;
 /** Return all slot keys that a plugin's kind field maps to. */

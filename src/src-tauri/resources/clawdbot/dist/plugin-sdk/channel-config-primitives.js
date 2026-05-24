@@ -1,4 +1,4 @@
-import { I as requireOpenAllowFrom, a as DmConfigSchema, b as ReplyRuntimeConfigSchemaShape, h as MarkdownConfigSchema, l as GroupPolicySchema, n as BlockStreamingCoalesceSchema, o as DmPolicySchema } from "../zod-schema.core-Dkd4NgDa.js";
-import { i as buildNestedDmConfigSchema, n as buildCatchallMultiAccountChannelSchema, r as buildChannelConfigSchema, t as AllowFromListSchema } from "../config-schema-Di5PBhdS.js";
-import "../channel-config-primitives-wtZIlj58.js";
-export { AllowFromListSchema, BlockStreamingCoalesceSchema, DmConfigSchema, DmPolicySchema, GroupPolicySchema, MarkdownConfigSchema, ReplyRuntimeConfigSchemaShape, buildCatchallMultiAccountChannelSchema, buildChannelConfigSchema, buildNestedDmConfigSchema, requireOpenAllowFrom };
+import { L as requireAllowlistAllowFrom, R as requireOpenAllowFrom, a as DmConfigSchema, b as ReplyRuntimeConfigSchemaShape, h as MarkdownConfigSchema, l as GroupPolicySchema, n as BlockStreamingCoalesceSchema, o as DmPolicySchema } from "../zod-schema.core-D7Y_eqdd.js";
+import { a as buildNestedDmConfigSchema, n as buildCatchallMultiAccountChannelSchema, r as buildChannelConfigSchema, t as AllowFromListSchema } from "../config-schema-ChfiQrSg.js";
+import "../channel-config-primitives-BKu_-glE.js";
+export { AllowFromListSchema, BlockStreamingCoalesceSchema, DmConfigSchema, DmPolicySchema, GroupPolicySchema, MarkdownConfigSchema, ReplyRuntimeConfigSchemaShape, buildCatchallMultiAccountChannelSchema, buildChannelConfigSchema, buildNestedDmConfigSchema, requireAllowlistAllowFrom, requireOpenAllowFrom };

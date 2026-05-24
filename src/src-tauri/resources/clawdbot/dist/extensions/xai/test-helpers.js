@@ -1,4 +1,4 @@
-import { t as globalExpect } from "../../test.DNmyFkvJ-DOV9M35C.js";
+import { expect } from "vitest";
 //#region extensions/xai/test-helpers.ts
 function createXaiToolStreamPayload() {
 	return {
@@ -44,11 +44,11 @@ function runXaiGrok4ResponseStream(streamFn) {
 }
 function expectXaiFastToolStreamShaping(capture) {
 	const capturedPayload = capture.getCapturedPayload();
-	globalExpect(capture.getCapturedModelId()).toBe("grok-4-fast");
-	globalExpect(capturedPayload).toMatchObject({ tool_stream: true });
-	globalExpect(capturedPayload).not.toHaveProperty("reasoning");
+	expect(capture.getCapturedModelId()).toBe("grok-4-fast");
+	expect(capturedPayload).toMatchObject({ tool_stream: true });
+	expect(capturedPayload).not.toHaveProperty("reasoning");
 	const payloadTools = capturedPayload?.tools;
-	globalExpect(payloadTools?.[0]?.function).not.toHaveProperty("strict");
+	expect(payloadTools?.[0]?.function).not.toHaveProperty("strict");
 }
 //#endregion
-export { createXaiPayloadCaptureStream, createXaiToolStreamPayload, expectXaiFastToolStreamShaping, runXaiGrok4ResponseStream };
+export { createXaiPayloadCaptureStream, expectXaiFastToolStreamShaping, runXaiGrok4ResponseStream };

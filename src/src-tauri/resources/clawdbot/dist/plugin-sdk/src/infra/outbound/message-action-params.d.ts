@@ -3,7 +3,6 @@ import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { type OutboundMediaAccess, type OutboundMediaReadFile } from "../../media/load-options.js";
 import { readBooleanParam as readBooleanParamShared } from "../../plugin-sdk/boolean-param.js";
 export declare const readBooleanParam: typeof readBooleanParamShared;
-export declare const BASE_ACTION_MEDIA_SOURCE_PARAM_KEYS: readonly ["media", "path", "filePath", "mediaUrl", "fileUrl", "image"];
 export declare function resolveExtraActionMediaSourceParamKeys(params: {
     cfg: OpenClawConfig;
     action?: ChannelMessageActionName;

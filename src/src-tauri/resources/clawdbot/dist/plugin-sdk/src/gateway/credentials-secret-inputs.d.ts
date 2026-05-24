@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type ExplicitGatewayAuth, type GatewayCredentialMode, type GatewayCredentialPrecedence, type GatewayRemoteCredentialFallback, type GatewayRemoteCredentialPrecedence } from "./credentials.js";
-export type GatewayCredentialSecretInputOptions = {
+type GatewayCredentialSecretInputOptions = {
     config: OpenClawConfig;
     explicitAuth?: ExplicitGatewayAuth;
     urlOverride?: string;
@@ -18,3 +18,4 @@ export declare function resolveGatewayCredentialsWithSecretInputs(params: Gatewa
     token?: string;
     password?: string;
 }>;
+export {};

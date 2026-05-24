@@ -16,7 +16,6 @@ export declare function resolveMaxBytes(params: {
     cfg: OpenClawConfig;
     config?: MediaUnderstandingConfig;
 }): number;
-export declare function resolveCapabilityConfig(cfg: OpenClawConfig, capability: MediaUnderstandingCapability): MediaUnderstandingConfig | undefined;
 export declare function resolveScopeDecision(params: {
     scope?: MediaUnderstandingScopeConfig;
     ctx: MsgContext;

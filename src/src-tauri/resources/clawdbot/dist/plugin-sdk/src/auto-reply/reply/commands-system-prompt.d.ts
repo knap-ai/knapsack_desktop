@@ -1,4 +1,4 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { EmbeddedContextFile } from "../../agents/pi-embedded-helpers.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
 import type { WorkspaceBootstrapFile } from "../../agents/workspace.js";

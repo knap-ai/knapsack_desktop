@@ -1,17 +1,16 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { RuntimeEnv } from "../runtime.js";
-export type RemovalResult = {
+type RemovalResult = {
     ok: boolean;
     skipped?: boolean;
 };
-export type CleanupResolvedPaths = {
+type CleanupResolvedPaths = {
     stateDir: string;
     configPath: string;
     oauthDir: string;
     configInsideState: boolean;
     oauthInsideState: boolean;
 };
-export declare function collectWorkspaceDirs(cfg: OpenClawConfig | undefined): string[];
 export declare function buildCleanupPlan(params: {
     cfg: OpenClawConfig | undefined;
     stateDir: string;
@@ -34,3 +33,4 @@ export declare function removeWorkspaceDirs(workspaceDirs: readonly string[], ru
     dryRun?: boolean;
 }): Promise<void>;
 export declare function listAgentSessionDirs(stateDir: string): Promise<string[]>;
+export {};

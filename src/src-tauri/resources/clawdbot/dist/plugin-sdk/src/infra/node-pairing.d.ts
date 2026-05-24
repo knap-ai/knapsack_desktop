@@ -1,6 +1,8 @@
 import { type NodeApprovalScope } from "./node-pairing-authz.js";
-export type NodeDeclaredSurface = {
+type NodeDeclaredSurface = {
     nodeId: string;
+    clientId?: string;
+    clientMode?: string;
     displayName?: string;
     platform?: string;
     version?: string;
@@ -13,7 +15,7 @@ export type NodeDeclaredSurface = {
     permissions?: Record<string, boolean>;
     remoteIp?: string;
 };
-export type NodeApprovedSurface = NodeDeclaredSurface;
+type NodeApprovedSurface = NodeDeclaredSurface;
 export type NodePairingRequestInput = NodeDeclaredSurface & {
     silent?: boolean;
 };
@@ -22,7 +24,14 @@ export type NodePairingPendingRequest = NodePairingRequestInput & {
     silent?: boolean;
     ts: number;
 };
-export type NodePairingPendingEntry = NodePairingPendingRequest & {
+export type NodePairingSupersededRequest = Pick<NodePairingPendingRequest, "requestId" | "nodeId">;
+export type RequestNodePairingResult = {
+    status: "pending";
+    request: NodePairingPendingRequest;
+    created: boolean;
+    superseded?: NodePairingSupersededRequest[];
+};
+type NodePairingPendingEntry = NodePairingPendingRequest & {
     requiredApproveScopes: NodeApprovalScope[];
 };
 export type NodePairingPairedNode = NodeApprovedSurface & {
@@ -31,8 +40,10 @@ export type NodePairingPairedNode = NodeApprovedSurface & {
     createdAtMs: number;
     approvedAtMs: number;
     lastConnectedAtMs?: number;
+    lastSeenAtMs?: number;
+    lastSeenReason?: string;
 };
-export type NodePairingList = {
+type NodePairingList = {
     pending: NodePairingPendingEntry[];
     paired: NodePairingPairedNode[];
 };
@@ -47,11 +58,7 @@ type ForbiddenNodePairingResult = {
 type ApproveNodePairingResult = ApprovedNodePairingResult | ForbiddenNodePairingResult | null;
 export declare function listNodePairing(baseDir?: string): Promise<NodePairingList>;
 export declare function getPairedNode(nodeId: string, baseDir?: string): Promise<NodePairingPairedNode | null>;
-export declare function requestNodePairing(req: NodePairingRequestInput, baseDir?: string): Promise<{
-    status: "pending";
-    request: NodePairingPendingRequest;
-    created: boolean;
-}>;
+export declare function requestNodePairing(req: NodePairingRequestInput, baseDir?: string): Promise<RequestNodePairingResult>;
 export declare function approveNodePairing(requestId: string, options: {
     callerScopes?: readonly string[];
 }, baseDir?: string): Promise<ApproveNodePairingResult>;
@@ -66,6 +73,6 @@ export declare function verifyNodeToken(nodeId: string, token: string, baseDir?:
     ok: boolean;
     node?: NodePairingPairedNode;
 }>;
-export declare function updatePairedNodeMetadata(nodeId: string, patch: Partial<Omit<NodePairingPairedNode, "nodeId" | "token" | "createdAtMs" | "approvedAtMs">>, baseDir?: string): Promise<void>;
+export declare function updatePairedNodeMetadata(nodeId: string, patch: Partial<Omit<NodePairingPairedNode, "nodeId" | "token" | "createdAtMs" | "approvedAtMs">>, baseDir?: string): Promise<boolean>;
 export declare function renamePairedNode(nodeId: string, displayName: string, baseDir?: string): Promise<NodePairingPairedNode | null>;
 export {};

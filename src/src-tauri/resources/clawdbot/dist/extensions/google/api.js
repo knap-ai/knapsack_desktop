@@ -1,38 +1,10 @@
-import { createGoogleThinkingPayloadWrapper, createGoogleThinkingStreamWrapper, isGoogleGemini3FlashModel, isGoogleGemini3ProModel, isGoogleGemini3ThinkingLevelModel, isGoogleThinkingRequiredModel, resolveGoogleGemini3ThinkingLevel, sanitizeGoogleThinkingPayload, stripInvalidGoogleThinkingBudget } from "./thinking.js";
-import "./thinking-api.js";
-import { buildGoogleGeminiCliProvider } from "./gemini-cli-provider.js";
-import { normalizeAntigravityModelId, normalizeGoogleModelId } from "./model-id.js";
-import { GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault } from "./onboard.js";
-import { DEFAULT_GOOGLE_API_BASE_URL, isGoogleGenerativeAiApi, normalizeGoogleApiBaseUrl, normalizeGoogleGenerativeAiBaseUrl, normalizeGoogleProviderConfig, resolveGoogleGenerativeAiApiOrigin, resolveGoogleGenerativeAiTransport, shouldNormalizeGoogleGenerativeAiProviderConfig, shouldNormalizeGoogleProviderConfig } from "./provider-policy.js";
-import { parseGeminiAuth } from "./gemini-auth.js";
-import { buildGoogleGenerativeAiParams, createGoogleGenerativeAiTransportStreamFn } from "./transport-stream.js";
-import { buildGoogleProvider } from "./provider-registration.js";
-import { resolveProviderHttpRequestConfig } from "openclaw/plugin-sdk/provider-http";
-//#region extensions/google/api.ts
-function resolveTrustedGoogleGenerativeAiBaseUrl(baseUrl) {
-	const normalized = normalizeGoogleGenerativeAiBaseUrl(baseUrl ?? "https://generativelanguage.googleapis.com/v1beta") ?? "https://generativelanguage.googleapis.com/v1beta";
-	let url;
-	try {
-		url = new URL(normalized);
-	} catch {
-		throw new Error("Google Generative AI baseUrl must be a valid https URL on generativelanguage.googleapis.com");
-	}
-	if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "generativelanguage.googleapis.com") throw new Error("Google Generative AI baseUrl must use https://generativelanguage.googleapis.com");
-	return normalized;
-}
-function resolveGoogleGenerativeAiHttpRequestConfig(params) {
-	return resolveProviderHttpRequestConfig({
-		baseUrl: resolveTrustedGoogleGenerativeAiBaseUrl(params.baseUrl),
-		defaultBaseUrl: DEFAULT_GOOGLE_API_BASE_URL,
-		allowPrivateNetwork: params.request?.allowPrivateNetwork,
-		headers: params.headers,
-		request: params.request,
-		defaultHeaders: parseGeminiAuth(params.apiKey).headers,
-		provider: "google",
-		api: "google-generative-ai",
-		capability: params.capability,
-		transport: params.transport
-	});
-}
-//#endregion
+import { _ as stripInvalidGoogleThinkingBudget, a as createGoogleThinkingStreamWrapper, d as isGoogleGemini3ProModel, f as isGoogleGemini3ThinkingLevelModel, g as sanitizeGoogleThinkingPayload, h as resolveGoogleGemini3ThinkingLevel, i as createGoogleThinkingPayloadWrapper, p as isGoogleThinkingRequiredModel, u as isGoogleGemini3FlashModel } from "../../provider-stream-shared-jI_a6bxx.js";
+import { n as normalizeGoogleModelId, t as normalizeAntigravityModelId } from "../../model-id-CN9oH8ae.js";
+import { a as normalizeGoogleProviderConfig, i as normalizeGoogleGenerativeAiBaseUrl, l as shouldNormalizeGoogleGenerativeAiProviderConfig, n as isGoogleGenerativeAiApi, o as resolveGoogleGenerativeAiApiOrigin, r as normalizeGoogleApiBaseUrl, s as resolveGoogleGenerativeAiTransport, t as DEFAULT_GOOGLE_API_BASE_URL, u as shouldNormalizeGoogleProviderConfig } from "../../provider-policy-C3QGAGLZ.js";
+import { t as buildGoogleGeminiCliProvider } from "../../gemini-cli-provider-Dy4vY0X2.js";
+import { n as applyGoogleGeminiModelDefault, t as GOOGLE_GEMINI_DEFAULT_MODEL } from "../../onboard-DeBl6Y4J.js";
+import { t as parseGeminiAuth } from "../../gemini-auth-BjLpmB9U.js";
+import { n as buildGoogleGenerativeAiParams, r as createGoogleGenerativeAiTransportStreamFn } from "../../transport-stream-Cwyk9QuW.js";
+import { t as buildGoogleProvider } from "../../provider-registration-B5v-wcAb.js";
+import { t as resolveGoogleGenerativeAiHttpRequestConfig } from "../../api-B6GzhKwj.js";
 export { DEFAULT_GOOGLE_API_BASE_URL, GOOGLE_GEMINI_DEFAULT_MODEL, applyGoogleGeminiModelDefault, buildGoogleGeminiCliProvider, buildGoogleGenerativeAiParams, buildGoogleProvider, createGoogleGenerativeAiTransportStreamFn, createGoogleThinkingPayloadWrapper, createGoogleThinkingStreamWrapper, isGoogleGemini3FlashModel, isGoogleGemini3ProModel, isGoogleGemini3ThinkingLevelModel, isGoogleGenerativeAiApi, isGoogleThinkingRequiredModel, normalizeAntigravityModelId, normalizeGoogleApiBaseUrl, normalizeGoogleGenerativeAiBaseUrl, normalizeGoogleModelId, normalizeGoogleProviderConfig, parseGeminiAuth, resolveGoogleGemini3ThinkingLevel, resolveGoogleGenerativeAiApiOrigin, resolveGoogleGenerativeAiHttpRequestConfig, resolveGoogleGenerativeAiTransport, sanitizeGoogleThinkingPayload, shouldNormalizeGoogleGenerativeAiProviderConfig, shouldNormalizeGoogleProviderConfig, stripInvalidGoogleThinkingBudget };

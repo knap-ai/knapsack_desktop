@@ -1,13 +1,25 @@
+/**
+ * @deprecated Public SDK subpath has no bundled extension production imports.
+ * Prefer narrower config subpaths such as plugin-config-runtime,
+ * config-mutation, and runtime-config-snapshot.
+ */
+import { loadSessionStore as loadSessionStoreImpl } from "../config/sessions/store-load.js";
+/**
+ * @deprecated Use getSessionEntry/listSessionEntries for reads and
+ * patchSessionEntry/upsertSessionEntry for writes. loadSessionStore keeps the
+ * legacy mutable whole-store shape and will remain a compatibility escape hatch.
+ */
+export declare const loadSessionStore: typeof loadSessionStoreImpl;
 export { resolveDefaultAgentId } from "../agents/agent-scope.js";
 export { requireRuntimeConfig, resolveLivePluginConfigObject, resolvePluginConfigObject, } from "./plugin-config-runtime.js";
-export { clearRuntimeConfigSnapshot, getRuntimeConfigSourceSnapshot, getRuntimeConfigSnapshot, getRuntimeConfig, 
+export { clearConfigCache, clearRuntimeConfigSnapshot, getRuntimeConfigSourceSnapshot, getRuntimeConfigSnapshot, getRuntimeConfig,
 /**
  * @deprecated Use getRuntimeConfig(), runtime.config.current(), or pass the
  * already loaded config through the call path. Runtime code must not reload
  * config on demand. Bundled plugins and repo code are blocked from using
  * this by the deprecated-internal-config-api architecture guard.
  */
-loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot, 
+loadConfig, readConfigFileSnapshotForWrite, setRuntimeConfigSnapshot,
 /**
  * @deprecated Use mutateConfigFile() or replaceConfigFile() with an explicit
  * afterWrite intent so restart behavior stays under host control. Bundled
@@ -34,7 +46,7 @@ export { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js
 export { coerceSecretRef } from "../config/types.secrets.js";
 export { resolveConfiguredSecretInputString, resolveConfiguredSecretInputWithFallback, resolveRequiredConfiguredSecretRefInputString, } from "../gateway/resolve-configured-secret-input-string.js";
 export type { BlockStreamingCoalesceConfig, DiscordAccountConfig, DiscordActionConfig, DiscordAutoPresenceConfig, DiscordConfig, DiscordExecApprovalConfig, DiscordGuildChannelConfig, DiscordGuildEntry, DiscordIntentsConfig, DiscordSlashCommandConfig, DmConfig, DmPolicy, GoogleChatAccountConfig, GoogleChatConfig, ContextVisibilityMode, GroupPolicy, GroupToolPolicyBySenderConfig, GroupToolPolicyConfig, MarkdownConfig, MarkdownTableMode, MSTeamsChannelConfig, MSTeamsConfig, MSTeamsReplyStyle, MSTeamsTeamConfig, OpenClawConfig, ReplyToMode, SignalReactionNotificationMode, SlackAccountConfig, SlackChannelConfig, SlackReactionNotificationMode, SlackSlashCommandConfig, TelegramAccountConfig, TelegramActionConfig, TelegramDirectConfig, TelegramExecApprovalConfig, TelegramGroupConfig, TelegramInlineButtonsScope, TelegramNetworkConfig, TelegramTopicConfig, ResolvedTtsPersona, TtsAutoMode, TtsConfig, TtsMode, TtsModelOverrideConfig, TtsPersonaConfig, TtsPersonaFallbackPolicy, TtsPersonaPromptConfig, TtsProvider, } from "../config/types.js";
-export { clearSessionStoreCacheForTest, loadSessionStore, readSessionUpdatedAt, recordSessionMetaFromInbound, saveSessionStore, updateLastRoute, updateSessionStore, resolveSessionStoreEntry, } from "../config/sessions/store.js";
+export { clearSessionStoreCacheForTest, getSessionEntry, listSessionEntries, patchSessionEntry, readSessionUpdatedAt, recordSessionMetaFromInbound, saveSessionStore, updateLastRoute, updateSessionStore, updateSessionStoreEntry, upsertSessionEntry, resolveSessionStoreEntry, } from "../config/sessions/store.js";
 export { resolveSessionKey } from "../config/sessions/session-key.js";
 export { resolveStorePath } from "../config/sessions/paths.js";
 export type { SessionResetMode } from "../config/sessions/reset.js";

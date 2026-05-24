@@ -1,2 +1,2 @@
-import { n as wrapCopilotOpenAIResponsesStream, r as wrapCopilotProviderStream, t as wrapCopilotAnthropicStream } from "../../stream-BrNQazbE.js";
-export { wrapCopilotAnthropicStream, wrapCopilotOpenAIResponsesStream, wrapCopilotProviderStream };
+import { a as wrapCopilotOpenAIResponsesStream, i as wrapCopilotOpenAICompletionsStream, n as hasCopilotVisionInput, o as wrapCopilotProviderStream, r as wrapCopilotAnthropicStream, t as buildCopilotDynamicHeaders } from "../../stream-10pEdHPb.js";
+export { buildCopilotDynamicHeaders, hasCopilotVisionInput, wrapCopilotAnthropicStream, wrapCopilotOpenAICompletionsStream, wrapCopilotOpenAIResponsesStream, wrapCopilotProviderStream };

@@ -1,4 +1,3 @@
-export declare function isDriveLessWindowsRootedPath(value: string): boolean;
 export declare function resolveExecutablePathCandidate(rawExecutable: string, options?: {
     cwd?: string;
     env?: NodeJS.ProcessEnv;
@@ -10,3 +9,9 @@ export declare function resolveExecutablePath(rawExecutable: string, options?: {
     cwd?: string;
     env?: NodeJS.ProcessEnv;
 }): string | undefined;
+/**
+ * On Windows, resolves a bare command name to its full .cmd or .exe path by
+ * probing PATH/PATHEXT without executing another resolver. On non-Windows this
+ * is a no-op.
+ */
+export declare function resolveExecutable(cmd: string): string;

@@ -3,7 +3,9 @@ import type { AgentRuntimeAuthPlan } from "./types.js";
 export declare function buildAgentRuntimeAuthPlan(params: {
     provider: string;
     authProfileProvider?: string;
+    authProfileMode?: string;
     sessionAuthProfileId?: string;
+    sessionAuthProfileCandidateIds?: string[];
     config?: OpenClawConfig;
     workspaceDir?: string;
     harnessId?: string;

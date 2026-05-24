@@ -2,7 +2,13 @@
   "id": "browser",
   "enabledByDefault": true,
   "activation": {
+    "onStartup": true,
     "onConfigPaths": [
+      "browser"
+    ]
+  },
+  "contracts": {
+    "tools": [
       "browser"
     ]
   },

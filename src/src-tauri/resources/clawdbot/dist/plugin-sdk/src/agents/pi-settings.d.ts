@@ -1,3 +1,4 @@
+import type { AgentCompactionMode } from "../config/types.agent-defaults.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { ContextEngineInfo } from "../context-engine/types.js";
 export declare const DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR = 20000;
@@ -38,14 +39,55 @@ export declare function applyPiCompactionSettingsFromConfig(params: {
         keepRecentTokens: number;
     };
 };
-/** Decide whether Pi's internal auto-compaction should be disabled for this run. */
+/** Resolve the compaction mode after provider-backed safeguard promotion. */
+export declare function resolveEffectiveCompactionMode(cfg?: OpenClawConfig): AgentCompactionMode;
+/**
+ * Detect providers whose pi-ai `isContextOverflow` Case 2 (silent overflow)
+ * fires on a successful turn and triggers Pi's `_runAutoCompaction` from
+ * inside `Session.prompt()`, collapsing `agent.state.messages` before the
+ * provider call (openclaw#75799).
+ *
+ * True on any of: `zai-native` endpoint class, normalized provider id `zai`,
+ * a `z-ai/` / `openrouter/z-ai/` model-id namespace prefix, or a bare `glm-`
+ * model id (no namespace prefix) — the latter covers in-house gateways that
+ * expose Zhipu's GLM family directly without a `z-ai/` qualifier. Intentionally
+ * narrow: namespaced GLM ids that route through other providers (e.g.
+ * `ollama/glm-*`, `opencode-go/glm-*`) are NOT included because their hosts
+ * have their own overflow accounting and may not exhibit the z.ai silent-
+ * overflow shape. Other providers documented as silently truncating are not
+ * added without a reproducible repro.
+ */
+export declare function isSilentOverflowProneModel(model: {
+    provider?: string | null;
+    modelId?: string | null;
+    baseUrl?: string | null;
+}): boolean;
+/**
+ * Disable Pi's `_checkCompaction → _runAutoCompaction` (which would otherwise
+ * fire from inside `Session.prompt()` and reassign `agent.state.messages`
+ * before the provider call) when OpenClaw or a plugin owns compaction:
+ * `contextEngineInfo.ownsCompaction === true`, effective safeguard compaction,
+ * or an active model that is silent-overflow-prone (openclaw#75799).
+ * Default-mode runs against ordinary providers keep Pi's auto-compaction as
+ * the existing baseline.
+ */
 export declare function shouldDisablePiAutoCompaction(params: {
     contextEngineInfo?: ContextEngineInfo;
+    compactionMode?: AgentCompactionMode;
+    silentOverflowProneProvider?: boolean;
 }): boolean;
-/** Disable Pi auto-compaction via settings when a context engine owns compaction. */
+/**
+ * Apply the auto-compaction guard. Callers that reload a `DefaultResourceLoader`
+ * MUST call this AGAIN after each `reload()` — `settingsManager.reload()`
+ * rehydrates `compaction.enabled` from disk and silently restores Pi's
+ * default-on behavior, undoing the guard. Mirrors the existing
+ * `applyPiCompactionSettingsFromConfig` re-call pattern at the same sites.
+ */
 export declare function applyPiAutoCompactionGuard(params: {
     settingsManager: PiSettingsManagerLike;
     contextEngineInfo?: ContextEngineInfo;
+    compactionMode?: AgentCompactionMode;
+    silentOverflowProneProvider?: boolean;
 }): {
     supported: boolean;
     disabled: boolean;

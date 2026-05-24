@@ -6,6 +6,7 @@ export declare function resolveCronSession(params: {
     nowMs: number;
     agentId: string;
     forceNew?: boolean;
+    store?: Record<string, SessionEntry>;
 }): {
     storePath: string;
     store: Record<string, SessionEntry>;

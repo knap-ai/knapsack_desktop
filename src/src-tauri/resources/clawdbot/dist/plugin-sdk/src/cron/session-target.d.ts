@@ -1,7 +1,10 @@
-export declare const INVALID_CRON_SESSION_TARGET_ID_ERROR = "invalid cron sessionTarget session id";
 export declare function isInvalidCronSessionTargetIdError(error: unknown): boolean;
 export declare function assertSafeCronSessionTargetId(sessionId: string): string;
 export declare function resolveCronSessionTargetSessionKey(sessionTarget?: string | null): string | undefined;
+export declare function resolveCronCurrentSessionTarget(params: {
+    sessionTarget?: string | null;
+    sessionKey?: string | null;
+}): string | undefined;
 export declare function resolveCronDeliverySessionKey(job: {
     sessionTarget?: string | null;
     sessionKey?: string | null;

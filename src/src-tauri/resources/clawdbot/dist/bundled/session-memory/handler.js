@@ -1,12 +1,14 @@
-import { _ as resolveStateDir } from "../../paths-B2cMK-wd.js";
-import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
-import { o as parseAgentSessionKey } from "../../session-key-utils-naHBWFyS.js";
-import { h as toAgentStoreSessionKey, u as resolveAgentIdFromSessionKey } from "../../session-key-hxP9B3Or.js";
-import { a as resolveAgentIdByWorkspacePath, x as resolveAgentWorkspaceDir } from "../../agent-scope-i10se9ty.js";
-import { g as writeFileWithinRoot } from "../../fs-safe-CYYfKgf3.js";
-import { r as hasInterSessionUserProvenance } from "../../input-provenance-DhG5f54s.js";
-import { t as generateSlugViaLLM } from "../../llm-slug-generator-B0NB_imC.js";
-import { r as resolveHookConfig } from "../../config-Der3i6yD.js";
+import { y as resolveStateDir } from "../../paths-Cw7f9XhU.js";
+import "../../fs-safe-CV86zY9G.js";
+import { o as root } from "../../secure-temp-dir-aidxCRgA.js";
+import { c as resolveAgentIdByWorkspacePath } from "../../agent-scope-CtLXGcWm.js";
+import { c as parseAgentSessionKey } from "../../session-key-utils-Ce_xWkNq.js";
+import { d as resolveAgentIdFromSessionKey, v as toAgentStoreSessionKey } from "../../session-key-Bte0mmcq.js";
+import { o as resolveAgentWorkspaceDir } from "../../agent-scope-config-CMp71_27.js";
+import { t as createSubsystemLogger } from "../../subsystem-DSPWLoK5.js";
+import { a as hasInterSessionUserProvenance } from "../../input-provenance-CmqYxlZ2.js";
+import { t as generateSlugViaLLM } from "../../llm-slug-generator-CwE6m5KN.js";
+import { r as resolveHookConfig } from "../../config-CRTtlu4C.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -82,7 +84,7 @@ async function findPreviousSessionFile(params) {
 * Session memory hook handler
 *
 * Saves session context to memory when /new or /reset command is triggered
-* Creates a new dated memory file with LLM-generated slug
+* Creates a new dated memory file with a timestamp slug by default
 */
 const log = createSubsystemLogger("hooks/session-memory");
 function pickDateTimePart(parts, type) {
@@ -124,6 +126,20 @@ function formatLocalSessionTimestamp(date) {
 		timeZoneName
 	};
 }
+async function resolveAvailableMemoryFilename(params) {
+	const basename = `${params.dateStr}-${params.slug}`;
+	let suffix = 1;
+	while (true) {
+		const filename = suffix === 1 ? `${basename}.md` : `${basename}-${suffix}.md`;
+		try {
+			await fs.access(path.join(params.memoryDir, filename));
+			suffix += 1;
+		} catch (err) {
+			if (err.code === "ENOENT") return filename;
+			throw err;
+		}
+	}
+}
 function resolveDisplaySessionKey(params) {
 	if (!params.cfg || !params.workspaceDir) return params.sessionKey;
 	const workspaceAgentId = resolveAgentIdByWorkspacePath(params.cfg, params.workspaceDir);
@@ -137,9 +153,11 @@ function resolveDisplaySessionKey(params) {
 /**
 * Save session context to memory when /new or /reset command is triggered
 */
-const saveSessionToMemory = async (event) => {
-	const isResetCommand = event.action === "new" || event.action === "reset";
-	if (event.type !== "command" || !isResetCommand) return;
+const pendingSessionMemoryWrites = /* @__PURE__ */ new Set();
+async function flushSessionMemoryWritesForTest() {
+	await Promise.allSettled(pendingSessionMemoryWrites);
+}
+async function saveSessionMemoryNow(event) {
 	try {
 		log.debug("Hook triggered for reset/new command", { action: event.action });
 		const context = event.context || {};
@@ -191,7 +209,7 @@ const saveSessionToMemory = async (event) => {
 				length: sessionContent?.length ?? 0,
 				messageCount
 			});
-			const allowLlmSlug = !(process.env.OPENCLAW_TEST_FAST === "1" || process.env.VITEST === "true" || process.env.VITEST === "1" || false) && hookConfig?.llmSlug !== false;
+			const allowLlmSlug = !(process.env.OPENCLAW_TEST_FAST === "1" || process.env.VITEST === "true" || process.env.VITEST === "1" || false) && hookConfig?.llmSlug === true;
 			if (sessionContent && cfg && allowLlmSlug) {
 				log.debug("Calling generateSlugViaLLM...");
 				slug = await generateSlugViaLLM({
@@ -205,7 +223,11 @@ const saveSessionToMemory = async (event) => {
 			slug = localTimestamp.timeSlug;
 			log.debug("Using fallback timestamp slug", { slug });
 		}
-		const filename = `${dateStr}-${slug}.md`;
+		const filename = await resolveAvailableMemoryFilename({
+			memoryDir,
+			dateStr,
+			slug
+		});
 		const memoryFilePath = path.join(memoryDir, filename);
 		log.debug("Memory file path resolved", {
 			filename,
@@ -224,12 +246,8 @@ const saveSessionToMemory = async (event) => {
 			""
 		];
 		if (sessionContent) entryParts.push("## Conversation Summary", "", sessionContent, "");
-		await writeFileWithinRoot({
-			rootDir: memoryDir,
-			relativePath: filename,
-			data: entryParts.join("\n"),
-			encoding: "utf-8"
-		});
+		const entry = entryParts.join("\n");
+		await (await root(memoryDir)).write(filename, entry, { encoding: "utf-8" });
 		log.debug("Memory file written successfully");
 		const relPath = memoryFilePath.replace(os.homedir(), "~");
 		log.info(`Session context saved to ${relPath}`);
@@ -241,6 +259,15 @@ const saveSessionToMemory = async (event) => {
 		});
 		else log.error("Failed to save session memory", { error: String(err) });
 	}
+}
+const saveSessionToMemory = (event) => {
+	const isResetCommand = event.action === "new" || event.action === "reset";
+	if (event.type !== "command" || !isResetCommand) return;
+	const writePromise = saveSessionMemoryNow(event);
+	pendingSessionMemoryWrites.add(writePromise);
+	writePromise.finally(() => {
+		pendingSessionMemoryWrites.delete(writePromise);
+	});
 };
 //#endregion
-export { saveSessionToMemory as default };
+export { saveSessionToMemory as default, flushSessionMemoryWritesForTest };

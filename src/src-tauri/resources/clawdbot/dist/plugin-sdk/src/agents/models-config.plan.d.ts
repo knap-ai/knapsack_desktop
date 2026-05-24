@@ -8,6 +8,9 @@ export type ResolveImplicitProvidersForModelsJson = (params: {
     workspaceDir?: string;
     explicitProviders: Record<string, ProviderConfig>;
     pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
+    providerDiscoveryProviderIds?: readonly string[];
+    providerDiscoveryTimeoutMs?: number;
+    providerDiscoveryEntriesOnly?: boolean;
 }) => Promise<Record<string, ProviderConfig>>;
 export type ModelsJsonPlan = {
     action: "skip";
@@ -23,6 +26,9 @@ export declare function resolveProvidersForModelsJsonWithDeps(params: {
     env: NodeJS.ProcessEnv;
     workspaceDir?: string;
     pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
+    providerDiscoveryProviderIds?: readonly string[];
+    providerDiscoveryTimeoutMs?: number;
+    providerDiscoveryEntriesOnly?: boolean;
 }, deps?: {
     resolveImplicitProviders?: ResolveImplicitProvidersForModelsJson;
 }): Promise<Record<string, ProviderConfig>>;
@@ -35,6 +41,9 @@ export declare function planOpenClawModelsJsonWithDeps(params: {
     existingRaw: string;
     existingParsed: unknown;
     pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
+    providerDiscoveryProviderIds?: readonly string[];
+    providerDiscoveryTimeoutMs?: number;
+    providerDiscoveryEntriesOnly?: boolean;
 }, deps?: {
     resolveImplicitProviders?: ResolveImplicitProvidersForModelsJson;
 }): Promise<ModelsJsonPlan>;

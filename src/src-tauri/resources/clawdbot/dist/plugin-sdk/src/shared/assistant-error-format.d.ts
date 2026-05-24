@@ -1,3 +1,4 @@
+export declare const MALFORMED_STREAMING_FRAGMENT_ERROR_MESSAGE = "OpenClaw transport error: malformed_streaming_fragment";
 type ErrorPayload = Record<string, unknown>;
 export type ApiErrorInfo = {
     httpCode?: string;
@@ -11,6 +12,7 @@ export declare function extractLeadingHttpStatus(raw: string): {
     rest: string;
 } | null;
 export declare function isCloudflareOrHtmlErrorPage(raw: string): boolean;
+export declare function isGenericProviderInternalError(raw: string): boolean;
 export declare function parseApiErrorInfo(raw?: string): ApiErrorInfo | null;
 export declare function formatRawAssistantErrorForUi(raw?: string): string;
 export {};

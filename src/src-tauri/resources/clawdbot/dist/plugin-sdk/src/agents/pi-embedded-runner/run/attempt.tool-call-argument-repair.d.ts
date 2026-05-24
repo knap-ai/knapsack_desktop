@@ -1,5 +1,5 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
-import { decodeHtmlEntitiesInObject } from "../../../plugin-sdk/provider-stream-shared.js";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import { decodeHtmlEntitiesInObject } from "../tool-call-argument-decoding.js";
 export declare function wrapStreamFnRepairMalformedToolCallArguments(baseFn: StreamFn): StreamFn;
 export declare function shouldRepairMalformedToolCallArguments(params: {
     provider?: string;

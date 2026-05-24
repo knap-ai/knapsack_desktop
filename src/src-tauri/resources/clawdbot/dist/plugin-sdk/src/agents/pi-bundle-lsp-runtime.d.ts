@@ -1,4 +1,6 @@
+import { type ChildProcess } from "node:child_process";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { type StdioMcpServerLaunchConfig } from "./mcp-stdio.js";
 import type { AnyAgentTool } from "./tools/common.js";
 type LspServerCapabilities = {
     hoverProvider?: boolean;
@@ -16,6 +18,7 @@ export type BundleLspToolRuntime = {
     }>;
     dispose: () => Promise<void>;
 };
+export declare function spawnLspServerProcess(config: StdioMcpServerLaunchConfig): ChildProcess;
 export declare function createBundleLspToolRuntime(params: {
     workspaceDir: string;
     cfg?: OpenClawConfig;

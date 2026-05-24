@@ -9,4 +9,5 @@ export declare function normalizeLegacyOpenAIModelProviderApi(cfg: OpenClawConfi
 export declare function normalizeLegacyNanoBananaSkill(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyCrossContextMessageConfig(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyMediaProviderOptions(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
+export declare function normalizeLegacyOllamaNativeNumCtxParams(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;
 export declare function normalizeLegacyMistralModelMaxTokens(cfg: OpenClawConfig, changes: string[]): OpenClawConfig;

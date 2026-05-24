@@ -1,10 +1,10 @@
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import { type ExecApprovalInitiatingSurfaceState } from "../infra/exec-approval-surface.js";
 import { resolveExecApprovals, type ExecAsk, type ExecApprovalDecision, type ExecSecurity } from "../infra/exec-approvals.js";
 import { logWarn } from "../logger.js";
 import { sendExecApprovalFollowup } from "./bash-tools.exec-approval-followup.js";
 import { type ExecApprovalRegistration } from "./bash-tools.exec-approval-request.js";
-import type { ExecToolDetails } from "./bash-tools.exec-types.js";
+import type { ExecElevatedDefaults, ExecToolDetails } from "./bash-tools.exec-types.js";
 type ResolvedExecApprovals = ReturnType<typeof resolveExecApprovals>;
 export declare const MAX_EXEC_APPROVAL_FOLLOWUP_FAILURE_LOG_KEYS = 256;
 export type ExecHostApprovalContext = {
@@ -39,6 +39,8 @@ export type ExecApprovalFollowupTarget = {
     turnSourceTo?: string;
     turnSourceAccountId?: string;
     turnSourceThreadId?: string | number;
+    direct?: boolean;
+    bashElevated?: ExecElevatedDefaults;
 };
 export type ExecApprovalFollowupResultDeps = {
     sendExecApprovalFollowup?: typeof sendExecApprovalFollowup;

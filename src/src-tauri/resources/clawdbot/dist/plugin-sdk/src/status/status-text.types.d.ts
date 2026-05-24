@@ -10,6 +10,7 @@ export type BuildStatusTextParams = {
     sessionScope?: SessionScope;
     storePath?: string;
     statusChannel: string;
+    workspaceDir?: string;
     provider: string;
     model: string;
     contextTokens?: number;

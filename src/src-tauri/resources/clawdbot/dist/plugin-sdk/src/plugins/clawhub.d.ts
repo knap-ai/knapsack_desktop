@@ -1,4 +1,5 @@
-import { type ClawHubPackageChannel, type ClawHubPackageFamily } from "../infra/clawhub.js";
+import type { RuntimeVersionEnv } from "../version.js";
+import type { ClawHubPluginInstallRecordFields } from "./clawhub-install-records.js";
 import type { InstallSafetyOverrides } from "./install-security-scan.js";
 import { type InstallPluginResult } from "./install.js";
 export declare const CLAWHUB_INSTALL_ERROR_CODE: {
@@ -11,24 +12,15 @@ export declare const CLAWHUB_INSTALL_ERROR_CODE: {
     readonly PRIVATE_PACKAGE: "private_package";
     readonly INCOMPATIBLE_PLUGIN_API: "incompatible_plugin_api";
     readonly INCOMPATIBLE_GATEWAY: "incompatible_gateway";
+    readonly ARTIFACT_UNAVAILABLE: "artifact_unavailable";
     readonly MISSING_ARCHIVE_INTEGRITY: "missing_archive_integrity";
+    readonly ARTIFACT_DOWNLOAD_UNAVAILABLE: "artifact_download_unavailable";
     readonly ARCHIVE_INTEGRITY_MISMATCH: "archive_integrity_mismatch";
 };
 export type ClawHubInstallErrorCode = (typeof CLAWHUB_INSTALL_ERROR_CODE)[keyof typeof CLAWHUB_INSTALL_ERROR_CODE];
 type PluginInstallLogger = {
     info?: (message: string) => void;
     warn?: (message: string) => void;
-};
-export type ClawHubPluginInstallRecordFields = {
-    source: "clawhub";
-    clawhubUrl: string;
-    clawhubPackage: string;
-    clawhubFamily: Exclude<ClawHubPackageFamily, "skill">;
-    clawhubChannel?: ClawHubPackageChannel;
-    version?: string;
-    integrity?: string;
-    resolvedAt?: string;
-    installedAt?: string;
 };
 type ClawHubInstallFailure = {
     ok: false;
@@ -49,6 +41,7 @@ export declare function installPluginFromClawHub(params: InstallSafetyOverrides 
     timeoutMs?: number;
     dryRun?: boolean;
     expectedPluginId?: string;
+    env?: RuntimeVersionEnv;
 }): Promise<({
     ok: true;
 } & Extract<InstallPluginResult, {

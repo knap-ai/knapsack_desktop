@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { AuthProfileStore } from "../auth-profiles/types.js";
 import { type AnyAgentTool, type SandboxFsBridge, type ToolFsPolicy } from "./tool-runtime.helpers.js";
 export declare const PdfToolSchema: Type.TObject<{
     prompt: Type.TOptional<Type.TString>;
@@ -17,7 +18,13 @@ type PdfSandboxConfig = {
 export declare function createPdfTool(options?: {
     config?: OpenClawConfig;
     agentDir?: string;
+    authProfileStore?: AuthProfileStore;
     workspaceDir?: string;
     sandbox?: PdfSandboxConfig;
     fsPolicy?: ToolFsPolicy;
+    /**
+     * Avoid resolving auto PDF-provider/model candidates while registering the
+     * tool. The concrete PDF model is still resolved before execution.
+     */
+    deferAutoModelResolution?: boolean;
 }): AnyAgentTool | null;

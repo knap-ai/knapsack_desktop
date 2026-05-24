@@ -1,18 +1,6 @@
 import type { PluginDiagnostic } from "./manifest-types.js";
 import { type PackageManifest } from "./manifest.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
-type RuntimeExtensionsResolution = {
-    ok: true;
-    runtimeExtensions: string[];
-} | {
-    ok: false;
-    error: string;
-};
-export declare function normalizePackageManifestStringList(value: unknown): string[];
-export declare function resolvePackageRuntimeExtensionEntries(params: {
-    manifest: PackageManifest | null | undefined;
-    extensions: readonly string[];
-}): RuntimeExtensionsResolution;
 export declare function validatePackageExtensionEntriesForInstall(params: {
     packageDir: string;
     extensions: string[];
@@ -28,6 +16,7 @@ export declare function resolvePackageSetupSource(params: {
     packageRootRealPath?: string;
     manifest: PackageManifest | null;
     origin: PluginOrigin;
+    requireBuiltRuntimeEntry?: boolean;
     sourceLabel: string;
     diagnostics: PluginDiagnostic[];
     rejectHardlinks?: boolean;
@@ -38,8 +27,9 @@ export declare function resolvePackageRuntimeExtensionSources(params: {
     manifest: PackageManifest | null;
     extensions: readonly string[];
     origin: PluginOrigin;
+    pluginIdHint?: string;
+    requireBuiltRuntimeEntry?: boolean;
     sourceLabel: string;
     diagnostics: PluginDiagnostic[];
     rejectHardlinks?: boolean;
 }): string[];
-export {};

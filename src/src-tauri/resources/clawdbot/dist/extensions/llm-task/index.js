@@ -1,13 +1,16 @@
-import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
-import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-WEYPFjsW.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
+import { c as normalizeOptionalString } from "../../string-coerce-DyL154ka.js";
+import { n as resolvePreferredOpenClawTmpDir } from "../../tmp-openclaw-dir-C60hWKdY.js";
+import { r as withTempWorkspace } from "../../private-temp-workspace-DgditT3G.js";
+import { t as validateJsonSchemaValue } from "../../schema-validator-CoHaB3Uu.js";
+import { i as buildModelAliasIndex, x as resolveModelRefFromString } from "../../model-selection-shared-ClxdEp4X.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import "../../json-schema-runtime-CiJf509Z.js";
+import "../../agent-runtime-Lc7H-PlR.js";
+import { t as defineToolPlugin } from "../../tool-plugin-ZQFurxQq.js";
+import "../../api-DsM59Pht.js";
 import path from "node:path";
-import fs from "node:fs/promises";
-import AjvPkg from "ajv";
 import { Type } from "typebox";
 //#region extensions/llm-task/src/llm-task-tool.ts
-const AjvCtor = AjvPkg;
 function stripCodeFences(s) {
 	const trimmed = s.trim();
 	const m = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -30,6 +33,46 @@ function stripDuplicateProviderPrefix(provider, model) {
 	const prefix = `${p}/`;
 	return m.startsWith(prefix) ? m.slice(prefix.length) : m;
 }
+function resolveLlmTaskModelRef(params) {
+	const defaultProvider = normalizeOptionalString(params.provider) ?? normalizeOptionalString(params.api.runtime.agent.defaults.provider);
+	const rawModel = normalizeOptionalString(params.rawModel);
+	if (!rawModel || !defaultProvider) return {
+		provider: params.provider,
+		model: stripDuplicateProviderPrefix(params.provider, rawModel)
+	};
+	const cfg = params.api.config;
+	const resolved = resolveModelRefFromString({
+		cfg,
+		raw: rawModel,
+		defaultProvider,
+		aliasIndex: cfg ? buildModelAliasIndex({
+			cfg,
+			defaultProvider
+		}) : void 0
+	});
+	if (!resolved) return {
+		provider: params.provider,
+		model: stripDuplicateProviderPrefix(params.provider, rawModel)
+	};
+	return resolved.ref;
+}
+const llmTaskToolDefinition = {
+	name: "llm-task",
+	label: "LLM Task",
+	description: "Run a generic JSON-only LLM task and return schema-validated JSON. Designed for orchestration from Lobster workflows via openclaw.invoke.",
+	parameters: Type.Object({
+		prompt: Type.String({ description: "Task instruction for the LLM." }),
+		input: Type.Optional(Type.Unknown({ description: "Optional input payload for the task." })),
+		schema: Type.Optional(Type.Unknown({ description: "Optional JSON Schema to validate the returned JSON." })),
+		provider: Type.Optional(Type.String({ description: "Provider override (e.g. openai-codex, anthropic)." })),
+		model: Type.Optional(Type.String({ description: "Model id override." })),
+		thinking: Type.Optional(Type.String({ description: "Thinking level override." })),
+		authProfileId: Type.Optional(Type.String({ description: "Auth profile override." })),
+		temperature: Type.Optional(Type.Number({ description: "Best-effort temperature override." })),
+		maxTokens: Type.Optional(Type.Number({ description: "Best-effort maxTokens override." })),
+		timeoutMs: Type.Optional(Type.Number({ description: "Timeout for the LLM run." }))
+	})
+};
 function formatThinkingPolicy(policy) {
 	return policy.levels.map((level) => level.label).join(", ");
 }
@@ -38,21 +81,7 @@ function supportsThinkingPolicyLevel(policy, level) {
 }
 function createLlmTaskTool(api) {
 	return {
-		name: "llm-task",
-		label: "LLM Task",
-		description: "Run a generic JSON-only LLM task and return schema-validated JSON. Designed for orchestration from Lobster workflows via openclaw.invoke.",
-		parameters: Type.Object({
-			prompt: Type.String({ description: "Task instruction for the LLM." }),
-			input: Type.Optional(Type.Unknown({ description: "Optional input payload for the task." })),
-			schema: Type.Optional(Type.Unknown({ description: "Optional JSON Schema to validate the returned JSON." })),
-			provider: Type.Optional(Type.String({ description: "Provider override (e.g. openai-codex, anthropic)." })),
-			model: Type.Optional(Type.String({ description: "Model id override." })),
-			thinking: Type.Optional(Type.String({ description: "Thinking level override." })),
-			authProfileId: Type.Optional(Type.String({ description: "Auth profile override." })),
-			temperature: Type.Optional(Type.Number({ description: "Best-effort temperature override." })),
-			maxTokens: Type.Optional(Type.Number({ description: "Best-effort maxTokens override." })),
-			timeoutMs: Type.Optional(Type.Number({ description: "Timeout for the LLM run." }))
-		}),
+		...llmTaskToolDefinition,
 		async execute(_id, params) {
 			const prompt = typeof params.prompt === "string" ? params.prompt : "";
 			if (!prompt.trim()) throw new Error("prompt required");
@@ -61,8 +90,12 @@ function createLlmTaskTool(api) {
 			const primary = typeof defaultsModel === "string" ? normalizeOptionalString(defaultsModel) : normalizeOptionalString(defaultsModel?.primary);
 			const primaryProvider = typeof primary === "string" ? primary.split("/")[0] : void 0;
 			const primaryModel = typeof primary === "string" ? primary.split("/").slice(1).join("/") : void 0;
-			const provider = typeof params.provider === "string" && params.provider.trim() || typeof pluginCfg.defaultProvider === "string" && pluginCfg.defaultProvider.trim() || primaryProvider || void 0;
-			const model = stripDuplicateProviderPrefix(provider, typeof params.model === "string" && params.model.trim() || typeof pluginCfg.defaultModel === "string" && pluginCfg.defaultModel.trim() || primaryModel || void 0);
+			const { provider: resolvedProvider, model } = resolveLlmTaskModelRef({
+				api,
+				provider: typeof params.provider === "string" && params.provider.trim() || typeof pluginCfg.defaultProvider === "string" && pluginCfg.defaultProvider.trim() || primaryProvider || void 0,
+				rawModel: typeof params.model === "string" && params.model.trim() || typeof pluginCfg.defaultModel === "string" && pluginCfg.defaultModel.trim() || primaryModel || void 0
+			});
+			const provider = resolvedProvider;
 			const authProfileId = typeof params.authProfileId === "string" && params.authProfileId.trim() || typeof pluginCfg.defaultAuthProfileId === "string" && pluginCfg.defaultAuthProfileId.trim() || void 0;
 			const modelKey = toModelKey(provider, model);
 			if (!provider || !model || !modelKey) throw new Error(`provider/model could not be resolved (provider=${provider ?? ""}, model=${model ?? ""})`);
@@ -99,9 +132,10 @@ function createLlmTaskTool(api) {
 				"Do not include commentary.",
 				"Do not call tools."
 			].join(" ")}\n\nTASK:\n${prompt}\n\nINPUT_JSON:\n${inputJson}\n`;
-			let tmpDir = null;
-			try {
-				tmpDir = await fs.mkdtemp(path.join(resolvePreferredOpenClawTmpDir(), "openclaw-llm-task-"));
+			return await withTempWorkspace({
+				rootDir: resolvePreferredOpenClawTmpDir(),
+				prefix: "openclaw-llm-task-"
+			}, async ({ dir: tmpDir }) => {
 				const sessionId = `llm-task-${Date.now()}`;
 				const sessionFile = path.join(tmpDir, "session.json");
 				const result = await api.runtime.agent.runEmbeddedPiAgent({
@@ -131,12 +165,14 @@ function createLlmTaskTool(api) {
 				}
 				const schema = params.schema;
 				if (schema && typeof schema === "object" && !Array.isArray(schema)) {
-					const validate = new AjvCtor({
-						allErrors: true,
-						strict: false
-					}).compile(schema);
-					if (!validate(parsed)) {
-						const msg = validate.errors?.map((e) => `${e.instancePath || "<root>"} ${e.message || "invalid"}`).join("; ") ?? "invalid";
+					const validation = validateJsonSchemaValue({
+						schema,
+						cacheKey: "llm-task.result",
+						value: parsed,
+						cache: false
+					});
+					if (!validation.ok) {
+						const msg = validation.errors.map((error) => error.text).join("; ") || "invalid";
 						throw new Error(`LLM JSON did not match schema: ${msg}`);
 					}
 				}
@@ -151,26 +187,29 @@ function createLlmTaskTool(api) {
 						model
 					}
 				};
-			} finally {
-				if (tmpDir) try {
-					await fs.rm(tmpDir, {
-						recursive: true,
-						force: true
-					});
-				} catch {}
-			}
+			});
 		}
 	};
 }
 //#endregion
 //#region extensions/llm-task/index.ts
-var llm_task_default = definePluginEntry({
+var llm_task_default = defineToolPlugin({
 	id: "llm-task",
 	name: "LLM Task",
-	description: "Optional tool for structured subtask execution",
-	register(api) {
-		api.registerTool(createLlmTaskTool(api), { optional: true });
-	}
+	description: "Generic JSON-only LLM tool for structured tasks callable from workflows.",
+	configSchema: Type.Object({
+		defaultProvider: Type.Optional(Type.String()),
+		defaultModel: Type.Optional(Type.String()),
+		defaultAuthProfileId: Type.Optional(Type.String()),
+		allowedModels: Type.Optional(Type.Array(Type.String(), { description: "Allowlist of provider/model keys like openai-codex/gpt-5.2." })),
+		maxTokens: Type.Optional(Type.Number()),
+		timeoutMs: Type.Optional(Type.Number())
+	}, { additionalProperties: false }),
+	tools: (tool) => [tool({
+		...llmTaskToolDefinition,
+		optional: true,
+		factory: ({ api }) => createLlmTaskTool(api)
+	})]
 });
 //#endregion
 export { llm_task_default as default };

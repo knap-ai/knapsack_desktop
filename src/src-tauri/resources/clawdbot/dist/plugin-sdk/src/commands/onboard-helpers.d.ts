@@ -1,12 +1,13 @@
+import type { OptionalBootstrapFileName } from "../config/types.agent-defaults.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveControlUiLinks } from "../gateway/control-ui-links.js";
-import { detectBrowserOpenSupport, openUrl, openUrlInBackground, resolveBrowserOpenCommand } from "../infra/browser-open.js";
+import { detectBrowserOpenSupport, openUrl, resolveBrowserOpenCommand } from "../infra/browser-open.js";
 import { detectBinary } from "../infra/detect-binary.js";
 import type { RuntimeEnv } from "../runtime.js";
 import type { NodeManagerChoice, OnboardMode, ResetScope } from "./onboard-types.js";
 export { randomToken } from "./random-token.js";
 export { detectBinary };
-export { detectBrowserOpenSupport, openUrl, openUrlInBackground, resolveBrowserOpenCommand };
+export { detectBrowserOpenSupport, openUrl, resolveBrowserOpenCommand };
 export { resolveControlUiLinks };
 export declare function guardCancel<T>(value: T | symbol, runtime: RuntimeEnv): T;
 export declare function summarizeExistingConfig(config: OpenClawConfig): string;
@@ -24,6 +25,7 @@ export declare function formatControlUiSshHint(params: {
 }): string;
 export declare function ensureWorkspaceAndSessions(workspaceDir: string, runtime: RuntimeEnv, options?: {
     skipBootstrap?: boolean;
+    skipOptionalBootstrapFiles?: OptionalBootstrapFileName[];
     agentId?: string;
 }): Promise<void>;
 export declare function resolveNodeManagerOptions(): Array<{

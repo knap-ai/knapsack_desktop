@@ -5,11 +5,14 @@ type SubagentAnnounceOutputDeps = {
     getRuntimeConfig: typeof getRuntimeConfig;
     readLatestAssistantReply: typeof readLatestAssistantReply;
 };
-export type AgentWaitResult = {
+type AgentWaitResult = {
     status?: string;
     startedAt?: number;
     endedAt?: number;
     error?: string;
+    stopReason?: string;
+    livenessState?: string;
+    yielded?: boolean;
 };
 export type SubagentRunOutcome = {
     status: "ok" | "error" | "timeout" | "unknown";
@@ -101,7 +104,7 @@ export declare function buildCompactAnnounceStatsLine(params: {
     startedAt?: number;
     endedAt?: number;
 }): Promise<string>;
-export declare const __testing: {
+export declare const testing: {
     setDepsForTest(overrides?: Partial<SubagentAnnounceOutputDeps>): void;
 };
-export {};
+export { testing as __testing };

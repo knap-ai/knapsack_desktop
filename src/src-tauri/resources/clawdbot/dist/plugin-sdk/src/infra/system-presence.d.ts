@@ -15,7 +15,7 @@ export type SystemPresence = {
     text: string;
     ts: number;
 };
-export type SystemPresenceUpdate = {
+type SystemPresenceUpdate = {
     key: string;
     previous?: SystemPresence;
     next: SystemPresence;

@@ -47,6 +47,60 @@ type GroundedRemPreviewResult = {
     scannedFiles: number;
     files: GroundedRemFilePreview[];
 };
+type RemDreamingPreview = {
+    sourceEntryCount: number;
+    reflections: string[];
+    candidateTruths: Array<{
+        snippet: string;
+        confidence: number;
+        evidence: string;
+    }>;
+    candidateKeys: string[];
+    bodyLines: string[];
+};
+type PromotionCandidate = {
+    key: string;
+    path: string;
+    startLine: number;
+    endLine: number;
+    snippet: string;
+    recallCount: number;
+    uniqueQueries: number;
+    avgScore: number;
+    maxScore: number;
+    ageDays: number;
+    firstRecalledAt: string;
+    lastRecalledAt: string;
+    promotedAt?: string;
+};
+type RemHarnessPreviewResult = {
+    workspaceDir: string;
+    nowMs: number;
+    remConfig: {
+        enabled: boolean;
+        lookbackDays: number;
+        limit: number;
+        minPatternStrength: number;
+    };
+    deepConfig: {
+        minScore: number;
+        minRecallCount: number;
+        minUniqueQueries: number;
+        recencyHalfLifeDays: number;
+        maxAgeDays?: number;
+    };
+    recallEntryCount: number;
+    remSkipped: boolean;
+    rem: RemDreamingPreview;
+    groundedInputPaths: string[];
+    grounded: GroundedRemPreviewResult | null;
+    deep: {
+        candidateLimit?: number;
+        candidateCount: number;
+        truncated: boolean;
+        candidates: PromotionCandidate[];
+    };
+};
 type ApiFacadeModule = {
     previewGroundedRemMarkdown: (params: {
         workspaceDir: string;
@@ -78,6 +132,23 @@ type ApiFacadeModule = {
         dreamsPath: string;
         removed: number;
     }>;
+    filterRecallEntriesWithinLookback: (params: {
+        entries: readonly unknown[];
+        nowMs: number;
+        lookbackDays: number;
+    }) => unknown[];
+    previewRemHarness: (params: {
+        workspaceDir: string;
+        cfg?: unknown;
+        pluginConfig?: Record<string, unknown>;
+        grounded?: boolean;
+        groundedInputPaths?: string[];
+        groundedFileLimit?: number;
+        includePromoted?: boolean;
+        candidateLimit?: number;
+        remPreviewLimit?: number;
+        nowMs?: number;
+    }) => Promise<RemHarnessPreviewResult>;
 };
 type RepairDreamingArtifactsResult = {
     changed: boolean;
@@ -96,4 +167,6 @@ export declare const previewGroundedRemMarkdown: ApiFacadeModule["previewGrounde
 export declare const dedupeDreamDiaryEntries: ApiFacadeModule["dedupeDreamDiaryEntries"];
 export declare const writeBackfillDiaryEntries: ApiFacadeModule["writeBackfillDiaryEntries"];
 export declare const removeBackfillDiaryEntries: ApiFacadeModule["removeBackfillDiaryEntries"];
+export declare const filterRecallEntriesWithinLookback: ApiFacadeModule["filterRecallEntriesWithinLookback"];
+export declare const previewRemHarness: ApiFacadeModule["previewRemHarness"];
 export {};

@@ -1,6 +1,14 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { FallbackAttempt } from "./model-fallback.types.js";
+import type { AuthProfileStore } from "./auth-profiles/types.js";
+import { type ModelFallbackStepFields } from "./model-fallback-observation.js";
+import type { FallbackAttempt, ModelCandidate } from "./model-fallback.types.js";
+import { type ModelManifestNormalizationContext } from "./model-selection-normalize.js";
 import type { FailoverReason } from "./pi-embedded-helpers/types.js";
+import { resolveSessionSuspensionReason } from "./session-suspension.js";
+type FailoverAttribution = {
+    sessionId?: string;
+    lane?: string;
+};
 /**
  * Structured error thrown when all model fallback candidates have been
  * exhausted. Carries per-attempt details so callers can build informative
@@ -9,7 +17,9 @@ import type { FailoverReason } from "./pi-embedded-helpers/types.js";
 export declare class FallbackSummaryError extends Error {
     readonly attempts: FallbackAttempt[];
     readonly soonestCooldownExpiry: number | null;
-    constructor(message: string, attempts: FallbackAttempt[], soonestCooldownExpiry: number | null, cause?: Error);
+    readonly sessionId?: string;
+    readonly lane?: string;
+    constructor(message: string, attempts: FallbackAttempt[], soonestCooldownExpiry: number | null, cause?: Error, attribution?: FailoverAttribution);
 }
 export declare function isFallbackSummaryError(err: unknown): err is FallbackSummaryError;
 export type ModelFallbackRunOptions = {
@@ -23,6 +33,7 @@ type ModelFallbackErrorHandler = (attempt: {
     attempt: number;
     total: number;
 }) => void | Promise<void>;
+type ModelFallbackStepHandler = (step: ModelFallbackStepFields) => void | Promise<void>;
 export type ModelFallbackResultClassification = {
     message: string;
     reason?: FailoverReason;
@@ -45,12 +56,31 @@ type ModelFallbackRunResult<T> = {
     model: string;
     attempts: FallbackAttempt[];
 };
+type ModelFallbackAuthRuntime = typeof import("./model-fallback-auth.runtime.js");
+declare function resolveImageFallbackCandidates(params: {
+    cfg: OpenClawConfig | undefined;
+    defaultProvider: string;
+    modelOverride?: string;
+} & ModelManifestNormalizationContext): ModelCandidate[];
+export declare const testing: {
+    readonly resolveFallbackCandidates: typeof resolveFallbackCandidates;
+    readonly resolveImageFallbackCandidates: typeof resolveImageFallbackCandidates;
+    readonly resolveCooldownDecision: typeof resolveCooldownDecision;
+    readonly resolveSessionSuspensionReason: typeof resolveSessionSuspensionReason;
+};
+declare function resolveFallbackCandidates(params: {
+    cfg: OpenClawConfig | undefined;
+    provider: string;
+    model: string;
+    /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
+    fallbacksOverride?: string[];
+} & ModelManifestNormalizationContext): ModelCandidate[];
 declare function resolveProbeThrottleKey(provider: string, agentDir?: string): string;
 declare function pruneProbeState(now: number): void;
 declare function isProbeThrottleOpen(now: number, throttleKey: string): boolean;
 declare function markProbeAttempt(now: number, throttleKey: string): void;
 /** @internal – exposed for unit tests only */
-export declare const _probeThrottleInternals: {
+export declare const probeThrottleInternals: {
     readonly lastProbeAttempt: Map<string, number>;
     readonly MIN_PROBE_INTERVAL_MS: 30000;
     readonly PROBE_MARGIN_MS: number;
@@ -61,22 +91,58 @@ export declare const _probeThrottleInternals: {
     readonly pruneProbeState: typeof pruneProbeState;
     readonly markProbeAttempt: typeof markProbeAttempt;
 };
+type CooldownDecision = {
+    type: "skip";
+    reason: FailoverReason;
+    error: string;
+} | {
+    type: "attempt";
+    reason: FailoverReason;
+    markProbe: boolean;
+} | {
+    type: "suspend_lanes";
+    reason: FailoverReason;
+    leaderCandidate?: ModelCandidate;
+};
+declare function resolveCooldownDecision(params: {
+    candidate: ModelCandidate;
+    isPrimary: boolean;
+    requestedModel: boolean;
+    hasFallbackCandidates: boolean;
+    now: number;
+    probeThrottleKey: string;
+    authRuntime: ModelFallbackAuthRuntime;
+    authStore: AuthProfileStore;
+    profileIds: string[];
+}): CooldownDecision;
 export declare function runWithModelFallback<T>(params: {
     cfg: OpenClawConfig | undefined;
     provider: string;
     model: string;
     runId?: string;
+    sessionId?: string;
+    agentId?: string;
+    sessionKey?: string;
+    resolveAgentHarnessRuntimeOverride?: (provider: string, model: string) => string | undefined;
+    prepareAgentHarnessRuntime?: (params: {
+        provider: string;
+        model: string;
+        agentHarnessRuntimeOverride?: string;
+    }) => Promise<void> | void;
+    lane?: string;
     agentDir?: string;
     /** Optional explicit fallbacks list; when provided (even empty), replaces agents.defaults.model.fallbacks. */
     fallbacksOverride?: string[];
     run: ModelFallbackRunFn<T>;
     onError?: ModelFallbackErrorHandler;
+    onFallbackStep?: ModelFallbackStepHandler;
     classifyResult?: ModelFallbackResultClassifier<T>;
-}): Promise<ModelFallbackRunResult<T>>;
+    skipAuthProfileRuntime?: boolean;
+} & ModelManifestNormalizationContext): Promise<ModelFallbackRunResult<T>>;
 export declare function runWithImageModelFallback<T>(params: {
     cfg: OpenClawConfig | undefined;
     modelOverride?: string;
     run: (provider: string, model: string) => Promise<T>;
     onError?: ModelFallbackErrorHandler;
 }): Promise<ModelFallbackRunResult<T>>;
-export {};
+export { testing as __testing };

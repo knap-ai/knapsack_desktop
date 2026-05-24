@@ -1,4 +1,4 @@
-import { type HelloOk, type SessionsListParams, type SessionsPatchResult, type SessionsPatchParams } from "../gateway/protocol/index.js";
+import { type HelloOk, type CommandEntry, type CommandsListParams, type SessionsListParams, type SessionsPatchResult, type SessionsPatchParams } from "../gateway/protocol/index.js";
 import type { ChatSendOptions, TuiAgentsList, TuiBackend, TuiEvent, TuiModelChoice, TuiSessionList } from "./tui-backend.js";
 export type GatewayConnectionOptions = {
     url?: string;
@@ -10,7 +10,8 @@ type ResolvedGatewayConnection = {
     url: string;
     token?: string;
     password?: string;
-    allowInsecureLocalOperatorUi?: boolean;
+    preauthHandshakeTimeoutMs?: number;
+    allowInsecureLocalOperatorUi: boolean;
 };
 export type GatewaySessionList = TuiSessionList;
 export type GatewayAgentsList = TuiAgentsList;
@@ -19,11 +20,7 @@ export declare class GatewayChatClient implements TuiBackend {
     private client;
     private readyPromise;
     private resolveReady?;
-    readonly connection: {
-        url: string;
-        token?: string;
-        password?: string;
-    };
+    readonly connection: ResolvedGatewayConnection;
     hello?: HelloOk;
     onEvent?: (evt: GatewayEvent) => void;
     onConnected?: () => void;
@@ -57,6 +54,7 @@ export declare class GatewayChatClient implements TuiBackend {
     resetSession(key: string, reason?: "new" | "reset"): Promise<Record<string, unknown>>;
     getGatewayStatus(): Promise<Record<string, unknown>>;
     listModels(): Promise<GatewayModelChoice[]>;
+    listCommands(opts?: CommandsListParams): Promise<CommandEntry[]>;
 }
 export declare function resolveGatewayConnection(opts: GatewayConnectionOptions): Promise<ResolvedGatewayConnection>;
 export {};

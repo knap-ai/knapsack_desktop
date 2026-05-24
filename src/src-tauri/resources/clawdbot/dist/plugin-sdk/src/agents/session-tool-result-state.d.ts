@@ -1,8 +1,8 @@
-export type PendingToolCall = {
+type PendingToolCall = {
     id: string;
     name?: string;
 };
-export type PendingToolCallState = {
+type PendingToolCallState = {
     size: () => number;
     entries: () => IterableIterator<[string, string | undefined]>;
     getToolName: (id: string) => string | undefined;
@@ -15,3 +15,4 @@ export type PendingToolCallState = {
     shouldFlushBeforeNewToolCalls: (toolCallCount: number) => boolean;
 };
 export declare function createPendingToolCallState(): PendingToolCallState;
+export {};

@@ -17,10 +17,6 @@ export declare function buildAllowlistResolutionSummary<T extends AllowlistUserR
     unresolved: string[];
     additions: string[];
 };
-export declare function resolveAllowlistIdAdditions<T extends AllowlistUserResolutionLike>(params: {
-    existing: Array<string | number>;
-    resolvedMap: Map<string, T>;
-}): string[];
 export declare function canonicalizeAllowlistWithResolvedIds<T extends AllowlistUserResolutionLike>(params: {
     existing?: Array<string | number>;
     resolvedMap: Map<string, T>;

@@ -3,6 +3,7 @@ export declare function getUpdateCheckResult(params: {
     timeoutMs: number;
     fetchGit: boolean;
     includeRegistry: boolean;
+    updateConfigChannel?: string | null;
 }): Promise<UpdateCheckResult>;
 export type UpdateAvailability = {
     available: boolean;

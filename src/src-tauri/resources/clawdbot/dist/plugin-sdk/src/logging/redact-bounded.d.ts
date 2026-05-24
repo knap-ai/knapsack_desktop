@@ -1,5 +1,3 @@
-export declare const REDACT_REGEX_CHUNK_THRESHOLD = 32768;
-export declare const REDACT_REGEX_CHUNK_SIZE = 16384;
 type BoundedRedactOptions = {
     chunkThreshold?: number;
     chunkSize?: number;

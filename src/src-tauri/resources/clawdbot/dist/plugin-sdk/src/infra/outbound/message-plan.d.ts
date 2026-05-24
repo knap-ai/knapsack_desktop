@@ -5,6 +5,7 @@ export type OutboundMessageSendOverrides = ReplyToOverride & {
     threadId?: string | number | null;
     audioAsVoice?: boolean;
     forceDocument?: boolean;
+    formatting?: OutboundDeliveryFormattingOptions;
 };
 export type OutboundMessageUnit = {
     kind: "text";
@@ -25,6 +26,7 @@ export declare function planOutboundTextMessageUnits(params: {
     overrides: OutboundMessageSendOverrides;
     chunker?: OutboundMessageChunker | null;
     chunkerMode?: "text" | "markdown";
+    chunkedTextFormatting?: OutboundDeliveryFormattingOptions;
     textLimit?: number;
     chunkMode?: ChunkMode;
     formatting?: OutboundDeliveryFormattingOptions;

@@ -18,6 +18,11 @@ export type ProgressTotalsUpdate = {
     total: number;
     label?: string;
 };
+export declare function shouldUseInteractiveProgressSpinner(params: {
+    fallback?: ProgressOptions["fallback"];
+    streamIsTty?: boolean;
+    stdinIsRaw?: boolean;
+}): boolean;
 export declare function createCliProgress(options: ProgressOptions): ProgressReporter;
 export declare function withProgress<T>(options: ProgressOptions, work: (progress: ProgressReporter) => Promise<T>): Promise<T>;
 export declare function withProgressTotals<T>(options: ProgressOptions, work: (update: (update: ProgressTotalsUpdate) => void, progress: ProgressReporter) => Promise<T>): Promise<T>;

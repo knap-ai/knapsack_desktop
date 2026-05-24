@@ -1,21 +1,9 @@
-export declare const HOST_DANGEROUS_ENV_KEY_VALUES: readonly string[];
-export declare const HOST_DANGEROUS_ENV_PREFIXES: readonly string[];
-export declare const HOST_DANGEROUS_INHERITED_ENV_KEY_VALUES: readonly string[];
-export declare const HOST_DANGEROUS_INHERITED_ENV_PREFIXES: readonly string[];
-export declare const HOST_DANGEROUS_OVERRIDE_ENV_KEY_VALUES: readonly string[];
-export declare const HOST_DANGEROUS_OVERRIDE_ENV_PREFIXES: readonly string[];
-export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_KEY_VALUES: readonly string[];
-export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_PREFIX_VALUES: readonly string[];
-export declare const HOST_DANGEROUS_ENV_KEYS: Set<string>;
-export declare const HOST_DANGEROUS_INHERITED_ENV_KEYS: Set<string>;
-export declare const HOST_DANGEROUS_OVERRIDE_ENV_KEYS: Set<string>;
-export declare const HOST_SHELL_WRAPPER_ALLOWED_OVERRIDE_ENV_KEYS: Set<string>;
-export type HostExecEnvSanitizationResult = {
+type HostExecEnvSanitizationResult = {
     env: Record<string, string>;
     rejectedOverrideBlockedKeys: string[];
     rejectedOverrideInvalidKeys: string[];
 };
-export type HostExecEnvOverrideDiagnostics = {
+type HostExecEnvOverrideDiagnostics = {
     rejectedOverrideBlockedKeys: string[];
     rejectedOverrideInvalidKeys: string[];
 };
@@ -44,3 +32,4 @@ export declare function sanitizeSystemRunEnvOverrides(params?: {
     overrides?: Record<string, string> | null;
     shellWrapper?: boolean;
 }): Record<string, string> | undefined;
+export {};

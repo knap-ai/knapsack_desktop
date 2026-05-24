@@ -1,6 +1,6 @@
 import type { RuntimeVersionEnv } from "../version.js";
-export type ProviderAttributionVerification = "vendor-documented" | "vendor-hidden-api-spec" | "vendor-sdk-hook-only" | "internal-runtime";
-export type ProviderAttributionHook = "request-headers" | "default-headers" | "user-agent-extra" | "custom-user-agent";
+type ProviderAttributionVerification = "vendor-documented" | "vendor-hidden-api-spec" | "vendor-sdk-hook-only" | "internal-runtime";
+type ProviderAttributionHook = "request-headers" | "default-headers" | "user-agent-extra" | "custom-user-agent";
 export type ProviderAttributionPolicy = {
     provider: string;
     enabledByDefault: boolean;
@@ -12,10 +12,10 @@ export type ProviderAttributionPolicy = {
     version: string;
     headers?: Record<string, string>;
 };
-export type ProviderAttributionIdentity = Pick<ProviderAttributionPolicy, "product" | "version">;
+type ProviderAttributionIdentity = Pick<ProviderAttributionPolicy, "product" | "version">;
 export type ProviderRequestTransport = "stream" | "websocket" | "http" | "media-understanding";
 export type ProviderRequestCapability = "llm" | "audio" | "image" | "video" | "other";
-export type ProviderEndpointClass = "default" | "anthropic-public" | "cerebras-native" | "chutes-native" | "deepseek-native" | "github-copilot-native" | "groq-native" | "mistral-public" | "moonshot-native" | "modelstudio-native" | "openai-public" | "openai-codex" | "opencode-native" | "azure-openai" | "openrouter" | "xai-native" | "zai-native" | "google-generative-ai" | "google-vertex" | "local" | "custom" | "invalid";
+export type ProviderEndpointClass = "default" | "anthropic-public" | "cerebras-native" | "chutes-native" | "deepseek-native" | "github-copilot-native" | "groq-native" | "mistral-public" | "moonshot-native" | "modelstudio-native" | "nvidia-native" | "openai-public" | "openai-codex" | "opencode-native" | "azure-openai" | "openrouter" | "xai-native" | "xiaomi-native" | "zai-native" | "google-generative-ai" | "google-vertex" | "local" | "custom" | "invalid";
 export type ProviderEndpointResolution = {
     endpointClass: ProviderEndpointClass;
     hostname?: string;
@@ -60,7 +60,6 @@ export type ProviderRequestCapabilities = ProviderRequestPolicyResolution & {
     compatibilityFamily?: ProviderRequestCompatibilityFamily;
 };
 export declare function resolveProviderEndpoint(baseUrl: string | null | undefined): ProviderEndpointResolution;
-export declare function isOpenAIResponsesApi(api: string | null | undefined): boolean;
 export declare function resolveProviderAttributionIdentity(env?: RuntimeVersionEnv): ProviderAttributionIdentity;
 export declare function listProviderAttributionPolicies(env?: RuntimeVersionEnv): ProviderAttributionPolicy[];
 export declare function resolveProviderAttributionPolicy(provider?: string | null, env?: RuntimeVersionEnv): ProviderAttributionPolicy | undefined;
@@ -69,3 +68,4 @@ export declare function resolveProviderRequestPolicy(input: ProviderRequestPolic
 export declare function resolveProviderRequestAttributionHeaders(input: ProviderRequestPolicyInput, env?: RuntimeVersionEnv): Record<string, string> | undefined;
 export declare function resolveProviderRequestCapabilities(input: ProviderRequestCapabilitiesInput, env?: RuntimeVersionEnv): ProviderRequestCapabilities;
 export declare function describeProviderRequestRoutingSummary(input: ProviderRequestPolicyInput, env?: RuntimeVersionEnv): string;
+export {};

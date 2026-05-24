@@ -1,4 +1,7 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { PluginLogger } from "../plugins/types.js";
+import { type RuntimeEnv } from "../runtime.js";
+export declare const quietPluginJsonLogger: PluginLogger;
 export declare function resolveFileNpmSpecToLocalPath(raw: string): {
     ok: true;
     path: string;
@@ -10,25 +13,17 @@ export declare function applySlotSelectionForPlugin(config: OpenClawConfig, plug
     config: OpenClawConfig;
     warnings: string[];
 };
-export declare function createPluginInstallLogger(): {
+export declare function createPluginInstallLogger(runtime?: RuntimeEnv): {
     info: (msg: string) => void;
     warn: (msg: string) => void;
 };
-export declare function createHookPackInstallLogger(): {
+export declare function createHookPackInstallLogger(runtime?: RuntimeEnv): {
     info: (msg: string) => void;
     warn: (msg: string) => void;
 };
 export declare function enableInternalHookEntries(config: OpenClawConfig, hookNames: string[]): OpenClawConfig;
 export declare function formatPluginInstallWithHookFallbackError(pluginError: string, hookError: string): string;
-export declare function logHookPackRestartHint(): void;
-export declare function logSlotWarnings(warnings: string[]): void;
-export declare function buildPreferredClawHubSpec(raw: string): string | null;
+export declare function logHookPackRestartHint(runtime?: RuntimeEnv): void;
+export declare function logSlotWarnings(warnings: string[], runtime?: RuntimeEnv): void;
 export declare function parseNpmPrefixSpec(raw: string): string | null;
-export declare const PREFERRED_CLAWHUB_FALLBACK_DECISION: {
-    readonly FALLBACK_TO_NPM: "fallback_to_npm";
-    readonly STOP: "stop";
-};
-export type PreferredClawHubFallbackDecision = (typeof PREFERRED_CLAWHUB_FALLBACK_DECISION)[keyof typeof PREFERRED_CLAWHUB_FALLBACK_DECISION];
-export declare function decidePreferredClawHubFallback(params: {
-    code?: string;
-}): PreferredClawHubFallbackDecision;
+export declare function parseNpmPackPrefixPath(raw: string): string | null;

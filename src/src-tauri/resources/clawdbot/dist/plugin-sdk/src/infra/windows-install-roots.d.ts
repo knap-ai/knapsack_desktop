@@ -1,10 +1,11 @@
+export declare const DEFAULT_WINDOWS_SYSTEM_ROOT = "C:\\Windows";
 type QueryRegistryValue = (key: string, valueName: string) => string | null;
 type IsReadableFile = (filePath: string) => boolean;
 type WindowsInstallRootsTestOverrides = {
     queryRegistryValue?: QueryRegistryValue;
     isReadableFile?: IsReadableFile;
 };
-export type WindowsInstallRoots = {
+type WindowsInstallRoots = {
     systemRoot: string;
     programFiles: string;
     programFilesX86: string;
@@ -15,12 +16,12 @@ export type WindowsInstallRoots = {
  * paths, UNC shares, or PATH-like lists that could widen trust unexpectedly.
  */
 export declare function normalizeWindowsInstallRoot(raw: string | undefined): string | null;
-declare function getWindowsRegExeCandidates(env: Record<string, string | undefined>): readonly string[];
-declare function locateWindowsRegExe(env?: Record<string, string | undefined>): string | null;
+declare function getWindowsRegExeCandidates(): readonly string[];
+declare function locateWindowsRegExe(): string | null;
 export declare function getWindowsInstallRoots(env?: Record<string, string | undefined>): WindowsInstallRoots;
 export declare function getWindowsProgramFilesRoots(env?: Record<string, string | undefined>): readonly string[];
-export declare function _resetWindowsInstallRootsForTests(overrides?: WindowsInstallRootsTestOverrides): void;
-export declare const _private: {
+export declare function resetWindowsInstallRootsForTests(overrides?: WindowsInstallRootsTestOverrides): void;
+export declare const privateTestApi: {
     getWindowsRegExeCandidates: typeof getWindowsRegExeCandidates;
     locateWindowsRegExe: typeof locateWindowsRegExe;
 };

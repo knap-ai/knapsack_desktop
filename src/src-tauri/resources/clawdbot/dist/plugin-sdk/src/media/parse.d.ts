@@ -13,6 +13,7 @@ export declare function normalizeMediaSource(src: string): string;
 export declare function splitMediaFromOutput(raw: string, options?: SplitMediaFromOutputOptions): {
     text: string;
     mediaUrls?: string[];
+    /** @deprecated Use mediaUrls[0]. */
     mediaUrl?: string;
     audioAsVoice?: boolean;
     segments?: ParsedMediaOutputSegment[];

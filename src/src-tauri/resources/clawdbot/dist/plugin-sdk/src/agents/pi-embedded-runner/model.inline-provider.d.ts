@@ -1,4 +1,4 @@
-import type { Api } from "@mariozechner/pi-ai";
+import type { Api } from "@earendil-works/pi-ai";
 import type { ModelDefinitionConfig, ModelProviderConfig } from "../../config/types.js";
 export type InlineModelEntry = Omit<ModelDefinitionConfig, "api"> & {
     api?: Api;
@@ -13,10 +13,12 @@ export type InlineProviderConfig = {
     contextWindow?: ModelProviderConfig["contextWindow"];
     contextTokens?: ModelProviderConfig["contextTokens"];
     maxTokens?: ModelProviderConfig["maxTokens"];
+    params?: ModelProviderConfig["params"];
     headers?: unknown;
     authHeader?: boolean;
     timeoutSeconds?: ModelProviderConfig["timeoutSeconds"];
     request?: ModelProviderConfig["request"];
+    localService?: ModelProviderConfig["localService"];
 };
 export declare function normalizeResolvedTransportApi(api: unknown): ModelDefinitionConfig["api"] | undefined;
 export declare function sanitizeModelHeaders(headers: unknown, opts?: {

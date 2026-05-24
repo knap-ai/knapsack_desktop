@@ -20,7 +20,7 @@ export declare const SecretRefSchema: Type.TUnion<[Type.TObject<{
 }>, Type.TObject<{
     source: Type.TLiteral<"file">;
     provider: Type.TString;
-    id: Type.TString;
+    id: Type.TUnsafe<string>;
 }>, Type.TObject<{
     source: Type.TLiteral<"exec">;
     provider: Type.TString;
@@ -33,7 +33,7 @@ export declare const SecretInputSchema: Type.TUnion<[Type.TString, Type.TUnion<[
 }>, Type.TObject<{
     source: Type.TLiteral<"file">;
     provider: Type.TString;
-    id: Type.TString;
+    id: Type.TUnsafe<string>;
 }>, Type.TObject<{
     source: Type.TLiteral<"exec">;
     provider: Type.TString;

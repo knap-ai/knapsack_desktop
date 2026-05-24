@@ -7,8 +7,6 @@ export declare function markCompleteReplyConfig<T extends OpenClawConfig>(config
 }): T;
 export declare function withFastReplyConfig<T extends OpenClawConfig>(config: T): T;
 export declare function withFullRuntimeReplyConfig<T extends OpenClawConfig>(config: T): T;
-export declare function isCompleteReplyConfig(config: unknown): config is OpenClawConfig;
-export declare function usesFullReplyRuntime(config: unknown): boolean;
 export declare function resolveGetReplyConfig(params: {
     getRuntimeConfig: () => OpenClawConfig;
     isFastTestEnv: boolean;

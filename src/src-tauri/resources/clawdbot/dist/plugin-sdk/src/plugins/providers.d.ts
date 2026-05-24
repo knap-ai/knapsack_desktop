@@ -1,5 +1,5 @@
 import type { PluginLoadOptions } from "./loader.js";
-import { type PluginManifestRegistry } from "./manifest-registry.js";
+import type { PluginManifestRegistry } from "./manifest-registry.js";
 import { type PluginRegistrySnapshot } from "./plugin-registry.js";
 type ProviderManifestLoadParams = {
     config?: PluginLoadOptions["config"];
@@ -21,18 +21,21 @@ export declare function resolveBundledProviderCompatPluginIds(params: {
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
     onlyPluginIds?: readonly string[];
+    manifestRegistry?: PluginManifestRegistry;
 }): string[];
 export declare function resolveEnabledProviderPluginIds(params: ProviderRegistryLoadParams): string[];
 export declare function resolveExternalAuthProfileProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
+    manifestRegistry?: PluginManifestRegistry;
 }): string[];
 export declare function resolveExternalAuthProfileCompatFallbackPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
     declaredPluginIds?: ReadonlySet<string>;
+    manifestRegistry?: PluginManifestRegistry;
 }): string[];
 export declare function resolveDiscoveredProviderPluginIds(params: {
     config?: PluginLoadOptions["config"];
@@ -48,6 +51,8 @@ export declare function resolveDiscoverableProviderOwnerPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
+    registry?: PluginRegistrySnapshot;
+    manifestRegistry?: PluginManifestRegistry;
     includeUntrustedWorkspacePlugins?: boolean;
 }): string[];
 export declare function resolveActivatableProviderOwnerPluginIds(params: {
@@ -55,9 +60,11 @@ export declare function resolveActivatableProviderOwnerPluginIds(params: {
     config?: PluginLoadOptions["config"];
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
+    registry?: PluginRegistrySnapshot;
+    manifestRegistry?: PluginManifestRegistry;
     includeUntrustedWorkspacePlugins?: boolean;
 }): string[];
-export declare const __testing: {
+export declare const testing: {
     readonly resolveActivatableProviderOwnerPluginIds: typeof resolveActivatableProviderOwnerPluginIds;
     readonly resolveEnabledProviderPluginIds: typeof resolveEnabledProviderPluginIds;
     readonly resolveExternalAuthProfileCompatFallbackPluginIds: typeof resolveExternalAuthProfileCompatFallbackPluginIds;
@@ -67,7 +74,6 @@ export declare const __testing: {
     readonly resolveBundledProviderCompatPluginIds: typeof resolveBundledProviderCompatPluginIds;
     readonly withBundledProviderVitestCompat: typeof withBundledProviderVitestCompat;
 };
-export declare function resetProviderOwnerPluginIdsCacheForTest(): void;
 export declare function resolveOwningPluginIdsForProvider(params: {
     provider: string;
     config?: PluginLoadOptions["config"];
@@ -100,4 +106,4 @@ export declare function resolveCatalogHookProviderPluginIds(params: {
     workspaceDir?: string;
     env?: PluginLoadOptions["env"];
 }): string[];
-export {};
+export { testing as __testing };

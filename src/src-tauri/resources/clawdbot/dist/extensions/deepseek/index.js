@@ -1,9 +1,11 @@
-import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-Bqo51Ufw.js";
-import { n as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-D-up-AZr.js";
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
-import { t as buildDeepSeekProvider } from "../../provider-catalog-yZgqgv-E.js";
-import { t as createDeepSeekV4ThinkingWrapper } from "../../stream-B1I6UjNm.js";
-import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-Bk3uEFij.js";
+import { n as buildProviderToolCompatFamilyHooks } from "../../provider-tools-D8Ja_oUH.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-DtsPmvDx.js";
+import { a as readConfiguredProviderCatalogEntries } from "../../provider-catalog-shared-BLp5nwNN.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-DYbqN6AQ.js";
+import { t as buildDeepSeekProvider } from "../../provider-catalog-gNsEYitN.js";
+import { t as createDeepSeekV4ThinkingWrapper } from "../../stream-BQ9hyEa2.js";
+import { n as applyDeepSeekConfig, t as DEEPSEEK_DEFAULT_MODEL_REF } from "../../onboard-gz9Ya_HO.js";
+import { t as resolveDeepSeekV4ThinkingProfile } from "../../thinking-DpufZF19.js";
 //#region extensions/deepseek/index.ts
 const PROVIDER_ID = "deepseek";
 var deepseek_default = defineSingleProviderPluginEntry({
@@ -37,12 +39,14 @@ var deepseek_default = defineSingleProviderPluginEntry({
 			providerId: PROVIDER_ID
 		}),
 		matchesContextOverflowError: ({ errorMessage }) => /\bdeepseek\b.*(?:input.*too long|context.*exceed)/i.test(errorMessage),
-		...buildProviderReplayFamilyHooks({ family: "openai-compatible" }),
+		...buildProviderReplayFamilyHooks({
+			family: "openai-compatible",
+			dropReasoningFromHistory: false
+		}),
+		...buildProviderToolCompatFamilyHooks("deepseek"),
 		wrapStreamFn: (ctx) => createDeepSeekV4ThinkingWrapper(ctx.streamFn, ctx.thinkingLevel),
-		isModernModelRef: ({ modelId }) => {
-			const lower = modelId.toLowerCase();
-			return lower === "deepseek-v4-flash" || lower === "deepseek-v4-pro";
-		}
+		resolveThinkingProfile: ({ modelId }) => resolveDeepSeekV4ThinkingProfile(modelId),
+		isModernModelRef: ({ modelId }) => Boolean(resolveDeepSeekV4ThinkingProfile(modelId))
 	}
 });
 //#endregion

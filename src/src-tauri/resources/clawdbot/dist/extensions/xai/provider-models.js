@@ -1,2 +1,2 @@
-import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-T4kyAooa.js";
+import { n as resolveXaiForwardCompatModel, t as isModernXaiModel } from "../../provider-models-DXKRcnCv.js";
 export { isModernXaiModel, resolveXaiForwardCompatModel };

@@ -1,4 +1,5 @@
 import { z, type ZodRawShape, type ZodTypeAny } from "zod";
+import type { JsonSchemaObject } from "../../shared/json-schema.types.js";
 import type { ChannelConfigSchema, ChannelConfigUiHint } from "./types.config.js";
 type ExtendableZodObject = ZodTypeAny & {
     extend: (shape: Record<string, ZodTypeAny>) => ZodTypeAny;
@@ -19,6 +20,12 @@ export declare function buildCatchallMultiAccountChannelSchema<T extends Extenda
 type BuildChannelConfigSchemaOptions = {
     uiHints?: Record<string, ChannelConfigUiHint>;
 };
+type BuildJsonChannelConfigSchemaOptions = {
+    cacheKey?: string;
+    uiHints?: Record<string, ChannelConfigUiHint>;
+    runtime?: ChannelConfigSchema["runtime"];
+};
+export declare function buildJsonChannelConfigSchema(schema: JsonSchemaObject, options?: BuildJsonChannelConfigSchemaOptions): ChannelConfigSchema;
 export declare function buildChannelConfigSchema(schema: ZodTypeAny, options?: BuildChannelConfigSchemaOptions): ChannelConfigSchema;
 export declare function emptyChannelConfigSchema(): ChannelConfigSchema;
 export {};

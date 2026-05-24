@@ -21,6 +21,5 @@ export declare function resolveCommandStdio(params: {
     hasInput: boolean;
     preferInherit: boolean;
 }): ["pipe" | "inherit" | "ignore", "pipe", "pipe"];
-export declare function formatSpawnError(err: unknown): string;
 export declare function spawnWithFallback(params: SpawnWithFallbackParams): Promise<SpawnWithFallbackResult>;
 export {};

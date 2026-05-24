@@ -19,8 +19,10 @@ export declare const ChatHistoryParamsSchema: Type.TObject<{
 }>;
 export declare const ChatSendParamsSchema: Type.TObject<{
     sessionKey: Type.TString;
+    sessionId: Type.TOptional<Type.TString>;
     message: Type.TString;
     thinking: Type.TOptional<Type.TString>;
+    fastMode: Type.TOptional<Type.TBoolean>;
     deliver: Type.TOptional<Type.TBoolean>;
     originatingChannel: Type.TOptional<Type.TString>;
     originatingTo: Type.TOptional<Type.TString>;
@@ -47,14 +49,84 @@ export declare const ChatInjectParamsSchema: Type.TObject<{
     message: Type.TString;
     label: Type.TOptional<Type.TString>;
 }>;
-export declare const ChatEventSchema: Type.TObject<{
+export declare const ChatDeltaEventSchema: Type.TObject<{
     runId: Type.TString;
     sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
     seq: Type.TInteger;
-    state: Type.TUnion<[Type.TLiteral<"delta">, Type.TLiteral<"final">, Type.TLiteral<"aborted">, Type.TLiteral<"error">]>;
+    state: Type.TLiteral<"delta">;
+    message: Type.TOptional<Type.TUnknown>;
+    deltaText: Type.TString;
+    replace: Type.TOptional<Type.TBoolean>;
+    usage: Type.TOptional<Type.TUnknown>;
+}>;
+export declare const ChatFinalEventSchema: Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"final">;
+    message: Type.TOptional<Type.TUnknown>;
+    usage: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
+}>;
+export declare const ChatAbortedEventSchema: Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"aborted">;
+    message: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
+}>;
+export declare const ChatErrorEventSchema: Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"error">;
     message: Type.TOptional<Type.TUnknown>;
     errorMessage: Type.TOptional<Type.TString>;
     errorKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"refusal">, Type.TLiteral<"timeout">, Type.TLiteral<"rate_limit">, Type.TLiteral<"context_length">, Type.TLiteral<"unknown">]>>;
     usage: Type.TOptional<Type.TUnknown>;
     stopReason: Type.TOptional<Type.TString>;
 }>;
+export declare const ChatEventSchema: Type.TUnion<[Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"delta">;
+    message: Type.TOptional<Type.TUnknown>;
+    deltaText: Type.TString;
+    replace: Type.TOptional<Type.TBoolean>;
+    usage: Type.TOptional<Type.TUnknown>;
+}>, Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"final">;
+    message: Type.TOptional<Type.TUnknown>;
+    usage: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
+}>, Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"aborted">;
+    message: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
+}>, Type.TObject<{
+    runId: Type.TString;
+    sessionKey: Type.TString;
+    spawnedBy: Type.TOptional<Type.TString>;
+    seq: Type.TInteger;
+    state: Type.TLiteral<"error">;
+    message: Type.TOptional<Type.TUnknown>;
+    errorMessage: Type.TOptional<Type.TString>;
+    errorKind: Type.TOptional<Type.TUnion<[Type.TLiteral<"refusal">, Type.TLiteral<"timeout">, Type.TLiteral<"rate_limit">, Type.TLiteral<"context_length">, Type.TLiteral<"unknown">]>>;
+    usage: Type.TOptional<Type.TUnknown>;
+    stopReason: Type.TOptional<Type.TString>;
+}>]>;

@@ -1,7 +1,7 @@
 import type { SubagentLifecycleHookRunner } from "../plugins/hooks.js";
 import { decodeStrictBase64 } from "./subagent-attachments.js";
 export { SUBAGENT_SPAWN_ACCEPTED_NOTE, SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE, } from "./subagent-spawn-accepted-note.js";
-import { callGateway, forkSessionFromParent, getRuntimeConfig, resolveContextEngine, resolveParentForkMaxTokens, updateSessionStore } from "./subagent-spawn.runtime.js";
+import { callGateway, forkSessionFromParent, getRuntimeConfig, ensureContextEnginesInitialized, resolveParentForkDecision, resolveContextEngine, updateSessionStore } from "./subagent-spawn.runtime.js";
 import { type SpawnSubagentContextMode, type SpawnSubagentMode, type SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
 export { SUBAGENT_SPAWN_CONTEXT_MODES, SUBAGENT_SPAWN_MODES, SUBAGENT_SPAWN_SANDBOX_MODES, } from "./subagent-spawn.types.js";
 export type { SpawnSubagentContextMode, SpawnSubagentMode, SpawnSubagentSandboxMode, } from "./subagent-spawn.types.js";
@@ -11,8 +11,9 @@ type SubagentSpawnDeps = {
     forkSessionFromParent: typeof forkSessionFromParent;
     getGlobalHookRunner: () => SubagentLifecycleHookRunner | null;
     getRuntimeConfig: typeof getRuntimeConfig;
+    ensureContextEnginesInitialized: typeof ensureContextEnginesInitialized;
     resolveContextEngine: typeof resolveContextEngine;
-    resolveParentForkMaxTokens: typeof resolveParentForkMaxTokens;
+    resolveParentForkDecision: typeof resolveParentForkDecision;
     updateSessionStore: typeof updateSessionStore;
 };
 export type SpawnSubagentParams = {
@@ -20,7 +21,9 @@ export type SpawnSubagentParams = {
     label?: string;
     agentId?: string;
     model?: string;
+    taskName?: string;
     thinking?: string;
+    cwd?: string;
     runTimeoutSeconds?: number;
     thread?: boolean;
     mode?: SpawnSubagentMode;
@@ -39,6 +42,8 @@ export type SpawnSubagentParams = {
 };
 export type SpawnSubagentContext = {
     agentSessionKey?: string;
+    /** Separate key used only for completion routing, not sandbox policy. */
+    completionOwnerKey?: string;
     agentChannel?: string;
     agentAccountId?: string;
     agentTo?: string;
@@ -50,12 +55,15 @@ export type SpawnSubagentContext = {
     requesterAgentIdOverride?: string;
     /** Explicit workspace directory for subagent to inherit (optional). */
     workspaceDir?: string;
+    inheritedToolAllowlist?: string[];
+    inheritedToolDenylist?: string[];
 };
 export type SpawnSubagentResult = {
     status: "accepted" | "forbidden" | "error";
     childSessionKey?: string;
     runId?: string;
     mode?: SpawnSubagentMode;
+    taskName?: string;
     note?: string;
     modelApplied?: boolean;
     error?: string;
@@ -72,6 +80,7 @@ export type SpawnSubagentResult = {
 };
 export { splitModelRef } from "./subagent-spawn-plan.js";
 export declare function spawnSubagentDirect(params: SpawnSubagentParams, ctx: SpawnSubagentContext): Promise<SpawnSubagentResult>;
-export declare const __testing: {
+export declare const testing: {
     setDepsForTest(overrides?: Partial<SubagentSpawnDeps>): void;
 };
+export { testing as __testing };

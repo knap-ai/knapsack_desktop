@@ -1,5 +1,5 @@
 import type { CronConfig } from "../config/types.cron.js";
-import type { CronDeliveryStatus, CronDeliveryTrace, CronRunStatus, CronRunTelemetry } from "./types.js";
+import type { CronDeliveryStatus, CronDeliveryTrace, CronFailureNotificationDelivery, CronRunDiagnostics, CronRunStatus, CronRunTelemetry } from "./types.js";
 export type CronRunLogEntry = {
     ts: number;
     jobId: string;
@@ -7,22 +7,26 @@ export type CronRunLogEntry = {
     status?: CronRunStatus;
     error?: string;
     summary?: string;
+    diagnostics?: CronRunDiagnostics;
     delivered?: boolean;
     deliveryStatus?: CronDeliveryStatus;
     deliveryError?: string;
+    failureNotificationDelivery?: CronFailureNotificationDelivery;
     delivery?: CronDeliveryTrace;
     sessionId?: string;
     sessionKey?: string;
+    runId?: string;
     runAtMs?: number;
     durationMs?: number;
     nextRunAtMs?: number;
 } & CronRunTelemetry;
-export type CronRunLogSortDir = "asc" | "desc";
-export type CronRunLogStatusFilter = "all" | "ok" | "error" | "skipped";
-export type ReadCronRunLogPageOptions = {
+type CronRunLogSortDir = "asc" | "desc";
+type CronRunLogStatusFilter = "all" | "ok" | "error" | "skipped";
+type ReadCronRunLogPageOptions = {
     limit?: number;
     offset?: number;
     jobId?: string;
+    runId?: string;
     status?: CronRunLogStatusFilter;
     statuses?: CronRunStatus[];
     deliveryStatus?: CronDeliveryStatus;
@@ -30,7 +34,7 @@ export type ReadCronRunLogPageOptions = {
     query?: string;
     sortDir?: CronRunLogSortDir;
 };
-export type CronRunLogPageResult = {
+type CronRunLogPageResult = {
     entries: CronRunLogEntry[];
     total: number;
     offset: number;

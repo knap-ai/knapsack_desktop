@@ -1,9 +1,9 @@
-import type { AuthProfileCredential, AuthProfileStore } from "./auth-profiles.js";
-export type PiApiKeyCredential = {
+import type { AuthProfileStore } from "./auth-profiles.js";
+type PiApiKeyCredential = {
     type: "api_key";
     key: string;
 };
-export type PiOAuthCredential = {
+type PiOAuthCredential = {
     type: "oauth";
     access: string;
     refresh: string;
@@ -11,6 +11,9 @@ export type PiOAuthCredential = {
 };
 export type PiCredential = PiApiKeyCredential | PiOAuthCredential;
 export type PiCredentialMap = Record<string, PiCredential>;
-export declare function convertAuthProfileCredentialToPi(cred: AuthProfileCredential): PiCredential | null;
-export declare function resolvePiCredentialMapFromStore(store: AuthProfileStore): PiCredentialMap;
+export type ResolvePiCredentialMapOptions = {
+    includeSecretRefPlaceholders?: boolean;
+};
+export declare function resolvePiCredentialMapFromStore(store: AuthProfileStore, options?: ResolvePiCredentialMapOptions): PiCredentialMap;
 export declare function piCredentialsEqual(a: PiCredential | undefined, b: PiCredential): boolean;
+export {};

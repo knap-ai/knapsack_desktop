@@ -1,7 +1,9 @@
+import { type PluginDiscoveryResult } from "./discovery.js";
 export type BundledPluginSource = {
     pluginId: string;
     localPath: string;
     npmSpec?: string;
+    version?: string;
     configSchema?: Record<string, unknown>;
     requiresConfig?: boolean;
 };
@@ -20,6 +22,7 @@ export declare function resolveBundledPluginSources(params: {
     workspaceDir?: string;
     /** Use an explicit env when bundled roots should resolve independently from process.env. */
     env?: NodeJS.ProcessEnv;
+    discovery?: PluginDiscoveryResult;
 }): Map<string, BundledPluginSource>;
 export declare function findBundledPluginSource(params: {
     lookup: BundledPluginLookup;

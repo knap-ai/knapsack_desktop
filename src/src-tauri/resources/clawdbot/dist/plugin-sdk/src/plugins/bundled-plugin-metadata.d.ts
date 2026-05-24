@@ -16,7 +16,6 @@ export type BundledPluginMetadata = {
     packageManifest?: OpenClawPackageManifest;
     manifest: PluginManifest;
 };
-export declare function clearBundledPluginMetadataCache(): void;
 export declare function listBundledPluginMetadata(params?: {
     rootDir?: string;
     scanDir?: string;
@@ -26,6 +25,8 @@ export declare function listBundledPluginMetadata(params?: {
 export declare function findBundledPluginMetadataById(pluginId: string, params?: {
     rootDir?: string;
     scanDir?: string;
+    includeChannelConfigs?: boolean;
+    includeSyntheticChannelConfigs?: boolean;
 }): BundledPluginMetadata | undefined;
 export declare function resolveBundledPluginWorkspaceSourcePath(params: {
     rootDir: string;

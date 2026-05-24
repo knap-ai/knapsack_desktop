@@ -1,5 +1,7 @@
+import type { SourceReplyDeliveryMode } from "../../auto-reply/get-reply-options.types.js";
 import type { ReasoningLevel, ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import { type ActiveProcessSessionReference } from "../bash-process-references.js";
 import type { ExecElevatedDefaults } from "../bash-tools.js";
 import type { SkillSnapshot } from "../skills.js";
 export type EmbeddedCompactionRuntimeContext = {
@@ -19,11 +21,14 @@ export type EmbeddedCompactionRuntimeContext = {
     senderId?: string;
     provider?: string;
     model?: string;
+    modelFallbacksOverride?: string[];
     thinkLevel?: ThinkLevel;
     reasoningLevel?: ReasoningLevel;
     bashElevated?: ExecElevatedDefaults;
     extraSystemPrompt?: string;
+    sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
     ownerNumbers?: string[];
+    activeProcessSessions?: ActiveProcessSessionReference[];
 };
 /**
  * Resolve the effective compaction target from config, falling back to the
@@ -58,9 +63,12 @@ export declare function buildEmbeddedCompactionRuntimeContext(params: {
     senderId?: string | null;
     provider?: string | null;
     modelId?: string | null;
+    modelFallbacksOverride?: string[];
     thinkLevel?: ThinkLevel;
     reasoningLevel?: ReasoningLevel;
     bashElevated?: ExecElevatedDefaults;
     extraSystemPrompt?: string;
+    sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
     ownerNumbers?: string[];
+    activeProcessSessions?: ActiveProcessSessionReference[];
 }): EmbeddedCompactionRuntimeContext;

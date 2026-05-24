@@ -1,6 +1,6 @@
-import { n as resolveOpenClawPackageRootSync } from "../openclaw-root-BAiQfngU.js";
-import { t as loadPluginManifestRegistry } from "../manifest-registry-CXpW6f0a.js";
-import { i as tryLoadActivatedBundledPluginPublicSurfaceModuleSync, r as loadBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-T8aLczcB.js";
+import { n as resolveOpenClawPackageRootSync } from "../openclaw-root-CNp1Ofdk.js";
+import { t as loadPluginManifestRegistry } from "../manifest-registry-Cy1cBr1u.js";
+import { a as tryLoadActivatedBundledPluginPublicSurfaceModuleSync, r as loadBundledPluginPublicSurfaceModuleSync } from "../facade-runtime-D0XwEzEs.js";
 import fs from "node:fs";
 import path from "node:path";
 //#region src/plugin-sdk/private-qa-bundled-env.ts
@@ -51,10 +51,7 @@ function isQaRuntimeAvailable() {
 	}
 }
 function listDeclaredQaRunnerPlugins(env = resolvePrivateQaBundledPluginsEnv()) {
-	return loadPluginManifestRegistry({
-		cache: true,
-		...env ? { env } : {}
-	}).plugins.filter((plugin) => Array.isArray(plugin.qaRunners) && plugin.qaRunners.length > 0).toSorted((left, right) => {
+	return loadPluginManifestRegistry(env ? { env } : {}).plugins.filter((plugin) => Array.isArray(plugin.qaRunners) && plugin.qaRunners.length > 0).toSorted((left, right) => {
 		const idCompare = left.id.localeCompare(right.id);
 		if (idCompare !== 0) return idCompare;
 		return left.rootDir.localeCompare(right.rootDir);

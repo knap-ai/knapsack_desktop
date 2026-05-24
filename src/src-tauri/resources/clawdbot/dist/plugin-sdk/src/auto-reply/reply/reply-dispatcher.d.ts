@@ -1,7 +1,7 @@
 import type { TypingCallbacks } from "../../channels/typing.js";
 import type { HumanDelayConfig } from "../../config/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-import { type SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
+import type { SilentReplyConversationType } from "../../shared/silent-reply-policy.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
 import { type NormalizeReplySkipReason } from "./normalize-reply.js";
 import type { ReplyDispatchKind, ReplyDispatcher } from "./reply-dispatcher.types.js";
@@ -16,7 +16,7 @@ type ReplyDispatchSkipHandler = (payload: ReplyPayload, info: {
 }) => void;
 type ReplyDispatchDeliverer = (payload: ReplyPayload, info: {
     kind: ReplyDispatchKind;
-}) => Promise<void>;
+}) => Promise<unknown>;
 export type ReplyDispatchBeforeDeliver = (payload: ReplyPayload, info: {
     kind: ReplyDispatchKind;
 }) => Promise<ReplyPayload | null> | ReplyPayload | null;
@@ -58,4 +58,5 @@ type ReplyDispatcherWithTypingResult = {
     markRunComplete: () => void;
 };
 export declare function createReplyDispatcher(options: ReplyDispatcherOptions): ReplyDispatcher;
+export declare function waitForReplyDispatcherIdle(dispatcher: Pick<ReplyDispatcher, "waitForIdle">, abortSignal?: AbortSignal): Promise<void>;
 export declare function createReplyDispatcherWithTyping(options: ReplyDispatcherWithTypingOptions): ReplyDispatcherWithTypingResult;

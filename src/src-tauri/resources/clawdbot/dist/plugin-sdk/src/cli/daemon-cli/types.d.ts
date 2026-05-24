@@ -22,4 +22,9 @@ export type DaemonInstallOptions = {
 };
 export type DaemonLifecycleOptions = {
     json?: boolean;
+    force?: boolean;
+    safe?: boolean;
+    skipDeferral?: boolean;
+    wait?: string;
+    disable?: boolean;
 };

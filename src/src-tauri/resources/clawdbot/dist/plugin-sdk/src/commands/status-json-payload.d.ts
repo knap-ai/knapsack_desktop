@@ -1,5 +1,4 @@
 import { type StatusOverviewSurface } from "./status-overview-surface.ts";
-export { resolveStatusUpdateChannelInfo } from "./status-all/format.js";
 export declare function buildStatusJsonPayload(params: {
     summary: Record<string, unknown>;
     surface: StatusOverviewSurface;
@@ -35,6 +34,7 @@ export declare function buildStatusJsonPayload(params: {
         } | null;
         error: string | null;
         authWarning: string | null;
+        modelPricing?: unknown;
     };
     gatewayService: {
         label: string;

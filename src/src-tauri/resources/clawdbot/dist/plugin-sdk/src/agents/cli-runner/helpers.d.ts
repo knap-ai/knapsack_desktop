@@ -1,10 +1,12 @@
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { ImageContent } from "@mariozechner/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { ImageContent } from "@earendil-works/pi-ai";
+import type { SourceReplyDeliveryMode } from "../../auto-reply/get-reply-options.types.js";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { CliBackendConfig } from "../../config/types.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { EmbeddedContextFile } from "../pi-embedded-helpers.js";
 import type { SandboxFsBridge } from "../sandbox/fs-bridge.js";
+import type { SilentReplyPromptMode } from "../system-prompt.types.js";
 export { buildCliSupervisorScopeKey, resolveCliNoOutputTimeoutMs } from "./reliability.js";
 export declare function enqueueCliRun<T>(key: string, task: () => Promise<T>): Promise<T>;
 export declare function resolveCliRunQueueKey(params: {
@@ -14,11 +16,13 @@ export declare function resolveCliRunQueueKey(params: {
     workspaceDir: string;
     cliSessionId?: string;
 }): string;
-export declare function buildSystemPrompt(params: {
+export declare function buildCliAgentSystemPrompt(params: {
     workspaceDir: string;
     config?: OpenClawConfig;
     defaultThinkLevel?: ThinkLevel;
     extraSystemPrompt?: string;
+    sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
+    silentReplyPromptMode?: SilentReplyPromptMode;
     ownerNumbers?: string[];
     heartbeatPrompt?: string;
     docsPath?: string;
@@ -29,6 +33,7 @@ export declare function buildSystemPrompt(params: {
     modelDisplay: string;
     agentId?: string;
 }): string;
+export declare const buildSystemPrompt: typeof buildCliAgentSystemPrompt;
 export declare function normalizeCliModel(modelId: string, backend: CliBackendConfig): string;
 export declare function resolveSystemPromptUsage(params: {
     backend: CliBackendConfig;
@@ -49,7 +54,6 @@ export declare function resolvePromptInput(params: {
     argsPrompt?: string;
     stdin?: string;
 };
-export declare function appendImagePathsToPrompt(prompt: string, paths: string[], prefix?: string): string;
 export declare function loadPromptRefImages(params: {
     prompt: string;
     workspaceDir: string;

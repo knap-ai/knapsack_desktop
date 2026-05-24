@@ -2,6 +2,7 @@ import { type ConfigWriteAuthorizationResultLike, type ConfigWriteScopeLike, typ
 import { buildAccountScopedDmSecurityPolicy } from "../channels/plugins/helpers.js";
 import type { ChannelConfigAdapter } from "../channels/plugins/types.adapters.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+export { ensureOpenDmPolicyAllowFromWildcard, normalizeChannelDmPolicy, normalizeLegacyDmAliases, resolveChannelDmAccess, resolveChannelDmAllowFrom, resolveChannelDmPolicy, setCanonicalDmAllowFrom, type ChannelDmAccess, type ChannelDmAllowFromMode, type ChannelDmPolicy, type DmAccessRecord, } from "../channels/plugins/dm-access.js";
 export type ConfigWriteScope = ConfigWriteScopeLike;
 export type ConfigWriteTarget = ConfigWriteTargetLike;
 export type ConfigWriteAuthorizationResult = ConfigWriteAuthorizationResultLike;
@@ -123,6 +124,14 @@ export declare function createScopedDmSecurityResolver<ResolvedAccount extends {
     channelKey: string;
     resolvePolicy: (account: ResolvedAccount) => string | null | undefined;
     resolveAllowFrom: (account: ResolvedAccount) => Array<string | number> | null | undefined;
+    resolveAccess?: (params: {
+        cfg: OpenClawConfig;
+        accountId?: string | null;
+        account: ResolvedAccount;
+    }) => {
+        dmPolicy?: string | null;
+        allowFrom?: Array<string | number> | null;
+    };
     resolveFallbackAccountId?: (account: ResolvedAccount) => string | null | undefined;
     defaultPolicy?: string;
     allowFromPathSuffix?: string;

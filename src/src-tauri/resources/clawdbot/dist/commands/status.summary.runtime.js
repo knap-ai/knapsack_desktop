@@ -1,9 +1,13 @@
-import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../string-coerce-Bje8XVt9.js";
-import { r as normalizeProviderId } from "../provider-id-DRW5WMbW.js";
-import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-CRz26M83.js";
-import { n as resolveAgentModelPrimaryValue } from "../model-input-Bac2nsYA.js";
-import { b as parseModelRef, g as resolveConfiguredProviderFallback } from "../model-selection-shared-VQV3de71.js";
-import { l as resolvePersistedSelectedModelRef } from "../model-selection-GlsOqTDm.js";
+import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../string-coerce-DyL154ka.js";
+import { r as normalizeProviderId } from "../provider-id-zTW9Rdln.js";
+import { i as resolveAgentModelPrimaryValue } from "../model-input-ChW9XXsQ.js";
+import { n as DEFAULT_MODEL, r as DEFAULT_PROVIDER } from "../defaults-mDjiWzE5.js";
+import { t as resolveConfiguredProviderFallback } from "../configured-provider-fallback-C0W42MAj.js";
+import { i as parseModelRef } from "../model-selection-normalize-CBfQo-Fd.js";
+import { u as resolvePersistedSelectedModelRef } from "../model-selection-P-81eBKx.js";
+import { t as resolveModelAgentRuntimeMetadata } from "../agent-runtime-metadata-DOglN8Yf.js";
+import { t as classifySessionKind } from "../classify-session-kind-_uifHbnL.js";
+import { t as resolveAgentRuntimeLabel } from "../agent-runtime-label-DPvzpWzS.js";
 //#region src/commands/status.summary.runtime.ts
 function resolveStatusModelRefFromRaw(params) {
 	const trimmed = params.rawModel.trim();
@@ -66,13 +70,6 @@ function resolveConfiguredProviderContextTokens(cfg, provider, model) {
 		}
 	}
 }
-function classifySessionKey(key, entry) {
-	if (key === "global") return "global";
-	if (key === "unknown") return "unknown";
-	if (entry?.chatType === "group" || entry?.chatType === "channel") return "group";
-	if (key.includes(":group:") || key.includes(":channel:")) return "group";
-	return "direct";
-}
 function resolveSessionModelRef(cfg, entry, agentId) {
 	const resolved = resolveConfiguredStatusModelRef({
 		cfg,
@@ -89,6 +86,24 @@ function resolveSessionModelRef(cfg, entry, agentId) {
 		allowPluginNormalization: false
 	}) ?? resolved;
 }
+function resolveSessionRuntimeLabel(params) {
+	const id = normalizeOptionalLowercaseString(resolveModelAgentRuntimeMetadata({
+		cfg: params.cfg,
+		agentId: params.agentId ?? "",
+		provider: params.provider,
+		model: params.model,
+		sessionKey: params.sessionKey,
+		acpRuntime: params.entry?.acp != null,
+		acpBackend: params.entry?.acp?.backend
+	}).id);
+	const resolvedHarness = id && id !== "pi" && id !== "auto" ? id : void 0;
+	return resolveAgentRuntimeLabel({
+		config: params.cfg,
+		sessionEntry: params.entry,
+		resolvedHarness,
+		fallbackProvider: params.provider
+	});
+}
 function resolveContextTokensForModel(params) {
 	params.allowAsyncLoad;
 	if (typeof params.contextTokensOverride === "number" && params.contextTokensOverride > 0) return params.contextTokensOverride;
@@ -100,8 +115,9 @@ function resolveContextTokensForModel(params) {
 }
 const statusSummaryRuntime = {
 	resolveContextTokensForModel,
-	classifySessionKey,
+	classifySessionKey: classifySessionKind,
 	resolveSessionModelRef,
+	resolveSessionRuntimeLabel,
 	resolveConfiguredStatusModelRef
 };
 //#endregion

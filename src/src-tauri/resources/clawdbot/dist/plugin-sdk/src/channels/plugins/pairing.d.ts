@@ -5,7 +5,6 @@ import type { ChannelPairingAdapter } from "./pairing.types.js";
 export declare function listPairingChannels(): ChannelId[];
 export declare function getPairingAdapter(channelId: ChannelId): ChannelPairingAdapter | null;
 export declare function requirePairingAdapter(channelId: ChannelId): ChannelPairingAdapter;
-export declare function resolvePairingChannel(raw: unknown): ChannelId;
 export declare function notifyPairingApproved(params: {
     channelId: ChannelId;
     id: string;

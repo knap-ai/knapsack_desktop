@@ -13,5 +13,4 @@ export type EmbeddingInput = {
     parts?: EmbeddingInputPart[];
 };
 export declare function buildTextEmbeddingInput(text: string): EmbeddingInput;
-export declare function isInlineDataEmbeddingInputPart(part: EmbeddingInputPart): part is EmbeddingInputInlineDataPart;
 export declare function hasNonTextEmbeddingParts(input: EmbeddingInput | undefined): boolean;

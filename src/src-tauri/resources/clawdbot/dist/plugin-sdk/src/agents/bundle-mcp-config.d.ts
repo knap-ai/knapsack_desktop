@@ -1,10 +1,10 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type BundleMcpConfig, type BundleMcpDiagnostic, type BundleMcpServerConfig } from "../plugins/bundle-mcp.js";
-export type MergedBundleMcpConfig = {
+type MergedBundleMcpConfig = {
     config: BundleMcpConfig;
     diagnostics: BundleMcpDiagnostic[];
 };
-export type BundleMcpServerMapper = (server: BundleMcpServerConfig, name: string) => BundleMcpServerConfig;
+type BundleMcpServerMapper = (server: BundleMcpServerConfig, name: string) => BundleMcpServerConfig;
 /**
  * User config stores OpenClaw MCP transport names, while CLI backends such as
  * Claude Code and Gemini expect a downstream `type` field. Keep this adapter
@@ -17,3 +17,4 @@ export declare function loadMergedBundleMcpConfig(params: {
     cfg?: OpenClawConfig;
     mapConfiguredServer?: BundleMcpServerMapper;
 }): MergedBundleMcpConfig;
+export {};

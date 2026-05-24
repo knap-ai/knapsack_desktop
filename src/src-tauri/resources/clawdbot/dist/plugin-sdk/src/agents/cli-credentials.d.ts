@@ -54,6 +54,7 @@ export declare function readClaudeCliCredentials(options?: {
     homeDir?: string;
     execSync?: ExecSyncFn;
 }): ClaudeCliCredential | null;
+/** @deprecated Anthropic provider-owned CLI credential helper; do not use from third-party plugins. */
 export declare function readClaudeCliCredentialsCached(options?: {
     allowKeychainPrompt?: boolean;
     ttlMs?: number;
@@ -68,11 +69,13 @@ export declare function writeClaudeCliFileCredentials(newCredentials: OAuthCrede
 export declare function writeClaudeCliCredentials(newCredentials: OAuthCredentials, options?: ClaudeCliWriteOptions): boolean;
 export declare function readCodexCliCredentials(options?: {
     codexHome?: string;
+    allowKeychainPrompt?: boolean;
     platform?: NodeJS.Platform;
     execSync?: ExecSyncFn;
 }): CodexCliCredential | null;
 export declare function readCodexCliCredentialsCached(options?: {
     codexHome?: string;
+    allowKeychainPrompt?: boolean;
     ttlMs?: number;
     platform?: NodeJS.Platform;
     execSync?: ExecSyncFn;

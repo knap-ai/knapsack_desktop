@@ -1,5 +1,5 @@
 import { createProviderApiKeyAuthMethod } from "../plugins/provider-api-key-auth.js";
-import type { ProviderPlugin, ProviderPluginCatalog, ProviderPluginWizardSetup } from "../plugins/types.js";
+import type { ProviderPlugin, ProviderAuthMethod, ProviderPluginCatalog, ProviderPluginWizardSetup } from "../plugins/types.js";
 import type { OpenClawPluginApi, OpenClawPluginConfigSchema, OpenClawPluginDefinition } from "./plugin-entry.js";
 import { buildSingleProviderApiKeyCatalog } from "./provider-catalog-shared.js";
 type ApiKeyAuthMethodOptions = Parameters<typeof createProviderApiKeyAuthMethod>[0];
@@ -26,6 +26,11 @@ export type SingleProviderPluginOptions = {
     id: string;
     name: string;
     description: string;
+    /**
+     * @deprecated Declare exclusive plugin kind in `openclaw.plugin.json` via
+     * manifest `kind`. Runtime-entry `kind` remains only as a compatibility
+     * fallback for older plugins.
+     */
     kind?: OpenClawPluginDefinition["kind"];
     configSchema?: OpenClawPluginConfigSchema | (() => OpenClawPluginConfigSchema);
     provider?: {
@@ -35,6 +40,7 @@ export type SingleProviderPluginOptions = {
         aliases?: string[];
         envVars?: string[];
         auth?: SingleProviderPluginApiKeyAuthOptions[];
+        extraAuth?: ProviderAuthMethod[];
         catalog: SingleProviderPluginCatalogOptions;
     } & Omit<ProviderPlugin, "id" | "label" | "docsPath" | "aliases" | "envVars" | "auth" | "catalog" | "staticCatalog">;
     register?: (api: OpenClawPluginApi) => void;

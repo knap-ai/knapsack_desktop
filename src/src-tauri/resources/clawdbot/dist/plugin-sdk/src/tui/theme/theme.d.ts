@@ -1,4 +1,4 @@
-import type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme } from "@mariozechner/pi-tui";
+import type { EditorTheme, MarkdownTheme, SelectListTheme, SettingsListTheme } from "@earendil-works/pi-tui";
 import type { SearchableSelectListTheme } from "../components/searchable-select-list.js";
 /** Whether the terminal has a light background. Exported for testing only. */
 export declare const lightMode: boolean;

@@ -1,2 +1,2 @@
-import { n as resetFoundryRuntimeAuthCaches, t as prepareFoundryRuntimeAuth } from "../../runtime-vKQq5Z43.js";
+import { n as resetFoundryRuntimeAuthCaches, t as prepareFoundryRuntimeAuth } from "../../runtime-C4ePYTbO.js";
 export { prepareFoundryRuntimeAuth, resetFoundryRuntimeAuthCaches };

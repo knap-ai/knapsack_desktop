@@ -30,7 +30,19 @@ export type GatewayProbeSnapshot = {
         password?: string;
     };
 };
-export declare function hasExplicitMemorySearchConfig(cfg: OpenClawConfig, agentId: string): boolean;
+type StatusMemorySearchManager = {
+    probeVectorStoreAvailability?(): Promise<boolean>;
+    probeVectorAvailability(): Promise<boolean>;
+    status(): MemoryProviderStatus;
+    close?(): Promise<void>;
+};
+type StatusMemorySearchManagerResolver = (params: {
+    cfg: OpenClawConfig;
+    agentId: string;
+    purpose: "status";
+}) => Promise<{
+    manager: StatusMemorySearchManager | null;
+}>;
 export declare function resolveMemoryPluginStatus(cfg: OpenClawConfig): MemoryPluginStatus;
 export declare function resolveGatewayProbeSnapshot(params: {
     cfg: OpenClawConfig;
@@ -60,16 +72,6 @@ export declare function resolveSharedMemoryStatusSnapshot(params: {
             path: string;
         };
     } | null;
-    getMemorySearchManager: (params: {
-        cfg: OpenClawConfig;
-        agentId: string;
-        purpose: "status";
-    }) => Promise<{
-        manager: {
-            probeVectorAvailability(): Promise<boolean>;
-            status(): MemoryProviderStatus;
-            close?(): Promise<void>;
-        } | null;
-    }>;
+    getMemorySearchManager: StatusMemorySearchManagerResolver;
     requireDefaultStore?: (agentId: string) => string | null;
 }): Promise<MemoryStatusSnapshot | null>;

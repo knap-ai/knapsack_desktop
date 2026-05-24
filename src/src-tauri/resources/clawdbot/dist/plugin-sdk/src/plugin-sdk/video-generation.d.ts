@@ -11,7 +11,7 @@ export type GeneratedVideoAsset = {
     fileName?: string;
     metadata?: Record<string, unknown>;
 };
-export type VideoGenerationResolution = "480P" | "720P" | "768P" | "1080P";
+export type VideoGenerationResolution = "480P" | "720P" | "768P" | "1080P" | (string & {});
 /**
  * Canonical semantic role hints for reference assets (first/last frame,
  * reference image/video/audio). Providers may accept additional role strings;
@@ -34,6 +34,14 @@ export type VideoGenerationSourceAsset = {
 export type VideoGenerationProviderConfiguredContext = {
     cfg?: OpenClawConfig;
     agentDir?: string;
+};
+export type VideoGenerationModelCapabilitiesContext = {
+    provider: string;
+    model: string;
+    cfg: OpenClawConfig;
+    agentDir?: string;
+    authStore?: AuthProfileStore;
+    timeoutMs?: number;
 };
 export type VideoGenerationRequest = {
     provider: string;
@@ -110,9 +118,12 @@ export type VideoGenerationProvider = {
     aliases?: string[];
     label?: string;
     defaultModel?: string;
+    /** Default provider operation timeout in milliseconds when caller/config omit timeoutMs. */
+    defaultTimeoutMs?: number;
     models?: string[];
     capabilities: VideoGenerationProviderCapabilities;
     isConfigured?: (ctx: VideoGenerationProviderConfiguredContext) => boolean;
+    resolveModelCapabilities?: (ctx: VideoGenerationModelCapabilitiesContext) => VideoGenerationProviderCapabilities | undefined | Promise<VideoGenerationProviderCapabilities | undefined>;
     generateVideo: (req: VideoGenerationRequest) => Promise<VideoGenerationResult>;
 };
 export { DASHSCOPE_WAN_VIDEO_CAPABILITIES, DASHSCOPE_WAN_VIDEO_MODELS, DEFAULT_DASHSCOPE_WAN_VIDEO_MODEL, DEFAULT_VIDEO_GENERATION_DURATION_SECONDS, DEFAULT_VIDEO_GENERATION_TIMEOUT_MS, DEFAULT_VIDEO_RESOLUTION_TO_SIZE, buildDashscopeVideoGenerationInput, buildDashscopeVideoGenerationParameters, downloadDashscopeGeneratedVideos, extractDashscopeVideoUrls, pollDashscopeVideoTaskUntilComplete, resolveVideoGenerationReferenceUrls, runDashscopeVideoGenerationTask, } from "../video-generation/dashscope-compatible.js";

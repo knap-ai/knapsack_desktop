@@ -50,21 +50,20 @@ export declare function resolveExtensionApiAlias(params?: LoaderModuleResolvePar
 export declare function buildPluginLoaderAliasMap(modulePath: string, argv1?: string | undefined, moduleUrl?: string, pluginSdkResolution?: PluginSdkResolutionPreference): Record<string, string>;
 export declare function resolvePluginRuntimeModulePath(params?: LoaderModuleResolveParams): string | null;
 export declare function buildPluginLoaderJitiOptions(aliasMap: Record<string, string>): {
-    fsCache: false;
     interopDefault: boolean;
     tryNative: boolean;
     extensions: string[];
     alias?: Record<string, string> | undefined;
 };
-export declare function shouldPreferNativeJiti(modulePath: string): boolean;
-export declare function resolvePluginLoaderJitiTryNative(modulePath: string, options?: {
+export declare function shouldPreferNativeModuleLoad(modulePath: string): boolean;
+export declare function resolvePluginLoaderTryNative(modulePath: string, options?: {
     preferBuiltDist?: boolean;
 }): boolean;
-export declare function createPluginLoaderJitiCacheKey(params: {
+export declare function createPluginLoaderModuleCacheKey(params: {
     tryNative: boolean;
     aliasMap: Record<string, string>;
 }): string;
-export declare function resolvePluginLoaderJitiConfig(params: {
+export declare function resolvePluginLoaderModuleConfig(params: {
     modulePath: string;
     argv1?: string;
     moduleUrl: string;

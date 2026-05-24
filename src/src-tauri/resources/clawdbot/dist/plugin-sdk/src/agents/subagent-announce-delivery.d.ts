@@ -1,18 +1,19 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { AgentInternalEvent } from "./internal-events.js";
-import { callGateway, getRuntimeConfig, queueEmbeddedPiMessage, sendMessage } from "./subagent-announce-delivery.runtime.js";
+import type { EmbeddedPiQueueMessageOptions } from "./pi-embedded-runner/run-state.js";
+import type { EmbeddedPiQueueMessageOutcome } from "./pi-embedded-runner/runs.js";
+import { callGateway, dispatchGatewayMethodInProcess, getRuntimeConfig, sendMessage } from "./subagent-announce-delivery.runtime.js";
 import { type SubagentAnnounceDeliveryResult } from "./subagent-announce-dispatch.js";
-import { type DeliveryContext } from "./subagent-announce-origin.js";
+import type { DeliveryContext } from "./subagent-announce-origin.js";
 import type { SpawnSubagentMode } from "./subagent-spawn.types.js";
-export { resolveAnnounceOrigin } from "./subagent-announce-origin.js";
 type SubagentAnnounceDeliveryDeps = {
-    callGateway: typeof callGateway;
+    dispatchGatewayMethodInProcess: typeof dispatchGatewayMethodInProcess;
     getRuntimeConfig: typeof getRuntimeConfig;
     getRequesterSessionActivity: (requesterSessionKey: string) => {
         sessionId?: string;
         isActive: boolean;
     };
-    queueEmbeddedPiMessage: typeof queueEmbeddedPiMessage;
+    queueEmbeddedPiMessageWithOutcome: (sessionId: string, text: string, options?: EmbeddedPiQueueMessageOptions) => EmbeddedPiQueueMessageOutcome | Promise<EmbeddedPiQueueMessageOutcome>;
     sendMessage: typeof sendMessage;
 };
 export declare function resolveSubagentAnnounceTimeoutMs(cfg: OpenClawConfig): number;
@@ -36,7 +37,6 @@ export declare function loadRequesterSessionEntry(requesterSessionKey: string): 
     canonicalKey: string;
 };
 export declare function loadSessionEntryByKey(sessionKey: string): import("openclaw/plugin-sdk/config-types").SessionEntry;
-export declare function extractThreadCompletionFallbackText(internalEvents?: AgentInternalEvent[]): string;
 export declare function deliverSubagentAnnouncement(params: {
     requesterSessionKey: string;
     announceId?: string;
@@ -58,6 +58,9 @@ export declare function deliverSubagentAnnouncement(params: {
     directIdempotencyKey: string;
     signal?: AbortSignal;
 }): Promise<SubagentAnnounceDeliveryResult>;
-export declare const __testing: {
-    setDepsForTest(overrides?: Partial<SubagentAnnounceDeliveryDeps>): void;
+export declare const testing: {
+    setDepsForTest(overrides?: Partial<SubagentAnnounceDeliveryDeps> & {
+        callGateway?: typeof callGateway;
+    }): void;
 };
+export { testing as __testing };

@@ -10,6 +10,7 @@ export type CronListPageOptions = {
     enabled?: CronJobsEnabledFilter;
     sortBy?: CronJobsSortBy;
     sortDir?: CronSortDir;
+    agentId?: string;
 };
 export type CronListPageResult<TJobs extends readonly CronJob[] = CronJob[]> = {
     jobs: TJobs;

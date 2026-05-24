@@ -8,6 +8,7 @@ import type { PluginKind } from "./plugin-kind.types.js";
 export declare const PLUGIN_MANIFEST_FILENAME = "openclaw.plugin.json";
 export declare const PLUGIN_MANIFEST_FILENAMES: readonly ["openclaw.plugin.json"];
 export declare const MAX_PLUGIN_MANIFEST_BYTES: number;
+export declare function clearPluginManifestLoadCache(): void;
 export type PluginManifestChannelConfig = {
     schema: JsonSchemaObject;
     uiHints?: Record<string, PluginConfigUiHint>;
@@ -100,6 +101,12 @@ export type PluginManifestProviderRequest = {
 export type PluginManifestActivationCapability = "provider" | "channel" | "tool" | "hook";
 export type PluginManifestActivation = {
     /**
+     * Explicit Gateway startup activation. Set true when the plugin must be
+     * imported during Gateway startup; set false when narrower activation
+     * triggers should load it on demand.
+     */
+    onStartup?: boolean;
+    /**
      * Provider ids that should include this plugin in activation/load plans.
      * This is planner metadata only; runtime behavior still comes from register().
      */
@@ -117,6 +124,7 @@ export type PluginManifestActivation = {
     /** Broad capability hints for activation/load plans. Prefer narrower ownership metadata. */
     onCapabilities?: PluginManifestActivationCapability[];
 };
+export type PluginManifestDefaultPlatform = NodeJS.Platform;
 export type PluginManifestSetupProvider = {
     /** Provider id surfaced during setup/onboarding. */
     id: string;
@@ -124,6 +132,28 @@ export type PluginManifestSetupProvider = {
     authMethods?: string[];
     /** Environment variables that can satisfy setup without runtime loading. */
     envVars?: string[];
+    /**
+     * Cheap local evidence that a provider can authenticate without loading
+     * runtime code. Evidence checks must not read secrets, shell out, or call
+     * provider APIs.
+     */
+    authEvidence?: PluginManifestSetupProviderAuthEvidence[];
+};
+export type PluginManifestSetupProviderAuthEvidence = {
+    /** Generic local file evidence gated by required environment metadata. */
+    type: "local-file-with-env";
+    /** Optional env var containing an explicit credential file path. */
+    fileEnvVar?: string;
+    /** Optional fallback credential file paths. Supports `${HOME}` and `${APPDATA}`. */
+    fallbackPaths?: string[];
+    /** At least one of these env vars must be non-empty when provided. */
+    requiresAnyEnv?: string[];
+    /** Every env var listed here must be non-empty when provided. */
+    requiresAllEnv?: string[];
+    /** Non-secret marker returned when this evidence is present. */
+    credentialMarker: string;
+    /** Human-readable auth source label. */
+    source?: string;
 };
 export type PluginManifestSetup = {
     /** Cheap provider setup metadata exposed before runtime loads. */
@@ -194,6 +224,7 @@ export type PluginManifest = {
     id: string;
     configSchema: JsonSchemaObject;
     enabledByDefault?: boolean;
+    enabledByDefaultOnPlatforms?: PluginManifestDefaultPlatform[];
     /** Legacy plugin ids that should normalize to this plugin id. */
     legacyPluginIds?: string[];
     /** Provider ids that should auto-enable this plugin when referenced in auth/config/models. */
@@ -205,6 +236,8 @@ export type PluginManifest = {
      * Optional lightweight module that exports provider plugin metadata for
      * auth/catalog discovery. It should not import the full plugin runtime.
      */
+    providerCatalogEntry?: string;
+    /** @deprecated Use providerCatalogEntry. */
     providerDiscoveryEntry?: string;
     /**
      * Cheap model-family ownership metadata used before plugin runtime loads.
@@ -276,6 +309,14 @@ export type PluginManifest = {
     contracts?: PluginManifestContracts;
     /** Cheap media-understanding provider defaults without importing plugin runtime. */
     mediaUnderstandingProviderMetadata?: Record<string, PluginManifestMediaUnderstandingProviderMetadata>;
+    /** Cheap image-generation provider auth metadata without importing plugin runtime. */
+    imageGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    /** Cheap video-generation provider auth metadata without importing plugin runtime. */
+    videoGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    /** Cheap music-generation provider auth metadata without importing plugin runtime. */
+    musicGenerationProviderMetadata?: Record<string, PluginManifestCapabilityProviderMetadata>;
+    /** Cheap plugin-tool availability metadata without importing plugin runtime. */
+    toolMetadata?: Record<string, PluginManifestToolMetadata>;
     /** Manifest-owned config behavior consumed by generic core helpers. */
     configContracts?: PluginManifestConfigContracts;
     channelConfigs?: Record<string, PluginManifestChannelConfig>;
@@ -289,6 +330,7 @@ export type PluginManifestContracts = {
      * plugin instead of every provider plugin.
      */
     externalAuthProviders?: string[];
+    embeddingProviders?: string[];
     memoryEmbeddingProviders?: string[];
     speechProviders?: string[];
     realtimeTranscriptionProviders?: string[];
@@ -302,6 +344,7 @@ export type PluginManifestContracts = {
     webFetchProviders?: string[];
     webSearchProviders?: string[];
     migrationProviders?: string[];
+    gatewayMethodDispatch?: string[];
     tools?: string[];
 };
 export type PluginManifestMediaUnderstandingCapability = "image" | "audio" | "video";
@@ -310,6 +353,38 @@ export type PluginManifestMediaUnderstandingProviderMetadata = {
     defaultModels?: Partial<Record<PluginManifestMediaUnderstandingCapability, string>>;
     autoPriority?: Partial<Record<PluginManifestMediaUnderstandingCapability, number>>;
     nativeDocumentInputs?: Array<"pdf">;
+};
+export type PluginManifestProviderBaseUrlGuard = {
+    provider: string;
+    defaultBaseUrl?: string;
+    allowedBaseUrls: string[];
+};
+export type PluginManifestCapabilityProviderAuthSignal = {
+    provider: string;
+    providerBaseUrl?: PluginManifestProviderBaseUrlGuard;
+};
+export type PluginManifestCapabilityProviderModeConfigSignal = {
+    path?: string;
+    default?: string;
+    allowed?: string[];
+    disallowed?: string[];
+};
+export type PluginManifestCapabilityProviderConfigSignal = {
+    rootPath: string;
+    overlayPath?: string;
+    required?: string[];
+    requiredAny?: string[];
+    mode?: PluginManifestCapabilityProviderModeConfigSignal;
+};
+export type PluginManifestCapabilityProviderMetadata = {
+    aliases?: string[];
+    authProviders?: string[];
+    authSignals?: PluginManifestCapabilityProviderAuthSignal[];
+    configSignals?: PluginManifestCapabilityProviderConfigSignal[];
+    referenceAudioInputs?: boolean;
+};
+export type PluginManifestToolMetadata = PluginManifestCapabilityProviderMetadata & {
+    optional?: boolean;
 };
 export type PluginManifestProviderAuthChoice = {
     /** Provider id owned by this manifest entry. */
@@ -331,6 +406,11 @@ export type PluginManifestProviderAuthChoice = {
     groupId?: string;
     groupLabel?: string;
     groupHint?: string;
+    /**
+     * Surface this group in the featured tier of the interactive onboarding
+     * picker. Featured groups appear before the "More…" entry.
+     */
+    onboardingFeatured?: boolean;
     /** Optional CLI flag metadata for one-flag auth flows such as API keys. */
     optionKey?: string;
     cliFlag?: string;
@@ -342,7 +422,7 @@ export type PluginManifestProviderAuthChoice = {
      */
     onboardingScopes?: PluginManifestOnboardingScope[];
 };
-export type PluginManifestOnboardingScope = "text-inference" | "image-generation";
+export type PluginManifestOnboardingScope = "text-inference" | "image-generation" | "music-generation";
 export type PluginManifestLoadResult = {
     ok: true;
     manifest: PluginManifest;
@@ -352,6 +432,7 @@ export type PluginManifestLoadResult = {
     error: string;
     manifestPath: string;
 };
+export declare function normalizeManifestActivation(value: unknown): PluginManifestActivation | undefined;
 export declare function resolvePluginManifestPath(rootDir: string): string;
 export declare function loadPluginManifest(rootDir: string, rejectHardlinks?: boolean, rootRealPath?: string): PluginManifestLoadResult;
 export type PluginPackageChannel = {
@@ -384,6 +465,10 @@ export type PluginPackageChannel = {
     configuredState?: {
         specifier?: string;
         exportName?: string;
+        env?: {
+            allOf?: readonly string[];
+            anyOf?: readonly string[];
+        };
     };
     persistedAuthState?: {
         specifier?: string;
@@ -404,9 +489,10 @@ export type PluginPackageChannelCliOption = {
     defaultValue?: boolean | string;
 };
 export type PluginPackageInstall = {
+    clawhubSpec?: string;
     npmSpec?: string;
     localPath?: string;
-    defaultChoice?: "npm" | "local";
+    defaultChoice?: "clawhub" | "npm" | "local";
     minHostVersion?: string;
     expectedIntegrity?: string;
     allowInvalidConfigRecovery?: boolean;
@@ -429,6 +515,10 @@ export type OpenClawPackageManifest = {
     setupEntry?: string;
     runtimeSetupEntry?: string;
     setupFeatures?: OpenClawPackageSetupFeatures;
+    plugin?: {
+        id?: string;
+        label?: string;
+    };
     channel?: PluginPackageChannel;
     install?: PluginPackageInstall;
     startup?: OpenClawPackageStartup;
@@ -443,12 +533,18 @@ export type PackageExtensionResolution = {
 } | {
     status: "empty";
     entries: [];
+} | {
+    status: "invalid";
+    entries: [];
+    error: string;
 };
 export type ManifestKey = typeof MANIFEST_KEY;
 export type PackageManifest = {
     name?: string;
     version?: string;
     description?: string;
+    dependencies?: Record<string, string>;
+    optionalDependencies?: Record<string, string>;
 } & Partial<Record<ManifestKey, OpenClawPackageManifest>>;
 export declare function getPackageManifestMetadata(manifest: PackageManifest | undefined): OpenClawPackageManifest | undefined;
 export declare function resolvePackageExtensionEntries(manifest: PackageManifest | undefined): PackageExtensionResolution;

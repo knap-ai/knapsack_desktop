@@ -1,9 +1,9 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type AuthCredentialReasonCode } from "./auth-profiles/credential-state.js";
 import type { AuthProfileCredential, AuthProfileStore } from "./auth-profiles/types.js";
-export type AuthProfileSource = "store";
+type AuthProfileSource = "store";
 export type AuthProfileHealthStatus = "ok" | "expiring" | "expired" | "missing" | "static";
-export type AuthProfileHealth = {
+type AuthProfileHealth = {
     profileId: string;
     provider: string;
     type: "oauth" | "token" | "api_key";
@@ -20,6 +20,11 @@ export type AuthProviderHealth = {
     status: AuthProviderHealthStatus;
     expiresAt?: number;
     remainingMs?: number;
+    /**
+     * Full credential inventory stays in `profiles`; provider rollups use this
+     * effective subset after auth order, aliases, and explicit exclusions apply.
+     */
+    effectiveProfiles?: AuthProfileHealth[];
     profiles: AuthProfileHealth[];
 };
 export type AuthHealthSummary = {
@@ -29,7 +34,6 @@ export type AuthHealthSummary = {
     providers: AuthProviderHealth[];
 };
 export declare const DEFAULT_OAUTH_WARN_MS: number;
-export declare function resolveAuthProfileSource(_profileId: string): AuthProfileSource;
 export declare function formatRemainingShort(remainingMs?: number, opts?: {
     underMinuteLabel?: string;
 }): string;
@@ -40,3 +44,4 @@ export declare function buildAuthHealthSummary(params: {
     providers?: string[];
     runtimeCredentialsByProvider?: ReadonlyMap<string, AuthProfileCredential>;
 }): AuthHealthSummary;
+export {};

@@ -1,6 +1,6 @@
 import type { MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type LinkUnderstandingResult = {
+type LinkUnderstandingResult = {
     urls: string[];
     outputs: string[];
 };
@@ -9,3 +9,4 @@ export declare function runLinkUnderstanding(params: {
     ctx: MsgContext;
     message?: string;
 }): Promise<LinkUnderstandingResult>;
+export {};

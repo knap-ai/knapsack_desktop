@@ -1,6 +1,6 @@
 import { type SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
 import type { SubagentRunRecord } from "./subagent-registry.types.js";
-export type DeferredCleanupDecision = {
+type DeferredCleanupDecision = {
     kind: "defer-descendants";
     delayMs: number;
 } | {
@@ -23,3 +23,4 @@ export declare function resolveDeferredCleanupDecision(params: {
     deferDescendantDelayMs: number;
     resolveAnnounceRetryDelayMs: (retryCount: number) => number;
 }): DeferredCleanupDecision;
+export {};

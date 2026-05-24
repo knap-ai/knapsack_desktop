@@ -1,2 +1,2 @@
-import { t as loginOpenAICodexDeviceCode } from "../../openai-codex-device-code-L4US-U_H.js";
+import { t as loginOpenAICodexDeviceCode } from "../../openai-codex-device-code-D-auT-vb.js";
 export { loginOpenAICodexDeviceCode };

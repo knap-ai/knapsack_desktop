@@ -6,7 +6,6 @@ export declare function resolveAcpAgentFromSessionKey(sessionKey: string, fallba
 export declare function resolveMissingMetaError(sessionKey: string): AcpRuntimeError;
 export declare function resolveAcpSessionResolutionError(resolution: AcpSessionResolution): AcpRuntimeError | null;
 export declare function requireReadySessionMeta(resolution: AcpSessionResolution): SessionAcpMeta;
-export declare function normalizeSessionKey(sessionKey: string): string;
 export declare function canonicalizeAcpSessionKey(params: {
     cfg: OpenClawConfig;
     sessionKey: string;

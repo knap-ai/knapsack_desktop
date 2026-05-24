@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { callGateway as defaultCallGateway } from "../gateway/call.js";
 type GatewayCaller = typeof defaultCallGateway;
-/** Test hook: must stay aligned with `sessions-resolution` `__testing.setDepsForTest`. */
+/** Test hook: must stay aligned with `sessions-resolution` `testing.setDepsForTest`. */
 export declare const sessionVisibilityGatewayTesting: {
     setCallGatewayForListSpawned(overrides?: GatewayCaller): void;
 };
@@ -18,6 +18,13 @@ export type SessionAccessResult = {
     allowed: false;
     error: string;
     status: "forbidden";
+};
+export type SessionVisibilityRow = {
+    key: string;
+    agentId?: string;
+    ownerSessionKey?: string;
+    spawnedBy?: string;
+    parentSessionKey?: string;
 };
 export declare function listSpawnedSessionKeys(params: {
     requesterSessionKey: string;
@@ -38,6 +45,14 @@ export declare function createSessionVisibilityChecker(params: {
     spawnedKeys: Set<string> | null;
 }): {
     check: (targetSessionKey: string) => SessionAccessResult;
+};
+export declare function createSessionVisibilityRowChecker(params: {
+    action: SessionAccessAction;
+    requesterSessionKey: string;
+    visibility: SessionToolsVisibility;
+    a2aPolicy: AgentToAgentPolicy;
+}): {
+    check: (row: SessionVisibilityRow) => SessionAccessResult;
 };
 export declare function createSessionVisibilityGuard(params: {
     action: SessionAccessAction;

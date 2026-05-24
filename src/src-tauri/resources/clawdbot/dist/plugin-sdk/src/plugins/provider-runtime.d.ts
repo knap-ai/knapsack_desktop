@@ -2,26 +2,14 @@ import type { AuthProfileCredential, OAuthCredential } from "../agents/auth-prof
 import type { ProviderSystemPromptContribution } from "../agents/system-prompt-contribution.js";
 import type { ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn } from "./provider-hook-runtime.js";
+import { prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, type ProviderRuntimePluginHandle, wrapProviderStreamFn } from "./provider-hook-runtime.js";
 import type { ProviderRuntimeModel } from "./provider-runtime-model.types.js";
 import type { ProviderThinkingProfile } from "./provider-thinking.types.js";
-import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderExternalAuthProfile, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderBuiltInModelSuppressionContext, ProviderCacheTtlEligibilityContext, ProviderCreateEmbeddingProviderContext, ProviderDeferSyntheticProfileAuthContext, ProviderResolveSyntheticAuthContext, ProviderCreateStreamFnContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderFailoverErrorContext, ProviderNormalizeToolSchemasContext, ProviderNormalizeConfigContext, ProviderNormalizeModelIdContext, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeTransportContext, ProviderModernModelPolicyContext, ProviderPrepareDynamicModelContext, ProviderPreferRuntimeResolvedModelContext, ProviderResolveExternalAuthProfilesContext, ProviderResolveExternalOAuthProfilesContext, ProviderPrepareRuntimeAuthContext, ProviderApplyConfigDefaultsContext, ProviderResolveConfigApiKeyContext, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderResolveDynamicModelContext, ProviderResolveTransportTurnStateContext, ProviderResolveWebSocketSessionPolicyContext, ProviderSystemPromptContributionContext, ProviderTransformSystemPromptContext, ProviderThinkingPolicyContext, ProviderTransportTurnState, ProviderValidateReplayTurnsContext, ProviderWebSocketSessionPolicy, PluginTextTransforms } from "./types.js";
+import type { ProviderAuthDoctorHintContext, ProviderAugmentModelCatalogContext, ProviderExternalAuthProfile, ProviderBuildMissingAuthMessageContext, ProviderBuildUnknownModelHintContext, ProviderCacheTtlEligibilityContext, ProviderCreateEmbeddingProviderContext, ProviderDeferSyntheticProfileAuthContext, ProviderResolveSyntheticAuthContext, ProviderCreateStreamFnContext, ProviderDefaultThinkingPolicyContext, ProviderFetchUsageSnapshotContext, ProviderFailoverErrorContext, ProviderNormalizeToolSchemasContext, ProviderNormalizeConfigContext, ProviderNormalizeModelIdContext, ProviderReasoningOutputMode, ProviderReasoningOutputModeContext, ProviderReplayPolicy, ProviderReplayPolicyContext, ProviderNormalizeResolvedModelContext, ProviderNormalizeTransportContext, ProviderModernModelPolicyContext, ProviderPrepareDynamicModelContext, ProviderPreferRuntimeResolvedModelContext, ProviderResolveExternalAuthProfilesContext, ProviderResolveExternalOAuthProfilesContext, ProviderPrepareRuntimeAuthContext, ProviderApplyConfigDefaultsContext, ProviderResolveConfigApiKeyContext, ProviderSanitizeReplayHistoryContext, ProviderResolveUsageAuthContext, ProviderResolveDynamicModelContext, ProviderResolveTransportTurnStateContext, ProviderResolveWebSocketSessionPolicyContext, ProviderSystemPromptContributionContext, ProviderTransformSystemPromptContext, ProviderThinkingPolicyContext, ProviderTransportTurnState, ProviderValidateReplayTurnsContext, ProviderWebSocketSessionPolicy, PluginTextTransforms } from "./types.js";
 declare function resetExternalAuthFallbackWarningCacheForTest(): void;
-declare function resetCatalogHookProvidersCacheForTest(): void;
-export declare function clearProviderRuntimeHookCache(): void;
-export declare function resetProviderRuntimeHookCacheForTest(): void;
 export { prepareProviderExtraParams, resolveProviderAuthProfileId, resolveProviderExtraParamsForTransport, resolveProviderFollowupFallbackRoute, resolveProviderRuntimePlugin, wrapProviderStreamFn, };
-export declare const __testing: {
-    readonly buildHookProviderCacheKey: (params: {
-        config?: OpenClawConfig;
-        workspaceDir?: string;
-        onlyPluginIds?: string[];
-        providerRefs?: string[];
-        env?: NodeJS.ProcessEnv;
-    }) => string;
+export declare const testing: {
     readonly resetExternalAuthFallbackWarningCacheForTest: typeof resetExternalAuthFallbackWarningCacheForTest;
-    readonly resetCatalogHookProvidersCacheForTest: typeof resetCatalogHookProvidersCacheForTest;
-    readonly resetProviderRuntimeHookCacheForTest: typeof resetProviderRuntimeHookCacheForTest;
 };
 export declare function runProviderDynamicModel(params: {
     provider: string;
@@ -35,6 +23,7 @@ export declare function resolveProviderSystemPromptContribution(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    runtimeHandle?: ProviderRuntimePluginHandle;
     context: ProviderSystemPromptContributionContext;
 }): ProviderSystemPromptContribution | undefined;
 export declare function transformProviderSystemPrompt(params: {
@@ -42,6 +31,7 @@ export declare function transformProviderSystemPrompt(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    runtimeHandle?: ProviderRuntimePluginHandle;
     context: ProviderTransformSystemPromptContext;
 }): string;
 export declare function resolveProviderTextTransforms(params: {
@@ -49,6 +39,7 @@ export declare function resolveProviderTextTransforms(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    runtimeHandle?: ProviderRuntimePluginHandle;
 }): PluginTextTransforms | undefined;
 export declare function prepareProviderDynamicModel(params: {
     provider: string;
@@ -146,19 +137,20 @@ export declare function sanitizeProviderReplayHistoryWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderSanitizeReplayHistoryContext;
-}): Promise<import("@mariozechner/pi-agent-core").AgentMessage[] | null | undefined>;
+}): Promise<import("@earendil-works/pi-agent-core").AgentMessage[] | null | undefined>;
 export declare function validateProviderReplayTurnsWithPlugin(params: {
     provider: string;
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderValidateReplayTurnsContext;
-}): Promise<import("@mariozechner/pi-agent-core").AgentMessage[] | null | undefined>;
+}): Promise<import("@earendil-works/pi-agent-core").AgentMessage[] | null | undefined>;
 export declare function normalizeProviderToolSchemasWithPlugin(params: {
     provider: string;
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    runtimeHandle?: ProviderRuntimePluginHandle;
     context: ProviderNormalizeToolSchemasContext;
 }): import("./types.js").AnyAgentTool[] | undefined;
 export declare function inspectProviderToolSchemasWithPlugin(params: {
@@ -166,6 +158,7 @@ export declare function inspectProviderToolSchemasWithPlugin(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    runtimeHandle?: ProviderRuntimePluginHandle;
     context: ProviderNormalizeToolSchemasContext;
 }): import("./types.js").ProviderToolSchemaDiagnostic[] | undefined;
 export declare function resolveProviderReasoningOutputModeWithPlugin(params: {
@@ -180,8 +173,9 @@ export declare function resolveProviderStreamFn(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
+    allowRuntimePluginLoad?: boolean;
     context: ProviderCreateStreamFnContext;
-}): import("@mariozechner/pi-agent-core").StreamFn | undefined;
+}): import("@earendil-works/pi-agent-core").StreamFn | undefined;
 export declare function resolveProviderTransportTurnStateWithPlugin(params: {
     provider: string;
     config?: OpenClawConfig;
@@ -328,6 +322,7 @@ export declare function resolveProviderSyntheticAuthWithPlugin(params: {
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderResolveSyntheticAuthContext;
+    modelApi?: string;
 }): import("./provider-external-auth.types.ts").ProviderSyntheticAuthResult | null | undefined;
 export declare function resolveExternalAuthProfilesWithPlugins(params: {
     config?: OpenClawConfig;
@@ -347,16 +342,12 @@ export declare function shouldDeferProviderSyntheticProfileAuthWithPlugin(params
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderDeferSyntheticProfileAuthContext;
+    modelApi?: string;
 }): boolean | undefined;
-export declare function resolveProviderBuiltInModelSuppression(params: {
-    config?: OpenClawConfig;
-    workspaceDir?: string;
-    env?: NodeJS.ProcessEnv;
-    context: ProviderBuiltInModelSuppressionContext;
-}): import("./types.js").ProviderBuiltInModelSuppressionResult | undefined;
 export declare function augmentModelCatalogWithProviderPlugins(params: {
     config?: OpenClawConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
     context: ProviderAugmentModelCatalogContext;
 }): Promise<import("openclaw/plugin-sdk/agent-runtime").ModelCatalogEntry[]>;
+export { testing as __testing };

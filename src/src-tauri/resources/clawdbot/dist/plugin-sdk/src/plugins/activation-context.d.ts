@@ -55,6 +55,7 @@ export declare function resolvePluginActivationSnapshot(params: {
     resolvedConfig?: OpenClawConfig;
     autoEnabledReasons?: Record<string, string[]>;
     env?: NodeJS.ProcessEnv;
+    workspaceDir?: string;
     applyAutoEnable?: boolean;
 }): PluginActivationSnapshot;
 export declare function resolvePluginActivationInputs(params: {
@@ -62,6 +63,7 @@ export declare function resolvePluginActivationInputs(params: {
     resolvedConfig?: OpenClawConfig;
     autoEnabledReasons?: Record<string, string[]>;
     env?: NodeJS.ProcessEnv;
+    workspaceDir?: string;
     compat?: PluginActivationCompatConfig;
     applyAutoEnable?: boolean;
 }): PluginActivationInputs;

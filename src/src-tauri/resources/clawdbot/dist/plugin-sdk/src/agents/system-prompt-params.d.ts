@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import type { ActiveProcessSessionReference } from "./bash-process-references.js";
 import { type ResolvedTimeFormat } from "./date-time.js";
-export type RuntimeInfoInput = {
+type RuntimeInfoInput = {
     agentId?: string;
     host: string;
     os: string;
@@ -14,9 +15,9 @@ export type RuntimeInfoInput = {
     /** Supported message actions for the current channel (e.g., react, edit, unsend) */
     channelActions?: string[];
     repoRoot?: string;
-    canvasRootDir?: string;
+    activeProcessSessions?: ActiveProcessSessionReference[];
 };
-export type SystemPromptRuntimeParams = {
+type SystemPromptRuntimeParams = {
     runtimeInfo: RuntimeInfoInput;
     userTimezone: string;
     userTime?: string;
@@ -29,3 +30,4 @@ export declare function buildSystemPromptParams(params: {
     workspaceDir?: string;
     cwd?: string;
 }): SystemPromptRuntimeParams;
+export {};

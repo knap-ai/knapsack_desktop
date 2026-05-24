@@ -1,6 +1,6 @@
 import type { ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { PluginMetadataSnapshot } from "./plugin-metadata-snapshot.js";
+import type { PluginMetadataRegistryView } from "./plugin-metadata-snapshot.types.js";
 import { type LoadPluginRegistryParams, type PluginRegistrySnapshot } from "./plugin-registry.js";
 import type { ProviderDiscoveryOrder, ProviderPlugin } from "./types.js";
 export type ResolveRuntimePluginDiscoveryProvidersParams = {
@@ -11,7 +11,7 @@ export type ResolveRuntimePluginDiscoveryProvidersParams = {
     includeUntrustedWorkspacePlugins?: boolean;
     requireCompleteDiscoveryEntryCoverage?: boolean;
     discoveryEntriesOnly?: boolean;
-    pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry">;
+    pluginMetadataSnapshot?: PluginMetadataRegistryView;
 };
 export type ResolveInstalledPluginProviderContributionIdsParams = LoadPluginRegistryParams & {
     index?: PluginRegistrySnapshot;
@@ -43,7 +43,7 @@ export declare function runProviderCatalog(params: {
     }) => {
         apiKey: string | undefined;
         discoveryApiKey?: string;
-        mode: "api_key" | "oauth" | "token" | "none";
+        mode: "api_key" | "aws-sdk" | "oauth" | "token" | "none";
         source: "env" | "profile" | "none";
         profileId?: string;
     };

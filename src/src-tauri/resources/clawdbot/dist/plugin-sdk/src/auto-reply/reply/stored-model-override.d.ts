@@ -11,3 +11,13 @@ export declare function resolveStoredModelOverride(params: {
     parentSessionKey?: string;
     defaultProvider: string;
 }): StoredModelOverride | null;
+export declare function isStaleHeartbeatAutoFallbackOverride(params: {
+    isHeartbeat?: boolean;
+    hasResolvedHeartbeatModelOverride?: boolean;
+    sessionEntry?: SessionEntry;
+    storedOverride?: StoredModelOverride | null;
+    defaultProvider: string;
+    defaultModel: string;
+    primaryProvider?: string;
+    primaryModel?: string;
+}): boolean;

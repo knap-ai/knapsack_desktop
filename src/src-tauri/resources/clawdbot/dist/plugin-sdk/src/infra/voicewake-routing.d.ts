@@ -1,4 +1,4 @@
-export type VoiceWakeRouteTarget = {
+type VoiceWakeRouteTarget = {
     mode: "current";
     agentId?: undefined;
     sessionKey?: undefined;
@@ -11,7 +11,7 @@ export type VoiceWakeRouteTarget = {
     agentId?: undefined;
     mode?: undefined;
 };
-export type VoiceWakeRouteRule = {
+type VoiceWakeRouteRule = {
     trigger: string;
     target: VoiceWakeRouteTarget;
 };
@@ -31,15 +31,15 @@ export declare function validateVoiceWakeRoutingConfigInput(input: unknown): {
 export declare function normalizeVoiceWakeRoutingConfig(input: unknown): VoiceWakeRoutingConfig;
 export declare function loadVoiceWakeRoutingConfig(baseDir?: string): Promise<VoiceWakeRoutingConfig>;
 export declare function setVoiceWakeRoutingConfig(config: unknown, baseDir?: string): Promise<VoiceWakeRoutingConfig>;
-export type VoiceWakeResolvedRoute = {
+type VoiceWakeResolvedRoute = {
     mode: "current";
 } | {
     agentId: string;
 } | {
     sessionKey: string;
 };
-export declare function resolveVoiceWakeRouteTarget(routeTarget: VoiceWakeRouteTarget | undefined): VoiceWakeResolvedRoute;
 export declare function resolveVoiceWakeRouteByTrigger(params: {
     trigger: string | undefined;
     config: VoiceWakeRoutingConfig;
 }): VoiceWakeResolvedRoute;
+export {};

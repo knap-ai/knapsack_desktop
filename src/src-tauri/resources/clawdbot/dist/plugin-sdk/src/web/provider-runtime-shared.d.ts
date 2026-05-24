@@ -5,6 +5,7 @@ type RuntimeWebProviderMetadata = {
 };
 type ProviderWithCredential = {
     envVars: string[];
+    authProviderId?: string;
     requiresCredential?: boolean;
 };
 export declare function resolveWebProviderConfig(cfg: OpenClawConfig | undefined, kind: "search" | "fetch"): Record<string, unknown> | undefined;
@@ -19,10 +20,16 @@ export declare function hasWebProviderEntryCredential<TProvider extends Provider
         config: OpenClawConfig | undefined;
         toolConfig: TConfig;
     }) => unknown;
+    resolveFallbackRawValue?: (params: {
+        provider: TProvider;
+        config: OpenClawConfig | undefined;
+        toolConfig: TConfig;
+    }) => unknown;
     resolveEnvValue: (params: {
         provider: TProvider;
         configuredEnvVarId?: string;
     }) => string | undefined;
+    resolveProviderAuthValue?: (providerId: string) => boolean;
 }): boolean;
 export declare function resolveWebProviderDefinition<TProvider extends {
     id: string;

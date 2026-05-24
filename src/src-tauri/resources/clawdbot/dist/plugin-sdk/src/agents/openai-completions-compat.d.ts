@@ -1,4 +1,4 @@
-import type { Model } from "@mariozechner/pi-ai";
+import type { Model } from "@earendil-works/pi-ai";
 import type { ProviderEndpointClass, ProviderRequestCapabilities } from "./provider-attribution.js";
 type OpenAICompletionsCompatDefaultsInput = {
     provider?: string;
@@ -8,24 +8,22 @@ type OpenAICompletionsCompatDefaultsInput = {
     supportsOpenAICompletionsStreamingUsageCompat?: boolean;
     usesExplicitProxyLikeEndpoint?: boolean;
 };
-export type OpenAICompletionsCompatDefaults = {
+type OpenAICompletionsCompatDefaults = {
     supportsStore: boolean;
     supportsDeveloperRole: boolean;
     supportsReasoningEffort: boolean;
     supportsUsageInStreaming: boolean;
     maxTokensField: "max_completion_tokens" | "max_tokens";
-    thinkingFormat: "openai" | "openrouter" | "deepseek" | "zai";
+    thinkingFormat: "openai" | "openrouter" | "deepseek" | "together" | "zai";
     visibleReasoningDetailTypes: string[];
     supportsStrictMode: boolean;
+    requiresReasoningContentOnAssistantMessages: boolean;
 };
-export type DetectedOpenAICompletionsCompat = {
+type DetectedOpenAICompletionsCompat = {
     capabilities: ProviderRequestCapabilities;
     defaults: OpenAICompletionsCompatDefaults;
 };
 export declare function resolveOpenAICompletionsCompatDefaults(input: OpenAICompletionsCompatDefaultsInput): OpenAICompletionsCompatDefaults;
-export declare function resolveOpenAICompletionsCompatDefaultsFromCapabilities(input: Pick<ProviderRequestCapabilities, "endpointClass" | "knownProviderFamily" | "supportsNativeStreamingUsageCompat" | "supportsOpenAICompletionsStreamingUsageCompat" | "usesExplicitProxyLikeEndpoint"> & {
-    provider?: string;
-}): OpenAICompletionsCompatDefaults;
 export declare function detectOpenAICompletionsCompat(model: Pick<Model<"openai-completions">, "provider" | "baseUrl" | "id"> & {
     compat?: {
         supportsStore?: boolean;

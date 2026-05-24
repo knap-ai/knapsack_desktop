@@ -4,11 +4,21 @@ export type PluginRuntimeGatewayRequestScope = {
     client?: GatewayRequestOptions["client"];
     isWebchatConnect: GatewayRequestOptions["isWebchatConnect"];
     pluginId?: string;
+    pluginSource?: string;
+    gatewayMethodDispatchAllowed?: boolean;
+};
+export type PluginRuntimePluginScope = {
+    pluginId: string;
+    pluginSource?: string;
 };
 /**
  * Runs plugin gateway handlers with request-scoped context that runtime helpers can read.
  */
 export declare function withPluginRuntimeGatewayRequestScope<T>(scope: PluginRuntimeGatewayRequestScope, run: () => T): T;
+/**
+ * Runs work under the current gateway request scope while attaching plugin identity.
+ */
+export declare function withPluginRuntimePluginScope<T>(scope: PluginRuntimePluginScope, run: () => T): T;
 /**
  * Runs work under the current gateway request scope while attaching plugin identity.
  */

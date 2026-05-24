@@ -1,5 +1,6 @@
 import { runEmbeddedPiAgent } from "../../agents/pi-embedded.js";
 import { type SessionEntry } from "../../config/sessions.js";
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { TemplateContext } from "../templating.js";
 import type { VerboseLevel } from "../thinking.js";
 import type { GetReplyOptions, ReplyPayload } from "../types.js";
@@ -32,17 +33,46 @@ export type AgentRunLoopResult = {
     kind: "final";
     payload: ReplyPayload;
 };
-type FallbackSelectionState = Pick<SessionEntry, "providerOverride" | "modelOverride" | "modelOverrideSource" | "authProfileOverride" | "authProfileOverrideSource" | "authProfileOverrideCompactionCount">;
+type FallbackSelectionState = Pick<SessionEntry, "providerOverride" | "modelOverride" | "modelOverrideSource" | "modelOverrideFallbackOriginProvider" | "modelOverrideFallbackOriginModel" | "authProfileOverride" | "authProfileOverrideSource" | "authProfileOverrideCompactionCount">;
 export declare function applyFallbackCandidateSelectionToEntry(params: {
     entry: SessionEntry;
     run: FollowupRun["run"];
     provider: string;
     model: string;
+    origin?: {
+        provider: string;
+        model: string;
+    };
+    force?: boolean;
     now?: number;
 }): {
     updated: boolean;
     nextState?: FallbackSelectionState;
 };
+export declare function buildKnownAgentRunFailureReplyPayload(params: {
+    err: unknown;
+    sessionCtx: TemplateContext;
+    resolvedVerboseLevel: VerboseLevel | undefined;
+    cfg?: OpenClawConfig;
+}): ReplyPayload | undefined;
+export declare function buildContextOverflowRecoveryText(params: {
+    duringCompaction?: boolean;
+    preserveSessionMapping?: boolean;
+    cfg: FollowupRun["run"]["config"];
+    agentId?: string;
+    primaryProvider?: string;
+    primaryModel?: string;
+    activeSessionEntry?: SessionEntry;
+}): string;
+export declare function resolveSessionRuntimeOverrideForProvider(params: {
+    provider: string;
+    entry?: Pick<SessionEntry, "agentRuntimeOverride">;
+}): string | undefined;
+export declare function resolveRunAfterAutoFallbackPrimaryProbeRecheck(params: {
+    run: FollowupRun["run"];
+    entry?: SessionEntry;
+    sessionKey?: string;
+}): FollowupRun["run"];
 export declare function runAgentTurnWithFallback(params: {
     commandBody: string;
     transcriptCommandBody?: string;
@@ -65,7 +95,6 @@ export declare function runAgentTurnWithFallback(params: {
     shouldEmitToolResult: () => boolean;
     shouldEmitToolOutput: () => boolean;
     pendingToolTasks: Set<Promise<void>>;
-    resetSessionAfterCompactionFailure: (reason: string) => Promise<boolean>;
     resetSessionAfterRoleOrderingConflict: (reason: string) => Promise<boolean>;
     isHeartbeat: boolean;
     sessionKey?: string;
@@ -74,6 +103,7 @@ export declare function runAgentTurnWithFallback(params: {
     activeSessionStore?: Record<string, SessionEntry>;
     storePath?: string;
     resolvedVerboseLevel: VerboseLevel;
+    toolProgressDetail?: "explain" | "raw";
     replyMediaContext?: ReplyMediaContext;
 }): Promise<AgentRunLoopResult>;
 export {};

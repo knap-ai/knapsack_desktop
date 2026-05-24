@@ -2,7 +2,12 @@ import type { InstallSafetyOverrides } from "./install-security-scan.types.js";
 type InstallScanLogger = {
     warn?: (message: string) => void;
 };
-type PluginInstallRequestKind = "skill-install" | "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm";
+type PackageExecutableScanMetadata = {
+    runtimeExtensions?: readonly string[];
+    runtimeSetupEntry?: string;
+    setupEntry?: string;
+};
+type PluginInstallRequestKind = "skill-install" | "plugin-dir" | "plugin-archive" | "plugin-file" | "plugin-npm" | "plugin-git";
 type SkillInstallSpec = {
     id?: string;
     kind: "brew" | "node" | "go" | "uv" | "download";
@@ -37,6 +42,7 @@ export declare function scanPackageInstallSourceRuntime(params: InstallSafetyOve
     extensions: string[];
     logger: InstallScanLogger;
     packageDir: string;
+    packageMetadata?: PackageExecutableScanMetadata;
     pluginId: string;
     requestKind?: PluginInstallRequestKind;
     requestedSpecifier?: string;
@@ -46,9 +52,14 @@ export declare function scanPackageInstallSourceRuntime(params: InstallSafetyOve
     version?: string;
 }): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanInstalledPackageDependencyTreeRuntime(params: {
+    additionalPackageDirs?: string[];
+    allowManagedNpmRootPackagePeerSymlinks?: boolean;
+    dangerouslyForceUnsafeInstall?: boolean;
+    dependencyScanRootDir?: string;
     logger: InstallScanLogger;
     packageDir: string;
     pluginId: string;
+    trustedSourceLinkedOfficialInstall?: boolean;
 }): Promise<InstallSecurityScanResult | undefined>;
 export declare function scanFileInstallSourceRuntime(params: InstallSafetyOverrides & {
     filePath: string;

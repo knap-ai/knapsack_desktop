@@ -39,6 +39,7 @@ export declare function buildBeforeModelResolveAttachments(images: readonly {
 export declare function resolveEffectiveRuntimeModel(params: {
     cfg: OpenClawConfig | undefined;
     provider: string;
+    contextConfigProvider?: string;
     modelId: string;
     runtimeModel: ProviderRuntimeModel;
 }): {

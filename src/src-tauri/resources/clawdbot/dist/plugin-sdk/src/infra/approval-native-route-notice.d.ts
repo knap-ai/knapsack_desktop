@@ -4,3 +4,8 @@ export declare function describeApprovalDeliveryDestination(params: {
     deliveredTargets: readonly ChannelApprovalNativePlannedTarget[];
 }): string;
 export declare function resolveApprovalRoutedElsewhereNoticeText(destinations: readonly string[]): string | null;
+export declare function resolveApprovalDeliveryFailedNoticeText(params: {
+    approvalId: string;
+    approvalKind: "exec" | "plugin";
+    allowedDecisions?: readonly string[];
+}): string;

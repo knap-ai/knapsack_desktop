@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
 import type { EmbeddedPiAgentMeta } from "../types.js";
 import { type UsageAccumulator } from "../usage-accumulator.js";
@@ -21,15 +21,12 @@ export type RuntimeAuthState = {
 export declare const RUNTIME_AUTH_REFRESH_MARGIN_MS: number;
 export declare const RUNTIME_AUTH_REFRESH_RETRY_MS: number;
 export declare const RUNTIME_AUTH_REFRESH_MIN_DELAY_MS: number;
-export declare const DEFAULT_OVERLOAD_FAILOVER_BACKOFF_MS = 0;
-export declare const DEFAULT_MAX_OVERLOAD_PROFILE_ROTATIONS = 1;
-export declare const DEFAULT_MAX_RATE_LIMIT_PROFILE_ROTATIONS = 1;
 export declare function resolveOverloadFailoverBackoffMs(cfg?: OpenClawConfig): number;
 export declare function resolveOverloadProfileRotationLimit(cfg?: OpenClawConfig): number;
 export declare function resolveRateLimitProfileRotationLimit(cfg?: OpenClawConfig): number;
 export declare function scrubAnthropicRefusalMagic(prompt: string): string;
 export declare function createCompactionDiagId(): string;
-export declare function resolveMaxRunRetryIterations(profileCandidateCount: number): number;
+export declare function resolveMaxRunRetryIterations(profileCandidateCount: number, cfg?: OpenClawConfig, agentId?: string): number;
 export declare function resolveActiveErrorContext(params: {
     provider: string;
     model: string;
@@ -37,6 +34,17 @@ export declare function resolveActiveErrorContext(params: {
         provider?: string;
         model?: string;
     };
+}): {
+    provider: string;
+    model: string;
+};
+export declare function resolveReportedModelRef(params: {
+    provider: string;
+    model: string;
+    assistant?: {
+        provider?: string;
+        model?: string;
+    } | null;
 }): {
     provider: string;
     model: string;
@@ -55,6 +63,7 @@ export declare function buildUsageAgentMetaFields(params: {
  */
 export declare function buildErrorAgentMeta(params: {
     sessionId: string;
+    sessionFile?: string;
     provider: string;
     model: string;
     contextTokens?: number;

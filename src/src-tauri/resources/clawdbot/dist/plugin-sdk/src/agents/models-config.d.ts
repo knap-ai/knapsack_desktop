@@ -6,6 +6,9 @@ export declare function writeModelsFileAtomicForModelsJson(targetPath: string, c
 export declare function ensureOpenClawModelsJson(config?: OpenClawConfig, agentDirOverride?: string, options?: {
     pluginMetadataSnapshot?: Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "owners">;
     workspaceDir?: string;
+    providerDiscoveryProviderIds?: readonly string[];
+    providerDiscoveryTimeoutMs?: number;
+    providerDiscoveryEntriesOnly?: boolean;
 }): Promise<{
     agentDir: string;
     wrote: boolean;

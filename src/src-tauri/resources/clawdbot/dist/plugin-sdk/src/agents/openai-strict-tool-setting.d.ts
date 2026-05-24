@@ -6,7 +6,6 @@ type OpenAIStrictToolModel = {
     id?: unknown;
     compat?: unknown;
 };
-export declare function resolvesToNativeOpenAIStrictTools(model: OpenAIStrictToolModel, transport: OpenAITransportKind): boolean;
 export declare function resolveOpenAIStrictToolSetting(model: OpenAIStrictToolModel, options?: {
     transport?: OpenAITransportKind;
     supportsStrictMode?: boolean;

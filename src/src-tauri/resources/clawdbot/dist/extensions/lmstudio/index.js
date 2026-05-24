@@ -1,119 +1,25 @@
-import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
-import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-Huk_Auss.js";
-import { _ as ssrfPolicyFromHttpBaseUrlAllowedHostname } from "../../ssrf-K8pX0Zi6.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import "../../provider-auth-LNc11avL.js";
-import "../../ssrf-runtime-CIV6CU_8.js";
-import "../../logging-core-G5-DUS3F.js";
-import { F as LMSTUDIO_PROVIDER_LABEL, P as LMSTUDIO_PROVIDER_ID, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, y as resolveLmstudioInferenceBase } from "../../models.fetch-DQvr3ubL.js";
-import { t as lmstudioMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-CVrs5NcP.js";
+import { t as createSubsystemLogger } from "../../subsystem-DSPWLoK5.js";
+import { t as CUSTOM_LOCAL_AUTH_MARKER } from "../../model-auth-markers-Cf78z2Zm.js";
+import { n as parseStandalonePlainTextToolCallBlocks } from "../../tool-payload-Gp3uQTKH.js";
+import { y as ssrfPolicyFromHttpBaseUrlAllowedHostname } from "../../ssrf-DdDeGa5L.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../provider-auth-BtRKd5us.js";
+import "../../ssrf-runtime-Be2o3zD7.js";
+import "../../logging-core-DwEC9Ajh.js";
+import { F as LMSTUDIO_PROVIDER_LABEL, P as LMSTUDIO_PROVIDER_ID, c as resolveLmstudioRuntimeApiKey, f as shouldUseLmstudioSyntheticAuth, g as normalizeLmstudioConfiguredCatalogEntries, n as ensureLmstudioModelLoaded, o as resolveLmstudioProviderHeaders, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, y as resolveLmstudioInferenceBase } from "../../models.fetch-BJryONkH.js";
+import { t as lmstudioMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-7qtHxZMB.js";
 import { randomUUID } from "node:crypto";
-import { createAssistantMessageEventStream, streamSimple } from "@mariozechner/pi-ai";
+import { createAssistantMessageEventStream, streamSimple } from "@earendil-works/pi-ai";
 //#region extensions/lmstudio/src/plain-text-tool-calls.ts
-const END_TOOL_REQUEST = "[END_TOOL_REQUEST]";
 const MAX_PAYLOAD_CHARS = 256e3;
-function isToolNameChar(char) {
-	return Boolean(char && /[A-Za-z0-9_-]/.test(char));
-}
-function skipHorizontalWhitespace(text, start) {
-	let index = start;
-	while (index < text.length && (text[index] === " " || text[index] === "	")) index += 1;
-	return index;
-}
-function skipWhitespace(text, start) {
-	let index = start;
-	while (index < text.length && /\s/.test(text[index] ?? "")) index += 1;
-	return index;
-}
-function consumeLineBreak(text, start) {
-	if (text[start] === "\r") return text[start + 1] === "\n" ? start + 2 : start + 1;
-	if (text[start] === "\n") return start + 1;
-	return null;
-}
-function parseOpening(text, start) {
-	if (text[start] !== "[") return null;
-	let cursor = start + 1;
-	const nameStart = cursor;
-	while (isToolNameChar(text[cursor])) cursor += 1;
-	if (cursor === nameStart || text[cursor] !== "]") return null;
-	const name = text.slice(nameStart, cursor);
-	cursor += 1;
-	cursor = skipHorizontalWhitespace(text, cursor);
-	const afterLineBreak = consumeLineBreak(text, cursor);
-	if (afterLineBreak === null) return null;
-	return {
-		end: afterLineBreak,
-		name
-	};
-}
-function consumeJsonObject(text, start) {
-	const cursor = skipWhitespace(text, start);
-	if (text[cursor] !== "{") return null;
-	let depth = 0;
-	let inString = false;
-	let escaped = false;
-	for (let index = cursor; index < text.length; index += 1) {
-		if (index + 1 - cursor > MAX_PAYLOAD_CHARS) return null;
-		const char = text[index];
-		if (inString) {
-			if (escaped) escaped = false;
-			else if (char === "\\") escaped = true;
-			else if (char === "\"") inString = false;
-			continue;
-		}
-		if (char === "\"") {
-			inString = true;
-			continue;
-		}
-		if (char === "{") depth += 1;
-		else if (char === "}") {
-			depth -= 1;
-			if (depth === 0) try {
-				const parsed = JSON.parse(text.slice(cursor, index + 1));
-				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-				return {
-					end: index + 1,
-					value: parsed
-				};
-			} catch {
-				return null;
-			}
-		}
-	}
-	return null;
-}
-function parseClosing(text, start, name) {
-	const cursor = skipWhitespace(text, start);
-	if (text.startsWith(END_TOOL_REQUEST, cursor)) return cursor + 18;
-	const namedClosing = `[/${name}]`;
-	if (text.startsWith(namedClosing, cursor)) return cursor + namedClosing.length;
-	return null;
-}
-function parseBlockAt(text, start, allowedToolNames) {
-	const opening = parseOpening(text, start);
-	if (!opening || !allowedToolNames.has(opening.name)) return null;
-	const payload = consumeJsonObject(text, opening.end);
-	if (!payload) return null;
-	const end = parseClosing(text, payload.end, opening.name);
-	if (end === null) return null;
-	return {
-		block: {
-			arguments: payload.value,
-			name: opening.name
-		},
-		end
-	};
-}
 function parseLmstudioPlainTextToolCalls(text, allowedToolNames) {
-	const blocks = [];
-	let cursor = skipWhitespace(text, 0);
-	while (cursor < text.length) {
-		const parsed = parseBlockAt(text, cursor, allowedToolNames);
-		if (!parsed) return null;
-		blocks.push(parsed.block);
-		cursor = skipWhitespace(text, parsed.end);
-	}
-	return blocks.length > 0 ? blocks : null;
+	return parseStandalonePlainTextToolCallBlocks(text, {
+		allowedToolNames,
+		maxPayloadBytes: MAX_PAYLOAD_CHARS
+	})?.map((block) => ({
+		arguments: block.arguments,
+		name: block.name
+	})) ?? null;
 }
 function createLmstudioSyntheticToolCallId() {
 	return `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
@@ -169,6 +75,18 @@ function resolveModelHeaders(model) {
 function toRecord(value) {
 	return value && typeof value === "object" ? value : void 0;
 }
+function shouldPreloadLmstudioModels(value) {
+	return toRecord(toRecord(value)?.params)?.preload !== false;
+}
+function withLmstudioUsageCompat(model) {
+	return {
+		...model,
+		compat: {
+			...model.compat && typeof model.compat === "object" ? model.compat : {},
+			supportsUsageInStreaming: true
+		}
+	};
+}
 function resolveContextToolNames(context) {
 	const tools = context.tools;
 	if (!Array.isArray(tools)) return /* @__PURE__ */ new Set();
@@ -181,7 +99,7 @@ function resolveContextToolNames(context) {
 function couldStillBePlainTextToolCall(text) {
 	if (text.length > 256e3) return false;
 	const trimmed = text.trimStart();
-	return trimmed.length === 0 || trimmed.startsWith("[");
+	return trimmed.length === 0 || trimmed.startsWith("[") || trimmed.startsWith("<|channel|>") || trimmed.startsWith("commentary") || trimmed.startsWith("analysis") || trimmed.startsWith("final");
 }
 function createLmstudioToolCallBlock(parsed) {
 	return {
@@ -352,7 +270,14 @@ function wrapLmstudioInferencePreload(ctx) {
 		if (model.provider !== "lmstudio") return underlying(model, context, options);
 		const modelKey = normalizeLmstudioModelKey(model.id);
 		if (!modelKey) return underlying(model, context, options);
-		const providerBaseUrl = ctx.config?.models?.providers?.[LMSTUDIO_PROVIDER_ID]?.baseUrl;
+		const providerConfig = ctx.config?.models?.providers?.[LMSTUDIO_PROVIDER_ID];
+		if (!shouldPreloadLmstudioModels(providerConfig)) {
+			const stream = underlying(withLmstudioUsageCompat(model), context, options);
+			return (async () => {
+				return wrapLmstudioPlainTextToolCalls(stream instanceof Promise ? await stream : stream, context);
+			})();
+		}
+		const providerBaseUrl = providerConfig?.baseUrl;
 		const resolvedBaseUrl = resolveLmstudioInferenceBase(typeof model.baseUrl === "string" ? model.baseUrl : providerBaseUrl);
 		const requestedContextLength = resolveRequestedContextLength(model);
 		const preloadKey = createPreloadKey({
@@ -395,13 +320,7 @@ function wrapLmstudioInferencePreload(ctx) {
 				log.warn(`LM Studio inference preload failed for "${modelKey}" (${failures} consecutive failure${failures === 1 ? "" : "s"}, next preload attempt skipped for ~${cooldownSec}s); continuing without preload: ${String(cause)}`);
 			}
 			else if (cooldownEntry) log.debug(`LM Studio inference preload for "${modelKey}" skipped while backoff active (${cooldownEntry.consecutiveFailures} prior failures)`);
-			const stream = underlying({
-				...model,
-				compat: {
-					...model.compat && typeof model.compat === "object" ? model.compat : {},
-					supportsUsageInStreaming: true
-				}
-			}, context, options);
+			const stream = underlying(withLmstudioUsageCompat(model), context, options);
 			return wrapLmstudioPlainTextToolCalls(stream instanceof Promise ? await stream : stream, context);
 		})();
 	};
@@ -459,7 +378,7 @@ var lmstudio_default = definePluginEntry({
 					return await (await loadProviderSetup()).configureLmstudioNonInteractive(ctx);
 				}
 			}],
-			discovery: {
+			catalog: {
 				order: "late",
 				run: async (ctx) => {
 					return await (await loadProviderSetup()).discoverLmstudioProvider(ctx);

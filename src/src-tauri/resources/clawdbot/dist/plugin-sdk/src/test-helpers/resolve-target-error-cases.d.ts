@@ -1,10 +1,10 @@
-type ResolveTargetMode = "explicit" | "implicit" | "heartbeat";
-type ResolveTargetResult = {
+export type ResolveTargetMode = "explicit" | "implicit" | "heartbeat";
+export type ResolveTargetResult = {
     ok: boolean;
     to?: string;
     error?: unknown;
 };
-type ResolveTargetFn = (params: {
+export type ResolveTargetFn = (params: {
     to?: string;
     mode: ResolveTargetMode;
     allowFrom: string[];
@@ -13,4 +13,3 @@ export declare function installCommonResolveTargetErrorCases(params: {
     resolveTarget: ResolveTargetFn;
     implicitAllowFrom: string[];
 }): void;
-export {};

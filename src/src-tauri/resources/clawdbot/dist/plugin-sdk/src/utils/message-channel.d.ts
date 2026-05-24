@@ -1,6 +1,6 @@
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES, type GatewayClientMode, type GatewayClientName, normalizeGatewayClientMode, normalizeGatewayClientName } from "../gateway/protocol/client-info.js";
-export { isDeliverableMessageChannel, isGatewayMessageChannel, listDeliverableMessageChannels, listGatewayAgentChannelAliases, listGatewayAgentChannelValues, listGatewayMessageChannels, normalizeMessageChannel, resolveGatewayMessageChannel, resolveMessageChannel, type DeliverableMessageChannel, type GatewayAgentChannelHint, type GatewayMessageChannel, } from "./message-channel-normalize.js";
-export { INTERNAL_MESSAGE_CHANNEL, type InternalMessageChannel, } from "./message-channel-constants.js";
+export { isDeliverableMessageChannel, isGatewayMessageChannel, listDeliverableMessageChannels, normalizeMessageChannel, resolveGatewayMessageChannel, resolveMessageChannel, type DeliverableMessageChannel, type GatewayMessageChannel, } from "./message-channel-normalize.js";
+export { INTERNAL_MESSAGE_CHANNEL, INTERNAL_NON_DELIVERY_CHANNELS, isInternalNonDeliveryChannel, type InternalMessageChannel, } from "./message-channel-constants.js";
 import { type InternalMessageChannel } from "./message-channel-constants.js";
 export { GATEWAY_CLIENT_NAMES, GATEWAY_CLIENT_MODES };
 export type { GatewayClientName, GatewayClientMode };

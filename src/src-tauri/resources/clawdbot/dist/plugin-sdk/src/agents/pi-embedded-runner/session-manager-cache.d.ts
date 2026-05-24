@@ -12,5 +12,4 @@ export declare function createSessionManagerCache(options?: {
     ttlMs?: number | (() => number);
 }): SessionManagerCache;
 export declare function trackSessionManagerAccess(sessionFile: string): void;
-export declare function isSessionManagerCached(sessionFile: string): boolean;
 export declare function prewarmSessionFile(sessionFile: string): Promise<void>;

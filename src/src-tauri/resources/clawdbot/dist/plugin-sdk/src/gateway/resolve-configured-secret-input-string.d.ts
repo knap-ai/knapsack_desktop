@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 export type SecretInputUnresolvedReasonStyle = "generic" | "detailed";
-export type ConfiguredSecretInputSource = "config" | "secretRef" | "fallback";
+type ConfiguredSecretInputSource = "config" | "secretRef" | "fallback";
 export declare function resolveConfiguredSecretInputString(params: {
     config: OpenClawConfig;
     env: NodeJS.ProcessEnv;
@@ -31,3 +31,4 @@ export declare function resolveRequiredConfiguredSecretRefInputString(params: {
     path: string;
     unresolvedReasonStyle?: SecretInputUnresolvedReasonStyle;
 }): Promise<string | undefined>;
+export {};

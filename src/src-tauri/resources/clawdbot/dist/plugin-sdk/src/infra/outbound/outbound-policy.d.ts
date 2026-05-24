@@ -1,5 +1,6 @@
 import type { ChannelId, ChannelMessageActionName, ChannelThreadingToolContext } from "../../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
+import type { MessageToolsConfig } from "../../config/types.tools.js";
 import type { MessagePresentation } from "../../interactive/payload.js";
 export type CrossContextPresentationBuilder = (message: string) => MessagePresentation;
 export type CrossContextDecoration = {
@@ -7,12 +8,26 @@ export type CrossContextDecoration = {
     suffix: string;
     presentationBuilder?: CrossContextPresentationBuilder;
 };
+export declare function resolveEffectiveMessageToolsConfig(params: {
+    cfg: OpenClawConfig;
+    agentId?: string | null;
+}): MessageToolsConfig | undefined;
+export declare function resolveAllowedMessageActions(params: {
+    cfg: OpenClawConfig;
+    agentId?: string | null;
+}): string[] | undefined;
+export declare function enforceMessageActionAllowlist(params: {
+    cfg: OpenClawConfig;
+    agentId?: string | null;
+    action: ChannelMessageActionName;
+}): void;
 export declare function enforceCrossContextPolicy(params: {
     channel: ChannelId;
     action: ChannelMessageActionName;
     args: Record<string, unknown>;
     toolContext?: ChannelThreadingToolContext;
     cfg: OpenClawConfig;
+    agentId?: string | null;
 }): void;
 export declare function buildCrossContextDecoration(params: {
     cfg: OpenClawConfig;
@@ -20,6 +35,7 @@ export declare function buildCrossContextDecoration(params: {
     target: string;
     toolContext?: ChannelThreadingToolContext;
     accountId?: string | null;
+    agentId?: string | null;
 }): Promise<CrossContextDecoration | null>;
 export declare function shouldApplyCrossContextMarker(action: ChannelMessageActionName): boolean;
 export declare function applyCrossContextDecoration(params: {

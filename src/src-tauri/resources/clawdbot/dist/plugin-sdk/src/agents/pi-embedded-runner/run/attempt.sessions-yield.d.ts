@@ -1,5 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-export declare function buildSessionsYieldContextMessage(message: string): string;
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 export declare function waitForSessionsYieldAbortSettle(params: {
     settlePromise: Promise<void> | null;
     runId: string;

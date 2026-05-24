@@ -5,6 +5,8 @@
 export type StatusReactionAdapter = {
     /** Set/replace the current reaction emoji. */
     setReaction: (emoji: string) => Promise<void>;
+    /** Clear all status reactions for single-slot platforms such as WhatsApp. */
+    clearReaction?: () => Promise<void>;
     /** Remove a specific reaction emoji (optional — needed for Discord-style platforms). */
     removeReaction?: (emoji: string) => Promise<void>;
 };
@@ -14,6 +16,9 @@ export type StatusReactionEmojis = {
     tool?: string;
     coding?: string;
     web?: string;
+    deploy?: string;
+    build?: string;
+    concierge?: string;
     done?: string;
     error?: string;
     stallSoft?: string;
@@ -43,10 +48,13 @@ export declare const DEFAULT_EMOJIS: Required<StatusReactionEmojis>;
 export declare const DEFAULT_TIMING: Required<StatusReactionTiming>;
 export declare const CODING_TOOL_TOKENS: string[];
 export declare const WEB_TOOL_TOKENS: string[];
+export declare const DEPLOY_TOOL_TOKENS: string[];
+export declare const BUILD_TOOL_TOKENS: string[];
+export declare const CONCIERGE_TOOL_TOKENS: string[];
 /**
  * Resolve the appropriate emoji for a tool invocation.
  */
-export declare function resolveToolEmoji(toolName: string | undefined, emojis: Required<StatusReactionEmojis>): string;
+export declare function resolveToolEmoji(toolName: string | undefined, emojis: Required<StatusReactionEmojis>, emojiOverrides?: StatusReactionEmojis): string;
 /**
  * Create a status reaction controller.
  *
@@ -55,6 +63,8 @@ export declare function resolveToolEmoji(toolName: string | undefined, emojis: R
  * - Debouncing (intermediate states debounce, terminal states are immediate)
  * - Stall timers (soft/hard warnings on inactivity)
  * - Terminal state protection (done/error mark finished, subsequent updates ignored)
+ * - Defers reaction removals until final cleanup to avoid visible flicker on
+ *   platforms without atomic reaction replacement
  */
 export declare function createStatusReactionController(params: {
     enabled: boolean;

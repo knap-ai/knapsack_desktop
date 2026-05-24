@@ -1,4 +1,4 @@
-import type { SessionHeader } from "@mariozechner/pi-coding-agent";
+import type { SessionHeader } from "@earendil-works/pi-coding-agent";
 import type { TrajectoryBundleManifest, TrajectoryEvent, TrajectoryToolDefinition } from "./types.js";
 type BuildTrajectoryBundleParams = {
     outputDir: string;
@@ -16,12 +16,12 @@ export declare function resolveDefaultTrajectoryExportDir(params: {
     sessionId: string;
     now?: Date;
 }): string;
-export declare function exportTrajectoryBundle(params: BuildTrajectoryBundleParams): {
+export declare function exportTrajectoryBundle(params: BuildTrajectoryBundleParams): Promise<{
     manifest: TrajectoryBundleManifest;
     outputDir: string;
     events: TrajectoryEvent[];
     header: SessionHeader | null;
     runtimeFile?: string;
     supplementalFiles: string[];
-};
+}>;
 export {};

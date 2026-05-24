@@ -1,4 +1,4 @@
-export type ExecApprovalResult = {
+type ExecApprovalResult = {
     kind: "denied";
     raw: string;
     metadata: string;
@@ -19,3 +19,4 @@ export type ExecApprovalResult = {
 export declare function parseExecApprovalResultText(resultText: string): ExecApprovalResult;
 export declare function isExecDeniedResultText(resultText: string): boolean;
 export declare function formatExecDeniedUserMessage(resultText: string): string | null;
+export {};

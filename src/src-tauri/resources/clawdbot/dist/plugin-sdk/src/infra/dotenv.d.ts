@@ -1,6 +1,3 @@
-export declare function loadRuntimeDotEnvFile(filePath: string, opts?: {
-    quiet?: boolean;
-}): void;
 export declare function loadWorkspaceDotEnvFile(filePath: string, opts?: {
     quiet?: boolean;
 }): void;

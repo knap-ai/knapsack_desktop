@@ -1,4 +1,5 @@
 import type { BootstrapMode } from "../../bootstrap-mode.js";
+import { type WorkspaceBootstrapFile } from "../../workspace.js";
 export type AttemptBootstrapRoutingInput = {
     workspaceBootstrapPending: boolean;
     bootstrapContextRunKind?: "default" | "heartbeat" | "cron";
@@ -12,14 +13,15 @@ export type AttemptBootstrapRoutingInput = {
 };
 export type AttemptBootstrapRouting = {
     bootstrapMode: BootstrapMode;
-    shouldStripBootstrapFromContext: boolean;
-    userPromptPrefixText?: string;
+    includeBootstrapInSystemContext: boolean;
+    includeBootstrapInRuntimeContext: boolean;
 };
 export type AttemptWorkspaceBootstrapRoutingInput = Omit<AttemptBootstrapRoutingInput, "workspaceBootstrapPending"> & {
     isWorkspaceBootstrapPending: (workspaceDir: string) => Promise<boolean>;
+    bootstrapFiles?: readonly WorkspaceBootstrapFile[];
 };
-export declare function shouldStripBootstrapFromEmbeddedContext(_params: {
+export declare function resolveBootstrapContextTargets(params: {
     bootstrapMode: BootstrapMode;
-}): boolean;
-export declare function resolveAttemptBootstrapRouting(params: AttemptBootstrapRoutingInput): AttemptBootstrapRouting;
+}): Pick<AttemptBootstrapRouting, "includeBootstrapInSystemContext" | "includeBootstrapInRuntimeContext">;
+export declare function hasBootstrapFileContent(files?: readonly WorkspaceBootstrapFile[]): boolean;
 export declare function resolveAttemptWorkspaceBootstrapRouting(params: AttemptWorkspaceBootstrapRoutingInput): Promise<AttemptBootstrapRouting>;

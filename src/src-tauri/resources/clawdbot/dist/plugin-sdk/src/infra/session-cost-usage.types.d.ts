@@ -45,7 +45,7 @@ export type CostUsageTotals = {
     cacheWriteCost: number;
     missingCostEntries: number;
 };
-export type CostUsageDailyEntry = CostUsageTotals & {
+type CostUsageDailyEntry = CostUsageTotals & {
     date: string;
 };
 export type CostUsageSummary = {
@@ -53,7 +53,15 @@ export type CostUsageSummary = {
     days: number;
     daily: CostUsageDailyEntry[];
     totals: CostUsageTotals;
+    cacheStatus?: {
+        status: "fresh" | "partial" | "stale" | "refreshing";
+        cachedFiles: number;
+        pendingFiles: number;
+        staleFiles: number;
+        refreshedAt?: number;
+    };
 };
+export type UsageCacheStatus = NonNullable<CostUsageSummary["cacheStatus"]>;
 export type SessionDailyUsage = {
     date: string;
     tokens: number;
@@ -67,6 +75,26 @@ export type SessionDailyMessageCounts = {
     toolCalls: number;
     toolResults: number;
     errors: number;
+};
+export type SessionUtcQuarterHourMessageCounts = {
+    date: string;
+    quarterIndex: number;
+    total: number;
+    user: number;
+    assistant: number;
+    toolCalls: number;
+    toolResults: number;
+    errors: number;
+};
+export type SessionUtcQuarterHourTokenUsage = {
+    date: string;
+    quarterIndex: number;
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    totalTokens: number;
+    totalCost: number;
 };
 export type SessionLatencyStats = {
     count: number;
@@ -117,6 +145,8 @@ export type SessionCostSummary = CostUsageTotals & {
     activityDates?: string[];
     dailyBreakdown?: SessionDailyUsage[];
     dailyMessageCounts?: SessionDailyMessageCounts[];
+    utcQuarterHourMessageCounts?: SessionUtcQuarterHourMessageCounts[];
+    utcQuarterHourTokenUsage?: SessionUtcQuarterHourTokenUsage[];
     dailyLatency?: SessionDailyLatency[];
     dailyModelUsage?: SessionDailyModelUsage[];
     messageCounts?: SessionMessageCounts;
@@ -139,3 +169,4 @@ export type SessionLogEntry = {
     tokens?: number;
     cost?: number;
 };
+export {};

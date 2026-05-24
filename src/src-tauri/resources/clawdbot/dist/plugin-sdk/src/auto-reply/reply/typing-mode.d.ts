@@ -1,4 +1,5 @@
 import type { TypingMode } from "../../config/types.js";
+import type { SourceReplyDeliveryMode } from "../get-reply-options.types.js";
 import type { TypingPolicy } from "../types.js";
 import type { TypingController } from "./typing.js";
 export type TypingModeContext = {
@@ -8,9 +9,10 @@ export type TypingModeContext = {
     isHeartbeat: boolean;
     typingPolicy?: TypingPolicy;
     suppressTyping?: boolean;
+    sourceReplyDeliveryMode?: SourceReplyDeliveryMode;
 };
 export declare const DEFAULT_GROUP_TYPING_MODE: TypingMode;
-export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, typingPolicy, suppressTyping }: TypingModeContext): TypingMode;
+export declare function resolveTypingMode({ configured, isGroupChat, wasMentioned, isHeartbeat, typingPolicy, suppressTyping, sourceReplyDeliveryMode, }: TypingModeContext): TypingMode;
 export type TypingSignaler = {
     mode: TypingMode;
     shouldStartImmediately: boolean;

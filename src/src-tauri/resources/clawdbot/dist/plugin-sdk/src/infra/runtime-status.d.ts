@@ -4,5 +4,5 @@ type RuntimeStatusFormatInput = {
     state?: string;
     details?: string[];
 };
-export declare function formatRuntimeStatusWithDetails({ status, pid, state, details }: RuntimeStatusFormatInput): string;
+export declare function formatRuntimeStatusWithDetails({ status, pid, state, details, }: RuntimeStatusFormatInput): string;
 export {};

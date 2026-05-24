@@ -1,24 +1,27 @@
-import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-Bje8XVt9.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
-import { a as normalizeModelCompat } from "../../provider-model-compat-K3Q805Kl.js";
-import { i as upsertAuthProfile } from "../../profiles-CrHNjqxk.js";
-import { r as OPENAI_COMPATIBLE_REPLAY_HOOKS } from "../../provider-model-shared-Bqo51Ufw.js";
-import { c as defaultToolStreamExtraParams, o as createPayloadPatchStreamWrapper, y as createToolStreamWrapper } from "../../provider-stream-shared-C_b_e9Jg.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-DHREnmQa.js";
-import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-byAcxGN1.js";
-import "../../provider-auth-api-key-brLkyScu.js";
-import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-DbAk3IUd.js";
-import { t as fetchZaiUsage } from "../../provider-usage-BKrKiEp4.js";
-import { t as detectZaiEndpoint } from "../../detect-DPhNFXyg.js";
-import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-CboZI2Ua.js";
-import { c as buildZaiModelDefinition } from "../../model-definitions-u8pD6g7b.js";
-import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-CXQDd9vH.js";
+import { a as normalizeLowercaseStringOrEmpty } from "../../string-coerce-DyL154ka.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CsdRhsMj.js";
+import { a as normalizeModelCompat } from "../../provider-model-compat-CmPOKTzc.js";
+import { s as upsertAuthProfileWithLock } from "../../profiles-9GB1thhi.js";
+import { c as defaultToolStreamExtraParams, o as createPayloadPatchStreamWrapper, y as createToolStreamWrapper } from "../../provider-stream-shared-jI_a6bxx.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { a as buildProviderReplayFamilyHooks } from "../../provider-model-shared-DtsPmvDx.js";
+import { i as normalizeApiKeyInput, n as ensureApiKeyFromOptionEnvOrPrompt, s as validateApiKeyInput } from "../../provider-auth-input-DMNIEm93.js";
+import { n as buildApiKeyCredential, t as applyAuthProfileConfig } from "../../provider-auth-helpers-BZ5Z8RV6.js";
+import "../../provider-auth-api-key-C06h8GOX.js";
+import { a as resolveLegacyPiAgentAccessToken } from "../../provider-usage.shared-Dk5t9Xpy.js";
+import { t as fetchZaiUsage } from "../../provider-usage-OfXY2nM7.js";
+import { l as buildZaiModelDefinition } from "../../model-definitions-B1PKfuNM.js";
+import { t as detectZaiEndpoint } from "../../detect-BosazCiT.js";
+import { t as zaiMediaUnderstandingProvider } from "../../media-understanding-provider-Dgf8aQV2.js";
+import { n as applyZaiConfig, r as applyZaiProviderConfig, t as ZAI_DEFAULT_MODEL_REF } from "../../onboard-C_uy0yZN.js";
 //#region extensions/zai/index.ts
 const PROVIDER_ID = "zai";
 const GLM5_TEMPLATE_MODEL_ID = "glm-4.7";
 const PROFILE_ID = "zai:default";
+async function upsertAuthProfileWithLockOrThrow(params) {
+	if (!await upsertAuthProfileWithLock(params)) throw new Error("Failed to update auth profile store; the auth store lock may be busy. Wait a moment and retry.");
+}
 function resolveGlm5ForwardCompatModel(ctx) {
 	const trimmedModelId = ctx.modelId.trim();
 	if (!normalizeLowercaseStringOrEmpty(trimmedModelId).startsWith("glm-5")) return;
@@ -158,7 +161,7 @@ async function runZaiApiKeyAuthNonInteractive(ctx, endpoint) {
 			resolved
 		});
 		if (!credential) return null;
-		upsertAuthProfile({
+		await upsertAuthProfileWithLockOrThrow({
 			profileId: PROFILE_ID,
 			credential,
 			agentDir: ctx.agentDir
@@ -238,7 +241,10 @@ var zai_default = definePluginEntry({
 				})
 			],
 			resolveDynamicModel: (ctx) => resolveGlm5ForwardCompatModel(ctx),
-			...OPENAI_COMPATIBLE_REPLAY_HOOKS,
+			...buildProviderReplayFamilyHooks({
+				family: "openai-compatible",
+				dropReasoningFromHistory: false
+			}),
 			prepareExtraParams: (ctx) => defaultToolStreamExtraParams(ctx.extraParams),
 			wrapStreamFn: (ctx) => wrapZaiStreamFn(ctx),
 			resolveThinkingProfile: () => ({

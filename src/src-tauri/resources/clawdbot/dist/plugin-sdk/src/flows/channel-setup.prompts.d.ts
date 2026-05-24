@@ -3,7 +3,7 @@ import type { ChannelSetupWizardAdapter } from "../commands/channel-setup/types.
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-export type ConfiguredChannelAction = "update" | "disable" | "delete" | "skip";
+type ConfiguredChannelAction = "update" | "disable" | "delete" | "skip";
 export declare function formatAccountLabel(accountId: string): string;
 export declare function promptConfiguredAction(params: {
     prompter: WizardPrompter;
@@ -25,3 +25,4 @@ export declare function maybeConfigureDmPolicies(params: {
     accountIdsByChannel?: Map<ChannelChoice, string>;
     resolveAdapter?: (channel: ChannelChoice) => ChannelSetupWizardAdapter | undefined;
 }): Promise<OpenClawConfig>;
+export {};

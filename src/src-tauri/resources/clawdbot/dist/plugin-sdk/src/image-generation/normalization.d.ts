@@ -1,5 +1,5 @@
 import type { ImageGenerationBackground, ImageGenerationIgnoredOverride, ImageGenerationNormalization, ImageGenerationOutputFormat, ImageGenerationProvider, ImageGenerationQuality, ImageGenerationResolution, ImageGenerationSourceImage } from "./types.js";
-export type ResolvedImageGenerationOverrides = {
+type ResolvedImageGenerationOverrides = {
     size?: string;
     aspectRatio?: string;
     resolution?: ImageGenerationResolution;
@@ -19,3 +19,4 @@ export declare function resolveImageGenerationOverrides(params: {
     background?: ImageGenerationBackground;
     inputImages?: ImageGenerationSourceImage[];
 }): ResolvedImageGenerationOverrides;
+export {};

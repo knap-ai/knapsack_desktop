@@ -1,4 +1,5 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+/** @deprecated MiniMax provider-owned stream helper; do not use from third-party plugins. */
 export declare function createMinimaxFastModeWrapper(baseStreamFn: StreamFn | undefined, fastMode: boolean): StreamFn;
 /**
  * MiniMax's Anthropic-compatible streaming endpoint returns reasoning_content
@@ -8,4 +9,5 @@ export declare function createMinimaxFastModeWrapper(baseStreamFn: StreamFn | un
  * content. Disable thinking in the outgoing payload so MiniMax does not produce
  * reasoning_content deltas during streaming.
  */
+/** @deprecated MiniMax provider-owned stream helper; do not use from third-party plugins. */
 export declare function createMinimaxThinkingDisabledWrapper(baseStreamFn: StreamFn | undefined): StreamFn;

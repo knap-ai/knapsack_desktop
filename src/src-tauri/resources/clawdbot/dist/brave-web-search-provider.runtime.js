@@ -1,1 +1,1 @@
-export * from "./brave-web-search-provider.runtime-BQfTuKtm.js";
+export * from "./brave-web-search-provider.runtime-BLs4ql43.js";

@@ -1,4 +1,4 @@
-export type SystemdUserLingerStatus = {
+type SystemdUserLingerStatus = {
     user: string;
     linger: "yes" | "no";
 };
@@ -13,3 +13,4 @@ export declare function enableSystemdUserLinger(params: {
     stderr: string;
     code: number;
 }>;
+export {};

@@ -1,5 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-export { isRedactedSessionsSpawnAttachment } from "./tool-call-shared.js";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 declare function makeMissingToolResult(params: {
     toolCallId: string;
     toolName?: string;
@@ -8,25 +7,19 @@ declare function makeMissingToolResult(params: {
     role: "toolResult";
 }>;
 export { makeMissingToolResult };
-export type ToolCallInputRepairReport = {
-    messages: AgentMessage[];
-    droppedToolCalls: number;
-    droppedAssistantMessages: number;
-};
-export type ToolCallInputRepairOptions = {
+type ToolCallInputRepairOptions = {
     allowedToolNames?: Iterable<string>;
     allowProviderOwnedThinkingReplay?: boolean;
 };
-export type ErroredAssistantResultPolicy = "preserve" | "drop";
-export type ToolUseResultPairingOptions = {
+type ErroredAssistantResultPolicy = "preserve" | "drop";
+type ToolUseResultPairingOptions = {
     erroredAssistantResultPolicy?: ErroredAssistantResultPolicy;
     missingToolResultText?: string;
 };
 export declare function stripToolResultDetails(messages: AgentMessage[]): AgentMessage[];
-export declare function repairToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): ToolCallInputRepairReport;
 export declare function sanitizeToolCallInputs(messages: AgentMessage[], options?: ToolCallInputRepairOptions): AgentMessage[];
 export declare function sanitizeToolUseResultPairing(messages: AgentMessage[], options?: ToolUseResultPairingOptions): AgentMessage[];
-export type ToolUseRepairReport = {
+type ToolUseRepairReport = {
     messages: AgentMessage[];
     added: Array<Extract<AgentMessage, {
         role: "toolResult";

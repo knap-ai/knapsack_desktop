@@ -9,6 +9,7 @@ export declare function applyLegacyCompatibilityStep(params: {
     state: DoctorConfigMutationState;
     issueLines: string[];
     changeLines: string[];
+    partiallyValid?: boolean;
 };
 export declare function applyUnknownConfigKeyStep(params: {
     state: DoctorConfigMutationState;
@@ -17,4 +18,6 @@ export declare function applyUnknownConfigKeyStep(params: {
 }): {
     state: DoctorConfigMutationState;
     removed: string[];
+    repairs: string[];
+    warnings: string[];
 };

@@ -1,5 +1,5 @@
 import type { ExecApprovalDecision, ExecApprovalRequestPayload as InfraExecApprovalRequestPayload } from "../infra/exec-approvals.js";
-export type ExecApprovalRequestPayload = InfraExecApprovalRequestPayload;
+type ExecApprovalRequestPayload = InfraExecApprovalRequestPayload;
 export type ExecApprovalRecord<TPayload = ExecApprovalRequestPayload> = {
     id: string;
     request: TPayload;
@@ -8,8 +8,10 @@ export type ExecApprovalRecord<TPayload = ExecApprovalRequestPayload> = {
     requestedByConnId?: string | null;
     requestedByDeviceId?: string | null;
     requestedByClientId?: string | null;
+    requestedByDeviceTokenAuth?: boolean;
     resolvedAtMs?: number;
     decision?: ExecApprovalDecision;
+    consumedDecision?: ExecApprovalDecision;
     resolvedBy?: string | null;
 };
 export type ExecApprovalIdLookupResult = {
@@ -44,5 +46,10 @@ export declare class ExecApprovalManager<TPayload = ExecApprovalRequestPayload> 
      * Returns the decision promise if the ID is pending, null otherwise.
      */
     awaitDecision(recordId: string): Promise<ExecApprovalDecision | null> | null;
+    lookupApprovalId(input: string, opts?: {
+        includeResolved?: boolean;
+        filter?: (record: ExecApprovalRecord<TPayload>) => boolean;
+    }): ExecApprovalIdLookupResult;
     lookupPendingId(input: string): ExecApprovalIdLookupResult;
 }
+export {};

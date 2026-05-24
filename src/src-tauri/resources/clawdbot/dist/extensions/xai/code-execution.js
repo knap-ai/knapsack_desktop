@@ -1,11 +1,13 @@
-import { i as getRuntimeConfigSnapshot } from "../../runtime-snapshot-DLisEE8Y.js";
-import { g as readStringParam, l as jsonResult } from "../../common-C4RGIxnG.js";
-import { u as postTrustedWebToolsJson } from "../../web-search-provider-common-CGGdeSyq.js";
-import "../../runtime-config-snapshot-g89jlXDA.js";
-import "../../provider-web-search-fsZ6HXjy.js";
-import { r as resolveXaiToolApiKey, t as isXaiToolEnabled } from "../../tool-auth-shared-rw2beS8G.js";
-import { n as resolveNormalizedXaiToolModel, r as resolvePositiveIntegerToolConfig } from "../../tool-config-shared-CmnZ6od1.js";
-import { i as resolveXaiResponseTextAndCitations, n as buildXaiResponsesToolBody, t as XAI_RESPONSES_ENDPOINT } from "../../responses-tool-shared-DFg21j94.js";
+import { i as getRuntimeConfigSnapshot } from "../../runtime-snapshot-DgdkBEdP.js";
+import { c as jsonResult, g as readStringParam } from "../../common-E9YpX7pB.js";
+import { p as readProviderJsonObjectResponse } from "../../provider-http-errors-C90BH-le.js";
+import { u as postTrustedWebToolsJson } from "../../web-search-provider-common-Dg4Eh9ob.js";
+import "../../runtime-config-snapshot-BBsNBtE3.js";
+import "../../provider-http-CYBE-CBM.js";
+import "../../provider-web-search-DNIStESL.js";
+import { r as resolveXaiToolApiKeyWithAuth, t as isXaiToolEnabled } from "../../tool-auth-shared-1307P-Z2.js";
+import { n as resolveNormalizedXaiToolModel, r as resolvePositiveIntegerToolConfig } from "../../tool-config-shared-Dk_VjbjJ.js";
+import { i as requireXaiResponseTextAndCitations, n as buildXaiResponsesToolBody, t as XAI_RESPONSES_ENDPOINT } from "../../responses-tool-shared-Czzu3i8c.js";
 import { Type } from "typebox";
 //#region extensions/xai/src/code-execution-shared.ts
 const XAI_CODE_EXECUTION_ENDPOINT = XAI_RESPONSES_ENDPOINT;
@@ -44,8 +46,8 @@ async function requestXaiCodeExecution(params) {
 		}),
 		errorLabel: "xAI"
 	}, async (response) => {
-		const data = await response.json();
-		const { content, citations } = resolveXaiResponseTextAndCitations(data);
+		const data = await readProviderJsonObjectResponse(response, "xAI code execution failed");
+		const { content, citations } = requireXaiResponseTextAndCitations(data, "xAI code execution failed");
 		const outputTypes = Array.isArray(data.output) ? [...new Set(data.output.map((entry) => entry?.type).filter((value) => Boolean(value)))] : [];
 		return {
 			content,
@@ -77,7 +79,8 @@ function resolveCodeExecutionEnabled(params) {
 	return isXaiToolEnabled({
 		enabled: readCodeExecutionConfigRecord(params.config)?.enabled,
 		runtimeConfig: params.runtimeConfig,
-		sourceConfig: params.sourceConfig
+		sourceConfig: params.sourceConfig,
+		auth: params.auth
 	});
 }
 function createCodeExecutionTool(options) {
@@ -86,7 +89,8 @@ function createCodeExecutionTool(options) {
 	if (!resolveCodeExecutionEnabled({
 		sourceConfig: options?.config,
 		runtimeConfig: runtimeConfig ?? void 0,
-		config: codeExecutionConfig
+		config: codeExecutionConfig,
+		auth: options?.auth
 	})) return null;
 	return {
 		label: "Code Execution",
@@ -94,13 +98,14 @@ function createCodeExecutionTool(options) {
 		description: "Run sandboxed Python analysis with xAI. Use for calculations, tabulation, summaries, and chart-style analysis without local machine access.",
 		parameters: Type.Object({ task: Type.String({ description: "The full analysis task for xAI's remote Python sandbox. Include any data to analyze directly in the task." }) }),
 		execute: async (_toolCallId, args) => {
-			const apiKey = resolveXaiToolApiKey({
+			const apiKey = await resolveXaiToolApiKeyWithAuth({
 				runtimeConfig: runtimeConfig ?? void 0,
-				sourceConfig: options?.config
+				sourceConfig: options?.config,
+				auth: options?.auth
 			});
 			if (!apiKey) return jsonResult({
 				error: "missing_xai_api_key",
-				message: "code_execution needs an xAI API key. Set XAI_API_KEY in the Gateway environment, or configure plugins.entries.xai.config.webSearch.apiKey.",
+				message: "code_execution needs xAI credentials. Run `openclaw onboard --auth-choice xai-oauth` to sign in with Grok, run `openclaw onboard --auth-choice xai-api-key`, set `XAI_API_KEY` in the Gateway environment, or configure `plugins.entries.xai.config.webSearch.apiKey`.",
 				docs: "https://docs.openclaw.ai/tools/code-execution"
 			});
 			const task = readStringParam(args, "task", { required: true });

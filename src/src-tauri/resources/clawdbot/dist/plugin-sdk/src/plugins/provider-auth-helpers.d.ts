@@ -1,4 +1,4 @@
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
+import type { OAuthCredentials } from "@earendil-works/pi-ai";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type SecretInput, type SecretRef } from "../config/types.secrets.js";
 import type { SecretInputMode } from "./provider-auth-types.js";
@@ -29,7 +29,7 @@ export declare function upsertApiKeyProfile(params: {
 export declare function applyAuthProfileConfig(cfg: OpenClawConfig, params: {
     profileId: string;
     provider: string;
-    mode: "api_key" | "oauth" | "token";
+    mode: "api_key" | "aws-sdk" | "oauth" | "token";
     email?: string;
     displayName?: string;
     preferProfileFirst?: boolean;

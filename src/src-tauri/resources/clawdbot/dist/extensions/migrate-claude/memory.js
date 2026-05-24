@@ -1,2 +1,2 @@
-import { t as buildMemoryItems } from "../../memory-I1-kq6hw.js";
+import { t as buildMemoryItems } from "../../memory-2xvD4AFM.js";
 export { buildMemoryItems };

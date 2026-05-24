@@ -1,4 +1,4 @@
-import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
+import type { AgentMessage, StreamFn } from "@earendil-works/pi-agent-core";
 type AssistantMessage = Extract<AgentMessage, {
     role: "assistant";
 }>;

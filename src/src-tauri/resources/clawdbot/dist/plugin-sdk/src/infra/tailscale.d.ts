@@ -13,10 +13,6 @@ import { type RuntimeEnv } from "../runtime.js";
 export declare function findTailscaleBinary(): Promise<string | null>;
 export declare function getTailnetHostname(exec?: typeof runExec, detectedBinary?: string): Promise<string>;
 export declare function getTestTailscaleBinaryOverride(env?: NodeJS.ProcessEnv): string | null;
-export declare function getTailscaleBinary(): Promise<string>;
-export declare function readTailscaleStatusJson(exec?: typeof runExec, opts?: {
-    timeoutMs?: number;
-}): Promise<Record<string, unknown>>;
 export declare function ensureGoInstalled(exec?: typeof runExec, prompt?: typeof promptYesNo, runtime?: RuntimeEnv): Promise<void>;
 export declare function ensureTailscaledInstalled(exec?: typeof runExec, prompt?: typeof promptYesNo, runtime?: RuntimeEnv): Promise<void>;
 export type TailscaleWhoisIdentity = {
@@ -25,6 +21,8 @@ export type TailscaleWhoisIdentity = {
 };
 export declare function ensureFunnel(port: number, exec?: typeof runExec, runtime?: RuntimeEnv, prompt?: typeof promptYesNo): Promise<void>;
 export declare function enableTailscaleServe(port: number, exec?: typeof runExec): Promise<void>;
+export declare function hasTailscaleFunnelRouteForPort(port: number, exec?: typeof runExec): Promise<boolean>;
+export declare function tailscaleFunnelStatusCoversPort(status: Record<string, unknown>, port: number): boolean;
 export declare function disableTailscaleServe(exec?: typeof runExec): Promise<void>;
 export declare function enableTailscaleFunnel(port: number, exec?: typeof runExec): Promise<void>;
 export declare function disableTailscaleFunnel(exec?: typeof runExec): Promise<void>;

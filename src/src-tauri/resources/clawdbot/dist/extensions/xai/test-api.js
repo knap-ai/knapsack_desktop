@@ -1,2 +1,2 @@
-import { t as __testing } from "../../web-search-provider.runtime-CKoRVe6I.js";
-export { __testing };
+import { r as testing } from "../../web-search-provider.runtime-GGI4HXEO.js";
+export { testing as __testing, testing };

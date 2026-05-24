@@ -13,6 +13,7 @@ export type RestartSentinelStep = {
 export type RestartSentinelStats = {
     mode?: string;
     root?: string;
+    handoffId?: string;
     before?: Record<string, unknown> | null;
     after?: Record<string, unknown> | null;
     steps?: RestartSentinelStep[];
@@ -52,7 +53,6 @@ export declare const DEFAULT_RESTART_SUCCESS_CONTINUATION_MESSAGE = "The gateway
 export declare function formatDoctorNonInteractiveHint(env?: Record<string, string | undefined>): string;
 export declare function resolveRestartSentinelPath(env?: NodeJS.ProcessEnv): string;
 export declare function writeRestartSentinel(payload: RestartSentinelPayload, env?: NodeJS.ProcessEnv): Promise<string>;
-export declare function rewriteRestartSentinel(rewrite: (payload: RestartSentinelPayload) => RestartSentinelPayload | null, env?: NodeJS.ProcessEnv): Promise<RestartSentinel | null>;
 export declare function finalizeUpdateRestartSentinelRunningVersion(version?: string, env?: NodeJS.ProcessEnv): Promise<RestartSentinel | null>;
 export declare function markUpdateRestartSentinelFailure(reason: string, env?: NodeJS.ProcessEnv): Promise<RestartSentinel | null>;
 export declare function removeRestartSentinelFile(filePath: string | null | undefined): Promise<void>;

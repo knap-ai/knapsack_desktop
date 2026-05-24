@@ -5,6 +5,3 @@ export declare function describeBundledChannelMessageTool(params: {
     channelId: string;
     context: Parameters<NonNullable<ChannelMessageToolDiscoveryAdapter["describeMessageTool"]>>[0];
 }): ChannelMessageToolDiscovery | null | undefined;
-export declare const __testing: {
-    clearMessageToolApiCache: () => void;
-};

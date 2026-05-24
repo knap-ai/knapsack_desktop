@@ -4,7 +4,7 @@ import { type OutboundSendDeps } from "../infra/outbound/send-deps.js";
  * Each value is a lazily-loaded send function for that channel.
  */
 export declare const CLI_OUTBOUND_SEND_FACTORY: unique symbol;
-export type CliOutboundSendFactory = (channelId: string) => unknown;
+type CliOutboundSendFactory = (channelId: string) => unknown;
 export type CliOutboundSendSource = {
     [channelId: string]: unknown;
     [CLI_OUTBOUND_SEND_FACTORY]?: CliOutboundSendFactory;
@@ -14,3 +14,4 @@ export type CliOutboundSendSource = {
  * OutboundSendDeps are now channel-ID-keyed records.
  */
 export declare function createOutboundSendDepsFromCliSource(deps: CliOutboundSendSource): OutboundSendDeps;
+export {};

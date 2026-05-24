@@ -22,6 +22,7 @@ export type PluginHookBeforePromptBuildEvent = {
 export type PluginHookBeforePromptBuildResult = {
     systemPrompt?: string;
     prependContext?: string;
+    appendContext?: string;
     /**
      * Prepended to the agent system prompt so providers can cache it (e.g. prompt caching).
      * Use for static plugin guidance instead of prependContext to avoid per-turn token cost.
@@ -33,13 +34,20 @@ export type PluginHookBeforePromptBuildResult = {
      */
     appendSystemContext?: string;
 };
-export declare const PLUGIN_PROMPT_MUTATION_RESULT_FIELDS: readonly ["systemPrompt", "prependContext", "prependSystemContext", "appendSystemContext"];
+export declare const PLUGIN_PROMPT_MUTATION_RESULT_FIELDS: readonly ["systemPrompt", "prependContext", "appendContext", "prependSystemContext", "appendSystemContext"];
+/**
+ * @deprecated Use before_model_resolve and before_prompt_build.
+ *
+ * Legacy compatibility hook that combines both phases.
+ */
 export type PluginHookBeforeAgentStartEvent = {
     prompt: string;
     runId?: string;
     /** Optional because legacy hook can run in pre-session phase. */
     messages?: unknown[];
 };
+/** @deprecated Use before_model_resolve and before_prompt_build result types. */
 export type PluginHookBeforeAgentStartResult = PluginHookBeforePromptBuildResult & PluginHookBeforeModelResolveResult;
+/** @deprecated Use before_model_resolve override result types. */
 export type PluginHookBeforeAgentStartOverrideResult = Omit<PluginHookBeforeAgentStartResult, keyof PluginHookBeforePromptBuildResult>;
 export declare const stripPromptMutationFieldsFromLegacyHookResult: (result: PluginHookBeforeAgentStartResult | void) => PluginHookBeforeAgentStartOverrideResult | void;

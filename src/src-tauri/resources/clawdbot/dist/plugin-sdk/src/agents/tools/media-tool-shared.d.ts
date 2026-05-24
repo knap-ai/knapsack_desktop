@@ -1,7 +1,8 @@
-import { type Api, type Model } from "@mariozechner/pi-ai";
+import { type Api, type Model } from "@earendil-works/pi-ai";
 import type { AgentModelConfig } from "../../config/types.agents-shared.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { SsrFPolicy } from "../../infra/net/ssrf.js";
+import type { AuthProfileStore } from "../auth-profiles/types.js";
 import type { ImageModelConfig } from "./image-tool.helpers.js";
 import { type ToolModelConfig } from "./model-config.helpers.js";
 type TextToolAttempt = {
@@ -37,21 +38,22 @@ type CapabilityProvider = {
     id: string;
     aliases?: string[];
     defaultModel?: string;
+    models?: readonly string[];
     isConfigured?: (ctx: {
         cfg?: OpenClawConfig;
         agentDir?: string;
     }) => boolean;
 };
-export declare function findCapabilityProviderById<T extends CapabilityProvider>(params: {
-    providers: T[];
-    providerId?: string;
-}): T | undefined;
+type CapabilityProviderSource = CapabilityProvider[] | (() => CapabilityProvider[]);
+type GenerationCapabilityProviderKey = "imageGenerationProviders" | "videoGenerationProviders" | "musicGenerationProviders";
 export declare function isCapabilityProviderConfigured<T extends CapabilityProvider>(params: {
     providers: T[];
     provider?: T;
     providerId?: string;
     cfg?: OpenClawConfig;
+    workspaceDir?: string;
     agentDir?: string;
+    authStore?: AuthProfileStore;
 }): boolean;
 export declare function resolveSelectedCapabilityProvider<T extends CapabilityProvider>(params: {
     providers: T[];
@@ -59,17 +61,23 @@ export declare function resolveSelectedCapabilityProvider<T extends CapabilityPr
     modelOverride?: string;
     parseModelRef: ParseGenerationModelRef;
 }): T | undefined;
-export declare function resolveCapabilityModelCandidatesForTool(params: {
-    cfg?: OpenClawConfig;
-    agentDir?: string;
-    providers: CapabilityProvider[];
-}): string[];
 export declare function resolveCapabilityModelConfigForTool(params: {
     cfg?: OpenClawConfig;
+    workspaceDir?: string;
     agentDir?: string;
+    authStore?: AuthProfileStore;
     modelConfig?: AgentModelConfig;
-    providers: CapabilityProvider[];
+    providers: CapabilityProviderSource;
 }): ToolModelConfig | null;
+export declare function hasGenerationToolAvailability(params: {
+    cfg?: OpenClawConfig;
+    agentDir?: string;
+    workspaceDir?: string;
+    authStore?: AuthProfileStore;
+    modelConfig?: AgentModelConfig;
+    providers?: CapabilityProvider[] | (() => CapabilityProvider[]);
+    providerKey: GenerationCapabilityProviderKey;
+}): boolean;
 export declare function resolveGenerateAction<TAction extends string>(params: {
     args: Record<string, unknown>;
     allowed: readonly TAction[];

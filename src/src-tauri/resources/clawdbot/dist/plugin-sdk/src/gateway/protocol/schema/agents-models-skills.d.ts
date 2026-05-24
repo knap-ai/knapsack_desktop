@@ -22,6 +22,11 @@ export declare const AgentSummarySchema: Type.TObject<{
         primary: Type.TOptional<Type.TString>;
         fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
     }>>;
+    agentRuntime: Type.TOptional<Type.TObject<{
+        id: Type.TString;
+        fallback: Type.TOptional<Type.TUnion<[Type.TLiteral<"pi">, Type.TLiteral<"none">]>>;
+        source: Type.TUnion<[Type.TLiteral<"env">, Type.TLiteral<"agent">, Type.TLiteral<"defaults">, Type.TLiteral<"model">, Type.TLiteral<"provider">, Type.TLiteral<"implicit">]>;
+    }>>;
 }>;
 export declare const AgentsListParamsSchema: Type.TObject<{}>;
 export declare const AgentsListResultSchema: Type.TObject<{
@@ -42,6 +47,11 @@ export declare const AgentsListResultSchema: Type.TObject<{
         model: Type.TOptional<Type.TObject<{
             primary: Type.TOptional<Type.TString>;
             fallbacks: Type.TOptional<Type.TArray<Type.TString>>;
+        }>>;
+        agentRuntime: Type.TOptional<Type.TObject<{
+            id: Type.TString;
+            fallback: Type.TOptional<Type.TUnion<[Type.TLiteral<"pi">, Type.TLiteral<"none">]>>;
+            source: Type.TUnion<[Type.TLiteral<"env">, Type.TLiteral<"agent">, Type.TLiteral<"defaults">, Type.TLiteral<"model">, Type.TLiteral<"provider">, Type.TLiteral<"implicit">]>;
         }>>;
     }>>;
 }>;
@@ -137,7 +147,9 @@ export declare const AgentsFilesSetResultSchema: Type.TObject<{
         content: Type.TOptional<Type.TString>;
     }>;
 }>;
-export declare const ModelsListParamsSchema: Type.TObject<{}>;
+export declare const ModelsListParamsSchema: Type.TObject<{
+    view: Type.TOptional<Type.TUnion<[Type.TLiteral<"default">, Type.TLiteral<"configured">, Type.TLiteral<"all">]>>;
+}>;
 export declare const ModelsListResultSchema: Type.TObject<{
     models: Type.TArray<Type.TObject<{
         id: Type.TString;
@@ -155,6 +167,23 @@ export declare const SkillsBinsParamsSchema: Type.TObject<{}>;
 export declare const SkillsBinsResultSchema: Type.TObject<{
     bins: Type.TArray<Type.TString>;
 }>;
+export declare const SkillsUploadBeginParamsSchema: Type.TObject<{
+    kind: Type.TLiteral<"skill-archive">;
+    slug: Type.TString;
+    sizeBytes: Type.TInteger;
+    sha256: Type.TOptional<Type.TString>;
+    force: Type.TOptional<Type.TBoolean>;
+    idempotencyKey: Type.TOptional<Type.TString>;
+}>;
+export declare const SkillsUploadChunkParamsSchema: Type.TObject<{
+    uploadId: Type.TString;
+    offset: Type.TInteger;
+    dataBase64: Type.TString;
+}>;
+export declare const SkillsUploadCommitParamsSchema: Type.TObject<{
+    uploadId: Type.TString;
+    sha256: Type.TOptional<Type.TString>;
+}>;
 export declare const SkillsInstallParamsSchema: Type.TUnion<[Type.TObject<{
     name: Type.TString;
     installId: Type.TString;
@@ -165,6 +194,13 @@ export declare const SkillsInstallParamsSchema: Type.TUnion<[Type.TObject<{
     slug: Type.TString;
     version: Type.TOptional<Type.TString>;
     force: Type.TOptional<Type.TBoolean>;
+    timeoutMs: Type.TOptional<Type.TInteger>;
+}>, Type.TObject<{
+    source: Type.TLiteral<"upload">;
+    uploadId: Type.TString;
+    slug: Type.TString;
+    force: Type.TOptional<Type.TBoolean>;
+    sha256: Type.TOptional<Type.TString>;
     timeoutMs: Type.TOptional<Type.TInteger>;
 }>]>;
 export declare const SkillsUpdateParamsSchema: Type.TUnion<[Type.TObject<{
@@ -226,6 +262,14 @@ export declare const ToolsEffectiveParamsSchema: Type.TObject<{
     agentId: Type.TOptional<Type.TString>;
     sessionKey: Type.TString;
 }>;
+export declare const ToolsInvokeParamsSchema: Type.TObject<{
+    name: Type.TString;
+    args: Type.TOptional<Type.TRecord<"^.*$", Type.TUnknown>>;
+    sessionKey: Type.TOptional<Type.TString>;
+    agentId: Type.TOptional<Type.TString>;
+    confirm: Type.TOptional<Type.TBoolean>;
+    idempotencyKey: Type.TOptional<Type.TString>;
+}>;
 export declare const ToolCatalogProfileSchema: Type.TObject<{
     id: Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>;
     label: Type.TString;
@@ -237,6 +281,8 @@ export declare const ToolCatalogEntrySchema: Type.TObject<{
     source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
     pluginId: Type.TOptional<Type.TString>;
     optional: Type.TOptional<Type.TBoolean>;
+    risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+    tags: Type.TOptional<Type.TArray<Type.TString>>;
     defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
 }>;
 export declare const ToolCatalogGroupSchema: Type.TObject<{
@@ -251,6 +297,8 @@ export declare const ToolCatalogGroupSchema: Type.TObject<{
         source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
         pluginId: Type.TOptional<Type.TString>;
         optional: Type.TOptional<Type.TBoolean>;
+        risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
         defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
     }>>;
 }>;
@@ -272,6 +320,8 @@ export declare const ToolsCatalogResultSchema: Type.TObject<{
             source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">]>;
             pluginId: Type.TOptional<Type.TString>;
             optional: Type.TOptional<Type.TBoolean>;
+            risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+            tags: Type.TOptional<Type.TArray<Type.TString>>;
             defaultProfiles: Type.TArray<Type.TUnion<[Type.TLiteral<"minimal">, Type.TLiteral<"coding">, Type.TLiteral<"messaging">, Type.TLiteral<"full">]>>;
         }>>;
     }>>;
@@ -284,6 +334,8 @@ export declare const ToolsEffectiveEntrySchema: Type.TObject<{
     source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
     pluginId: Type.TOptional<Type.TString>;
     channelId: Type.TOptional<Type.TString>;
+    risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+    tags: Type.TOptional<Type.TArray<Type.TString>>;
 }>;
 export declare const ToolsEffectiveGroupSchema: Type.TObject<{
     id: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
@@ -297,6 +349,8 @@ export declare const ToolsEffectiveGroupSchema: Type.TObject<{
         source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
         pluginId: Type.TOptional<Type.TString>;
         channelId: Type.TOptional<Type.TString>;
+        risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+        tags: Type.TOptional<Type.TArray<Type.TString>>;
     }>>;
 }>;
 export declare const ToolsEffectiveResultSchema: Type.TObject<{
@@ -314,6 +368,26 @@ export declare const ToolsEffectiveResultSchema: Type.TObject<{
             source: Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"channel">]>;
             pluginId: Type.TOptional<Type.TString>;
             channelId: Type.TOptional<Type.TString>;
+            risk: Type.TOptional<Type.TUnion<[Type.TLiteral<"low">, Type.TLiteral<"medium">, Type.TLiteral<"high">]>>;
+            tags: Type.TOptional<Type.TArray<Type.TString>>;
         }>>;
+    }>>;
+}>;
+export declare const ToolsInvokeErrorSchema: Type.TObject<{
+    code: Type.TString;
+    message: Type.TString;
+    details: Type.TOptional<Type.TUnknown>;
+}>;
+export declare const ToolsInvokeResultSchema: Type.TObject<{
+    ok: Type.TBoolean;
+    toolName: Type.TString;
+    output: Type.TOptional<Type.TUnknown>;
+    requiresApproval: Type.TOptional<Type.TBoolean>;
+    approvalId: Type.TOptional<Type.TString>;
+    source: Type.TOptional<Type.TUnion<[Type.TLiteral<"core">, Type.TLiteral<"plugin">, Type.TLiteral<"mcp">, Type.TLiteral<"channel">, Type.TString]>>;
+    error: Type.TOptional<Type.TObject<{
+        code: Type.TString;
+        message: Type.TString;
+        details: Type.TOptional<Type.TUnknown>;
     }>>;
 }>;

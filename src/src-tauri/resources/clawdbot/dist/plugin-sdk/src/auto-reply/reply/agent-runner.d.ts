@@ -27,6 +27,7 @@ export declare function runReplyAgent(params: {
     defaultModel: string;
     agentCfgContextTokens?: number;
     resolvedVerboseLevel: VerboseLevel;
+    toolProgressDetail?: "explain" | "raw";
     isNewSession: boolean;
     blockStreamingEnabled: boolean;
     blockReplyChunking?: {

@@ -1,9 +1,12 @@
 import type { ChannelId } from "../channels/plugins/types.public.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { type DmGroupAccessReasonCode } from "../security/dm-policy-shared.js";
+import { type AccessGroupMembershipResolver } from "./access-groups.js";
+import { type DmGroupAccessReasonCode } from "./channel-access-compat.js";
+export type { AccessGroupMembershipResolver } from "./access-groups.js";
 export type DirectDmCommandAuthorizationRuntime = {
     shouldComputeCommandAuthorized: (rawBody: string, cfg: OpenClawConfig) => boolean;
-    resolveCommandAuthorizedFromAuthorizers: (params: {
+    /** @deprecated Command authorization is resolved by channel ingress. Kept for runtime injection compatibility. */
+    resolveCommandAuthorizedFromAuthorizers?: (params: {
         useAccessGroups: boolean;
         authorizers: Array<{
             configured: boolean;
@@ -12,6 +15,7 @@ export type DirectDmCommandAuthorizationRuntime = {
         modeWhenAccessGroupsOff?: "allow" | "deny" | "configured";
     }) => boolean;
 };
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export type ResolvedInboundDirectDmAccess = {
     access: {
         decision: "allow" | "block" | "pairing";
@@ -23,7 +27,7 @@ export type ResolvedInboundDirectDmAccess = {
     senderAllowedForCommands: boolean;
     commandAuthorized: boolean | undefined;
 };
-/** Resolve direct-DM policy, effective allowlists, and optional command auth in one place. */
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveInboundDirectDmAccessWithRuntime(params: {
     cfg: OpenClawConfig;
     channel: ChannelId;
@@ -33,11 +37,12 @@ export declare function resolveInboundDirectDmAccessWithRuntime(params: {
     senderId: string;
     rawBody: string;
     isSenderAllowed: (senderId: string, allowFrom: string[]) => boolean;
+    resolveAccessGroupMembership?: AccessGroupMembershipResolver;
     runtime: DirectDmCommandAuthorizationRuntime;
     modeWhenAccessGroupsOff?: "allow" | "deny" | "configured";
     readStoreAllowFrom?: (provider: ChannelId, accountId: string) => Promise<string[]>;
 }): Promise<ResolvedInboundDirectDmAccess>;
-/** Convert resolved DM policy into a pre-crypto allow/block/pairing callback. */
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function createPreCryptoDirectDmAuthorizer(params: {
     resolveAccess: (senderId: string) => Promise<Pick<ResolvedInboundDirectDmAccess, "access"> | ResolvedInboundDirectDmAccess>;
     issuePairingChallenge?: (params: {

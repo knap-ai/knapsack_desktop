@@ -9,6 +9,7 @@ export type WizardStep = {
     type: "note" | "select" | "text" | "confirm" | "multiselect" | "progress" | "action";
     title?: string;
     message?: string;
+    format?: "plain";
     options?: WizardStepOption[];
     initialValue?: unknown;
     placeholder?: string;

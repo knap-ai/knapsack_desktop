@@ -1,15 +1,15 @@
-import { c as normalizeOptionalString } from "../../string-coerce-Bje8XVt9.js";
-import { c as isRecord } from "../../utils-DvkbxKCZ.js";
-import { r as normalizeProviderId } from "../../provider-id-DRW5WMbW.js";
-import "../../provider-model-shared-Bqo51Ufw.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
-import "../../provider-auth-api-key-brLkyScu.js";
-import { c as buildKimiCodingProvider } from "../../provider-catalog-DVVNJQDA.js";
-import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-1VMsLSwa.js";
-import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-DOC8fU8s.js";
-import { i as wrapKimiProviderStream } from "../../stream-DJpTrqhp.js";
+import { c as normalizeOptionalString } from "../../string-coerce-DyL154ka.js";
+import { c as isRecord } from "../../utils-sBTEdeml.js";
+import { r as normalizeProviderId } from "../../provider-id-zTW9Rdln.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import "../../provider-model-shared-DtsPmvDx.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-E_5Yag4W.js";
+import "../../provider-auth-api-key-C06h8GOX.js";
+import { a as normalizeKimiCodingModelId, i as buildKimiCodingProvider } from "../../provider-catalog-nrg9oGFW.js";
+import { r as applyKimiCodeConfig, t as KIMI_CODING_MODEL_REF } from "../../onboard-C0ZXpwb2.js";
+import { t as KIMI_REPLAY_POLICY } from "../../replay-policy-Nzl7UaSb.js";
+import { a as wrapKimiProviderStream } from "../../stream-BD8nlCXf.js";
 //#region extensions/kimi-coding/index.ts
 const PLUGIN_ID = "kimi";
 const PROVIDER_ID = "kimi";
@@ -77,6 +77,13 @@ var kimi_coding_default = definePluginEntry({
 				}
 			},
 			buildReplayPolicy: () => KIMI_REPLAY_POLICY,
+			normalizeResolvedModel: ({ model }) => {
+				const normalizedId = normalizeKimiCodingModelId(model.id);
+				return normalizedId === model.id ? void 0 : {
+					...model,
+					id: normalizedId
+				};
+			},
 			resolveThinkingProfile: () => ({
 				levels: [{
 					id: "off",

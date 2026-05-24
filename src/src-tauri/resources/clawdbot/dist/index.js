@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { a as formatUncaughtError } from "./errors-CDFVCV9D.js";
-import { r as runFatalErrorHooks } from "./fatal-error-hooks-4xzPL8p8.js";
-import { t as isMainModule } from "./is-main-BEaTwLZn.js";
-import { a as isTransientUnhandledRejectionError, o as isUncaughtExceptionHandled, t as installUnhandledRejectionHandler } from "./unhandled-rejections-CjchfgLD.js";
+import { a as formatUncaughtError } from "./errors-b3ZrCRlt.js";
+import { t as formatCliFailureLines } from "./failure-output-BQkxuveX.js";
+import { r as runFatalErrorHooks } from "./fatal-error-hooks-gDVRMZSa.js";
+import { t as isMainModule } from "./is-main-DoKHeRG7.js";
+import { c as isUncaughtExceptionHandled, r as isBenignUncaughtExceptionError, t as installUnhandledRejectionHandler } from "./unhandled-rejections-Km9wbHjh.js";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 //#region src/index.ts
@@ -35,17 +36,21 @@ async function runLegacyCliEntry(argv = process.argv, deps) {
 	await runCli(argv);
 }
 const isMain = isMainModule({ currentFile: fileURLToPath(import.meta.url) });
-if (!isMain) ({applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, waitForever} = await import("./library-FOPW_EsU.js"));
+if (!isMain) ({applyTemplate, createDefaultDeps, deriveSessionKey, describePortOwner, ensureBinary, ensurePortAvailable, getReplyFromConfig, handlePortError, loadConfig, loadSessionStore, monitorWebChannel, normalizeE164, PortInUseError, promptYesNo, resolveSessionKey, resolveStorePath, runCommandWithTimeout, runExec, saveSessionStore, waitForever} = await import("./library-CKtKtP0e.js"));
 if (isMain) {
-	const { restoreTerminalState } = await import("./restore-qsU-mNJM.js");
+	const { restoreTerminalState } = await import("./restore-x0u7-53p.js");
 	installUnhandledRejectionHandler();
 	process.on("uncaughtException", (error) => {
 		if (isUncaughtExceptionHandled(error)) return;
-		if (isTransientUnhandledRejectionError(error)) {
+		if (isBenignUncaughtExceptionError(error)) {
 			console.warn("[openclaw] Non-fatal uncaught exception (continuing):", formatUncaughtError(error));
 			return;
 		}
-		console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
+		for (const line of formatCliFailureLines({
+			title: "OpenClaw hit an unexpected runtime error.",
+			error,
+			argv: process.argv
+		})) console.error(line);
 		for (const message of runFatalErrorHooks({
 			reason: "uncaught_exception",
 			error
@@ -54,7 +59,11 @@ if (isMain) {
 		process.exit(1);
 	});
 	runLegacyCliEntry(process.argv).catch((err) => {
-		console.error("[openclaw] CLI failed:", formatUncaughtError(err));
+		for (const line of formatCliFailureLines({
+			title: "The CLI command failed.",
+			error: err,
+			argv: process.argv
+		})) console.error(line);
 		for (const message of runFatalErrorHooks({
 			reason: "legacy_cli_failure",
 			error: err

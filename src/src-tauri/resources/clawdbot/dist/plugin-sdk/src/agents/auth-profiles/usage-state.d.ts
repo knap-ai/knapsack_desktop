@@ -1,8 +1,7 @@
 import type { AuthProfileStore, ProfileUsageStats } from "./types.js";
 export declare function isAuthCooldownBypassedForProvider(provider: string | undefined): boolean;
-export declare function resolveProfileUnusableUntil(stats: Pick<ProfileUsageStats, "cooldownUntil" | "disabledUntil">): number | null;
+export declare function resolveProfileUnusableUntil(stats: Pick<ProfileUsageStats, "blockedUntil" | "cooldownUntil" | "disabledUntil">): number | null;
 export declare function isActiveUnusableWindow(until: number | undefined, now: number): boolean;
-export declare function shouldBypassModelScopedCooldown(stats: Pick<ProfileUsageStats, "cooldownReason" | "cooldownModel" | "disabledUntil">, now: number, forModel?: string): boolean;
 /**
  * Check if a profile is currently in cooldown (due to rate limits, overload, or other transient failures).
  */
@@ -29,7 +28,7 @@ export declare function getSoonestCooldownExpiry(store: AuthProfileStore, profil
  * has both and only one has expired, only that field is cleared.
  *
  * Mutates the in-memory store; disk persistence happens lazily on the next
- * store write (e.g. `markAuthProfileUsed` / `markAuthProfileFailure`), which
+ * store write (e.g. `markAuthProfileSuccess` / `markAuthProfileFailure`), which
  * matches the existing save pattern throughout the auth-profiles module.
  *
  * @returns `true` if any profile was modified.

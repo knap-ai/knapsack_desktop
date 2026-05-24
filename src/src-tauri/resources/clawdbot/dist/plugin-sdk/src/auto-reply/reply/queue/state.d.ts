@@ -1,4 +1,4 @@
-import type { FollowupRun, QueueDropPolicy, QueueMode, QueueSettings } from "./types.js";
+import { type FollowupRun, type QueueDropPolicy, type QueueMode, type QueueSettings } from "./types.js";
 export type FollowupQueueState = {
     items: FollowupRun[];
     draining: boolean;
@@ -9,9 +9,10 @@ export type FollowupQueueState = {
     dropPolicy: QueueDropPolicy;
     droppedCount: number;
     summaryLines: string[];
+    summarySources: FollowupRun[];
     lastRun?: FollowupRun["run"];
 };
-export declare const DEFAULT_QUEUE_DEBOUNCE_MS = 1000;
+export declare const DEFAULT_QUEUE_DEBOUNCE_MS = 500;
 export declare const DEFAULT_QUEUE_CAP = 20;
 export declare const DEFAULT_QUEUE_DROP: QueueDropPolicy;
 export declare const FOLLOWUP_QUEUES: Map<string, FollowupQueueState>;
@@ -25,6 +26,7 @@ export declare function refreshQueuedFollowupSession(params: {
     nextSessionFile?: string;
     nextProvider?: string;
     nextModel?: string;
+    nextModelOverrideSource?: "auto" | "user";
     nextAuthProfileId?: string;
     nextAuthProfileIdSource?: "auto" | "user";
 }): void;

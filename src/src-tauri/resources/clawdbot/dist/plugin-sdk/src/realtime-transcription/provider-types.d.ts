@@ -16,6 +16,7 @@ export type RealtimeTranscriptionSessionCallbacks = {
     onError?: (error: Error) => void;
 };
 export type RealtimeTranscriptionSessionCreateRequest = RealtimeTranscriptionSessionCallbacks & {
+    cfg?: OpenClawConfig;
     providerConfig: RealtimeTranscriptionProviderConfig;
 };
 export type RealtimeTranscriptionSession = {

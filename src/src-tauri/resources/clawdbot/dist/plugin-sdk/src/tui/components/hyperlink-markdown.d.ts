@@ -1,4 +1,4 @@
-import type { Component, DefaultTextStyle, MarkdownTheme } from "@mariozechner/pi-tui";
+import type { Component, DefaultTextStyle, MarkdownTheme } from "@earendil-works/pi-tui";
 /**
  * Wrapper around pi-tui's Markdown component that adds OSC 8 terminal
  * hyperlinks to rendered output, making URLs clickable even when broken

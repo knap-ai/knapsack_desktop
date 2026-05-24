@@ -1,13 +1,13 @@
-import { type SessionEntry } from "../../config/sessions/types.js";
+import { type SessionEntry as StoreSessionEntry } from "../../config/sessions/types.js";
 export declare function resolveParentForkTokenCountRuntime(params: {
-    parentEntry: SessionEntry;
+    parentEntry: StoreSessionEntry;
     storePath: string;
-}): number | undefined;
+}): Promise<number | undefined>;
 export declare function forkSessionFromParentRuntime(params: {
-    parentEntry: SessionEntry;
+    parentEntry: StoreSessionEntry;
     agentId: string;
     sessionsDir: string;
-}): {
+}): Promise<{
     sessionId: string;
     sessionFile: string;
-} | null;
+} | null>;

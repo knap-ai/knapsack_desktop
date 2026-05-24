@@ -12,8 +12,10 @@ export type SpawnedToolContext = {
     agentGroupSpace?: string | null;
     agentMemberRoleIds?: string[];
     workspaceDir?: string;
+    inheritedToolAllowlist?: string[];
+    inheritedToolDenylist?: string[];
 };
-export type NormalizedSpawnedRunMetadata = {
+type NormalizedSpawnedRunMetadata = {
     spawnedBy?: string;
     groupId?: string;
     groupChannel?: string;
@@ -29,3 +31,4 @@ export declare function resolveSpawnedWorkspaceInheritance(params: {
     explicitWorkspaceDir?: string | null;
 }): string | undefined;
 export declare function resolveIngressWorkspaceOverrideForSpawnedRun(metadata?: Pick<SpawnedRunMetadata, "spawnedBy" | "workspaceDir"> | null): string | undefined;
+export {};

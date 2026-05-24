@@ -7,4 +7,10 @@ export declare function resolveThinkingDefault(params: {
     model: string;
     catalog?: ModelCatalogEntry[];
 }): ThinkLevel;
+export declare function resolveThinkingDefaultWithRuntimeCatalog(params: {
+    cfg: OpenClawConfig;
+    provider: string;
+    model: string;
+    loadModelCatalog: () => Promise<ModelCatalogEntry[]>;
+}): Promise<ThinkLevel>;
 export {};

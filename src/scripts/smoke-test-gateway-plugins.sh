@@ -12,7 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAWDBOT_DIR="$(cd "$SCRIPT_DIR/../src-tauri/resources/clawdbot" && pwd)"
-PORT=28789
+PORT_BASE=28789
 # Browser plugin downloads playwright-core (~30 MB) on cold start; allow enough
 # headroom for a slow CI network while keeping the overall bound reasonable.
 TIMEOUT_S=180
@@ -40,11 +40,14 @@ export OPENCLAW_STATE_DIR="$STATE_DIR"
 export OPENCLAW_TEST_FAST="1"
 # Prevent entry.js from re-spawning itself (would make the PID useless)
 export OPENCLAW_NO_RESPAWN="1"
+export OPENCLAW_DISABLE_BONJOUR="1"
+export JITI_FS_CACHE="false"
 
 GW_TOKEN="ci-smoke-$$"
 
 run_pass() {
   local pass_name="$1"
+  local port="$2"
   GW_PID=""
   >"$LOG_FILE"
 
@@ -56,7 +59,7 @@ run_pass() {
     --bind loopback \
     --auth token \
     --token "$GW_TOKEN" \
-    --port "$PORT") >>"$LOG_FILE" 2>&1 &
+    --port "$port") >>"$LOG_FILE" 2>&1 &
   GW_PID=$!
 
   # Poll until the gateway ready sentinel appears in the log, then bail on
@@ -88,9 +91,6 @@ run_pass() {
   wait "$GW_PID" 2>/dev/null || true
   GW_PID=""
 
-  # Brief pause to ensure the port is fully released before the next pass.
-  sleep 2
-
   if grep -qF "plugin failed during register" "$LOG_FILE"; then
     echo "[smoke-test] FAIL: $pass_name — plugin registration errors:"
     grep "plugin failed during register" "$LOG_FILE" >&2
@@ -100,7 +100,7 @@ run_pass() {
   echo "[smoke-test] $pass_name: OK"
 }
 
-run_pass "cold start (no mirror dirs)"
-run_pass "warm start (mirror dirs exist from cold start)"
+run_pass "cold start (no mirror dirs)" "$PORT_BASE"
+run_pass "warm start (mirror dirs exist from cold start)" "$((PORT_BASE + 1))"
 
 echo "[smoke-test] All plugin registration checks passed."

@@ -1,18 +1,19 @@
-import { i as formatErrorMessage } from "../../errors-CDFVCV9D.js";
-import { n as defaultRuntime } from "../../runtime-izpjJukX.js";
-import { t as createSubsystemLogger } from "../../subsystem-rHhUC6qs.js";
-import { u as resolveAgentIdFromSessionKey } from "../../session-key-hxP9B3Or.js";
-import { _ as listAgentIds, x as resolveAgentWorkspaceDir } from "../../agent-scope-i10se9ty.js";
-import { o as isGatewayStartupEvent } from "../../internal-hooks-BafH2tQ8.js";
-import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-JXLAAy4Q.js";
-import { u as resolveStorePath } from "../../paths-CHP3g1Fg.js";
-import { t as loadSessionStore } from "../../store-load-DLuD4etm.js";
-import { o as updateSessionStore } from "../../store-CR7YmZjp.js";
-import { n as SILENT_REPLY_TOKEN } from "../../tokens-D3yEVrkk.js";
-import { n as agentCommand } from "../../agent-command-BxeGYLZy.js";
-import { t as createDefaultDeps } from "../../deps-DU-zHj4u.js";
-import "../../agent-CVA6qQoT.js";
-import { t as runStartupTasks } from "../../startup-tasks-SnvEADFF.js";
+import { i as formatErrorMessage } from "../../errors-b3ZrCRlt.js";
+import "../../agent-scope-CtLXGcWm.js";
+import { d as resolveAgentIdFromSessionKey } from "../../session-key-Bte0mmcq.js";
+import { n as listAgentIds, o as resolveAgentWorkspaceDir } from "../../agent-scope-config-CMp71_27.js";
+import { n as defaultRuntime } from "../../runtime-yzlkhCoS.js";
+import { t as createSubsystemLogger } from "../../subsystem-DSPWLoK5.js";
+import { o as isGatewayStartupEvent } from "../../internal-hooks-DpfQDjis.js";
+import { i as resolveMainSessionKey, n as resolveAgentMainSessionKey } from "../../main-session-D3q_5w0B.js";
+import { u as resolveStorePath } from "../../paths-Bg3PO6Gj.js";
+import { t as loadSessionStore } from "../../store-load-z4thf6ld.js";
+import { u as updateSessionStore } from "../../store-BmtchQvp.js";
+import { n as SILENT_REPLY_TOKEN } from "../../tokens-CFv3Qu_v.js";
+import { t as agentCommand } from "../../agent-command-QBBzz2Au.js";
+import { t as createDefaultDeps } from "../../deps-C1bdn-NA.js";
+import "../../agent-DBVvbEwY.js";
+import { t as runStartupTasks } from "../../startup-tasks-Uk0WDxvd.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
@@ -132,8 +133,7 @@ async function runBootOnce(params) {
 			message,
 			sessionKey,
 			sessionId,
-			deliver: false,
-			senderIsOwner: true
+			deliver: false
 		}, bootRuntime, params.deps);
 	} catch (err) {
 		agentFailure = formatErrorMessage(err);
@@ -155,21 +155,28 @@ const runBootChecklist = async (event) => {
 	if (!event.context.cfg) return;
 	const cfg = event.context.cfg;
 	const deps = event.context.deps ?? createDefaultDeps();
+	const seenWorkspaces = /* @__PURE__ */ new Set();
 	await runStartupTasks({
 		tasks: listAgentIds(cfg).map((agentId) => {
-			const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
 			return {
-				source: "boot-md",
 				agentId,
-				workspaceDir,
-				run: () => runBootOnce({
-					cfg,
-					deps,
-					workspaceDir,
-					agentId
-				})
+				workspaceDir: resolveAgentWorkspaceDir(cfg, agentId)
 			};
-		}),
+		}).filter(({ workspaceDir }) => {
+			if (seenWorkspaces.has(workspaceDir)) return false;
+			seenWorkspaces.add(workspaceDir);
+			return true;
+		}).map(({ agentId, workspaceDir }) => ({
+			source: "boot-md",
+			agentId,
+			workspaceDir,
+			run: () => runBootOnce({
+				cfg,
+				deps,
+				workspaceDir,
+				agentId
+			})
+		})),
 		log
 	});
 };

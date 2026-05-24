@@ -1,11 +1,16 @@
-import { S as resolveDefaultAgentId, n as resolveAgentEffectiveModelPrimary } from "../../agent-scope-i10se9ty.js";
-import { o as resolveDefaultModelForAgent } from "../../model-selection-GlsOqTDm.js";
-import { l as jsonResult } from "../../common-C4RGIxnG.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
-import "../../agent-runtime-CYXcxHpR.js";
-import { t as bumpSkillsSnapshotVersion } from "../../refresh-state-CW2abCyT.js";
-import "../../api-Ctxfzvrb.js";
+import { E as pathExists, m as resolvePathWithinRoot } from "../../fs-safe-CV86zY9G.js";
+import { a as resolveAgentEffectiveModelPrimary } from "../../agent-scope-CtLXGcWm.js";
+import { c as resolveDefaultAgentId } from "../../agent-scope-config-CMp71_27.js";
+import { n as replaceFileAtomic } from "../../replace-file-C7_Inj8B.js";
+import { t as privateFileStore } from "../../private-file-store-DMtyjgoc.js";
+import { s as resolveDefaultModelForAgent } from "../../model-selection-P-81eBKx.js";
+import { c as jsonResult } from "../../common-E9YpX7pB.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { n as resolveLivePluginConfigObject } from "../../plugin-config-runtime-DWa7yCpn.js";
+import "../../agent-runtime-Lc7H-PlR.js";
+import { t as bumpSkillsSnapshotVersion } from "../../refresh-state-PCEDjmSb.js";
+import "../../security-runtime-CcSekjBd.js";
+import "../../api-CjZQh8jH.js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
@@ -46,7 +51,7 @@ function buildWorkshopGuidance(config) {
 		"If a loaded skill is stale/wrong/thin, suggest append/replace; keep useful parts.",
 		"After long tool loops or hard fixes, save the reusable procedure.",
 		"Keep skill text short, imperative, tool-aware. No transcript dumps.",
-		config.approvalPolicy === "auto" ? "Auto mode: apply safe workspace-skill updates when clearly reusable." : "Pending mode: queue suggestions; apply only after explicit approval.",
+		config.approvalPolicy === "auto" ? "Auto mode: apply safe workspace-skill updates; apply=false queues instead." : "Pending mode: queue suggestions; use apply action after explicit approval.",
 		"</skill_workshop>"
 	].join("\n");
 }
@@ -134,27 +139,23 @@ function assertValidSection(section) {
 }
 function skillDir(workspaceDir, skillName) {
 	const safeName = assertValidSkillName(skillName);
-	const root = path.resolve(workspaceDir, "skills");
-	const dir = path.resolve(root, safeName);
-	if (!dir.startsWith(`${root}${path.sep}`)) throw new Error("skill path escapes workspace skills directory");
-	return dir;
+	const dir = resolvePathWithinRoot({
+		rootDir: path.resolve(workspaceDir, "skills"),
+		requestedPath: safeName,
+		scopeLabel: "workspace skills directory"
+	});
+	if (!dir.ok) throw new Error("skill path escapes workspace skills directory");
+	return dir.path;
 }
 function skillPath(workspaceDir, skillName) {
 	return path.join(skillDir(workspaceDir, skillName), "SKILL.md");
 }
-async function pathExists(filePath) {
-	try {
-		await fs.access(filePath);
-		return true;
-	} catch {
-		return false;
-	}
-}
 async function atomicWrite(filePath, content) {
-	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	const tempPath = `${filePath}.tmp-${process.pid}-${Date.now().toString(36)}-${randomUUID()}`;
-	await fs.writeFile(tempPath, content, "utf8");
-	await fs.rename(tempPath, filePath);
+	await replaceFileAtomic({
+		filePath,
+		content,
+		tempPrefix: ".skill-workshop"
+	});
 }
 function formatSkillMarkdown(params) {
 	const description = params.description.replace(/\s+/g, " ").trim();
@@ -227,11 +228,14 @@ async function writeSupportFile(params) {
 	if (parts.some((part) => part === "." || part === "..")) throw new Error("support file path escapes skill directory");
 	if (Buffer.byteLength(params.content, "utf8") > params.maxBytes) throw new Error(`support file exceeds ${params.maxBytes} bytes`);
 	assertSkillContentSafe(params.content);
-	const root = skillDir(params.workspaceDir, name);
-	const target = path.resolve(root, ...parts);
-	if (!target.startsWith(`${root}${path.sep}`)) throw new Error("support file path escapes skill directory");
-	await atomicWrite(target, `${params.content.trimEnd()}\n`);
-	return target;
+	const target = resolvePathWithinRoot({
+		rootDir: skillDir(params.workspaceDir, name),
+		requestedPath: path.join(...parts),
+		scopeLabel: "skill directory"
+	});
+	if (!target.ok) throw new Error("support file path escapes skill directory");
+	await atomicWrite(target.path, `${params.content.trimEnd()}\n`);
+	return target.path;
 }
 //#endregion
 //#region extensions/skill-workshop/src/text.ts
@@ -276,7 +280,6 @@ function compactWhitespace(value) {
 }
 //#endregion
 //#region extensions/skill-workshop/src/reviewer.ts
-const MAX_TRANSCRIPT_CHARS = 12e3;
 const MAX_SKILL_CHARS = 2e3;
 const MAX_SKILLS = 12;
 function resolveReviewerFallbackModel(params) {
@@ -372,7 +375,7 @@ function countToolCalls(messages) {
 	return messages.reduce((sum, message) => sum + countToolCallsInValue(message), 0);
 }
 function buildTranscript(messages) {
-	return extractTranscriptText(messages).map((entry) => `${entry.role}: ${compactWhitespace(entry.text)}`).join("\n").slice(-MAX_TRANSCRIPT_CHARS).trim() || "(no text transcript)";
+	return extractTranscriptText(messages).map((entry) => `${entry.role}: ${compactWhitespace(entry.text)}`).join("\n").slice(-12e3).trim() || "(no text transcript)";
 }
 async function readExistingSkills(workspaceDir) {
 	const skillsDir = path.join(workspaceDir, "skills");
@@ -555,22 +558,17 @@ async function withLock(key, task) {
 		if (locks.get(key) === next) locks.delete(key);
 	}
 }
-async function readJson(filePath) {
-	try {
-		const raw = await fs.readFile(filePath, "utf8");
-		const parsed = JSON.parse(raw);
-		return {
-			version: 1,
-			proposals: Array.isArray(parsed.proposals) ? parsed.proposals : [],
-			review: parsed.review && typeof parsed.review === "object" ? normalizeReviewState(parsed.review) : void 0
-		};
-	} catch (error) {
-		if (error.code === "ENOENT") return {
-			version: 1,
-			proposals: []
-		};
-		throw error;
-	}
+async function readJson(rootDir, relativePath) {
+	const parsed = await privateFileStore(rootDir).readJsonIfExists(relativePath);
+	if (!parsed) return {
+		version: 1,
+		proposals: []
+	};
+	return {
+		version: 1,
+		proposals: Array.isArray(parsed.proposals) ? parsed.proposals : [],
+		review: parsed.review && typeof parsed.review === "object" ? normalizeReviewState(parsed.review) : void 0
+	};
 }
 function normalizeReviewState(value = {}) {
 	return {
@@ -579,18 +577,17 @@ function normalizeReviewState(value = {}) {
 		...typeof value.lastReviewAt === "number" && Number.isFinite(value.lastReviewAt) ? { lastReviewAt: value.lastReviewAt } : {}
 	};
 }
-async function atomicWriteJson(filePath, data) {
-	await fs.mkdir(path.dirname(filePath), { recursive: true });
-	const tempPath = `${filePath}.tmp-${process.pid}-${Date.now().toString(36)}-${randomUUID()}`;
-	await fs.writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-	await fs.rename(tempPath, filePath);
+async function atomicWriteJson(rootDir, relativePath, data) {
+	await privateFileStore(rootDir).writeJson(relativePath, data, { trailingNewline: true });
 }
 var SkillWorkshopStore = class {
 	constructor(params) {
-		this.filePath = path.join(params.stateDir, "skill-workshop", `${workspaceKey(params.workspaceDir)}.json`);
+		this.stateDir = path.resolve(params.stateDir);
+		this.relativePath = path.join("skill-workshop", `${workspaceKey(params.workspaceDir)}.json`);
+		this.filePath = path.join(this.stateDir, this.relativePath);
 	}
 	async list(status) {
-		const file = await readJson(this.filePath);
+		const file = await readJson(this.stateDir, this.relativePath);
 		return (status ? file.proposals.filter((proposal) => proposal.status === status) : file.proposals).toSorted((left, right) => right.createdAt - left.createdAt);
 	}
 	async get(id) {
@@ -598,14 +595,14 @@ var SkillWorkshopStore = class {
 	}
 	async add(proposal, maxPending) {
 		return await withLock(this.filePath, async () => {
-			const file = await readJson(this.filePath);
+			const file = await readJson(this.stateDir, this.relativePath);
 			const duplicate = file.proposals.find((item) => (item.status === "pending" || item.status === "quarantined") && item.skillName === proposal.skillName && JSON.stringify(item.change) === JSON.stringify(proposal.change));
 			if (duplicate) return duplicate;
 			const nextProposals = [proposal, ...file.proposals].filter((item, index, all) => {
 				if (item.status !== "pending" && item.status !== "quarantined") return true;
 				return all.slice(0, index + 1).filter((candidate) => candidate.status === "pending" || candidate.status === "quarantined").length <= maxPending;
 			});
-			await atomicWriteJson(this.filePath, {
+			await atomicWriteJson(this.stateDir, this.relativePath, {
 				...file,
 				version: 1,
 				proposals: nextProposals
@@ -615,7 +612,7 @@ var SkillWorkshopStore = class {
 	}
 	async updateStatus(id, status) {
 		return await withLock(this.filePath, async () => {
-			const file = await readJson(this.filePath);
+			const file = await readJson(this.stateDir, this.relativePath);
 			const index = file.proposals.findIndex((proposal) => proposal.id === id);
 			if (index < 0) throw new Error(`proposal not found: ${id}`);
 			const updated = {
@@ -624,20 +621,20 @@ var SkillWorkshopStore = class {
 				updatedAt: Date.now()
 			};
 			file.proposals[index] = updated;
-			await atomicWriteJson(this.filePath, file);
+			await atomicWriteJson(this.stateDir, this.relativePath, file);
 			return updated;
 		});
 	}
 	async recordReviewTurn(toolCalls) {
 		return await withLock(this.filePath, async () => {
-			const file = await readJson(this.filePath);
+			const file = await readJson(this.stateDir, this.relativePath);
 			const current = normalizeReviewState(file.review);
 			const next = {
 				...current,
 				turnsSinceReview: current.turnsSinceReview + 1,
 				toolCallsSinceReview: current.toolCallsSinceReview + Math.max(0, Math.trunc(toolCalls))
 			};
-			await atomicWriteJson(this.filePath, {
+			await atomicWriteJson(this.stateDir, this.relativePath, {
 				...file,
 				review: next
 			});
@@ -646,13 +643,13 @@ var SkillWorkshopStore = class {
 	}
 	async markReviewed() {
 		return await withLock(this.filePath, async () => {
-			const file = await readJson(this.filePath);
+			const file = await readJson(this.stateDir, this.relativePath);
 			const next = {
 				turnsSinceReview: 0,
 				toolCallsSinceReview: 0,
 				lastReviewAt: Date.now()
 			};
-			await atomicWriteJson(this.filePath, {
+			await atomicWriteJson(this.stateDir, this.relativePath, {
 				...file,
 				review: next
 			});
@@ -688,7 +685,7 @@ async function applyOrStoreProposal(params) {
 			quarantineReason: critical.message
 		}, params.config.maxPending)
 	};
-	if (params.config.approvalPolicy === "auto") {
+	if (params.config.approvalPolicy === "auto" && !params.skipAutoApply) {
 		const applied = await applyProposalToWorkspace({
 			proposal: params.proposal,
 			maxSkillBytes: params.config.maxSkillBytes
@@ -820,67 +817,17 @@ function createSkillWorkshopTool(params) {
 				if (!raw.id) throw new Error("id required");
 				return jsonResult(await store.get(raw.id));
 			}
-			if (action === "suggest") {
-				const proposal = buildProposal({
+			if (action === "suggest") return jsonResult(await applyOrStoreProposal({
+				proposal: buildProposal({
 					workspaceDir,
 					raw,
 					source: "tool"
-				});
-				if (raw.apply === true || raw.apply !== false && params.config.approvalPolicy === "auto") {
-					const prepared = await prepareProposalWrite({
-						proposal,
-						maxSkillBytes: params.config.maxSkillBytes
-					});
-					const critical = prepared.findings.find((finding) => finding.severity === "critical");
-					if (critical) return jsonResult({
-						status: "quarantined",
-						proposal: await store.add({
-							...proposal,
-							status: "quarantined",
-							updatedAt: Date.now(),
-							scanFindings: prepared.findings,
-							quarantineReason: critical.message
-						}, params.config.maxPending)
-					});
-					const applied = await applyProposalToWorkspace({
-						proposal,
-						maxSkillBytes: params.config.maxSkillBytes
-					});
-					const stored = await store.add({
-						...proposal,
-						status: "applied",
-						updatedAt: Date.now(),
-						scanFindings: applied.findings
-					}, params.config.maxPending);
-					return jsonResult({
-						status: "applied",
-						skillPath: applied.skillPath,
-						proposal: stored
-					});
-				}
-				const prepared = await prepareProposalWrite({
-					proposal,
-					maxSkillBytes: params.config.maxSkillBytes
-				});
-				const critical = prepared.findings.find((finding) => finding.severity === "critical");
-				if (critical) return jsonResult({
-					status: "quarantined",
-					proposal: await store.add({
-						...proposal,
-						status: "quarantined",
-						updatedAt: Date.now(),
-						scanFindings: prepared.findings,
-						quarantineReason: critical.message
-					}, params.config.maxPending)
-				});
-				return jsonResult({
-					status: "pending",
-					proposal: await store.add({
-						...proposal,
-						scanFindings: prepared.findings
-					}, params.config.maxPending)
-				});
-			}
+				}),
+				store,
+				config: params.config,
+				workspaceDir,
+				skipAutoApply: raw.apply === false
+			}));
 			if (action === "apply") {
 				if (!raw.id) throw new Error("id required");
 				const proposal = await store.get(raw.id);
@@ -940,6 +887,20 @@ var skill_workshop_default = definePluginEntry({
 				ctx
 			});
 		}, { name: "skill_workshop" });
+		api.registerTrustedToolPolicy({
+			id: "skill-workshop-apply-approval",
+			description: "Require operator approval before applying queued workspace skill proposals.",
+			evaluate(event) {
+				const config = resolveCurrentConfig();
+				if (!config.enabled || config.approvalPolicy === "auto" || event.toolName !== "skill_workshop" || event.params.action !== "apply") return;
+				return { requireApproval: {
+					title: "Apply workspace skill proposal",
+					description: "Apply a queued workspace skill proposal.",
+					severity: "warning",
+					allowedDecisions: ["allow-once", "deny"]
+				} };
+			}
+		});
 		api.on("before_prompt_build", async () => {
 			const config = resolveCurrentConfig();
 			if (!config.enabled) return;
@@ -1019,4 +980,4 @@ var skill_workshop_default = definePluginEntry({
 	}
 });
 //#endregion
-export { SkillWorkshopStore, applyProposalToWorkspace, countToolCalls, createProposalFromMessages, skill_workshop_default as default, normalizeSkillName, reviewTranscriptForProposal, scanSkillContent };
+export { SkillWorkshopStore, applyProposalToWorkspace, createProposalFromMessages, skill_workshop_default as default, reviewTranscriptForProposal, scanSkillContent };

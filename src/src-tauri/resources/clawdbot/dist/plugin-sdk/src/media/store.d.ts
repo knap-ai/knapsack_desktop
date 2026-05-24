@@ -1,3 +1,4 @@
+import "../infra/fs-safe-defaults.js";
 import { request as httpRequest } from "node:http";
 import { resolvePinnedHostname } from "../infra/net/ssrf.js";
 export declare const MEDIA_MAX_BYTES: number;
@@ -33,7 +34,8 @@ export declare class SaveMediaSourceError extends Error {
     constructor(code: SaveMediaSourceErrorCode, message: string, options?: ErrorOptions);
 }
 export declare function saveMediaSource(source: string, headers?: Record<string, string>, subdir?: string, maxBytes?: number): Promise<SavedMedia>;
-export declare function saveMediaBuffer(buffer: Buffer, contentType?: string, subdir?: string, maxBytes?: number, originalFilename?: string): Promise<SavedMedia>;
+export declare function saveMediaBuffer(buffer: Buffer, contentType?: string, subdir?: string, maxBytes?: number, originalFilename?: string, detectionFilePathHint?: string): Promise<SavedMedia>;
+export declare function saveMediaStream(stream: AsyncIterable<unknown>, contentType?: string, subdir?: string, maxBytes?: number, originalFilename?: string, detectionFilePathHint?: string): Promise<SavedMedia>;
 /**
  * Resolves a media ID saved by saveMediaBuffer to its absolute physical path.
  *
@@ -42,8 +44,8 @@ export declare function saveMediaBuffer(buffer: Buffer, contentType?: string, su
  * Gateway's claim-check offload path.
  *
  * Security:
- * - Rejects IDs containing path separators, "..", or null bytes to prevent
- *   directory traversal and path injection outside the resolved subdir.
+ * - Rejects IDs and subdirs containing path traversal, absolute paths, empty
+ *   segments, or null bytes to prevent path injection outside the media root.
  * - Verifies the resolved path is a regular file (not a symlink or directory)
  *   before returning it, matching the write-side MEDIA_FILE_MODE policy.
  *
@@ -54,8 +56,18 @@ export declare function saveMediaBuffer(buffer: Buffer, contentType?: string, su
  * @returns       Absolute path to the file on disk.
  * @throws        If the ID is unsafe, the file does not exist, or is not a
  *                regular file.
+ *
+ * Prefer readMediaBuffer when the caller needs the bytes; this path-returning
+ * helper is for channel surfaces that need a stable local attachment path.
  */
-export declare function resolveMediaBufferPath(id: string, subdir?: "inbound"): Promise<string>;
+export declare function resolveMediaBufferPath(id: string, subdir?: string): Promise<string>;
+export type ReadMediaBufferResult = {
+    id: string;
+    path: string;
+    buffer: Buffer;
+    size: number;
+};
+export declare function readMediaBuffer(id: string, subdir?: string, maxBytes?: number): Promise<ReadMediaBufferResult>;
 /**
  * Deletes a file previously saved by saveMediaBuffer.
  *
@@ -64,8 +76,8 @@ export declare function resolveMediaBufferPath(id: string, subdir?: "inbound"): 
  * fails validation and the entire parse is aborted, preventing orphaned files
  * from accumulating on disk ahead of the periodic TTL sweep.
  *
- * Uses resolveMediaBufferPath to apply the same path-safety guards as the
- * read path (separator checks, symlink rejection, etc.) before unlinking.
+ * Uses a media-root handle to apply the same path-safety guards as the read
+ * path while removing the file under the pinned media root.
  *
  * Errors are intentionally not suppressed — callers that want best-effort
  * cleanup should catch and discard exceptions themselves (e.g. via

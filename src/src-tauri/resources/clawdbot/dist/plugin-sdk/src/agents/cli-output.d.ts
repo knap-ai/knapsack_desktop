@@ -27,6 +27,7 @@ export declare function createCliJsonlStreamingParser(params: {
 }): {
     push(chunk: string): void;
     finish(): void;
+    getOutput(): CliOutput | null;
 };
 export declare function parseCliJsonl(raw: string, backend: CliBackendConfig, providerId: string): CliOutput | null;
 export declare function parseCliOutput(params: {

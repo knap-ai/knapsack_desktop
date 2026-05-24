@@ -1,5 +1,9 @@
 import type { PluginDiagnostic } from "./manifest-types.js";
-export declare function hashString(value: string): string;
+export type InstalledPluginFileSignature = {
+    size: number;
+    mtimeMs: number;
+    ctimeMs?: number;
+};
 export declare function hashJson(value: unknown): string;
 export declare function safeHashFile(params: {
     filePath: string;
@@ -7,3 +11,5 @@ export declare function safeHashFile(params: {
     diagnostics: PluginDiagnostic[];
     required: boolean;
 }): string | undefined;
+export declare function safeFileSignature(filePath: string): InstalledPluginFileSignature | undefined;
+export declare function fileSignatureMatches(filePath: string, signature: InstalledPluginFileSignature | undefined): boolean | undefined;

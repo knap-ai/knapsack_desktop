@@ -1,2 +1,2 @@
-import { a as resolveOpencodeGoSupplementalModel, i as normalizeOpencodeGoBaseUrl, n as OPENCODE_GO_OPENAI_BASE_URL, r as listOpencodeGoSupplementalModelCatalogEntries, t as OPENCODE_GO_ANTHROPIC_BASE_URL } from "../../provider-catalog-Bt-I2kg4.js";
-export { OPENCODE_GO_ANTHROPIC_BASE_URL, OPENCODE_GO_OPENAI_BASE_URL, listOpencodeGoSupplementalModelCatalogEntries, normalizeOpencodeGoBaseUrl, resolveOpencodeGoSupplementalModel };
+import { a as resolveOpencodeGoSupplementalModel, i as normalizeOpencodeGoResolvedModel, n as listOpencodeGoSupplementalModelCatalogEntries, r as normalizeOpencodeGoBaseUrl, t as isOpencodeGoKimiNoReasoningModelId } from "../../provider-catalog-CPLia89-.js";
+export { isOpencodeGoKimiNoReasoningModelId, listOpencodeGoSupplementalModelCatalogEntries, normalizeOpencodeGoBaseUrl, normalizeOpencodeGoResolvedModel, resolveOpencodeGoSupplementalModel };

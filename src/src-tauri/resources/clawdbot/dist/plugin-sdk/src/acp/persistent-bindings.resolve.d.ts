@@ -1,5 +1,4 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import type { ConversationRef } from "../infra/outbound/session-binding-service.js";
 import { type ConfiguredAcpBindingSpec, type ResolvedConfiguredAcpBinding } from "./persistent-bindings.types.js";
 export declare function resolveConfiguredAcpBindingRecord(params: {
     cfg: OpenClawConfig;
@@ -7,10 +6,6 @@ export declare function resolveConfiguredAcpBindingRecord(params: {
     accountId: string;
     conversationId: string;
     parentConversationId?: string;
-}): ResolvedConfiguredAcpBinding | null;
-export declare function resolveConfiguredAcpBindingRecordForConversation(params: {
-    cfg: OpenClawConfig;
-    conversation: ConversationRef;
 }): ResolvedConfiguredAcpBinding | null;
 export declare function resolveConfiguredAcpBindingSpecBySessionKey(params: {
     cfg: OpenClawConfig;

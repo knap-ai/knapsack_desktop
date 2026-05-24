@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ThinkLevel } from "../../auto-reply/thinking.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import type { ProviderRuntimeModel } from "../../plugins/provider-runtime-model.types.js";
@@ -17,8 +17,6 @@ declare function prepareCompactionSessionAgent(params: {
         };
     };
     providerStreamFn: unknown;
-    shouldUseWebSocketTransport: boolean;
-    wsApiKey?: string;
     sessionId: string;
     signal: AbortSignal;
     effectiveModel: ProviderRuntimeModel;
@@ -40,14 +38,14 @@ declare function resolveCompactionProviderStream(params: {
     config?: OpenClawConfig;
     agentDir: string;
     effectiveWorkspace: string;
-}): import("@mariozechner/pi-agent-core").StreamFn | undefined;
+}): import("@earendil-works/pi-agent-core").StreamFn | undefined;
 declare function containsRealConversationMessages(messages: AgentMessage[]): boolean;
 /**
  * Core compaction logic without lane queueing.
  * Use this when already inside a session/global lane to avoid deadlocks.
  */
 export declare function compactEmbeddedPiSessionDirect(params: CompactEmbeddedPiSessionParams): Promise<EmbeddedPiCompactResult>;
-export declare const __testing: {
+export declare const testing: {
     readonly hasRealConversationContent: typeof hasRealConversationContent;
     readonly hasMeaningfulConversationContent: typeof hasMeaningfulConversationContent;
     readonly containsRealConversationMessages: typeof containsRealConversationMessages;
@@ -61,3 +59,4 @@ export declare const __testing: {
     readonly runPostCompactionSideEffects: typeof runPostCompactionSideEffects;
 };
 export { runPostCompactionSideEffects } from "./compaction-hooks.js";
+export { testing as __testing };

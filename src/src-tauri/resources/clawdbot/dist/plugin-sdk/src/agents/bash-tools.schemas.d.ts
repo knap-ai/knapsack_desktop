@@ -8,7 +8,7 @@ export declare const execSchema: Type.TObject<{
     timeout: Type.TOptional<Type.TNumber>;
     pty: Type.TOptional<Type.TBoolean>;
     elevated: Type.TOptional<Type.TBoolean>;
-    host: Type.TOptional<Type.TString>;
+    host: Type.TOptional<Type.TUnsafe<"auto" | "gateway" | "node" | "sandbox">>;
     security: Type.TOptional<Type.TString>;
     ask: Type.TOptional<Type.TString>;
     node: Type.TOptional<Type.TString>;

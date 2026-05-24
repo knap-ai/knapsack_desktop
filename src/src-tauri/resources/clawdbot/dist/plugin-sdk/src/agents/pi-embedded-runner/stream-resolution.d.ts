@@ -1,4 +1,4 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { EmbeddedRunAttemptParams } from "./run/types.js";
 export declare function resolveEmbeddedAgentBaseStreamFn(params: {
     session: {
@@ -11,9 +11,8 @@ export declare function resetEmbeddedAgentBaseStreamFnCacheForTest(): void;
 export declare function describeEmbeddedAgentStreamStrategy(params: {
     currentStreamFn: StreamFn | undefined;
     providerStreamFn?: StreamFn;
-    shouldUseWebSocketTransport: boolean;
-    wsApiKey?: string;
     model: EmbeddedRunAttemptParams["model"];
+    resolvedApiKey?: string;
 }): string;
 export declare function resolveEmbeddedAgentApiKey(params: {
     provider: string;
@@ -25,13 +24,17 @@ export declare function resolveEmbeddedAgentApiKey(params: {
 export declare function resolveEmbeddedAgentStreamFn(params: {
     currentStreamFn: StreamFn | undefined;
     providerStreamFn?: StreamFn;
-    shouldUseWebSocketTransport: boolean;
-    wsApiKey?: string;
     sessionId: string;
     signal?: AbortSignal;
     model: EmbeddedRunAttemptParams["model"];
     resolvedApiKey?: string;
+    authProfileId?: string;
     authStorage?: {
         getApiKey(provider: string): Promise<string | undefined>;
     };
 }): StreamFn;
+export declare const testing: {
+    setPiNativeCodexResponsesStreamFnForTest(streamFn: StreamFn | undefined): void;
+    resetPiNativeCodexResponsesStreamFnForTest(): void;
+};
+export { testing as __testing };

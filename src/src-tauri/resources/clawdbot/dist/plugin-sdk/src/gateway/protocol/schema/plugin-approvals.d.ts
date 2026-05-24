@@ -6,6 +6,7 @@ export declare const PluginApprovalRequestParamsSchema: Type.TObject<{
     severity: Type.TOptional<Type.TString>;
     toolName: Type.TOptional<Type.TString>;
     toolCallId: Type.TOptional<Type.TString>;
+    allowedDecisions: Type.TOptional<Type.TArray<Type.TString>>;
     agentId: Type.TOptional<Type.TString>;
     sessionKey: Type.TOptional<Type.TString>;
     turnSourceChannel: Type.TOptional<Type.TString>;

@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type ApprovalCommandAuthorization = {
+type ApprovalCommandAuthorization = {
     authorized: boolean;
     reason?: string;
     explicit: boolean;
@@ -11,3 +11,4 @@ export declare function resolveApprovalCommandAuthorization(params: {
     senderId?: string | null;
     kind: "exec" | "plugin";
 }): ApprovalCommandAuthorization;
+export {};

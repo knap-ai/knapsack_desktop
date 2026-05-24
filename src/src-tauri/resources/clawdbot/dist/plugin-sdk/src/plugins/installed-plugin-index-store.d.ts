@@ -1,6 +1,6 @@
 import { type InstalledPluginIndexStoreOptions } from "./installed-plugin-index-store-path.js";
 import { type InstalledPluginIndex, type InstalledPluginIndexRefreshReason, type LoadInstalledPluginIndexParams, type RefreshInstalledPluginIndexParams } from "./installed-plugin-index.js";
-export { INSTALLED_PLUGIN_INDEX_STORE_PATH, resolveInstalledPluginIndexStorePath, type InstalledPluginIndexStoreOptions, } from "./installed-plugin-index-store-path.js";
+export { resolveInstalledPluginIndexStorePath, type InstalledPluginIndexStoreOptions, } from "./installed-plugin-index-store-path.js";
 export type InstalledPluginIndexStoreState = "missing" | "fresh" | "stale";
 export type InstalledPluginIndexStoreInspection = {
     state: InstalledPluginIndexStoreState;

@@ -1,5 +1,8 @@
 {
   "id": "openrouter",
+  "activation": {
+    "onStartup": false
+  },
   "enabledByDefault": true,
   "providers": [
     "openrouter"
@@ -50,6 +53,10 @@
       "groupId": "openrouter",
       "groupLabel": "OpenRouter",
       "groupHint": "API key",
+      "onboardingScopes": [
+        "text-inference",
+        "music-generation"
+      ],
       "optionKey": "openrouterApiKey",
       "cliFlag": "--openrouter-api-key",
       "cliOption": "--openrouter-api-key <key>",
@@ -63,6 +70,12 @@
     "imageGenerationProviders": [
       "openrouter"
     ],
+    "musicGenerationProviders": [
+      "openrouter"
+    ],
+    "videoGenerationProviders": [
+      "openrouter"
+    ],
     "speechProviders": [
       "openrouter"
     ]
@@ -70,10 +83,15 @@
   "mediaUnderstandingProviderMetadata": {
     "openrouter": {
       "capabilities": [
-        "image"
+        "image",
+        "audio"
       ],
       "defaultModels": {
-        "image": "auto"
+        "image": "auto",
+        "audio": "openai/whisper-large-v3-turbo"
+      },
+      "autoPriority": {
+        "audio": 35
       }
     }
   },

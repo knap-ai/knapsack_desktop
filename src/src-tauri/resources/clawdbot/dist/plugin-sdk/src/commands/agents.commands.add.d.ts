@@ -8,7 +8,22 @@ type AgentsAddOptions = {
     nonInteractive?: boolean;
     json?: boolean;
 };
+declare function copyPortableAuthProfiles(params: {
+    destAuthPath: string;
+    sourceAgentDir: string;
+}): Promise<{
+    copied: number;
+    skipped: number;
+}>;
+declare function formatSkippedOAuthProfilesMessage(params: {
+    sourceAgentId: string;
+    sourceIsInheritedMain: boolean;
+}): string;
 export declare function agentsAddCommand(opts: AgentsAddOptions, runtime?: RuntimeEnv, params?: {
     hasFlags?: boolean;
 }): Promise<void>;
-export {};
+export declare const testing: {
+    copyPortableAuthProfiles: typeof copyPortableAuthProfiles;
+    formatSkippedOAuthProfilesMessage: typeof formatSkippedOAuthProfilesMessage;
+};
+export { testing as __testing };

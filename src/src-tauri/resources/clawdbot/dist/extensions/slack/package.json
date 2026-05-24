@@ -1,22 +1,33 @@
 {
   "name": "@openclaw/slack",
-  "version": "2026.4.25",
-  "private": true,
+  "version": "2026.5.22",
   "description": "OpenClaw Slack channel plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openclaw/openclaw"
+  },
   "type": "module",
   "dependencies": {
-    "@slack/bolt": "^4.7.1",
-    "@slack/web-api": "^7.15.1",
-    "https-proxy-agent": "^9.0.0",
-    "typebox": "1.1.33",
-    "combined-stream": "^1.0.8",
-    "lodash.includes": "^4.3.0"
+    "@slack/bolt": "4.7.2",
+    "@slack/types": "2.21.1",
+    "@slack/web-api": "7.16.0",
+    "https-proxy-agent": "9.0.0",
+    "typebox": "1.1.38",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.22"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
   },
   "openclaw": {
     "extensions": [
-      "./index.js"
+      "./index.ts"
     ],
-    "setupEntry": "./setup-entry.js",
+    "setupEntry": "./setup-entry.ts",
     "channel": {
       "id": "slack",
       "label": "Slack",
@@ -32,12 +43,50 @@
         "nativeSkillsAutoEnabled": false
       },
       "configuredState": {
+        "env": {
+          "anyOf": [
+            "SLACK_APP_TOKEN",
+            "SLACK_BOT_TOKEN",
+            "SLACK_USER_TOKEN"
+          ]
+        },
         "specifier": "./configured-state",
         "exportName": "hasSlackConfiguredState"
       }
     },
-    "bundle": {
-      "stageRuntimeDependencies": true
-    }
-  }
+    "install": {
+      "npmSpec": "@openclaw/slack",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.5.12-beta.1",
+      "allowInvalidConfigRecovery": true
+    },
+    "compat": {
+      "pluginApi": ">=2026.5.22"
+    },
+    "build": {
+      "openclawVersion": "2026.5.22",
+      "bundledDist": false
+    },
+    "release": {
+      "publishToClawHub": true,
+      "publishToNpm": true
+    },
+    "runtimeExtensions": [
+      "./dist/index.js"
+    ],
+    "runtimeSetupEntry": "./dist/setup-entry.js"
+  },
+  "files": [
+    "dist/**",
+    "openclaw.plugin.json",
+    "npm-shrinkwrap.json"
+  ],
+  "bundledDependencies": [
+    "@slack/bolt",
+    "@slack/types",
+    "@slack/web-api",
+    "https-proxy-agent",
+    "typebox",
+    "zod"
+  ]
 }

@@ -1,2 +1,2 @@
-import { n as resolveChannelAllowFromPath } from "../allow-from-store-read-9xZokhe8.js";
+import { t as resolveChannelAllowFromPath } from "../channel-pairing-paths-CjMFJb8Q.js";
 export { resolveChannelAllowFromPath };

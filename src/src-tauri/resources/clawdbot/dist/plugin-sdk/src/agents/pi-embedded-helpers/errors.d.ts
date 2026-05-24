@@ -1,6 +1,6 @@
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-export { extractLeadingHttpStatus, formatRawAssistantErrorForUi, isCloudflareOrHtmlErrorPage, parseApiErrorInfo, } from "../../shared/assistant-error-format.js";
+export { extractLeadingHttpStatus, formatRawAssistantErrorForUi, isCloudflareOrHtmlErrorPage, isGenericProviderInternalError, parseApiErrorInfo, } from "../../shared/assistant-error-format.js";
 import { isModelNotFoundErrorMessage } from "../live-model-errors.js";
 import type { FailoverReason } from "./types.js";
 export { BILLING_ERROR_USER_MESSAGE, formatBillingErrorMessage, formatRateLimitOrOverloadedErrorCopy, getApiErrorPayloadFingerprint, isRawApiErrorPayload, sanitizeUserFacingText, } from "./sanitize-user-facing-text.js";
@@ -22,7 +22,7 @@ export type FailoverClassification = {
 } | {
     kind: "context_overflow";
 };
-export type ProviderRuntimeFailureKind = "auth_scope" | "auth_refresh" | "refresh_timeout" | "refresh_contention" | "callback_timeout" | "callback_validation" | "auth_html_403" | "upstream_html" | "proxy" | "rate_limit" | "dns" | "timeout" | "schema" | "sandbox_blocked" | "replay_invalid" | "empty_response" | "no_error_details" | "unclassified" | "unknown";
+export type ProviderRuntimeFailureKind = "auth_scope" | "auth_refresh" | "refresh_timeout" | "refresh_contention" | "callback_timeout" | "callback_validation" | "auth_html" | "upstream_html" | "proxy" | "rate_limit" | "dns" | "timeout" | "schema" | "sandbox_blocked" | "replay_invalid" | "empty_response" | "no_error_details" | "unclassified" | "unknown";
 export declare function inferSignalStatus(signal: FailoverSignal): number | undefined;
 export declare function isUnclassifiedNoBodyHttpSignal(signal: FailoverSignal): boolean;
 export declare function isTransientHttpError(raw: string): boolean;

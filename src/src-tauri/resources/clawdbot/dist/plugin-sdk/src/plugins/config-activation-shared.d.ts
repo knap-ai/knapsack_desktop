@@ -2,12 +2,6 @@ type EnableStateLike = {
     enabled: boolean;
     reason?: string;
 };
-type EnableStateParamsLike = {
-    id: string;
-    origin: string;
-    config: unknown;
-    enabledByDefault?: boolean;
-};
 type PluginKindLike = string | readonly string[] | undefined;
 export type PluginActivationSource = "disabled" | "explicit" | "auto" | "default";
 export type PluginExplicitSelectionCause = "enabled-in-config" | "bundled-channel-enabled-in-config" | "selected-memory-slot" | "selected-context-engine-slot" | "selected-in-allowlist";
@@ -57,10 +51,6 @@ export declare function toEnableStateResult(state: EnableStateLike): {
     reason?: string;
 };
 export declare function resolveEnableStateResult<TParams>(params: TParams, resolveState: (params: TParams) => EnableStateLike): {
-    enabled: boolean;
-    reason?: string;
-};
-export declare function resolveEnableStateShared<TParams extends EnableStateParamsLike>(params: TParams, resolveState: (params: TParams) => EnableStateLike): {
     enabled: boolean;
     reason?: string;
 };

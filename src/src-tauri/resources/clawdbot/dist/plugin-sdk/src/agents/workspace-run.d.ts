@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type WorkspaceFallbackReason = "missing" | "blank" | "invalid_type";
+type WorkspaceFallbackReason = "missing" | "blank" | "invalid_type";
 type AgentIdSource = "explicit" | "session_key" | "default";
-export type ResolveRunWorkspaceResult = {
+type ResolveRunWorkspaceResult = {
     workspaceDir: string;
     usedFallback: boolean;
     fallbackReason?: WorkspaceFallbackReason;

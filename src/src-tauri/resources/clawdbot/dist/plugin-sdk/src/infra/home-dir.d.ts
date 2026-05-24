@@ -11,6 +11,7 @@ export declare function resolveHomeRelativePath(input: string, opts?: {
     env?: NodeJS.ProcessEnv;
     homedir?: () => string;
 }): string;
+export declare function resolveUserPath(input: string, env?: NodeJS.ProcessEnv, homedir?: () => string): string;
 export declare function resolveOsHomeRelativePath(input: string, opts?: {
     env?: NodeJS.ProcessEnv;
     homedir?: () => string;

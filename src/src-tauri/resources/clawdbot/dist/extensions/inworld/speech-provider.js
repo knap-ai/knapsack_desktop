@@ -1,2 +1,2 @@
-import { t as buildInworldSpeechProvider } from "../../speech-provider-CDJpn2nL.js";
+import { t as buildInworldSpeechProvider } from "../../speech-provider-CNgEXw3H.js";
 export { buildInworldSpeechProvider };

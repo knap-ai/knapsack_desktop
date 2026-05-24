@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.js";
-export type ProviderModelRef = {
+type ProviderModelRef = {
     provider: string;
     model: string;
 };
@@ -8,3 +8,4 @@ export declare function resolveConfiguredProviderFallback(params: {
     defaultProvider: string;
     defaultModel?: string;
 }): ProviderModelRef | null;
+export {};

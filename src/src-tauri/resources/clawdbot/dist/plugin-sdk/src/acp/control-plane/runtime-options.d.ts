@@ -2,10 +2,8 @@ import type { AcpSessionRuntimeOptions, SessionAcpMeta } from "../../config/sess
 export { normalizeText } from "../normalize-text.js";
 export declare function validateRuntimeModeInput(rawMode: unknown): string;
 export declare function validateRuntimeModelInput(rawModel: unknown): string;
-export declare function validateRuntimeThinkingInput(rawThinking: unknown): string;
 export declare function validateRuntimePermissionProfileInput(rawProfile: unknown): string;
 export declare function validateRuntimeCwdInput(rawCwd: unknown): string;
-export declare function validateRuntimeTimeoutSecondsInput(rawTimeout: unknown): number;
 export declare function parseRuntimeTimeoutSecondsInput(rawTimeout: unknown): number;
 export declare function validateRuntimeConfigOptionInput(rawKey: unknown, rawValue: unknown): {
     key: string;
@@ -20,5 +18,6 @@ export declare function mergeRuntimeOptions(params: {
 export declare function resolveRuntimeOptionsFromMeta(meta: SessionAcpMeta): AcpSessionRuntimeOptions;
 export declare function runtimeOptionsEqual(a: AcpSessionRuntimeOptions | undefined, b: AcpSessionRuntimeOptions | undefined): boolean;
 export declare function buildRuntimeControlSignature(options: AcpSessionRuntimeOptions): string;
-export declare function buildRuntimeConfigOptionPairs(options: AcpSessionRuntimeOptions): Array<[string, string]>;
+export declare function buildRuntimeConfigOptionPairs(options: AcpSessionRuntimeOptions, advertisedConfigOptionKeys?: readonly string[]): Array<[string, string]>;
+export declare function resolveRuntimeConfigOptionKey(key: string, advertisedConfigOptionKeys?: readonly string[]): string;
 export declare function inferRuntimeOptionPatchFromConfigOption(key: string, value: string): Partial<AcpSessionRuntimeOptions>;

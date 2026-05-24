@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-import { openBoundaryFileSync } from "../infra/boundary-file-read.js";
+import { type RootFileOpenFailure } from "../infra/boundary-file-read.js";
 import type { PluginBundleFormat } from "./manifest-types.js";
 type ReadBundleJsonResult = {
     ok: true;
@@ -17,14 +17,10 @@ export type BundleServerRuntimeSupport = {
 export declare function readBundleJsonObject(params: {
     rootDir: string;
     relativePath: string;
-    onOpenFailure?: (failure: Extract<ReturnType<typeof openBoundaryFileSync>, {
-        ok: false;
-    }>) => ReadBundleJsonResult;
+    onOpenFailure?: (failure: RootFileOpenFailure) => ReadBundleJsonResult;
 }): ReadBundleJsonResult;
 export declare function resolveBundleJsonOpenFailure(params: {
-    failure: Extract<ReturnType<typeof openBoundaryFileSync>, {
-        ok: false;
-    }>;
+    failure: RootFileOpenFailure;
     relativePath: string;
     allowMissing?: boolean;
 }): ReadBundleJsonResult;

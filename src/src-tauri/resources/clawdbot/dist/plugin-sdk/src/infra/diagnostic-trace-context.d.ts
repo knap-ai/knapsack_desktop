@@ -8,7 +8,7 @@ export type DiagnosticTraceContext = {
     /** W3C trace flags, 2 lowercase hex chars. Defaults to sampled. */
     readonly traceFlags?: string;
 };
-export type DiagnosticTraceContextInput = Partial<DiagnosticTraceContext> & {
+type DiagnosticTraceContextInput = Partial<DiagnosticTraceContext> & {
     traceparent?: string;
 };
 export declare function isValidDiagnosticTraceId(value: unknown): value is string;
@@ -22,5 +22,5 @@ export declare function createDiagnosticTraceContextFromActiveScope(input?: Omit
 export declare function freezeDiagnosticTraceContext(context: DiagnosticTraceContext): DiagnosticTraceContext;
 export declare function getActiveDiagnosticTraceContext(): DiagnosticTraceContext | undefined;
 export declare function runWithDiagnosticTraceContext<T>(trace: DiagnosticTraceContext, callback: () => T): T;
-export declare function runWithNewDiagnosticTraceContext<T>(input: DiagnosticTraceContextInput, callback: () => T): T;
 export declare function resetDiagnosticTraceContextForTest(): void;
+export {};

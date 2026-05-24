@@ -1,2 +1,2 @@
-import { t as buildVydraSpeechProvider } from "../../speech-provider-DnHgo_K9.js";
+import { t as buildVydraSpeechProvider } from "../../speech-provider-DwGcs0oY.js";
 export { buildVydraSpeechProvider };

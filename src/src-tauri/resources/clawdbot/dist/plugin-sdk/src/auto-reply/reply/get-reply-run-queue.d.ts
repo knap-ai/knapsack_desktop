@@ -6,6 +6,7 @@ export type ReplyRunQueueBusyState = {
     isActive: boolean;
     isStreaming: boolean;
 };
+export declare const REPLY_RUN_STILL_SHUTTING_DOWN_TEXT = "\u26A0\uFE0F Previous run is still shutting down. Please try again in a moment.";
 export declare function resolvePreparedReplyQueueState(params: {
     activeRunQueueAction: ActiveRunQueueAction;
     activeSessionId: string | undefined;

@@ -18,8 +18,6 @@ type MockCallsWithFirstArg = {
         calls: Array<[unknown, ...unknown[]]>;
     };
 };
-export declare function normalizeRuntimeStdout(value: string): string;
-export declare function stringifyRuntimeJson(value: unknown, space?: number): string;
 export declare function createCliRuntimeCapture(): CliRuntimeCapture;
 export declare function mockRuntimeModule<TModule extends {
     defaultRuntime: OutputRuntimeEnv;

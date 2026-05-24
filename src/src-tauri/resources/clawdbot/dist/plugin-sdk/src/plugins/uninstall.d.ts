@@ -23,7 +23,6 @@ export declare const UNINSTALL_ACTION_LABELS: {
     directory: string;
 };
 export declare function createEmptyUninstallActions(overrides?: Partial<UninstallActions>): UninstallActions;
-export declare function createEmptyConfigUninstallActions(): Omit<UninstallActions, "directory">;
 export declare function formatUninstallActionLabels(actions: UninstallActions): string[];
 export declare function formatUninstallSlotResetPreview(slotKey: "memory" | "contextEngine"): string;
 export type UninstallPluginResult = {
@@ -38,6 +37,14 @@ export type UninstallPluginResult = {
 };
 export type PluginUninstallDirectoryRemoval = {
     target: string;
+    cleanup?: {
+        kind: "npm";
+        npmRoot: string;
+        packageName: string;
+    } | {
+        kind: "git";
+        parentDir: string;
+    };
 };
 export type PluginUninstallPlanResult = {
     ok: true;
@@ -83,7 +90,8 @@ export type UninstallPluginParams = {
 };
 /**
  * Plan a plugin uninstall by removing it from config and resolving a safe file-removal target.
- * Linked plugins (source === "path") never have their source directory deleted.
+ * Linked path plugins never have their source directory deleted. Copied path installs still remove
+ * their managed install directory.
  */
 export declare function planPluginUninstall(params: UninstallPluginParams): PluginUninstallPlanResult;
 export declare function applyPluginUninstallDirectoryRemoval(removal: PluginUninstallDirectoryRemoval | null): Promise<{

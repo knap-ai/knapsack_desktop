@@ -1,9 +1,7 @@
+export { unwrapEnvInvocation } from "./command-carriers.js";
 export declare const MAX_DISPATCH_WRAPPER_DEPTH = 4;
-export declare function isEnvAssignment(token: string): boolean;
-export declare function unwrapEnvInvocation(argv: string[]): string[] | null;
 export declare function extractEnvAssignmentKeysFromDispatchWrappers(argv: string[], maxDepth?: number): string[];
-export declare const DISPATCH_WRAPPER_EXECUTABLES: Set<string>;
-export type DispatchWrapperUnwrapResult = {
+type DispatchWrapperUnwrapResult = {
     kind: "not-wrapper";
 } | {
     kind: "blocked";
@@ -13,7 +11,7 @@ export type DispatchWrapperUnwrapResult = {
     wrapper: string;
     argv: string[];
 };
-export type DispatchWrapperTrustPlan = {
+type DispatchWrapperTrustPlan = {
     argv: string[];
     wrappers: string[];
     policyBlocked: boolean;

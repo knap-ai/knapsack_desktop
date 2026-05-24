@@ -4,6 +4,7 @@ export declare function resolvePinnedMainDmOwnerFromAllowlist(params: {
     allowFrom?: Array<string | number> | null;
     normalizeEntry: (entry: string) => string | undefined;
 }): string | null;
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveEffectiveAllowFromLists(params: {
     allowFrom?: Array<string | number> | null;
     groupAllowFrom?: Array<string | number> | null;
@@ -27,6 +28,16 @@ export declare const DM_GROUP_ACCESS_REASON: {
     readonly DM_POLICY_NOT_ALLOWLISTED: "dm_policy_not_allowlisted";
 };
 export type DmGroupAccessReasonCode = (typeof DM_GROUP_ACCESS_REASON)[keyof typeof DM_GROUP_ACCESS_REASON];
+type DmGroupAccessResult = {
+    decision: DmGroupAccessDecision;
+    reasonCode: DmGroupAccessReasonCode;
+    reason: string;
+};
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
+export declare function resolveOpenDmAllowlistAccess(params: {
+    effectiveAllowFrom: Array<string | number>;
+    isSenderAllowed: (allowFrom: string[]) => boolean;
+}): DmGroupAccessResult;
 type DmGroupAccessInputParams = {
     isGroup: boolean;
     dmPolicy?: string | null;
@@ -37,6 +48,7 @@ type DmGroupAccessInputParams = {
     groupAllowFromFallbackToAllowFrom?: boolean | null;
     isSenderAllowed: (allowFrom: string[]) => boolean;
 };
+/** @deprecated Use `resolveChannelMessageIngress` or `readChannelIngressStoreAllowFromForDmPolicy` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function readStoreAllowFromForDmPolicy(params: {
     provider: ChannelId;
     accountId: string;
@@ -44,6 +56,7 @@ export declare function readStoreAllowFromForDmPolicy(params: {
     shouldRead?: boolean | null;
     readStore?: (provider: ChannelId, accountId: string) => Promise<string[]>;
 }): Promise<string[]>;
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveDmGroupAccessDecision(params: {
     isGroup: boolean;
     dmPolicy?: string | null;
@@ -51,11 +64,8 @@ export declare function resolveDmGroupAccessDecision(params: {
     effectiveAllowFrom: Array<string | number>;
     effectiveGroupAllowFrom: Array<string | number>;
     isSenderAllowed: (allowFrom: string[]) => boolean;
-}): {
-    decision: DmGroupAccessDecision;
-    reasonCode: DmGroupAccessReasonCode;
-    reason: string;
-};
+}): DmGroupAccessResult;
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveDmGroupAccessWithLists(params: DmGroupAccessInputParams): {
     decision: DmGroupAccessDecision;
     reasonCode: DmGroupAccessReasonCode;
@@ -63,6 +73,7 @@ export declare function resolveDmGroupAccessWithLists(params: DmGroupAccessInput
     effectiveAllowFrom: string[];
     effectiveGroupAllowFrom: string[];
 };
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveDmGroupAccessWithCommandGate(params: DmGroupAccessInputParams & {
     command?: {
         useAccessGroups: boolean;
@@ -71,16 +82,19 @@ export declare function resolveDmGroupAccessWithCommandGate(params: DmGroupAcces
     };
 }): {
     decision: DmGroupAccessDecision;
+    reasonCode: DmGroupAccessReasonCode;
     reason: string;
     effectiveAllowFrom: string[];
     effectiveGroupAllowFrom: string[];
     commandAuthorized: boolean;
     shouldBlockControlCommand: boolean;
 };
+/** @deprecated Use `resolveChannelMessageIngress` from `openclaw/plugin-sdk/channel-ingress-runtime`. */
 export declare function resolveDmAllowState(params: {
     provider: ChannelId;
     accountId: string;
     allowFrom?: Array<string | number> | null;
+    dmPolicy?: string | null;
     normalizeEntry?: (raw: string) => string;
     readStore?: (provider: ChannelId, accountId: string) => Promise<string[]>;
 }): Promise<{

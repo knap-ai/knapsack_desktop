@@ -1,4 +1,4 @@
-import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-D7qTHvXU.js";
+import { n as buildDoubaoProvider, t as buildDoubaoCodingProvider } from "../../provider-catalog-wn341Uo6.js";
 //#region extensions/volcengine/provider-discovery.ts
 const volcengineProviderDiscovery = [{
 	id: "volcengine",
@@ -20,4 +20,4 @@ const volcengineProviderDiscovery = [{
 	}
 }];
 //#endregion
-export { volcengineProviderDiscovery as default, volcengineProviderDiscovery };
+export { volcengineProviderDiscovery as default };

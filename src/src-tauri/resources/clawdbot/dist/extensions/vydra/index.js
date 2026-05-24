@@ -1,10 +1,10 @@
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-Ca3FnLkQ.js";
-import "../../provider-auth-api-key-brLkyScu.js";
-import { t as buildVydraImageGenerationProvider } from "../../image-generation-provider-DTfQZPE7.js";
-import { n as applyVydraConfig, t as VYDRA_DEFAULT_IMAGE_MODEL_REF } from "../../onboard-D_bj_OUg.js";
-import { t as buildVydraSpeechProvider } from "../../speech-provider-DnHgo_K9.js";
-import { t as buildVydraVideoGenerationProvider } from "../../video-generation-provider-CgYSGxHy.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as createProviderApiKeyAuthMethod } from "../../provider-api-key-auth-E_5Yag4W.js";
+import "../../provider-auth-api-key-C06h8GOX.js";
+import { t as buildVydraImageGenerationProvider } from "../../image-generation-provider-BCjs9qtG.js";
+import { n as applyVydraConfig, t as VYDRA_DEFAULT_IMAGE_MODEL_REF } from "../../onboard-CGaS_IEV.js";
+import { t as buildVydraSpeechProvider } from "../../speech-provider-DwGcs0oY.js";
+import { t as buildVydraVideoGenerationProvider } from "../../video-generation-provider-ShrJyuZE.js";
 //#region extensions/vydra/index.ts
 const PROVIDER_ID = "vydra";
 var vydra_default = definePluginEntry({

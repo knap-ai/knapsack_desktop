@@ -21,6 +21,5 @@ export declare const SAFE_BIN_PROFILE_FIXTURES: Record<string, SafeBinProfileFix
 export declare const SAFE_BIN_PROFILES: Record<string, SafeBinProfile>;
 export declare function normalizeSafeBinProfileFixtures(fixtures?: SafeBinProfileFixtures | null): Record<string, SafeBinProfileFixture>;
 export declare function resolveSafeBinProfiles(fixtures?: SafeBinProfileFixtures | null): Record<string, SafeBinProfile>;
-export declare function resolveSafeBinDeniedFlags(fixtures?: Readonly<Record<string, SafeBinProfileFixture>>): Record<string, string[]>;
 export declare function renderSafeBinDeniedFlagsDocBullets(fixtures?: Readonly<Record<string, SafeBinProfileFixture>>): string;
 export declare function renderDefaultSafeBinsDocText(defaults?: readonly string[]): string;

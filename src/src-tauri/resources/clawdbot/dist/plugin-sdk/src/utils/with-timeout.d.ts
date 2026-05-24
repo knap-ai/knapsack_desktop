@@ -1,1 +1,1 @@
-export declare function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T>;
+export { withTimeout } from "../infra/fs-safe.js";

@@ -6,7 +6,6 @@ export declare function hasSubagentRunEnded<T extends Pick<SubagentRunRecord, "e
 };
 export declare function isStaleUnendedSubagentRun(entry: Pick<SubagentRunRecord, "createdAt" | "startedAt" | "sessionStartedAt" | "endedAt" | "runTimeoutSeconds">, now?: number): boolean;
 export declare function isLiveUnendedSubagentRun(entry: Pick<SubagentRunRecord, "createdAt" | "startedAt" | "sessionStartedAt" | "endedAt" | "runTimeoutSeconds">, now?: number): boolean;
-export declare function isRecentlyEndedSubagentRun(entry: Pick<SubagentRunRecord, "endedAt">, now?: number, recentMs?: number): boolean;
 export declare function shouldKeepSubagentRunChildLink(entry: Pick<SubagentRunRecord, "createdAt" | "startedAt" | "sessionStartedAt" | "endedAt" | "runTimeoutSeconds">, options?: {
     activeDescendants?: number;
     now?: number;

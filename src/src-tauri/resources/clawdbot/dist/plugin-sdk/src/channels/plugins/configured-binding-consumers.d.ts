@@ -29,4 +29,3 @@ export type ConfiguredBindingConsumer = {
 export declare function listConfiguredBindingConsumers(): ConfiguredBindingConsumer[];
 export declare function resolveConfiguredBindingConsumer(binding: ConfiguredBindingRuleConfig): ConfiguredBindingConsumer | null;
 export declare function registerConfiguredBindingConsumer(consumer: ConfiguredBindingConsumer): void;
-export declare function unregisterConfiguredBindingConsumer(id: string): void;

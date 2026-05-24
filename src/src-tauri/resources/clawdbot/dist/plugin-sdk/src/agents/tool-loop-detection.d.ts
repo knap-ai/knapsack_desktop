@@ -1,7 +1,7 @@
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
-import type { SessionState } from "../logging/diagnostic-session-state.js";
-export type LoopDetectorKind = "generic_repeat" | "unknown_tool_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
-export type LoopDetectionResult = {
+import type { SessionState, ToolCallRecord } from "../logging/diagnostic-session-state.js";
+type LoopDetectorKind = "generic_repeat" | "unknown_tool_repeat" | "known_poll_no_progress" | "global_circuit_breaker" | "ping_pong";
+type LoopDetectionResult = {
     stuck: false;
 } | {
     stuck: true;
@@ -17,7 +17,7 @@ export declare const WARNING_THRESHOLD = 10;
 export declare const UNKNOWN_TOOL_THRESHOLD = 10;
 export declare const CRITICAL_THRESHOLD = 20;
 export declare const GLOBAL_CIRCUIT_BREAKER_THRESHOLD = 30;
-export type ToolLoopDetectionScope = {
+type ToolLoopDetectionScope = {
     runId?: string;
 };
 /**
@@ -46,7 +46,7 @@ export declare function recordToolCallOutcome(state: SessionState, params: {
     error?: unknown;
     config?: ToolLoopDetectionConfig;
     runId?: string;
-}): void;
+}): ToolCallRecord | undefined;
 /**
  * Get current tool call statistics for a session (for debugging/monitoring).
  */
@@ -58,3 +58,4 @@ export declare function getToolCallStats(state: SessionState): {
         count: number;
     } | null;
 };
+export {};

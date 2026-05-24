@@ -10,18 +10,39 @@ type ApprovalResolverParams = {
     approvalKind?: ApprovalKind;
     request: ApprovalRequest;
 };
-type NativeApprovalTarget = {
-    to: string;
-    threadId?: string | number | null;
-};
-export declare function createChannelNativeOriginTargetResolver<TTarget>(params: {
+type NativeApprovalTargetNormalizer<TTarget> = (target: TTarget, request: ApprovalRequest) => TTarget | null | undefined;
+type NativeOriginResolverParams<TTarget extends NativeApprovalTarget> = {
     channel: string;
     shouldHandleRequest?: (params: ApprovalResolverParams) => boolean;
     resolveTurnSourceTarget: (request: ApprovalRequest) => TTarget | null;
     resolveSessionTarget: (sessionTarget: ExecApprovalSessionTarget, request: ApprovalRequest) => TTarget | null;
+    normalizeTarget?: NativeApprovalTargetNormalizer<TTarget>;
+    normalizeTargetForMatch?: NativeApprovalTargetNormalizer<TTarget>;
+    targetsMatch?: (a: TTarget, b: TTarget) => boolean;
+    resolveFallbackTarget?: (request: ApprovalRequest) => TTarget | null;
+};
+type CustomOriginResolverParams<TTarget> = {
+    channel: string;
+    shouldHandleRequest?: (params: ApprovalResolverParams) => boolean;
+    resolveTurnSourceTarget: (request: ApprovalRequest) => TTarget | null;
+    resolveSessionTarget: (sessionTarget: ExecApprovalSessionTarget, request: ApprovalRequest) => TTarget | null;
+    normalizeTarget?: NativeApprovalTargetNormalizer<TTarget>;
+    normalizeTargetForMatch?: NativeApprovalTargetNormalizer<TTarget>;
     targetsMatch: (a: TTarget, b: TTarget) => boolean;
     resolveFallbackTarget?: (request: ApprovalRequest) => TTarget | null;
-}): (input: ApprovalResolverParams) => TTarget | null;
+};
+export type NativeApprovalTarget = {
+    to: string;
+    accountId?: string | null;
+    threadId?: string | number | null;
+};
+export declare function nativeApprovalTargetsMatch(params: {
+    channel?: string | null;
+    left: NativeApprovalTarget;
+    right: NativeApprovalTarget;
+}): boolean;
+export declare function createChannelNativeOriginTargetResolver<TTarget extends NativeApprovalTarget>(params: NativeOriginResolverParams<TTarget>): (input: ApprovalResolverParams) => TTarget | null;
+export declare function createChannelNativeOriginTargetResolver<TTarget>(params: CustomOriginResolverParams<TTarget>): (input: ApprovalResolverParams) => TTarget | null;
 export declare function createChannelApproverDmTargetResolver<TApprover, TTarget extends NativeApprovalTarget = NativeApprovalTarget>(params: {
     shouldHandleRequest?: (params: ApprovalResolverParams) => boolean;
     resolveApprovers: (params: {

@@ -35,8 +35,10 @@ export declare function resolveSubagentModelAndThinkingPlan(params: {
     initialSessionPatch: {
         thinkingLevel?: undefined;
         model?: string | undefined;
+        modelOverrideSource?: string | undefined;
     } | {
         thinkingLevel: "adaptive" | "high" | "low" | "max" | "medium" | "minimal" | "xhigh" | null;
         model?: string | undefined;
+        modelOverrideSource?: string | undefined;
     };
 };

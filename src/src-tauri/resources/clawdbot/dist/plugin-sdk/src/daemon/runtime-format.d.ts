@@ -1,4 +1,4 @@
-export type ServiceRuntimeLike = {
+type ServiceRuntimeLike = {
     status?: string;
     state?: string;
     subState?: string;
@@ -10,3 +10,4 @@ export type ServiceRuntimeLike = {
     detail?: string;
 };
 export declare function formatRuntimeStatus(runtime: ServiceRuntimeLike | undefined): string | null;
+export {};

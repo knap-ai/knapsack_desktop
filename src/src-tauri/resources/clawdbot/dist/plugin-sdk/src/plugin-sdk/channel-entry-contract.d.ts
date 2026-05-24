@@ -1,10 +1,12 @@
+import type { ChannelOutboundAdapter } from "../channels/plugins/types.adapters.js";
 import type { ChannelConfigSchema } from "../channels/plugins/types.config.js";
 import type { ChannelLegacyStateMigrationPlan } from "../channels/plugins/types.core.js";
 import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { type PluginModuleLoaderFactory } from "../plugins/plugin-module-loader-cache.js";
 import type { PluginRuntime } from "../plugins/runtime/types.js";
-import type { AnyAgentTool, OpenClawPluginApi, PluginCommandContext } from "../plugins/types.js";
-export type { AnyAgentTool, OpenClawPluginApi, PluginCommandContext };
+import type { AnyAgentTool, OpenClawPluginApi, OpenClawPluginCommandDefinition, PluginCommandContext } from "../plugins/types.js";
+export type { AnyAgentTool, OpenClawPluginApi, OpenClawPluginCommandDefinition, PluginCommandContext, };
 type ChannelEntryConfigSchema<TPlugin> = TPlugin extends ChannelPlugin<unknown> ? NonNullable<TPlugin["configSchema"]> : ChannelConfigSchema;
 type BundledEntryModuleRef = {
     specifier: string;
@@ -16,6 +18,7 @@ type DefineBundledChannelEntryOptions<TPlugin = ChannelPlugin> = {
     description: string;
     importMetaUrl: string;
     plugin: BundledEntryModuleRef;
+    outbound?: BundledEntryModuleRef;
     secrets?: BundledEntryModuleRef;
     configSchema?: ChannelEntryConfigSchema<TPlugin> | (() => ChannelEntryConfigSchema<TPlugin>);
     runtime?: BundledEntryModuleRef;
@@ -61,9 +64,10 @@ export type BundledChannelEntryContract<TPlugin = ChannelPlugin> = {
     configSchema: ChannelEntryConfigSchema<TPlugin>;
     features?: BundledChannelEntryFeatures;
     register: (api: OpenClawPluginApi) => void;
-    loadChannelPlugin: () => TPlugin;
-    loadChannelSecrets?: () => ChannelPlugin["secrets"] | undefined;
-    loadChannelAccountInspector?: () => NonNullable<ChannelPlugin["config"]["inspectAccount"]>;
+    loadChannelPlugin: (options?: BundledEntryModuleLoadOptions) => TPlugin;
+    loadChannelOutbound?: (options?: BundledEntryModuleLoadOptions) => ChannelOutboundAdapter | undefined;
+    loadChannelSecrets?: (options?: BundledEntryModuleLoadOptions) => ChannelPlugin["secrets"] | undefined;
+    loadChannelAccountInspector?: (options?: BundledEntryModuleLoadOptions) => NonNullable<ChannelPlugin["config"]["inspectAccount"]>;
     setChannelRuntime?: (runtime: PluginRuntime) => void;
 };
 export type BundledChannelSetupEntryContract<TPlugin = ChannelPlugin> = {
@@ -76,8 +80,8 @@ export type BundledChannelSetupEntryContract<TPlugin = ChannelPlugin> = {
     features?: BundledChannelSetupEntryFeatures;
 };
 export type BundledEntryModuleLoadOptions = {
-    installRuntimeDeps?: boolean;
+    createLoaderForTest?: PluginModuleLoaderFactory;
 };
 export declare function loadBundledEntryExportSync<T>(importMetaUrl: string, reference: BundledEntryModuleRef, options?: BundledEntryModuleLoadOptions): T;
-export declare function defineBundledChannelEntry<TPlugin = ChannelPlugin>({ id, name, description, importMetaUrl, plugin, secrets, configSchema, runtime, accountInspect, features, registerCliMetadata, registerFull }: DefineBundledChannelEntryOptions<TPlugin>): BundledChannelEntryContract<TPlugin>;
-export declare function defineBundledChannelSetupEntry<TPlugin = ChannelPlugin>({ importMetaUrl, plugin, secrets, runtime, legacyStateMigrations, legacySessionSurface, features }: DefineBundledChannelSetupEntryOptions): BundledChannelSetupEntryContract<TPlugin>;
+export declare function defineBundledChannelEntry<TPlugin = ChannelPlugin>({ id, name, description, importMetaUrl, plugin, outbound, secrets, configSchema, runtime, accountInspect, features, registerCliMetadata, registerFull, }: DefineBundledChannelEntryOptions<TPlugin>): BundledChannelEntryContract<TPlugin>;
+export declare function defineBundledChannelSetupEntry<TPlugin = ChannelPlugin>({ importMetaUrl, plugin, secrets, runtime, legacyStateMigrations, legacySessionSurface, features, }: DefineBundledChannelSetupEntryOptions): BundledChannelSetupEntryContract<TPlugin>;

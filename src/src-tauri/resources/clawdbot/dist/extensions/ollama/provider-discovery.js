@@ -1,5 +1,5 @@
-import { i as buildOllamaProvider } from "../../provider-base-url-DttoVyCf.js";
-import { i as shouldUseSyntheticOllamaAuth, n as OLLAMA_PROVIDER_ID, r as resolveOllamaDiscoveryResult, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-DpKWxumG.js";
+import { i as buildOllamaProvider } from "../../provider-base-url-CrecHiog.js";
+import { i as shouldUseSyntheticOllamaAuth, n as OLLAMA_PROVIDER_ID, r as resolveOllamaDiscoveryResult, t as OLLAMA_DEFAULT_API_KEY } from "../../discovery-shared-ROvQIBGQ.js";
 //#region extensions/ollama/provider-discovery.ts
 function resolveOllamaPluginConfig(ctx) {
 	return (ctx.config.plugins?.entries ?? {}).ollama?.config ?? {};
@@ -25,7 +25,7 @@ const ollamaProviderDiscovery = {
 			mode: "api-key"
 		};
 	},
-	discovery: {
+	catalog: {
 		order: "late",
 		run: runOllamaDiscovery
 	}

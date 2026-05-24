@@ -1,3 +1,4 @@
+import type { BufferedAgentEvent } from "./server-chat-state.js";
 export type ChatAbortControllerEntry = {
     controller: AbortController;
     sessionId: string;
@@ -6,6 +7,9 @@ export type ChatAbortControllerEntry = {
     expiresAtMs: number;
     ownerConnId?: string;
     ownerDeviceId?: string;
+    providerId?: string;
+    authProviderId?: string;
+    abortStopReason?: string;
     /**
      * Which RPC owns this registration. Absent (undefined) is treated as
      * `"chat-send"` so pre-existing callers that constructed entries without
@@ -14,20 +18,13 @@ export type ChatAbortControllerEntry = {
      */
     kind?: "chat-send" | "agent";
 };
-export type RegisteredChatAbortController = {
+type RegisteredChatAbortController = {
     controller: AbortController;
     registered: boolean;
     entry?: ChatAbortControllerEntry;
     cleanup: () => void;
 };
 export declare function isChatStopCommandText(text: string): boolean;
-export declare function resolveChatRunExpiresAtMs(params: {
-    now: number;
-    timeoutMs: number;
-    graceMs?: number;
-    minMs?: number;
-    maxMs?: number;
-}): number;
 export declare function resolveAgentRunExpiresAtMs(params: {
     now: number;
     timeoutMs: number;
@@ -41,6 +38,8 @@ export declare function registerChatAbortController(params: {
     timeoutMs: number;
     ownerConnId?: string;
     ownerDeviceId?: string;
+    providerId?: string;
+    authProviderId?: string;
     kind?: ChatAbortControllerEntry["kind"];
     now?: number;
     expiresAtMs?: number;
@@ -50,6 +49,9 @@ export type ChatAbortOps = {
     chatRunBuffers: Map<string, string>;
     chatDeltaSentAt: Map<string, number>;
     chatDeltaLastBroadcastLen: Map<string, number>;
+    chatDeltaLastBroadcastText: Map<string, string>;
+    agentDeltaSentAt: Map<string, number>;
+    bufferedAgentEvents: Map<string, BufferedAgentEvent>;
     chatAbortedRuns: Map<string, number>;
     removeChatRun: (sessionId: string, clientRunId: string, sessionKey?: string) => {
         sessionKey: string;
@@ -68,10 +70,15 @@ export declare function abortChatRunById(ops: ChatAbortOps, params: {
 }): {
     aborted: boolean;
 };
-export declare function abortChatRunsForSessionKey(ops: ChatAbortOps, params: {
-    sessionKey: string;
+export declare function updateChatRunProvider(chatAbortControllers: Map<string, ChatAbortControllerEntry>, params: {
+    runId: string;
+    providerId?: string;
+    authProviderId?: string;
+}): boolean;
+export declare function abortChatRunsForProvider(ops: ChatAbortOps, params: {
+    providerId: string;
     stopReason?: string;
 }): {
-    aborted: boolean;
     runIds: string[];
 };
+export {};

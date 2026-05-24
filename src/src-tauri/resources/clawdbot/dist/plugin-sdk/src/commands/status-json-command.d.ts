@@ -1,6 +1,6 @@
 import { type RuntimeEnv } from "../runtime.js";
 import { resolveStatusJsonOutput } from "./status-json-runtime.ts";
-export type StatusJsonCommandOptions = {
+type StatusJsonCommandOptions = {
     deep?: boolean;
     usage?: boolean;
     timeoutMs?: number;
@@ -17,3 +17,4 @@ export declare function runStatusJsonCommand(params: {
         all?: boolean;
     }, runtime: RuntimeEnv) => Promise<Parameters<typeof resolveStatusJsonOutput>[0]["scan"]>;
 }): Promise<void>;
+export {};

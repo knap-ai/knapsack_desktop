@@ -1,4 +1,5 @@
 export declare function isPidAlive(pid: number): boolean;
+export declare function isPidDefinitelyDead(pid: number): boolean;
 /**
  * Read the process start time (field 22 "starttime") from /proc/<pid>/stat.
  * Returns the value in clock ticks since system boot, or null on non-Linux

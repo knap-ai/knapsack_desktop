@@ -54,14 +54,50 @@ export declare function createBackspaceDeduper(params?: {
 }): (data: string) => string;
 export declare function isIgnorableTuiStopError(error: unknown): boolean;
 export declare function stopTuiSafely(stop: () => void): void;
+type TerminalLossEmitter = {
+    on(event: "close" | "end", listener: () => void): unknown;
+    off(event: "close" | "end", listener: () => void): unknown;
+};
+export declare function isTuiTerminalLossError(error: unknown): boolean;
+export declare function installTuiTerminalLossExitHandler(requestExit: () => void, targets?: {
+    stdin?: TerminalLossEmitter;
+    stdout?: TerminalLossEmitter;
+}): () => void;
+export declare function createDeferredTuiFinish(): {
+    requestFinish: () => void;
+    setFinish: (finish: () => void) => void;
+    clearFinish: () => void;
+};
 type DrainableTui = {
     stop: () => void;
     terminal?: {
         drainInput?: (maxMs?: number, idleMs?: number) => Promise<void>;
     };
 };
+type TuiProcessExitTimer = {
+    unref?: () => void;
+};
+type TuiProcessExitTimeout = (callback: () => void, delayMs: number) => TuiProcessExitTimer;
 export declare function drainAndStopTuiSafely(tui: DrainableTui): Promise<void>;
+export declare function canSubmitTuiChatMessage(params: {
+    local?: boolean;
+    activityStatus: string;
+    activeChatRunId?: string | null;
+    pendingChatRunId?: string | null;
+    pendingOptimisticUserMessage?: boolean;
+}): boolean;
+export declare function isTuiBusyActivityStatus(status: string): boolean;
+export declare function resolveTuiShutdownHardExitMs(params?: {
+    localMode?: boolean;
+}): number;
+export declare function scheduleProcessExitAfterTuiReturn(params?: {
+    delayMs?: number;
+    setTimeoutFn?: TuiProcessExitTimeout;
+    exit?: (code?: number) => never | void;
+    writeStderr?: (text: string) => void;
+}): TuiProcessExitTimer;
 type CtrlCAction = "clear" | "warn" | "exit";
+type TuiCtrlCAction = CtrlCAction | "force-exit";
 export declare function resolveCtrlCAction(params: {
     hasInput: boolean;
     now: number;
@@ -69,6 +105,17 @@ export declare function resolveCtrlCAction(params: {
     exitWindowMs?: number;
 }): {
     action: CtrlCAction;
+    nextLastCtrlCAt: number;
+};
+export declare function resolveTuiCtrlCAction(params: {
+    hasInput: boolean;
+    now: number;
+    lastCtrlCAt: number;
+    exitRequested?: boolean;
+    wasDisconnected?: boolean;
+    exitWindowMs?: number;
+}): {
+    action: TuiCtrlCAction;
     nextLastCtrlCAt: number;
 };
 export declare function runTui(opts: RunTuiOptions): Promise<TuiResult>;

@@ -20,6 +20,7 @@ export type StatusArgs = {
     config?: OpenClawConfig;
     agent: AgentConfig;
     agentId?: string;
+    configuredDefaultModelLabel?: string;
     runtimeContextTokens?: number;
     explicitConfiguredContextTokens?: number;
     sessionEntry?: SessionEntry;
@@ -38,6 +39,7 @@ export type StatusArgs = {
     activeModelAuth?: string;
     usageLine?: string;
     timeLine?: string;
+    uptimeLine?: string;
     queue?: QueueStatus;
     mediaDecisions?: ReadonlyArray<MediaUnderstandingDecision>;
     subagentsLine?: string;

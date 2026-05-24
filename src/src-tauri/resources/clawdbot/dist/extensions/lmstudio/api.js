@@ -1,15 +1,15 @@
-import { o as hasConfiguredSecretInput } from "../../types.secrets-ClP-vJ-P.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
-import { n as removeProviderAuthProfilesWithLock } from "../../profiles-CrHNjqxk.js";
-import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-DHREnmQa.js";
-import { n as buildApiKeyCredential } from "../../provider-auth-helpers-byAcxGN1.js";
-import "../../provider-auth-LNc11avL.js";
-import { h as withAgentModelAliases } from "../../provider-onboard-DXwevr7q.js";
-import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-C17w8z3a.js";
-import "../../provider-setup-35TPpZBn.js";
-import { t as WizardCancelledError } from "../../prompts-CsV4pT5z.js";
-import "../../setup-CScHqsli.js";
-import { A as LMSTUDIO_DOCKER_HOST_BASE_URL, C as resolveLoadedContextWindow, D as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, E as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, F as LMSTUDIO_PROVIDER_LABEL, M as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, N as LMSTUDIO_MODEL_PLACEHOLDER, O as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, P as LMSTUDIO_PROVIDER_ID, S as resolveLmstudioServerBase, T as LMSTUDIO_DEFAULT_BASE_URL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_DOCKER_HOST_INFERENCE_BASE_URL, k as LMSTUDIO_DEFAULT_MODEL_ID, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, x as resolveLmstudioReasoningCompat, y as resolveLmstudioInferenceBase } from "../../models.fetch-DQvr3ubL.js";
+import { s as hasConfiguredSecretInput } from "../../types.secrets-DwPik3M8.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CsdRhsMj.js";
+import { i as removeProviderAuthProfilesWithLock } from "../../profiles-9GB1thhi.js";
+import { t as ensureApiKeyFromEnvOrPrompt } from "../../provider-auth-input-DMNIEm93.js";
+import { n as buildApiKeyCredential } from "../../provider-auth-helpers-BZ5Z8RV6.js";
+import "../../provider-auth-BtRKd5us.js";
+import { h as withAgentModelAliases } from "../../provider-onboard-MLXAQX8H.js";
+import { n as configureOpenAICompatibleSelfHostedProviderNonInteractive, t as applyProviderDefaultModel } from "../../provider-self-hosted-setup-CA-6JZso.js";
+import "../../provider-setup-DU7un2Vp.js";
+import { t as WizardCancelledError } from "../../prompts-E0FayNjJ.js";
+import "../../setup-DPvocg6M.js";
+import { A as LMSTUDIO_DOCKER_HOST_BASE_URL, C as resolveLoadedContextWindow, D as LMSTUDIO_DEFAULT_INFERENCE_BASE_URL, E as LMSTUDIO_DEFAULT_EMBEDDING_MODEL, F as LMSTUDIO_PROVIDER_LABEL, M as LMSTUDIO_LOCAL_API_KEY_PLACEHOLDER, N as LMSTUDIO_MODEL_PLACEHOLDER, O as LMSTUDIO_DEFAULT_LOAD_CONTEXT_LENGTH, P as LMSTUDIO_PROVIDER_ID, S as resolveLmstudioServerBase, T as LMSTUDIO_DEFAULT_BASE_URL, _ as normalizeLmstudioConfiguredCatalogEntry, a as resolveLmstudioConfiguredApiKey, b as resolveLmstudioReasoningCapability, c as resolveLmstudioRuntimeApiKey, d as shouldUseLmstudioApiKeyPlaceholder, g as normalizeLmstudioConfiguredCatalogEntries, h as mapLmstudioWireModelsToConfig, i as buildLmstudioAuthHeaders, j as LMSTUDIO_DOCKER_HOST_INFERENCE_BASE_URL, k as LMSTUDIO_DEFAULT_MODEL_ID, l as hasLmstudioAuthorizationHeader, m as mapLmstudioWireEntry, o as resolveLmstudioProviderHeaders, p as buildLmstudioModelName, r as fetchLmstudioModels, s as resolveLmstudioRequestContext, t as discoverLmstudioModels, u as resolveLmstudioProviderAuthMode, v as normalizeLmstudioProviderConfig, w as LMSTUDIO_DEFAULT_API_KEY_ENV_VAR, x as resolveLmstudioReasoningCompat, y as resolveLmstudioInferenceBase } from "../../models.fetch-BJryONkH.js";
 //#region extensions/lmstudio/src/setup.ts
 function isTruthyEnvValue(value) {
 	return [
@@ -434,16 +434,6 @@ async function discoverLmstudioProvider(ctx) {
 	}
 	const hasExplicitModels = Array.isArray(explicit?.models) && explicit.models.length > 0;
 	const { apiKey, discoveryApiKey } = ctx.resolveProviderApiKey(LMSTUDIO_PROVIDER_ID);
-	let configuredDiscoveryApiKey;
-	try {
-		configuredDiscoveryApiKey = await resolveLmstudioConfiguredApiKey({
-			config: ctx.config,
-			env: ctx.env
-		});
-	} catch (error) {
-		if (isLmstudioDiscoveryConfigResolutionError(error)) return null;
-		throw error;
-	}
 	let resolvedHeaders;
 	try {
 		resolvedHeaders = await resolveLmstudioProviderHeaders({
@@ -456,6 +446,17 @@ async function discoverLmstudioProvider(ctx) {
 		throw error;
 	}
 	const hasAuthorizationHeader = hasLmstudioAuthorizationHeader(resolvedHeaders);
+	let configuredDiscoveryApiKey;
+	try {
+		configuredDiscoveryApiKey = await resolveLmstudioConfiguredApiKey({
+			config: ctx.config,
+			env: ctx.env,
+			allowUnresolved: hasAuthorizationHeader || Boolean(discoveryApiKey)
+		});
+	} catch (error) {
+		if (isLmstudioDiscoveryConfigResolutionError(error)) return null;
+		throw error;
+	}
 	const resolvedDiscoveryApiKey = hasAuthorizationHeader ? void 0 : discoveryApiKey ?? configuredDiscoveryApiKey;
 	const resolvedApiKey = apiKey ?? explicit?.apiKey;
 	if (hasExplicitModels && explicitWithoutHeaders) {

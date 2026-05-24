@@ -1,11 +1,11 @@
-import { t as defineSingleProviderPluginEntry } from "../../provider-entry-C6jLvayT.js";
-import { t as buildMistralProvider } from "../../provider-catalog-BaoZwg1m.js";
-import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-DvCMYjPC.js";
-import { i as applyMistralModelCompat } from "../../api-CRFvkCm4.js";
-import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-CPFuq1Wd.js";
-import { t as mistralMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-Dsl7u53W.js";
-import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-jv61KEVK.js";
-import { n as buildMistralRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-D9pJncUj.js";
+import { t as defineSingleProviderPluginEntry } from "../../provider-entry-DYbqN6AQ.js";
+import { t as buildMistralProvider } from "../../provider-catalog-rnLLDIud.js";
+import { n as applyMistralConfig, t as MISTRAL_DEFAULT_MODEL_REF } from "../../onboard-Bw5WH0qB.js";
+import { i as applyMistralModelCompat } from "../../api-Du6Zu4Uk.js";
+import { t as mistralMediaUnderstandingProvider } from "../../media-understanding-provider-BHnGxahN.js";
+import { t as mistralMemoryEmbeddingProviderAdapter } from "../../memory-embedding-adapter-Da7MF8pR.js";
+import { t as contributeMistralResolvedModelCompat } from "../../provider-compat-RSVWf1mJ.js";
+import { t as buildMistralRealtimeTranscriptionProvider } from "../../realtime-transcription-provider-BlPlDnko.js";
 //#region extensions/mistral/index.ts
 const PROVIDER_ID = "mistral";
 function buildMistralReplayPolicy() {
@@ -43,7 +43,7 @@ var mistral_default = defineSingleProviderPluginEntry({
 			modelId,
 			model
 		}),
-		resolveThinkingProfile: ({ modelId }) => modelId === "mistral-small-latest" ? {
+		resolveThinkingProfile: ({ modelId }) => modelId === "mistral-small-latest" || modelId === "mistral-medium-3-5" ? {
 			levels: [{ id: "off" }, { id: "high" }],
 			defaultLevel: "off"
 		} : void 0,
@@ -56,4 +56,4 @@ var mistral_default = defineSingleProviderPluginEntry({
 	}
 });
 //#endregion
-export { buildMistralReplayPolicy, mistral_default as default };
+export { mistral_default as default };

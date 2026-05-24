@@ -118,8 +118,13 @@ export type MemoryDreamingWorkspace = {
     workspaceDir: string;
     agentIds: string[];
 };
+export type MemoryDreamingWorkspaceOptions = {
+    primaryWorkspaceDir?: string | null;
+    primaryAgentId?: string | null;
+};
 export declare function resolveMemoryDreamingPluginId(cfg: OpenClawConfig | Record<string, unknown> | undefined): string;
 export declare function resolveMemoryDreamingPluginConfig(cfg: OpenClawConfig | Record<string, unknown> | undefined): Record<string, unknown> | undefined;
+/** @deprecated Use resolveMemoryDreamingPluginConfig. */
 export declare const resolveMemoryCorePluginConfig: typeof resolveMemoryDreamingPluginConfig;
 export declare function resolveMemoryDreamingConfig(params: {
     pluginConfig?: Record<string, unknown>;
@@ -151,4 +156,4 @@ export declare function resolveMemoryRemDreamingConfig(params: {
 };
 export declare function formatMemoryDreamingDay(epochMs: number, timezone?: string): string;
 export declare function isSameMemoryDreamingDay(firstEpochMs: number, secondEpochMs: number, timezone?: string): boolean;
-export declare function resolveMemoryDreamingWorkspaces(cfg: OpenClawConfig): MemoryDreamingWorkspace[];
+export declare function resolveMemoryDreamingWorkspaces(cfg: OpenClawConfig, options?: MemoryDreamingWorkspaceOptions): MemoryDreamingWorkspace[];

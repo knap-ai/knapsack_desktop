@@ -52,11 +52,3 @@ export type HookEligibilityContext = {
         note?: string;
     };
 };
-export type HookSnapshot = {
-    hooks: Array<{
-        name: string;
-        events: string[];
-    }>;
-    resolvedHooks?: Hook[];
-    version?: number;
-};

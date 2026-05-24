@@ -7,3 +7,16 @@ export type ToolPayloadCarrier = {
  * outbound core flows and bundled plugin helpers.
  */
 export declare function extractToolPayload(result: ToolPayloadCarrier | null | undefined): unknown;
+export type PlainTextToolCallBlock = {
+    arguments: Record<string, unknown>;
+    end: number;
+    name: string;
+    raw: string;
+    start: number;
+};
+export type PlainTextToolCallParseOptions = {
+    allowedToolNames?: Iterable<string>;
+    maxPayloadBytes?: number;
+};
+export declare function parseStandalonePlainTextToolCallBlocks(text: string, options?: PlainTextToolCallParseOptions): PlainTextToolCallBlock[] | null;
+export declare function stripPlainTextToolCallBlocks(text: string): string;

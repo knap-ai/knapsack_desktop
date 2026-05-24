@@ -1,10 +1,6 @@
 import { isPlainObject } from "./infra/plain-object.js";
 export { escapeRegExp } from "./shared/regexp.js";
 export declare function ensureDir(dir: string): Promise<void>;
-/**
- * Check if a file or directory exists at the given path.
- */
-export declare function pathExists(targetPath: string): Promise<boolean>;
 export declare function clampNumber(value: number, min: number, max: number): number;
 export declare function clampInt(value: number, min: number, max: number): number;
 /** Alias for clampNumber (shorter, more common name) */
@@ -31,3 +27,7 @@ export declare function shortenHomeInString(input: string): string;
 export declare function displayPath(input: string): string;
 export declare function displayString(input: string): string;
 export declare const CONFIG_DIR: string;
+/**
+ * Check if a file or directory exists at the given path.
+ */
+export declare function pathExists(targetPath: string): Promise<boolean>;

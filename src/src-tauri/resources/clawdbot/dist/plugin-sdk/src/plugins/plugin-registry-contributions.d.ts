@@ -1,26 +1,12 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type NormalizedPluginsConfig } from "./config-normalization-shared.js";
-import type { BundledChannelConfigCollector, PluginManifestContractListKey, PluginManifestRecord, PluginManifestRegistry } from "./manifest-registry.js";
+import type { BundledChannelConfigCollector, PluginManifestContractListKey, PluginManifestRegistry } from "./manifest-registry.js";
+import type { PluginMetadataSnapshot } from "./plugin-metadata-snapshot.types.js";
 import type { PluginOrigin } from "./plugin-origin.types.js";
 import { type PluginRegistryIdNormalizerOptions } from "./plugin-registry-id-normalizer.js";
 import { type LoadPluginRegistryParams, type PluginRegistrySnapshot } from "./plugin-registry-snapshot.js";
 export { createPluginRegistryIdNormalizer, type PluginRegistryIdNormalizerOptions, } from "./plugin-registry-id-normalizer.js";
-export type PluginLookUpTable = {
-    index: PluginRegistrySnapshot;
-    manifestRegistry: PluginManifestRegistry;
-    plugins: readonly PluginManifestRecord[];
-    normalizePluginId: (pluginId: string) => string;
-    owners: {
-        channels: ReadonlyMap<string, readonly string[]>;
-        channelConfigs: ReadonlyMap<string, readonly string[]>;
-        providers: ReadonlyMap<string, readonly string[]>;
-        modelCatalogProviders: ReadonlyMap<string, readonly string[]>;
-        cliBackends: ReadonlyMap<string, readonly string[]>;
-        setupProviders: ReadonlyMap<string, readonly string[]>;
-        commandAliases: ReadonlyMap<string, readonly string[]>;
-        contracts: ReadonlyMap<string, readonly string[]>;
-    };
-};
+export type PluginLookUpTable = Pick<PluginMetadataSnapshot, "index" | "manifestRegistry" | "plugins" | "normalizePluginId" | "owners">;
 export type PluginRegistryContributionOptions = LoadPluginRegistryParams & {
     includeDisabled?: boolean;
     lookUpTable?: PluginLookUpTable;

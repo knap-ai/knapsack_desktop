@@ -1,2 +1,2 @@
-import { t as IrcChannelConfigSchema } from "../../config-schema-BuORc7og.js";
+import { t as IrcChannelConfigSchema } from "../../config-schema-RGJVI5uS.js";
 export { IrcChannelConfigSchema };

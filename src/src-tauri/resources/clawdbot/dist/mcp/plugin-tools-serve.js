@@ -1,10 +1,13 @@
-import { i as formatErrorMessage } from "../errors-CDFVCV9D.js";
-import { n as VERSION } from "../version-vQIvyCe_.js";
-import { a as routeLogsToStderr } from "../console-D6VW2Y3e.js";
-import { i as getRuntimeConfig } from "../io-CFdEhZuM.js";
-import "../config--k_1dtUP.js";
-import { r as resolvePluginTools } from "../tools-DHEGJXyc.js";
-import { a as wrapToolWithBeforeToolCallHook, r as isToolWrappedWithBeforeToolCallHook } from "../pi-tools.before-tool-call-CW1QN3SP.js";
+import { i as formatErrorMessage } from "../errors-b3ZrCRlt.js";
+import { n as VERSION } from "../version-CQfgAE7_.js";
+import { a as routeLogsToStderr } from "../console-BAPPAj56.js";
+import { i as getRuntimeConfig } from "../io-DoswVvYe.js";
+import "../config-B6Oplu5W.js";
+import { t as coerceChatContentText } from "../chat-content-BNTcXm1Z.js";
+import { n as pickSandboxToolPolicy } from "../sandbox-tool-policy-A1J2EpRM.js";
+import { a as collectExplicitDenylist, h as resolveToolProfilePolicy, i as collectExplicitAllowlist, l as mergeAlsoAllowPolicy } from "../tool-policy-COX5DaEj.js";
+import { a as resolvePluginTools, r as ensureStandalonePluginToolRegistryLoaded } from "../tools-KpflAzxD.js";
+import { c as isToolWrappedWithBeforeToolCallHook, p as wrapToolWithBeforeToolCallHook } from "../pi-tools.before-tool-call-CP_aEkky.js";
 import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -19,7 +22,7 @@ function resolveJsonSchemaForTool(tool) {
 	};
 }
 function createPluginToolsMcpHandlers(tools) {
-	const wrappedTools = tools.filter((tool) => !tool.ownerOnly).map((tool) => {
+	const wrappedTools = tools.map((tool) => {
 		if (isToolWrappedWithBeforeToolCallHook(tool)) return tool;
 		return wrapToolWithBeforeToolCallHook(tool);
 	});
@@ -31,7 +34,7 @@ function createPluginToolsMcpHandlers(tools) {
 			description: tool.description ?? "",
 			inputSchema: resolveJsonSchemaForTool(tool)
 		})) }),
-		callTool: async (params) => {
+		callTool: async (params, signal) => {
 			const tool = toolMap.get(params.name);
 			if (!tool) return {
 				content: [{
@@ -41,10 +44,11 @@ function createPluginToolsMcpHandlers(tools) {
 				isError: true
 			};
 			try {
-				const result = await tool.execute(`mcp-${Date.now()}`, params.arguments ?? {});
-				return { content: Array.isArray(result.content) ? result.content : [{
+				const result = await tool.execute(`mcp-${Date.now()}`, params.arguments ?? {}, signal);
+				const rawContent = result && typeof result === "object" && "content" in result ? result.content : result;
+				return { content: Array.isArray(rawContent) ? rawContent : [{
 					type: "text",
-					text: String(result.content)
+					text: coerceChatContentText(rawContent)
 				}] };
 			} catch (err) {
 				return {
@@ -67,8 +71,8 @@ function createToolsMcpServer(params) {
 		version: VERSION
 	}, { capabilities: { tools: {} } });
 	server.setRequestHandler(ListToolsRequestSchema, handlers.listTools);
-	server.setRequestHandler(CallToolRequestSchema, async (request) => {
-		return await handlers.callTool(request.params);
+	server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+		return await handlers.callTool(request.params, extra.signal);
 	});
 	return server;
 }
@@ -101,9 +105,25 @@ async function connectToolsMcpServerToStdio(server) {
 * Run via: node --import tsx src/mcp/plugin-tools-serve.ts
 * Or: bun src/mcp/plugin-tools-serve.ts
 */
+function resolvePluginToolPolicy(config) {
+	const profilePolicy = mergeAlsoAllowPolicy(resolveToolProfilePolicy(config.tools?.profile), config.tools?.alsoAllow);
+	const globalPolicy = pickSandboxToolPolicy(config.tools);
+	const toolAllowlist = collectExplicitAllowlist([profilePolicy, globalPolicy]);
+	const toolDenylist = collectExplicitDenylist([profilePolicy, globalPolicy]);
+	return {
+		...toolAllowlist.length > 0 ? { toolAllowlist } : {},
+		...toolDenylist.length > 0 ? { toolDenylist } : {}
+	};
+}
 function resolveTools(config) {
+	const pluginToolPolicy = resolvePluginToolPolicy(config);
+	ensureStandalonePluginToolRegistryLoaded({
+		context: { config },
+		...pluginToolPolicy
+	});
 	return resolvePluginTools({
 		context: { config },
+		...pluginToolPolicy,
 		suppressNameConflicts: true
 	});
 }
@@ -115,6 +135,7 @@ function createPluginToolsMcpServer(params = {}) {
 	});
 }
 async function servePluginToolsMcp() {
+	routeLogsToStderr();
 	const config = getRuntimeConfig();
 	const tools = resolveTools(config);
 	const server = createPluginToolsMcpServer({

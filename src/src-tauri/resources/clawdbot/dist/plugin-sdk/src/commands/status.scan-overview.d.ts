@@ -35,6 +35,8 @@ export declare function collectStatusScanOverview(params: {
     allowMissingConfigFastPath?: boolean;
     resolveHasConfiguredChannels?: (cfg: OpenClawConfig, sourceConfig: OpenClawConfig) => boolean;
     includeChannelsData?: boolean;
+    includeLiveChannelStatus?: boolean;
+    includeChannelSetupRuntimeFallback?: boolean;
     useGatewayCallOverridesForChannelsStatus?: boolean;
     progress?: {
         setLabel(label: string): void;

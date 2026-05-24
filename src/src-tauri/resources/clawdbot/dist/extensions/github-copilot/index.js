@@ -1,20 +1,21 @@
-import { s as normalizeOptionalLowercaseString } from "../../string-coerce-Bje8XVt9.js";
-import { a as coerceSecretRef } from "../../types.secrets-ClP-vJ-P.js";
-import { l as resolveDefaultSecretProviderAlias } from "../../ref-contract-DYUJg6ZQ.js";
-import { n as ensureAuthProfileStore } from "../../store-D-8DaAtv.js";
-import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-xONgR3PN.js";
-import { n as listProfilesForProvider } from "../../profile-list-zV5Cv5VC.js";
-import { a as upsertAuthProfileWithLock } from "../../profiles-CrHNjqxk.js";
-import "../../text-runtime-DfALcXL5.js";
-import { t as definePluginEntry } from "../../plugin-entry-BBPiA0af.js";
-import { t as applyAuthProfileConfig } from "../../provider-auth-helpers-byAcxGN1.js";
-import "../../provider-auth-LNc11avL.js";
-import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-CZjU72lW.js";
-import { n as resolveCopilotForwardCompatModel, t as PROVIDER_ID } from "../../models-CVzS8osi.js";
-import { t as resolveFirstGithubToken } from "../../auth-JmW8SYNK.js";
-import { t as githubCopilotMemoryEmbeddingProviderAdapter } from "../../embeddings-Bt8FUPUV.js";
-import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-DewZLrEC.js";
-import { r as wrapCopilotProviderStream } from "../../stream-BrNQazbE.js";
+import { s as normalizeOptionalLowercaseString } from "../../string-coerce-DyL154ka.js";
+import { o as coerceSecretRef } from "../../types.secrets-DwPik3M8.js";
+import { l as resolveDefaultSecretProviderAlias } from "../../ref-contract-D_h_G00C.js";
+import { n as ensureAuthProfileStore } from "../../store-BMQkMM4l.js";
+import { t as normalizeOptionalSecretInput } from "../../normalize-secret-input-CsdRhsMj.js";
+import { n as listProfilesForProvider } from "../../profile-list-C0HtPlut.js";
+import { s as upsertAuthProfileWithLock } from "../../profiles-9GB1thhi.js";
+import "../../string-coerce-runtime-BAEEbdFW.js";
+import { t as definePluginEntry } from "../../plugin-entry-Dgh5bRuw.js";
+import { t as applyAuthProfileConfig } from "../../provider-auth-helpers-BZ5Z8RV6.js";
+import "../../provider-auth-BtRKd5us.js";
+import { r as resolvePluginConfigObject } from "../../plugin-config-runtime-DWa7yCpn.js";
+import { i as getCachedLiveCatalogValue } from "../../provider-catalog-shared-BLp5nwNN.js";
+import { n as fetchCopilotModelCatalog, r as resolveCopilotForwardCompatModel, t as PROVIDER_ID } from "../../models-B4VtbNxu.js";
+import { t as resolveFirstGithubToken } from "../../auth-BXReeF2O.js";
+import { t as githubCopilotMemoryEmbeddingProviderAdapter } from "../../embeddings-SipWYOX8.js";
+import { t as buildGithubCopilotReplayPolicy } from "../../replay-policy-_iCin1z0.js";
+import { o as wrapCopilotProviderStream } from "../../stream-10pEdHPb.js";
 //#region extensions/github-copilot/index.ts
 const COPILOT_ENV_VARS = [
 	"COPILOT_GITHUB_TOKEN",
@@ -62,6 +63,19 @@ function resolveExistingCopilotTokenProfileId(agentDir) {
 		if (profile?.type !== "token") return false;
 		return Boolean(normalizeOptionalSecretInput(profile.token) || coerceSecretRef(profile.tokenRef)?.id.trim());
 	});
+}
+function resolveExistingCopilotAuthResult(agentDir) {
+	const profileId = resolveExistingCopilotTokenProfileId(agentDir);
+	if (!profileId) return null;
+	const credential = ensureAuthProfileStore(agentDir, { allowKeychainPrompt: false }).profiles[profileId];
+	if (!credential || credential.type !== "token") return null;
+	return {
+		profiles: [{
+			profileId,
+			credential
+		}],
+		defaultModel: DEFAULT_COPILOT_MODEL
+	};
 }
 async function resolveCopilotNonInteractiveToken(ctx, flagValue) {
 	const resolveFromEnvChain = async () => {
@@ -162,28 +176,105 @@ var github_copilot_default = definePluginEntry({
 			if (runtimePluginConfig) return runtimePluginConfig;
 			return config ? {} : startupPluginConfig;
 		}
+		async function runGithubCopilotCatalog(ctx) {
+			if ((resolveCurrentPluginConfig(ctx.config).discovery?.enabled ?? ctx.config?.models?.copilotDiscovery?.enabled) === false) return null;
+			const { DEFAULT_COPILOT_API_BASE_URL, resolveCopilotApiToken } = await loadGithubCopilotRuntime();
+			const { githubToken, hasProfile } = await resolveFirstGithubToken({
+				agentDir: ctx.agentDir,
+				config: ctx.config,
+				env: ctx.env
+			});
+			if (!hasProfile && !githubToken) return null;
+			let baseUrl = DEFAULT_COPILOT_API_BASE_URL;
+			let copilotApiToken;
+			if (githubToken) try {
+				const token = await resolveCopilotApiToken({
+					githubToken,
+					env: ctx.env
+				});
+				baseUrl = token.baseUrl;
+				copilotApiToken = token.token;
+			} catch {
+				baseUrl = DEFAULT_COPILOT_API_BASE_URL;
+			}
+			let discoveredModels = [];
+			if (copilotApiToken) try {
+				discoveredModels = await getCachedLiveCatalogValue({
+					keyParts: [
+						PROVIDER_ID,
+						"models",
+						baseUrl,
+						copilotApiToken
+					],
+					load: async () => await fetchCopilotModelCatalog({
+						copilotApiToken,
+						baseUrl
+					})
+				});
+			} catch {
+				discoveredModels = [];
+			}
+			return { provider: {
+				baseUrl,
+				models: discoveredModels
+			} };
+		}
+		async function runGithubCopilotUnifiedLiveCatalog(ctx) {
+			const result = await runGithubCopilotCatalog(ctx);
+			if (!result || !("provider" in result)) return null;
+			return (result.provider.models ?? []).map((model) => {
+				const entry = {
+					kind: "text",
+					provider: PROVIDER_ID,
+					model: model.id,
+					source: "live"
+				};
+				if (model.name) entry.label = model.name;
+				return entry;
+			});
+		}
 		async function runGitHubCopilotAuth(ctx) {
-			const { githubCopilotLoginCommand } = await loadGithubCopilotRuntime();
+			const existing = resolveExistingCopilotAuthResult(ctx.agentDir);
+			if (existing) {
+				if (!await ctx.prompter.confirm({
+					message: "GitHub Copilot auth already exists. Re-run login?",
+					initialValue: false
+				})) return existing;
+			}
 			await ctx.prompter.note(["This will open a GitHub device login to authorize Copilot.", "Requires an active GitHub Copilot subscription."].join("\n"), "GitHub Copilot");
-			if (!process.stdin.isTTY) {
-				await ctx.prompter.note("GitHub Copilot login requires an interactive TTY.", "GitHub Copilot");
+			const { runGitHubCopilotDeviceFlow } = await import("./login.js");
+			const result = await runGitHubCopilotDeviceFlow({
+				showCode: async ({ verificationUrl, userCode, expiresInMs }) => {
+					const expiresInMinutes = Math.max(1, Math.round(expiresInMs / 6e4));
+					await ctx.prompter.note([
+						"Open this URL in your browser and enter the code below.",
+						`URL: ${verificationUrl}`,
+						`Code: ${userCode}`,
+						`Code expires in ${expiresInMinutes} minutes. Never share it.`,
+						"",
+						"If a browser does not open automatically after you continue, copy the URL manually."
+					].join("\n"), "Authorize GitHub Copilot");
+				},
+				openUrl: async (url) => {
+					await ctx.openUrl(url);
+				}
+			});
+			if (result.status === "access_denied") {
+				await ctx.prompter.note("GitHub Copilot login was cancelled.", "GitHub Copilot");
 				return { profiles: [] };
 			}
-			try {
-				await githubCopilotLoginCommand({
-					yes: true,
-					profileId: "github-copilot:github"
-				}, ctx.runtime);
-			} catch (err) {
-				await ctx.prompter.note(`GitHub Copilot login failed: ${String(err)}`, "GitHub Copilot");
+			if (result.status === "expired") {
+				await ctx.prompter.note("The GitHub device code expired. Retry login to get a new code.", "GitHub Copilot");
 				return { profiles: [] };
 			}
-			const credential = ensureAuthProfileStore(void 0, { allowKeychainPrompt: false }).profiles["github-copilot:github"];
-			if (!credential || credential.type !== "token") return { profiles: [] };
 			return {
 				profiles: [{
 					profileId: DEFAULT_COPILOT_PROFILE_ID,
-					credential
+					credential: {
+						type: "token",
+						provider: PROVIDER_ID,
+						token: result.accessToken
+					}
 				}],
 				defaultModel: DEFAULT_COPILOT_MODEL
 			};
@@ -206,33 +297,12 @@ var github_copilot_default = definePluginEntry({
 				choiceId: "github-copilot",
 				choiceLabel: "GitHub Copilot",
 				choiceHint: "Device login with your GitHub account",
-				methodId: "device"
+				methodId: "device",
+				modelSelection: { promptWhenAuthChoiceProvided: true }
 			} },
 			catalog: {
 				order: "late",
-				run: async (ctx) => {
-					if ((resolveCurrentPluginConfig(ctx.config).discovery?.enabled ?? ctx.config?.models?.copilotDiscovery?.enabled) === false) return null;
-					const { DEFAULT_COPILOT_API_BASE_URL, resolveCopilotApiToken } = await loadGithubCopilotRuntime();
-					const { githubToken, hasProfile } = await resolveFirstGithubToken({
-						agentDir: ctx.agentDir,
-						config: ctx.config,
-						env: ctx.env
-					});
-					if (!hasProfile && !githubToken) return null;
-					let baseUrl = DEFAULT_COPILOT_API_BASE_URL;
-					if (githubToken) try {
-						baseUrl = (await resolveCopilotApiToken({
-							githubToken,
-							env: ctx.env
-						})).baseUrl;
-					} catch {
-						baseUrl = DEFAULT_COPILOT_API_BASE_URL;
-					}
-					return { provider: {
-						baseUrl,
-						models: []
-					} };
-				}
+				run: runGithubCopilotCatalog
 			},
 			resolveDynamicModel: (ctx) => resolveCopilotForwardCompatModel(ctx),
 			wrapStreamFn: wrapCopilotProviderStream,
@@ -262,6 +332,11 @@ var github_copilot_default = definePluginEntry({
 				const { fetchCopilotUsage } = await loadGithubCopilotRuntime();
 				return await fetchCopilotUsage(ctx.token, ctx.timeoutMs, ctx.fetchFn);
 			}
+		});
+		api.registerModelCatalogProvider({
+			provider: PROVIDER_ID,
+			kinds: ["text"],
+			liveCatalog: runGithubCopilotUnifiedLiveCatalog
 		});
 	}
 });

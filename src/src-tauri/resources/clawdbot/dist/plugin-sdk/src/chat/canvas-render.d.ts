@@ -1,5 +1,5 @@
-export type CanvasSurface = "assistant_message";
-export type CanvasPreview = {
+type CanvasSurface = "assistant_message";
+type CanvasPreview = {
     kind: "canvas";
     surface: CanvasSurface;
     render: "url";
@@ -15,3 +15,4 @@ export declare function extractCanvasShortcodes(text: string | undefined): {
     text: string;
     previews: CanvasPreview[];
 };
+export {};

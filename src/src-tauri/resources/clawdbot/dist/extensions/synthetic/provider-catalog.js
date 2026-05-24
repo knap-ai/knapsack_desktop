@@ -1,2 +1,2 @@
-import { t as buildSyntheticProvider } from "../../provider-catalog-DJo-E9Si.js";
+import { t as buildSyntheticProvider } from "../../provider-catalog-ofsXVnsR.js";
 export { buildSyntheticProvider };

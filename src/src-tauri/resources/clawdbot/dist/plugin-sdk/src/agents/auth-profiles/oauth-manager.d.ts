@@ -1,9 +1,17 @@
+import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { areOAuthCredentialsEquivalent, hasUsableOAuthCredential, isSafeToAdoptBootstrapOAuthIdentity, isSafeToAdoptMainStoreOAuthIdentity, isSafeToOverwriteStoredOAuthIdentity, overlayRuntimeExternalOAuthProfiles, shouldBootstrapFromExternalCliCredential, shouldPersistRuntimeExternalOAuthProfile, shouldReplaceStoredOAuthCredential, type RuntimeExternalOAuthProfile } from "./oauth-shared.js";
 import type { AuthProfileStore, OAuthCredential, OAuthCredentials } from "./types.js";
 export type OAuthManagerAdapter = {
-    buildApiKey: (provider: string, credentials: OAuthCredential) => Promise<string>;
+    buildApiKey: (provider: string, credentials: OAuthCredential, context: {
+        cfg?: OpenClawConfig;
+        agentDir?: string;
+    }) => Promise<string>;
     refreshCredential: (credential: OAuthCredential) => Promise<OAuthCredentials | null>;
     readBootstrapCredential: (params: {
+        profileId: string;
+        credential: OAuthCredential;
+    }) => OAuthCredential | null;
+    readFallbackCredential?: (params: {
         profileId: string;
         credential: OAuthCredential;
     }) => OAuthCredential | null;
@@ -21,6 +29,7 @@ export declare class OAuthManagerRefreshError extends Error {
     readonly lockPath?: string;
     constructor(params: {
         credential: OAuthCredential;
+        attemptedCredentials?: OAuthCredential[];
         profileId: string;
         refreshedStore: AuthProfileStore;
         cause: unknown;
@@ -47,6 +56,8 @@ export declare function createOAuthManager(adapter: OAuthManagerAdapter): {
         profileId: string;
         credential: OAuthCredential;
         agentDir?: string;
+        cfg?: OpenClawConfig;
+        forceRefresh?: boolean;
     }) => Promise<ResolvedOAuthAccess | null>;
     resetRefreshQueuesForTest: () => void;
 };

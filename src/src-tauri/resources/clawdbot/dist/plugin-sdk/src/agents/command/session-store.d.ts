@@ -14,6 +14,13 @@ export declare function updateSessionStoreAfterAgentRun(params: {
     fallbackModel?: string;
     result: RunResult;
     touchInteraction?: boolean;
+    /**
+     * When true, preserve the pre-existing runtime model fields (model,
+     * modelProvider, contextTokens) on the session entry instead of overwriting
+     * them with the model used by this run. Used for heartbeat turns so the
+     * heartbeat model does not "bleed" into the main session's perceived state.
+     */
+    preserveRuntimeModel?: boolean;
 }): Promise<void>;
 export declare function clearCliSessionInStore(params: {
     provider: string;
@@ -26,5 +33,8 @@ export declare function recordCliCompactionInStore(params: {
     sessionKey: string;
     sessionStore: Record<string, SessionEntry>;
     storePath: string;
+    tokensAfter?: number;
+    newSessionId?: string;
+    newSessionFile?: string;
 }): Promise<SessionEntry | undefined>;
 export {};

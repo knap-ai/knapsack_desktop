@@ -4,7 +4,7 @@ export type NodeHostGatewayConfig = {
     tls?: boolean;
     tlsFingerprint?: string;
 };
-export type NodeHostConfig = {
+type NodeHostConfig = {
     version: 1;
     nodeId: string;
     token?: string;
@@ -14,3 +14,4 @@ export type NodeHostConfig = {
 export declare function loadNodeHostConfig(): Promise<NodeHostConfig | null>;
 export declare function saveNodeHostConfig(config: NodeHostConfig): Promise<void>;
 export declare function ensureNodeHostConfig(): Promise<NodeHostConfig>;
+export {};

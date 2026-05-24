@@ -1,8 +1,8 @@
-import type { AgentMessage, StreamFn } from "@mariozechner/pi-agent-core";
+import type { AgentMessage, StreamFn } from "@earendil-works/pi-agent-core";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { type QueuedFileWriter } from "./queued-file-writer.js";
-export type CacheTraceStage = "cache:result" | "cache:state" | "session:loaded" | "session:sanitized" | "session:limited" | "prompt:before" | "prompt:images" | "stream:context" | "session:after";
-export type CacheTraceEvent = {
+type CacheTraceStage = "cache:result" | "cache:state" | "session:loaded" | "session:raw-model-run" | "session:sanitized" | "session:limited" | "prompt:before" | "prompt:images" | "stream:context" | "session:after";
+type CacheTraceEvent = {
     ts: string;
     seq: number;
     stage: CacheTraceStage;
@@ -26,7 +26,7 @@ export type CacheTraceEvent = {
     note?: string;
     error?: string;
 };
-export type CacheTrace = {
+type CacheTrace = {
     enabled: true;
     filePath: string;
     recordStage: (stage: CacheTraceStage, payload?: Partial<CacheTraceEvent>) => void;

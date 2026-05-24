@@ -10,6 +10,7 @@
  * @see https://github.com/openclaw/openclaw/issues/31884
  * @see https://github.com/openclaw/openclaw/issues/18558
  */
+export declare function stripInternalRuntimeScaffolding(text: string): string;
 /**
  * Convert common HTML tags to their plain-text/lightweight-markup equivalents
  * and strip anything that remains.

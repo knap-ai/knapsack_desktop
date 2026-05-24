@@ -1,4 +1,4 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
 /**
  * Limits conversation history to the last N user turns (and their associated
@@ -11,8 +11,3 @@ export declare function limitHistoryTurns(messages: AgentMessage[], limit: numbe
  * For channel/group sessions, uses historyLimit from provider config.
  */
 export declare function getHistoryLimitFromSessionKey(sessionKey: string | undefined, config: OpenClawConfig | undefined): number | undefined;
-/**
- * @deprecated Use getHistoryLimitFromSessionKey instead.
- * Alias for backward compatibility.
- */
-export declare const getDmHistoryLimitFromSessionKey: typeof getHistoryLimitFromSessionKey;

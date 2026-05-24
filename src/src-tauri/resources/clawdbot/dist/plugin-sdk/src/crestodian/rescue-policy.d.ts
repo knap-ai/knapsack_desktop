@@ -1,5 +1,5 @@
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-export type CrestodianRescueDecision = {
+type CrestodianRescueDecision = {
     allowed: true;
     enabled: true;
     ownerDmOnly: boolean;
@@ -16,10 +16,11 @@ export type CrestodianRescueDecision = {
     reason: "disabled" | "sandbox-active" | "not-yolo" | "not-owner" | "not-direct-message";
     message: string;
 };
-export type CrestodianRescuePolicyInput = {
+type CrestodianRescuePolicyInput = {
     cfg: OpenClawConfig;
     agentId?: string;
     senderIsOwner: boolean;
     isDirectMessage: boolean;
 };
 export declare function resolveCrestodianRescuePolicy(input: CrestodianRescuePolicyInput): CrestodianRescueDecision;
+export {};

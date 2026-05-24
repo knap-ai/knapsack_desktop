@@ -25,25 +25,6 @@ export declare function appendStatusSectionHeading(params: {
     heading: HeadingFn;
     title: string;
 }): void;
-export declare function appendStatusLinesSection(params: {
-    lines: string[];
-    heading: HeadingFn;
-    title: string;
-    body: string[];
-}): void;
-export declare function appendStatusTableSection<Row extends Record<string, string>>(params: {
-    lines: string[];
-    heading: HeadingFn;
-    title: string;
-    width: number;
-    renderTable: (input: {
-        width: number;
-        columns: TableColumn[];
-        rows: Row[];
-    }) => string;
-    columns: readonly TableColumn[];
-    rows: Row[];
-}): void;
 export declare function appendStatusReportSections(params: {
     lines: string[];
     heading: HeadingFn;

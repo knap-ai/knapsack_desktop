@@ -10,10 +10,12 @@ export type ApplyMediaUnderstandingResult = {
     appliedVideo: boolean;
     appliedFile: boolean;
 };
+export declare function sanitizeMimeType(value?: string): string | undefined;
 export declare function applyMediaUnderstanding(params: {
     ctx: MsgContext;
     cfg: OpenClawConfig;
     agentDir?: string;
+    workspaceDir?: string;
     providers?: Record<string, MediaUnderstandingProvider>;
     activeModel?: ActiveMediaModel;
 }): Promise<ApplyMediaUnderstandingResult>;

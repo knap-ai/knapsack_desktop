@@ -1,2 +1,2 @@
-import { a as resolveOpenAIProviderConfigRecord, i as readRealtimeErrorDetail, n as asObjectRecord, o as trimToUndefined, r as captureOpenAIRealtimeWsClose, t as asFiniteNumber } from "../../realtime-provider-shared-DV76raKh.js";
-export { asFiniteNumber, asObjectRecord, captureOpenAIRealtimeWsClose, readRealtimeErrorDetail, resolveOpenAIProviderConfigRecord, trimToUndefined };
+import { a as createOpenAIRealtimeTranscriptionClientSecret, c as trimToUndefined, i as createOpenAIRealtimeClientSecret, n as asObjectRecord, o as readRealtimeErrorDetail, r as captureOpenAIRealtimeWsClose, s as resolveOpenAIProviderConfigRecord, t as asFiniteNumber } from "../../realtime-provider-shared-ChYbLfkH.js";
+export { asFiniteNumber, asObjectRecord, captureOpenAIRealtimeWsClose, createOpenAIRealtimeClientSecret, createOpenAIRealtimeTranscriptionClientSecret, readRealtimeErrorDetail, resolveOpenAIProviderConfigRecord, trimToUndefined };
