@@ -325,13 +325,13 @@ if (fs.existsSync(distExtensionsDir)) {
   } catch { /* skip */ }
 }
 
-// Step 5: Remove the openclaw self-symlink before Tauri resource bundling.
+// Step 5: Replace the openclaw self-symlink before Tauri resource bundling.
 // install-bundled-plugin-deps.cjs creates node_modules/openclaw -> .. so the
 // CI smoke test (which runs before prune) can resolve 'openclaw/plugin-sdk/*'
 // imports.  But 'openclaw -> ..' is a cycle: Tauri's 'resources/clawdbot/**/*'
 // glob follows it and recurses into clawdbot/ infinitely, causing the macOS
-// build to spin for hours before failing.  Remove it here; service.rs recreates
-// it at runtime after Tauri has already copied resources to their final location.
+// build to spin for hours before failing.  Production macOS cannot recreate it
+// inside the signed app, so prune replaces the cycle with a tiny package alias.
 const openclawLink = path.join(nodeModules, 'openclaw');
 try {
   const linkStat = fs.lstatSync(openclawLink);
@@ -340,6 +340,91 @@ try {
     console.log('[prune-clawdbot] Removed openclaw self-symlink (prevents Tauri glob cycle)');
   }
 } catch { /* not present — nothing to do */ }
+
+// Production macOS bundles cannot recreate node_modules/openclaw at runtime
+// without mutating the signed app. Keep a tiny non-cyclic package alias in the
+// bundle so native-loaded bundled channel plugins can resolve
+// `openclaw/plugin-sdk/*` imports without the old `openclaw -> ..` symlink.
+function createOpenClawPackageAlias() {
+  if (!fs.existsSync(nodeModules)) return;
+  const rootPkgPath = path.join(CLAWDBOT_DIR, 'package.json');
+  if (!fs.existsSync(rootPkgPath)) return;
+
+  let rootPkg;
+  try {
+    rootPkg = JSON.parse(fs.readFileSync(rootPkgPath, 'utf8'));
+  } catch {
+    return;
+  }
+
+  const aliasDir = path.join(nodeModules, 'openclaw');
+  fs.rmSync(aliasDir, { recursive: true, force: true });
+  fs.mkdirSync(aliasDir, { recursive: true });
+
+  const mappedExports = {};
+  for (const [key, value] of Object.entries(rootPkg.exports || {})) {
+    if (key === '.') {
+      mappedExports[key] = './index.js';
+      continue;
+    }
+    if (!key.startsWith('./plugin-sdk')) continue;
+    if (typeof value === 'string') {
+      mappedExports[key] = value.replace('./dist/plugin-sdk/', './plugin-sdk/');
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      mappedExports[key] = Object.fromEntries(
+        Object.entries(value).map(([condition, target]) => [
+          condition,
+          typeof target === 'string'
+            ? target.replace('./dist/plugin-sdk/', './plugin-sdk/')
+            : target,
+        ]),
+      );
+    }
+  }
+
+  fs.writeFileSync(
+    path.join(aliasDir, 'package.json'),
+    `${JSON.stringify({
+      name: 'openclaw-bundle-alias',
+      type: 'module',
+      private: true,
+      exports: mappedExports,
+    }, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(aliasDir, 'index.js'),
+    "export * from '../../dist/index.js';\n",
+  );
+
+  const sdkTarget = path.join('..', '..', 'dist', 'plugin-sdk');
+  const sdkLink = path.join(aliasDir, 'plugin-sdk');
+  try {
+    fs.symlinkSync(sdkTarget, sdkLink, 'dir');
+  } catch (err) {
+    if (err.code !== 'EEXIST') {
+      console.warn(`[prune-clawdbot] WARNING: could not create openclaw/plugin-sdk alias symlink: ${err.message}`);
+    }
+  }
+
+  // plugin-sdk files import shared hashed chunks as `../chunk-*.js`.
+  // Mirror the root JS files as non-recursive symlinks so those relative imports
+  // resolve without restoring the old cyclic `openclaw -> ..` package link.
+  for (const entry of fs.readdirSync(path.join(CLAWDBOT_DIR, 'dist'), { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.js')) continue;
+    const target = path.join('..', '..', 'dist', entry.name);
+    const link = path.join(aliasDir, entry.name);
+    try {
+      fs.symlinkSync(target, link);
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        console.warn(`[prune-clawdbot] WARNING: could not create openclaw chunk alias ${entry.name}: ${err.message}`);
+      }
+    }
+  }
+  console.log('[prune-clawdbot] Created non-cyclic openclaw package alias for bundled plugin SDK imports');
+}
+
+createOpenClawPackageAlias();
 
 // Step 6: Report results
 if (!IS_WIN) {

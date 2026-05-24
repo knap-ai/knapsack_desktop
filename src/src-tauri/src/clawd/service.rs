@@ -771,12 +771,14 @@ const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
   "browser",
   "telegram",
   "slack",
+  "whatsapp",
   "google",
   "microsoft",
   "web-readability",
   "document-extract",
   // Web/search providers.
   "brave",
+  "duckduckgo",
   "exa",
   "firecrawl",
   "tavily",
@@ -801,6 +803,8 @@ const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
   "venice",
   "xai",
 ];
+
+const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
 
 fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
@@ -865,6 +869,167 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     .insert("allow".to_string(), next_allow);
   eprintln!("[clawd/service] Patched plugins.allow to Knapsack startup allowlist");
   true
+}
+
+fn remove_object_keys(obj: &mut serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> bool {
+  let mut patched = false;
+  for key in keys {
+    if obj.remove(*key).is_some() {
+      patched = true;
+    }
+  }
+  patched
+}
+
+fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
+  let installs_path = clawdbot_home.join("plugins").join("installs.json");
+  let contents = match fs::read_to_string(&installs_path) {
+    Ok(contents) => contents,
+    Err(_) => return false,
+  };
+  let mut cfg: serde_json::Value = match serde_json::from_str(&contents) {
+    Ok(value) => value,
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] WARNING: Could not parse OpenClaw plugin install index at {}: {}",
+        installs_path.display(),
+        e
+      );
+      return false;
+    }
+  };
+
+  let mut patched = false;
+  if let Some(records) = cfg
+    .pointer_mut("/installRecords")
+    .and_then(|value| value.as_object_mut())
+  {
+    patched |= remove_object_keys(records, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS);
+  }
+
+  if let Some(plugins) = cfg
+    .pointer_mut("/plugins")
+    .and_then(|value| value.as_array_mut())
+  {
+    let before = plugins.len();
+    plugins.retain(|entry| {
+      let plugin_id = entry
+        .get("pluginId")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+      !KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.contains(&plugin_id)
+    });
+    patched |= plugins.len() != before;
+  }
+
+  if !patched {
+    return false;
+  }
+
+  match fs::write(
+    &installs_path,
+    serde_json::to_string_pretty(&cfg).unwrap_or_default(),
+  ) {
+    Ok(_) => {
+      eprintln!(
+        "[clawd/service] Removed stale installed plugin records for bundled channel plugins: {}",
+        KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.join(", ")
+      );
+      harden_file_permissions(&installs_path);
+      if let Some(parent) = installs_path.parent() {
+        harden_dir_permissions(parent);
+      }
+      true
+    }
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] WARNING: Could not persist OpenClaw plugin install index repair at {}: {}",
+        installs_path.display(),
+        e
+      );
+      false
+    }
+  }
+}
+
+fn sanitize_bundled_channel_npm_manifest(clawdbot_home: &Path) -> bool {
+  let package_path = clawdbot_home.join("npm").join("package.json");
+  let contents = match fs::read_to_string(&package_path) {
+    Ok(contents) => contents,
+    Err(_) => return false,
+  };
+  let mut pkg: serde_json::Value = match serde_json::from_str(&contents) {
+    Ok(value) => value,
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] WARNING: Could not parse OpenClaw managed npm manifest at {}: {}",
+        package_path.display(),
+        e
+      );
+      return false;
+    }
+  };
+
+  let npm_names: Vec<String> = KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS
+    .iter()
+    .map(|plugin_id| format!("@openclaw/{}", plugin_id))
+    .collect();
+
+  let mut patched = false;
+  for section in [
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ] {
+    if let Some(deps) = pkg
+      .pointer_mut(&format!("/{}", section))
+      .and_then(|value| value.as_object_mut())
+    {
+      for npm_name in &npm_names {
+        if deps.remove(npm_name).is_some() {
+          patched = true;
+        }
+      }
+    }
+  }
+
+  if !patched {
+    return false;
+  }
+
+  match fs::write(
+    &package_path,
+    serde_json::to_string_pretty(&pkg).unwrap_or_default(),
+  ) {
+    Ok(_) => {
+      eprintln!(
+        "[clawd/service] Removed stale managed npm dependencies for bundled channel plugins: {}",
+        npm_names.join(", ")
+      );
+      harden_file_permissions(&package_path);
+      true
+    }
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] WARNING: Could not persist OpenClaw managed npm manifest repair at {}: {}",
+        package_path.display(),
+        e
+      );
+      false
+    }
+  }
+}
+
+/// Prefer Knapsack's signed, bundled channel plugins over stale per-user plugin
+/// installs left behind by older OpenClaw versions. OpenClaw's registry gives a
+/// persisted install record precedence over bundled plugins; if that record
+/// points at an older or partially pruned package, config validation fails
+/// before the gateway binds. This repair is local-state only and does not touch
+/// the signed app bundle or run npm/doctor on the startup path.
+fn sanitize_bundled_channel_plugin_install_state(clawdbot_home: &Path) -> bool {
+  sanitize_bundled_channel_plugin_install_index(clawdbot_home)
+    | sanitize_bundled_channel_npm_manifest(clawdbot_home)
 }
 
 /// Remove plugin-runtime-deps directories whose version prefix doesn't match
@@ -5153,9 +5318,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   }
 }
 
-/// Startup readiness endpoint: waits for gateway, browser control, and channels
-/// to become healthy within the launch budget. Returns immediately if already healthy.
-/// The frontend should call this once on app launch before making API calls.
+/// Startup readiness endpoint: waits for gateway-live within the launch budget.
+/// Browser control and channels are reported separately because they can keep
+/// warming after the local gateway is safe for the desktop to use.
 #[get("/api/clawd/service/startup-ready")]
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   use crate::clawd::{gateway_supervisor, gateway_ws};
@@ -5189,11 +5354,18 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       );
     } else if let Ok(lifecycle_guard) = GATEWAY_LIFECYCLE_MUTEX.try_lock() {
       if !launch_agent_plist_looks_current(app_handle.get_ref()) {
-        let _ = tokio::time::timeout(
-          std::time::Duration::from_millis(750),
+        let rewrote = tokio::time::timeout(
+          std::time::Duration::from_millis(3000),
           write_current_launch_agent_plist(app_handle.get_ref(), "startup-ready"),
         )
-        .await;
+        .await
+        .ok()
+        .unwrap_or(false);
+        if !rewrote {
+          eprintln!(
+            "[clawd/service] startup-ready: stale LaunchAgent plist rewrite did not complete before bootstrap"
+          );
+        }
       }
       bootstrap_current_launch_agent_detached("startup-ready bootstrap");
       drop(lifecycle_guard);
@@ -5263,7 +5435,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
-  let success = ready && browser_ok && channels_ok;
+  // Startup-ready is the desktop gateway-live gate. Browser and channel warmup
+  // are reported separately so slow or degraded integrations do not keep the
+  // local gateway false.
+  let success = ready;
 
   HttpResponse::Ok().json(ServiceHealthResponse {
     success,
@@ -5272,12 +5447,12 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     browser_ok,
     channels_ok: Some(channels_ok),
     startup_elapsed_ms: Some(elapsed_ms),
-    message: if success {
+    message: if ready && browser_ok && channels_ok {
       "Gateway, browser, and channels are ready".to_string()
     } else if ready && browser_ok {
       "Gateway and browser are ready; channels are still starting up".to_string()
     } else if ready {
-      "Gateway is ready; browser is still starting up".to_string()
+      "Gateway is ready; browser and channels are still starting up".to_string()
     } else {
       "Gateway did not become ready within 15s".to_string()
     },
@@ -8144,6 +8319,12 @@ async fn prepare_gateway_config(
     }
   }
 
+  if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
+    eprintln!(
+      "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
+    );
+  }
+
   // Keep the startup-critical root locked down immediately, but run the
   // recursive sweep off the launch path. Large state trees can contain
   // hundreds of thousands of files, and blocking here can consume the whole
@@ -9805,6 +9986,12 @@ pub async fn set_service_enabled(
             }
           }
         }
+      }
+
+      if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
+        eprintln!(
+          "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
+        );
       }
 
       // Keep the startup-critical root locked down immediately, but run the
@@ -11522,6 +11709,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   // Signal to the health endpoint that setup is in progress so it can show a
   // cleaner message rather than "service is registering — please retry".
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
+  mark_gateway_launch_started();
   eprintln!("[clawd/service] auto_enable: registering LaunchAgent");
 
   // Build a default config (base_url is set inside prepare_gateway_config's
@@ -11688,6 +11876,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 
   // Gateway is not running — start it.
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
+  mark_gateway_launch_started();
   eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
 
   let cfg: crate::clawd::sidecar::SharedClawdbotConfig = std::sync::Arc::new(
@@ -12040,6 +12229,92 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn bundled_channel_plugin_install_state_prefers_signed_bundle() {
+    let temp = tempfile::tempdir().unwrap();
+    let clawdbot_home = temp.path();
+    let plugins_dir = clawdbot_home.join("plugins");
+    let npm_dir = clawdbot_home.join("npm");
+    fs::create_dir_all(&plugins_dir).unwrap();
+    fs::create_dir_all(&npm_dir).unwrap();
+    fs::write(
+      plugins_dir.join("installs.json"),
+      serde_json::to_string_pretty(&serde_json::json!({
+        "installRecords": {
+          "slack": {
+            "source": "npm",
+            "installPath": "/tmp/stale/@openclaw/slack"
+          },
+          "custom": {
+            "source": "npm",
+            "installPath": "/tmp/custom"
+          }
+        },
+        "plugins": [
+          {
+            "pluginId": "whatsapp",
+            "installRecord": {
+              "source": "npm",
+              "installPath": "/tmp/stale/@openclaw/whatsapp"
+            }
+          },
+          {
+            "pluginId": "custom",
+            "installRecord": {
+              "source": "npm",
+              "installPath": "/tmp/custom"
+            }
+          }
+        ]
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+      npm_dir.join("package.json"),
+      serde_json::to_string_pretty(&serde_json::json!({
+        "dependencies": {
+          "@openclaw/slack": "2026.5.20",
+          "@openclaw/telegram": "2026.5.20",
+          "left-pad": "1.3.0"
+        }
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+
+    assert!(sanitize_bundled_channel_plugin_install_state(clawdbot_home));
+
+    let installs: serde_json::Value =
+      serde_json::from_str(&fs::read_to_string(plugins_dir.join("installs.json")).unwrap())
+        .unwrap();
+    assert!(installs.pointer("/installRecords/slack").is_none());
+    assert!(installs.pointer("/installRecords/custom").is_some());
+    let plugin_ids = installs
+      .pointer("/plugins")
+      .and_then(|value| value.as_array())
+      .unwrap()
+      .iter()
+      .filter_map(|entry| entry.get("pluginId").and_then(|value| value.as_str()))
+      .collect::<Vec<_>>();
+    assert_eq!(plugin_ids, vec!["custom"]);
+
+    let package_json: serde_json::Value =
+      serde_json::from_str(&fs::read_to_string(npm_dir.join("package.json")).unwrap()).unwrap();
+    assert!(package_json
+      .pointer("/dependencies/@openclaw~1slack")
+      .is_none());
+    assert!(package_json
+      .pointer("/dependencies/@openclaw~1telegram")
+      .is_none());
+    assert_eq!(
+      package_json
+        .pointer("/dependencies/left-pad")
+        .and_then(|value| value.as_str()),
+      Some("1.3.0")
+    );
+  }
+
+  #[test]
   fn streaming_scalars_are_upgraded_for_current_openclaw_schema() {
     let mut cfg = serde_json::json!({
       "channels": {
@@ -12060,22 +12335,26 @@ mod crash_classifier_tests {
 
     assert!(sanitize_channel_allowlist_configs(&mut cfg));
     assert_eq!(
-      cfg.pointer("/channels/telegram/streaming/mode")
+      cfg
+        .pointer("/channels/telegram/streaming/mode")
         .and_then(|v| v.as_str()),
       Some("partial")
     );
     assert_eq!(
-      cfg.pointer("/channels/telegram/accounts/default/streaming/mode")
+      cfg
+        .pointer("/channels/telegram/accounts/default/streaming/mode")
         .and_then(|v| v.as_str()),
       Some("off")
     );
     assert_eq!(
-      cfg.pointer("/channels/telegram/accounts/legacy_bool/streaming/mode")
+      cfg
+        .pointer("/channels/telegram/accounts/legacy_bool/streaming/mode")
         .and_then(|v| v.as_str()),
       Some("partial")
     );
     assert_eq!(
-      cfg.pointer("/channels/slack/accounts/default/streaming/mode")
+      cfg
+        .pointer("/channels/slack/accounts/default/streaming/mode")
         .and_then(|v| v.as_str()),
       Some("partial")
     );
