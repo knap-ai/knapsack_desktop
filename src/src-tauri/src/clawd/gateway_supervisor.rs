@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 /// result in I/O errors and "service not found" failures.
 static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
   once_cell::sync::Lazy::new(|| Mutex::new(()));
-const LOCAL_GATEWAY_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
+const LOCAL_GATEWAY_HEALTH_TIMEOUT: Duration = Duration::from_millis(1000);
 
 /// Minimal gateway supervisor helpers.
 ///
@@ -30,7 +30,7 @@ pub struct GatewayEnsureResponse {
 }
 
 pub fn gateway_health_url() -> &'static str {
-  "http://127.0.0.1:18789/health"
+  "http://127.0.0.1:18789/healthz"
 }
 
 pub async fn is_gateway_healthy(token: &str) -> bool {
