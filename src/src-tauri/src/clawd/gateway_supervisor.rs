@@ -451,10 +451,21 @@ pub async fn wait_for_gateway_ready(token: &str, max_wait_ms: u64) -> bool {
     if is_gateway_healthy_or_ready(token).await {
       return true;
     }
-    tokio::time::sleep(std::time::Duration::from_millis(interval_ms)).await;
+    let elapsed_ms = start.elapsed().as_millis() as u64;
+    let remaining_ms = max_wait_ms.saturating_sub(elapsed_ms);
+    if remaining_ms == 0 {
+      break;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(
+      interval_ms.min(remaining_ms),
+    ))
+    .await;
     interval_ms = (interval_ms * 2).min(max_interval_ms);
   }
-  false
+
+  // The final sleep can land exactly on the budget edge. Probe once more so a
+  // gateway that became ready during that sleep is not reported as a timeout.
+  is_gateway_healthy_or_ready(token).await
 }
 
 /// Helper for locating clawdbot home (used by other modules). Kept here to avoid

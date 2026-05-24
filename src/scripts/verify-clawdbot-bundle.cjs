@@ -223,6 +223,31 @@ if (fs.existsSync(extensionsDir)) {
       console.error(`[verify-clawdbot] CRITICAL: ${requiredChannel} package.json does not declare openclaw.channel.id=${requiredChannel}`);
       errors++;
     }
+
+    const openclaw = packageJson?.openclaw || {};
+    const runtimeEntries = [
+      ...(Array.isArray(openclaw.runtimeExtensions) ? openclaw.runtimeExtensions : []),
+      ...(typeof openclaw.runtimeSetupEntry === 'string' ? [openclaw.runtimeSetupEntry] : []),
+    ];
+    for (const entry of runtimeEntries) {
+      const normalized = entry.replace(/\\/g, '/');
+      if (!normalized || path.isAbsolute(normalized) || normalized.startsWith('../')) {
+        console.error(`[verify-clawdbot] CRITICAL: ${requiredChannel} declares unsafe runtime entry: ${entry}`);
+        errors++;
+        continue;
+      }
+      const entryPath = path.join(dir, normalized);
+      if (!fs.existsSync(entryPath)) {
+        console.error(`[verify-clawdbot] CRITICAL: ${requiredChannel} runtime entry missing: ${entry}`);
+        errors++;
+        continue;
+      }
+      const stat = fs.statSync(entryPath);
+      if (stat.size === 0) {
+        console.error(`[verify-clawdbot] CRITICAL: ${requiredChannel} runtime entry is empty: ${entry}`);
+        errors++;
+      }
+    }
   }
 
   const whatsappExtensionDir = path.join(extensionsDir, 'whatsapp');
@@ -272,6 +297,49 @@ if (fs.existsSync(rootAliasPath)) {
   if (!content.includes('fsCache: false')) {
     console.error('[verify-clawdbot] CRITICAL: plugin-sdk/root-alias.cjs must disable Jiti fsCache in signed app bundles');
     errors++;
+  }
+}
+
+const openclawAliasDir = path.join(CLAWDBOT_DIR, 'node_modules', 'openclaw');
+const openclawAliasPkgPath = path.join(openclawAliasDir, 'package.json');
+if (!fs.existsSync(openclawAliasPkgPath)) {
+  console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw package alias missing — signed app cannot mutate resources to recreate it');
+  errors++;
+} else {
+  let aliasPkg = null;
+  try {
+    aliasPkg = JSON.parse(fs.readFileSync(openclawAliasPkgPath, 'utf8'));
+  } catch (err) {
+    console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw/package.json is unreadable: ${err.message}`);
+    errors++;
+  }
+
+  if (aliasPkg) {
+    if (aliasPkg.name !== 'openclaw-bundle-alias' || aliasPkg.type !== 'module') {
+      console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw package alias must be an ESM package named openclaw-bundle-alias');
+      errors++;
+    }
+    for (const subpath of ['./plugin-sdk/channel-entry-contract', './plugin-sdk/runtime-env']) {
+      const target = aliasPkg.exports?.[subpath]?.default ?? aliasPkg.exports?.[subpath];
+      if (typeof target !== 'string' || !target.startsWith('./plugin-sdk/')) {
+        console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw package alias missing export ${subpath}`);
+        errors++;
+      }
+    }
+  }
+
+  const sdkContract = path.join(openclawAliasDir, 'plugin-sdk', 'channel-entry-contract.js');
+  if (!fs.existsSync(sdkContract)) {
+    console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw/plugin-sdk alias does not resolve channel-entry-contract.js');
+    errors++;
+  } else {
+    const content = fs.readFileSync(sdkContract, 'utf8');
+    const chunkMatch = content.match(/from\s+["']\.\.\/([^"']+\.js)["']/);
+    if (chunkMatch && !fs.existsSync(path.join(openclawAliasDir, chunkMatch[1]))) {
+      console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw missing plugin-sdk chunk alias: ${chunkMatch[1]}`);
+      errors++;
+    }
+    console.log('[verify-clawdbot] openclaw plugin-sdk package alias ✓');
   }
 }
 
