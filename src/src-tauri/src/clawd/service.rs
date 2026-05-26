@@ -61,6 +61,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "OPENAI_API_KEY",
     "ANTHROPIC_API_KEY",
     "GROQ_API_KEY",
+    "XAI_API_KEY",
     "OPENROUTER_API_KEY",
     "OLLAMA_API_KEY",
     "OLLAMA_HOST",
@@ -69,6 +70,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "KNAPSACK_OPENAI_MODEL",
     "KNAPSACK_ANTHROPIC_MODEL",
     "KNAPSACK_GROQ_MODEL",
+    "KNAPSACK_XAI_MODEL",
     "KNAPSACK_OPENROUTER_MODEL",
     "KNAPSACK_OLLAMA_MODEL",
   ];
@@ -3388,13 +3390,17 @@ struct StoredTokens {
   gemini_model: Option<String>,
   #[serde(default)]
   groq_model: Option<String>,
+  #[serde(default)]
+  xai_api_key: Option<String>,
+  #[serde(default)]
+  xai_model: Option<String>,
   // OpenRouter support (access many models via openrouter.ai)
   #[serde(default)]
   openrouter_api_key: Option<String>,
   #[serde(default)]
   openrouter_model: Option<String>,
 
-  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "openrouter", "ollama"
+  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "xai", "openrouter", "ollama"
   #[serde(default)]
   active_provider: Option<String>,
 
@@ -3595,6 +3601,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_api_key: None,
     gemini_model: None, // Defaults to gemini-3.5-flash
     groq_model: None,   // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
+    xai_api_key: None,
+    xai_model: None, // Defaults to grok-code-fast-1
     openrouter_api_key: None,
     openrouter_model: None, // Defaults to meta-llama/llama-3.3-70b-instruct:free
     active_provider: None,  // Defaults to openai
@@ -3632,6 +3640,12 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let k = k.trim();
     if !k.is_empty() {
       std::env::set_var("GROQ_API_KEY", k);
+    }
+  }
+  if let Some(k) = &tokens.xai_api_key {
+    let k = k.trim();
+    if !k.is_empty() {
+      std::env::set_var("XAI_API_KEY", k);
     }
   }
   if let Some(k) = &tokens.openai_api_key {
@@ -3689,6 +3703,12 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() {
       std::env::set_var("KNAPSACK_GROQ_MODEL", m);
+    }
+  }
+  if let Some(m) = &tokens.xai_model {
+    let m = m.trim();
+    if !m.is_empty() {
+      std::env::set_var("KNAPSACK_XAI_MODEL", m);
     }
   }
   if let Some(k) = tokens.openrouter_api_key.clone() {
@@ -3818,6 +3838,14 @@ pub fn get_groq_model(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.groq_model)
     .unwrap_or_else(|| "meta-llama/llama-4-scout-17b-16e-instruct".to_string())
+}
+
+/// Get the configured xAI/Grok model (defaults to grok-code-fast-1 if not set)
+pub fn get_xai_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.xai_model)
+    .unwrap_or_else(|| "grok-code-fast-1".to_string())
 }
 
 /// Get the configured OpenRouter model (defaults to meta-llama/llama-3.3-70b-instruct:free if not set)
@@ -5696,12 +5724,14 @@ pub struct ApiKeyStatusResponse {
   pub has_anthropic_key: bool,
   pub has_gemini_key: bool,
   pub has_groq_key: bool,
+  pub has_xai_key: bool,
   pub has_openrouter_key: bool,
   pub has_gemini_cli_key: bool,
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
   pub gemini_key_hint: Option<String>,
   pub groq_key_hint: Option<String>,
+  pub xai_key_hint: Option<String>,
   pub openrouter_key_hint: Option<String>,
   pub gemini_cli_email: Option<String>,
   // Ollama (local LLM) status
@@ -5743,12 +5773,14 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         has_anthropic_key: false,
         has_gemini_key: false,
         has_groq_key: false,
+        has_xai_key: false,
         has_openrouter_key: false,
         has_gemini_cli_key: false,
         openai_key_hint: None,
         anthropic_key_hint: None,
         gemini_key_hint: None,
         groq_key_hint: None,
+        xai_key_hint: None,
         openrouter_key_hint: None,
         gemini_cli_email: None,
         ollama_enabled: false,
@@ -5783,6 +5815,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .as_ref()
     .map(|k| !k.trim().is_empty())
     .unwrap_or(false);
+  let has_xai = tokens
+    .xai_api_key
+    .as_ref()
+    .map(|k| !k.trim().is_empty())
+    .unwrap_or(false);
   let has_openrouter = tokens
     .openrouter_api_key
     .as_ref()
@@ -5799,6 +5836,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     || has_anthropic
     || has_gemini
     || has_groq
+    || has_xai
     || has_openrouter
     || ollama_enabled
     || has_gemini_cli
@@ -5824,6 +5862,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .map(|k| mask_key(k));
   let groq_hint = tokens
     .groq_api_key
+    .as_ref()
+    .filter(|k| !k.trim().is_empty())
+    .map(|k| mask_key(k));
+  let xai_hint = tokens
+    .xai_api_key
     .as_ref()
     .filter(|k| !k.trim().is_empty())
     .map(|k| mask_key(k));
@@ -5870,12 +5913,14 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     has_anthropic_key: has_anthropic,
     has_gemini_key: has_gemini,
     has_groq_key: has_groq,
+    has_xai_key: has_xai,
     has_openrouter_key: has_openrouter,
     has_gemini_cli_key: has_gemini_cli,
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
     gemini_key_hint: gemini_hint,
     groq_key_hint: groq_hint,
+    xai_key_hint: xai_hint,
     openrouter_key_hint: openrouter_hint,
     gemini_cli_email,
     ollama_enabled,
@@ -5893,7 +5938,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 #[derive(Debug, Deserialize)]
 pub struct ValidateApiKeyRequest {
   pub key: String,
-  /// "openai", "anthropic", "gemini", or "groq"
+  /// "openai", "anthropic", "gemini", "groq", or "xai"
   pub provider: Option<String>,
 }
 
@@ -5948,6 +5993,13 @@ pub async fn validate_api_key(payload: web::Json<ValidateApiKeyRequest>) -> impl
     "groq" => {
       client
         .get("https://api.groq.com/openai/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
+    "xai" => {
+      client
+        .get("https://api.x.ai/v1/models")
         .bearer_auth(&key)
         .send()
         .await
@@ -6076,7 +6128,7 @@ pub struct SetApiKeyResponse {
 
 fn normalize_coding_agent(agent: &str) -> Option<String> {
   let agent = agent.trim().to_lowercase();
-  if ["claude", "codex", "antigravity", "agy", "gemini", "opencode"].contains(&agent.as_str()) {
+  if ["claude", "codex", "antigravity", "agy", "gemini", "grok", "opencode"].contains(&agent.as_str()) {
     if agent == "agy" {
       return Some("antigravity".to_string());
     }
@@ -6173,6 +6225,10 @@ pub async fn set_api_key(
         .groq_api_key
         .as_ref()
         .map_or(false, |k| !k.is_empty()),
+      "xai" => tokens
+        .xai_api_key
+        .as_ref()
+        .map_or(false, |k| !k.is_empty()),
       "openrouter" => tokens
         .openrouter_api_key
         .as_ref()
@@ -6206,6 +6262,9 @@ pub async fn set_api_key(
         "groq" => {
           tokens.groq_model = Some(model.trim().to_string());
         }
+        "xai" => {
+          tokens.xai_model = Some(model.trim().to_string());
+        }
         "openrouter" => {
           tokens.openrouter_model = Some(model.trim().to_string());
         }
@@ -6224,6 +6283,7 @@ pub async fn set_api_key(
       "anthropic" => "Anthropic",
       "gemini" => "Gemini",
       "groq" => "Groq",
+      "xai" => "Grok (xAI)",
       "openrouter" => "OpenRouter",
       "ollama" => "Ollama",
       "knapsack" => "Knapsack",
@@ -6251,6 +6311,9 @@ pub async fn set_api_key(
     }
     if let Some(k) = &tokens.groq_api_key {
       std::env::set_var("GROQ_API_KEY", k);
+    }
+    if let Some(k) = &tokens.xai_api_key {
+      std::env::set_var("XAI_API_KEY", k);
     }
     if let Some(k) = &tokens.openrouter_api_key {
       let k = k.trim();
@@ -6414,6 +6477,14 @@ pub async fn set_api_key(
       }
       "Groq"
     }
+    "xai" => {
+      tokens.xai_api_key = Some(key);
+      tokens.active_provider = Some("xai".to_string());
+      if let Some(model) = &payload.model {
+        tokens.xai_model = Some(model.trim().to_string());
+      }
+      "Grok (xAI)"
+    }
     "openrouter" => {
       tokens.openrouter_api_key = Some(key);
       tokens.active_provider = Some("openrouter".to_string());
@@ -6500,6 +6571,9 @@ pub async fn set_api_key(
   if let Some(k) = &tokens.groq_api_key {
     std::env::set_var("GROQ_API_KEY", k);
   }
+  if let Some(k) = &tokens.xai_api_key {
+    std::env::set_var("XAI_API_KEY", k);
+  }
   if let Some(k) = &tokens.openai_api_key {
     std::env::set_var("OPENAI_API_KEY", k);
   }
@@ -6536,6 +6610,9 @@ pub async fn set_api_key(
   }
   if let Some(m) = &tokens.groq_model {
     std::env::set_var("KNAPSACK_GROQ_MODEL", m);
+  }
+  if let Some(m) = &tokens.xai_model {
+    std::env::set_var("KNAPSACK_XAI_MODEL", m);
   }
   if let Some(m) = &tokens.openrouter_model {
     std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m);
@@ -7074,9 +7151,11 @@ pub struct GetApiKeyResponse {
   pub openai_key: Option<String>,
   pub anthropic_key: Option<String>,
   pub gemini_key: Option<String>,
+  pub xai_key: Option<String>,
   pub anthropic_model: Option<String>,
   pub gemini_model: Option<String>,
   pub groq_model: Option<String>,
+  pub xai_model: Option<String>,
   pub openrouter_model: Option<String>,
 }
 
@@ -7093,9 +7172,11 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
         openai_key: None,
         anthropic_key: None,
         gemini_key: None,
+        xai_key: None,
         anthropic_model: None,
         gemini_model: None,
         groq_model: None,
+        xai_model: None,
         openrouter_model: None,
       })
     }
@@ -7104,12 +7185,14 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
   let openai_key = tokens.openai_api_key.filter(|k| !k.trim().is_empty());
   let anthropic_key = tokens.anthropic_api_key.filter(|k| !k.trim().is_empty());
   let gemini_key = tokens.gemini_api_key.filter(|k| !k.trim().is_empty());
+  let xai_key = tokens.xai_api_key.filter(|k| !k.trim().is_empty());
 
   // Return the currently active provider's key as `key` for backwards compatibility (voice/TTS)
   let active = tokens.active_provider.as_deref().unwrap_or("openai");
   let key = match active {
     "anthropic" => anthropic_key.clone(),
     "gemini" => gemini_key.clone(),
+    "xai" => xai_key.clone(),
     _ => openai_key.clone(),
   };
 
@@ -7121,9 +7204,11 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     openai_key,
     anthropic_key,
     gemini_key,
+    xai_key,
     anthropic_model: tokens.anthropic_model,
     gemini_model: tokens.gemini_model,
     groq_model: tokens.groq_model,
+    xai_model: tokens.xai_model,
     openrouter_model: tokens.openrouter_model,
   })
 }
@@ -7202,6 +7287,7 @@ fn any_provider_key_available() -> bool {
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
     "GROQ_API_KEY",
+    "XAI_API_KEY",
     "OPENROUTER_API_KEY",
     "OLLAMA_API_KEY",
   ];
@@ -7228,6 +7314,7 @@ fn model_ref_has_key(model_ref: &str) -> bool {
     "anthropic" => has("ANTHROPIC_API_KEY"),
     "google" | "gemini" | "vertex" => has("GEMINI_API_KEY") || has("GOOGLE_API_KEY"),
     "groq" => has("GROQ_API_KEY"),
+    "xai" => has("XAI_API_KEY"),
     "openrouter" => has("OPENROUTER_API_KEY"),
     "ollama" => has("OLLAMA_API_KEY"),
     _ => true,
@@ -8594,6 +8681,13 @@ async fn prepare_gateway_config(
       env.push(("GROQ_API_KEY".to_string(), k));
     }
   }
+  if let Some(k) = tokens.xai_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("XAI_API_KEY", &k);
+      env.push(("XAI_API_KEY".to_string(), k));
+    }
+  }
   if let Some(k) = tokens.openai_api_key.clone() {
     let k = k.trim().to_string();
     if !k.is_empty() {
@@ -8664,6 +8758,9 @@ async fn prepare_gateway_config(
   }
   if let Some(m) = tokens.groq_model.clone() {
     env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.xai_model.clone() {
+    env.push(("KNAPSACK_XAI_MODEL".to_string(), m));
   }
   if let Some(m) = tokens.openrouter_model.clone() {
     env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
@@ -10234,6 +10331,14 @@ pub async fn set_service_enabled(
         }
       }
 
+      if let Some(k) = tokens.xai_api_key.clone() {
+        let k = k.trim().to_string();
+        if !k.is_empty() {
+          std::env::set_var("XAI_API_KEY", &k);
+          env.push(("XAI_API_KEY".to_string(), k));
+        }
+      }
+
       if let Some(k) = tokens.openai_api_key.clone() {
         let k = k.trim().to_string();
         if !k.is_empty() {
@@ -10309,6 +10414,9 @@ pub async fn set_service_enabled(
       }
       if let Some(m) = tokens.groq_model.clone() {
         env.push(("KNAPSACK_GROQ_MODEL".to_string(), m));
+      }
+      if let Some(m) = tokens.xai_model.clone() {
+        env.push(("KNAPSACK_XAI_MODEL".to_string(), m));
       }
       if let Some(m) = tokens.openrouter_model.clone() {
         env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
@@ -12588,6 +12696,7 @@ mod provider_key_tests {
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
     "GROQ_API_KEY",
+    "XAI_API_KEY",
     "OPENROUTER_API_KEY",
     "OLLAMA_API_KEY",
   ];
@@ -12604,6 +12713,11 @@ mod provider_key_tests {
       normalize_coding_agent(" opencode "),
       Some("opencode".to_string())
     );
+  }
+
+  #[test]
+  fn coding_agent_preference_accepts_grok() {
+    assert_eq!(normalize_coding_agent(" grok "), Some("grok".to_string()));
   }
 
   #[test]
@@ -12646,6 +12760,7 @@ mod provider_key_tests {
     assert!(!model_ref_has_key("anthropic/claude-opus-4-6"));
     assert!(!model_ref_has_key("google/gemini-2.5-pro"));
     assert!(!model_ref_has_key("groq/llama-3.3-70b-versatile"));
+    assert!(!model_ref_has_key("xai/grok-code-fast-1"));
   }
 
   #[test]
@@ -12655,7 +12770,18 @@ mod provider_key_tests {
     std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
     assert!(model_ref_has_key("anthropic/claude-opus-4-6"));
     assert!(!model_ref_has_key("openai/gpt-5.4"));
+    assert!(!model_ref_has_key("xai/grok-code-fast-1"));
     std::env::remove_var("ANTHROPIC_API_KEY");
+  }
+
+  #[test]
+  fn xai_model_ref_recognizes_xai_key() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("XAI_API_KEY", "xai-test");
+    assert!(model_ref_has_key("xai/grok-code-fast-1"));
+    assert!(!model_ref_has_key("openai/gpt-5.4"));
+    std::env::remove_var("XAI_API_KEY");
   }
 
   #[test]

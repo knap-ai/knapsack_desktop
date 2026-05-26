@@ -766,6 +766,11 @@ pub fn resolve_default_model() -> String {
         .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
       return format!("groq/{}", model);
     }
+    "xai" if has_key("XAI_API_KEY") => {
+      let model = std::env::var("KNAPSACK_XAI_MODEL")
+        .unwrap_or_else(|_| "grok-code-fast-1".to_string());
+      return format!("xai/{}", model);
+    }
     "gemini" if has_gemini_key() => {
       let model = std::env::var("KNAPSACK_GEMINI_MODEL")
         .unwrap_or_else(|_| "gemini-3.5-flash".to_string());
@@ -787,7 +792,7 @@ pub fn resolve_default_model() -> String {
     .unwrap_or(true);
   // google-gemini-cli is OAuth-based (free tier) — treat it as a free provider
   // so paid fallbacks are not silently selected when the CLI model is unavailable.
-  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter" | "google-gemini-cli");
+  let active_is_free = matches!(active.as_str(), "groq" | "xai" | "gemini" | "ollama" | "openrouter" | "google-gemini-cli");
 
   if !disable_paid || !active_is_free {
     if has_key("ANTHROPIC_API_KEY") {
@@ -814,6 +819,11 @@ pub fn resolve_default_model() -> String {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
       .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
     return format!("groq/{}", model);
+  }
+  if has_key("XAI_API_KEY") {
+    let model = std::env::var("KNAPSACK_XAI_MODEL")
+      .unwrap_or_else(|_| "grok-code-fast-1".to_string());
+    return format!("xai/{}", model);
   }
   if has_gemini_key() {
     let model = std::env::var("KNAPSACK_GEMINI_MODEL")
@@ -851,6 +861,12 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
       .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
     fallbacks.push(format!("groq/{}", model));
+  }
+
+  if primary_provider != "xai" && has_key("XAI_API_KEY") {
+    let model = std::env::var("KNAPSACK_XAI_MODEL")
+      .unwrap_or_else(|_| "grok-code-fast-1".to_string());
+    fallbacks.push(format!("xai/{}", model));
   }
 
   // Google/Gemini as fallback when the primary is not already a Google provider.

@@ -85,6 +85,10 @@ struct StoredTokens {
   gemini_model: Option<String>,
   #[serde(default)]
   groq_model: Option<String>,
+  #[serde(default)]
+  xai_api_key: Option<String>,
+  #[serde(default)]
+  xai_model: Option<String>,
   // OpenRouter support
   #[serde(default)]
   openrouter_api_key: Option<String>,
@@ -160,6 +164,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     gemini_api_key: None,
     gemini_model: None,
     groq_model: None,
+    xai_api_key: None,
+    xai_model: None,
     openrouter_api_key: None,
     openrouter_model: None,
     active_provider: None,
@@ -469,6 +475,20 @@ fn groq_key(app_handle: &tauri::AppHandle) -> Option<String> {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.groq_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+fn xai_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("XAI_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.xai_api_key)
     .map(|s| s.trim().to_string())
     .filter(|s| !s.is_empty())
 }
@@ -1805,6 +1825,15 @@ pub async fn chat(
         }))
       }
     },
+    "xai" => match xai_key(&app_handle) {
+      Some(k) => k,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "xAI API key is not set. Add it in Settings and Save, then re-enable."
+        }))
+      }
+    },
     "openrouter" => match openrouter_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -2640,7 +2669,7 @@ pub async fn chat(
 
       // Select which coding CLI to use: check user preference first, then fall back to
       // whichever API key is available. Anthropic → claude, OpenAI → codex,
-      // Google → gemini for this piped prompt runner, otherwise OpenCode.
+      // Google → gemini, xAI → grok for this piped prompt runner, otherwise OpenCode.
       // Antigravity (`agy`) is the forward Google coding CLI, but it is a TUI
       // and needs a PTY-backed terminal path rather than this stdout/stderr pipe.
       let coding_agent = {
@@ -2653,6 +2682,7 @@ pub async fn chat(
           if has("ANTHROPIC_API_KEY") { "claude".to_string() }
           else if has("OPENAI_API_KEY") { "codex".to_string() }
           else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") { "gemini".to_string() }
+          else if has("XAI_API_KEY") { "grok".to_string() }
           else { "opencode".to_string() }
         }
       };
@@ -2671,7 +2701,7 @@ pub async fn chat(
       // codex:  --approval-mode auto-edit allows file edits non-interactively.
       // gemini: -p (--prompt) triggers prompt mode, returning stdout output without TTY UI.
       // antigravity: launch the TUI when explicitly requested; this path streams output only.
-      // opencode: use npx so the fallback can work even when the binary is not already installed.
+      // opencode/grok: use npx so the fallback can work even when the binary is not already installed.
       // Windows cmd uses double-quotes; Unix shells use single-quotes for safe embedding.
       let claude_cmd = match coding_agent.as_str() {
         "codex" => {
@@ -2692,6 +2722,12 @@ pub async fn chat(
           { format!("npx -y opencode-ai run \"{}\"", prompt.replace('"', "\\\"")) }
           #[cfg(not(target_os = "windows"))]
           { format!("npx -y opencode-ai run '{}'", prompt.replace('\'', "'\\''")) }
+        }
+        "grok" | "xai" => {
+          #[cfg(target_os = "windows")]
+          { format!("npx -y opencode-ai run --model xai/grok-code-fast-1 \"{}\"", prompt.replace('"', "\\\"")) }
+          #[cfg(not(target_os = "windows"))]
+          { format!("npx -y opencode-ai run --model xai/grok-code-fast-1 '{}'", prompt.replace('\'', "'\\''")) }
         }
         _ => {
           #[cfg(target_os = "windows")]
@@ -3945,6 +3981,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     "anthropic" => super::service::get_anthropic_model(&app_handle),
     "gemini" => super::service::get_gemini_model(&app_handle),
     "groq" => super::service::get_groq_model(&app_handle),
+    "xai" => super::service::get_xai_model(&app_handle),
     "ollama" => ollama_model(&app_handle),
     "openrouter" => super::service::get_openrouter_model(&app_handle),
     _ => super::service::get_openai_model(&app_handle),
@@ -3962,6 +3999,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
         "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
         "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
+        "xai" => chat_agent::openai_compatible_chat(key, model, "https://api.x.ai/v1", msgs, tls).await,
         "ollama" => {
           let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
           chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
@@ -4005,16 +4043,17 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
           );
         }
-        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → Ollama
+        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
         // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
         eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
         let disable_paid = is_paid_fallback_disabled();
         let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
-        let fallbacks: [(&str, Option<String>); 6] = [
+        let fallbacks: [(&str, Option<String>); 7] = [
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
           ("gemini", gemini_key(&app_handle)),
           ("groq", groq_key(&app_handle)),
+          ("xai", xai_key(&app_handle)),
           ("openrouter", openrouter_key(&app_handle)),
           ("ollama", ollama_key),
         ];
@@ -4032,6 +4071,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               "anthropic" => super::service::get_anthropic_model(&app_handle),
               "gemini" => super::service::get_gemini_model(&app_handle),
               "groq" => super::service::get_groq_model(&app_handle),
+              "xai" => super::service::get_xai_model(&app_handle),
               "ollama" => ollama_model(&app_handle),
               "openrouter" => super::service::get_openrouter_model(&app_handle),
               _ => super::service::get_openai_model(&app_handle),
