@@ -760,32 +760,43 @@ function clearOnboardingAgents() {
 
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
 
-1. Check the gateway service status by running: curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
-2. Check startup readiness by running: curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
-3. Check if ports are listening without printing process environments: lsof -nP -iTCP:18789 -iTCP:18791 -sTCP:LISTEN 2>/dev/null
+0. Define a JSON pretty-printer helper (works even if python3/jq are missing):
+   JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+
+1. Check the gateway service status:
+   curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
+2. Check startup readiness:
+   curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
+3. Check if ports are listening without printing process environments:
+   lsof -nP -iTCP:18789 -iTCP:18791 -sTCP:LISTEN 2>/dev/null
 4. Check the current Knapsack gateway logs, filtering stale/noisy lines:
    tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || true
-5. Check browser tabs through Knapsack: curl -s http://127.0.0.1:8897/api/clawd/browser/tabs | python3 -m json.tool
+5. Check browser tabs through Knapsack:
+   curl -s http://127.0.0.1:8897/api/clawd/browser/tabs | sh -c "$JSON_PP"
 
 Based on the results, tell me:
 - Whether the gateway process is running
 - Whether the browser (Chrome CDP) is connected
-- Any specific errors you see in the logs (like permission denied, port conflicts, session expired)
-- The recommended fix based on actual evidence found (e.g. restart the gateway, re-link WhatsApp, kill stale processes)
+- Any specific errors you see in the logs (like permission denied, port conflicts, session expired, version mismatch)
+- The recommended fix based on actual evidence found (e.g. restart the gateway, kill stale processes, re-link a channel)
 - Treat live /service/health and /startup-ready as authoritative over old chat messages or stale log lines.
 - Never run ps/pgrep with full command lines or environment output, because provider keys can appear there.
-IMPORTANT: Only suggest Full Disk Access if you see an explicit permission-denied error in the logs. Do not suggest it based on absence of a log file alone.`
+IMPORTANT:
+- Only suggest Full Disk Access if you see an explicit permission-denied error in the logs (absence of logs is not evidence).
+- If the logs mention an OpenClaw version guard (config written by a different/newer version, unknown config key like plugins.bundledDiscovery), treat that as a version mismatch and recommend updating/repairing the bundled gateway rather than generic permission fixes.`
 
 const GATEWAY_RESTART_PROMPT = `Please restart the Knapsack gateway service. Run this command:
-curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
+JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
 Then check if it recovered:
-curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Tell me whether the gateway and browser are now healthy.`
 
 const GATEWAY_VIEW_LOGS_PROMPT = `Show me the recent Knapsack gateway error logs to help diagnose connectivity issues. Run:
 tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || echo "No relevant gateway error log lines found"
 Then compare against live health:
-curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Summarize only recurring current errors, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), or port conflicts.
 IMPORTANT: Treat live health as authoritative over stale log lines. If the log is empty or not found, do NOT speculate about Full Disk Access or other permissions — the absence of logs does not imply a permission issue.`
 
