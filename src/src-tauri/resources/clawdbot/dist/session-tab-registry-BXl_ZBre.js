@@ -292,7 +292,32 @@ async function browserDeleteProfile(baseUrl, profile) {
 async function browserTabs(baseUrl, opts) {
 	return (await fetchBrowserJson(withBaseUrl(baseUrl, `/tabs${buildProfileQuery(opts?.profile)}`), { timeoutMs: typeof opts?.timeoutMs === "number" && Number.isFinite(opts.timeoutMs) ? Math.max(1, Math.floor(opts.timeoutMs)) : 3e3 })).tabs ?? [];
 }
+function normalizeTabUrlForReuse(rawUrl) {
+	try {
+		const parsed = new URL(rawUrl);
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return typeof rawUrl === "string" ? rawUrl.trim() : "";
+	}
+}
 async function browserOpenTab(baseUrl, url, opts) {
+	try {
+		const existing = (await browserTabs(baseUrl, {
+			profile: opts?.profile,
+			timeoutMs: opts?.timeoutMs
+		})).find((tab) => normalizeTabUrlForReuse(tab.url) === normalizeTabUrlForReuse(url));
+		if (existing?.targetId) {
+			await browserFocusTab(baseUrl, existing.targetId, {
+				profile: opts?.profile,
+				timeoutMs: opts?.timeoutMs
+			});
+			return {
+				...existing,
+				reused: true
+			};
+		}
+	} catch {}
 	return await fetchBrowserJson(withBaseUrl(baseUrl, `/tabs/open${buildProfileQuery(opts?.profile)}`), {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
