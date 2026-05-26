@@ -300,48 +300,87 @@ if (fs.existsSync(rootAliasPath)) {
   }
 }
 
-const openclawAliasDir = path.join(CLAWDBOT_DIR, 'node_modules', 'openclaw');
-const openclawAliasPkgPath = path.join(openclawAliasDir, 'package.json');
-if (!fs.existsSync(openclawAliasPkgPath)) {
-  console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw package alias missing — signed app cannot mutate resources to recreate it');
-  errors++;
-} else {
-  let aliasPkg = null;
-  try {
-    aliasPkg = JSON.parse(fs.readFileSync(openclawAliasPkgPath, 'utf8'));
-  } catch (err) {
-    console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw/package.json is unreadable: ${err.message}`);
+function verifyOpenClawAliasWrapper(sourcePath, aliasPath) {
+  if (!fs.existsSync(aliasPath)) {
+    console.error(`[verify-clawdbot] MISSING OPENCLAW ALIAS: ${path.relative(CLAWDBOT_DIR, aliasPath)}`);
+    errors++;
+    return;
+  }
+  const expected = path.relative(path.dirname(aliasPath), sourcePath).replaceAll(path.sep, '/');
+  const normalizedExpected = expected.startsWith('.') ? expected : `./${expected}`;
+  const content = fs.readFileSync(aliasPath, 'utf8');
+  if (!content.includes(JSON.stringify(normalizedExpected))) {
+    console.error(
+      `[verify-clawdbot] BROKEN OPENCLAW ALIAS: ${path.relative(CLAWDBOT_DIR, aliasPath)}` +
+      ` must wrap ${normalizedExpected}`
+    );
     errors++;
   }
+}
 
-  if (aliasPkg) {
-    if (aliasPkg.name !== 'openclaw-bundle-alias' || aliasPkg.type !== 'module') {
-      console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw package alias must be an ESM package named openclaw-bundle-alias');
+function verifyOpenClawAliasPackage() {
+  const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
+  const aliasDir = path.join(nodeModulesDir, 'openclaw');
+  if (!fs.existsSync(aliasDir)) {
+    console.error('[verify-clawdbot] MISSING: node_modules/openclaw alias package');
+    errors++;
+    return;
+  }
+  const aliasStat = fs.lstatSync(aliasDir);
+  if (aliasStat.isSymbolicLink()) {
+    console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw must be a real alias package, not a self-symlink');
+    errors++;
+    return;
+  }
+
+  const aliasPkgPath = path.join(aliasDir, 'package.json');
+  if (!fs.existsSync(aliasPkgPath)) {
+    console.error('[verify-clawdbot] MISSING: node_modules/openclaw/package.json');
+    errors++;
+  } else {
+    const aliasPkg = JSON.parse(fs.readFileSync(aliasPkgPath, 'utf8'));
+    if (aliasPkg.type !== 'module' || aliasPkg.name !== 'openclaw-bundle-alias') {
+      console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw/package.json is not the bundle alias package');
       errors++;
     }
-    for (const subpath of ['./plugin-sdk/channel-entry-contract', './plugin-sdk/runtime-env']) {
-      const target = aliasPkg.exports?.[subpath]?.default ?? aliasPkg.exports?.[subpath];
-      if (typeof target !== 'string' || !target.startsWith('./plugin-sdk/')) {
-        console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw package alias missing export ${subpath}`);
-        errors++;
+  }
+
+  let rootWrappers = 0;
+  function verifyDistWrappers(sourceDir, targetDir) {
+    for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+      if (entry.name === 'extensions' || entry.name === 'plugin-sdk') continue;
+      const sourcePath = path.join(sourceDir, entry.name);
+      const targetPath = path.join(targetDir, entry.name);
+      if (entry.isDirectory()) {
+        verifyDistWrappers(sourcePath, targetPath);
+      } else if (entry.isFile() && path.extname(entry.name) === '.js') {
+        verifyOpenClawAliasWrapper(sourcePath, targetPath);
+        rootWrappers++;
       }
     }
   }
+  verifyDistWrappers(distDir, aliasDir);
 
-  const sdkContract = path.join(openclawAliasDir, 'plugin-sdk', 'channel-entry-contract.js');
-  if (!fs.existsSync(sdkContract)) {
-    console.error('[verify-clawdbot] CRITICAL: node_modules/openclaw/plugin-sdk alias does not resolve channel-entry-contract.js');
+  const pluginSdkDir = path.join(distDir, 'plugin-sdk');
+  let sdkWrappers = 0;
+  if (!fs.existsSync(pluginSdkDir)) {
+    console.error('[verify-clawdbot] MISSING: dist/plugin-sdk');
     errors++;
   } else {
-    const content = fs.readFileSync(sdkContract, 'utf8');
-    const chunkMatch = content.match(/from\s+["']\.\.\/([^"']+\.js)["']/);
-    if (chunkMatch && !fs.existsSync(path.join(openclawAliasDir, chunkMatch[1]))) {
-      console.error(`[verify-clawdbot] CRITICAL: node_modules/openclaw missing plugin-sdk chunk alias: ${chunkMatch[1]}`);
-      errors++;
+    for (const entry of fs.readdirSync(pluginSdkDir, { withFileTypes: true })) {
+      if (!entry.isFile() || path.extname(entry.name) !== '.js') continue;
+      verifyOpenClawAliasWrapper(
+        path.join(pluginSdkDir, entry.name),
+        path.join(aliasDir, 'plugin-sdk', entry.name)
+      );
+      sdkWrappers++;
     }
-    console.log('[verify-clawdbot] openclaw plugin-sdk package alias ✓');
   }
+
+  console.log(`[verify-clawdbot] openclaw alias package: ${rootWrappers} root chunks, ${sdkWrappers} plugin-sdk modules ✓`);
 }
+
+verifyOpenClawAliasPackage();
 
 const modelCatalogChunks = fs.existsSync(distDir)
   ? fs.readdirSync(distDir).filter((name) => /^model-catalog-.*\.js$/.test(name))

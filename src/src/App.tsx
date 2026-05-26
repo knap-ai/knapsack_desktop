@@ -50,6 +50,7 @@ import { KNLocalStorage, RECONNECT_DISMISSED_AT } from './utils/KNLocalStorage'
 import { isSharingEnabled } from './utils/settings'
 import {
   consumePendingAddAccountFlow,
+  parsePendingAddAccountState,
 } from './utils/permissions/google'
 import { hasGoogleCalendar, getGoogleCalendarConnections, getGoogleDriveConnections, getGoogleGmailConnections } from 'src/api/connections'
 
@@ -532,14 +533,15 @@ function App() {
   useEffect(() => {
     const unlistenPromise = listen(
       'signin_success',
-      async (event: Event<{ code: string; raw_scopes: string }>) => {
+      async (event: Event<{ code: string; raw_scopes: string; state?: string }>) => {
         const hasOnboarded = await getHasOnboarded()
         if (!hasOnboarded) {
           return
         }
 
         // Check if this is an "add account" flow (calendar / drive / gmail) triggered from settings.
-        const pendingFlow = consumePendingAddAccountFlow()
+        const pendingFlow =
+          consumePendingAddAccountFlow() || parsePendingAddAccountState(event.payload.state)
         if (pendingFlow) {
           getCompleteGoogleSignIn(
             event.payload.code,

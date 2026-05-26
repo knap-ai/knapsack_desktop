@@ -101,22 +101,22 @@ export const useGoogleConnections = (
 
       // Sync every linked Google Drive account independently.
       for (const driveConn of getGoogleDriveConnections(connections)) {
-        if (isConnectionReadyToSync(driveConn) && driveConn.calendarAccountEmail) {
-          promises.push(syncGoogleDrive(email, driveConn.calendarAccountEmail))
+        if (isConnectionReadyToSync(driveConn)) {
+          promises.push(syncGoogleDrive(email, driveConn.calendarAccountEmail || email))
         }
       }
 
       // Sync every linked Gmail account independently.
       for (const gmailConn of getGoogleGmailConnections(connections)) {
-        if (isConnectionReadyToSync(gmailConn) && gmailConn.calendarAccountEmail) {
-          promises.push(syncGoogleGmail(email, gmailConn.calendarAccountEmail))
+        if (isConnectionReadyToSync(gmailConn)) {
+          promises.push(syncGoogleGmail(email, gmailConn.calendarAccountEmail || email))
         }
       }
 
       // Sync every linked Google Calendar account independently.
       for (const calConn of getGoogleCalendarConnections(connections)) {
-        if (isConnectionReadyToSync(calConn) && calConn.calendarAccountEmail) {
-          promises.push(syncGoogleCalendar(email, calConn.calendarAccountEmail))
+        if (isConnectionReadyToSync(calConn)) {
+          promises.push(syncGoogleCalendar(email, calConn.calendarAccountEmail || email))
         }
       }
 
