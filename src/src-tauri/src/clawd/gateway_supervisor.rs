@@ -12,6 +12,14 @@ static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
   once_cell::sync::Lazy::new(|| Mutex::new(()));
 const LOCAL_GATEWAY_HEALTH_TIMEOUT: Duration = Duration::from_millis(1000);
 
+#[cfg(target_os = "macos")]
+static APP_SIGNATURE_CACHE: once_cell::sync::Lazy<
+  std::sync::Mutex<Option<(Instant, Option<String>)>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
+
+#[cfg(target_os = "macos")]
+const APP_SIGNATURE_CACHE_TTL: Duration = Duration::from_secs(600);
+
 /// Minimal gateway supervisor helpers.
 ///
 /// Goal: avoid port exhaustion by preventing duplicate gateway processes.
@@ -67,9 +75,26 @@ async fn is_gateway_healthy_or_ready(token: &str) -> bool {
 /// the app is unsigned (unsigned dev builds are expected and not an error).
 #[cfg(target_os = "macos")]
 fn check_app_bundle_signature() -> Option<String> {
+  if let Ok(cache) = APP_SIGNATURE_CACHE.lock() {
+    if let Some((checked_at, result)) = &*cache {
+      if checked_at.elapsed() < APP_SIGNATURE_CACHE_TTL {
+        return result.clone();
+      }
+    }
+  }
+
   // Walk up from the executable: .../Knapsack.app/Contents/MacOS/Knapsack
   // parent() x3 gives us Knapsack.app; convert to PathBuf immediately so
   // nothing borrows from `exe` past this point.
+  let result = check_app_bundle_signature_uncached();
+  if let Ok(mut cache) = APP_SIGNATURE_CACHE.lock() {
+    *cache = Some((Instant::now(), result.clone()));
+  }
+  result
+}
+
+#[cfg(target_os = "macos")]
+fn check_app_bundle_signature_uncached() -> Option<String> {
   let exe = std::env::current_exe().ok()?;
   let app_bundle: std::path::PathBuf = exe
     .parent() // Contents/MacOS

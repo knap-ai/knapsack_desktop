@@ -338,6 +338,12 @@ type ServiceHealth = {
   diagnostic_type?: string
 }
 
+const HEALTH_POLL_INTERVAL_MS = 3000
+const GATEWAY_HEADER_GRACE_POLLS = 5 // ~15s: soft status can say reconnecting
+const BROWSER_HEADER_GRACE_POLLS = 5 // ~15s: soft status can say browser starting
+const GATEWAY_CARD_GRACE_POLLS = 30 // ~90s: avoid scary cards during normal restarts
+const BROWSER_CARD_GRACE_POLLS = 40 // ~120s: Chrome/CDP often warms up after gateway
+
 type Tab = {
   targetId: string
   url?: string
@@ -1032,14 +1038,26 @@ type ChatMessageProps = {
   onReply?: (msg: Msg) => void
   replyToMsg?: Msg | null
   onScrollToMsg?: (id: string) => void
+  serviceHealthy?: boolean
 }
 
 const ChatMessage = memo(function ChatMessage({
-  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction, onReply, replyToMsg, onScrollToMsg,
+  msg: m, cleaned, actions, mdPlugins, mdComponents, onExampleClick, onAction, onReply, replyToMsg, onScrollToMsg, serviceHealthy,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
   const [showSavePicker, setShowSavePicker] = useState(false)
   const [savedToast, setSavedToast] = useState<string | null>(null)
+  const staleGatewayDiagnostic = Boolean(
+    serviceHealthy
+    && m.role === 'assistant'
+    && (
+      /gateway connectivity issue/i.test(m.text)
+      || /browser is not responding/i.test(m.text)
+      || /gateway is repeatedly crashing/i.test(m.text)
+      || (/recommended fix/i.test(m.text) && /gateway/i.test(m.text))
+    ),
+  )
+  const visibleActions = staleGatewayDiagnostic ? [] : actions
 
   const handleCopy = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1098,9 +1116,14 @@ const ChatMessage = memo(function ChatMessage({
         ) : (
           <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
         )}
-        {actions.length > 0 && (
+        {staleGatewayDiagnostic && (
+          <div className="ClawdStaleDiagnosticNote">
+            Live status is healthy now. This older diagnostic may be stale, so its recovery actions are hidden.
+          </div>
+        )}
+        {visibleActions.length > 0 && (
           <div className="ClawdPromptActions">
-            {actions.map((action, i) => {
+            {visibleActions.map((action, i) => {
               const isConfirmed = m.confirmedActionPrompts?.includes(action.prompt)
               if (isConfirmed) {
                 const isAdvancedMode = action.prompt.startsWith('__enable_advanced_and_resend__')
@@ -1194,7 +1217,8 @@ const ChatMessage = memo(function ChatMessage({
   prev.mdComponents === next.mdComponents &&
   prev.replyToMsg?.id === next.replyToMsg?.id &&
   prev.onReply === next.onReply &&
-  prev.onScrollToMsg === next.onScrollToMsg
+  prev.onScrollToMsg === next.onScrollToMsg &&
+  prev.serviceHealthy === next.serviceHealthy
 )
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
@@ -1766,12 +1790,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [signalNeedsCaptcha, setSignalNeedsCaptcha] = useState(false)
   const [, setSignalRegDone] = useState(false)
   // Tracks how many consecutive polls have seen gateway_ok=true but browser_ok=false.
-  // The "browser not responding" banner is suppressed until this exceeds the threshold
-  // (20 polls × 3 s ≈ 60 s) so we don't alarm users during normal browser startup.
+  // The "browser not responding" card waits ~2 minutes so normal Chrome/CDP
+  // warmup or a single restart does not look like a user-actionable failure.
   const [browserNotReadyPolls, setBrowserNotReadyPolls] = useState(0)
-  // The "gateway down" banner and header label are suppressed until this exceeds the
-  // threshold (3 polls × 3 s = 9 s) so brief outages (gateway restart, sleep/wake)
-  // are silently absorbed without alarming the user.
+  // The "gateway down" card waits ~90 seconds. Header status changes earlier,
+  // but the large recovery card is reserved for sustained outages.
   const [gatewayDownPolls, setGatewayDownPolls] = useState(0)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
@@ -3180,7 +3203,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               browserNotReadyCount++
               setBrowserNotReadyPolls(browserNotReadyCount)
               setGatewayDownPolls(0)
-              setTimeout(pollGateway, 3000)
+              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
             } else {
               // Gateway is down (reconnecting state).
               // Health-check-driven reconnect: poll every 3s so the UI transitions
@@ -3195,7 +3218,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
               // Nudge the backend to restart the gateway if it stays down.
               if (wasHealthy && consecutiveDownPolls === 3) {
-                // Was healthy before — kick a restart after ~9s of downtime
+                // Was healthy before — kick a restart after ~9s of downtime,
+                // but keep the large user-facing card hidden until the longer
+                // sustained-outage threshold below.
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
               if (!wasHealthy && consecutiveDownPolls === 6) {
@@ -3207,7 +3232,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
 
-              setTimeout(pollGateway, 3000)
+              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
             }
           } catch {
             // HTTP backend itself is unreachable — back off exponentially (1s→15s)
@@ -4510,9 +4535,10 @@ ${actualText}`
       const gwStarting = channelStatus.gatewayStarting
       // Extract a short diagnostic hint from the health message when gateway is down.
       // The full message (with stderr tail) is still available in the tooltip.
-      // Suppress header label changes and the banner during the grace period
-      // (2 polls × 3 s = 6 s) so brief restarts don't alarm the user.
-      const gwPastGrace = gatewayDownPolls >= 3
+      // Header labels can move to a soft warning after a short grace period,
+      // but the large recovery cards below wait much longer.
+      const gwPastGrace = gatewayDownPolls >= GATEWAY_HEADER_GRACE_POLLS
+      const brPastGrace = browserNotReadyPolls >= BROWSER_HEADER_GRACE_POLLS
       let gwLabel = 'Gateway: OK'
       if (!health.gateway_ok && gwPastGrace) {
         if (gwStarting) {
@@ -4526,7 +4552,7 @@ ${actualText}`
         }
       }
       const gwOkForDisplay = health.gateway_ok || !gwPastGrace
-      const brOkForDisplay = health.browser_ok || !gwPastGrace
+      const brOkForDisplay = health.browser_ok || (!health.gateway_ok && !gwPastGrace) || (health.gateway_ok && !brPastGrace)
       parts.push(
         <span key="gw" className={gwOkForDisplay ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
           title={!health.gateway_ok && gwPastGrace && health.message ? health.message : undefined}>
@@ -4535,7 +4561,7 @@ ${actualText}`
       )
       parts.push(
         <span key="br" className={brOkForDisplay ? 'status-ok' : gwStarting ? 'status-warn' : 'status-down'}
-          title={!health.browser_ok && gwPastGrace && health.message ? health.message : undefined}>
+          title={!health.browser_ok && (gwPastGrace || brPastGrace) && health.message ? health.message : undefined}>
           {brOkForDisplay ? 'Browser: OK' : gwStarting ? 'Browser: starting...' : health.gateway_ok ? 'Browser: starting...' : 'Browser: waiting for gateway'}
         </span>,
       )
@@ -4554,7 +4580,7 @@ ${actualText}`
       return acc
     }, [])
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, health, channelStatus.gatewayStarting, gatewayDownPolls, currentTargetId])
+  }, [status, health, channelStatus.gatewayStarting, gatewayDownPolls, browserNotReadyPolls, currentTargetId])
 
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.
@@ -4843,6 +4869,7 @@ ${actualText}`
               onReply={setReplyToMsg}
               replyToMsg={m.replyTo ? (msgsById.get(m.replyTo) ?? null) : null}
               onScrollToMsg={scrollToMsg}
+              serviceHealthy={Boolean(health?.gateway_ok && health?.browser_ok)}
             />
           </div>
         ))}
@@ -4915,11 +4942,11 @@ ${actualText}`
             </div>
           </div>
         )}
-        {/* Gateway troubleshooting banner — shown only after grace period (3 polls × 3 s = 9 s)
-            so brief restarts and sleep/wake blips don't surface a scary error.
+        {/* Gateway troubleshooting card — shown only after a sustained outage (~90s)
+            so normal restarts and sleep/wake blips don't surface a scary error.
             Suppressed entirely until an API key is saved — the gateway status is
             irrelevant and alarming when the user hasn't set up a key yet. */}
-        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= 3 && !channelStatus.gatewayStarting && (
+        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= GATEWAY_CARD_GRACE_POLLS && !channelStatus.gatewayStarting && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">
@@ -4956,8 +4983,8 @@ ${actualText}`
             </div>
           </div>
         )}
-        {/* Browser-only issue banner — gateway OK but browser not responding for 60s+ */}
-        {hasCompletedOnboarding && health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= 20 && (
+        {/* Browser-only issue card — gateway OK but browser not responding for ~2 minutes. */}
+        {hasCompletedOnboarding && health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= BROWSER_CARD_GRACE_POLLS && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner ClawdGatewayBanner--warn">
               <p className="ClawdGatewayBannerTitle">Browser is not responding</p>

@@ -441,6 +441,13 @@ fn passive_browser_start_nudge_enabled() -> bool {
     == Some("1")
 }
 
+fn startup_ready_browser_start_enabled() -> bool {
+  std::env::var("KNAPSACK_STARTUP_READY_AUTO_START_BROWSER")
+    .ok()
+    .as_deref()
+    == Some("1")
+}
+
 /// Path to the gateway stderr log file.
 pub fn gateway_stderr_log() -> PathBuf {
   gateway_log_dir().join("knapsack-clawdbot.err.log")
@@ -5393,7 +5400,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     } else {
       let mut probe =
         browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500)).await;
-      if probe == BrowserControlProbe::Down && remaining_ms() > 1500 {
+      if probe == BrowserControlProbe::Down
+        && startup_ready_browser_start_enabled()
+        && remaining_ms() > 1500
+      {
         let _ = browser_control_start_direct(
           &tokens.gateway_token,
           std::time::Duration::from_millis(900),
