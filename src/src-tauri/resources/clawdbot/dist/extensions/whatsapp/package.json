@@ -67,6 +67,9 @@
       "publishToClawHub": true,
       "publishToNpm": true
     },
+    "bundle": {
+      "stageRuntimeDependencies": true
+    },
     "runtimeExtensions": [
       "./dist/index.js"
     ],

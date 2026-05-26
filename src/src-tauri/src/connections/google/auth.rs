@@ -46,6 +46,7 @@ pub struct SigninParams {
   scope: Option<String>,
   error: Option<String>,
   error_description: Option<String>,
+  state: Option<String>,
   /// When set, this is an "add calendar account" flow for an already-logged-in
   /// user.  The new OAuth tokens belong to a second Google account; we skip
   /// creating a new user and instead attach the calendar connection to the
@@ -57,6 +58,7 @@ pub struct SigninParams {
 pub struct SigninEventPayload {
   code: String,
   raw_scopes: String,
+  state: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -574,6 +576,7 @@ fn handle_successful_signin(
     SigninEventPayload {
       code: params.code.as_ref().unwrap().to_string(),
       raw_scopes: params.scope.as_ref().unwrap().to_string(),
+      state: params.state.clone(),
     },
   );
   focus_window(window);
