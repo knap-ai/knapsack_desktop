@@ -257,6 +257,15 @@ if (fs.existsSync(extensionsDir)) {
       errors++;
     }
   }
+
+  const slackExtensionDir = path.join(extensionsDir, 'slack');
+  for (const requiredDep of ['@slack/bolt', '@slack/web-api', '@slack/types']) {
+    if (!extensionDependencyExists(slackExtensionDir, requiredDep)) {
+      console.error(`[verify-clawdbot] CRITICAL: Slack bundled dependency missing: ${requiredDep}`);
+      errors++;
+    }
+  }
+
   const whatsappPkgPath = path.join(extensionsDir, 'whatsapp', 'package.json');
   if (fs.existsSync(whatsappPkgPath)) {
     const whatsappPkg = JSON.parse(fs.readFileSync(whatsappPkgPath, 'utf8'));
@@ -572,6 +581,7 @@ if (isWindows) {
 // failures → stuck sessions → gateway reconnection loop.
 const REQUIRED_STAGE_RUNTIME_DEPS_PLUGINS = [
   'browser',   // playwright-core — core browser/navigate tool
+  'slack',     // @slack/web-api / Bolt SDK — Slack plugin registration
 ];
 
 if (fs.existsSync(extensionsDir)) {

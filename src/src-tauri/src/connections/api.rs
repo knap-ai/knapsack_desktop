@@ -14,6 +14,7 @@ use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::db::models::user_connection::UserConnection;
+use crate::db::models::user::User;
 use crate::memory::semantic::SemanticService;
 use crate::connections::utils::get_knapsack_api_connection;
 
@@ -41,6 +42,13 @@ pub struct GetConnectionsResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetConnectionsParams {
   email: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetUserEmailResponse {
+  success: bool,
+  email: Option<String>,
+  message: Option<String>,
 }
 
 #[derive(Hash, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
@@ -132,6 +140,22 @@ async fn signout(
     data.reset();
     
     HttpResponse::Ok().json(SuccessResponse { success: true })
+}
+
+#[get("/api/knapsack/get_user_email")]
+async fn get_user_email() -> impl Responder {
+  match User::find_first_with_email() {
+    Ok(user) => HttpResponse::Ok().json(GetUserEmailResponse {
+      success: true,
+      email: Some(user.email),
+      message: None,
+    }),
+    Err(_) => HttpResponse::NotFound().json(GetUserEmailResponse {
+      success: false,
+      email: None,
+      message: Some("No user email found".to_string()),
+    }),
+  }
 }
 
 #[get("/api/knapsack/connections")]

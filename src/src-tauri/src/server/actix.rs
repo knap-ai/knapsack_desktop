@@ -270,6 +270,7 @@ pub async fn start_server<'a>(
       .service(connections::microsoft::outlook::reply_to_email)
       .service(connections::microsoft::profile::fetch_microsoft_profile_api)
       .service(connections::api::get_connections)
+      .service(connections::api::get_user_email)
       .service(connections::api::get_is_connections_syncing)
       .service(connections::api::delete_connection)
       .service(connections::api::signout)
