@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 
 import { IThread, ThreadType } from 'src/api/threads'
-import { Connection, ConnectionKeys, hasGoogleCalendar } from 'src/api/connections'
+import {
+  Connection,
+  ConnectionKeys,
+  getGoogleGmailConnections,
+  hasGoogleCalendar,
+} from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
@@ -53,9 +58,9 @@ interface MeetingsTabViewProps {
   recordingHandlers: RecordingContextProps
   connections?: Record<string, Connection>
   onConnectCalendar?: () => void
+  onConnectEmail?: () => void
   onBack?: () => void
   onEmailClick?: (notesMarkdown: string, meeting?: Meeting) => void
-  onAttendeeClick?: (email: string, name: string) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   userEmail?: string
   userName?: string
@@ -69,9 +74,9 @@ const MeetingsTabView = ({
   recordingHandlers,
   connections,
   onConnectCalendar,
+  onConnectEmail,
   onBack,
   onEmailClick,
-  onAttendeeClick,
   onLibraryWorkspaceOpen,
   userEmail,
   userName,
@@ -387,8 +392,13 @@ const MeetingsTabView = ({
                       handleOpenTasks={handleOpenTasks}
                       handleOpenInsights={handleOpenInsights}
                       onEmailClick={onEmailClick}
-                      onAttendeeClick={onAttendeeClick}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
+                      hasEmailContext={
+                        !!connections &&
+                        (getGoogleGmailConnections(connections).length > 0 ||
+                          !!connections[ConnectionKeys.MICROSOFT_OUTLOOK])
+                      }
+                      onConnectEmail={onConnectEmail}
                       userEmail={userEmail}
                       userName={userName}
                     />
