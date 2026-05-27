@@ -49,8 +49,18 @@ function isJsonLikeThoughtSignature(value) {
 }
 const GEMINI_THOUGHT_SIGNATURE_ELLIPSIS_RE = /[\u2026]|\.\.\./;
 const GEMINI_THOUGHT_SIGNATURE_BASE64_RE = /^[A-Za-z0-9+/=]+$/;
-function hasGeminiThoughtSignatureTruncationFootprint(value) {
-	return GEMINI_THOUGHT_SIGNATURE_ELLIPSIS_RE.test(value) || GEMINI_THOUGHT_SIGNATURE_BASE64_RE.test(value) && value.length % 4 !== 0;
+function isValidGeminiThoughtSignatureBase64(value) {
+	if (!GEMINI_THOUGHT_SIGNATURE_BASE64_RE.test(value)) return false;
+	if (value.length % 4 !== 0) return false;
+	if (/=/.test(value.replace(/=+$/, ""))) return false;
+	if (typeof atob === "function") {
+		try {
+			atob(value);
+		} catch {
+			return false;
+		}
+	}
+	return true;
 }
 function sanitizeGeminiThoughtSignature(thoughtSignature) {
 	if (typeof thoughtSignature !== "string") return;
@@ -59,7 +69,8 @@ function sanitizeGeminiThoughtSignature(thoughtSignature) {
 	if (isJsonLikeThoughtSignature(trimmed)) return;
 	const lowered = normalizeLowercaseStringOrEmpty(trimmed);
 	if (lowered === "reasoning" || lowered === normalizeLowercaseStringOrEmpty(GEMINI_THOUGHT_SIGNATURE_VALIDATOR_SKIP)) return;
-	if (hasGeminiThoughtSignatureTruncationFootprint(trimmed)) return;
+	if (GEMINI_THOUGHT_SIGNATURE_ELLIPSIS_RE.test(trimmed)) return;
+	if (!isValidGeminiThoughtSignatureBase64(trimmed)) return;
 	return trimmed;
 }
 function isSameGoogleTransportRoute(source, model) {
