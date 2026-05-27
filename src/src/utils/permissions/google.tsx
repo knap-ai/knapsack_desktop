@@ -19,6 +19,8 @@ type PendingAddAccountFlow = {
 }
 
 let _pendingAddAccountFlow: PendingAddAccountFlow | null = null
+const ADD_ACCOUNT_STATE_PREFIX = 'knapsack_add_account'
+const ADD_ACCOUNT_STORAGE_PREFIX = 'KN_GOOGLE_ADD_ACCOUNT_FLOW'
 
 /** Store the primary user email and connection type before triggering an add-account OAuth flow. */
 export const setPendingAddAccountFlow = (primaryEmail: string, type: 'calendar' | 'drive' | 'gmail'): void => {
@@ -32,25 +34,54 @@ export const consumePendingAddAccountFlow = (): PendingAddAccountFlow | null => 
   return flow
 }
 
-const buildAddAccountState = (primaryEmail: string, type: PendingAddAccountFlow['type']) =>
-  `knapsack_add_account:${type}:${encodeURIComponent(primaryEmail)}`
+const createAddAccountNonce = (): string => {
+  const bytes = new Uint8Array(16)
+  window.crypto?.getRandomValues(bytes)
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+const addAccountStorageKey = (nonce: string) => `${ADD_ACCOUNT_STORAGE_PREFIX}:${nonce}`
+
+const buildAddAccountState = (primaryEmail: string, type: PendingAddAccountFlow['type']) => {
+  const nonce = createAddAccountNonce()
+  window.sessionStorage.setItem(
+    addAccountStorageKey(nonce),
+    JSON.stringify({ primaryEmail, type }),
+  )
+  return `${ADD_ACCOUNT_STATE_PREFIX}:${type}:${nonce}`
+}
 
 export const parsePendingAddAccountState = (state?: string | null): PendingAddAccountFlow | null => {
-  if (!state?.startsWith('knapsack_add_account:')) {
+  if (!state?.startsWith(`${ADD_ACCOUNT_STATE_PREFIX}:`)) {
     return null
   }
 
-  const [, type, encodedPrimaryEmail] = state.split(':')
+  const [, type, value] = state.split(':')
   if (
     (type !== 'calendar' && type !== 'drive' && type !== 'gmail') ||
-    !encodedPrimaryEmail
+    !value
   ) {
     return null
   }
 
+  const storedFlow = window.sessionStorage.getItem(addAccountStorageKey(value))
+  if (storedFlow) {
+    window.sessionStorage.removeItem(addAccountStorageKey(value))
+    try {
+      const parsed = JSON.parse(storedFlow) as PendingAddAccountFlow
+      if (parsed.primaryEmail && parsed.type === type) {
+        return parsed
+      }
+    } catch {
+      return null
+    }
+  }
+
+  // Backward-compatible parser for any in-flight links opened by builds that
+  // encoded the primary email directly in state.
   try {
     return {
-      primaryEmail: decodeURIComponent(encodedPrimaryEmail),
+      primaryEmail: decodeURIComponent(value),
       type,
     }
   } catch {
@@ -100,17 +131,39 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
   console.log('[Google OAuth] Opening URL:', fullUrl)
   console.log('[Google OAuth] redirect_uri:', KN_API_GOOGLE_SIGNIN_REDIRECT)
 
-  const popup = window.open(fullUrl, '_blank', 'noopener,noreferrer')
-  if (!popup) {
-    try {
-      open(fullUrl)
-    } catch (error: any) {
-      logError(new Error('Error opening Google Auth screen:'), {
-        additionalInfo: '',
+  const openInBrowser = () => {
+    const popup = window.open(fullUrl, '_blank', 'noopener,noreferrer')
+    if (!popup) {
+      throw new GoogleAuthError('Unable to open Google Auth screen.')
+    }
+  }
+
+  const logOpenError = (error: any, additionalInfo = '') => {
+    logError(new Error('Error opening Google Auth screen:'), {
+      additionalInfo,
+      error: error.message,
+    })
+    console.error('Error opening Google Auth screen:', error)
+  }
+
+  try {
+    void open(fullUrl).catch((error: any) => {
+      logError(new Error('Error opening Google Auth screen with Tauri shell:'), {
+        additionalInfo: 'Falling back to window.open',
         error: error.message,
       })
-      console.error('Error opening Google Auth screen:', error)
-      throw error
+      try {
+        openInBrowser()
+      } catch (fallbackError: any) {
+        logOpenError(fallbackError, 'Tauri shell open failed; window.open fallback also failed')
+      }
+    })
+  } catch (error: any) {
+    try {
+      openInBrowser()
+    } catch (fallbackError: any) {
+      logOpenError(fallbackError, error.message)
+      throw fallbackError
     }
   }
 }

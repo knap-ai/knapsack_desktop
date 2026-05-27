@@ -67,6 +67,9 @@
       "openclawVersion": "2026.5.22",
       "bundledDist": false
     },
+    "bundle": {
+      "stageRuntimeDependencies": true
+    },
     "release": {
       "publishToClawHub": true,
       "publishToNpm": true

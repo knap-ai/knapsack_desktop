@@ -26,6 +26,22 @@ impl User {
     Ok(user)
   }
 
+  pub fn find_first_with_email() -> Result<User> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT id, email, uuid FROM users WHERE email != '' ORDER BY id DESC LIMIT 1",
+    )?;
+    let user = stmt.query_row([], |row| {
+      Ok(User {
+        id: row.get(0)?,
+        email: row.get(1)?,
+        uuid: row.get(2)?,
+      })
+    })?;
+
+    Ok(user)
+  }
+
   pub fn create(&self) -> Result<(), Error> {
     if self.id.is_some() {
       return Err(Error::KSError(

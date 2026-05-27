@@ -18,6 +18,7 @@ import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
+import { KN_API_GET_USER_EMAIL } from 'src/utils/constants'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
 import {
   arePushNotificationsOSEnabledAndWantedByUser,
@@ -279,6 +280,68 @@ export const SettingsDialog = ({
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([])
   const [ollamaBusy, setOllamaBusy] = useState(false)
   const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
+  const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
+  const googlePrimaryEmail =
+    email ||
+    profile?.email ||
+    backendPrimaryEmail ||
+    getGoogleDriveConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleGmailConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleCalendarConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    ''
+
+  const requireGooglePrimaryEmail = useCallback((flow: string) => {
+    if (googlePrimaryEmail) return googlePrimaryEmail
+
+    const error = new Error('Missing primary Google email for add-account flow')
+    logError(error, {
+      additionalInfo: flow,
+      error: error.message,
+    })
+    console.error(error.message, flow)
+    return null
+  }, [googlePrimaryEmail])
+
+  const handleAddGoogleDrive = useCallback(() => {
+    const primaryEmail = requireGooglePrimaryEmail('drive')
+    if (primaryEmail) openAddGoogleDriveScreen(primaryEmail)
+  }, [requireGooglePrimaryEmail])
+
+  const handleAddGoogleGmail = useCallback(() => {
+    const primaryEmail = requireGooglePrimaryEmail('gmail')
+    if (primaryEmail) openAddGoogleGmailScreen(primaryEmail)
+  }, [requireGooglePrimaryEmail])
+
+  const handleAddGoogleCalendar = useCallback(() => {
+    const primaryEmail = requireGooglePrimaryEmail('calendar')
+    if (primaryEmail) {
+      openAddGoogleCalendarScreen(
+        primaryEmail,
+        'https://www.googleapis.com/auth/calendar.readonly',
+      )
+    }
+  }, [requireGooglePrimaryEmail])
+
+  const getGoogleAccountLabel = useCallback(
+    (item: Connection) => item.calendarAccountEmail || googlePrimaryEmail || 'unknown account',
+    [googlePrimaryEmail],
+  )
+
+  useEffect(() => {
+    if (!isOpen || email || profile?.email || backendPrimaryEmail) return
+
+    fetch(KN_API_GET_USER_EMAIL)
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (data?.email) setBackendPrimaryEmail(data.email)
+      })
+      .catch(error => {
+        logError(new Error('Failed to load fallback user email'), {
+          additionalInfo: 'Settings add Google account',
+          error: error.message,
+        })
+      })
+  }, [backendPrimaryEmail, email, isOpen, profile?.email])
 
   useEffect(() => {
     if(profile && profile.provider){
@@ -1082,7 +1145,7 @@ export const SettingsDialog = ({
                 key={`drive-${item.id}-${item.calendarAccountEmail}`}
               >
                 <Typography>
-                  Drive, {item.calendarAccountEmail || email}
+                  Drive, {getGoogleAccountLabel(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1100,7 +1163,7 @@ export const SettingsDialog = ({
                 key={`gmail-${item.id}-${item.calendarAccountEmail}`}
               >
                 <Typography>
-                  Gmail, {item.calendarAccountEmail || email}
+                  Gmail, {getGoogleAccountLabel(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1118,7 +1181,7 @@ export const SettingsDialog = ({
                 key={`cal-${item.id}-${item.calendarAccountEmail}`}
               >
                 <Typography>
-                  Calendar, {item.calendarAccountEmail || email}
+                  Calendar, {getGoogleAccountLabel(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1177,7 +1240,7 @@ export const SettingsDialog = ({
                 <Typography>Google Drive</Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
-                  onClick={() => { if (email) openAddGoogleDriveScreen(email) }}
+                  onClick={handleAddGoogleDrive}
                 >
                   {getGoogleDriveConnections(connections).length > 0 ? 'Add another' : 'Add'}
                 </Typography>
@@ -1190,7 +1253,7 @@ export const SettingsDialog = ({
                 <Typography>Gmail</Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
-                  onClick={() => { if (email) openAddGoogleGmailScreen(email) }}
+                  onClick={handleAddGoogleGmail}
                 >
                   {getGoogleGmailConnections(connections).length > 0 ? 'Add another' : 'Add'}
                 </Typography>
@@ -1203,14 +1266,7 @@ export const SettingsDialog = ({
                 <Typography>Google Calendar</Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
-                  onClick={() => {
-                    if (email) {
-                      openAddGoogleCalendarScreen(
-                        email,
-                        'https://www.googleapis.com/auth/calendar.readonly',
-                      )
-                    }
-                  }}
+                  onClick={handleAddGoogleCalendar}
                 >
                   {getGoogleCalendarConnections(connections).length > 0
                     ? 'Add another'
