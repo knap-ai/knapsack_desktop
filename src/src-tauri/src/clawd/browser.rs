@@ -18,8 +18,8 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
-const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(75);
-const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(45);
+const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(30);
+const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// Record token usage from a chat API response (best-effort, never panics).
 fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {
@@ -1409,14 +1409,10 @@ pub async fn agent_chat(
       }
       Err(_) => {
         eprintln!(
-          "[clawd/agent-chat] Gateway agent request timed out after {:?}; not starting direct fallback",
+          "[clawd/agent-chat] Gateway agent request timed out after {:?}; falling back to direct chat",
           AGENT_CHAT_GATEWAY_TIMEOUT
         );
-        return HttpResponse::Ok().json(serde_json::json!({
-          "ok": false,
-          "noFallback": true,
-          "message": "The gateway agent did not finish in time. Please try again in a moment.",
-        }));
+        None
       }
     }
   } else {

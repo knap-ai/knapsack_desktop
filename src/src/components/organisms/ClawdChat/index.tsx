@@ -4277,11 +4277,9 @@ ${actualText}`
 
         // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
         // fall back to direct chat if gateway is unavailable.
-        // Keep the frontend timeout longer than the backend request budget. If
-        // the backend times out a gateway turn, it returns noFallback so the UI
-        // does not start duplicate direct-chat work after the gateway committed
-        // the user turn. The user's abort controller still cancels immediately
-        // if they click Stop.
+        // Keep the frontend timeout longer than the backend request budget.
+        // If the shared gateway session is slow or poisoned, the backend falls
+        // back to direct chat so desktop users still get a timely answer.
         let useDirectChat = false
 
         if (!useDirectChat) {
