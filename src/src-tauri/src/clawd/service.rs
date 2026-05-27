@@ -445,9 +445,8 @@ fn passive_browser_start_nudge_enabled() -> bool {
 
 fn startup_ready_browser_start_enabled() -> bool {
   std::env::var("KNAPSACK_STARTUP_READY_AUTO_START_BROWSER")
-    .ok()
-    .as_deref()
-    == Some("1")
+    .map(|value| value != "0")
+    .unwrap_or(true)
 }
 
 /// Path to the gateway stderr log file.
@@ -4710,6 +4709,53 @@ async fn browser_control_start_direct(
   }
 }
 
+fn spawn_startup_browser_start_nudge(gateway_token: String) {
+  if !startup_ready_browser_start_enabled() {
+    return;
+  }
+
+  if BROWSER_START_NUDGED.swap(true, Ordering::Relaxed) {
+    return;
+  }
+
+  BROWSER_LAST_NUDGE_MS.store(now_epoch_ms(), Ordering::Relaxed);
+  tokio::spawn(async move {
+    let started_at = std::time::Instant::now();
+    let budget = std::time::Duration::from_secs(12);
+    let mut last_error: Option<String> = None;
+
+    while started_at.elapsed() < budget {
+      if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
+        eprintln!("[clawd/service] startup-ready browser nudge: CDP already reachable");
+        return;
+      }
+
+      match browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(900))
+        .await
+      {
+        Ok(()) => {
+          eprintln!("[clawd/service] startup-ready browser /start nudge succeeded");
+          return;
+        }
+        Err(e) => {
+          last_error = Some(e);
+          tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+      }
+    }
+
+    if let Some(e) = last_error {
+      eprintln!(
+        "[clawd/service] startup-ready browser /start nudge did not complete in time: {}",
+        e
+      );
+    } else {
+      eprintln!("[clawd/service] startup-ready browser /start nudge did not complete in time");
+    }
+    BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
+  });
+}
+
 #[cfg(target_os = "macos")]
 fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
   let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
@@ -5380,6 +5426,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let started_at = std::time::Instant::now();
+  if !browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
+    spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+  }
+
   #[cfg(target_os = "macos")]
   if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
     if let Some(grace_ms) = gateway_launch_grace_active() {
@@ -5432,6 +5482,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         && startup_ready_browser_start_enabled()
         && remaining_ms() > 1500
       {
+        BROWSER_LAST_NUDGE_MS.store(now_epoch_ms(), Ordering::Relaxed);
         let _ = browser_control_start_direct(
           &tokens.gateway_token,
           std::time::Duration::from_millis(900),
