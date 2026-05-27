@@ -445,8 +445,8 @@ fn passive_browser_start_nudge_enabled() -> bool {
 
 fn startup_ready_browser_start_enabled() -> bool {
   std::env::var("KNAPSACK_STARTUP_READY_AUTO_START_BROWSER")
-    .map(|value| value != "0")
-    .unwrap_or(true)
+    .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+    .unwrap_or(false)
 }
 
 /// Path to the gateway stderr log file.
@@ -2635,6 +2635,14 @@ async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
   )
 }
 
+async fn browser_control_tcp_port_open(timeout: std::time::Duration) -> bool {
+  let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 18791u16));
+  matches!(
+    tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr)).await,
+    Ok(Ok(_))
+  )
+}
+
 async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
   let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 18789u16));
   matches!(
@@ -4615,8 +4623,18 @@ fn gateway_ready_since_last_start_from_log(content: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BrowserControlProbe {
   Ready,
+  Standby,
   Starting,
   Down,
+}
+
+impl BrowserControlProbe {
+  fn is_available(self) -> bool {
+    matches!(
+      self,
+      BrowserControlProbe::Ready | BrowserControlProbe::Standby
+    )
+  }
 }
 
 async fn browser_control_status(
@@ -4673,7 +4691,7 @@ async fn browser_control_status(
       } else if running {
         BrowserControlProbe::Starting
       } else {
-        BrowserControlProbe::Down
+        BrowserControlProbe::Standby
       }
     }
     Err(e) => {
@@ -4683,6 +4701,64 @@ async fn browser_control_status(
       );
       BrowserControlProbe::Down
     }
+  }
+}
+
+async fn browser_control_status_via_gateway_rpc(
+  timeout: std::time::Duration,
+) -> BrowserControlProbe {
+  let result = tokio::time::timeout(
+    timeout,
+    gateway_client::browser_request(
+      "GET",
+      "/tabs",
+      Some(serde_json::json!({"profile": "openclaw"})),
+      None,
+      None,
+    ),
+  )
+  .await;
+
+  let value = match result {
+    Ok(Ok(value)) => value,
+    Ok(Err(e)) => {
+      eprintln!(
+        "[clawd/service] browser control gateway probe failed: {}",
+        e
+      );
+      if browser_control_tcp_port_open(std::time::Duration::from_millis(250)).await {
+        return BrowserControlProbe::Standby;
+      }
+      return BrowserControlProbe::Down;
+    }
+    Err(_) => {
+      eprintln!(
+        "[clawd/service] browser control gateway probe timed out ({}ms)",
+        timeout.as_millis()
+      );
+      if browser_control_tcp_port_open(std::time::Duration::from_millis(250)).await {
+        return BrowserControlProbe::Standby;
+      }
+      return BrowserControlProbe::Down;
+    }
+  };
+
+  let data = value.get("data").unwrap_or(&value);
+  let running = data
+    .get("running")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  let cdp_ready = data
+    .get("cdpReady")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(running);
+
+  if running && cdp_ready {
+    BrowserControlProbe::Ready
+  } else if running {
+    BrowserControlProbe::Starting
+  } else {
+    BrowserControlProbe::Standby
   }
 }
 
@@ -5016,9 +5092,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // Keep the UI health poll cheap. Browser automation still uses the gateway
     // RPC path, but health must not queue long-lived WebSocket requests.
     #[cfg(target_os = "windows")]
-    let browser_probe_timeout = std::time::Duration::from_millis(1500);
+    let browser_probe_timeout = std::time::Duration::from_millis(3000);
     #[cfg(not(target_os = "windows"))]
-    let browser_probe_timeout = std::time::Duration::from_millis(900);
+    let browser_probe_timeout = std::time::Duration::from_millis(2500);
 
     let mut browser_probe = if gateway_ok {
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
@@ -5027,22 +5103,41 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         .is_ok()
       {
-        let probe = browser_control_status(&tokens.gateway_token, browser_probe_timeout).await;
+        // Use the gateway RPC as the authoritative browser-control probe. The
+        // direct control port can have a distinct auth surface and return 401
+        // even when browser.request works correctly through the gateway.
+        let mut probe = browser_control_status_via_gateway_rpc(browser_probe_timeout).await;
+        if probe == BrowserControlProbe::Down {
+          probe = browser_control_status(&tokens.gateway_token, browser_probe_timeout).await;
+        }
         BROWSER_STATUS_PROBE_IN_PROGRESS.store(false, Ordering::Relaxed);
         probe
       } else {
-        BrowserControlProbe::Starting
+        // Another health request is already doing the slower gateway RPC probe.
+        // If browser-control is listening, treat it as standby so concurrent
+        // polls do not surface a false "browser down" card.
+        if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+          BrowserControlProbe::Standby
+        } else {
+          BrowserControlProbe::Starting
+        }
       }
     } else {
       BrowserControlProbe::Down
     };
     if gateway_ok
       && browser_probe == BrowserControlProbe::Down
+      && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
+    {
+      browser_probe = BrowserControlProbe::Standby;
+    }
+    if gateway_ok
+      && browser_probe == BrowserControlProbe::Down
       && browser_cdp_port_open(std::time::Duration::from_millis(250)).await
     {
       browser_probe = BrowserControlProbe::Ready;
     }
-    let browser_ok = browser_probe == BrowserControlProbe::Ready;
+    let browser_ok = browser_probe.is_available();
 
     // Track browser state transitions for crash recovery.
     // If the browser was previously healthy and is now down, reset the
@@ -5158,7 +5253,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // When gateway is down, include the last few lines from stderr so the
     // user/UI can see why the process is failing without opening Terminal.
     let mut message = if gateway_ok && browser_ok {
-      "Clawdbot gateway + browser are healthy".to_string()
+      if browser_probe == BrowserControlProbe::Standby {
+        "Clawdbot gateway OK; browser control is ready and Chrome will open when needed".to_string()
+      } else {
+        "Clawdbot gateway + browser are healthy".to_string()
+      }
     } else if gateway_ok && browser_probe == BrowserControlProbe::Starting {
       "Clawdbot gateway OK; browser is still starting up — waiting for Chrome CDP to become ready"
         .to_string()
@@ -5426,7 +5525,9 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let started_at = std::time::Instant::now();
-  if !browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
+  if startup_ready_browser_start_enabled()
+    && !browser_cdp_port_open(std::time::Duration::from_millis(100)).await
+  {
     spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
   }
 
@@ -5477,7 +5578,12 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       true
     } else {
       let mut probe =
-        browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500)).await;
+        browser_control_status_via_gateway_rpc(std::time::Duration::from_millis(6000)).await;
+      if probe == BrowserControlProbe::Down {
+        probe =
+          browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
+            .await;
+      }
       if probe == BrowserControlProbe::Down
         && startup_ready_browser_start_enabled()
         && remaining_ms() > 1500
@@ -5493,12 +5599,19 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
             .await;
       }
       while probe != BrowserControlProbe::Ready && remaining_ms() > 1800 {
+        if probe == BrowserControlProbe::Standby && !startup_ready_browser_start_enabled() {
+          break;
+        }
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         probe =
-          browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
-            .await;
+          browser_control_status_via_gateway_rpc(std::time::Duration::from_millis(6000)).await;
+        if probe == BrowserControlProbe::Down {
+          probe =
+            browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
+              .await;
+        }
       }
-      probe == BrowserControlProbe::Ready
+      probe.is_available()
     }
   } else {
     false
