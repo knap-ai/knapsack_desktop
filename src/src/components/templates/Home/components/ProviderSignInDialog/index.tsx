@@ -98,17 +98,18 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'gemini',
     name: 'Gemini',
-    description: 'Gemini 3.1 Pro, 3 Flash — sign in with Google',
+    description: 'Gemini 3.1 Pro, 3.5 Flash — sign in with Google',
     keyPrefix: 'AIza',
     helpUrl: 'https://aistudio.google.com/apikey',
     helpLabel: 'aistudio.google.com/apikey',
     models: [
       { id: 'gemini/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
+      { id: 'gemini/gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Latest fast multimodal Gemini model' },
       { id: 'gemini/gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
       { id: 'gemini/gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
       { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
     ],
-    defaultModel: 'gemini/gemini-3.1-pro-preview',
+    defaultModel: 'gemini/gemini-3.5-flash',
   },
 ]
 
