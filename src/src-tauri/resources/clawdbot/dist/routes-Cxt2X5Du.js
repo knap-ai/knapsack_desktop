@@ -3422,6 +3422,19 @@ function parseRequiredTargetId(res, rawTargetId) {
 function readOptionalTabLabel(body) {
 	return toStringOrEmpty(body?.label) || void 0;
 }
+function normalizeTabUrlForReuse(rawUrl) {
+	try {
+		const parsed = new URL(rawUrl);
+		parsed.hash = "";
+		return parsed.toString();
+	} catch {
+		return toStringOrEmpty(rawUrl).trim();
+	}
+}
+function findReusableTabForUrl(tabs, url) {
+	const target = normalizeTabUrlForReuse(url);
+	return tabs.find((tab) => normalizeTabUrlForReuse(tab.url) === target);
+}
 async function runTabTargetMutation(params) {
 	await withTabsProfileRoute({
 		req: params.req,
@@ -3472,6 +3485,16 @@ function registerBrowserTabRoutes(app, ctx) {
 					...browserNavigationPolicyForProfile(ctx, profileCtx)
 				});
 				await profileCtx.ensureBrowserAvailable();
+				try {
+					const existing = findReusableTabForUrl(await profileCtx.listTabs(), url);
+					if (existing?.targetId) {
+						await profileCtx.focusTab(existing.targetId);
+						return res.json({
+							...existing,
+							reused: true
+						});
+					}
+				} catch {}
 				const tab = await profileCtx.openTab(url, { label });
 				res.json(tab);
 			}

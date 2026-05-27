@@ -24,6 +24,37 @@ function formatErrorMessage(err) {
 function resolveBackoff(attempt) {
 	return Math.min(retryMaxMs, retryInitialMs * 2 ** Math.max(0, attempt - 1));
 }
+function handleRecoverableOutOfBandNetworkError(err, label) {
+	if (!isRecoverableTelegramNetworkError(err, { context: "polling" })) return false;
+	const message = formatErrorMessage(err);
+	post({
+		type: "poll-error",
+		message: `${label}: ${message}`,
+		finishedAt: Date.now()
+	});
+	activeController?.abort(new Error(`${label}: ${message}`));
+	return true;
+}
+process.on("uncaughtException", (err) => {
+	if (handleRecoverableOutOfBandNetworkError(err, "uncaught network error")) return;
+	post({
+		type: "poll-error",
+		message: formatErrorMessage(err),
+		finishedAt: Date.now()
+	});
+	parentPort?.close();
+	process.exit(1);
+});
+process.on("unhandledRejection", (err) => {
+	if (handleRecoverableOutOfBandNetworkError(err, "unhandled network rejection")) return;
+	post({
+		type: "poll-error",
+		message: formatErrorMessage(err),
+		finishedAt: Date.now()
+	});
+	parentPort?.close();
+	process.exit(1);
+});
 parentPort?.on("message", (message) => {
 	if (message?.type !== "stop") return;
 	stopped = true;
