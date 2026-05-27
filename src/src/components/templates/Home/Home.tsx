@@ -102,7 +102,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
-  const [chatInitialInput, setChatInitialInput] = useState('')
+  const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
@@ -657,14 +657,17 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  onConnectEmail={() => {
+                    const key =
+                      auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
+                        ? ConnectionKeys.MICROSOFT_OUTLOOK
+                        : ConnectionKeys.GOOGLE_GMAIL
+                    onConnectAccountClick([key])
+                  }}
                   userEmail={userEmail}
                   userName={userName}
                   onBack={() => {
                     // Back from note view returns to sidebar
-                  }}
-                  onAttendeeClick={(email, name) => {
-                    setChatInitialInput(`Tell me about ${name || email}`)
-                    setMeetingSubView('chat')
                   }}
                   onLibraryWorkspaceOpen={(ws) => {
                     setCurrentTab(TabChoices.Library)
