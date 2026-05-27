@@ -16,12 +16,13 @@ function resolveGatewayStartupMaintenanceConfig(params) {
 	} : params.cfgAtStart;
 }
 async function prepareGatewayPluginBootstrap(params) {
+	const desktopManagedGateway = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
 	const activationSourceConfig = params.activationSourceConfig ?? params.cfgAtStart;
 	const startupMaintenanceConfig = resolveGatewayStartupMaintenanceConfig({
 		cfgAtStart: params.cfgAtStart,
 		startupRuntimeConfig: params.startupRuntimeConfig
 	});
-	if (!params.minimalTestGateway || startupMaintenanceConfig.channels !== void 0) {
+	if (!desktopManagedGateway && (!params.minimalTestGateway || startupMaintenanceConfig.channels !== void 0)) {
 		const { runChannelPluginStartupMaintenance } = await import("./lifecycle-startup-BseLwyqz.js");
 		const startupTasks = [runChannelPluginStartupMaintenance({
 			cfg: startupMaintenanceConfig,
@@ -39,7 +40,7 @@ async function prepareGatewayPluginBootstrap(params) {
 		await Promise.all(startupTasks);
 	}
 	initSubagentRegistry();
-	const gatewayPluginConfig = params.minimalTestGateway ? params.cfgAtStart : mergeActivationSectionsIntoRuntimeConfig({
+	const gatewayPluginConfig = params.minimalTestGateway || desktopManagedGateway ? params.cfgAtStart : mergeActivationSectionsIntoRuntimeConfig({
 		runtimeConfig: params.cfgAtStart,
 		activationConfig: applyPluginAutoEnable({
 			config: activationSourceConfig,
@@ -49,7 +50,7 @@ async function prepareGatewayPluginBootstrap(params) {
 	});
 	const pluginsGloballyDisabled = gatewayPluginConfig.plugins?.enabled === false;
 	const defaultWorkspaceDir = resolveAgentWorkspaceDir(gatewayPluginConfig, resolveDefaultAgentId(gatewayPluginConfig));
-	const pluginLookUpTable = params.minimalTestGateway || pluginsGloballyDisabled ? void 0 : loadPluginLookUpTable({
+	const pluginLookUpTable = params.minimalTestGateway || desktopManagedGateway || pluginsGloballyDisabled ? void 0 : loadPluginLookUpTable({
 		config: gatewayPluginConfig,
 		workspaceDir: defaultWorkspaceDir,
 		env: process.env,
@@ -64,7 +65,7 @@ async function prepareGatewayPluginBootstrap(params) {
 	let pluginRegistry = emptyPluginRegistry;
 	let baseGatewayMethods = baseMethods;
 	const shouldLoadRuntimePlugins = params.loadRuntimePlugins !== false;
-	if (!params.minimalTestGateway && shouldLoadRuntimePlugins) ({pluginRegistry, gatewayMethods: baseGatewayMethods} = await loadGatewayStartupPluginRuntime({
+	if (!params.minimalTestGateway && !desktopManagedGateway && shouldLoadRuntimePlugins) ({pluginRegistry, gatewayMethods: baseGatewayMethods} = await loadGatewayStartupPluginRuntime({
 		cfg: gatewayPluginConfig,
 		activationSourceConfig,
 		workspaceDir: defaultWorkspaceDir,

@@ -1677,6 +1677,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const { bootstrapGatewayNetworkRuntime } = await import("./server-network-runtime-Br2HEIV9.js");
 	bootstrapGatewayNetworkRuntime();
 	const minimalTestGateway = isVitestRuntimeEnv() && process.env.OPENCLAW_TEST_MINIMAL_GATEWAY === "1";
+	const desktopManagedGateway = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
 	process.env.OPENCLAW_GATEWAY_PORT = String(port);
 	logAcceptedEnvOption({
 		key: "OPENCLAW_RAW_STREAM",
@@ -1697,9 +1698,39 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const startupTrace = createGatewayStartupTrace();
 	const startupConfigModulePromise = import("./server-startup-config-C-rNKEbY.js");
 	let startupPluginsModulePromise = null;
+	let runtimeServicesModulePromise = null;
+	let auxHandlersModulePromise = null;
+	let coreMethodsModulePromise = null;
+	let requestContextModulePromise = null;
+	let wsRuntimeModulePromise = null;
+	let routeCapabilityModulePromise = null;
 	const loadStartupPluginsModule = () => {
 		startupPluginsModulePromise ??= import("./server-startup-plugins-CD06rso_.js");
 		return startupPluginsModulePromise;
+	};
+	const loadRuntimeServicesModule = () => {
+		runtimeServicesModulePromise ??= Promise.all([import("./server-runtime-subscriptions-K1ToqQoD.js"), import("./server-runtime-services-DIy3QoBL.js")]);
+		return runtimeServicesModulePromise;
+	};
+	const loadAuxHandlersModule = () => {
+		auxHandlersModulePromise ??= import("./server-aux-handlers-CLxg0m7D.js");
+		return auxHandlersModulePromise;
+	};
+	const loadCoreMethodsModule = () => {
+		coreMethodsModulePromise ??= import("./server-methods-90LGtoqF.js");
+		return coreMethodsModulePromise;
+	};
+	const loadRequestContextModule = () => {
+		requestContextModulePromise ??= import("./server-request-context-BClu1RJg.js");
+		return requestContextModulePromise;
+	};
+	const loadWsRuntimeModule = () => {
+		wsRuntimeModulePromise ??= import("./server-ws-runtime-CGwRNHq_.js");
+		return wsRuntimeModulePromise;
+	};
+	const loadRouteCapabilityModule = () => {
+		routeCapabilityModulePromise ??= import("./route-capability-DMdOu_-R.js");
+		return routeCapabilityModulePromise;
 	};
 	const { loadGatewayStartupConfigSnapshot } = await startupConfigModulePromise;
 	const startupConfigLoad = await startupTrace.measure("config.snapshot", () => loadGatewayStartupConfigSnapshot({
@@ -2081,7 +2112,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		runtimeState.bonjourStop = earlyRuntime.bonjourStop;
 		getActiveTaskCount = earlyRuntime.getActiveTaskCount;
 		runtimeState.skillsChangeUnsub = earlyRuntime.skillsChangeUnsub;
-		const [{ startGatewayEventSubscriptions }, gatewayRuntimeServices] = await Promise.all([import("./server-runtime-subscriptions-K1ToqQoD.js"), import("./server-runtime-services-DIy3QoBL.js")]);
+		const [{ startGatewayEventSubscriptions }, gatewayRuntimeServices] = await startupTrace.measure("runtime.after-early.import-services", () => loadRuntimeServicesModule());
 		Object.assign(runtimeState, startGatewayEventSubscriptions({
 			broadcast,
 			broadcastToConnIds,
@@ -2093,14 +2124,14 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			sessionMessageSubscribers,
 			chatAbortControllers
 		}));
-		Object.assign(runtimeState, gatewayRuntimeServices.startGatewayRuntimeServices({
+		Object.assign(runtimeState, await startupTrace.measure("runtime.after-early.start-services", () => gatewayRuntimeServices.startGatewayRuntimeServices({
 			minimalTestGateway,
 			cfgAtStart,
 			channelManager,
 			log
-		}));
-		const { createGatewayAuxHandlers } = await import("./server-aux-handlers-CLxg0m7D.js");
-		const { coreGatewayHandlers } = await import("./server-methods-90LGtoqF.js");
+		})));
+		const { createGatewayAuxHandlers } = await startupTrace.measure("runtime.after-early.import-aux", () => loadAuxHandlersModule());
+		let coreGatewayHandlers = desktopManagedGateway ? {} : (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
 		const { execApprovalManager, pluginApprovalManager, extraHandlers } = createGatewayAuxHandlers({
 			log,
 			activateRuntimeSecrets,
@@ -2134,7 +2165,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				})
 			]);
 		};
-		let attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+		let attachedGatewayMethodRegistry = await startupTrace.measure("runtime.after-early.method-registry", () => buildAttachedGatewayMethodRegistry(pluginRegistry));
 		const listAttachedGatewayMethods = () => {
 			const methods = attachedGatewayMethodRegistry.listAdvertisedMethods();
 			methods.push(...listStartupChannelGatewayMethods());
@@ -2255,8 +2286,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			};
 		};
 		const unavailableGatewayMethods = new Set(minimalTestGateway ? [] : STARTUP_UNAVAILABLE_GATEWAY_METHODS);
-		const { createGatewayRequestContext } = await import("./server-request-context-BClu1RJg.js");
-		const gatewayRequestContext = createGatewayRequestContext({
+		const { createGatewayRequestContext } = await startupTrace.measure("runtime.after-early.import-request-context", () => loadRequestContextModule());
+		const gatewayRequestContext = await startupTrace.measure("runtime.after-early.request-context", () => createGatewayRequestContext({
 			deps,
 			runtimeState,
 			getRuntimeConfig,
@@ -2321,7 +2352,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			broadcastVoiceWakeChanged,
 			unavailableGatewayMethods,
 			broadcastVoiceWakeRoutingChanged
-		});
+		}));
 		currentPluginRegistryGatewayContext = gatewayRequestContext;
 		const fallbackGatewayContextCleanup = setFallbackGatewayContextResolver(() => gatewayRequestContext);
 		clearFallbackGatewayContextForServer = typeof fallbackGatewayContextCleanup === "function" ? () => {
@@ -2346,8 +2377,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				await refreshAttachedGatewayDiscovery(loaded.pluginRegistry);
 			}
 		}
-		const { attachGatewayWsHandlers } = await import("./server-ws-runtime-CGwRNHq_.js");
-		const { listPluginNodeCapabilities } = await import("./route-capability-DMdOu_-R.js");
+		const { attachGatewayWsHandlers } = await startupTrace.measure("runtime.after-early.import-ws", () => loadWsRuntimeModule());
+		const { listPluginNodeCapabilities } = await startupTrace.measure("runtime.after-early.import-capabilities", () => loadRouteCapabilityModule());
 		const pluginSurfaceScheme = gatewayTls.enabled ? "https" : "http";
 		attachGatewayWsHandlers({
 			wss,
@@ -2376,6 +2407,19 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		});
 		await startListening();
 		startupTrace.mark("http.bound");
+		if (desktopManagedGateway) {
+			const elapsedSeconds = ((Date.now() - serverStartedAt) / 1e3).toFixed(1);
+			log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
+			setTimeout(() => {
+				loadCoreMethodsModule().then(({ coreGatewayHandlers: loadedCoreGatewayHandlers }) => {
+					coreGatewayHandlers = loadedCoreGatewayHandlers;
+					attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+					runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
+				}).catch((err) => {
+					log.warn(`desktop-managed core gateway methods failed to load after listen: ${String(err)}`);
+				});
+			}, 1e4).unref?.();
+		}
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		let postAttachRuntimeReturned = false;
 		let scheduledServicesActivated = false;
