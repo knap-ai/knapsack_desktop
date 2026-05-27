@@ -1855,6 +1855,7 @@ Be direct, specific, and concise. No filler text.`
       )}
 
       {/* Notetaker bottom bar */}
+      {(!isMeetingChatOpen || recordingHandlers.isRecording(thread.id)) && (
       <div className="notetaker-note__bottom-bar">
         {recordingHandlers.isRecording(thread.id) ? (
           <>
@@ -1868,19 +1869,21 @@ Be direct, specific, and concise. No filler text.`
             <div className="notetaker-note__bottom-recording-status">
               Privately transcribing...
             </div>
-            <div
-              className="notetaker-note__bottom-chat"
-              onClick={openMeetingChat}
-              style={{ cursor: 'pointer' }}
-            >
-              <input
-                type="text"
-                placeholder="Ask about the meeting"
-                className="notetaker-note__bottom-chat-input"
-                readOnly
+            {!isMeetingChatOpen && (
+              <div
+                className="notetaker-note__bottom-chat"
+                onClick={openMeetingChat}
                 style={{ cursor: 'pointer' }}
-              />
-            </div>
+              >
+                <input
+                  type="text"
+                  placeholder="Ask about the meeting"
+                  className="notetaker-note__bottom-chat-input"
+                  readOnly
+                  style={{ cursor: 'pointer' }}
+                />
+              </div>
+            )}
             <button
               className="notetaker-note__bottom-stop"
               onClick={() => handleStopRecording('Manually')}
@@ -1929,6 +1932,7 @@ Be direct, specific, and concise. No filler text.`
           </>
         )}
       </div>
+      )}
     </div>
   )
 }
