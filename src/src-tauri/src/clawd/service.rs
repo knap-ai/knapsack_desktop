@@ -7,6 +7,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use tauri::Manager;
 
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -3431,7 +3432,12 @@ struct StoredTokens {
   #[serde(default)]
   preferred_coding_agent: Option<String>,
 
-  // Knapsack cloud inference (no API key — uses the user's Knapsack JWT)
+  // Knapsack cloud inference — authenticated via studio.knapsack.ai deep link
+  #[serde(default)]
+  knapsack_access_token: Option<String>,
+  #[serde(default)]
+  knapsack_refresh_token: Option<String>,
+  /// Email shown in the UI; decoded from the JWT at sign-in time.
   #[serde(default)]
   knapsack_email: Option<String>,
   #[serde(default)]
@@ -3618,6 +3624,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_base_url: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
+    knapsack_access_token: None,
+    knapsack_refresh_token: None,
     knapsack_email: None,
     knapsack_model: None,
   };
@@ -3761,7 +3769,19 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       }
     }
   }
-  // Propagate Knapsack cloud inference settings (active when user chose Knapsack as provider)
+  // Propagate Knapsack cloud inference settings
+  if let Some(t) = &tokens.knapsack_access_token {
+    let t = t.trim();
+    if !t.is_empty() {
+      std::env::set_var("KNAPSACK_ACCESS_TOKEN", t);
+    }
+  }
+  if let Some(rt) = &tokens.knapsack_refresh_token {
+    let rt = rt.trim();
+    if !rt.is_empty() {
+      std::env::set_var("KNAPSACK_REFRESH_TOKEN", rt);
+    }
+  }
   if let Some(e) = &tokens.knapsack_email {
     let e = e.trim();
     if !e.is_empty() {
@@ -5992,9 +6012,9 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
   let has_knapsack = tokens
-    .knapsack_email
+    .knapsack_access_token
     .as_ref()
-    .map(|e| !e.trim().is_empty())
+    .map(|t| !t.trim().is_empty())
     .unwrap_or(false);
   let has_key = has_openai
     || has_anthropic
@@ -6282,6 +6302,10 @@ pub struct SetApiKeyRequest {
   /// Preferred coding CLI agent: "claude", "codex", "antigravity", "gemini", or "opencode".
   /// When provided alongside or without a key change, updates the stored preference.
   pub preferred_coding_agent: Option<String>,
+  /// Knapsack provider: the JWT refresh token (stored alongside the access token in `key`).
+  pub refresh_token: Option<String>,
+  /// Knapsack provider: the user's email, for display only.
+  pub email: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -6399,9 +6423,9 @@ pub async fn set_api_key(
         .map_or(false, |k| !k.is_empty()),
       "ollama" => true,
       "knapsack" => tokens
-        .knapsack_email
+        .knapsack_access_token
         .as_ref()
-        .map_or(false, |e| !e.is_empty()),
+        .map_or(false, |t| !t.is_empty()),
       _ => tokens
         .openai_api_key
         .as_ref()
@@ -6413,6 +6437,13 @@ pub async fn set_api_key(
         message: "API key cannot be empty".to_string(),
       });
     }
+    // If the provider isn't actually changing, skip the gateway restart — it's
+    // already running with the correct configuration.  A restart here would
+    // fail in dev mode (launchctl exit 37) and trigger a destructive self-heal.
+    let already_active = tokens
+      .active_provider
+      .as_deref()
+      .unwrap_or("openai") == provider.as_str();
     // Switch active provider and update model only
     tokens.active_provider = Some(provider.clone());
     if let Some(model) = &payload.model {
@@ -6548,6 +6579,16 @@ pub async fn set_api_key(
     // updates the default model but does NOT re-run provider discovery, so
     // the old provider (e.g. Ollama) stays in the catalog and the gateway
     // keeps routing requests through it.
+    if already_active {
+      eprintln!(
+        "[clawd/service] Provider '{}' is already active — skipping gateway restart",
+        provider
+      );
+      return HttpResponse::Ok().json(SetApiKeyResponse {
+        success: true,
+        message: format!("Switched to {}", provider_name),
+      });
+    }
     let switch_model = crate::clawd::gateway_client::resolve_default_model();
     eprintln!(
       "[clawd/service] Provider switch to '{}' (model: {}) — restarting gateway for provider re-discovery",
@@ -6667,8 +6708,14 @@ pub async fn set_api_key(
       "Ollama"
     }
     "knapsack" => {
-      // Knapsack cloud inference: key field carries the user's email (no API key needed)
-      tokens.knapsack_email = Some(key);
+      // key = JWT access token; refresh_token = JWT refresh token; email = display email
+      tokens.knapsack_access_token = Some(key);
+      if let Some(rt) = &payload.refresh_token {
+        tokens.knapsack_refresh_token = Some(rt.trim().to_string());
+      }
+      if let Some(em) = &payload.email {
+        tokens.knapsack_email = Some(em.trim().to_string());
+      }
       tokens.active_provider = Some("knapsack".to_string());
       if let Some(model) = &payload.model {
         tokens.knapsack_model = Some(model.trim().to_string());
@@ -7178,6 +7225,10 @@ pub async fn ollama_configure(
       let _ = std::process::Command::new("launchctl")
         .args(["kickstart", "-k", &service])
         .status();
+      // Mark the gateway as launched so set_service_enabled (called by the
+      // frontend immediately after) sees the grace period active and returns
+      // early instead of doing a second full restart with blocking sleeps.
+      mark_gateway_launch_started();
     }
   }
 
@@ -12259,6 +12310,197 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 pub async fn auto_enable_if_needed(_app_handle: &tauri::AppHandle) {
   // No-op on non-macOS/Windows platforms.
+}
+
+/// Parse a single query parameter value from a URL string.
+fn parse_deep_link_param(url: &str, key: &str) -> Option<String> {
+  let query_start = url.find('?')?;
+  let query = &url[query_start + 1..];
+  for pair in query.split('&') {
+    if let Some((k, v)) = pair.split_once('=') {
+      if k == key {
+        // Percent-decode the value (handles %40 → @ for emails, etc.)
+        let decoded = v.replace("%40", "@").replace("%2B", "+").replace("%20", " ").replace("+", " ");
+        return Some(decoded);
+      }
+    }
+  }
+  None
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct DesktopSignInApiResponse {
+  access_token: String,
+  refresh_token: String,
+  email: String,
+}
+
+/// Exchange a one-shot code for JWT tokens, store them, and emit
+/// `knapsack-connected` (or `knapsack-auth-error`) to the frontend.
+/// Returns Ok(email) on success or Err(user-visible message) on failure.
+async fn exchange_and_store_knapsack_code(
+  app_handle: &tauri::AppHandle,
+  code: &str,
+) -> Result<String, String> {
+  let api_base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+  let client = reqwest::Client::new();
+  let resp = client
+    .post(format!("{}/api/authentication/desktop-sign-in", api_base))
+    .json(&serde_json::json!({ "code": code }))
+    .send()
+    .await
+    .map_err(|e| {
+      log::error!("[knapsack_auth] exchange request failed: {}", e);
+      format!("Connection failed: {}", e)
+    })?;
+
+  let status = resp.status();
+  let body_text = resp.text().await.unwrap_or_default();
+
+  if !status.is_success() {
+    log::error!("[knapsack_auth] exchange endpoint returned {}: {}", status, body_text);
+    return Err(format!("Sign-in failed ({})", status));
+  }
+
+  let sign_in: DesktopSignInApiResponse = serde_json::from_str(&body_text).map_err(|e| {
+    log::error!("[knapsack_auth] failed to parse exchange response: {}", e);
+    "Invalid server response".to_string()
+  })?;
+
+  let mut tokens = load_or_create_tokens(app_handle).map_err(|e| {
+    log::error!("[knapsack_auth] failed to load tokens for storage: {}", e);
+    "Failed to save credentials".to_string()
+  })?;
+
+  tokens.knapsack_access_token = Some(sign_in.access_token.clone());
+  tokens.knapsack_refresh_token = Some(sign_in.refresh_token.clone());
+  tokens.knapsack_email = Some(sign_in.email.clone());
+  tokens.active_provider = Some("knapsack".to_string());
+  if tokens.knapsack_model.is_none() {
+    tokens.knapsack_model = Some("anthropic/claude-haiku-4-5".to_string());
+  }
+
+  if let Err(e) = save_tokens(app_handle, &tokens) {
+    log::error!("[knapsack_auth] failed to save tokens: {}", e);
+  }
+
+  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &sign_in.access_token);
+  std::env::set_var("KNAPSACK_REFRESH_TOKEN", &sign_in.refresh_token);
+  std::env::set_var("KNAPSACK_USER_EMAIL", &sign_in.email);
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
+  if let Some(m) = &tokens.knapsack_model {
+    std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m);
+  }
+
+  log::info!("[knapsack_auth] connected as {}", sign_in.email);
+  let _ = app_handle.emit_all(
+    "knapsack-connected",
+    serde_json::json!({
+      "email": sign_in.email,
+      "model": tokens.knapsack_model.clone().unwrap_or_default(),
+    }),
+  );
+
+  Ok(sign_in.email)
+}
+
+/// GET /api/auth/knapsack-callback?code=<one-shot-code>
+/// Called by studio.knapsack.ai after the user authenticates.
+/// Returns an HTML page the user can close.
+#[derive(Deserialize)]
+pub struct KnapsackCallbackQuery {
+  pub code: Option<String>,
+}
+
+#[get("/api/auth/knapsack-callback")]
+pub async fn knapsack_auth_callback(
+  app_handle: web::Data<tauri::AppHandle>,
+  query: web::Query<KnapsackCallbackQuery>,
+) -> impl Responder {
+  let code = match query.code.as_deref().filter(|c| !c.is_empty()) {
+    Some(c) => c.to_string(),
+    None => return oauth_html_page(false, "Missing authorization code."),
+  };
+
+  match exchange_and_store_knapsack_code(&app_handle, &code).await {
+    Ok(_) => oauth_html_page(true, "Knapsack"),
+    Err(msg) => {
+      let _ = app_handle.emit_all("knapsack-auth-error", serde_json::json!({"error": msg}));
+      oauth_html_page(false, &msg)
+    }
+  }
+}
+
+/// POST /api/clawd/service/knapsack-disconnect
+/// Clears the stored Knapsack credentials and switches the active provider
+/// to whatever other provider has a saved key (fallback: openai).
+#[post("/api/clawd/service/knapsack-disconnect")]
+pub async fn knapsack_disconnect(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(
+        serde_json::json!({"ok": false, "message": e})
+      )
+    }
+  };
+
+  // Clear all Knapsack credential fields
+  tokens.knapsack_access_token = None;
+  tokens.knapsack_refresh_token = None;
+  tokens.knapsack_email = None;
+
+  // Pick a fallback provider that already has a saved key
+  let fallback = if tokens.anthropic_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+    "anthropic"
+  } else if tokens.gemini_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+    "gemini"
+  } else if tokens.groq_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+    "groq"
+  } else {
+    "openai"
+  };
+  tokens.active_provider = Some(fallback.to_string());
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(
+      serde_json::json!({"ok": false, "message": e})
+    );
+  }
+
+  // Clear env vars so in-process consumers stop using the old token
+  std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
+  std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
+  std::env::remove_var("KNAPSACK_USER_EMAIL");
+  std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", fallback);
+
+  log::info!("[knapsack_disconnect] disconnected, fallback provider = {}", fallback);
+  let _ = app_handle.emit_all(
+    "knapsack-disconnected",
+    serde_json::json!({"fallback_provider": fallback}),
+  );
+
+  HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
+}
+
+/// Handle a `knapsack-auth://connect?code=<code>` deep link (URL scheme fallback).
+pub async fn handle_knapsack_deep_link(app_handle: &tauri::AppHandle, url: &str) {
+  log::info!("[knapsack_auth] deep link received: {}", &url[..url.len().min(80)]);
+
+  let code = match parse_deep_link_param(url, "code") {
+    Some(c) => c,
+    None => {
+      log::error!("[knapsack_auth] missing 'code' in deep link URL");
+      return;
+    }
+  };
+
+  if let Err(msg) = exchange_and_store_knapsack_code(app_handle, &code).await {
+    let _ = app_handle.emit_all("knapsack-auth-error", serde_json::json!({"error": msg}));
+  }
 }
 
 #[cfg(test)]

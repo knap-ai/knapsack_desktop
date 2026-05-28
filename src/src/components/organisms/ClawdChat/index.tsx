@@ -5,6 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
+import { open as shellOpen } from '@tauri-apps/api/shell'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
@@ -410,12 +411,6 @@ type ProviderOption = {
   helpUrl: string
 }
 
-const KNAPSACK_MODELS = [
-  { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-  { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
-  { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
-]
-const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
 
 const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
@@ -1690,11 +1685,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
-  const [selectedKnapsackModel, setSelectedKnapsackModel] = useState<string>(() => {
-    return localStorage.getItem(KNAPSACK_MODEL_STORAGE) || 'anthropic/claude-haiku-4-5'
-  })
   const [knapsackEmail, setKnapsackEmail] = useState<string>('')
+  const [isKnapsackConnecting, setIsKnapsackConnecting] = useState(false)
+  const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
+    return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
+  })
+  // Tracks the backend-confirmed active provider separately from selectedProvider,
+  // which also changes when the user opens an accordion (before any save).
+  const [confirmedProvider, setConfirmedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
   const [savingKey, setSavingKey] = useState(false)
@@ -2013,6 +2012,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         }
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
+          setConfirmedProvider(keyStatus.active_provider as Provider)
           localStorage.setItem(ACTIVE_PROVIDER_STORAGE, keyStatus.active_provider)
         }
         // Store masked key hints for placeholders
@@ -2036,10 +2036,6 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         })
         if (keyStatus.knapsack_email) {
           setKnapsackEmail(keyStatus.knapsack_email)
-        }
-        if (keyStatus.knapsack_model) {
-          setSelectedKnapsackModel(keyStatus.knapsack_model)
-          localStorage.setItem(KNAPSACK_MODEL_STORAGE, keyStatus.knapsack_model)
         }
         // Restore Ollama model from backend if Ollama is the active provider
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
@@ -2866,6 +2862,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenCompose)
+
+      // Knapsack deep-link auth callback from the OS URL scheme handler
+      const unlistenKnapsackConnected = await tauriListen<{ email: string }>(
+        'knapsack-connected',
+        (event) => {
+          if (cancelled) return
+          const { email } = event.payload
+          setKnapsackEmail(email)
+          setIsKnapsackConnecting(false)
+          setKnapsackConnectError(null)
+          setSelectedProvider('knapsack')
+          setConfirmedProvider('knapsack')
+          localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+          setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+          pushAssistant(`Connected to Knapsack as **${email}**.`)
+        },
+      )
+      cleanups.push(unlistenKnapsackConnected)
+
+      const unlistenKnapsackError = await tauriListen<{ error: string }>(
+        'knapsack-auth-error',
+        (event) => {
+          if (cancelled) return
+          setIsKnapsackConnecting(false)
+          setKnapsackConnectError(event.payload.error || 'Connection failed')
+        },
+      )
+      cleanups.push(unlistenKnapsackError)
     })()
 
     return () => {
@@ -2989,6 +3013,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: selectedOllamaModel,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setConfirmedProvider('ollama')
+      localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
@@ -3038,6 +3064,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
+      setConfirmedProvider(selectedProvider)
+      localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
       setShowKeyPrompt(false)
       setEditingProviderKey(false)
       setHasCompletedOnboarding(true)
@@ -3858,6 +3886,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // messages reflect the model that was actually selected when sent, not the
     // model in localStorage (which can lag behind UI state changes).
     const activeModelAtSend = (() => {
+      if (selectedProvider === 'knapsack') return 'knapsack'
       const m = selectedProvider === 'ollama' ? selectedOllamaModel
         : selectedProvider === 'anthropic' ? selectedAnthropicModel
         : selectedProvider === 'gemini' ? selectedGeminiModel
@@ -4288,11 +4317,12 @@ ${actualText}`
           console.warn('[chat] agent-chat timed out after 300s, falling back to direct chat')
           agentTimeout.abort()
         }, 300_000) : null
-        // Combine user abort + timeout abort
+        // Combine user abort + timeout abort. Fallback to user signal so stop
+        // always works in environments where AbortSignal.any is unavailable.
         const agentSignal = agentTimeout
           ? (typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
               ? (AbortSignal as any).any([controller.signal, agentTimeout.signal])
-              : agentTimeout.signal)
+              : controller.signal)
           : controller.signal
         try {
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
@@ -4690,12 +4720,13 @@ ${actualText}`
             {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
           </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); setShowChannelsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
-            {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
-              : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
-              : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
-              : selectedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
-              : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
-              : selectedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+            {confirmedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
+              : confirmedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
+              : confirmedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
+              : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
+              : confirmedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
+              : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+              : confirmedProvider === 'knapsack' ? 'Knapsack'
               : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
@@ -6642,54 +6673,101 @@ ${actualText}`
                         <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                       </button>
                       <div className="ClawdAccordionBody">
-                        {knapsackEmail && (
-                          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>
-                            Signed in as <strong>{knapsackEmail}</strong>
-                          </p>
+                        {knapsackEmail ? (
+                          <>
+                            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>
+                              Signed in as <strong>{knapsackEmail}</strong>
+                            </p>
+                            <div className="ClawdAccordionActions">
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={async () => {
+                                  if (confirmedProvider === 'knapsack') return
+                                  setSavingKey(true)
+                                  try {
+                                    await apiPost('/api/clawd/service/set-api-key', {
+                                      provider: 'knapsack',
+                                      key: '',
+                                    })
+                                    setSelectedProvider('knapsack')
+                                    setConfirmedProvider('knapsack')
+                                    localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                    setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+                                    pushAssistant('Switched to Knapsack.')
+                                  } catch {}
+                                  setSavingKey(false)
+                                }}
+                                disabled={savingKey || confirmedProvider === 'knapsack'}
+                              >
+                                {savingKey ? 'Switching...' : confirmedProvider === 'knapsack' ? 'Active' : 'Use Knapsack'}
+                              </button>
+                              <button
+                                className="ClawdChannelCardAction"
+                                style={{ marginLeft: 8, opacity: 0.7 }}
+                                onClick={async () => {
+                                  try {
+                                    const res = await apiPost<{ ok: boolean; fallback_provider?: string }>(
+                                      '/api/clawd/service/knapsack-disconnect', {}
+                                    )
+                                    const next = (res?.fallback_provider || 'openai') as Provider
+                                    setSelectedProvider(next)
+                                    setConfirmedProvider(next)
+                                    localStorage.setItem(ACTIVE_PROVIDER_STORAGE, next)
+                                  } catch {}
+                                  setKnapsackEmail('')
+                                  setKnapsackConnectError(null)
+                                }}
+                                disabled={savingKey}
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {knapsackConnectError && (
+                              <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 10px' }}>
+                                {knapsackConnectError}
+                              </p>
+                            )}
+                            {isKnapsackConnecting ? (
+                              <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                                Waiting for sign-in from your browser…{' '}
+                                <button
+                                  style={{ background: 'none', border: 'none', color: '#c54841', cursor: 'pointer', padding: 0, fontSize: 12, textDecoration: 'underline' }}
+                                  onClick={() => setIsKnapsackConnecting(false)}
+                                >
+                                  Cancel
+                                </button>
+                              </p>
+                            ) : (
+                              <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                                Sign in with your Knapsack account to use the cloud AI — no API key needed.
+                              </p>
+                            )}
+                            <div className="ClawdAccordionActions">
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                disabled={isKnapsackConnecting}
+                                onClick={() => {
+                                  setIsKnapsackConnecting(true)
+                                  setKnapsackConnectError(null)
+                                  const callbackUrl = encodeURIComponent('http://127.0.0.1:8897/api/auth/knapsack-callback')
+                                  const studioBase = import.meta.env.VITE_KN_STUDIO_SERVER || 'https://studio.knapsack.ai'
+                                  const studioUrl = `${studioBase}/desktop-connect?callback=${callbackUrl}`
+                                  shellOpen(studioUrl).catch(() => {
+                                    window.open(studioUrl, '_blank')
+                                  })
+                                }}
+                              >
+                                {isKnapsackConnecting ? 'Waiting…' : 'Connect with Knapsack'}
+                              </button>
+                            </div>
+                            <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                              A browser window will open. Sign in and click "Connect Desktop" — you'll be redirected back automatically.
+                            </p>
+                          </>
                         )}
-                        <label className="ClawdKeyPromptLabel">Model tier</label>
-                        <div className="ClawdModelSelector">
-                          {KNAPSACK_MODELS.map(model => (
-                            <button
-                              key={model.id}
-                              className={`ClawdModelOption${selectedKnapsackModel === model.id ? ' selected' : ''}`}
-                              onClick={() => {
-                                setSelectedKnapsackModel(model.id)
-                                localStorage.setItem(KNAPSACK_MODEL_STORAGE, model.id)
-                              }}
-                              disabled={savingKey}
-                            >
-                              <span className="ClawdModelName">{model.name}</span>
-                              <span className="ClawdModelDesc">{model.description}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <div className="ClawdAccordionActions">
-                          <button
-                            className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                            onClick={async () => {
-                              if (!knapsackEmail) return
-                              setSavingKey(true)
-                              try {
-                                await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail, model: selectedKnapsackModel })
-                                setSelectedProvider('knapsack')
-                                localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
-                                setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
-                                pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
-                              } catch {}
-                              setSavingKey(false)
-                            }}
-                            disabled={savingKey || !knapsackEmail}
-                          >
-                            {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
-                          </button>
-                        </div>
-                        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                          Need credits?{' '}
-                          <a href="https://studio.knapsack.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#c54841' }}>
-                            studio.knapsack.ai
-                          </a>
-                        </p>
                       </div>
                     </div>
                   )
