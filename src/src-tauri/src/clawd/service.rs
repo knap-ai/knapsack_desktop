@@ -5154,15 +5154,23 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // Gateway health is intentionally unauthenticated. A bound TCP port is not
-    // enough: during startup the gateway can accept connections while the Node
-    // event loop is still too busy to answer `/health`.
-    let gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    // Gateway health is intentionally unauthenticated. Prefer the HTTP probe,
+    // but accept the gateway listener once browser control is also listening;
+    // channel startup can temporarily starve `/health` after the usable
+    // gateway/browser path is already online.
+    let gateway_http_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let mut gateway_ok = gateway_http_ok;
     let gateway_listening = if gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
+    if !gateway_ok
+      && gateway_listening
+      && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
+    {
+      gateway_ok = true;
+    }
     #[cfg(target_os = "windows")]
     if !gateway_ok && gateway_listening {
       if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
@@ -9070,6 +9078,10 @@ async fn prepare_gateway_config(
       "3000".to_string(),
     ),
     (
+      "OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS".to_string(),
+      "0".to_string(),
+    ),
+    (
       "OPENCLAW_DEFER_STARTUP_SIDECARS".to_string(),
       "1".to_string(),
     ),
@@ -10828,6 +10840,10 @@ pub async fn set_service_enabled(
         (
           "OPENCLAW_CHANNEL_STARTUP_HANDOFF_TIMEOUT_MS".to_string(),
           "3000".to_string(),
+        ),
+        (
+          "OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS".to_string(),
+          "0".to_string(),
         ),
         (
           "OPENCLAW_DEFER_STARTUP_SIDECARS".to_string(),
