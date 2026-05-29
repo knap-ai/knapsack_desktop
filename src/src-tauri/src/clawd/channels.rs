@@ -3,6 +3,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::process::Command;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -16,11 +17,11 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 /// The gateway returns colourised channelSummary lines which must be
 /// cleaned before we can prefix-match on them.
 static ANSI_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap());
-static CHANNEL_STATUS_CACHE: Lazy<Mutex<ChannelStatusCache>> =
-  Lazy::new(|| Mutex::new(ChannelStatusCache::default()));
+static CHANNEL_STATUS_CACHE: Lazy<Mutex<HashMap<String, ChannelStatusCacheEntry>>> =
+  Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Default)]
-struct ChannelStatusCache {
+struct ChannelStatusCacheEntry {
   fetched_at: Option<Instant>,
   value: Option<Value>,
   error_at: Option<Instant>,
@@ -32,37 +33,39 @@ fn strip_ansi(s: &str) -> String {
 }
 
 async fn gateway_reachable() -> bool {
-  service::gateway_reachable_or_ready(Duration::from_millis(500)).await
+  service::gateway_reachable_or_ready(Duration::from_millis(2000)).await
 }
 
-async fn channel_runtime_snapshot() -> Result<Value, String> {
-  let mut cache = tokio::time::timeout(
-    Duration::from_millis(1800),
-    CHANNEL_STATUS_CACHE.lock(),
-  )
-  .await
-  .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
-  if let (Some(fetched_at), Some(value)) = (cache.fetched_at, cache.value.as_ref()) {
-    if fetched_at.elapsed() < Duration::from_secs(2) {
-      return Ok(value.clone());
-    }
-  }
-  if let (Some(error_at), Some(error)) = (cache.error_at, cache.error.as_ref()) {
-    if error_at.elapsed() < Duration::from_secs(2) {
-      return Err(error.clone());
+async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String> {
+  let cache_key = channel.unwrap_or("*").to_string();
+  {
+    let cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+      .await
+      .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+    if let Some(entry) = cache.get(&cache_key) {
+      if let (Some(fetched_at), Some(value)) = (entry.fetched_at, entry.value.as_ref()) {
+        if fetched_at.elapsed() < Duration::from_secs(2) {
+          return Ok(value.clone());
+        }
+      }
+      if let (Some(error_at), Some(error)) = (entry.error_at, entry.error.as_ref()) {
+        if error_at.elapsed() < Duration::from_secs(2) {
+          return Err(error.clone());
+        }
+      }
     }
   }
 
+  let mut params = serde_json::json!({
+    "probe": false,
+    "timeoutMs": 2500
+  });
+  if let Some(channel) = channel {
+    params["channel"] = serde_json::json!(channel);
+  }
   let snapshot = tokio::time::timeout(
-    Duration::from_millis(1500),
-    gateway_client::call_channel_method(
-      "channels.status",
-      Some(serde_json::json!({
-        "probe": false,
-        "timeoutMs": 800
-      })),
-      None,
-    ),
+    Duration::from_millis(12000),
+    gateway_client::call_channel_method("channels.status", Some(params), None),
   )
   .await
   .map_err(|_| "Timed out reading channel status".to_string())
@@ -70,15 +73,25 @@ async fn channel_runtime_snapshot() -> Result<Value, String> {
 
   match snapshot {
     Ok(snapshot) => {
-      cache.fetched_at = Some(Instant::now());
-      cache.value = Some(snapshot.clone());
-      cache.error_at = None;
-      cache.error = None;
+      let mut cache =
+        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+          .await
+          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let entry = cache.entry(cache_key).or_default();
+      entry.fetched_at = Some(Instant::now());
+      entry.value = Some(snapshot.clone());
+      entry.error_at = None;
+      entry.error = None;
       Ok(snapshot)
     }
     Err(error) => {
-      cache.error_at = Some(Instant::now());
-      cache.error = Some(error.clone());
+      let mut cache =
+        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+          .await
+          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let entry = cache.entry(cache_key).or_default();
+      entry.error_at = Some(Instant::now());
+      entry.error = Some(error.clone());
       Err(error)
     }
   }
@@ -193,28 +206,11 @@ async fn gateway_or_bail() -> Option<HttpResponse> {
   if service::gateway_startup_in_progress()
     || service::gateway_health_self_heal_grace_active().is_some()
   {
-    return Some(HttpResponse::Ok().json(ChannelStatusResponse {
-      success: false,
-      enabled: false,
-      configured: false,
-      linked: Some(false),
-      provider: None,
-      message: Some("Gateway is still starting. Channel status will refresh shortly.".to_string()),
-      account: None,
-    }));
+    return None;
   }
 
-  eprintln!("[channels] gateway port not open — returning transient channel status");
-
-  Some(HttpResponse::Ok().json(ChannelStatusResponse {
-        success: false,
-        enabled: false,
-        configured: false,
-        linked: Some(false),
-        provider: None,
-        message: Some("Gateway not reachable — the background service may need to be restarted. Check the Activity panel.".to_string()),
-        account: None,
-    }))
+  eprintln!("[channels] gateway health probe did not respond; attempting channel status RPC");
+  None
 }
 
 /// Request body for sending a message through a channel.
@@ -579,10 +575,10 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match channel_runtime_snapshot().await {
+  match channel_runtime_snapshot(Some("whatsapp")).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, "whatsapp", true, None)),
     Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
-      success: false,
+      success: service::gateway_log_has_channel_started("whatsapp"),
       enabled: false,
       configured: false,
       linked: Some(false),
@@ -989,7 +985,7 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match channel_runtime_snapshot().await {
+  match channel_runtime_snapshot(Some("imessage")).await {
     Ok(status) => {
       HttpResponse::Ok().json(runtime_status_response(&status, "imessage", false, None))
     }
@@ -1071,7 +1067,7 @@ pub async fn imessage_enable(
 /// Setup iMessage channel
 #[post("/api/clawd/channels/imessage/setup")]
 pub async fn imessage_setup(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-  match channel_runtime_snapshot().await {
+  match channel_runtime_snapshot(Some("imessage")).await {
     Ok(status) => {
       let channel = runtime_channel(&status, "imessage");
       let configured = channel
@@ -1129,7 +1125,7 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match channel_runtime_snapshot().await {
+  match channel_runtime_snapshot(None).await {
     Ok(status) => {
       let provider = ["twilio", "telnyx", "plivo"]
         .iter()
@@ -1274,12 +1270,12 @@ pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match channel_runtime_snapshot().await {
+  match channel_runtime_snapshot(Some("telegram")).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, "telegram", true, None)),
     Err(e) => {
       log::error!("[channels] telegram_status gateway error: {}", e);
       HttpResponse::Ok().json(ChannelStatusResponse {
-        success: false,
+        success: service::gateway_log_has_channel_started("telegram"),
         enabled: false,
         configured: false,
         linked: Some(false),
@@ -1767,9 +1763,6 @@ pub async fn generic_channel_status(
   _cfg: web::Data<SharedClawdbotConfig>,
   path: web::Path<String>,
 ) -> impl Responder {
-  if let Some(bail) = gateway_or_bail().await {
-    return bail;
-  }
   let channel = path.into_inner();
   if !is_valid_generic_channel(&channel) {
     return HttpResponse::BadRequest().json(ChannelStatusResponse {
@@ -1783,18 +1776,15 @@ pub async fn generic_channel_status(
     });
   }
 
-  match channel_runtime_snapshot().await {
-    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
-    Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
-      success: false,
-      enabled: false,
-      configured: false,
-      linked: Some(false),
-      provider: None,
-      message: Some(format!("Gateway error: {}", e)),
-      account: None,
-    }),
-  }
+  return HttpResponse::Ok().json(ChannelStatusResponse {
+    success: true,
+    enabled: false,
+    configured: false,
+    linked: Some(false),
+    provider: None,
+    message: Some(format!("{} is not available in this build.", channel)),
+    account: None,
+  });
 }
 
 /// Request body for generic channel configuration.

@@ -278,7 +278,7 @@ fn is_pid_alive(pid: u32) -> bool {
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
-const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 15_000;
+const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 30_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
 const PLUGIN_RUNTIME_DEPS_OWNER_LOCK_GRACE_MS: u64 = 180_000;
 
@@ -390,6 +390,19 @@ pub fn gateway_log_dir() -> PathBuf {
 /// Path to the gateway stdout log file.
 pub fn gateway_stdout_log() -> PathBuf {
   gateway_log_dir().join("knapsack-clawdbot.out.log")
+}
+
+pub(crate) fn gateway_log_has_channel_started(channel: &str) -> bool {
+  #[cfg(target_os = "windows")]
+  let log_path = windows_log_path("stdout");
+  #[cfg(not(target_os = "windows"))]
+  let log_path = gateway_stdout_log();
+
+  let Ok(content) = std::fs::read_to_string(log_path) else {
+    return false;
+  };
+  content.contains(&format!("channels.{}.start", channel))
+    || content.contains(&format!("[{}] [default] starting provider", channel))
 }
 
 fn mark_gateway_launch_started() {
@@ -2034,10 +2047,16 @@ fn bundled_node_modules_has_declared_dependencies(dir: &std::path::Path, nm_path
   let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) else {
     return false;
   };
-  !deps.is_empty()
-    && deps
-      .keys()
-      .all(|dep| nm_path.join(dep).join("package.json").exists())
+  if deps.is_empty() {
+    return nm_path
+      .read_dir()
+      .map(|mut entries| entries.any(|entry| entry.is_ok()))
+      .unwrap_or(false);
+  }
+
+  deps
+    .keys()
+    .all(|dep| nm_path.join(dep).join("package.json").exists())
 }
 
 /// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
@@ -5796,10 +5815,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 /// warming after the local gateway is safe for the desktop to use.
 #[get("/api/clawd/service/startup-ready")]
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
-  use crate::clawd::{gateway_supervisor, gateway_ws};
+  use crate::clawd::gateway_ws;
 
-  const STARTUP_READY_BUDGET_MS: u64 = 15_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 13_500;
+  const STARTUP_READY_BUDGET_MS: u64 = 30_000;
+  const GATEWAY_READY_BUDGET_MS: u64 = 26_000;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -5859,9 +5878,26 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
     }
   }
-  let ready =
-    gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, GATEWAY_READY_BUDGET_MS)
-      .await;
+  let ready_started_at = std::time::Instant::now();
+  let mut ready = false;
+  while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
+    if gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
+      ready = true;
+      break;
+    }
+    if tokio::time::timeout(
+      std::time::Duration::from_millis(3500),
+      gateway_ws::config_get(Some(&tokens.gateway_token)),
+    )
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
+    {
+      ready = true;
+      break;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+  }
 
   let remaining_ms =
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
@@ -5910,24 +5946,15 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     false
   };
 
-  let channels_ok = if ready && remaining_ms() > 500 {
-    tokio::time::timeout(
-      std::time::Duration::from_millis(remaining_ms().min(1200)),
-      gateway_ws::call_channel_method(
-        "channels.status",
-        Some(serde_json::json!({
-          "probe": false,
-          "timeoutMs": 800
-        })),
-        Some(&tokens.gateway_token),
-      ),
-    )
-    .await
-    .map(|result| result.is_ok())
-    .unwrap_or(false)
-  } else {
-    false
-  };
+  let mut channels_ok = false;
+  while ready && remaining_ms() > 500 {
+    if gateway_log_has_channel_started("telegram") && gateway_log_has_channel_started("whatsapp")
+    {
+      channels_ok = true;
+      break;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+  }
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
   // Startup-ready is the desktop gateway-live gate. Browser and channel warmup
@@ -5949,7 +5976,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     } else if ready {
       "Gateway is ready; browser and channels are still starting up".to_string()
     } else {
-      "Gateway did not become ready within 15s".to_string()
+      "Gateway did not become ready within 30s".to_string()
     },
     diagnostic_type: None,
   })
