@@ -2464,8 +2464,10 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			logHooks,
 			logChannels,
 			unavailableGatewayMethods,
-			loadStartupPlugins: runtimePluginsLoaded ? void 0 : async () => {
+			loadStartupPlugins: runtimePluginsLoaded ? void 0 : async (loadOptions = {}) => {
 				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
+				const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && loadOptions.includeDeferred !== true;
+				const desktopFastPluginIds = new Set(["browser", "duckduckgo"]);
 				return loadGatewayStartupPluginRuntime({
 					cfg: gatewayPluginConfigAtStart,
 					activationSourceConfig: startupActivationSourceConfig,
@@ -2474,7 +2476,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 					baseMethods,
 					coreGatewayMethodNames,
 					hostServices: pluginHostServices,
-					startupPluginIds,
+					startupPluginIds: desktopManagedFastStartup ? startupPluginIds.filter((id) => desktopFastPluginIds.has(id)) : startupPluginIds,
 					pluginLookUpTable,
 					startupTrace
 				});

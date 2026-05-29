@@ -320,6 +320,7 @@ function schedulePrimaryModelPrewarm(params, prewarm = prewarmConfiguredPrimaryM
 async function startGatewaySidecars(params) {
 	const postReadySidecars = [];
 	const internalHooksConfigured = hasConfiguredInternalHooks(params.cfg);
+	const deferredDesktopChannels = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_AUTO_START_CHANNELS === "0";
 	await measureStartup(params.startupTrace, "sidecars.internal-hooks", async () => {
 		try {
 			if (internalHooksConfigured) {
@@ -359,7 +360,25 @@ async function startGatewaySidecars(params) {
 				log: params.log,
 				startupTrace: params.startupTrace
 			}, params.prewarmPrimaryModel);
-			await measureStartup(params.startupTrace, "sidecars.channel-start", () => params.startChannels());
+			if (deferredDesktopChannels) {
+				params.logChannels.info("deferring channel startup until after gateway readiness");
+				const delayMs = Number.parseInt(process.env.OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS ?? "5000", 10);
+				setTimeout(() => {
+					(async () => {
+						try {
+							if (params.loadStartupPlugins) {
+								params.onStartupPluginsLoading?.();
+								const loaded = await measureStartup(params.startupTrace, "plugins.runtime-post-ready", () => params.loadStartupPlugins({ includeDeferred: true }));
+								params.startupTrace?.detail("plugins.runtime-post-ready", [["loadedPluginCount", loaded.pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["gatewayMethodCount", loaded.gatewayMethods.length]]);
+								await params.onStartupPluginsLoaded?.(loaded);
+							}
+							await measureStartup(params.startupTrace, "sidecars.channel-start.deferred", () => params.startChannels());
+						} catch (err) {
+							params.logChannels.error(`deferred channel startup failed: ${String(err)}`);
+						}
+					})();
+				}, Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 5000).unref?.();
+			} else await measureStartup(params.startupTrace, "sidecars.channel-start", () => params.startChannels());
 		} catch (err) {
 			params.logChannels.error(`channel startup failed: ${String(err)}`);
 		}
@@ -626,6 +645,9 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 			logHooks: params.logHooks,
 			logChannels: params.logChannels,
 			startupTrace: params.startupTrace,
+			loadStartupPlugins: params.loadStartupPlugins,
+			onStartupPluginsLoading: params.onStartupPluginsLoading,
+			onStartupPluginsLoaded: params.onStartupPluginsLoaded,
 			onPluginServices: reportPluginServices
 		}));
 		const loaderStatsAfter = getPluginModuleLoaderStats();
