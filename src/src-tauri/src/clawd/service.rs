@@ -12540,11 +12540,13 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-  // Fast path: if the gateway is already healthy, just save setup for future
-  // background restarts and return.
-  let already_healthy = crate::clawd::gateway_supervisor::is_gateway_healthy("").await;
-  if already_healthy {
-    eprintln!("[clawd/service] auto_enable (Windows): gateway already running, caching setup");
+  // Fast path: if a gateway listener already exists, save setup for future
+  // background restarts and return. Use a short TCP probe here; the HTTP
+  // health probe can spend the whole startup budget waiting for a missing
+  // gateway before we spawn the one this app owns.
+  let already_listening = gateway_tcp_port_open(std::time::Duration::from_millis(50)).await;
+  if already_listening {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway already listening, caching setup");
     let cfg: crate::clawd::sidecar::SharedClawdbotConfig = std::sync::Arc::new(
       tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
     );
