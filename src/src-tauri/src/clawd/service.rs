@@ -12561,9 +12561,12 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   // Prevent the background health-check task from racing us.
   GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
 
-  kill_stale_clawdbot_chromes();
-  kill_process_on_port(18789);
-  std::thread::sleep(std::time::Duration::from_millis(500));
+  if windows_pid_listening_on_port(18800).is_some() {
+    kill_stale_clawdbot_chromes();
+  }
+  if windows_pid_listening_on_port(18789).is_some() {
+    kill_process_on_port(18789);
+  }
 
   // Remove stale gateway lock files so the new process starts without waiting.
   {
