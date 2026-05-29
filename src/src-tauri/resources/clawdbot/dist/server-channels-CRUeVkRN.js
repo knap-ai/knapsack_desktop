@@ -578,9 +578,10 @@ function createChannelManager(opts) {
 		}));
 	};
 	const startChannels = async () => {
+		const startupPlugins = [...listChannelPlugins()].sort((a, b) => a.id === "whatsapp" ? -1 : b.id === "whatsapp" ? 1 : 0);
 		await runTasksWithConcurrency({
 			limit: CHANNEL_STARTUP_CONCURRENCY,
-			tasks: [...listChannelPlugins()].map((plugin) => async () => {
+			tasks: startupPlugins.map((plugin) => async () => {
 				try {
 					await measureStartup(`channels.${plugin.id}.start`, () => startChannel(plugin.id));
 				} catch (err) {
