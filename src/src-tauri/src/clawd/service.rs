@@ -838,9 +838,6 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
 const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
   // Core app activities exercised by the desktop QA loop.
   "browser",
-  "telegram",
-  "slack",
-  "whatsapp",
   "google",
   "microsoft",
   "web-readability",
@@ -875,6 +872,18 @@ const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
 
 const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
 
+pub(crate) fn is_bundled_channel_plugin_id(plugin_id: &str) -> bool {
+  KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS
+    .iter()
+    .any(|candidate| *candidate == plugin_id)
+}
+
+fn eager_channel_plugin_start_enabled() -> bool {
+  std::env::var("KNAPSACK_EAGER_CHANNEL_PLUGINS")
+    .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    .unwrap_or(false)
+}
+
 fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -897,6 +906,9 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     .and_then(|value| value.as_object())
   {
     for (plugin_id, entry) in entries {
+      if is_bundled_channel_plugin_id(plugin_id) && !eager_channel_plugin_start_enabled() {
+        continue;
+      }
       let explicitly_disabled =
         entry.get("enabled").and_then(|value| value.as_bool()) == Some(false);
       if !explicitly_disabled && !required.iter().any(|existing| existing == plugin_id) {
@@ -917,6 +929,9 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     .iter()
     .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
     .collect::<Vec<_>>();
+  if !eager_channel_plugin_start_enabled() {
+    merged.retain(|plugin| !is_bundled_channel_plugin_id(plugin));
+  }
   for plugin in required {
     if !merged.iter().any(|existing| existing == &plugin) {
       merged.push(plugin);
@@ -5946,10 +5961,9 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     false
   };
 
-  let mut channels_ok = false;
-  while ready && remaining_ms() > 500 {
-    if gateway_log_has_channel_started("telegram") && gateway_log_has_channel_started("whatsapp")
-    {
+  let mut channels_ok = !eager_channel_plugin_start_enabled();
+  while ready && !channels_ok && remaining_ms() > 500 {
+    if gateway_log_has_channel_started("telegram") && gateway_log_has_channel_started("whatsapp") {
       channels_ok = true;
       break;
     }
@@ -5969,7 +5983,9 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     browser_ok,
     channels_ok: Some(channels_ok),
     startup_elapsed_ms: Some(elapsed_ms),
-    message: if ready && browser_ok && channels_ok {
+    message: if ready && browser_ok && channels_ok && !eager_channel_plugin_start_enabled() {
+      "Gateway and browser are ready; channel plugins are deferred until opened".to_string()
+    } else if ready && browser_ok && channels_ok {
       "Gateway, browser, and channels are ready".to_string()
     } else if ready && browser_ok {
       "Gateway and browser are ready; channels are still starting up".to_string()

@@ -426,6 +426,84 @@ fn has_sandbox_tools(snapshot: &serde_json::Value) -> bool {
     .all(|tool| allow.iter().any(|item| item.as_str() == Some(tool)))
 }
 
+fn channel_plugin_requested_by_patch(patch: &serde_json::Value) -> Option<String> {
+  patch
+    .get("channels")
+    .and_then(|value| value.as_object())
+    .and_then(|channels| {
+      channels.iter().find_map(|(channel_id, value)| {
+        if !value.is_null() && service::is_bundled_channel_plugin_id(channel_id) {
+          Some(channel_id.clone())
+        } else {
+          None
+        }
+      })
+    })
+}
+
+fn ensure_channel_plugin_enabled_in_patch(
+  patch: &mut serde_json::Value,
+  snapshot: &serde_json::Value,
+  plugin_id: &str,
+) {
+  let config = snapshot.get("config").unwrap_or(snapshot);
+  let mut allow = config
+    .pointer("/plugins/allow")
+    .and_then(|value| value.as_array())
+    .into_iter()
+    .flatten()
+    .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+    .collect::<Vec<_>>();
+
+  if let Some(patch_allow) = patch
+    .pointer("/plugins/allow")
+    .and_then(|value| value.as_array())
+  {
+    for plugin in patch_allow {
+      if let Some(plugin) = plugin.as_str() {
+        allow.push(plugin.to_string());
+      }
+    }
+  }
+
+  if !allow.iter().any(|existing| existing == plugin_id) {
+    allow.push(plugin_id.to_string());
+  }
+  allow.sort();
+  allow.dedup();
+
+  let patch_obj = patch.as_object_mut().unwrap();
+  let plugins = patch_obj
+    .entry("plugins".to_string())
+    .or_insert_with(|| serde_json::json!({}));
+  if !plugins.is_object() {
+    *plugins = serde_json::json!({});
+  }
+
+  let plugins_obj = plugins.as_object_mut().unwrap();
+  plugins_obj.insert("allow".to_string(), serde_json::json!(allow));
+
+  let entries = plugins_obj
+    .entry("entries".to_string())
+    .or_insert_with(|| serde_json::json!({}));
+  if !entries.is_object() {
+    *entries = serde_json::json!({});
+  }
+
+  let entries_obj = entries.as_object_mut().unwrap();
+  match entries_obj.get_mut(plugin_id) {
+    Some(entry) if entry.is_object() => {
+      entry
+        .as_object_mut()
+        .unwrap()
+        .insert("enabled".to_string(), serde_json::json!(true));
+    }
+    _ => {
+      entries_obj.insert(plugin_id.to_string(), serde_json::json!({"enabled": true}));
+    }
+  }
+}
+
 /// Build a config.patch JSON string for enabling a channel.
 ///
 /// If `agents.defaults.model` is not already set, the patch includes it so
@@ -442,12 +520,14 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
   let needs_model = !has_default_model(snapshot);
   let needs_browser = !has_browser_enabled(snapshot);
   let needs_sandbox_tools = !has_sandbox_tools(snapshot);
+  let parsed_patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
+  let channel_plugin_id = channel_plugin_requested_by_patch(&parsed_patch);
 
-  if !needs_model && !needs_browser && !needs_sandbox_tools {
+  if !needs_model && !needs_browser && !needs_sandbox_tools && channel_plugin_id.is_none() {
     return channel_patch.to_string();
   }
 
-  let mut patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
+  let mut patch = parsed_patch;
 
   if needs_model {
     let model = resolve_default_model();
@@ -500,6 +580,14 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
       .unwrap()
       .insert("tools".to_string(), tools_val);
     eprintln!("[channels] build_enable_patch: added sandbox tools to config patch");
+  }
+
+  if let Some(plugin_id) = channel_plugin_id {
+    ensure_channel_plugin_enabled_in_patch(&mut patch, snapshot, &plugin_id);
+    eprintln!(
+      "[channels] build_enable_patch: enabled bundled channel plugin {}",
+      plugin_id
+    );
   }
 
   serde_json::to_string(&patch).unwrap()
@@ -4536,7 +4624,7 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 
 #[cfg(test)]
 mod reconnect_retry_tests {
-  use super::is_connection_level_error;
+  use super::{build_enable_patch, is_connection_level_error};
 
   #[test]
   fn connection_closed_is_retryable() {
@@ -4561,5 +4649,42 @@ mod reconnect_retry_tests {
     assert!(!is_connection_level_error(
       "schema validation failed: channels.telegram"
     ));
+  }
+
+  #[test]
+  fn enable_patch_adds_deferred_channel_plugin() {
+    let snapshot = serde_json::json!({
+      "config": {
+        "agents": {"defaults": {"model": "openai/gpt-5.4"}},
+        "browser": {"enabled": true},
+        "plugins": {"allow": ["browser", "duckduckgo"]},
+        "tools": {
+          "sandbox": {
+            "tools": {
+              "allow": ["exec", "browser", "sessions_send"],
+              "deny": []
+            }
+          }
+        }
+      }
+    });
+
+    let patch = build_enable_patch(
+      r#"{"channels":{"whatsapp":{"dmPolicy":"allowlist"}}}"#,
+      &snapshot,
+    );
+    let patch: serde_json::Value = serde_json::from_str(&patch).unwrap();
+
+    let allow = patch
+      .pointer("/plugins/allow")
+      .and_then(|value| value.as_array())
+      .unwrap();
+    assert!(allow
+      .iter()
+      .any(|plugin| plugin.as_str() == Some("whatsapp")));
+    assert_eq!(
+      patch.pointer("/plugins/entries/whatsapp/enabled"),
+      Some(&serde_json::json!(true))
+    );
   }
 }
