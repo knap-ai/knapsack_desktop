@@ -177,6 +177,31 @@ fn kill_process_on_port(port: u16) {
   );
 }
 
+#[cfg(target_os = "windows")]
+fn windows_pid_listening_on_port(port: u16) -> Option<u32> {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+  let output = std::process::Command::new("netstat")
+    .args(["-ano", "-p", "tcp"])
+    .creation_flags(CREATE_NO_WINDOW)
+    .output()
+    .ok()?;
+  let text = String::from_utf8_lossy(&output.stdout);
+  for line in text.lines() {
+    if line.contains(&format!(":{} ", port)) && line.to_uppercase().contains("LISTENING") {
+      if let Some(pid_str) = line.split_whitespace().last() {
+        if let Ok(pid) = pid_str.parse::<u32>() {
+          if pid > 0 {
+            return Some(pid);
+          }
+        }
+      }
+    }
+  }
+  None
+}
+
 /// On Unix/macOS, kill a process listening on the given TCP port.
 /// Enhanced with retry logic to ensure the port is actually freed.
 #[cfg(not(target_os = "windows"))]
@@ -382,9 +407,23 @@ fn gateway_launch_grace_active() -> Option<u64> {
     if process_is_alive(pid) {
       return Some(elapsed);
     }
+    #[cfg(target_os = "windows")]
+    if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
+      if process_is_alive(listening_pid) {
+        GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+        return Some(elapsed);
+      }
+    }
     GATEWAY_PID.store(0, Ordering::Relaxed);
     GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
     return None;
+  }
+  #[cfg(target_os = "windows")]
+  if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
+    if process_is_alive(listening_pid) {
+      GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+      return Some(elapsed);
+    }
   }
   if elapsed >= GATEWAY_PRE_BIND_STARTUP_GRACE_MS {
     GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
@@ -5124,6 +5163,21 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
+    #[cfg(target_os = "windows")]
+    if !gateway_ok && gateway_listening {
+      if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
+        if process_is_alive(listening_pid) {
+          let tracked_pid = GATEWAY_PID.load(Ordering::Relaxed);
+          if tracked_pid != listening_pid {
+            GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+            eprintln!(
+              "[clawd/service] adopted live gateway listener pid {} while health is pending",
+              listening_pid
+            );
+          }
+        }
+      }
+    }
     let gateway_probe_failed = !gateway_ok;
 
     // Track gateway state transitions for recovery logic.
@@ -5226,6 +5280,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       eprintln!(
         "[clawd/service] gateway not reachable for {}ms after launch - waiting before self-heal",
         elapsed
+      );
+    } else if !gateway_ok && gateway_listening && unreachable_elapsed_ms < GATEWAY_POST_BIND_STARTUP_GRACE_MS {
+      eprintln!(
+        "[clawd/service] gateway port is listening but health is still pending for {}ms - waiting before self-heal",
+        unreachable_elapsed_ms
       );
     } else if !gateway_ok
       && !was_healthy
@@ -5569,21 +5628,38 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       // Windows-specific diagnostics: check tracked PID
       #[cfg(target_os = "windows")]
       {
-        let pid = GATEWAY_PID.load(Ordering::Relaxed);
-        if pid == 0 {
-          message.push_str("\n[diagnostic] No gateway process tracked — service may not be enabled. Try toggling Enable.");
-          eprintln!("[clawd/service] gateway down: no PID tracked");
-        } else if !is_pid_alive(pid) {
-          message.push_str(&format!(
-            "\n[diagnostic] Gateway process (pid {}) is no longer running. Try re-enabling.",
-            pid
-          ));
-          eprintln!("[clawd/service] gateway down: tracked pid {} is dead", pid);
+        let listening_pid = if gateway_listening {
+          windows_pid_listening_on_port(18789)
         } else {
-          eprintln!(
-            "[clawd/service] gateway down: process pid {} alive but not responding on port 18789",
-            pid
+          None
+        };
+        if let Some(listening_pid) = listening_pid {
+          GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+          message.push_str(
+            "\n[diagnostic] Gateway process is listening on port 18789 but /health is still blocked by startup work.",
           );
+          diagnostic_type = Some("gateway_starting".to_string());
+          eprintln!(
+            "[clawd/service] gateway down: listener pid {} alive but /health is pending",
+            listening_pid
+          );
+        } else {
+          let pid = GATEWAY_PID.load(Ordering::Relaxed);
+          if pid == 0 {
+            message.push_str("\n[diagnostic] No gateway process tracked — service may not be enabled. Try toggling Enable.");
+            eprintln!("[clawd/service] gateway down: no PID tracked");
+          } else if !is_pid_alive(pid) {
+            message.push_str(&format!(
+              "\n[diagnostic] Gateway process (pid {}) is no longer running. Try re-enabling.",
+              pid
+            ));
+            eprintln!("[clawd/service] gateway down: tracked pid {} is dead", pid);
+          } else {
+            eprintln!(
+              "[clawd/service] gateway down: process pid {} alive but not responding on port 18789",
+              pid
+            );
+          }
         }
       }
 
