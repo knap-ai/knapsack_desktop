@@ -20,9 +20,6 @@ static ANSI_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap(
 static CHANNEL_STATUS_CACHE: Lazy<Mutex<HashMap<String, ChannelStatusCacheEntry>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
 
-const CHANNEL_DIAGNOSTICS_TOTAL_MS: u64 = 1500;
-const CHANNEL_DIAGNOSTICS_STEP_MS: u64 = 450;
-
 #[derive(Default)]
 struct ChannelStatusCacheEntry {
   fetched_at: Option<Instant>,
@@ -36,42 +33,38 @@ fn strip_ansi(s: &str) -> String {
 }
 
 async fn gateway_reachable() -> bool {
-  service::gateway_reachable_or_ready(Duration::from_millis(500)).await
-    || tokio::time::timeout(
-      Duration::from_millis(800),
-      gateway_client::get_channel_status(None),
-    )
-    .await
-    .map(|result| result.is_ok())
-    .unwrap_or(false)
+  service::gateway_reachable_or_ready(Duration::from_millis(2000)).await
 }
 
 async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String> {
-  let cache_key = "*".to_string();
+  let cache_key = channel.unwrap_or("*").to_string();
   {
     let cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
       .await
       .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
     if let Some(entry) = cache.get(&cache_key) {
       if let (Some(fetched_at), Some(value)) = (entry.fetched_at, entry.value.as_ref()) {
-        if fetched_at.elapsed() < Duration::from_secs(5) {
+        if fetched_at.elapsed() < Duration::from_secs(2) {
           return Ok(value.clone());
         }
       }
       if let (Some(error_at), Some(error)) = (entry.error_at, entry.error.as_ref()) {
-        if error_at.elapsed() < Duration::from_secs(10) {
+        if error_at.elapsed() < Duration::from_secs(2) {
           return Err(error.clone());
         }
       }
     }
   }
 
-  let params = serde_json::json!({
+  let mut params = serde_json::json!({
     "probe": false,
-    "timeoutMs": 750
+    "timeoutMs": 2500
   });
+  if let Some(channel) = channel {
+    params["channel"] = serde_json::json!(channel);
+  }
   let snapshot = tokio::time::timeout(
-    Duration::from_millis(1200),
+    Duration::from_millis(12000),
     gateway_client::call_channel_method("channels.status", Some(params), None),
   )
   .await
@@ -80,25 +73,22 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
 
   match snapshot {
     Ok(snapshot) => {
-      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-        .await
-        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache =
+        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+          .await
+          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.fetched_at = Some(Instant::now());
       entry.value = Some(snapshot.clone());
       entry.error_at = None;
       entry.error = None;
-      if let Some(channel) = channel {
-        if runtime_channel(&snapshot, channel).is_none() && configured_channel(channel).is_none() {
-          return Ok(snapshot);
-        }
-      }
       Ok(snapshot)
     }
     Err(error) => {
-      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-        .await
-        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache =
+        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+          .await
+          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.error_at = Some(Instant::now());
       entry.error = Some(error.clone());
@@ -223,37 +213,6 @@ async fn gateway_or_bail() -> Option<HttpResponse> {
   None
 }
 
-async fn diagnostics_request_with_budget<T, F>(
-  label: &str,
-  deadline: Instant,
-  timeout: Duration,
-  issues: &mut Vec<String>,
-  request: F,
-) -> Option<T>
-where
-  F: std::future::Future<Output = Result<T, String>>,
-{
-  let remaining = deadline
-    .checked_duration_since(Instant::now())
-    .unwrap_or_default();
-  if remaining.is_zero() {
-    issues.push(format!("Diagnostics budget exceeded before '{}'", label));
-    return None;
-  }
-  let per_call_timeout = timeout.min(remaining);
-  match tokio::time::timeout(per_call_timeout, request).await {
-    Ok(Ok(value)) => Some(value),
-    Ok(Err(error)) => {
-      issues.push(format!("{}: {}", label, error));
-      None
-    }
-    Err(_) => {
-      issues.push(format!("{} timed out after {:?}", label, per_call_timeout));
-      None
-    }
-  }
-}
-
 /// Request body for sending a message through a channel.
 #[derive(Deserialize)]
 struct SendMessageRequest {
@@ -284,36 +243,6 @@ struct ChannelStatusResponse {
   /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
   #[serde(skip_serializing_if = "Option::is_none")]
   account: Option<String>,
-}
-
-fn disabled_channel_status_response(
-  channel: &str,
-  linked_when_connected: bool,
-  provider: Option<String>,
-) -> Option<HttpResponse> {
-  let config = configured_channel(channel);
-  if config
-    .as_ref()
-    .and_then(|value| value.get("enabled"))
-    .and_then(|value| value.as_bool())
-    .unwrap_or(false)
-  {
-    return None;
-  }
-
-  Some(HttpResponse::Ok().json(ChannelStatusResponse {
-    success: true,
-    enabled: false,
-    configured: config.is_some(),
-    linked: if linked_when_connected {
-      Some(false)
-    } else {
-      None
-    },
-    provider,
-    message: None,
-    account: None,
-  }))
 }
 
 /// Request body for enable/disable
@@ -497,107 +426,6 @@ fn has_sandbox_tools(snapshot: &serde_json::Value) -> bool {
     .all(|tool| allow.iter().any(|item| item.as_str() == Some(tool)))
 }
 
-fn channel_plugin_requested_by_patch(patch: &serde_json::Value) -> Option<String> {
-  patch
-    .get("channels")
-    .and_then(|value| value.as_object())
-    .and_then(|channels| {
-      channels.iter().find_map(|(channel_id, value)| {
-        if !value.is_null() && service::is_bundled_channel_plugin_id(channel_id) {
-          Some(channel_id.clone())
-        } else {
-          None
-        }
-      })
-    })
-}
-
-fn ensure_channel_enabled_in_patch(patch: &mut serde_json::Value, channel_id: &str) {
-  let patch_obj = patch.as_object_mut().unwrap();
-  let channels = patch_obj
-    .entry("channels".to_string())
-    .or_insert_with(|| serde_json::json!({}));
-  if !channels.is_object() {
-    *channels = serde_json::json!({});
-  }
-
-  let channels_obj = channels.as_object_mut().unwrap();
-  let channel = channels_obj
-    .entry(channel_id.to_string())
-    .or_insert_with(|| serde_json::json!({}));
-  if !channel.is_object() {
-    *channel = serde_json::json!({});
-  }
-
-  channel
-    .as_object_mut()
-    .unwrap()
-    .insert("enabled".to_string(), serde_json::json!(true));
-}
-
-fn ensure_channel_plugin_enabled_in_patch(
-  patch: &mut serde_json::Value,
-  snapshot: &serde_json::Value,
-  plugin_id: &str,
-) {
-  let config = snapshot.get("config").unwrap_or(snapshot);
-  let mut allow = config
-    .pointer("/plugins/allow")
-    .and_then(|value| value.as_array())
-    .into_iter()
-    .flatten()
-    .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
-    .collect::<Vec<_>>();
-
-  if let Some(patch_allow) = patch
-    .pointer("/plugins/allow")
-    .and_then(|value| value.as_array())
-  {
-    for plugin in patch_allow {
-      if let Some(plugin) = plugin.as_str() {
-        allow.push(plugin.to_string());
-      }
-    }
-  }
-
-  if !allow.iter().any(|existing| existing == plugin_id) {
-    allow.push(plugin_id.to_string());
-  }
-  allow.sort();
-  allow.dedup();
-
-  let patch_obj = patch.as_object_mut().unwrap();
-  let plugins = patch_obj
-    .entry("plugins".to_string())
-    .or_insert_with(|| serde_json::json!({}));
-  if !plugins.is_object() {
-    *plugins = serde_json::json!({});
-  }
-
-  let plugins_obj = plugins.as_object_mut().unwrap();
-  plugins_obj.insert("allow".to_string(), serde_json::json!(allow));
-
-  let entries = plugins_obj
-    .entry("entries".to_string())
-    .or_insert_with(|| serde_json::json!({}));
-  if !entries.is_object() {
-    *entries = serde_json::json!({});
-  }
-
-  let entries_obj = entries.as_object_mut().unwrap();
-  match entries_obj.get_mut(plugin_id) {
-    Some(entry) if entry.is_object() => {
-      entry
-        .as_object_mut()
-        .unwrap()
-        .insert("enabled".to_string(), serde_json::json!(true));
-    }
-    _ => {
-      entries_obj.insert(plugin_id.to_string(), serde_json::json!({"enabled": true}));
-    }
-  }
-}
-
 /// Build a config.patch JSON string for enabling a channel.
 ///
 /// If `agents.defaults.model` is not already set, the patch includes it so
@@ -614,14 +442,12 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
   let needs_model = !has_default_model(snapshot);
   let needs_browser = !has_browser_enabled(snapshot);
   let needs_sandbox_tools = !has_sandbox_tools(snapshot);
-  let parsed_patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
-  let channel_plugin_id = channel_plugin_requested_by_patch(&parsed_patch);
 
-  if !needs_model && !needs_browser && !needs_sandbox_tools && channel_plugin_id.is_none() {
+  if !needs_model && !needs_browser && !needs_sandbox_tools {
     return channel_patch.to_string();
   }
 
-  let mut patch = parsed_patch;
+  let mut patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
 
   if needs_model {
     let model = resolve_default_model();
@@ -674,15 +500,6 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
       .unwrap()
       .insert("tools".to_string(), tools_val);
     eprintln!("[channels] build_enable_patch: added sandbox tools to config patch");
-  }
-
-  if let Some(plugin_id) = channel_plugin_id {
-    ensure_channel_enabled_in_patch(&mut patch, &plugin_id);
-    ensure_channel_plugin_enabled_in_patch(&mut patch, snapshot, &plugin_id);
-    eprintln!(
-      "[channels] build_enable_patch: enabled bundled channel plugin {}",
-      plugin_id
-    );
   }
 
   serde_json::to_string(&patch).unwrap()
@@ -755,9 +572,6 @@ fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) ->
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-  if let Some(response) = disabled_channel_status_response("whatsapp", true, None) {
-    return response;
-  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -1168,9 +982,6 @@ pub async fn whatsapp_login_phone(
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-  if let Some(response) = disabled_channel_status_response("imessage", false, None) {
-    return response;
-  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -1456,9 +1267,6 @@ pub async fn send_channel_message(
 /// Get Telegram channel status
 #[get("/api/clawd/channels/telegram/status")]
 pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
-  if let Some(response) = disabled_channel_status_response("telegram", true, None) {
-    return response;
-  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -3202,19 +3010,9 @@ pub async fn channel_diagnostics() -> impl Responder {
     );
   }
 
-  let diagnostics_deadline = Instant::now() + Duration::from_millis(CHANNEL_DIAGNOSTICS_TOTAL_MS);
-
-  // Fetch channel status from gateway.
-  let channel_summary: Vec<String> = match diagnostics_request_with_budget(
-    "gateway channel status",
-    diagnostics_deadline,
-    Duration::from_millis(CHANNEL_DIAGNOSTICS_STEP_MS),
-    &mut issues,
-    gateway_client::get_channel_status(None),
-  )
-  .await
-  {
-    Some(status) => status
+  // Fetch channel status from gateway
+  let channel_summary: Vec<String> = match gateway_client::get_channel_status(None).await {
+    Ok(status) => status
       .get("channelSummary")
       .and_then(|cs| cs.as_array())
       .map(|arr| {
@@ -3224,7 +3022,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           .collect::<Vec<_>>()
       })
       .unwrap_or_default(),
-    None => {
+    Err(e) => {
       return HttpResponse::Ok().json(ChannelDiagnostics {
         success: false,
         channel_summary: vec![],
@@ -3233,52 +3031,33 @@ pub async fn channel_diagnostics() -> impl Responder {
         has_api_key,
         api_key_provider,
         configured_channels: vec![],
-        issues,
+        issues: vec![format!("Cannot reach gateway: {}", e)],
         repairs: vec![],
       });
     }
   };
 
   // Fetch gateway config to check model and channel configs
-  let (has_model, model, configured_channels) = match diagnostics_request_with_budget(
-    "gateway config",
-    diagnostics_deadline,
-    Duration::from_millis(CHANNEL_DIAGNOSTICS_STEP_MS),
-    &mut issues,
-    gateway_client::config_get(None),
-  )
-  .await
-  {
-    Some(snapshot) => {
+  let (has_model, model, configured_channels) = match gateway_client::config_get(None).await {
+    Ok(snapshot) => {
       let config = snapshot.get("config").unwrap_or(&snapshot);
-      let has_model = has_default_model(&snapshot);
 
       // Check model
-      let model = config.pointer("/agents/defaults/model").and_then(|model| {
-        if let Some(v) = model.as_str() {
-          Some(v.to_string())
-        } else {
-          model
-            .as_object()?
-            .get("primary")
-            .and_then(|v| v.as_str())
-            .map(|v| v.to_string())
+      let model_val = config.pointer("/agents/defaults/model");
+      let (hm, m) = match model_val {
+        Some(serde_json::Value::String(s)) if !s.trim().is_empty() => (true, Some(s.clone())),
+        Some(serde_json::Value::Object(o)) => {
+          let primary = o.get("primary").and_then(|v| v.as_str()).unwrap_or("");
+          (
+            !primary.is_empty(),
+            if primary.is_empty() {
+              None
+            } else {
+              Some(primary.to_string())
+            },
+          )
         }
-      });
-
-      if !has_model {
-        issues.push(
-          "agents.defaults.model is NOT set in gateway config — AI cannot respond".to_string(),
-        );
-        let model_str = resolve_default_model();
-        let model_patch =
-          serde_json::json!({"agents": {"defaults": {"model": {"primary": model_str}}}})
-            .to_string();
-        let snapshot_for_patch = snapshot.clone();
-        match config_patch_with_reconnect(&snapshot_for_patch, |_| model_patch.clone()).await {
-          Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
-          Err(e) => issues.push(format!("Failed to repair model: {}", e)),
-        }
+        _ => (false, None),
       };
 
       // Check which channels are in config
@@ -3288,6 +3067,21 @@ pub async fn channel_diagnostics() -> impl Responder {
           if !val.is_null() {
             channels.push(name.clone());
           }
+        }
+      }
+
+      // Auto-repair: if model is missing, patch it
+      if !hm {
+        issues.push(
+          "agents.defaults.model is NOT set in gateway config — AI cannot respond".to_string(),
+        );
+        let model_str = resolve_default_model();
+        let base_hash = extract_base_hash(&snapshot);
+        let patch = serde_json::json!({"agents": {"defaults": {"model": {"primary": model_str}}}})
+          .to_string();
+        match gateway_client::config_patch(&patch, &base_hash, None).await {
+          Ok(_) => repairs.push(format!("Set agents.defaults.model to '{}'", model_str)),
+          Err(e) => issues.push(format!("Failed to repair model: {}", e)),
         }
       }
 
@@ -3331,11 +3125,8 @@ pub async fn channel_diagnostics() -> impl Responder {
           // No Brave key and no explicit provider.
           // Check if the bundled browser (CDP) is available — if so it is the
           // primary search mechanism via /api/clawd/browser/search.
-          let browser_ok = diagnostics_request_with_budget(
-            "browser search availability probe",
-            diagnostics_deadline,
-            Duration::from_millis(CHANNEL_DIAGNOSTICS_STEP_MS),
-            &mut issues,
+          let browser_ok = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
             gateway_client::browser_request(
               "GET",
               "/tabs",
@@ -3345,7 +3136,8 @@ pub async fn channel_diagnostics() -> impl Responder {
             ),
           )
           .await
-          .is_some();
+          .map(|r| r.is_ok())
+          .unwrap_or(false);
 
           if browser_ok {
             // Browser CDP is available — it serves as the primary search
@@ -3360,22 +3152,14 @@ pub async fn channel_diagnostics() -> impl Responder {
                                 .to_string(),
                         );
             // Also wire up DDG as secondary so web_search tool itself works
-            let ddg_patch = serde_json::json!({
-                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-            })
-            .to_string();
-            let snapshot_for_patch = snapshot.clone();
-            if diagnostics_deadline
-              .checked_duration_since(Instant::now())
-              .unwrap_or_default()
-              .is_zero()
-            {
-              issues.push(
-                "Skipping DuckDuckGo secondary config patch: diagnostics budget exceeded"
-                  .to_string(),
-              );
-            } else {
-              match config_patch_with_reconnect(&snapshot_for_patch, |_| ddg_patch.clone()).await {
+            let re_snapshot = gateway_client::config_get(None).await;
+            if let Ok(snap) = re_snapshot {
+              let bh = extract_base_hash(&snap);
+              let ddg_patch = serde_json::json!({
+                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+              })
+              .to_string();
+              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
                 Ok(_) => log::info!("[channels] web_search: DDG configured as secondary provider"),
                 Err(e) => log::warn!("[channels] web_search DDG secondary patch failed: {}", e),
               }
@@ -3383,20 +3167,14 @@ pub async fn channel_diagnostics() -> impl Responder {
           } else {
             // Browser not available — configure DDG as the sole fallback.
             log::info!("[channels] web_search: browser unavailable — configuring DuckDuckGo (BRAVE_API_KEY not set)");
-            let ddg_patch = serde_json::json!({
-                "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-            })
-            .to_string();
-            let snapshot_for_patch = snapshot.clone();
-            if diagnostics_deadline
-              .checked_duration_since(Instant::now())
-              .unwrap_or_default()
-              .is_zero()
-            {
-              issues
-                .push("Skipping DuckDuckgo config patch: diagnostics budget exceeded".to_string());
-            } else {
-              match config_patch_with_reconnect(&snapshot_for_patch, |_| ddg_patch.clone()).await {
+            let re_snapshot = gateway_client::config_get(None).await;
+            if let Ok(snap) = re_snapshot {
+              let bh = extract_base_hash(&snap);
+              let ddg_patch = serde_json::json!({
+                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
+              })
+              .to_string();
+              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
                 Ok(_) => {
                   repairs.push(
                     "Configured DuckDuckGo as web_search provider \
@@ -3428,31 +3206,34 @@ pub async fn channel_diagnostics() -> impl Responder {
           "tools.sandbox.tools.allow is missing or incomplete — channel messages cannot use tools"
             .to_string(),
         );
-        let snapshot_for_patch = snapshot.clone();
-        let sandbox_patch = serde_json::json!({
-            "tools": {
-                "allow": ["browser", "group:web", "exec", "process", "group:fs"],
-                "deny": ["canvas", "nodes", "cron", "gateway"],
-                "exec": {"applyPatch": {"enabled": true}},
-                "media": {"image": {"enabled": true}},
-                "sandbox": {
-                    "tools": {
-                        "deny": ["canvas", "nodes", "cron", "gateway"],
-                        "allow": [
-                            "exec", "process", "group:fs",
-                            "image", "sessions_list", "sessions_history",
-                            "sessions_send", "sessions_spawn", "session_status",
-                            "browser", "group:web"
-                        ]
-                    }
-                }
-            }
-        })
-        .to_string();
-        match config_patch_with_reconnect(&snapshot_for_patch, |_| sandbox_patch.clone()).await {
-          Ok(_) => repairs
-            .push("Added tools.sandbox.tools.allow with browser + web + exec tools".to_string()),
-          Err(e) => issues.push(format!("Failed to repair sandbox tools: {}", e)),
+        let re_snapshot = gateway_client::config_get(None).await;
+        if let Ok(snap) = re_snapshot {
+          let bh = extract_base_hash(&snap);
+          let sandbox_patch = serde_json::json!({
+              "tools": {
+                  "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+                  "deny": ["canvas", "nodes", "cron", "gateway"],
+                  "exec": {"applyPatch": {"enabled": true}},
+                  "media": {"image": {"enabled": true}},
+                  "sandbox": {
+                      "tools": {
+                          "deny": ["canvas", "nodes", "cron", "gateway"],
+                          "allow": [
+                              "exec", "process", "group:fs",
+                              "image", "sessions_list", "sessions_history",
+                              "sessions_send", "sessions_spawn", "session_status",
+                              "browser", "group:web"
+                          ]
+                      }
+                  }
+              }
+          })
+          .to_string();
+          match gateway_client::config_patch(&sandbox_patch, &bh, None).await {
+            Ok(_) => repairs
+              .push("Added tools.sandbox.tools.allow with browser + web + exec tools".to_string()),
+            Err(e) => issues.push(format!("Failed to repair sandbox tools: {}", e)),
+          }
         }
       }
 
@@ -3475,16 +3256,9 @@ pub async fn channel_diagnostics() -> impl Responder {
                   status_part.split_whitespace().next().unwrap_or("linked")
                 ));
                 // Try to repair by adding the channel config
-                if diagnostics_deadline
-                  .checked_duration_since(Instant::now())
-                  .unwrap_or_default()
-                  .is_zero()
-                {
-                  issues.push(
-                    "Skipping linked channel repair: diagnostics budget exceeded".to_string(),
-                  );
-                } else {
-                  let snapshot_for_patch = snapshot.clone();
+                let re_snapshot = gateway_client::config_get(None).await;
+                if let Ok(snap) = re_snapshot {
+                  let bh = extract_base_hash(&snap);
                   let patch = match *ch_key {
                     "imessage" => serde_json::to_string(&serde_json::json!({
                       "channels": {
@@ -3501,7 +3275,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                       ch_key
                     ),
                   };
-                  match config_patch_with_reconnect(&snapshot_for_patch, |_| patch.clone()).await {
+                  match gateway_client::config_patch(&patch, &bh, None).await {
                     Ok(_) => repairs.push(format!("Added channel config for '{}'", ch_key)),
                     Err(e) => issues.push(format!("Failed to repair channel '{}': {}", ch_key, e)),
                   }
@@ -3512,13 +3286,17 @@ pub async fn channel_diagnostics() -> impl Responder {
         }
       }
 
-      (has_model, model, channels)
+      (hm, m, channels)
     }
-    None => {
-      issues.push("Cannot fetch gateway config".to_string());
+    Err(e) => {
+      issues.push(format!("Cannot fetch gateway config: {}", e));
       (false, None, vec![])
     }
   };
+
+  if !has_model {
+    issues.push("agents.defaults.model is NOT set — AI cannot generate responses".to_string());
+  }
 
   HttpResponse::Ok().json(ChannelDiagnostics {
     success: issues.is_empty(),
@@ -4758,9 +4536,7 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 
 #[cfg(test)]
 mod reconnect_retry_tests {
-  use super::diagnostics_request_with_budget;
-  use super::{build_enable_patch, is_connection_level_error};
-  use std::time::Duration;
+  use super::is_connection_level_error;
 
   #[test]
   fn connection_closed_is_retryable() {
@@ -4785,100 +4561,5 @@ mod reconnect_retry_tests {
     assert!(!is_connection_level_error(
       "schema validation failed: channels.telegram"
     ));
-  }
-
-  #[test]
-  fn enable_patch_adds_deferred_channel_plugin() {
-    let snapshot = serde_json::json!({
-      "config": {
-        "agents": {"defaults": {"model": "openai/gpt-5.4"}},
-        "browser": {"enabled": true},
-        "plugins": {"allow": ["browser", "duckduckgo"]},
-        "tools": {
-          "sandbox": {
-            "tools": {
-              "allow": ["exec", "browser", "sessions_send"],
-              "deny": []
-            }
-          }
-        }
-      }
-    });
-
-    let patch = build_enable_patch(
-      r#"{"channels":{"whatsapp":{"dmPolicy":"allowlist"}}}"#,
-      &snapshot,
-    );
-    let patch: serde_json::Value = serde_json::from_str(&patch).unwrap();
-
-    let allow = patch
-      .pointer("/plugins/allow")
-      .and_then(|value| value.as_array())
-      .unwrap();
-    assert!(allow
-      .iter()
-      .any(|plugin| plugin.as_str() == Some("whatsapp")));
-    assert_eq!(
-      patch.pointer("/plugins/entries/whatsapp/enabled"),
-      Some(&serde_json::json!(true))
-    );
-  }
-
-  #[tokio::test]
-  async fn diagnostics_budget_timeout_records_issue() {
-    let mut issues = Vec::new();
-    let deadline = std::time::Instant::now() + Duration::from_millis(5);
-    let result = diagnostics_request_with_budget(
-      "timed check",
-      deadline,
-      Duration::from_millis(50),
-      &mut issues,
-      async {
-        tokio::time::sleep(Duration::from_millis(25)).await;
-        Ok::<serde_json::Value, String>(serde_json::json!("ok"))
-      },
-    )
-    .await;
-
-    assert!(result.is_none());
-    assert!(!issues.is_empty());
-    assert!(issues[0].contains("timed check"));
-  }
-
-  #[tokio::test]
-  async fn diagnostics_budget_rpcs_error_is_reported() {
-    let mut issues = Vec::new();
-    let deadline = std::time::Instant::now() + Duration::from_millis(50);
-    let result = diagnostics_request_with_budget(
-      "error check",
-      deadline,
-      Duration::from_millis(50),
-      &mut issues,
-      async { Err::<serde_json::Value, String>("gateway fail".into()) },
-    )
-    .await;
-
-    assert!(result.is_none());
-    assert_eq!(issues, vec!["error check: gateway fail".to_string()]);
-  }
-
-  #[tokio::test]
-  async fn diagnostics_budget_skips_after_deadline() {
-    let mut issues = Vec::new();
-    let deadline = std::time::Instant::now();
-    let result = diagnostics_request_with_budget(
-      "expired budget",
-      deadline,
-      Duration::from_millis(50),
-      &mut issues,
-      async { Ok::<serde_json::Value, String>(serde_json::json!("ok")) },
-    )
-    .await;
-
-    assert!(result.is_none());
-    assert_eq!(
-      issues,
-      vec!["Diagnostics budget exceeded before 'expired budget'".to_string()]
-    );
   }
 }
