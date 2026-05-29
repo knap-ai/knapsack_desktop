@@ -166,6 +166,15 @@ fn setup_handler(
 
   let app_handle = app.handle();
 
+  // Start the gateway as early as possible so it warms in parallel with
+  // app-local config and key propagation.
+  let auto_enable_handle = app.handle();
+  std::thread::spawn(move || {
+    tokio::runtime::Runtime::new()
+      .unwrap()
+      .block_on(clawd::service::auto_enable_if_needed(&auto_enable_handle));
+  });
+
   config::init_knapsack_config(
     app_handle
       .path_resolver()
@@ -176,15 +185,6 @@ fn setup_handler(
   // Load saved LLM API keys into env vars early, before the actix server
   // starts, so that llm_complete (meeting notes) and transcribe can use them.
   clawd::service::propagate_llm_keys_to_env(&app_handle);
-
-  // Auto-register the LaunchAgent on first launch so the user never sees
-  // "LaunchAgent plist not found — try toggling Enable in Settings."
-  let auto_enable_handle = app.handle();
-  std::thread::spawn(move || {
-    tokio::runtime::Runtime::new()
-      .unwrap()
-      .block_on(clawd::service::auto_enable_if_needed(&auto_enable_handle));
-  });
 
   let actix_app_handle = app.handle();
   let server_error_handle = actix_app_handle.clone();

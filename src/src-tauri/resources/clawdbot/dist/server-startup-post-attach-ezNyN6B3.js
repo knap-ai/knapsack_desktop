@@ -362,7 +362,7 @@ async function startGatewaySidecars(params) {
 			}, params.prewarmPrimaryModel);
 			if (deferredDesktopChannels) {
 				params.logChannels.info("deferring channel startup until after gateway readiness");
-				const delayMs = Number.parseInt(process.env.OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS ?? "5000", 10);
+				const delayMs = Number.parseInt(process.env.OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS ?? "0", 10);
 				setTimeout(() => {
 					(async () => {
 						try {
@@ -665,7 +665,7 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		if (params.providerAuthPrewarm?.enabled !== false) gatewayLifetimeSidecars.push(scheduleProviderAuthStatePrewarm({
 			getConfig: params.providerAuthPrewarm?.getConfig ?? (() => params.cfgAtStart),
 			log: params.log,
-			delayMs: params.providerAuthPrewarm?.delayMs
+			delayMs: params.providerAuthPrewarm?.delayMs ?? (desktopManagedGateway ? 60000 : void 0)
 		}));
 		params.onPostReadySidecars?.(postReadySidecars);
 		params.onGatewayLifetimeSidecars?.(gatewayLifetimeSidecars);
