@@ -17,7 +17,6 @@ pub(crate) const IMESSAGE_OWNER_UNCONFIGURED_SENTINEL: &str =
 // ── Windows process management ──────────────────────────────────────────
 // On Windows we spawn the gateway as a child process (no launchd/launchctl).
 // Track the PID so we can check status and kill it on disable.
-#[cfg(target_os = "windows")]
 static GATEWAY_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 /// Stores the last successful ServiceSetup so the background restart task can
