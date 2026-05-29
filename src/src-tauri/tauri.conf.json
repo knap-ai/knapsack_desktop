@@ -185,6 +185,7 @@
         },
         "nsis": {
           "installMode": "currentUser",
+          "template": "windows/installer.nsi",
           "languages": [
             "English"
           ],
