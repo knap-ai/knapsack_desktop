@@ -885,6 +885,12 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
     fallbacks.push(format!("google/{}", model));
   }
 
+  if primary_provider != "openrouter" && has_key("OPENROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
+      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+    fallbacks.push(format!("openrouter/{}", model));
+  }
+
   fallbacks
 }
 

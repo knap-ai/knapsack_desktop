@@ -8428,6 +8428,56 @@ async fn prepare_gateway_config(
             patched = true;
           }
         }
+        if !current_primary.trim().is_empty() && model_ref_has_key(current_primary.trim()) {
+          let expected_fallbacks = crate::clawd::gateway_client::collect_fallback_models(
+            current_primary.trim(),
+          );
+          if !expected_fallbacks.is_empty() {
+            let existing_fallbacks = cfg_val
+              .pointer("/agents/defaults/model/fallbacks")
+              .and_then(|v| v.as_array())
+              .map(|arr| {
+                arr
+                  .iter()
+                  .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                  .collect::<Vec<_>>()
+              })
+              .unwrap_or_default();
+            if existing_fallbacks != expected_fallbacks {
+              if cfg_val.pointer("/agents").is_none() {
+                cfg_val
+                  .as_object_mut()
+                  .unwrap()
+                  .insert("agents".to_string(), serde_json::json!({}));
+              }
+              if cfg_val.pointer("/agents/defaults").is_none() {
+                cfg_val
+                  .pointer_mut("/agents")
+                  .unwrap()
+                  .as_object_mut()
+                  .unwrap()
+                  .insert("defaults".to_string(), serde_json::json!({}));
+              }
+              cfg_val
+                .pointer_mut("/agents/defaults")
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .insert(
+                  "model".to_string(),
+                  serde_json::json!({
+                    "primary": current_primary.trim(),
+                    "fallbacks": expected_fallbacks,
+                  }),
+                );
+              eprintln!(
+                "[clawd/service] Refreshed agents.defaults.model fallbacks for '{}'",
+                current_primary
+              );
+              patched = true;
+            }
+          }
+        }
 
         // On macOS, enable peekaboo as a bundled skill (macOS UI automation via PeekabooBridge)
         if cfg!(target_os = "macos") {
