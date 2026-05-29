@@ -40,7 +40,7 @@ async function prepareGatewayPluginBootstrap(params) {
 		await Promise.all(startupTasks);
 	}
 	initSubagentRegistry();
-	const gatewayPluginConfig = params.minimalTestGateway || desktopManagedGateway ? params.cfgAtStart : mergeActivationSectionsIntoRuntimeConfig({
+	const gatewayPluginConfig = params.minimalTestGateway ? params.cfgAtStart : mergeActivationSectionsIntoRuntimeConfig({
 		runtimeConfig: params.cfgAtStart,
 		activationConfig: applyPluginAutoEnable({
 			config: activationSourceConfig,
@@ -50,7 +50,7 @@ async function prepareGatewayPluginBootstrap(params) {
 	});
 	const pluginsGloballyDisabled = gatewayPluginConfig.plugins?.enabled === false;
 	const defaultWorkspaceDir = resolveAgentWorkspaceDir(gatewayPluginConfig, resolveDefaultAgentId(gatewayPluginConfig));
-	const pluginLookUpTable = params.minimalTestGateway || desktopManagedGateway || pluginsGloballyDisabled ? void 0 : loadPluginLookUpTable({
+	const pluginLookUpTable = params.minimalTestGateway || pluginsGloballyDisabled ? void 0 : loadPluginLookUpTable({
 		config: gatewayPluginConfig,
 		workspaceDir: defaultWorkspaceDir,
 		env: process.env,

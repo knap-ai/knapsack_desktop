@@ -184,7 +184,7 @@
           "language": "en-US"
         },
         "nsis": {
-          "installMode": "both",
+          "installMode": "currentUser",
           "languages": [
             "English"
           ],

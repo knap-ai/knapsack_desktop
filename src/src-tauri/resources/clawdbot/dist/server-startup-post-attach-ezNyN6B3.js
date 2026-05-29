@@ -563,6 +563,7 @@ function createDeferredGatewayUpdateCheck(params) {
 }
 async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewayPostAttachRuntimeDeps) {
 	let pluginRegistry = params.pluginRegistry;
+	const desktopManagedGateway = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
 	if (!params.minimalTestGateway && params.loadStartupPlugins) {
 		params.onStartupPluginsLoading?.();
 		const loaded = await measureStartup(params.startupTrace, "plugins.runtime-post-bind", () => params.loadStartupPlugins());
@@ -570,7 +571,7 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		params.startupTrace?.detail("plugins.runtime-post-bind", [["loadedPluginCount", pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["gatewayMethodCount", loaded.gatewayMethods.length]]);
 		await params.onStartupPluginsLoaded?.(loaded);
 	}
-	const startupLogPromise = measureStartup(params.startupTrace, "post-attach.log", () => runtimeDeps.logGatewayStartup({
+	const logGatewayStartup = () => runtimeDeps.logGatewayStartup({
 		cfg: params.cfgAtStart,
 		bindHost: params.bindHost,
 		bindHosts: params.bindHosts,
@@ -580,7 +581,8 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		log: params.log,
 		isNixMode: params.isNixMode,
 		startupStartedAt: params.startupStartedAt
-	}));
+	});
+	const startupLogPromise = desktopManagedGateway ? Promise.resolve(null) : measureStartup(params.startupTrace, "post-attach.log", logGatewayStartup);
 	const updateCheck = params.minimalTestGateway ? {
 		start: () => {},
 		stop: () => {}
@@ -649,6 +651,9 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		params.startupTrace?.detail("sidecars.ready", [["loadedPluginCount", pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["postReadySidecarCount", postReadySidecars.length + gatewayLifetimeSidecars.length]]);
 		params.startupTrace?.mark("sidecars.ready");
 		params.log.info("gateway ready");
+		if (desktopManagedGateway) measureStartup(params.startupTrace, "post-attach.log.deferred", logGatewayStartup).catch((err) => {
+			params.log.warn(`deferred gateway startup log failed: ${String(err)}`);
+		});
 		return {
 			...result,
 			postReadySidecars,

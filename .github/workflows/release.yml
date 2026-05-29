@@ -240,7 +240,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows — MSI installer (WiX, 64-bit)
+  # Windows — NSIS current-user installer
   # ---------------------------------------------------------------------------
   build-windows:
     needs: bump-version
@@ -343,10 +343,10 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
           VITE_GOOGLE_DEVELOPER_KEY: ""
 
-      - name: Pack node_modules into tar for WiX
+      - name: Pack node_modules into tar for Windows installer
         # Run from within the clawdbot dir so tar needs no path juggling.
-        # WiX candle.exe chokes generating XML for ~13k node_modules files;
-        # packing into one tar reduces the WiX input to ~3k files.
+        # Packing node_modules into one file keeps the Windows installer input
+        # small and avoids slow/fragile handling of thousands of resource files.
         working-directory: src/src-tauri/resources/clawdbot
         shell: pwsh
         run: |
@@ -363,7 +363,7 @@ jobs:
           Remove-Item -Recurse -Force node_modules
           $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
           $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
-          Write-Host "node_modules.tar: $mb MB. WiX will see $n files."
+          Write-Host "node_modules.tar: $mb MB. Windows installer will see $n files."
 
       - name: Disable beforeBuildCommand in tauri.conf.json
         # The frontend is already compiled above. Remove beforeBuildCommand so
@@ -446,11 +446,10 @@ jobs:
       - name: Build Tauri app
         working-directory: src
         shell: pwsh
-        # --bundles msi uses Tauri v1's WiX-based MSI bundler (64-bit light.exe),
-        # which handles the large clawdbot resource set without NSIS (32-bit) OOM.
+        # NSIS current-user mode installs under LOCALAPPDATA and avoids UAC.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles msi --verbose 2>&1 | Tee-Object -FilePath $log
+          npx tauri build --bundles nsis --verbose 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -499,9 +498,9 @@ jobs:
         with:
           name: windows-artifacts
           path: |
-            src/src-tauri/target/release/bundle/msi/*.msi
-            src/src-tauri/target/release/bundle/msi/*.msi.zip
-            src/src-tauri/target/release/bundle/msi/*.msi.zip.sig
+            src/src-tauri/target/release/bundle/nsis/*.exe
+            src/src-tauri/target/release/bundle/nsis/*.nsis.zip
+            src/src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -541,7 +540,7 @@ jobs:
 
           WIN_SIG=""
           WIN_ZIP_NAME=""
-          for f in artifacts/windows-artifacts/**/*.msi.zip.sig artifacts/windows-artifacts/*.msi.zip.sig; do
+          for f in artifacts/windows-artifacts/**/*.nsis.zip.sig artifacts/windows-artifacts/*.nsis.zip.sig; do
             if [ -f "$f" ]; then
               WIN_SIG=$(cat "$f")
               WIN_ZIP_NAME=$(basename "${f%.sig}")
@@ -581,7 +580,7 @@ jobs:
           # macOS
           find artifacts/macos-artifacts -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -exec cp {} release-files/ \;
           # Windows
-          find artifacts/windows-artifacts -type f \( -name "*.msi" -o -name "*.msi.zip" -o -name "*.msi.zip.sig" \) -exec cp {} release-files/ \;
+          find artifacts/windows-artifacts -type f \( -name "*.exe" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \) -exec cp {} release-files/ \;
           # Updater metadata
           cp artifacts/latest.json release-files/
           echo "[release] Files to upload:"

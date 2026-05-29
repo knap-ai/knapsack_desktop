@@ -253,7 +253,7 @@ fn is_pid_alive(pid: u32) -> bool {
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
-const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 600_000;
+const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 15_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
 const PLUGIN_RUNTIME_DEPS_OWNER_LOCK_GRACE_MS: u64 = 180_000;
 
@@ -378,11 +378,20 @@ fn gateway_launch_grace_active() -> Option<u64> {
     return None;
   }
   let elapsed = now_epoch_ms().saturating_sub(started);
-  if elapsed < GATEWAY_PRE_BIND_STARTUP_GRACE_MS {
-    Some(elapsed)
-  } else {
-    None
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 {
+    if process_is_alive(pid) {
+      return Some(elapsed);
+    }
+    GATEWAY_PID.store(0, Ordering::Relaxed);
+    GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
+    return None;
   }
+  if elapsed >= GATEWAY_PRE_BIND_STARTUP_GRACE_MS {
+    GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
+    return None;
+  }
+  Some(elapsed)
 }
 
 #[cfg(target_os = "macos")]
@@ -1279,8 +1288,52 @@ fn process_is_alive(pid: u32) -> bool {
 }
 
 #[cfg(not(unix))]
-fn process_is_alive(_pid: u32) -> bool {
-  false
+fn process_is_alive(pid: u32) -> bool {
+  if pid == 0 {
+    return false;
+  }
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    return std::process::Command::new("tasklist")
+      .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .output()
+      .ok()
+      .filter(|output| output.status.success())
+      .map(|output| {
+        let out = String::from_utf8_lossy(&output.stdout);
+        out.lines().any(|line| {
+          let trimmed = line.trim_start();
+          !trimmed.starts_with("INFO:")
+            && trimmed
+              .split_whitespace()
+              .nth(1)
+              .and_then(|s| s.parse::<u32>().ok())
+              == Some(pid)
+        })
+      })
+      .unwrap_or(false);
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    false
+  }
+}
+
+#[cfg(target_os = "windows")]
+fn node_arg_path(path: &Path) -> String {
+  let raw = path.to_string_lossy();
+  raw
+    .strip_prefix(r"\\?\")
+    .unwrap_or(raw.as_ref())
+    .to_string()
+}
+
+#[cfg(not(target_os = "windows"))]
+fn node_arg_path(path: &Path) -> String {
+  path.to_string_lossy().to_string()
 }
 
 fn plugin_runtime_deps_install_in_progress(clawdbot_home: &std::path::Path) -> bool {
@@ -1592,6 +1645,12 @@ fn install_bundled_plugin_runtime_deps(
     NpmRunner::NpmBin(PathBuf::from("npm"))
   };
 
+  let clawdbot_root = match extensions_dir.parent().and_then(|p| p.parent()) {
+    Some(r) => r.to_path_buf(),
+    None => return,
+  };
+  let root_nm = clawdbot_root.join("node_modules");
+
   let entries = match fs::read_dir(extensions_dir) {
     Ok(e) => e,
     Err(_) => return,
@@ -1628,6 +1687,18 @@ fn install_bundled_plugin_runtime_deps(
       .and_then(|v| v.as_object())
       .map(|m| m.keys().cloned().collect())
       .unwrap_or_default();
+
+    let all_present_in_root = !deps.is_empty()
+      && deps
+        .iter()
+        .all(|dep| root_nm.join(dep).join("package.json").exists());
+    if all_present_in_root {
+      eprintln!(
+        "[clawd/service] Plugin {} runtime deps satisfied by bundled root node_modules",
+        entry.file_name().to_string_lossy()
+      );
+      continue;
+    }
 
     // On Windows CI builds the extension node_modules is packed into
     // node_modules.tar to keep WiX under its 65535-file CAB limit.
@@ -1708,12 +1779,6 @@ fn install_bundled_plugin_runtime_deps(
   // resolve require() from the ROOT clawdbot node_modules — not from the per-plugin
   // node_modules installed above.  Collect all plugin runtime deps that are missing
   // from root node_modules and install them there with a targeted npm install.
-  let clawdbot_root = match extensions_dir.parent().and_then(|p| p.parent()) {
-    Some(r) => r.to_path_buf(),
-    None => return,
-  };
-  let root_nm = clawdbot_root.join("node_modules");
-
   if !root_nm.is_dir() && clawdbot_root.join("package.json").exists() {
     eprintln!(
       "[clawd/service] Root node_modules missing in {} — attempting npm install",
@@ -1919,6 +1984,23 @@ fn install_bundled_plugin_runtime_deps(
   ensure_openclaw_self_link(&root_nm);
 }
 
+fn bundled_node_modules_has_declared_dependencies(dir: &std::path::Path, nm_path: &std::path::Path) -> bool {
+  let pkg_path = dir.join("package.json");
+  let Ok(raw) = fs::read_to_string(&pkg_path) else {
+    return false;
+  };
+  let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return false;
+  };
+  let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) else {
+    return false;
+  };
+  !deps.is_empty()
+    && deps
+      .keys()
+      .all(|dep| nm_path.join(dep).join("package.json").exists())
+}
+
 /// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
 /// `node_modules.tar` (one file) so WiX stays under its 65535-file CAB limit
 /// (LGHT0306).  This function extracts the tar back to `node_modules/` at
@@ -1940,6 +2022,50 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
   }
 
   let nm_path = dir.join("node_modules");
+  let marker_path = nm_path.join(".knapsack-extracted-from-tar.json");
+  let tar_meta = fs::metadata(&tar_path).ok();
+  let tar_len = tar_meta.as_ref().map(|m| m.len()).unwrap_or(0);
+  let tar_mtime_secs = tar_meta
+    .as_ref()
+    .and_then(|m| m.modified().ok())
+    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+    .map(|d| d.as_secs())
+    .unwrap_or(0);
+
+  if nm_path.is_dir() {
+    let marker_current = fs::read_to_string(&marker_path)
+      .ok()
+      .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+      .map(|v| {
+        v.get("tar_len").and_then(|n| n.as_u64()) == Some(tar_len)
+          && v
+            .get("tar_mtime_secs")
+            .and_then(|n| n.as_u64())
+            == Some(tar_mtime_secs)
+      })
+      .unwrap_or(false);
+    if marker_current && bundled_node_modules_has_declared_dependencies(dir, &nm_path) {
+      return;
+    }
+    if bundled_node_modules_has_declared_dependencies(dir, &nm_path) {
+      let marker = serde_json::json!({
+        "tar_len": tar_len,
+        "tar_mtime_secs": tar_mtime_secs,
+      });
+      let _ = fs::write(&marker_path, marker.to_string());
+      eprintln!(
+        "[clawd/service] node_modules present and complete in {} - skipping tar extraction",
+        dir.display()
+      );
+      return;
+    }
+    eprintln!(
+      "[clawd/service] node_modules.tar extraction marker missing/stale in {} - re-extracting",
+      dir.display()
+    );
+    let _ = fs::remove_dir_all(&nm_path);
+  }
+
   if nm_path.is_dir() {
     // Already extracted — check if the tar is newer (app was updated in-place).
     let tar_mtime = fs::metadata(&tar_path).and_then(|m| m.modified()).ok();
@@ -1969,10 +2095,17 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
       .creation_flags(CREATE_NO_WINDOW)
       .status();
     match result {
-      Ok(s) if s.success() => eprintln!(
-        "[clawd/service] node_modules.tar extracted in {}",
-        dir.display()
-      ),
+      Ok(s) if s.success() => {
+        let marker = serde_json::json!({
+          "tar_len": tar_len,
+          "tar_mtime_secs": tar_mtime_secs,
+        });
+        let _ = fs::write(&marker_path, marker.to_string());
+        eprintln!(
+          "[clawd/service] node_modules.tar extracted in {}",
+          dir.display()
+        );
+      }
       Ok(s) => eprintln!(
         "[clawd/service] WARNING: node_modules.tar extraction exited {} in {}",
         s,
@@ -1991,23 +2124,48 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
 /// bundled extensions can resolve `openclaw/plugin-sdk/*` imports at runtime.
 /// This symlink is removed by prune-clawdbot.cjs before the Tauri build (to
 /// avoid an infinite glob cycle), so it must be recreated here at startup.
-fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
+fn ensure_openclaw_link_to(root_nm: &std::path::Path, target: &std::path::Path) {
   let link_path = root_nm.join("openclaw");
+  if link_path.join("package.json").exists()
+    && link_path
+      .join("plugin-sdk")
+      .join("channel-message.js")
+      .exists()
+  {
+    return; // already present and complete
+  }
+
   if link_path.exists() || link_path.symlink_metadata().is_ok() {
-    return; // already present
+    let backup_path = root_nm.join(format!(
+      ".knapsack-openclaw-incomplete-{}",
+      now_epoch_ms()
+    ));
+    match fs::rename(&link_path, &backup_path) {
+      Ok(()) => eprintln!(
+        "[clawd/service] Moved incomplete openclaw link/package aside: {}",
+        backup_path.display()
+      ),
+      Err(err) => {
+        eprintln!(
+          "[clawd/service] WARNING: could not repair incomplete openclaw link/package {}: {}",
+          link_path.display(),
+          err
+        );
+        return;
+      }
+    }
   }
 
   #[cfg(target_os = "windows")]
   {
     // Use mklink /J to create a directory junction — no elevation required.
     // Symlinks (mklink /D) require SeCreateSymbolicLinkPrivilege; junctions don't.
-    let parent = root_nm.parent().unwrap_or(root_nm);
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     let status = std::process::Command::new("cmd")
       .args(["/c", "mklink", "/J"])
       .arg(&link_path)
-      .arg(parent)
+      .arg(target)
       .creation_flags(CREATE_NO_WINDOW)
       .status();
     match status {
@@ -2027,7 +2185,7 @@ fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
 
   #[cfg(not(target_os = "windows"))]
   {
-    match std::os::unix::fs::symlink("..", &link_path) {
+    match std::os::unix::fs::symlink(target, &link_path) {
       Ok(()) => eprintln!("[clawd/service] Created openclaw self-link in node_modules"),
       Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
       Err(e) => eprintln!(
@@ -2036,6 +2194,11 @@ fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
       ),
     }
   }
+}
+
+fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
+  let target = root_nm.parent().unwrap_or(root_nm);
+  ensure_openclaw_link_to(root_nm, target);
 }
 
 fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
@@ -2050,6 +2213,33 @@ fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
     return;
   }
   ensure_openclaw_self_link(&clawdbot_root.join("node_modules"));
+
+  // Bundled extension files live under `dist/extensions/...`, so Node's normal
+  // package lookup reaches `dist/node_modules` before the root node_modules.
+  // Put the same self-link there to avoid the slower gateway transform loader
+  // for `openclaw/plugin-sdk/*` imports on the startup path.
+  let dist_nm = clawdbot_root.join("dist").join("node_modules");
+  if let Err(err) = fs::create_dir_all(&dist_nm) {
+    eprintln!(
+      "[clawd/service] WARNING: could not create dist node_modules for openclaw self-link: {}",
+      err
+    );
+  } else {
+    ensure_openclaw_link_to(&dist_nm, clawdbot_root);
+  }
+
+  let extensions_nm = clawdbot_root
+    .join("dist")
+    .join("extensions")
+    .join("node_modules");
+  if let Err(err) = fs::create_dir_all(&extensions_nm) {
+    eprintln!(
+      "[clawd/service] WARNING: could not create extensions node_modules for openclaw self-link: {}",
+      err
+    );
+  } else {
+    ensure_openclaw_link_to(&extensions_nm, clawdbot_root);
+  }
 }
 
 fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
@@ -7594,9 +7784,7 @@ async fn prepare_gateway_config(
 
   let node_candidates: Vec<PathBuf> = if cfg!(target_os = "windows") {
     let mut candidates = Vec::new();
-    if !cfg!(debug_assertions) {
-      candidates.push(bundled_node.clone());
-    }
+    candidates.push(bundled_node.clone());
     // Search PATH for node.exe
     if let Ok(path_var) = std::env::var("PATH") {
       for dir in path_var.split(';') {
@@ -7607,9 +7795,6 @@ async fn prepare_gateway_config(
       }
     }
     candidates.push(PathBuf::from(r"C:\Program Files\nodejs\node.exe"));
-    if cfg!(debug_assertions) {
-      candidates.push(bundled_node.clone());
-    }
     candidates
   } else if cfg!(debug_assertions) {
     vec![
@@ -7663,13 +7848,17 @@ async fn prepare_gateway_config(
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
     if cfg!(target_os = "windows") {
-      // Dev on Windows: look for workspace entry
-      let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("clawdbot")
-        .join("dist")
-        .join("entry.js");
-      ws_entry
+      let bundled_entry =
+        resource_path(app_handle, "resources/clawdbot/dist/knapsack-gateway-entry.js");
+      if bundled_entry.exists() {
+        bundled_entry
+      } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+          .join("resources")
+          .join("clawdbot")
+          .join("dist")
+          .join("knapsack-gateway-entry.js")
+      }
     } else {
       let sys_entry = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
       let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -7684,7 +7873,7 @@ async fn prepare_gateway_config(
       }
     }
   } else {
-    resource_path(app_handle, "resources/clawdbot/dist/entry.js")
+    resource_path(app_handle, "resources/clawdbot/dist/knapsack-gateway-entry.js")
   };
 
   if !clawdbot_entry.exists() {
@@ -7764,6 +7953,11 @@ async fn prepare_gateway_config(
         "allow": KNAPSACK_REQUIRED_PLUGINS,
         "slots": {
           "memory": "none"
+        }
+      },
+      "models": {
+        "pricing": {
+          "enabled": false
         }
       },
       "tools": {
@@ -8525,6 +8719,37 @@ async fn prepare_gateway_config(
           patched = true;
         }
 
+        let pricing_enabled = cfg_val
+          .pointer("/models/pricing/enabled")
+          .and_then(|v| v.as_bool());
+        if pricing_enabled != Some(false) {
+          if cfg_val.get("models").and_then(|v| v.as_object()).is_none() {
+            cfg_val
+              .as_object_mut()
+              .unwrap()
+              .insert("models".to_string(), serde_json::json!({}));
+          }
+          if cfg_val
+            .pointer("/models/pricing")
+            .and_then(|v| v.as_object())
+            .is_none()
+          {
+            cfg_val
+              .pointer_mut("/models")
+              .unwrap()
+              .as_object_mut()
+              .unwrap()
+              .insert("pricing".to_string(), serde_json::json!({}));
+          }
+          if let Some(pricing) = cfg_val
+            .pointer_mut("/models/pricing")
+            .and_then(|v| v.as_object_mut())
+          {
+            pricing.insert("enabled".to_string(), serde_json::Value::Bool(false));
+            patched = true;
+          }
+        }
+
         // Restore restart-sensitive fields before any write — these are no-ops
         // under normal operation but guard against a future patch accidentally
         // dropping them and triggering "deferring until N tasks complete".
@@ -8657,8 +8882,8 @@ async fn prepare_gateway_config(
 
   // ── Build program args ────────────────────────────────────────────
   let program_args = vec![
-    node_path.to_string_lossy().to_string(),
-    clawdbot_entry.to_string_lossy().to_string(),
+    node_arg_path(&node_path),
+    node_arg_path(&clawdbot_entry),
     "gateway".to_string(),
     "run".to_string(),
     "--allow-unconfigured".to_string(),
@@ -8674,12 +8899,12 @@ async fn prepare_gateway_config(
 
   // ── Build environment variables ───────────────────────────────────
   let bundled_plugins_dir = bundled_plugins_dir(app_handle);
-  let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
+  let bundled_plugins_dir_str = node_arg_path(&bundled_plugins_dir);
   let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
 
   let node_dir = node_path
     .parent()
-    .map(|p| p.to_string_lossy().to_string())
+    .map(node_arg_path)
     .unwrap_or_default();
   let path_separator = if cfg!(target_os = "windows") {
     ";"
@@ -8750,6 +8975,7 @@ async fn prepare_gateway_config(
     ),
     ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
     ("OPENCLAW_DISABLE_BONJOUR".to_string(), "1".to_string()),
+    ("OPENCLAW_PATH_BOOTSTRAPPED".to_string(), "1".to_string()),
     (
       "OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS".to_string(),
       configured_channel_fallback_ids,
@@ -8759,6 +8985,10 @@ async fn prepare_gateway_config(
     (
       "OPENCLAW_GATEWAY_STARTUP_WARMUP_TIMEOUT_MS".to_string(),
       "2000".to_string(),
+    ),
+    (
+      "OPENCLAW_SKIP_STARTUP_MODEL_PREWARM".to_string(),
+      "1".to_string(),
     ),
     (
       "OPENCLAW_CHANNEL_STARTUP_HANDOFF_TIMEOUT_MS".to_string(),
@@ -8784,14 +9014,6 @@ async fn prepare_gateway_config(
       "OPENCLAW_GATEWAY_STARTUP_TRACE".to_string(),
       "1".to_string(),
     ),
-    // Prevents the clawdbot gateway's doctor/inspect flow from classifying this
-    // plist as a legacy "clawdbot" service and moving it to Trash.  The inspector
-    // checks for these two keys to recognise a plist as a current openclaw gateway.
-    (
-      "OPENCLAW_SERVICE_MARKER".to_string(),
-      "openclaw".to_string(),
-    ),
-    ("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()),
     // Ensure Node.js resolves packages from the bundled flat node_modules
     // directory.  Without this, stale nested node_modules can cause
     // ERR_PACKAGE_PATH_NOT_EXPORTED errors.
@@ -8835,6 +9057,13 @@ async fn prepare_gateway_config(
         }
       }
     }
+  } else {
+    // Prevents the macOS gateway inspector from classifying this LaunchAgent as
+    // a legacy "clawdbot" service and moving it to Trash. On Windows these
+    // markers mean "schtasks-supervised" to OpenClaw, which adds a 30s lock
+    // recovery wait to the desktop-managed direct gateway startup path.
+    env.push(("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()));
+    env.push(("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()));
   }
 
   // Propagate LLM keys
@@ -9064,6 +9293,35 @@ pub async fn set_service_enabled(
     let enabled = payload.enabled;
 
     if enabled {
+      if let Some(grace_ms) = gateway_launch_grace_active() {
+        {
+          let mut cfg_guard = cfg.write().await;
+          cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
+        }
+        eprintln!(
+          "[clawd/service] Enable request: Windows gateway launch already in progress for {}ms; preserving startup",
+          grace_ms
+        );
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
+      }
+      if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+        {
+          let mut cfg_guard = cfg.write().await;
+          cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
+        }
+        mark_gateway_launch_started();
+        eprintln!("[clawd/service] Enable request: Windows gateway already listening");
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway is already running".to_string(),
+        });
+      }
+
       // If a background restart is already in progress, wait for it to
       // finish rather than spawning a second gateway process.
       if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
@@ -9426,7 +9684,11 @@ pub async fn set_service_enabled(
           .join("resources")
           .join("clawdbot")
           .join("dist")
-          .join("entry.js");
+          .join(if cfg!(target_os = "windows") {
+            "knapsack-gateway-entry.js"
+          } else {
+            "entry.js"
+          });
 
         if sys_entry.exists() {
           sys_entry
@@ -9435,7 +9697,10 @@ pub async fn set_service_enabled(
         }
       } else {
         // Production: use bundled clawdbot JS inside the .app
-        resource_path(&app_handle, "resources/clawdbot/dist/entry.js")
+        resource_path(
+          &app_handle,
+          "resources/clawdbot/dist/knapsack-gateway-entry.js",
+        )
       };
 
       // Verify clawdbot entry exists
@@ -9530,6 +9795,11 @@ pub async fn set_service_enabled(
             "allow": KNAPSACK_REQUIRED_PLUGINS,
             "slots": {
               "memory": "none"
+            }
+          },
+          "models": {
+            "pricing": {
+              "enabled": false
             }
           },
           "tools": {
@@ -9735,6 +10005,37 @@ pub async fn set_service_enabled(
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
               patched = true;
+            }
+
+            let pricing_enabled = cfg
+              .pointer("/models/pricing/enabled")
+              .and_then(|v| v.as_bool());
+            if pricing_enabled != Some(false) {
+              if cfg.get("models").and_then(|v| v.as_object()).is_none() {
+                cfg
+                  .as_object_mut()
+                  .unwrap()
+                  .insert("models".to_string(), serde_json::json!({}));
+              }
+              if cfg
+                .pointer("/models/pricing")
+                .and_then(|v| v.as_object())
+                .is_none()
+              {
+                cfg
+                  .pointer_mut("/models")
+                  .unwrap()
+                  .as_object_mut()
+                  .unwrap()
+                  .insert("pricing".to_string(), serde_json::json!({}));
+              }
+              if let Some(pricing) = cfg
+                .pointer_mut("/models/pricing")
+                .and_then(|v| v.as_object_mut())
+              {
+                pricing.insert("enabled".to_string(), serde_json::Value::Bool(false));
+                patched = true;
+              }
             }
 
             // Remove bundled extensions directory from plugins.load.paths.
@@ -10344,8 +10645,8 @@ pub async fn set_service_enabled(
 
       // Run in local mode with explicit tokens/ports.
       let program_args = vec![
-        node_path.to_string_lossy().to_string(),
-        clawdbot_entry.to_string_lossy().to_string(),
+        node_arg_path(&node_path),
+        node_arg_path(&clawdbot_entry),
         "gateway".to_string(),
         "run".to_string(),
         "--allow-unconfigured".to_string(),
@@ -10360,7 +10661,7 @@ pub async fn set_service_enabled(
       ];
 
       // bundled_plugins_dir was resolved earlier (before config patching)
-      let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
+      let bundled_plugins_dir_str = node_arg_path(&bundled_plugins_dir);
       let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
       eprintln!(
         "[clawd/service] Skipping blocking OpenClaw doctor --fix during startup config preparation"
@@ -10371,7 +10672,7 @@ pub async fn set_service_enabled(
       // minimal PATH by default which typically excludes /opt/homebrew/bin.
       let node_dir = node_path
         .parent()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(node_arg_path)
         .unwrap_or_default();
       let mut path_parts: Vec<String> = Vec::new();
       if !node_dir.is_empty() {
@@ -10434,6 +10735,7 @@ pub async fn set_service_enabled(
         // log the warning only once on startup instead of on every read cycle.
         ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
         ("OPENCLAW_DISABLE_BONJOUR".to_string(), "1".to_string()),
+        ("OPENCLAW_PATH_BOOTSTRAPPED".to_string(), "1".to_string()),
         (
           "OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS".to_string(),
           configured_channel_fallback_ids,
@@ -10443,6 +10745,10 @@ pub async fn set_service_enabled(
         (
           "OPENCLAW_GATEWAY_STARTUP_WARMUP_TIMEOUT_MS".to_string(),
           "2000".to_string(),
+        ),
+        (
+          "OPENCLAW_SKIP_STARTUP_MODEL_PREWARM".to_string(),
+          "1".to_string(),
         ),
         (
           "OPENCLAW_CHANNEL_STARTUP_HANDOFF_TIMEOUT_MS".to_string(),
@@ -10464,14 +10770,6 @@ pub async fn set_service_enabled(
           "OPENCLAW_CHANNEL_STARTUP_CONCURRENCY".to_string(),
           "1".to_string(),
         ),
-        // Prevents the clawdbot gateway's doctor/inspect flow from classifying this
-        // plist as a legacy "clawdbot" service and moving it to Trash.  The inspector
-        // checks for these two keys to recognise a plist as a current openclaw gateway.
-        (
-          "OPENCLAW_SERVICE_MARKER".to_string(),
-          "openclaw".to_string(),
-        ),
-        ("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()),
         // Ensure Node.js resolves packages from the bundled flat node_modules
         // directory. Without this, stale nested node_modules (e.g. created by
         // a local pnpm install) can cause ERR_PACKAGE_PATH_NOT_EXPORTED errors
@@ -10484,6 +10782,15 @@ pub async fn set_service_enabled(
           nm.to_string_lossy().to_string()
         }),
       ];
+
+      if !cfg!(target_os = "windows") {
+        // Prevents the macOS gateway inspector from classifying this LaunchAgent
+        // as a legacy "clawdbot" service and moving it to Trash. On Windows
+        // these markers mean "schtasks-supervised" to OpenClaw, which adds a
+        // 30s lock recovery wait to the desktop-managed direct gateway startup.
+        env.push(("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()));
+        env.push(("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()));
+      }
 
       // Propagate LLM keys to clawdbot subprocess AND to the current Tauri process
       // (so the notetaker/transcription can also use GROQ_API_KEY via std::env::var).
