@@ -582,6 +582,8 @@ if (isWindows) {
 const REQUIRED_STAGE_RUNTIME_DEPS_PLUGINS = [
   'browser',   // playwright-core — core browser/navigate tool
   'slack',     // @slack/web-api / Bolt SDK — Slack plugin registration
+  'telegram',  // grammy runner — Telegram channel registration
+  'whatsapp',  // baileys / jimp — WhatsApp channel registration
 ];
 
 if (fs.existsSync(extensionsDir)) {

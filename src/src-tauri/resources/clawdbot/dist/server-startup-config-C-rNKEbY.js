@@ -9,7 +9,8 @@ import { t as applyPluginAutoEnable } from "./plugin-auto-enable-CuCUT4Z1.js";
 import { a as getActiveSecretsRuntimeSnapshot, l as setPreparedSecretsRuntimeSnapshotRefreshContext, o as getLiveSecretsRuntimeAuthStores, t as activateSecretsRuntimeSnapshotState } from "./runtime-state-CPpp7_ve.js";
 import { n as evaluateGatewayAuthSurfaceStates, t as GATEWAY_AUTH_SURFACE_PATHS } from "./runtime-gateway-auth-surfaces-C7es4SNw.js";
 import { i as assertGatewayAuthNotKnownWeak, n as mergeGatewayAuthConfig, r as mergeGatewayTailscaleConfig, t as ensureGatewayStartupAuth } from "./startup-auth-CWNnB8iD.js";
-import { a as prepareSecretsRuntimeFastPathSnapshot, o as resolveRefreshAgentDirs } from "./runtime-fast-path-B08T2SHO.js";
+import { a as prepareSecretsRuntimeFastPathSnapshot, o as resolveRefreshAgentDirs, i as mergeSecretsRuntimeEnv, n as collectCandidateAgentDirs, r as createEmptyRuntimeWebToolsMetadata } from "./runtime-fast-path-B08T2SHO.js";
+import { o as coerceSecretRef } from "./types.secrets-DwPik3M8.js";
 import { isDeepStrictEqual } from "node:util";
 //#region src/gateway/server-startup-config.ts
 async function loadGatewayStartupConfigSnapshot(params) {
@@ -46,6 +47,33 @@ function withRuntimeConfig(snapshot, runtimeConfig) {
 		runtimeConfig,
 		config: runtimeConfig
 	};
+}
+function createDesktopManagedNoopSecretsSnapshot(config) {
+	const runtimeEnv = mergeSecretsRuntimeEnv(process.env);
+	const sourceConfig = structuredClone(config);
+	const resolvedConfig = structuredClone(config);
+	const authStores = collectCandidateAgentDirs(resolvedConfig, runtimeEnv).map((agentDir) => ({
+		agentDir,
+		store: {
+			version: 1,
+			profiles: {}
+		}
+	}));
+	return {
+		sourceConfig,
+		config: resolvedConfig,
+		authStores,
+		warnings: [],
+		webTools: createEmptyRuntimeWebToolsMetadata()
+	};
+}
+function hasDesktopManagedSecretRefCandidate(value, defaults, seen = /* @__PURE__ */ new WeakSet()) {
+	if (coerceSecretRef(value, defaults)) return true;
+	if (!value || typeof value !== "object") return false;
+	if (seen.has(value)) return false;
+	seen.add(value);
+	if (Array.isArray(value)) return value.some((entry) => hasDesktopManagedSecretRefCandidate(entry, defaults, seen));
+	return Object.values(value).some((entry) => hasDesktopManagedSecretRefCandidate(entry, defaults, seen));
 }
 function createRuntimeSecretsActivator(params) {
 	let secretsDegraded = false;
@@ -97,6 +125,15 @@ function createRuntimeSecretsActivator(params) {
 	const activateRuntimeSecrets = (async (config, activationParams) => await runWithSecretsActivationLock(async () => {
 		try {
 			const startupPreflight = activationParams.reason === "startup" || activationParams.reason === "restart-check";
+			if (activationParams.reason === "startup" && activationParams.activate && process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && !hasDesktopManagedSecretRefCandidate(config, config.secrets?.defaults)) return await finishPreparedSnapshot(createDesktopManagedNoopSecretsSnapshot(config), activationParams, { activateRuntimeSecretsSnapshot: (snapshot) => activateSecretsRuntimeSnapshotState({
+				snapshot,
+				refreshContext: {
+					env: mergeSecretsRuntimeEnv(process.env),
+					explicitAgentDirs: null,
+					includeAuthStoreRefs: true,
+					loadablePluginOrigins: /* @__PURE__ */ new Map()
+				}
+			}) });
 			if (activationParams.reason === "startup" && activationParams.activate && !params.prepareRuntimeSecretsSnapshot && !params.activateRuntimeSecretsSnapshot) {
 				const fastPath = prepareSecretsRuntimeFastPathSnapshot({ config: pruneSkippedStartupSecretSurfaces(config) });
 				if (fastPath) return await finishPreparedSnapshot(fastPath.snapshot, activationParams, { activateRuntimeSecretsSnapshot: (snapshot) => activateSecretsRuntimeSnapshotState({
