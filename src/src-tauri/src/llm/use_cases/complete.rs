@@ -113,15 +113,13 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       });
     }
     "knapsack" => {
-      let email = std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default();
-      if !email.trim().is_empty() {
-        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
-          .unwrap_or_else(|_| "anthropic/claude-haiku-4-5".to_string());
+      let access_token = std::env::var("KNAPSACK_ACCESS_TOKEN").unwrap_or_default();
+      if !access_token.trim().is_empty() {
         return Ok(ResolvedProvider {
           name: "knapsack".into(),
-          api_key: email,
-          model,
-          base_url: "https://api.knapsack.ai".into(),
+          api_key: access_token,
+          model: "auto".into(),
+          base_url: option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai").into(),
           is_anthropic: false,
         });
       }
@@ -349,8 +347,34 @@ fn parse_retry_after(text: &str, attempt: u32) -> f64 {
   (2u64.pow(attempt + 1) as f64).min(60.0)
 }
 
+/// Refresh the Knapsack JWT access token using the stored refresh token.
+/// Returns the new access token string on success, or None on any failure.
+async fn refresh_knapsack_token() -> Option<String> {
+  let refresh_token = std::env::var("KNAPSACK_REFRESH_TOKEN").ok()?;
+  if refresh_token.trim().is_empty() {
+    return None;
+  }
+  let client = reqwest::Client::new();
+  let resp = client
+    .get(format!("{}/api/authentication/refresh/app", option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai")))
+    .header("refresh-token", refresh_token.trim())
+    .send()
+    .await
+    .ok()?;
+  if !resp.status().is_success() {
+    log::warn!("[knapsack_refresh] token refresh failed: {}", resp.status());
+    return None;
+  }
+  let json: serde_json::Value = resp.json().await.ok()?;
+  let new_token = json["access_token"].as_str()?.to_string();
+  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &new_token);
+  log::info!("[knapsack_refresh] access token refreshed");
+  Some(new_token)
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
 /// Retries up to 3 times on transient failures with exponential backoff.
+/// For the knapsack provider a 401 triggers one token refresh + retry.
 async fn openai_compatible_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
@@ -392,7 +416,9 @@ async fn openai_compatible_completion(
       provider.name
     )));
   }
-  if key_len > 256 || provider.api_key.contains(' ') || provider.api_key.starts_with('#') {
+  // JWT tokens (used by the knapsack provider) are longer than typical API keys but valid.
+  let max_key_len = if provider.name == "knapsack" { 2048 } else { 256 };
+  if key_len > max_key_len || provider.api_key.contains(' ') || provider.api_key.starts_with('#') {
     return Err(LLMError::ChatCompletionFailed(format!(
       "{} API key looks malformed (len={}, may contain prose/markdown). Please re-enter your API key in Settings.",
       provider.name, key_len
@@ -462,6 +488,37 @@ async fn openai_compatible_completion(
 
     // Non-retryable error or final attempt
     if status == reqwest::StatusCode::UNAUTHORIZED {
+      // For Knapsack: attempt one token refresh then retry immediately
+      if provider.name == "knapsack" && attempt == 0 {
+        log::info!("[completion] knapsack 401 — attempting token refresh");
+        if let Some(new_token) = refresh_knapsack_token().await {
+          // Update body with new bearer and retry (loop continues with attempt=1)
+          last_error = format!("knapsack 401 (refreshed token, retrying)");
+          // Re-issue the request directly with the new token so we don't wait for next loop
+          let retry_resp = match client.post(&url)
+            .header("Authorization", format!("Bearer {}", new_token))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+          {
+            Ok(r) => r,
+            Err(e) => return Err(LLMError::ChatCompletionFailed(format!("knapsack retry failed: {}", e))),
+          };
+          let retry_status = retry_resp.status();
+          let retry_text = retry_resp.text().await.unwrap_or_default();
+          if retry_status.is_success() {
+            let json: serde_json::Value = serde_json::from_str(&retry_text)
+              .map_err(|e| LLMError::ChatCompletionFailed(format!("knapsack JSON parse: {}", e)))?;
+            let content = json["choices"][0]["message"]["content"]
+              .as_str()
+              .map(|s| s.to_string())
+              .ok_or_else(|| LLMError::ChatCompletionFailed("knapsack: no content after refresh retry".into()))?;
+            return Ok(content);
+          }
+          return Err(LLMError::ChatCompletionFailed(format!("knapsack error after refresh ({}): {}", retry_status, retry_text)));
+        }
+      }
       let key_preview = if key_len > 8 {
         format!("{}...{}", &provider.api_key[..4], &provider.api_key[key_len-4..])
       } else {

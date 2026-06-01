@@ -301,9 +301,11 @@ pub async fn start_server<'a>(
       .service(clawd::service::set_api_key)
       .service(clawd::service::delete_extra_provider_key)
       .service(clawd::service::get_api_key)
-      // OAuth provider login (OpenRouter browser-based auth)
+      // OAuth provider login (OpenRouter browser-based auth) + Knapsack studio auth
       .service(clawd::service::start_oauth_login)
       .service(clawd::service::oauth_callback)
+      .service(clawd::service::knapsack_auth_callback)
+      .service(clawd::service::knapsack_disconnect)
       .service(clawd::service::gemini_connect)
       // Ollama (local LLM) endpoints
       .service(clawd::service::ollama_status)

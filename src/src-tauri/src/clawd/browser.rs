@@ -1839,6 +1839,17 @@ pub async fn chat(
         }))
       }
     },
+    "knapsack" => {
+      let token = std::env::var("KNAPSACK_ACCESS_TOKEN").unwrap_or_default();
+      if !token.trim().is_empty() {
+        token.trim().to_string()
+      } else {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "Knapsack account not connected. Sign in via Settings → Provider."
+        }))
+      }
+    },
     _ => match openai_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -3980,6 +3991,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     "xai" => super::service::get_xai_model(&app_handle),
     "ollama" => ollama_model(&app_handle),
     "openrouter" => super::service::get_openrouter_model(&app_handle),
+    "knapsack" => "auto".to_string(),
     _ => super::service::get_openai_model(&app_handle),
   };
   let current_ollama_base = ollama_base_url(&app_handle);
@@ -4002,6 +4014,10 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         },
         "openrouter" => {
           chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls).await
+        },
+        "knapsack" => {
+          let base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+          chat_agent::openai_compatible_chat(key, model, base, msgs, tls).await
         },
         _ => chat_agent::openai_chat(key, model, msgs, tls).await,
       }

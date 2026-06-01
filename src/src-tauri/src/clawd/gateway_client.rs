@@ -741,6 +741,11 @@ pub fn resolve_default_model() -> String {
 
   // Respect the user's active provider selection and configured model
   match active.as_str() {
+    // Knapsack cloud inference: the backend selects the best model based on
+    // the user's subscription — the desktop always sends "auto".
+    "knapsack" => {
+      return "auto".to_string();
+    }
     "openrouter" => {
       let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
         .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
