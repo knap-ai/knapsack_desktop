@@ -132,6 +132,17 @@ jobs:
             Write-Error "tar failed (exit $LASTEXITCODE)"
             exit 1
           }
+          $requiredEntries = @(
+            "node_modules/@earendil-works/pi-agent-core/dist/index.js",
+            "node_modules/@earendil-works/pi-agent-core/dist/agent.js"
+          )
+          $tarEntries = tar -tf node_modules.tar
+          foreach ($entry in $requiredEntries) {
+            if ($tarEntries -notcontains $entry) {
+              Write-Error "node_modules.tar missing required runtime file: $entry"
+              exit 1
+            }
+          }
           Remove-Item -Recurse -Force node_modules
           $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
           $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
