@@ -19,7 +19,7 @@ use crate::db::models::token_usage::TokenUsage;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
 const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(30);
-const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(90);
+const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Record token usage from a chat API response (best-effort, never panics).
 fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {

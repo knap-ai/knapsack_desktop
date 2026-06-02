@@ -411,6 +411,10 @@ type ProviderOption = {
   helpUrl: string
 }
 
+const KNAPSACK_MODELS = [
+  { id: 'auto', name: 'Auto', description: 'Knapsack selects the best available model for your account' },
+]
+const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
 
 const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
@@ -1685,6 +1689,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
+  const [selectedKnapsackModel, setSelectedKnapsackModel] = useState<string>(() => {
+    const stored = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
+    return KNAPSACK_MODELS.some(model => model.id === stored) ? stored! : 'auto'
+  })
   const [knapsackEmail, setKnapsackEmail] = useState<string>('')
   const [isKnapsackConnecting, setIsKnapsackConnecting] = useState(false)
   const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
@@ -2036,6 +2044,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         })
         if (keyStatus.knapsack_email) {
           setKnapsackEmail(keyStatus.knapsack_email)
+        }
+        if (keyStatus.knapsack_model) {
+          const knapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
+          setSelectedKnapsackModel(knapsackModel)
+          localStorage.setItem(KNAPSACK_MODEL_STORAGE, knapsackModel)
         }
         // Restore Ollama model from backend if Ollama is the active provider
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
@@ -6768,6 +6781,48 @@ ${actualText}`
                             </p>
                           </>
                         )}
+                        <label className="ClawdKeyPromptLabel">Model tier</label>
+                        <div className="ClawdModelSelector">
+                          {KNAPSACK_MODELS.map(model => (
+                            <button
+                              key={model.id}
+                              className={`ClawdModelOption${selectedKnapsackModel === model.id ? ' selected' : ''}`}
+                              onClick={() => {
+                                setSelectedKnapsackModel(model.id)
+                                localStorage.setItem(KNAPSACK_MODEL_STORAGE, model.id)
+                              }}
+                              disabled={savingKey}
+                            >
+                              <span className="ClawdModelName">{model.name}</span>
+                              <span className="ClawdModelDesc">{model.description}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="ClawdAccordionActions">
+                          <button
+                            className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                            onClick={async () => {
+                              setSavingKey(true)
+                              try {
+                                await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail || '', model: selectedKnapsackModel })
+                                setSelectedProvider('knapsack')
+                                localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+                                pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
+                              } catch {}
+                              setSavingKey(false)
+                            }}
+                            disabled={savingKey}
+                          >
+                            {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
+                          </button>
+                        </div>
+                        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                          Need credits?{' '}
+                          <a href="https://studio.knapsack.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#c54841' }}>
+                            studio.knapsack.ai
+                          </a>
+                        </p>
                       </div>
                     </div>
                   )

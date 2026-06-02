@@ -1,5 +1,7 @@
 import { n as BROWSER_REQUEST_GATEWAY_SCOPE, t as BROWSER_REQUEST_GATEWAY_METHOD } from "./browser-gateway-contract-yfVqwwwt.js";
 import { t as BrowserToolSchema } from "./browser-tool.schema-C8BVx0PT.js";
+import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 //#region extensions/browser/plugin-registration.ts
 const BROWSER_CLI_DESCRIPTOR = {
 	name: "browser",
@@ -47,6 +49,30 @@ const browserSecurityAuditCollectors = [async (ctx) => {
 }];
 function createLazyBrowserPluginService() {
 	let service = null;
+	let fastServer = null;
+	const startFastServer = async () => {
+		if (fastServer || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
+		const response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
+		fastServer = createNetServer((socket) => {
+			socket.on("error", () => {});
+			socket.end(response);
+		});
+		await new Promise((resolve, reject) => {
+			fastServer.once("error", (error) => {
+				if (error?.code === "EADDRINUSE") {
+					globalThis.__openclawDesktopBrowserControlPlaceholder?.close?.().then(() => {
+						fastServer?.listen(18791, "127.0.0.1", resolve);
+					}).catch(() => {
+						fastServer = null;
+						resolve();
+					});
+				} else {
+					reject(error);
+				}
+			});
+			fastServer.listen(18791, "127.0.0.1", resolve);
+		});
+	};
 	const loadService = async () => {
 		if (!service) {
 			const { createBrowserPluginService } = await import("./extensions/browser/register.runtime.js");
@@ -57,9 +83,19 @@ function createLazyBrowserPluginService() {
 	return {
 		id: "browser-control",
 		start: async (ctx) => {
-			await (await loadService()).start(ctx);
+			if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1") return;
+			await startFastServer();
+			loadService().then(async (loadedService) => {
+				const currentFastServer = fastServer;
+				fastServer = null;
+				if (currentFastServer) await new Promise((resolve) => currentFastServer.close(() => resolve()));
+				await loadedService.start(ctx);
+			}).catch(() => {});
 		},
 		stop: async (ctx) => {
+			const currentFastServer = fastServer;
+			fastServer = null;
+			if (currentFastServer) await new Promise((resolve) => currentFastServer.close(() => resolve()));
 			if (!service?.stop) return;
 			await service.stop(ctx);
 		}

@@ -553,6 +553,14 @@ Section Install
     File /a "/oname={{this.[1]}}" "{{unescape-dollar-sign @key}}"
   {{/each}}
 
+  ; CI packs the gateway runtime node_modules directory into one tarball so the
+  ; installer stays below Windows package file-count/path limits. Extract it at
+  ; install time so first app launch can start the gateway immediately.
+  IfFileExists "$INSTDIR\resources\clawdbot\node_modules.tar" 0 node_modules_extract_done
+    RMDir /r "$INSTDIR\resources\clawdbot\node_modules"
+    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xf "$INSTDIR\resources\clawdbot\node_modules.tar" -C "$INSTDIR\resources\clawdbot"'
+  node_modules_extract_done:
+
   ; Copy external binaries
   {{#each binaries}}
     File /a "/oname={{this}}" "{{unescape-dollar-sign @key}}"
