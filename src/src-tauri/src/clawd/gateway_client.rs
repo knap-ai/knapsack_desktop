@@ -1947,11 +1947,111 @@ pub async fn is_gateway_port_open() -> bool {
   };
   tokio::time::timeout(
     Duration::from_millis(500),
-    client.get("http://127.0.0.1:18789/healthz").send(),
+    client.get("http://127.0.0.1:18789/health").send(),
   )
   .await
   .map(|r| r.is_ok())
   .unwrap_or(false)
+    || match get_gateway_token() {
+      Some(token) => gateway_ws_handshake_open(&token, Duration::from_millis(1500)).await,
+      None => false,
+    }
+}
+
+async fn gateway_ws_handshake_open(token: &str, timeout: Duration) -> bool {
+  async fn probe(token: &str) -> Result<(), String> {
+    let mut ws_req = GATEWAY_WS_URL
+      .into_client_request()
+      .map_err(|e| format!("Invalid gateway URL: {}", e))?;
+    ws_req
+      .headers_mut()
+      .insert("Origin", HeaderValue::from_static("http://localhost:1420"));
+
+    let (ws_stream, _) = connect_async(ws_req)
+      .await
+      .map_err(|e| format!("Failed to connect to gateway: {}", e))?;
+    let (mut write, mut read) = ws_stream.split();
+
+    let challenge_text = loop {
+      let challenge_msg = read
+        .next()
+        .await
+        .ok_or("Connection closed before challenge")?
+        .map_err(|e| format!("Error receiving challenge: {}", e))?;
+      match challenge_msg {
+        Message::Text(t) => break t,
+        Message::Close(_) => return Err("Connection closed during challenge".to_string()),
+        _ => continue,
+      }
+    };
+
+    let event: EventFrame = serde_json::from_str(&challenge_text)
+      .map_err(|e| format!("Failed to parse challenge event: {}", e))?;
+    if event.event != "connect.challenge" {
+      return Err(format!("Expected connect.challenge, got {}", event.event));
+    }
+
+    let connect_params = ConnectParams {
+      min_protocol: PROTOCOL_VERSION,
+      max_protocol: PROTOCOL_VERSION,
+      client: ClientInfo {
+        id: "openclaw-control-ui",
+        display_name: "Knapsack Desktop",
+        version: env!("CARGO_PKG_VERSION"),
+        platform: std::env::consts::OS,
+        mode: "backend",
+      },
+      auth: Some(AuthInfo {
+        token: token.to_string(),
+      }),
+      role: "operator",
+      scopes: vec!["operator.admin", "operator.read", "operator.write"],
+    };
+
+    let connect_frame = RequestFrame {
+      frame_type: "req",
+      method: "connect".to_string(),
+      id: next_request_id(),
+      params: Some(serde_json::to_value(connect_params).unwrap()),
+    };
+    write
+      .send(Message::Text(
+        serde_json::to_string(&connect_frame)
+          .map_err(|e| format!("Failed to serialize connect frame: {}", e))?,
+      ))
+      .await
+      .map_err(|e| format!("Failed to send connect: {}", e))?;
+
+    let connect_resp_text = loop {
+      let connect_resp_msg = read
+        .next()
+        .await
+        .ok_or("Connection closed before connect response")?
+        .map_err(|e| format!("Error receiving connect response: {}", e))?;
+      match connect_resp_msg {
+        Message::Text(t) => break t,
+        Message::Close(_) => return Err("Connection closed during connect".to_string()),
+        _ => continue,
+      }
+    };
+
+    let connect_resp: ResponseFrame = serde_json::from_str(&connect_resp_text)
+      .map_err(|e| format!("Failed to parse connect response: {}", e))?;
+    if !connect_resp.ok {
+      return Err(format!(
+        "Connect failed: {:?}",
+        connect_resp.error.unwrap_or(Value::Null)
+      ));
+    }
+
+    let _ = write.send(Message::Close(None)).await;
+    Ok(())
+  }
+
+  tokio::time::timeout(timeout, probe(token))
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
 }
 
 /// Best-effort gateway restart for callers that want to wait briefly.

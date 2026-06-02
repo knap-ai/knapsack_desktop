@@ -34,17 +34,24 @@ fn strip_ansi(s: &str) -> String {
 
 async fn gateway_reachable() -> bool {
   service::gateway_reachable_or_ready(Duration::from_millis(500)).await
+    || tokio::time::timeout(
+      Duration::from_millis(800),
+      gateway_client::get_channel_status(None),
+    )
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
 }
 
 async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String> {
-  let cache_key = channel.unwrap_or("*").to_string();
+  let cache_key = "*".to_string();
   {
     let cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
       .await
       .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
     if let Some(entry) = cache.get(&cache_key) {
       if let (Some(fetched_at), Some(value)) = (entry.fetched_at, entry.value.as_ref()) {
-        if fetched_at.elapsed() < Duration::from_secs(2) {
+        if fetched_at.elapsed() < Duration::from_secs(5) {
           return Ok(value.clone());
         }
       }
@@ -56,15 +63,12 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
     }
   }
 
-  let mut params = serde_json::json!({
+  let params = serde_json::json!({
     "probe": false,
     "timeoutMs": 750
   });
-  if let Some(channel) = channel {
-    params["channel"] = serde_json::json!(channel);
-  }
   let snapshot = tokio::time::timeout(
-    Duration::from_millis(1500),
+    Duration::from_millis(1200),
     gateway_client::call_channel_method("channels.status", Some(params), None),
   )
   .await
@@ -81,6 +85,11 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
       entry.value = Some(snapshot.clone());
       entry.error_at = None;
       entry.error = None;
+      if let Some(channel) = channel {
+        if runtime_channel(&snapshot, channel).is_none() && configured_channel(channel).is_none() {
+          return Ok(snapshot);
+        }
+      }
       Ok(snapshot)
     }
     Err(error) => {
@@ -241,6 +250,36 @@ struct ChannelStatusResponse {
   /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
   #[serde(skip_serializing_if = "Option::is_none")]
   account: Option<String>,
+}
+
+fn disabled_channel_status_response(
+  channel: &str,
+  linked_when_connected: bool,
+  provider: Option<String>,
+) -> Option<HttpResponse> {
+  let config = configured_channel(channel);
+  if config
+    .as_ref()
+    .and_then(|value| value.get("enabled"))
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false)
+  {
+    return None;
+  }
+
+  Some(HttpResponse::Ok().json(ChannelStatusResponse {
+    success: true,
+    enabled: false,
+    configured: config.is_some(),
+    linked: if linked_when_connected {
+      Some(false)
+    } else {
+      None
+    },
+    provider,
+    message: None,
+    account: None,
+  }))
 }
 
 /// Request body for enable/disable
@@ -682,6 +721,9 @@ fn parse_account_from_summary(status: &serde_json::Value, channel_name: &str) ->
 /// Get WhatsApp channel status
 #[get("/api/clawd/channels/whatsapp/status")]
 pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  if let Some(response) = disabled_channel_status_response("whatsapp", true, None) {
+    return response;
+  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -1092,6 +1134,9 @@ pub async fn whatsapp_login_phone(
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  if let Some(response) = disabled_channel_status_response("imessage", false, None) {
+    return response;
+  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -1377,6 +1422,9 @@ pub async fn send_channel_message(
 /// Get Telegram channel status
 #[get("/api/clawd/channels/telegram/status")]
 pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  if let Some(response) = disabled_channel_status_response("telegram", true, None) {
+    return response;
+  }
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }

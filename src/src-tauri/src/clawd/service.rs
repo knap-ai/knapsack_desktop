@@ -294,11 +294,13 @@ static BROWSER_LAST_NUDGE_MS: AtomicU64 = AtomicU64::new(0);
 /// Tracks whether the gateway was healthy on the last health check.
 /// Used to detect down→up transitions and reset BROWSER_START_NUDGED.
 static GATEWAY_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+static GATEWAY_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Tracks whether the browser was healthy on the last health check.
 /// Used to detect healthy→down transitions (browser crashes) and reset
 /// BROWSER_START_NUDGED so the recovery nudge can fire again.
 static BROWSER_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Tracks whether a gateway restart attempt is already in progress,
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
@@ -310,6 +312,7 @@ static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
 const GATEWAY_HEALTH_SELF_HEAL_GRACE_MS: u64 = 180_000;
 const GATEWAY_POST_BIND_STARTUP_GRACE_MS: u64 = 300_000;
 const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
+const HEALTH_LAST_GOOD_GRACE_MS: u64 = 15_000;
 
 fn now_epoch_ms() -> u64 {
   std::time::SystemTime::now()
@@ -914,12 +917,44 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
   }
+  let mut patched = false;
 
   if cfg.get("plugins").is_none() {
     cfg
       .as_object_mut()
       .unwrap()
       .insert("plugins".to_string(), serde_json::json!({}));
+  }
+
+  if !eager_channel_plugin_start_enabled() {
+    if let Some(entries) = cfg
+      .pointer_mut("/plugins/entries")
+      .and_then(|value| value.as_object_mut())
+    {
+      for plugin_id in KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS {
+        let Some(entry) = entries.get_mut(*plugin_id) else {
+          continue;
+        };
+        match entry.as_object_mut() {
+          Some(entry_obj) => {
+            if entry_obj.get("enabled").and_then(|value| value.as_bool()) != Some(false) {
+              entry_obj.insert("enabled".to_string(), serde_json::json!(false));
+              patched = true;
+            }
+          }
+          None => {
+            *entry = serde_json::json!({ "enabled": false });
+            patched = true;
+          }
+        }
+      }
+      if patched {
+        eprintln!(
+          "[clawd/service] Disabled bundled channel plugin entries during startup: {}",
+          KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.join(", ")
+        );
+      }
+    }
   }
 
   let mut required: Vec<String> = KNAPSACK_REQUIRED_PLUGINS
@@ -968,7 +1003,7 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
 
   let next_allow = serde_json::json!(merged);
   if cfg.pointer("/plugins/allow") == Some(&next_allow) {
-    return false;
+    return patched;
   }
 
   cfg
@@ -2959,7 +2994,7 @@ async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
   };
   let result = match tokio::time::timeout(
     timeout,
-    client.get("http://127.0.0.1:18789/healthz").send(),
+    client.get("http://127.0.0.1:18789/health").send(),
   )
   .await
   {
@@ -2971,6 +3006,22 @@ async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
   cache.checked_at = Some(std::time::Instant::now());
   cache.result = result;
   result
+}
+
+async fn gateway_ws_config_ok(token: Option<&str>, timeout: std::time::Duration) -> bool {
+  tokio::time::timeout(timeout, crate::clawd::gateway_ws::config_get(token))
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
+}
+
+async fn gateway_reachable_with_token(
+  timeout: std::time::Duration,
+  token: Option<&str>,
+) -> bool {
+  gateway_health_port_ok(timeout).await
+    || crate::clawd::gateway_client::is_gateway_port_open().await
+    || gateway_ws_config_ok(token, timeout).await
 }
 
 async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
@@ -2998,7 +3049,7 @@ async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
-  gateway_health_port_ok(timeout).await
+  gateway_health_port_ok(timeout).await || crate::clawd::gateway_client::is_gateway_port_open().await
 }
 
 fn read_log_tail_lines_bounded(
@@ -3694,8 +3745,10 @@ fn sanitize_config_file_allowlist(config_path: &Path) {
     Ok(v) => v,
     Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
   };
-  let patched =
-    sanitize_channel_allowlist_configs(&mut cfg) | sanitize_rejected_legacy_config_keys(&mut cfg);
+  let patched = sanitize_channel_allowlist_configs(&mut cfg)
+    | sanitize_rejected_legacy_config_keys(&mut cfg)
+    | ensure_knapsack_plugin_allowlist(&mut cfg)
+    | defer_bundled_channel_configs_for_startup(&mut cfg);
   if patched {
     match fs::write(
       config_path,
@@ -4993,15 +5046,12 @@ enum BrowserControlProbe {
 
 impl BrowserControlProbe {
   fn is_available(self) -> bool {
-    matches!(
-      self,
-      BrowserControlProbe::Ready | BrowserControlProbe::Standby
-    )
+    matches!(self, BrowserControlProbe::Ready)
   }
 }
 
 async fn browser_control_status(
-  gateway_token: &str,
+  _gateway_token: &str,
   timeout: std::time::Duration,
 ) -> BrowserControlProbe {
   let client = match reqwest::Client::builder().timeout(timeout).build() {
@@ -5009,11 +5059,7 @@ async fn browser_control_status(
     Err(_) => return BrowserControlProbe::Down,
   };
 
-  let fut = client
-    .get("http://127.0.0.1:18791/")
-    .query(&[("profile", "openclaw")])
-    .bearer_auth(gateway_token)
-    .send();
+  let fut = client.get("http://127.0.0.1:18791/").send();
 
   let resp = match tokio::time::timeout(timeout, fut).await {
     Ok(Ok(resp)) => resp,
@@ -5038,7 +5084,22 @@ async fn browser_control_status(
     return BrowserControlProbe::Down;
   }
 
-  match resp.json::<serde_json::Value>().await {
+  let body = match resp.text().await {
+    Ok(body) => body,
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] browser control status probe failed to read body: {}",
+        e
+      );
+      return BrowserControlProbe::Down;
+    }
+  };
+
+  if body.trim().eq_ignore_ascii_case("OK") {
+    return BrowserControlProbe::Ready;
+  }
+
+  match serde_json::from_str::<serde_json::Value>(&body) {
     Ok(value) => {
       let running = value
         .get("running")
@@ -5089,9 +5150,6 @@ async fn browser_control_status_via_gateway_rpc(
         "[clawd/service] browser control gateway probe failed: {}",
         e
       );
-      if browser_control_tcp_port_open(std::time::Duration::from_millis(250)).await {
-        return BrowserControlProbe::Standby;
-      }
       return BrowserControlProbe::Down;
     }
     Err(_) => {
@@ -5099,9 +5157,6 @@ async fn browser_control_status_via_gateway_rpc(
         "[clawd/service] browser control gateway probe timed out ({}ms)",
         timeout.as_millis()
       );
-      if browser_control_tcp_port_open(std::time::Duration::from_millis(250)).await {
-        return BrowserControlProbe::Standby;
-      }
       return BrowserControlProbe::Down;
     }
   };
@@ -5289,23 +5344,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // Gateway health is intentionally unauthenticated. Prefer the HTTP probe,
-    // but accept the gateway listener once browser control is also listening;
-    // channel startup can temporarily starve `/health` after the usable
-    // gateway/browser path is already online.
-    let gateway_http_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    // Gateway health is intentionally unauthenticated. Keep this tied to the
+    // HTTP health probe so a wedged listener cannot make the desktop UI green.
+    let gateway_http_ok =
+      gateway_reachable_with_token(GATEWAY_LOCAL_HEALTH_TIMEOUT, Some(&tokens.gateway_token)).await;
     let mut gateway_ok = gateway_http_ok;
     let gateway_listening = if gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
-    if !gateway_ok
-      && gateway_listening
-      && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
-    {
-      gateway_ok = true;
-    }
     #[cfg(target_os = "windows")]
     if !gateway_ok && gateway_listening {
       if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
@@ -5321,7 +5369,27 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
       }
     }
-    let gateway_probe_failed = !gateway_ok;
+    if !gateway_ok && gateway_listening {
+      let last_healthy_ms = GATEWAY_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+      let healthy_age_ms = now_epoch_ms().saturating_sub(last_healthy_ms);
+      if last_healthy_ms > 0 && healthy_age_ms <= HEALTH_LAST_GOOD_GRACE_MS {
+        eprintln!(
+          "[clawd/service] gateway health probe timed out; keeping last-known-good state for {}ms",
+          healthy_age_ms
+        );
+        gateway_ok = true;
+      }
+    }
+    if !gateway_ok
+      && gateway_listening
+      && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
+    {
+      eprintln!(
+        "[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green"
+      );
+      gateway_ok = true;
+    }
+    let gateway_probe_failed = !gateway_http_ok;
 
     // Track gateway state transitions for recovery logic.
     let was_healthy = GATEWAY_WAS_HEALTHY.load(Ordering::Relaxed);
@@ -5357,6 +5425,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     if gateway_ok {
       // Gateway is up — record it so we can detect down→up transitions.
       GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
+      if gateway_http_ok {
+        GATEWAY_LAST_HEALTHY_MS.store(now_epoch_ms(), Ordering::Relaxed);
+      }
       GATEWAY_UNREACHABLE_SINCE_MS.store(0, Ordering::Relaxed);
       GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
       QA_DIRECT_GATEWAY_FIRST_SEEN_MS.store(0, Ordering::Relaxed);
@@ -5494,7 +5565,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
         BrowserControlProbe::Ready
       } else if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
-        BrowserControlProbe::Standby
+        let probe = browser_control_status(&tokens.gateway_token, browser_probe_timeout).await;
+        if probe.is_available() {
+          probe
+        } else {
+          BrowserControlProbe::Standby
+        }
       } else if BROWSER_STATUS_PROBE_IN_PROGRESS
         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         .is_ok()
@@ -5523,15 +5599,23 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
     if gateway_ok
       && browser_probe == BrowserControlProbe::Down
-      && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
-    {
-      browser_probe = BrowserControlProbe::Standby;
-    }
-    if gateway_ok
-      && browser_probe == BrowserControlProbe::Down
       && browser_cdp_port_open(std::time::Duration::from_millis(250)).await
     {
       browser_probe = BrowserControlProbe::Ready;
+    }
+    if gateway_ok && !browser_probe.is_available() {
+      let last_healthy_ms = BROWSER_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+      let healthy_age_ms = now_epoch_ms().saturating_sub(last_healthy_ms);
+      if last_healthy_ms > 0
+        && healthy_age_ms <= HEALTH_LAST_GOOD_GRACE_MS
+        && browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
+      {
+        eprintln!(
+          "[clawd/service] browser health probe timed out; keeping last-known-good state for {}ms",
+          healthy_age_ms
+        );
+        browser_probe = BrowserControlProbe::Ready;
+      }
     }
     let browser_ok = browser_probe.is_available();
 
@@ -5541,6 +5625,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let browser_was_healthy = BROWSER_WAS_HEALTHY.load(Ordering::Relaxed);
     if browser_ok {
       BROWSER_WAS_HEALTHY.store(true, Ordering::Relaxed);
+      BROWSER_LAST_HEALTHY_MS.store(now_epoch_ms(), Ordering::Relaxed);
     } else if browser_was_healthy {
       // Browser just went from healthy → down (crashed).
       BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
@@ -5986,6 +6071,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       ready = true;
       break;
     }
+    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
+      ready = true;
+      break;
+    }
     if tokio::time::timeout(
       std::time::Duration::from_millis(1000),
       gateway_ws::config_get(Some(&tokens.gateway_token)),
@@ -6004,7 +6093,12 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
 
   let browser_ok = if ready && remaining_ms() > 500 {
-    browser_control_tcp_port_open(std::time::Duration::from_millis(remaining_ms().min(2_000))).await
+    browser_control_status(
+      &tokens.gateway_token,
+      std::time::Duration::from_millis(remaining_ms().min(2_000)),
+    )
+    .await
+    .is_available()
   } else {
     false
   };
@@ -6019,10 +6113,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   }
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
-  // Startup-ready is the desktop gateway-live gate. Browser and channel warmup
-  // are reported separately so slow or degraded integrations do not keep the
-  // local gateway false.
-  let success = ready;
+  let success = ready && browser_ok && channels_ok;
 
   HttpResponse::Ok().json(ServiceHealthResponse {
     success,
