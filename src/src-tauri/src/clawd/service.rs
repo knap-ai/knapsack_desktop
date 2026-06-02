@@ -2139,6 +2139,26 @@ fn bundled_node_modules_has_declared_dependencies(
     .all(|dep| nm_path.join(dep).join("package.json").exists())
 }
 
+fn bundled_node_modules_has_required_runtime_files(nm_path: &std::path::Path) -> bool {
+  [
+    "@earendil-works/pi-agent-core/package.json",
+    "@earendil-works/pi-agent-core/dist/index.js",
+    "@earendil-works/pi-agent-core/dist/agent.js",
+  ]
+  .iter()
+  .all(|rel| {
+    rel
+      .split('/')
+      .fold(nm_path.to_path_buf(), |path, part| path.join(part))
+      .exists()
+  })
+}
+
+fn bundled_node_modules_is_complete(dir: &std::path::Path, nm_path: &std::path::Path) -> bool {
+  bundled_node_modules_has_declared_dependencies(dir, nm_path)
+    && bundled_node_modules_has_required_runtime_files(nm_path)
+}
+
 /// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
 /// `node_modules.tar` (one file) so WiX stays under its 65535-file CAB limit
 /// (LGHT0306).  This function extracts the tar back to `node_modules/` at
@@ -2179,10 +2199,10 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
           && v.get("tar_mtime_secs").and_then(|n| n.as_u64()) == Some(tar_mtime_secs)
       })
       .unwrap_or(false);
-    if marker_current && bundled_node_modules_has_declared_dependencies(dir, &nm_path) {
+    if marker_current && bundled_node_modules_is_complete(dir, &nm_path) {
       return;
     }
-    if bundled_node_modules_has_declared_dependencies(dir, &nm_path) {
+    if bundled_node_modules_is_complete(dir, &nm_path) {
       let marker = serde_json::json!({
         "tar_len": tar_len,
         "tar_mtime_secs": tar_mtime_secs,
@@ -2230,7 +2250,7 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
       .creation_flags(CREATE_NO_WINDOW)
       .status();
     match result {
-      Ok(s) if s.success() => {
+      Ok(s) if s.success() && bundled_node_modules_is_complete(dir, &nm_path) => {
         let marker = serde_json::json!({
           "tar_len": tar_len,
           "tar_mtime_secs": tar_mtime_secs,
@@ -2241,6 +2261,10 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
           dir.display()
         );
       }
+      Ok(s) if s.success() => eprintln!(
+        "[clawd/service] WARNING: node_modules.tar extraction completed but required runtime files are missing in {}",
+        dir.display()
+      ),
       Ok(s) => eprintln!(
         "[clawd/service] WARNING: node_modules.tar extraction exited {} in {}",
         s,
@@ -2974,7 +2998,7 @@ async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
-  gateway_health_port_ok(timeout).await || gateway_ready_since_last_start()
+  gateway_health_port_ok(timeout).await
 }
 
 fn read_log_tail_lines_bounded(

@@ -508,9 +508,15 @@ const REQUIRED_MAJOR_VERSIONS = {
   typebox: 1,
 };
 
+const CRITICAL_PACKAGE_FILES = [
+  '@earendil-works/pi-agent-core/dist/index.js',
+  '@earendil-works/pi-agent-core/dist/agent.js',
+];
+
 const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
 if (fs.existsSync(nodeModulesDir)) {
   const missing = [];
+  const missingFiles = [];
   for (const pkg of CRITICAL_PACKAGES) {
     const pkgJson = path.join(nodeModulesDir, pkg, 'package.json');
     if (!fs.existsSync(pkgJson)) {
@@ -532,18 +538,48 @@ if (fs.existsSync(nodeModulesDir)) {
       } catch { /* unreadable package.json — already caught as missing above */ }
     }
   }
+  for (const file of CRITICAL_PACKAGE_FILES) {
+    if (!fs.existsSync(path.join(nodeModulesDir, file))) {
+      missingFiles.push(file);
+    }
+  }
   if (missing.length > 0) {
     console.error(`[verify-clawdbot] MISSING CRITICAL PACKAGES (${missing.length}):`);
     for (const pkg of missing) {
       console.error(`[verify-clawdbot]   - node_modules/${pkg}/package.json`);
     }
     errors += missing.length;
-  } else {
+  }
+  if (missingFiles.length > 0) {
+    console.error(`[verify-clawdbot] MISSING CRITICAL PACKAGE FILES (${missingFiles.length}):`);
+    for (const file of missingFiles) {
+      console.error(`[verify-clawdbot]   - node_modules/${file}`);
+    }
+    errors += missingFiles.length;
+  }
+  if (missing.length === 0 && missingFiles.length === 0) {
     console.log(`[verify-clawdbot] critical packages: ${CRITICAL_PACKAGES.length} verified in node_modules ✓`);
   }
 } else {
   console.error('[verify-clawdbot] CRITICAL: node_modules directory is missing entirely');
   errors++;
+}
+
+const rootNodeModulesTar = path.join(CLAWDBOT_DIR, 'node_modules.tar');
+if (fs.existsSync(rootNodeModulesTar)) {
+  const tarEntries = new Set(listTarEntries(rootNodeModulesTar));
+  const missingTarFiles = CRITICAL_PACKAGE_FILES
+    .map((file) => `node_modules/${file}`)
+    .filter((file) => !tarEntries.has(file));
+  if (missingTarFiles.length > 0) {
+    console.error(`[verify-clawdbot] MISSING CRITICAL FILES IN node_modules.tar (${missingTarFiles.length}):`);
+    for (const file of missingTarFiles) {
+      console.error(`[verify-clawdbot]   - ${file}`);
+    }
+    errors += missingTarFiles.length;
+  } else {
+    console.log(`[verify-clawdbot] node_modules.tar critical package files: ${CRITICAL_PACKAGE_FILES.length} verified OK`);
+  }
 }
 
 // Verify bundled Node.js toolchain in resources/node/
