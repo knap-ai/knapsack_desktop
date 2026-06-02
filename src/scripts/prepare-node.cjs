@@ -74,13 +74,16 @@ async function main() {
   const universalBuild = osName === 'darwin' && process.env.UNIVERSAL_BUILD === 'true';
   const binName = osName === 'win' ? 'node.exe' : 'node';
   const targetBin = path.join(TARGET_DIR, binName);
+  const npmCliPath = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
 
   // Skip download if the correct version is already present
   if (fs.existsSync(targetBin)) {
     try {
       const currentVersion = execSync(`"${targetBin}" --version`, { encoding: 'utf8' }).trim();
       if (currentVersion === `v${NODE_VERSION}`) {
-        if (universalBuild) {
+        if (!fs.existsSync(npmCliPath)) {
+          console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
+        } else if (universalBuild) {
           // Verify it's already a universal binary
           const lipoInfo = execSync(`lipo -info "${targetBin}"`, { encoding: 'utf8' });
           if (lipoInfo.includes('x86_64') && lipoInfo.includes('arm64')) {
@@ -89,13 +92,8 @@ async function main() {
           }
           console.log('[prepare-node] Found single-arch binary, need universal — re-downloading.');
         } else {
-          const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-          if (!fs.existsSync(npmPkgDest)) {
-            console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
-          } else {
-            console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
-            return;
-          }
+          console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
+          return;
         }
       } else {
         console.log(`[prepare-node] Found ${currentVersion}, need v${NODE_VERSION} — re-downloading.`);
