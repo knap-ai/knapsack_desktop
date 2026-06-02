@@ -40,6 +40,7 @@ ${StrLoc}
 !define WEBVIEW2INSTALLERPATH "{{webview2_installer_path}}"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}"
 !define MANUPRODUCTKEY "Software\${MANUFACTURER}\${PRODUCTNAME}"
+!define APPPATHKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\${MAINBINARYNAME}.exe"
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
 !define ESTIMATEDSIZE "{{estimated_size}}"
 
@@ -580,10 +581,12 @@ Section Install
 
   ; Save current MAINBINARYNAME for future updates from v2 updater
   WriteRegStr SHCTX "${UNINSTKEY}" "MainBinaryName" "${MAINBINARYNAME}.exe"
+  WriteRegStr SHCTX "${APPPATHKEY}" "" "$INSTDIR\${MAINBINARYNAME}.exe"
+  WriteRegStr SHCTX "${APPPATHKEY}" "Path" "$INSTDIR"
 
   ; Registry information for add/remove programs
   WriteRegStr SHCTX "${UNINSTKEY}" "DisplayName" "${PRODUCTNAME}"
-  WriteRegStr SHCTX "${UNINSTKEY}" "DisplayIcon" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\""
+  WriteRegStr SHCTX "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\${MAINBINARYNAME}.exe,0"
   WriteRegStr SHCTX "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr SHCTX "${UNINSTKEY}" "Publisher" "${MANUFACTURER}"
   WriteRegStr SHCTX "${UNINSTKEY}" "InstallLocation" "$\"$INSTDIR$\""
@@ -716,10 +719,13 @@ Section Uninstall
   ; Remove registry information for add/remove programs
   !if "${INSTALLMODE}" == "both"
     DeleteRegKey SHCTX "${UNINSTKEY}"
+    DeleteRegKey SHCTX "${APPPATHKEY}"
   !else if "${INSTALLMODE}" == "perMachine"
     DeleteRegKey HKLM "${UNINSTKEY}"
+    DeleteRegKey HKLM "${APPPATHKEY}"
   !else
     DeleteRegKey HKCU "${UNINSTKEY}"
+    DeleteRegKey HKCU "${APPPATHKEY}"
   !endif
 
   DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"
@@ -773,7 +779,7 @@ FunctionEnd
 !macroend
 
 Function CreateDesktopShortcut
-  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\${MAINBINARYNAME}.exe" 0
   !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
 FunctionEnd
 
@@ -781,6 +787,6 @@ Function CreateStartMenuShortcut
   StrCmp "$AppStartMenuFolder" "" 0 +2
     StrCpy $AppStartMenuFolder "${PRODUCTNAME}"
   CreateDirectory "$SMPROGRAMS\$AppStartMenuFolder"
-  CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+  CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\${MAINBINARYNAME}.exe" 0
   !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
 FunctionEnd
