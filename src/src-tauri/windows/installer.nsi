@@ -696,15 +696,21 @@ Section Uninstall
   RMDir "$INSTDIR"
 
   !insertmacro DeleteAppUserModelId
+  !insertmacro UnpinShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
   !insertmacro UnpinShortcut "$SMPROGRAMS\$AppStartMenuFolder\${MAINBINARYNAME}.lnk"
+  !insertmacro UnpinShortcut "$DESKTOP\${PRODUCTNAME}.lnk"
   !insertmacro UnpinShortcut "$DESKTOP\${MAINBINARYNAME}.lnk"
 
   ; Remove start menu shortcut
   !insertmacro MUI_STARTMENU_GETFOLDER Application $AppStartMenuFolder
+  StrCmp "$AppStartMenuFolder" "" 0 +2
+    StrCpy $AppStartMenuFolder "${PRODUCTNAME}"
+  Delete "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
   Delete "$SMPROGRAMS\$AppStartMenuFolder\${MAINBINARYNAME}.lnk"
   RMDir "$SMPROGRAMS\$AppStartMenuFolder"
 
   ; Remove desktop shortcuts
+  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
   Delete "$DESKTOP\${MAINBINARYNAME}.lnk"
 
   ; Remove registry information for add/remove programs
@@ -767,12 +773,14 @@ FunctionEnd
 !macroend
 
 Function CreateDesktopShortcut
-  CreateShortcut "$DESKTOP\${MAINBINARYNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-  !insertmacro SetLnkAppUserModelId "$DESKTOP\${MAINBINARYNAME}.lnk"
+  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+  !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
 FunctionEnd
 
 Function CreateStartMenuShortcut
+  StrCmp "$AppStartMenuFolder" "" 0 +2
+    StrCpy $AppStartMenuFolder "${PRODUCTNAME}"
   CreateDirectory "$SMPROGRAMS\$AppStartMenuFolder"
-  CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${MAINBINARYNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
-  !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$AppStartMenuFolder\${MAINBINARYNAME}.lnk"
+  CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe"
+  !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
 FunctionEnd
