@@ -240,7 +240,7 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows — NSIS current-user installer
+  # Windows — NSIS current-user installer plus MSI compatibility artifact
   # ---------------------------------------------------------------------------
   build-windows:
     needs: bump-version
@@ -458,9 +458,10 @@ jobs:
         working-directory: src
         shell: pwsh
         # NSIS current-user mode installs under LOCALAPPDATA and avoids UAC.
+        # MSI is also produced because several release/QA flows expect it.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles nsis --verbose 2>&1 | Tee-Object -FilePath $log
+          npx tauri build --bundles nsis,msi --verbose 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -477,6 +478,20 @@ jobs:
         shell: pwsh
         run: |
           Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
+
+      - name: Verify Windows installer artifacts
+        shell: pwsh
+        run: |
+          $installers = @()
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue)
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue)
+          if ($installers.Count -eq 0) {
+            Write-Error "No Windows installers were produced"
+            exit 1
+          }
+          foreach ($installer in $installers) {
+            & 'src\scripts\verify-windows-installer.ps1' -InstallerPath $installer.FullName -InstallDir "$env:RUNNER_TEMP\ks-install-qa-$($installer.BaseName)"
+          }
 
       - name: Post build log to PR on failure
         if: failure() && github.event.pull_request.number != ''
@@ -512,6 +527,7 @@ jobs:
             src/src-tauri/target/release/bundle/nsis/*.exe
             src/src-tauri/target/release/bundle/nsis/*.nsis.zip
             src/src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
+            src/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -591,7 +607,7 @@ jobs:
           # macOS
           find artifacts/macos-artifacts -type f \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.app.tar.gz.sig" \) -exec cp {} release-files/ \;
           # Windows
-          find artifacts/windows-artifacts -type f \( -name "*.exe" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \) -exec cp {} release-files/ \;
+          find artifacts/windows-artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.nsis.zip" -o -name "*.nsis.zip.sig" \) -exec cp {} release-files/ \;
           # Updater metadata
           cp artifacts/latest.json release-files/
           echo "[release] Files to upload:"
