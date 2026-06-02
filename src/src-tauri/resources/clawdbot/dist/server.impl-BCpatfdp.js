@@ -22,7 +22,7 @@ import { m as setPreRestartDeferralCheck, p as setGatewaySigusr1RestartPolicy } 
 import { n as readGatewayRestartHandoffSync } from "./restart-handoff-BSak1pJo.js";
 import { t as applyPluginAutoEnable } from "./plugin-auto-enable-CuCUT4Z1.js";
 import { C as createPluginGatewayMethodDescriptors, S as createGatewayMethodRegistry, x as createGatewayMethodDescriptorsFromHandlers } from "./loader-DKK7Ita0.js";
-import { d as pinActivePluginChannelRegistry, f as pinActivePluginHttpRouteRegistry, h as releasePinnedPluginHttpRouteRegistry, m as releasePinnedPluginChannelRegistry } from "./runtime-DHxRl5F1.js";
+import { F as createEmptyPluginRegistry, d as pinActivePluginChannelRegistry, f as pinActivePluginHttpRouteRegistry, h as releasePinnedPluginHttpRouteRegistry, m as releasePinnedPluginChannelRegistry, x as setActivePluginRegistry } from "./runtime-DHxRl5F1.js";
 import { i as resolveMainSessionKey } from "./main-session-D3q_5w0B.js";
 import { n as getLoadedChannelPluginEntryById, r as listLoadedChannelPlugins } from "./registry-loaded-BE-rpJc1.js";
 import "./sessions-CQHHcgC_.js";
@@ -61,8 +61,33 @@ import path from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { createServer as createServer$1 } from "node:https";
 //#region src/gateway/plugin-channel-reload-targets.ts
+function startDesktopBrowserControlPlaceholder(log) {
+	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1" || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
+	if (globalThis.__openclawDesktopBrowserControlPlaceholder) return;
+	const response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
+	const server = createNetServer((socket) => {
+		socket.on("error", () => {});
+		socket.end(response);
+	});
+	const clearPlaceholder = () => {
+		if (globalThis.__openclawDesktopBrowserControlPlaceholder?.server === server) delete globalThis.__openclawDesktopBrowserControlPlaceholder;
+	};
+	globalThis.__openclawDesktopBrowserControlPlaceholder = {
+		server,
+		close: () => new Promise((resolve) => {
+			clearPlaceholder();
+			server.close(() => resolve());
+		})
+	};
+	server.once("error", (error) => {
+		clearPlaceholder();
+		if (error?.code !== "EADDRINUSE") log?.warn?.(`desktop browser-control placeholder failed: ${String(error)}`);
+	});
+	server.listen(18791, "127.0.0.1");
+}
 function addNormalizedTarget(targets, value) {
 	const normalized = normalizeOptionalString(value);
 	if (normalized) targets.add(normalized);
@@ -1792,18 +1817,36 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		startupLastGoodSnapshot = startupSnapshot;
 	}
 	setRuntimeConfigSnapshot(cfgAtStart, startupLastGoodSnapshot.sourceConfig);
-	const { prepareGatewayPluginBootstrap } = await loadStartupPluginsModule();
-	const pluginBootstrap = await startupTrace.measure("plugins.bootstrap", () => prepareGatewayPluginBootstrap({
-		cfgAtStart,
-		activationSourceConfig: startupActivationSourceConfig,
-		startupRuntimeConfig,
-		pluginMetadataSnapshot: startupConfigLoad.pluginMetadataSnapshot,
-		minimalTestGateway,
-		log,
-		loadRuntimePlugins: false
-	}));
-	const { gatewayPluginConfigAtStart, defaultWorkspaceDir, deferredConfiguredChannelPluginIds, startupPluginIds, pluginLookUpTable, baseMethods, runtimePluginsLoaded } = pluginBootstrap;
+	const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1";
 	const coreGatewayMethodNames = listCoreGatewayMethodNames();
+	const pluginBootstrap = await startupTrace.measure("plugins.bootstrap", async () => {
+		if (desktopManagedFastStartup) {
+			const pluginRegistry = createEmptyPluginRegistry();
+			setActivePluginRegistry(pluginRegistry);
+			return {
+				gatewayPluginConfigAtStart: cfgAtStart,
+				defaultWorkspaceDir: void 0,
+				deferredConfiguredChannelPluginIds: [],
+				startupPluginIds: [],
+				pluginLookUpTable: void 0,
+				baseMethods: coreGatewayMethodNames,
+				runtimePluginsLoaded: false,
+				pluginRegistry,
+				baseGatewayMethods: coreGatewayMethodNames
+			};
+		}
+		const { prepareGatewayPluginBootstrap } = await loadStartupPluginsModule();
+		return prepareGatewayPluginBootstrap({
+			cfgAtStart,
+			activationSourceConfig: startupActivationSourceConfig,
+			startupRuntimeConfig,
+			pluginMetadataSnapshot: startupConfigLoad.pluginMetadataSnapshot,
+			minimalTestGateway,
+			log,
+			loadRuntimePlugins: false
+		});
+	});
+	const { gatewayPluginConfigAtStart, defaultWorkspaceDir, deferredConfiguredChannelPluginIds, startupPluginIds, pluginLookUpTable, baseMethods, runtimePluginsLoaded } = pluginBootstrap;
 	setCurrentPluginMetadataSnapshot(pluginLookUpTable, {
 		config: startupActivationSourceConfig,
 		compatibleConfigs: [
@@ -1904,19 +1947,20 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const readinessEventLoopHealth = createGatewayEventLoopHealthMonitor();
 	let startupSidecarsReady = minimalTestGateway;
 	let startupPendingReason = "startup-sidecars";
-	const { createChannelManager } = await import("./server-channels-CRUeVkRN.js");
-	const channelManager = createChannelManager({
-		getRuntimeConfig: () => applyPluginAutoEnable({
-			config: getRuntimeConfig(),
-			env: process.env
-		}).config,
-		channelLogs,
-		channelRuntimeEnvs,
-		resolveChannelRuntime: getChannelRuntime,
-		resolveStartupChannelRuntime: getStartupChannelRuntime,
-		getPluginHttpRouteRegistry: () => pluginRegistry,
-		startupTrace
-	});
+	let channelManager = {
+		getRuntimeSnapshot: () => ({ channelAccounts: {} }),
+		startChannels: async () => {},
+		startChannel: async () => {},
+		stopChannel: async () => {},
+		markChannelLoggedOut: () => {}
+	};
+	let getRuntimeSnapshot = () => channelManager.getRuntimeSnapshot();
+	let startChannels = async () => {};
+	let startChannel = async () => {
+		throw new Error("channel manager not ready");
+	};
+	let stopChannel = async () => {};
+	let markChannelLoggedOut = () => {};
 	const getReadiness = createReadinessChecker({
 		channelManager,
 		startedAt: serverStartedAt,
@@ -1955,6 +1999,33 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		logPlugins,
 		getReadiness
 	}));
+	let desktopManagedEarlyBound = false;
+	if (desktopManagedGateway) {
+		await startListening();
+		desktopManagedEarlyBound = true;
+		startupTrace.mark("http.bound");
+		const elapsedSeconds = ((Date.now() - serverStartedAt) / 1e3).toFixed(1);
+		log.info(`http server listening (desktop-managed early-bind; 0 plugins; ${elapsedSeconds}s)`);
+		startDesktopBrowserControlPlaceholder(log);
+	}
+	if (desktopManagedFastStartup) {
+		startupTrace.mark("runtime.channels.deferred");
+	} else {
+		const { createChannelManager } = await startupTrace.measure("runtime.channels.import", () => import("./server-channels-CRUeVkRN.js"));
+		Object.assign(channelManager, createChannelManager({
+			getRuntimeConfig: () => applyPluginAutoEnable({
+				config: getRuntimeConfig(),
+				env: process.env
+			}).config,
+			channelLogs,
+			channelRuntimeEnvs,
+			resolveChannelRuntime: getChannelRuntime,
+			resolveStartupChannelRuntime: getStartupChannelRuntime,
+			getPluginHttpRouteRegistry: () => pluginRegistry,
+			startupTrace
+		}));
+	}
+	({ getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager);
 	const { createGatewayNodeSessionRuntime } = await import("./server-node-session-runtime-C2gow8hU.js");
 	const { nodeRegistry, nodePresenceTimers, sessionEventSubscribers, sessionMessageSubscribers, nodeSendToSession, nodeSendToAllSubscribed, nodeSubscribe, nodeUnsubscribe, nodeUnsubscribeAll, broadcastVoiceWakeChanged, hasTalkNodeConnected } = createGatewayNodeSessionRuntime({ broadcast });
 	applyGatewayLaneConcurrency(cfgAtStart);
@@ -2004,7 +2075,6 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			closeMcpServer: closeMcpLoopbackServerOnDemand
 		});
 	};
-	const { getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager;
 	const refreshGatewayHealthSnapshotWithRuntime = (opts) => refreshGatewayHealthSnapshot({
 		...opts,
 		getRuntimeSnapshot,
@@ -2405,11 +2475,14 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			broadcast,
 			context: gatewayRequestContext
 		});
-		await startListening();
-		startupTrace.mark("http.bound");
+		if (!desktopManagedEarlyBound) {
+			await startListening();
+			startupTrace.mark("http.bound");
+		}
 		if (desktopManagedGateway) {
 			const elapsedSeconds = ((Date.now() - serverStartedAt) / 1e3).toFixed(1);
-			log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
+			if (!desktopManagedEarlyBound) log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
+			startDesktopBrowserControlPlaceholder(log);
 			setTimeout(() => {
 				loadCoreMethodsModule().then(({ coreGatewayHandlers: loadedCoreGatewayHandlers }) => {
 					coreGatewayHandlers = loadedCoreGatewayHandlers;
@@ -2465,9 +2538,24 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			logChannels,
 			unavailableGatewayMethods,
 			loadStartupPlugins: runtimePluginsLoaded ? void 0 : async (loadOptions = {}) => {
-				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
 				const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && loadOptions.includeDeferred !== true;
 				const desktopFastPluginIds = new Set(["browser", "duckduckgo"]);
+				const fastStartupPluginIds = startupPluginIds.length > 0 ? startupPluginIds.filter((id) => desktopFastPluginIds.has(id)) : [...desktopFastPluginIds];
+				if (desktopManagedFastStartup) {
+					const { loadGatewayStartupPlugins } = await import("./server-plugin-bootstrap-Cf8Io8s6.js");
+					return loadGatewayStartupPlugins({
+						cfg: gatewayPluginConfigAtStart,
+						activationSourceConfig: startupActivationSourceConfig,
+						workspaceDir: defaultWorkspaceDir,
+						log,
+						baseMethods,
+						coreGatewayMethodNames,
+						hostServices: pluginHostServices,
+						pluginIds: fastStartupPluginIds,
+						startupTrace
+					});
+				}
+				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
 				return loadGatewayStartupPluginRuntime({
 					cfg: gatewayPluginConfigAtStart,
 					activationSourceConfig: startupActivationSourceConfig,
@@ -2476,8 +2564,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 					baseMethods,
 					coreGatewayMethodNames,
 					hostServices: pluginHostServices,
-					startupPluginIds: desktopManagedFastStartup ? startupPluginIds.filter((id) => desktopFastPluginIds.has(id)) : startupPluginIds,
-					pluginLookUpTable,
+					...(startupPluginIds.length > 0 && { startupPluginIds }),
+					...(pluginLookUpTable !== void 0 && { pluginLookUpTable }),
 					startupTrace
 				});
 			},

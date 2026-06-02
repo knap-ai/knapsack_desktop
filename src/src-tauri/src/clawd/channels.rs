@@ -33,7 +33,7 @@ fn strip_ansi(s: &str) -> String {
 }
 
 async fn gateway_reachable() -> bool {
-  service::gateway_reachable_or_ready(Duration::from_millis(2000)).await
+  service::gateway_reachable_or_ready(Duration::from_millis(500)).await
 }
 
 async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String> {
@@ -49,7 +49,7 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
         }
       }
       if let (Some(error_at), Some(error)) = (entry.error_at, entry.error.as_ref()) {
-        if error_at.elapsed() < Duration::from_secs(2) {
+        if error_at.elapsed() < Duration::from_secs(10) {
           return Err(error.clone());
         }
       }
@@ -58,13 +58,13 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
 
   let mut params = serde_json::json!({
     "probe": false,
-    "timeoutMs": 2500
+    "timeoutMs": 750
   });
   if let Some(channel) = channel {
     params["channel"] = serde_json::json!(channel);
   }
   let snapshot = tokio::time::timeout(
-    Duration::from_millis(12000),
+    Duration::from_millis(1500),
     gateway_client::call_channel_method("channels.status", Some(params), None),
   )
   .await
@@ -73,10 +73,9 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
 
   match snapshot {
     Ok(snapshot) => {
-      let mut cache =
-        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-          .await
-          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+        .await
+        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.fetched_at = Some(Instant::now());
       entry.value = Some(snapshot.clone());
@@ -85,10 +84,9 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
       Ok(snapshot)
     }
     Err(error) => {
-      let mut cache =
-        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-          .await
-          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+        .await
+        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.error_at = Some(Instant::now());
       entry.error = Some(error.clone());
@@ -441,6 +439,29 @@ fn channel_plugin_requested_by_patch(patch: &serde_json::Value) -> Option<String
     })
 }
 
+fn ensure_channel_enabled_in_patch(patch: &mut serde_json::Value, channel_id: &str) {
+  let patch_obj = patch.as_object_mut().unwrap();
+  let channels = patch_obj
+    .entry("channels".to_string())
+    .or_insert_with(|| serde_json::json!({}));
+  if !channels.is_object() {
+    *channels = serde_json::json!({});
+  }
+
+  let channels_obj = channels.as_object_mut().unwrap();
+  let channel = channels_obj
+    .entry(channel_id.to_string())
+    .or_insert_with(|| serde_json::json!({}));
+  if !channel.is_object() {
+    *channel = serde_json::json!({});
+  }
+
+  channel
+    .as_object_mut()
+    .unwrap()
+    .insert("enabled".to_string(), serde_json::json!(true));
+}
+
 fn ensure_channel_plugin_enabled_in_patch(
   patch: &mut serde_json::Value,
   snapshot: &serde_json::Value,
@@ -583,6 +604,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
   }
 
   if let Some(plugin_id) = channel_plugin_id {
+    ensure_channel_enabled_in_patch(&mut patch, &plugin_id);
     ensure_channel_plugin_enabled_in_patch(&mut patch, snapshot, &plugin_id);
     eprintln!(
       "[channels] build_enable_patch: enabled bundled channel plugin {}",

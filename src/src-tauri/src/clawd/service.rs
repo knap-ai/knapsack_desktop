@@ -392,13 +392,39 @@ pub fn gateway_stdout_log() -> PathBuf {
   gateway_log_dir().join("knapsack-clawdbot.out.log")
 }
 
-pub(crate) fn gateway_log_has_channel_started(channel: &str) -> bool {
+fn read_gateway_stdout_log_content() -> std::io::Result<String> {
   #[cfg(target_os = "windows")]
-  let log_path = windows_log_path("stdout");
+  let paths = [windows_log_path("stdout"), gateway_stdout_log()];
   #[cfg(not(target_os = "windows"))]
-  let log_path = gateway_stdout_log();
+  let paths = [gateway_stdout_log()];
 
-  let Ok(content) = std::fs::read_to_string(log_path) else {
+  let mut combined = String::new();
+  let mut last_err: Option<std::io::Error> = None;
+  for path in paths {
+    match std::fs::read_to_string(&path) {
+      Ok(content) => {
+        if !combined.is_empty() {
+          combined.push('\n');
+        }
+        combined.push_str(&content);
+      }
+      Err(e) => {
+        last_err = Some(e);
+      }
+    }
+  }
+
+  if combined.is_empty() {
+    Err(last_err.unwrap_or_else(|| {
+      std::io::Error::new(std::io::ErrorKind::NotFound, "gateway stdout log not found")
+    }))
+  } else {
+    Ok(combined)
+  }
+}
+
+pub(crate) fn gateway_log_has_channel_started(channel: &str) -> bool {
+  let Ok(content) = read_gateway_stdout_log_content() else {
     return false;
   };
   content.contains(&format!("channels.{}.start", channel))
@@ -953,6 +979,43 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     .insert("allow".to_string(), next_allow);
   eprintln!("[clawd/service] Patched plugins.allow to Knapsack startup allowlist");
   true
+}
+
+fn defer_bundled_channel_configs_for_startup(cfg: &mut serde_json::Value) -> bool {
+  if eager_channel_plugin_start_enabled() {
+    return false;
+  }
+
+  let Some(channels) = cfg
+    .get_mut("channels")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  let mut patched = false;
+  for channel_id in KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS {
+    let Some(channel) = channels.get_mut(*channel_id) else {
+      continue;
+    };
+    let Some(channel_obj) = channel.as_object_mut() else {
+      continue;
+    };
+    if channel_obj.get("enabled").and_then(|value| value.as_bool()) == Some(false) {
+      continue;
+    }
+    channel_obj.insert("enabled".to_string(), serde_json::json!(false));
+    patched = true;
+  }
+
+  if patched {
+    eprintln!(
+      "[clawd/service] Deferred bundled channel configs during startup: {}",
+      KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.join(", ")
+    );
+  }
+
+  patched
 }
 
 fn remove_object_keys(obj: &mut serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> bool {
@@ -2051,7 +2114,10 @@ fn install_bundled_plugin_runtime_deps(
   ensure_openclaw_self_link(&root_nm);
 }
 
-fn bundled_node_modules_has_declared_dependencies(dir: &std::path::Path, nm_path: &std::path::Path) -> bool {
+fn bundled_node_modules_has_declared_dependencies(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+) -> bool {
   let pkg_path = dir.join("package.json");
   let Ok(raw) = fs::read_to_string(&pkg_path) else {
     return false;
@@ -2059,10 +2125,8 @@ fn bundled_node_modules_has_declared_dependencies(dir: &std::path::Path, nm_path
   let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&raw) else {
     return false;
   };
-  let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) else {
-    return false;
-  };
-  if deps.is_empty() {
+  let deps = pkg.get("dependencies").and_then(|v| v.as_object());
+  if deps.map(|deps| deps.is_empty()).unwrap_or(true) {
     return nm_path
       .read_dir()
       .map(|mut entries| entries.any(|entry| entry.is_ok()))
@@ -2070,6 +2134,7 @@ fn bundled_node_modules_has_declared_dependencies(dir: &std::path::Path, nm_path
   }
 
   deps
+    .unwrap()
     .keys()
     .all(|dep| nm_path.join(dep).join("package.json").exists())
 }
@@ -2111,10 +2176,7 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
       .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
       .map(|v| {
         v.get("tar_len").and_then(|n| n.as_u64()) == Some(tar_len)
-          && v
-            .get("tar_mtime_secs")
-            .and_then(|n| n.as_u64())
-            == Some(tar_mtime_secs)
+          && v.get("tar_mtime_secs").and_then(|n| n.as_u64()) == Some(tar_mtime_secs)
       })
       .unwrap_or(false);
     if marker_current && bundled_node_modules_has_declared_dependencies(dir, &nm_path) {
@@ -2209,10 +2271,7 @@ fn ensure_openclaw_link_to(root_nm: &std::path::Path, target: &std::path::Path) 
   }
 
   if link_path.exists() || link_path.symlink_metadata().is_ok() {
-    let backup_path = root_nm.join(format!(
-      ".knapsack-openclaw-incomplete-{}",
-      now_epoch_ms()
-    ));
+    let backup_path = root_nm.join(format!(".knapsack-openclaw-incomplete-{}", now_epoch_ms()));
     match fs::rename(&link_path, &backup_path) {
       Ok(()) => eprintln!(
         "[clawd/service] Moved incomplete openclaw link/package aside: {}",
@@ -2915,7 +2974,7 @@ async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
-  gateway_health_port_ok(timeout).await
+  gateway_health_port_ok(timeout).await || gateway_ready_since_last_start()
 }
 
 fn read_log_tail_lines_bounded(
@@ -3224,9 +3283,7 @@ fn ensure_imessage_allowlist_config(cfg: &mut serde_json::Value) -> bool {
     && ch.get("enabled").and_then(|value| value.as_bool()) != Some(false)
   {
     ch.insert("enabled".to_string(), serde_json::json!(false));
-    eprintln!(
-      "[clawd/service] Migrated iMessage dmPolicy=disabled to enabled=false"
-    );
+    eprintln!("[clawd/service] Migrated iMessage dmPolicy=disabled to enabled=false");
     patched = true;
   }
 
@@ -4757,14 +4814,14 @@ pub(crate) fn gateway_runtime_deps_startup_in_progress() -> bool {
     return false;
   }
 
-  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+  let Ok(content) = read_gateway_stdout_log_content() else {
     return false;
   };
   gateway_runtime_deps_startup_in_progress_from_log(&content)
 }
 
 fn gateway_post_bind_startup_in_progress() -> bool {
-  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+  let Ok(content) = read_gateway_stdout_log_content() else {
     return false;
   };
   gateway_post_bind_startup_in_progress_from_log(&content)
@@ -4779,7 +4836,7 @@ pub(crate) fn gateway_startup_in_progress() -> bool {
     return true;
   }
 
-  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+  let Ok(content) = read_gateway_stdout_log_content() else {
     return false;
   };
   gateway_pre_bind_startup_in_progress_from_log(&content)
@@ -4787,7 +4844,7 @@ pub(crate) fn gateway_startup_in_progress() -> bool {
 }
 
 pub(crate) fn gateway_ready_since_last_start() -> bool {
-  let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
+  let Ok(content) = read_gateway_stdout_log_content() else {
     return false;
   };
   gateway_ready_since_last_start_from_log(&content)
@@ -5343,7 +5400,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         "[clawd/service] gateway not reachable for {}ms after launch - waiting before self-heal",
         elapsed
       );
-    } else if !gateway_ok && gateway_listening && unreachable_elapsed_ms < GATEWAY_POST_BIND_STARTUP_GRACE_MS {
+    } else if !gateway_ok
+      && gateway_listening
+      && unreachable_elapsed_ms < GATEWAY_POST_BIND_STARTUP_GRACE_MS
+    {
       eprintln!(
         "[clawd/service] gateway port is listening but health is still pending for {}ms - waiting before self-heal",
         unreachable_elapsed_ms
@@ -5409,6 +5469,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let mut browser_probe = if gateway_ok {
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
         BrowserControlProbe::Ready
+      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+        BrowserControlProbe::Standby
       } else if BROWSER_STATUS_PROBE_IN_PROGRESS
         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         .is_ok()
@@ -5833,7 +5895,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   use crate::clawd::gateway_ws;
 
   const STARTUP_READY_BUDGET_MS: u64 = 30_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 26_000;
+  const GATEWAY_READY_BUDGET_MS: u64 = 24_000;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -5901,7 +5963,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       break;
     }
     if tokio::time::timeout(
-      std::time::Duration::from_millis(3500),
+      std::time::Duration::from_millis(1000),
       gateway_ws::config_get(Some(&tokens.gateway_token)),
     )
     .await
@@ -5917,46 +5979,8 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let remaining_ms =
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
 
-  let browser_ok = if ready {
-    if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
-      true
-    } else {
-      let mut probe =
-        browser_control_status_via_gateway_rpc(std::time::Duration::from_millis(6000)).await;
-      if probe == BrowserControlProbe::Down {
-        probe =
-          browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
-            .await;
-      }
-      if probe == BrowserControlProbe::Down
-        && startup_ready_browser_start_enabled()
-        && remaining_ms() > 1500
-      {
-        BROWSER_LAST_NUDGE_MS.store(now_epoch_ms(), Ordering::Relaxed);
-        let _ = browser_control_start_direct(
-          &tokens.gateway_token,
-          std::time::Duration::from_millis(900),
-        )
-        .await;
-        probe =
-          browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
-            .await;
-      }
-      while probe != BrowserControlProbe::Ready && remaining_ms() > 1800 {
-        if probe == BrowserControlProbe::Standby && !startup_ready_browser_start_enabled() {
-          break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-        probe =
-          browser_control_status_via_gateway_rpc(std::time::Duration::from_millis(6000)).await;
-        if probe == BrowserControlProbe::Down {
-          probe =
-            browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
-              .await;
-        }
-      }
-      probe.is_available()
-    }
+  let browser_ok = if ready && remaining_ms() > 500 {
+    browser_control_tcp_port_open(std::time::Duration::from_millis(remaining_ms().min(2_000))).await
   } else {
     false
   };
@@ -6327,11 +6351,12 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
-  let has_knapsack = tokens
-    .knapsack_access_token
-    .as_ref()
-    .map(|t| !t.trim().is_empty())
-    .unwrap_or(false);
+  let has_knapsack = tokens.active_provider.as_deref() == Some("knapsack")
+    || tokens
+      .knapsack_email
+      .as_ref()
+      .map(|e| !e.trim().is_empty())
+      .unwrap_or(false);
   let has_key = has_openai
     || has_anthropic
     || has_gemini
@@ -6632,7 +6657,17 @@ pub struct SetApiKeyResponse {
 
 fn normalize_coding_agent(agent: &str) -> Option<String> {
   let agent = agent.trim().to_lowercase();
-  if ["claude", "codex", "antigravity", "agy", "gemini", "grok", "opencode"].contains(&agent.as_str()) {
+  if [
+    "claude",
+    "codex",
+    "antigravity",
+    "agy",
+    "gemini",
+    "grok",
+    "opencode",
+  ]
+  .contains(&agent.as_str())
+  {
     if agent == "agy" {
       return Some("antigravity".to_string());
     }
@@ -6729,19 +6764,12 @@ pub async fn set_api_key(
         .groq_api_key
         .as_ref()
         .map_or(false, |k| !k.is_empty()),
-      "xai" => tokens
-        .xai_api_key
-        .as_ref()
-        .map_or(false, |k| !k.is_empty()),
+      "xai" => tokens.xai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "openrouter" => tokens
         .openrouter_api_key
         .as_ref()
         .map_or(false, |k| !k.is_empty()),
-      "ollama" => true,
-      "knapsack" => tokens
-        .knapsack_access_token
-        .as_ref()
-        .map_or(false, |t| !t.is_empty()),
+      "ollama" | "knapsack" => true,
       _ => tokens
         .openai_api_key
         .as_ref()
@@ -6783,7 +6811,7 @@ pub async fn set_api_key(
           tokens.ollama_model = Some(model.trim().to_string());
         }
         "knapsack" => {
-          tokens.knapsack_model = Some(model.trim().to_string());
+          tokens.knapsack_model = Some("auto".to_string());
         }
         _ => {
           tokens.openai_model = Some(model.trim().to_string());
@@ -7024,18 +7052,16 @@ pub async fn set_api_key(
       "Ollama"
     }
     "knapsack" => {
-      // key = JWT access token; refresh_token = JWT refresh token; email = display email
-      tokens.knapsack_access_token = Some(key);
-      if let Some(rt) = &payload.refresh_token {
-        tokens.knapsack_refresh_token = Some(rt.trim().to_string());
-      }
-      if let Some(em) = &payload.email {
-        tokens.knapsack_email = Some(em.trim().to_string());
+      // Knapsack cloud inference: key field carries the user's email (no API key needed)
+      if !key.is_empty() {
+        tokens.knapsack_email = Some(key);
+      } else if tokens.knapsack_email.as_ref().map_or(true, |e| e.trim().is_empty()) {
+        if let Some(email) = knapsack_email_from_tokens() {
+          tokens.knapsack_email = Some(email);
+        }
       }
       tokens.active_provider = Some("knapsack".to_string());
-      if let Some(model) = &payload.model {
-        tokens.knapsack_model = Some(model.trim().to_string());
-      }
+      tokens.knapsack_model = Some("auto".to_string());
       "Knapsack"
     }
     "minimax" | "zai" | "huggingface" => {
@@ -8025,8 +8051,10 @@ async fn prepare_gateway_config(
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
     if cfg!(target_os = "windows") {
-      let bundled_entry =
-        resource_path(app_handle, "resources/clawdbot/dist/knapsack-gateway-entry.js");
+      let bundled_entry = resource_path(
+        app_handle,
+        "resources/clawdbot/dist/knapsack-gateway-entry.js",
+      );
       if bundled_entry.exists() {
         bundled_entry
       } else {
@@ -8050,7 +8078,10 @@ async fn prepare_gateway_config(
       }
     }
   } else {
-    resource_path(app_handle, "resources/clawdbot/dist/knapsack-gateway-entry.js")
+    resource_path(
+      app_handle,
+      "resources/clawdbot/dist/knapsack-gateway-entry.js",
+    )
   };
 
   if !clawdbot_entry.exists() {
@@ -8092,15 +8123,31 @@ async fn prepare_gateway_config(
     // Without this, the OpenClaw gateway falls back to its compiled default
     // (openai/gpt-5.4) and every request fails with "No API key found for
     // provider openai" for any user who doesn't have an OpenAI key.
-    let agents_defaults = if any_provider_key_available() {
-      serde_json::json!({
-        "defaults": {
-          "model": crate::clawd::gateway_client::build_model_config()
+    let mut agents_defaults = serde_json::json!({
+      "defaults": {
+      },
+      "list": [{
+        "id": "main",
+        "default": true,
+        "name": "Knapsack",
+        "identity": {
+          "name": "Knapsack",
+          "theme": "helpful assistant",
+          "emoji": "🎒"
         }
-      })
-    } else {
-      serde_json::Value::Null
-    };
+      }]
+    });
+    if any_provider_key_available() {
+      if let Some(defaults) = agents_defaults
+        .pointer_mut("/defaults")
+        .and_then(|v| v.as_object_mut())
+      {
+        defaults.insert(
+          "model".to_string(),
+          crate::clawd::gateway_client::build_model_config(),
+        );
+      }
+    }
     let mut default_config = serde_json::json!({
       "gateway": {
         "mode": "local",
@@ -8155,12 +8202,10 @@ async fn prepare_gateway_config(
         }
       }
     });
-    if !agents_defaults.is_null() {
-      default_config
-        .as_object_mut()
-        .unwrap()
-        .insert("agents".to_string(), agents_defaults);
-    }
+    default_config
+      .as_object_mut()
+      .unwrap()
+      .insert("agents".to_string(), agents_defaults);
     match fs::write(
       &config_path,
       serde_json::to_string_pretty(&default_config).unwrap_or_default(),
@@ -8289,6 +8334,9 @@ async fn prepare_gateway_config(
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
           patched = true;
         }
+        if defer_bundled_channel_configs_for_startup(&mut cfg_val) {
+          patched = true;
+        }
 
         // Ensure browser.enabled is true
         let browser_enabled = cfg_val
@@ -8348,6 +8396,119 @@ async fn prepare_gateway_config(
             current_profile
           );
           patched = true;
+        }
+
+        if cfg_val.pointer("/identity").is_some() {
+          cfg_val.as_object_mut().unwrap().remove("identity");
+          eprintln!("[clawd/service] Removed invalid root identity key from config");
+          patched = true;
+        }
+
+        if cfg_val.pointer("/agents").is_none() {
+          cfg_val
+            .as_object_mut()
+            .unwrap()
+            .insert("agents".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/agents/defaults").is_none() {
+          cfg_val
+            .pointer_mut("/agents")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("defaults".to_string(), serde_json::json!({}));
+        }
+        if cfg_val.pointer("/agents/defaults/identity").is_some() {
+          cfg_val
+            .pointer_mut("/agents/defaults")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("identity");
+          eprintln!("[clawd/service] Removed invalid agents.defaults.identity key");
+          patched = true;
+        }
+        if !cfg_val.pointer("/agents/list").map(|v| v.is_array()).unwrap_or(false) {
+          cfg_val
+            .pointer_mut("/agents")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("list".to_string(), serde_json::json!([]));
+        }
+        if let Some(agent_list) = cfg_val.pointer_mut("/agents/list").and_then(|v| v.as_array_mut()) {
+          let before_len = agent_list.len();
+          agent_list.retain(|entry| {
+            entry.is_object()
+              && entry
+                .get("id")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
+          });
+          if agent_list.len() != before_len {
+            eprintln!("[clawd/service] Removed invalid agents.list entries");
+            patched = true;
+          }
+          let main_index = agent_list
+            .iter()
+            .position(|entry| entry.get("id").and_then(|v| v.as_str()) == Some("main"));
+          let index = match main_index {
+            Some(index) => index,
+            None => {
+              agent_list.push(serde_json::json!({
+                "id": "main",
+                "default": true,
+                "name": "Knapsack",
+                "identity": {}
+              }));
+              patched = true;
+              agent_list.len() - 1
+            }
+          };
+          if let Some(main) = agent_list.get_mut(index).and_then(|v| v.as_object_mut()) {
+            if main.get("name").and_then(|v| v.as_str()).map(|s| s.trim().is_empty()).unwrap_or(true) {
+              main.insert("name".to_string(), serde_json::json!("Knapsack"));
+              patched = true;
+            }
+            if main.get("default").and_then(|v| v.as_bool()) != Some(true) {
+              main.insert("default".to_string(), serde_json::json!(true));
+              patched = true;
+            }
+            if !main.get("identity").map(|v| v.is_object()).unwrap_or(false) {
+              main.insert("identity".to_string(), serde_json::json!({}));
+              patched = true;
+            }
+          }
+        }
+        let main_identity = cfg_val
+          .pointer_mut("/agents/list")
+          .and_then(|v| v.as_array_mut())
+          .and_then(|list| {
+            list
+              .iter_mut()
+              .find(|entry| entry.get("id").and_then(|v| v.as_str()) == Some("main"))
+          })
+          .and_then(|entry| entry.get_mut("identity"))
+          .and_then(|v| v.as_object_mut());
+        if let Some(identity) = main_identity {
+          let defaults = [
+            ("name", serde_json::json!("Knapsack")),
+            ("theme", serde_json::json!("helpful assistant")),
+            ("emoji", serde_json::json!("🎒")),
+          ];
+          for (key, value) in defaults {
+            let needs_default = identity
+              .get(key)
+              .and_then(|v| v.as_str())
+              .map(|s| s.trim().is_empty())
+              .unwrap_or(true);
+            if needs_default {
+              identity.insert(key.to_string(), value);
+              eprintln!("[clawd/service] Patched agents.list.main.identity.{} default", key);
+              patched = true;
+            }
+          }
         }
 
         // Clean up browser.hideAutomationBanner
@@ -8445,9 +8606,8 @@ async fn prepare_gateway_config(
           }
         }
         if !current_primary.trim().is_empty() && model_ref_has_key(current_primary.trim()) {
-          let expected_fallbacks = crate::clawd::gateway_client::collect_fallback_models(
-            current_primary.trim(),
-          );
+          let expected_fallbacks =
+            crate::clawd::gateway_client::collect_fallback_models(current_primary.trim());
           if !expected_fallbacks.is_empty() {
             let existing_fallbacks = cfg_val
               .pointer("/agents/defaults/model/fallbacks")
@@ -9129,10 +9289,7 @@ async fn prepare_gateway_config(
   let bundled_plugins_dir_str = node_arg_path(&bundled_plugins_dir);
   let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
 
-  let node_dir = node_path
-    .parent()
-    .map(node_arg_path)
-    .unwrap_or_default();
+  let node_dir = node_path.parent().map(node_arg_path).unwrap_or_default();
   let path_separator = if cfg!(target_os = "windows") {
     ";"
   } else {
@@ -9237,6 +9394,7 @@ async fn prepare_gateway_config(
       "OPENCLAW_DESKTOP_AUTO_START_CHANNELS".to_string(),
       "0".to_string(),
     ),
+    ("OPENCLAW_DESKTOP_FAST_BIND".to_string(), "1".to_string()),
     (
       "OPENCLAW_CHANNEL_STARTUP_CONCURRENCY".to_string(),
       "1".to_string(),
@@ -9288,12 +9446,24 @@ async fn prepare_gateway_config(
         }
       }
     }
+    for var in [
+      "OPENCLAW_SERVICE_MARKER",
+      "OPENCLAW_SERVICE_KIND",
+      "OPENCLAW_WINDOWS_TASK_NAME",
+      "OPENCLAW_GATEWAY_SERVICE_PID",
+    ] {
+      env.push((var.to_string(), String::new()));
+    }
+    env.push(("OPENCLAW_ALLOW_MULTI_GATEWAY".to_string(), "1".to_string()));
   } else {
     // Prevents the macOS gateway inspector from classifying this LaunchAgent as
     // a legacy "clawdbot" service and moving it to Trash. On Windows these
     // markers mean "schtasks-supervised" to OpenClaw, which adds a 30s lock
     // recovery wait to the desktop-managed direct gateway startup path.
-    env.push(("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()));
+    env.push((
+      "OPENCLAW_SERVICE_MARKER".to_string(),
+      "openclaw".to_string(),
+    ));
     env.push(("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()));
   }
 
@@ -10022,6 +10192,20 @@ pub async fn set_service_enabled(
             "headless": false,
             "defaultProfile": "openclaw"
           },
+          "agents": {
+            "defaults": {
+            },
+            "list": [{
+              "id": "main",
+              "default": true,
+              "name": "Knapsack",
+              "identity": {
+                "name": "Knapsack",
+                "theme": "helpful assistant",
+                "emoji": "🎒"
+              }
+            }]
+          },
           "plugins": {
             "allow": KNAPSACK_REQUIRED_PLUGINS,
             "slots": {
@@ -10235,6 +10419,9 @@ pub async fn set_service_enabled(
             }
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
+              patched = true;
+            }
+            if defer_bundled_channel_configs_for_startup(&mut cfg) {
               patched = true;
             }
 
@@ -10901,10 +11088,7 @@ pub async fn set_service_enabled(
       // Build a PATH that includes the directory where we found node (so npm
       // is also discoverable), plus common macOS paths.  LaunchAgents get a
       // minimal PATH by default which typically excludes /opt/homebrew/bin.
-      let node_dir = node_path
-        .parent()
-        .map(node_arg_path)
-        .unwrap_or_default();
+      let node_dir = node_path.parent().map(node_arg_path).unwrap_or_default();
       let mut path_parts: Vec<String> = Vec::new();
       if !node_dir.is_empty() {
         path_parts.push(node_dir);
@@ -11001,6 +11185,7 @@ pub async fn set_service_enabled(
           "OPENCLAW_DESKTOP_AUTO_START_CHANNELS".to_string(),
           "0".to_string(),
         ),
+        ("OPENCLAW_DESKTOP_FAST_BIND".to_string(), "1".to_string()),
         (
           "OPENCLAW_CHANNEL_STARTUP_CONCURRENCY".to_string(),
           "1".to_string(),
@@ -11018,12 +11203,25 @@ pub async fn set_service_enabled(
         }),
       ];
 
-      if !cfg!(target_os = "windows") {
+      if cfg!(target_os = "windows") {
+        for var in [
+          "OPENCLAW_SERVICE_MARKER",
+          "OPENCLAW_SERVICE_KIND",
+          "OPENCLAW_WINDOWS_TASK_NAME",
+          "OPENCLAW_GATEWAY_SERVICE_PID",
+        ] {
+          env.push((var.to_string(), String::new()));
+        }
+        env.push(("OPENCLAW_ALLOW_MULTI_GATEWAY".to_string(), "1".to_string()));
+      } else {
         // Prevents the macOS gateway inspector from classifying this LaunchAgent
         // as a legacy "clawdbot" service and moving it to Trash. On Windows
         // these markers mean "schtasks-supervised" to OpenClaw, which adds a
         // 30s lock recovery wait to the desktop-managed direct gateway startup.
-        env.push(("OPENCLAW_SERVICE_MARKER".to_string(), "openclaw".to_string()));
+        env.push((
+          "OPENCLAW_SERVICE_MARKER".to_string(),
+          "openclaw".to_string(),
+        ));
         env.push(("OPENCLAW_SERVICE_KIND".to_string(), "gateway".to_string()));
       }
 
