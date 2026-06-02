@@ -6080,7 +6080,9 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let started_at = std::time::Instant::now();
   if startup_ready_browser_start_enabled()
-    && !browser_cdp_port_open(std::time::Duration::from_millis(100)).await
+    && !browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(250))
+      .await
+      .is_available()
   {
     spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
   }
@@ -6151,6 +6153,11 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let browser_ok = if ready && remaining_ms() > 500 {
     let timeout = std::time::Duration::from_millis(remaining_ms().min(2_000));
     if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
+      true
+    } else if browser_control_status(&tokens.gateway_token, timeout)
+      .await
+      .is_available()
+    {
       true
     } else {
       browser_control_status_cached(&tokens.gateway_token, timeout)
