@@ -46,8 +46,8 @@ if (-not (Test-Path $InstallerPath)) {
   throw "Installer not found: $InstallerPath"
 }
 
-if (Test-Path $InstallDir) {
-  Remove-Item -Recurse -Force $InstallDir
+if (Test-Path -LiteralPath $InstallDir) {
+  Remove-Item -LiteralPath $InstallDir -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
@@ -121,6 +121,10 @@ if (Test-Path $uninstaller) {
   }
 }
 
-if (Test-Path $InstallDir) {
-  Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
+try {
+  if (Test-Path -LiteralPath $InstallDir) {
+    Remove-Item -LiteralPath $InstallDir -Recurse -Force -ErrorAction Stop
+  }
+} catch {
+  Write-Warning "Unable to remove test install directory ${InstallDir}: $_"
 }
