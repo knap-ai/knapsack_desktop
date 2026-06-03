@@ -40,9 +40,20 @@ async function startBrowserBridgeServer(params) {
 	const authToken = normalizeOptionalString(params.authToken);
 	const authPassword = normalizeOptionalString(params.authPassword);
 	if (!authToken && !authPassword) throw new Error("bridge server requires auth (authToken/authPassword missing)");
+	app.get("/ready", (_req, res) => {
+		res.status(200).send("OK");
+	});
 	installBrowserAuthMiddleware(app, {
 		token: authToken,
 		password: authPassword
+	});
+	app.get("/", (_req, res) => {
+		res.status(200).json({
+			enabled: true,
+			running: true,
+			transport: "browser-control",
+			bridgeReady: true
+		});
 	});
 	if (params.resolveSandboxNoVncToken) app.get("/sandbox/novnc", (req, res) => {
 		if (!hasVerifiedBrowserAuth(req)) {
@@ -71,16 +82,31 @@ async function startBrowserBridgeServer(params) {
 		resolved: params.resolved,
 		profiles: /* @__PURE__ */ new Map()
 	};
-	if (params.skipRouteRegistrationForTest) app.get("/", (_req, res) => {
-		res.status(200).send("OK");
+	let routesRegistered = false;
+	let routesRegistrationPromise = null;
+	const ensureRoutesRegistered = async () => {
+		if (routesRegistered || params.skipRouteRegistrationForTest) return;
+		if (!routesRegistrationPromise) routesRegistrationPromise = Promise.all([import("./server-context-CLJBu24Y.js"), import("./routes-H3zu_CJ3.js")]).then(([{ createBrowserRouteContext }, { registerBrowserRoutes }]) => {
+			registerBrowserRoutes(app, createBrowserRouteContext({
+				getState: () => state,
+				onEnsureAttachTarget: params.onEnsureAttachTarget
+			}));
+			routesRegistered = true;
+		});
+		await routesRegistrationPromise;
+	};
+	app.use(async (req, res, next) => {
+		if (req.path === "/ready") {
+			next();
+			return;
+		}
+		try {
+			await ensureRoutesRegistered();
+			next();
+		} catch (err) {
+			res.status(503).json({ error: String(err) });
+		}
 	});
-	else {
-		const [{ createBrowserRouteContext }, { registerBrowserRoutes }] = await Promise.all([import("./server-context-CLJBu24Y.js"), import("./routes-H3zu_CJ3.js")]);
-		registerBrowserRoutes(app, createBrowserRouteContext({
-			getState: () => state,
-			onEnsureAttachTarget: params.onEnsureAttachTarget
-		}));
-	}
 	const server = await new Promise((resolve, reject) => {
 		const s = app.listen(port, host, () => resolve(s));
 		s.once("error", reject);
@@ -92,6 +118,9 @@ async function startBrowserBridgeServer(params) {
 	setBridgeAuthForPort(resolvedPort, {
 		token: authToken,
 		password: authPassword
+	});
+	if (params.skipRouteRegistrationForTest) app.get("/", (_req, res) => {
+		res.status(200).send("OK");
 	});
 	return {
 		server,

@@ -8,6 +8,7 @@ import { r as loadBrowserConfigForRuntimeRefresh } from "./server-context-DxDoSe
 import "./subsystem-CZs4Zera.js";
 import { t as registerBrowserRoutes } from "./routes-Cxt2X5Du.js";
 import { a as stopBrowserControlRuntime, i as getBrowserControlState, r as ensureBrowserControlRuntime, t as isDefaultBrowserPluginEnabled } from "./plugin-enabled-QdB1nwFY.js";
+import { t as startBrowserBridgeServer } from "./bridge-server-Czhg8jAn.js";
 //#region extensions/browser/src/browser/routes/dispatcher.ts
 function compileRoute(path) {
 	const paramNames = [];
@@ -120,15 +121,25 @@ async function startBrowserControlServiceFromConfig() {
 	if (!isDefaultBrowserPluginEnabled(browserCfg)) return null;
 	const resolved = resolveBrowserConfig(browserCfg.browser, browserCfg);
 	if (!resolved.enabled) return null;
+	let browserAuth = {};
 	try {
-		if ((await ensureBrowserControlAuth({ cfg })).generatedToken) logService.info("No browser auth configured; generated gateway.auth.token automatically.");
+		const authResult = await ensureBrowserControlAuth({ cfg });
+		browserAuth = authResult.auth ?? {};
+		if (authResult.generatedToken) logService.info("No browser auth configured; generated gateway.auth.token automatically.");
 	} catch (err) {
 		logService.warn(`failed to auto-configure browser auth: ${String(err)}`);
 	}
-	const state = await ensureBrowserControlRuntime({
-		server: null,
+	const bridge = await startBrowserBridgeServer({
+		host: "127.0.0.1",
 		port: resolved.controlPort,
 		resolved,
+		authToken: browserAuth.token,
+		authPassword: browserAuth.password
+	});
+	const state = await ensureBrowserControlRuntime({
+		server: bridge.server,
+		port: bridge.port,
+		resolved: bridge.state.resolved,
 		owner: "service",
 		onWarn: (message) => logService.warn(message)
 	});
@@ -137,6 +148,7 @@ async function startBrowserControlServiceFromConfig() {
 }
 async function stopBrowserControlService() {
 	await stopBrowserControlRuntime({
+		closeServer: true,
 		requestedBy: "service",
 		onWarn: (message) => logService.warn(message)
 	});
