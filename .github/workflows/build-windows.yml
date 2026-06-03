@@ -176,15 +176,16 @@ jobs:
         run: dotnet tool install --global AzureSignTool
 
       # Tauri v1's signCommand %1 substitution is broken (passes literal "%1" to
-      # AzureSignTool). We sign the EXE and NSIS installer after the build instead.
+      # AzureSignTool). We sign the EXE and Windows installers after the build instead.
 
       - name: Build Tauri app
         working-directory: src
         shell: pwsh
         # NSIS current-user mode installs under LOCALAPPDATA and avoids UAC.
+        # MSI is still produced because several release/QA flows expect it.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles nsis --verbose 2>&1 | Tee-Object -FilePath $log
+          npx tauri build --bundles nsis,msi --verbose 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
@@ -202,7 +203,7 @@ jobs:
         run: |
           Get-PSDrive C | Select-Object Used, Free | ForEach-Object { Write-Host "Disk after build: used=$([math]::Round($_.Used/1GB,1))GB free=$([math]::Round($_.Free/1GB,1))GB" }
 
-      - name: Sign release binary and NSIS installer
+      - name: Sign release binary and Windows installers
         if: env.AZURE_KEY_VAULT_URI != ''
         shell: pwsh
         env:
@@ -228,6 +229,9 @@ jobs:
           Write-Host "=== NSIS installers in bundle/nsis ==="
           Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\' -Filter '*.exe' -ErrorAction SilentlyContinue |
             ForEach-Object { Write-Host "  $($_.FullName)" }
+          Write-Host "=== MSI installers in bundle/msi ==="
+          Get-ChildItem 'src\src-tauri\target\release\bundle\msi\' -Filter '*.msi' -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "  $($_.FullName)" }
 
           # Sign the release EXE (Tauri renames knapsack.exe → Knapsack.exe for WiX)
           $exe = 'src\src-tauri\target\release\Knapsack.exe'
@@ -240,13 +244,36 @@ jobs:
             Write-Warning "Knapsack.exe not found; skipping EXE signing"
           }
 
-          # Sign each NSIS installer.
-          $nsisBundles = @(Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue)
-          foreach ($installer in $nsisBundles) {
-            Write-Host "Signing NSIS installer: $($installer.FullName)"
+          # Sign each Windows installer.
+          $installers = @()
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue)
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue)
+          foreach ($installer in $installers) {
+            Write-Host "Signing Windows installer: $($installer.FullName)"
             AzureSignTool sign @s $installer.FullName
-            if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign NSIS installer: $($installer.FullName)"; exit 1 }
-            Write-Host "Signed NSIS installer OK"
+            if ($LASTEXITCODE -ne 0) { Write-Error "Failed to sign Windows installer: $($installer.FullName)"; exit 1 }
+            Write-Host "Signed Windows installer OK"
+          }
+
+      - name: Verify Windows installer artifacts
+        shell: pwsh
+        run: |
+          $verifyLog = "$env:RUNNER_TEMP\windows-installer-verify.log"
+          $installers = @()
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue)
+          $installers += @(Get-ChildItem 'src\src-tauri\target\release\bundle\msi\*.msi' -ErrorAction SilentlyContinue)
+          if ($installers.Count -eq 0) {
+            Write-Error "No Windows installers were produced"
+            exit 1
+          }
+          foreach ($installer in $installers) {
+            try {
+              & 'src\scripts\verify-windows-installer.ps1' -InstallerPath $installer.FullName -InstallDir "$env:RUNNER_TEMP\ks-install-qa-$($installer.BaseName)" 2>&1 |
+                Tee-Object -FilePath $verifyLog -Append
+            } catch {
+              $_ | Tee-Object -FilePath $verifyLog -Append
+              exit 1
+            }
           }
 
       - name: Post build log to PR on failure
@@ -259,7 +286,11 @@ jobs:
           $repo = "${{ github.repository }}"
           $run  = "${{ github.run_id }}"
           $log  = "$env:RUNNER_TEMP\tauri-build.log"
-          if (Test-Path $log) {
+          $verifyLog = "$env:RUNNER_TEMP\windows-installer-verify.log"
+          if (Test-Path $verifyLog) {
+            $tail = (Get-Content $verifyLog -Tail 120) -join "`n"
+            $body = "**[Windows CI] installer verification failed (run $run)**`n``````text`n$tail`n``````"
+          } elseif (Test-Path $log) {
             $tail = (Get-Content $log -Tail 100) -join "`n"
             $body = "**[Windows CI] build-windows failed (run $run)**`n``````text`n$tail`n``````"
           } else {
@@ -272,10 +303,13 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: tauri-build-log
-          path: ${{ runner.temp }}/tauri-build.log
+          path: |
+            ${{ runner.temp }}/tauri-build.log
+            ${{ runner.temp }}/windows-installer-verify.log
           if-no-files-found: ignore
 
       - name: Upload NSIS artifacts
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: knapsack-windows-nsis
@@ -283,4 +317,13 @@ jobs:
             src/src-tauri/target/release/bundle/nsis/*.exe
             src/src-tauri/target/release/bundle/nsis/*.nsis.zip
             src/src-tauri/target/release/bundle/nsis/*.nsis.zip.sig
+          if-no-files-found: warn
+
+      - name: Upload MSI artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: knapsack-windows-msi
+          path: |
+            src/src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: warn
