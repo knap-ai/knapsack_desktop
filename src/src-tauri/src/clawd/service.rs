@@ -505,7 +505,8 @@ fn qa_direct_gateway_process_active() -> bool {
 }
 
 fn qa_direct_gateway_mode() -> bool {
-  std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
+  cfg!(target_os = "macos")
+    && std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
 }
 
 fn qa_direct_gateway_grace_active() -> Option<u64> {
@@ -2985,10 +2986,12 @@ static GATEWAY_HEALTH_PROBE_CACHE: once_cell::sync::Lazy<
 
 async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
   let now = std::time::Instant::now();
-  let mut cache = GATEWAY_HEALTH_PROBE_CACHE.lock().await;
-  if let Some(checked_at) = cache.checked_at {
-    if now.duration_since(checked_at) < GATEWAY_HEALTH_CACHE_TTL {
-      return cache.result;
+  {
+    let cache = GATEWAY_HEALTH_PROBE_CACHE.lock().await;
+    if let Some(checked_at) = cache.checked_at {
+      if now.duration_since(checked_at) < GATEWAY_HEALTH_CACHE_TTL {
+        return cache.result;
+      }
     }
   }
 
@@ -3007,6 +3010,7 @@ async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
     }
     _ => false,
   };
+  let mut cache = GATEWAY_HEALTH_PROBE_CACHE.lock().await;
   cache.checked_at = Some(std::time::Instant::now());
   cache.result = result;
   result
@@ -3023,9 +3027,12 @@ async fn gateway_reachable_with_token(
   timeout: std::time::Duration,
   token: Option<&str>,
 ) -> bool {
-  gateway_health_port_ok(timeout).await
-    || crate::clawd::gateway_client::is_gateway_port_open().await
-    || gateway_ws_config_ok(token, timeout).await
+  let (health_ok, port_ok, ws_ok) = tokio::join!(
+    gateway_health_port_ok(timeout),
+    crate::clawd::gateway_client::is_gateway_port_open(),
+    gateway_ws_config_ok(token, timeout),
+  );
+  health_ok || port_ok || ws_ok
 }
 
 async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
@@ -3053,6 +3060,9 @@ async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
 }
 
 pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
+  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+    return false;
+  }
   gateway_health_port_ok(timeout).await || crate::clawd::gateway_client::is_gateway_port_open().await
 }
 
@@ -5108,18 +5118,34 @@ async fn browser_control_status_cached(
   let last_probe_ms = BROWSER_STATUS_LAST_PROBE_MS.load(Ordering::Relaxed);
   let cached = browser_probe_from_cache(BROWSER_STATUS_CACHED.load(Ordering::Relaxed));
   let cache_age_ms = now.saturating_sub(last_probe_ms);
-
-  if last_probe_ms > 0 && cache_age_ms <= BROWSER_HEALTH_CACHE_TTL_MS {
-    if let Some(probe) = cached {
-      return probe;
-    }
-  }
-
   let last_healthy_ms = BROWSER_LAST_HEALTHY_MS.load(Ordering::Relaxed);
   let healthy_age_ms = now.saturating_sub(last_healthy_ms);
   let browser_listener = browser_control_tcp_port_open(std::time::Duration::from_millis(75)).await;
 
+  if last_probe_ms > 0 && cache_age_ms <= BROWSER_HEALTH_CACHE_TTL_MS {
+    if let Some(probe) = cached {
+      if probe.is_available() {
+        return probe;
+      }
+      if last_healthy_ms > 0
+        && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS
+        && browser_listener
+      {
+        return BrowserControlProbe::Ready;
+      }
+      if probe != BrowserControlProbe::Down {
+        return probe;
+      }
+    }
+  }
+
   if last_probe_ms == 0 || cache_age_ms > BROWSER_HEALTH_CACHE_TTL_MS {
+    if last_healthy_ms > 0
+      && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS
+      && browser_listener
+    {
+      return BrowserControlProbe::Ready;
+    }
     spawn_browser_control_status_refresh(gateway_token.to_string(), timeout);
   }
 
@@ -5131,7 +5157,7 @@ async fn browser_control_status_cached(
   }
 
   if browser_listener {
-    return cached.unwrap_or(BrowserControlProbe::Starting);
+    return BrowserControlProbe::Ready;
   }
 
   cached.unwrap_or(BrowserControlProbe::Starting)
@@ -5146,7 +5172,7 @@ async fn browser_control_status(
     Err(_) => return BrowserControlProbe::Down,
   };
 
-  let fut = client.get("http://127.0.0.1:18791/").send();
+  let fut = client.get("http://127.0.0.1:18791/ready").send();
 
   let resp = match tokio::time::timeout(timeout, fut).await {
     Ok(Ok(resp)) => resp,
@@ -5311,18 +5337,38 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         return;
       }
 
-      match browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(900))
+      if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+        eprintln!(
+          "[clawd/service] startup-ready browser nudge: browser-control listener already reachable"
+        );
+        return;
+      } else {
+        match tokio::time::timeout(
+          std::time::Duration::from_millis(1500),
+          gateway_client::browser_request(
+            "POST",
+            "/start",
+            Some(serde_json::json!({"profile": "openclaw"})),
+            None,
+            None,
+          ),
+        )
         .await
-      {
-        Ok(()) => {
-          eprintln!("[clawd/service] startup-ready browser /start nudge succeeded");
-          return;
-        }
-        Err(e) => {
-          last_error = Some(e);
-          tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        {
+          Ok(Ok(_)) => {
+            eprintln!("[clawd/service] startup-ready browser gateway /start nudge succeeded");
+            return;
+          }
+          Ok(Err(e)) => {
+            last_error = Some(e.to_string());
+          }
+          Err(_) => {
+            last_error = Some("gateway browser /start timed out".to_string());
+          }
         }
       }
+
+      tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
     if let Some(e) = last_error {
@@ -5431,15 +5477,27 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
-    // Gateway health is intentionally unauthenticated. Keep this tied to the
-    // HTTP health probe so a wedged listener cannot make the desktop UI green.
-    let gateway_http_ok =
-      gateway_reachable_with_token(GATEWAY_LOCAL_HEALTH_TIMEOUT, Some(&tokens.gateway_token)).await;
+    let last_gateway_healthy_ms = GATEWAY_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+    let gateway_healthy_age_ms = now_epoch_ms().saturating_sub(last_gateway_healthy_ms);
+    let recent_gateway_ok =
+      last_gateway_healthy_ms > 0 && gateway_healthy_age_ms <= HEALTH_LAST_GOOD_GRACE_MS;
+    let gateway_listener_fast = gateway_tcp_port_open(std::time::Duration::from_millis(50)).await;
+
+    // Gateway health is intentionally unauthenticated. Once the gateway has
+    // recently answered and its listener is still alive, avoid queueing another
+    // gateway request on every UI health poll.
+    let gateway_http_ok = if recent_gateway_ok && gateway_listener_fast {
+      true
+    } else if !gateway_listener_fast {
+      false
+    } else {
+      gateway_reachable_with_token(GATEWAY_LOCAL_HEALTH_TIMEOUT, Some(&tokens.gateway_token)).await
+    };
     let mut gateway_ok = gateway_http_ok;
     let gateway_listening = if gateway_ok {
       true
     } else {
-      gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
+      gateway_listener_fast || gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
     #[cfg(target_os = "windows")]
     if !gateway_ok && gateway_listening {
@@ -6079,11 +6137,18 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let started_at = std::time::Instant::now();
-  if startup_ready_browser_start_enabled()
-    && !browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(250))
-      .await
-      .is_available()
-  {
+  let should_nudge_browser = if startup_ready_browser_start_enabled() {
+    if browser_control_tcp_port_open(std::time::Duration::from_millis(50)).await {
+      !browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(250))
+        .await
+        .is_available()
+    } else {
+      true
+    }
+  } else {
+    false
+  };
+  if should_nudge_browser {
     spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
   }
 
@@ -6125,11 +6190,11 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let ready_started_at = std::time::Instant::now();
   let mut ready = false;
   while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
-    if gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
+    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
       ready = true;
       break;
     }
-    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
+    if gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
       ready = true;
       break;
     }
@@ -6152,17 +6217,21 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let browser_ok = if ready && remaining_ms() > 500 {
     let timeout = std::time::Duration::from_millis(remaining_ms().min(2_000));
-    if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
-      true
-    } else if browser_control_status(&tokens.gateway_token, timeout)
-      .await
-      .is_available()
+    if browser_cdp_port_open(std::time::Duration::from_millis(100)).await
+      || browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
     {
+      cache_browser_control_status(BrowserControlProbe::Ready);
       true
     } else {
-      browser_control_status_cached(&tokens.gateway_token, timeout)
-        .await
-        .is_available()
+      let direct_probe = browser_control_status(&tokens.gateway_token, timeout).await;
+      cache_browser_control_status(direct_probe);
+      if direct_probe.is_available() {
+        true
+      } else {
+        browser_control_status_cached(&tokens.gateway_token, timeout)
+          .await
+          .is_available()
+      }
     }
   } else {
     false

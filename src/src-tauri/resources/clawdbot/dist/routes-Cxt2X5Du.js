@@ -2946,8 +2946,8 @@ function createBrowserProfilesService(ctx) {
 //#region extensions/browser/src/browser/routes/basic.ts
 const STATUS_CDP_HTTP_TIMEOUT_MS = 300;
 const STATUS_CDP_TRANSPORT_TIMEOUT_MS = 600;
-const STATUS_CHROME_MCP_TOTAL_TIMEOUT_MS = 7e3;
-const STATUS_CHROME_MCP_TRANSPORT_TIMEOUT_MS = 5e3;
+const STATUS_CHROME_MCP_TOTAL_TIMEOUT_MS = 1200;
+const STATUS_CHROME_MCP_TRANSPORT_TIMEOUT_MS = 750;
 function remainingChromeMcpStatusTimeoutMs(startedAtMs) {
 	return Math.max(1, STATUS_CHROME_MCP_TOTAL_TIMEOUT_MS - (Date.now() - startedAtMs));
 }

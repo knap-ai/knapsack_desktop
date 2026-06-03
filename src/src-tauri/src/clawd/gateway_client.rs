@@ -1945,17 +1945,20 @@ pub async fn is_gateway_port_open() -> bool {
     Ok(c) => c,
     Err(_) => return false,
   };
-  tokio::time::timeout(
+  let http_probe = tokio::time::timeout(
     Duration::from_millis(500),
     client.get("http://127.0.0.1:18789/health").send(),
-  )
-  .await
-  .map(|r| r.is_ok())
-  .unwrap_or(false)
-    || match get_gateway_token() {
+  );
+  let token = get_gateway_token();
+  let ws_probe = async {
+    match token {
       Some(token) => gateway_ws_handshake_open(&token, Duration::from_millis(1500)).await,
       None => false,
     }
+  };
+
+  let (http_ok, ws_ok) = tokio::join!(http_probe, ws_probe);
+  http_ok.map(|r| r.is_ok()).unwrap_or(false) || ws_ok
 }
 
 async fn gateway_ws_handshake_open(token: &str, timeout: Duration) -> bool {

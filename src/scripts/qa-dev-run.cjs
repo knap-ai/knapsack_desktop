@@ -16,6 +16,7 @@ const projectDir = path.resolve(__dirname, '..');
 const tauriDir = path.join(projectDir, 'src-tauri');
 const binary = path.join(tauriDir, 'target', 'debug', process.platform === 'win32' ? 'knapsack.exe' : 'knapsack');
 const viteBin = path.join(projectDir, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite');
+const viteJs = path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const launchAgentPlist = path.join(
   process.env.HOME || '',
   'Library',
@@ -24,13 +25,38 @@ const launchAgentPlist = path.join(
 );
 
 function qaEnv(extra = {}) {
-  const env = { ...process.env, ...extra };
+  const env = {
+    ...process.env,
+    VITE_KN_API_SERVER: process.env.VITE_KN_API_SERVER || 'https://api.knapsack.ai',
+    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID || 'unused',
+    VITE_GOOGLE_CLIENT_ID:
+      process.env.VITE_GOOGLE_CLIENT_ID ||
+      '963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com',
+    VITE_GOOGLE_DEVELOPER_KEY: process.env.VITE_GOOGLE_DEVELOPER_KEY || '',
+    ...extra,
+  };
   for (const key of Object.keys(env)) {
     if (key === 'CODEX_SANDBOX_NETWORK_DISABLED' || key.startsWith('CODEX_')) {
       delete env[key];
     }
   }
   return env;
+}
+
+function spawnVite() {
+  if (process.platform === 'win32') {
+    return spawn(process.execPath, [viteJs, '--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
+      cwd: projectDir,
+      stdio: 'inherit',
+      env: qaEnv(),
+    });
+  }
+
+  return spawn(viteBin, ['--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
+    cwd: projectDir,
+    stdio: 'inherit',
+    env: qaEnv(),
+  });
 }
 
 function runChecked(command, args, options = {}) {
@@ -284,11 +310,7 @@ async function main() {
     });
   }
 
-  const vite = spawn(viteBin, ['--host', '127.0.0.1', '--port', '1420', '--strictPort'], {
-    cwd: projectDir,
-    stdio: 'inherit',
-    env: qaEnv(),
-  });
+  const vite = spawnVite();
   let gateway = null;
   let shuttingDown = false;
 
@@ -326,15 +348,20 @@ async function main() {
   killStaleGateways();
   killStaleOpenClawChrome();
 
+  const appEnv = process.platform === 'darwin'
+    ? qaEnv({ KNAPSACK_QA_DIRECT_GATEWAY: '1' })
+    : qaEnv();
   const app = spawn(binary, [], {
     cwd: tauriDir,
     stdio: 'inherit',
-    env: qaEnv({ KNAPSACK_QA_DIRECT_GATEWAY: '1' }),
+    env: appEnv,
   });
   const appStartedAt = Date.now();
   await waitForUrl('http://127.0.0.1:8897/api/clawd/service/status', 45_000);
-  await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
-  startManagedGateway();
+  if (process.platform === 'darwin') {
+    await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
+    startManagedGateway();
+  }
   app.on('exit', (code, signal) => {
     cleanup();
     if (signal) {
