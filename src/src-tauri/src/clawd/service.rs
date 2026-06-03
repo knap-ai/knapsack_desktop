@@ -5120,18 +5120,10 @@ async fn browser_control_status_cached(
   let cache_age_ms = now.saturating_sub(last_probe_ms);
   let last_healthy_ms = BROWSER_LAST_HEALTHY_MS.load(Ordering::Relaxed);
   let healthy_age_ms = now.saturating_sub(last_healthy_ms);
-  let browser_listener = browser_control_tcp_port_open(std::time::Duration::from_millis(75)).await;
-
   if last_probe_ms > 0 && cache_age_ms <= BROWSER_HEALTH_CACHE_TTL_MS {
     if let Some(probe) = cached {
       if probe.is_available() {
         return probe;
-      }
-      if last_healthy_ms > 0
-        && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS
-        && browser_listener
-      {
-        return BrowserControlProbe::Ready;
       }
       if probe != BrowserControlProbe::Down {
         return probe;
@@ -5140,23 +5132,10 @@ async fn browser_control_status_cached(
   }
 
   if last_probe_ms == 0 || cache_age_ms > BROWSER_HEALTH_CACHE_TTL_MS {
-    if last_healthy_ms > 0
-      && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS
-      && browser_listener
-    {
-      return BrowserControlProbe::Ready;
-    }
     spawn_browser_control_status_refresh(gateway_token.to_string(), timeout);
   }
 
-  if last_healthy_ms > 0
-    && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS
-    && browser_listener
-  {
-    return BrowserControlProbe::Ready;
-  }
-
-  if browser_listener {
+  if last_healthy_ms > 0 && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS {
     return BrowserControlProbe::Ready;
   }
 
@@ -5337,9 +5316,12 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         return;
       }
 
-      if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+      if browser_control_status(&gateway_token, std::time::Duration::from_millis(250))
+        .await
+        .is_available()
+      {
         eprintln!(
-          "[clawd/service] startup-ready browser nudge: browser-control listener already reachable"
+          "[clawd/service] startup-ready browser nudge: browser-control HTTP already reachable"
         );
         return;
       } else {
@@ -6217,21 +6199,14 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let browser_ok = if ready && remaining_ms() > 500 {
     let timeout = std::time::Duration::from_millis(remaining_ms().min(2_000));
-    if browser_cdp_port_open(std::time::Duration::from_millis(100)).await
-      || browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await
-    {
-      cache_browser_control_status(BrowserControlProbe::Ready);
+    let direct_probe = browser_control_status(&tokens.gateway_token, timeout).await;
+    cache_browser_control_status(direct_probe);
+    if direct_probe.is_available() {
       true
     } else {
-      let direct_probe = browser_control_status(&tokens.gateway_token, timeout).await;
-      cache_browser_control_status(direct_probe);
-      if direct_probe.is_available() {
-        true
-      } else {
-        browser_control_status_cached(&tokens.gateway_token, timeout)
-          .await
-          .is_available()
-      }
+      browser_control_status_cached(&tokens.gateway_token, timeout)
+        .await
+        .is_available()
     }
   } else {
     false

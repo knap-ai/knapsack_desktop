@@ -136,6 +136,7 @@ async function startBrowserControlServiceFromConfig() {
 		authToken: browserAuth.token,
 		authPassword: browserAuth.password
 	});
+	await new Promise((resolve$1) => setTimeout(resolve$1, 0));
 	const state = await ensureBrowserControlRuntime({
 		server: bridge.server,
 		port: bridge.port,
