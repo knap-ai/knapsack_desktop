@@ -1,11 +1,13 @@
 import { runGatewayCommand } from "./run-BG5Tcrgc.js";
-import { t as startBrowserControlServiceFromConfig } from "./control-service-QFP_AmWr.js";
 
-setTimeout(() => {
-	startBrowserControlServiceFromConfig().catch((err) => {
+setTimeout(async () => {
+	try {
+		const { t: startBrowserControlServiceFromConfig } = await import("./control-service-QFP_AmWr.js");
+		await startBrowserControlServiceFromConfig();
+	} catch (err) {
 		console.warn(`[gateway] early browser-control warm start failed: ${String(err)}`);
-	});
-}, 0);
+	}
+}, 7500);
 
 await runGatewayCommand({
 	allowUnconfigured: true,
