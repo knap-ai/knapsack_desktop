@@ -195,18 +195,19 @@ async fn start_outlook_data_fetching(
     }
   };
 
-  let update_user_connection = match refresh_user_connection(user_connection.clone(), email.clone()).await {
-    Ok(updated_user_connection) => updated_user_connection,
-    Err(error) => {
-      log::error!("Failed to refresh access token: {:?}", error);
-      let msg = format!(
-        "Failed to refresh access token in microsoft outlook for user: {}",
-        email
-      );
-      knap_log_error(msg, Some(error), None);
-      return Err(Error::KSError("Fail to refresh access token".to_string()));
-    }
-  };
+  let update_user_connection =
+    match refresh_user_connection(user_connection.clone(), email.clone()).await {
+      Ok(updated_user_connection) => updated_user_connection,
+      Err(error) => {
+        log::error!("Failed to refresh access token: {:?}", error);
+        let msg = format!(
+          "Failed to refresh access token in microsoft outlook for user: {}",
+          email
+        );
+        knap_log_error(msg, Some(error), None);
+        return Err(Error::KSError("Fail to refresh access token".to_string()));
+      }
+    };
 
   if ConnectionsData::lock_and_get_connection_is_syncing(
     connections_data.clone(),
@@ -361,14 +362,15 @@ async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Re
     }
   };
 
-  let access_token = match refresh_user_connection(user_connection.clone(), payload.email.clone()).await {
-    Ok(updated_user_connection) => updated_user_connection.token,
-    Err(_) => {
-      return HttpResponse::InternalServerError().json(SetEmailReadResponse {
-        message: "Failed to refresh access token".to_string(),
-      })
-    }
-  };
+  let access_token =
+    match refresh_user_connection(user_connection.clone(), payload.email.clone()).await {
+      Ok(updated_user_connection) => updated_user_connection.token,
+      Err(_) => {
+        return HttpResponse::InternalServerError().json(SetEmailReadResponse {
+          message: "Failed to refresh access token".to_string(),
+        })
+      }
+    };
 
   let client = Client::new();
   let url = format!("{}/me/messages/{}/", MICROSOFT_BASE_URL, payload.message_id);
@@ -410,14 +412,15 @@ async fn reply_to_email(payload: Json<ReplyEmailParams>) -> impl Responder {
     }
   };
 
-  let access_token = match refresh_user_connection(user_connection.clone(), payload.email.clone()).await {
-    Ok(updated_user_connection) => updated_user_connection.token,
-    Err(_) => {
-      return HttpResponse::InternalServerError().json(ReplyEmailResponse {
-        message: "Failed to refresh access token".to_string(),
-      })
-    }
-  };
+  let access_token =
+    match refresh_user_connection(user_connection.clone(), payload.email.clone()).await {
+      Ok(updated_user_connection) => updated_user_connection.token,
+      Err(_) => {
+        return HttpResponse::InternalServerError().json(ReplyEmailResponse {
+          message: "Failed to refresh access token".to_string(),
+        })
+      }
+    };
 
   let client = Client::new();
   let url = format!(
@@ -435,7 +438,7 @@ async fn reply_to_email(payload: Json<ReplyEmailParams>) -> impl Responder {
         </blockquote>",
         content
       )
-    },
+    }
     _ => String::new(),
   };
 

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use rusqlite::{params, OptionalExtension, Result};
+use serde::{Deserialize, Serialize};
 
 use crate::db::db::get_db_conn;
 use crate::error::Error;
@@ -17,17 +17,18 @@ pub struct AutomationStep {
 impl AutomationStep {
   pub fn find_by_id(id: u64) -> Result<Option<AutomationStep>> {
     let connection = get_db_conn();
-    let mut stmt = connection
-      .prepare("SELECT * FROM automation_steps WHERE id = ?1")?;
-    let step = stmt.query_row(params![id], |row| {
-      Ok(AutomationStep {
-        id: Some(row.get(0)?),
-        automation_uuid: row.get(1)?,
-        name: row.get(2)?,
-        ordering: row.get(3)?,
-        args_json: row.get(4)?,
+    let mut stmt = connection.prepare("SELECT * FROM automation_steps WHERE id = ?1")?;
+    let step = stmt
+      .query_row(params![id], |row| {
+        Ok(AutomationStep {
+          id: Some(row.get(0)?),
+          automation_uuid: row.get(1)?,
+          name: row.get(2)?,
+          ordering: row.get(3)?,
+          args_json: row.get(4)?,
+        })
       })
-    }).optional()?;
+      .optional()?;
 
     Ok(step)
   }
@@ -35,23 +36,26 @@ impl AutomationStep {
   pub fn find_by_ids(ids: Vec<u64>) -> Result<Vec<AutomationStep>> {
     let connection = get_db_conn();
     let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let query = format!("SELECT * FROM automation_steps WHERE id IN ({})", placeholders);
+    let query = format!(
+      "SELECT * FROM automation_steps WHERE id IN ({})",
+      placeholders
+    );
     let mut stmt = connection.prepare(&query)?;
 
     let id_refs: Vec<&u64> = ids.iter().collect();
     let rows = stmt.query_map(rusqlite::params_from_iter(id_refs), |row| {
-        Ok(AutomationStep {
-            id: Some(row.get(0)?),
-            automation_uuid: row.get(1)?,
-            name: row.get(2)?,
-            ordering: row.get(3)?,
-            args_json: row.get(4)?,
-        })
+      Ok(AutomationStep {
+        id: Some(row.get(0)?),
+        automation_uuid: row.get(1)?,
+        name: row.get(2)?,
+        ordering: row.get(3)?,
+        args_json: row.get(4)?,
+      })
     })?;
 
     let mut steps = Vec::new();
     for step in rows {
-        steps.push(step?);
+      steps.push(step?);
     }
     Ok(steps)
   }
@@ -71,14 +75,15 @@ impl AutomationStep {
           args_json: row.get(4)?,
         })
       })
-    .expect("Could not execute query");
+      .expect("Could not execute query");
     rows.filter_map(Result::ok).collect()
   }
 
   pub fn create(&mut self) -> Result<(), Error> {
     if self.id.is_some() {
       return Err(Error::KSError(
-        "Cannot create AutomationStep; AutomationStep already exists.".into()));
+        "Cannot create AutomationStep; AutomationStep already exists.".into(),
+      ));
     }
     let connection = get_db_conn();
     connection
@@ -95,7 +100,8 @@ impl AutomationStep {
   pub fn update(&self) -> Result<(), Error> {
     if self.id.is_none() {
       return Err(Error::KSError(
-        "Cannot update AutomationStep; AutomationStep does not exist.".into()));
+        "Cannot update AutomationStep; AutomationStep does not exist.".into(),
+      ));
     }
     let connection = get_db_conn();
     connection
@@ -110,14 +116,12 @@ impl AutomationStep {
   pub fn delete(&self) -> Result<(), Error> {
     if self.id.is_none() {
       return Err(Error::KSError(
-        "Cannot delete AutomationStep; AutomationStep does not exist.".into()));
+        "Cannot delete AutomationStep; AutomationStep does not exist.".into(),
+      ));
     }
     let connection = get_db_conn();
     connection
-      .execute(
-        "DELETE FROM automation_steps WHERE id = ?1",
-        [self.id],
-        )
+      .execute("DELETE FROM automation_steps WHERE id = ?1", [self.id])
       .expect("Could not delete automation step");
     Ok(())
   }

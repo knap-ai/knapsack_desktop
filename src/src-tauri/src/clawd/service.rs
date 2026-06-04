@@ -278,6 +278,9 @@ fn is_pid_alive(pid: u32) -> bool {
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
+#[cfg(target_os = "windows")]
+const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 120_000;
+#[cfg(not(target_os = "windows"))]
 const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 30_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
 const PLUGIN_RUNTIME_DEPS_OWNER_LOCK_GRACE_MS: u64 = 180_000;
@@ -315,8 +318,11 @@ const GATEWAY_HEALTH_SELF_HEAL_GRACE_MS: u64 = 180_000;
 const GATEWAY_POST_BIND_STARTUP_GRACE_MS: u64 = 300_000;
 const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
 const HEALTH_LAST_GOOD_GRACE_MS: u64 = 15_000;
-const BROWSER_HEALTH_CACHE_TTL_MS: u64 = 10_000;
-const BROWSER_HEALTH_LISTENER_GRACE_MS: u64 = 45_000;
+const BROWSER_HEALTH_CACHE_TTL_MS: u64 = 30_000;
+const BROWSER_STATUS_NON_READY_REFRESH_MS: u64 = 1_250;
+const BROWSER_HEALTH_LISTENER_GRACE_MS: u64 = 120_000;
+const STARTUP_BROWSER_PROBE_TIMEOUT_MS: u64 = 1200;
+const STARTUP_BROWSER_POLL_INTERVAL_MS: u64 = 250;
 
 fn now_epoch_ms() -> u64 {
   std::time::SystemTime::now()
@@ -541,7 +547,7 @@ fn passive_browser_start_nudge_enabled() -> bool {
 fn startup_ready_browser_start_enabled() -> bool {
   std::env::var("KNAPSACK_STARTUP_READY_AUTO_START_BROWSER")
     .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
-    .unwrap_or(false)
+    .unwrap_or(true)
 }
 
 /// Path to the gateway stderr log file.
@@ -2969,6 +2975,7 @@ async fn write_current_launch_agent_plist(app_handle: &tauri::AppHandle, context
 
 const GATEWAY_LOCAL_HEALTH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1000);
 const GATEWAY_HEALTH_CACHE_TTL: std::time::Duration = std::time::Duration::from_millis(750);
+const GATEWAY_HEALTH_PATHS: [&str; 2] = ["/healthz", "/health"];
 
 struct GatewayHealthProbeCache {
   checked_at: Option<std::time::Instant>,
@@ -2999,16 +3006,24 @@ async fn gateway_health_port_ok(timeout: std::time::Duration) -> bool {
     Ok(c) => c,
     Err(_) => return false,
   };
-  let result = match tokio::time::timeout(
-    timeout,
-    client.get("http://127.0.0.1:18789/health").send(),
-  )
-  .await
-  {
-    Ok(Ok(resp)) => {
-      resp.status().is_success() || resp.status().as_u16() == 401 || resp.status().as_u16() == 404
+  let result = {
+    let mut ok = false;
+    for path in GATEWAY_HEALTH_PATHS {
+      let probe = tokio::time::timeout(
+        timeout,
+        client.get(format!("http://127.0.0.1:18789{}", path)).send(),
+      );
+      if let Ok(Ok(resp)) = probe.await {
+        let status = resp.status();
+        if status.is_success()
+          || (status.is_informational() || status.is_redirection() || status.is_client_error())
+        {
+          ok = true;
+          break;
+        }
+      }
     }
-    _ => false,
+    ok
   };
   let mut cache = GATEWAY_HEALTH_PROBE_CACHE.lock().await;
   cache.checked_at = Some(std::time::Instant::now());
@@ -3023,10 +3038,7 @@ async fn gateway_ws_config_ok(token: Option<&str>, timeout: std::time::Duration)
     .unwrap_or(false)
 }
 
-async fn gateway_reachable_with_token(
-  timeout: std::time::Duration,
-  token: Option<&str>,
-) -> bool {
+async fn gateway_reachable_with_token(timeout: std::time::Duration, token: Option<&str>) -> bool {
   let (health_ok, port_ok, ws_ok) = tokio::join!(
     gateway_health_port_ok(timeout),
     crate::clawd::gateway_client::is_gateway_port_open(),
@@ -3063,7 +3075,8 @@ pub async fn gateway_reachable_or_ready(timeout: std::time::Duration) -> bool {
   if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
     return false;
   }
-  gateway_health_port_ok(timeout).await || crate::clawd::gateway_client::is_gateway_port_open().await
+  gateway_health_port_ok(timeout).await
+    || crate::clawd::gateway_client::is_gateway_port_open().await
 }
 
 fn read_log_tail_lines_bounded(
@@ -5101,9 +5114,9 @@ fn spawn_browser_control_status_refresh(gateway_token: String, timeout: std::tim
   }
 
   tokio::spawn(async move {
-    let mut probe = browser_control_status_via_gateway_rpc(timeout).await;
+    let mut probe = browser_control_status(&gateway_token, timeout).await;
     if probe == BrowserControlProbe::Down {
-      probe = browser_control_status(&gateway_token, timeout).await;
+      probe = browser_control_status_via_gateway_rpc(timeout).await;
     }
     cache_browser_control_status(probe);
     BROWSER_STATUS_PROBE_IN_PROGRESS.store(false, Ordering::Relaxed);
@@ -5125,18 +5138,25 @@ async fn browser_control_status_cached(
       if probe.is_available() {
         return probe;
       }
-      if probe != BrowserControlProbe::Down {
+      if probe != BrowserControlProbe::Down && cache_age_ms < BROWSER_STATUS_NON_READY_REFRESH_MS {
         return probe;
       }
     }
   }
 
-  if last_probe_ms == 0 || cache_age_ms > BROWSER_HEALTH_CACHE_TTL_MS {
+  if last_probe_ms == 0
+    || cache_age_ms > BROWSER_HEALTH_CACHE_TTL_MS
+    || cache_age_ms > BROWSER_STATUS_NON_READY_REFRESH_MS
+  {
     spawn_browser_control_status_refresh(gateway_token.to_string(), timeout);
   }
 
   if last_healthy_ms > 0 && healthy_age_ms <= BROWSER_HEALTH_LISTENER_GRACE_MS {
-    return BrowserControlProbe::Ready;
+    if cached == Some(BrowserControlProbe::Ready)
+      || browser_control_tcp_port_open(std::time::Duration::from_millis(75)).await
+    {
+      return BrowserControlProbe::Ready;
+    }
   }
 
   cached.unwrap_or(BrowserControlProbe::Starting)
@@ -6100,7 +6120,6 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   use crate::clawd::gateway_ws;
 
   const STARTUP_READY_BUDGET_MS: u64 = 30_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 24_000;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -6169,56 +6188,72 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
     }
   }
-  let ready_started_at = std::time::Instant::now();
   let mut ready = false;
-  while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
-    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
-      ready = true;
-      break;
-    }
-    if gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
-      ready = true;
-      break;
-    }
-    if tokio::time::timeout(
-      std::time::Duration::from_millis(1000),
-      gateway_ws::config_get(Some(&tokens.gateway_token)),
-    )
-    .await
-    .map(|result| result.is_ok())
-    .unwrap_or(false)
-    {
-      ready = true;
-      break;
-    }
-    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-  }
-
+  let mut browser_ok = false;
+  let mut channels_ok = !eager_channel_plugin_start_enabled();
   let remaining_ms =
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
 
-  let browser_ok = if ready && remaining_ms() > 500 {
-    let timeout = std::time::Duration::from_millis(remaining_ms().min(2_000));
-    let direct_probe = browser_control_status(&tokens.gateway_token, timeout).await;
-    cache_browser_control_status(direct_probe);
-    if direct_probe.is_available() {
-      true
-    } else {
-      browser_control_status_cached(&tokens.gateway_token, timeout)
-        .await
-        .is_available()
+  while started_at.elapsed().as_millis() < u128::from(STARTUP_READY_BUDGET_MS) {
+    if !ready && gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
+      ready = true;
     }
-  } else {
-    false
-  };
 
-  let mut channels_ok = !eager_channel_plugin_start_enabled();
-  while ready && !channels_ok && remaining_ms() > 500 {
-    if gateway_log_has_channel_started("telegram") && gateway_log_has_channel_started("whatsapp") {
-      channels_ok = true;
+    if !ready && gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
+      ready = true;
+    }
+
+    if !ready
+      && tokio::time::timeout(
+        std::time::Duration::from_millis(1000),
+        gateway_ws::config_get(Some(&tokens.gateway_token)),
+      )
+      .await
+      .map(|result| result.is_ok())
+      .unwrap_or(false)
+    {
+      ready = true;
+    }
+
+    if !browser_ok && remaining_ms() > STARTUP_BROWSER_POLL_INTERVAL_MS {
+      let probe_timeout = std::time::Duration::from_millis(STARTUP_BROWSER_PROBE_TIMEOUT_MS);
+      let cached_probe = browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
+      if cached_probe.is_available() {
+        browser_ok = true;
+      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(120)).await {
+        if browser_cdp_port_open(std::time::Duration::from_millis(120)).await {
+          browser_ok = true;
+        } else {
+          let direct_probe = browser_control_status(&tokens.gateway_token, probe_timeout).await;
+          cache_browser_control_status(direct_probe);
+          if direct_probe.is_available() {
+            browser_ok = true;
+          }
+        }
+      }
+
+      if !browser_ok {
+        spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+      }
+    }
+
+    if ready && !channels_ok && remaining_ms() > 500 {
+      if gateway_log_has_channel_started("telegram") && gateway_log_has_channel_started("whatsapp")
+      {
+        channels_ok = true;
+      }
+    }
+
+    if ready && browser_ok && channels_ok {
       break;
     }
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    tokio::time::sleep(std::time::Duration::from_millis(if ready {
+      STARTUP_BROWSER_POLL_INTERVAL_MS
+    } else {
+      100
+    }))
+    .await;
   }
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
@@ -7008,10 +7043,7 @@ pub async fn set_api_key(
     // If the provider isn't actually changing, skip the gateway restart — it's
     // already running with the correct configuration.  A restart here would
     // fail in dev mode (launchctl exit 37) and trigger a destructive self-heal.
-    let already_active = tokens
-      .active_provider
-      .as_deref()
-      .unwrap_or("openai") == provider.as_str();
+    let already_active = tokens.active_provider.as_deref().unwrap_or("openai") == provider.as_str();
     // Switch active provider and update model only
     tokens.active_provider = Some(provider.clone());
     if let Some(model) = &payload.model {
@@ -7279,7 +7311,11 @@ pub async fn set_api_key(
       // Knapsack cloud inference: key field carries the user's email (no API key needed)
       if !key.is_empty() {
         tokens.knapsack_email = Some(key);
-      } else if tokens.knapsack_email.as_ref().map_or(true, |e| e.trim().is_empty()) {
+      } else if tokens
+        .knapsack_email
+        .as_ref()
+        .map_or(true, |e| e.trim().is_empty())
+      {
         if let Some(email) = knapsack_email_from_tokens() {
           tokens.knapsack_email = Some(email);
         }
@@ -8652,7 +8688,11 @@ async fn prepare_gateway_config(
           eprintln!("[clawd/service] Removed invalid agents.defaults.identity key");
           patched = true;
         }
-        if !cfg_val.pointer("/agents/list").map(|v| v.is_array()).unwrap_or(false) {
+        if !cfg_val
+          .pointer("/agents/list")
+          .map(|v| v.is_array())
+          .unwrap_or(false)
+        {
           cfg_val
             .pointer_mut("/agents")
             .unwrap()
@@ -8660,7 +8700,10 @@ async fn prepare_gateway_config(
             .unwrap()
             .insert("list".to_string(), serde_json::json!([]));
         }
-        if let Some(agent_list) = cfg_val.pointer_mut("/agents/list").and_then(|v| v.as_array_mut()) {
+        if let Some(agent_list) = cfg_val
+          .pointer_mut("/agents/list")
+          .and_then(|v| v.as_array_mut())
+        {
           let before_len = agent_list.len();
           agent_list.retain(|entry| {
             entry.is_object()
@@ -8691,7 +8734,12 @@ async fn prepare_gateway_config(
             }
           };
           if let Some(main) = agent_list.get_mut(index).and_then(|v| v.as_object_mut()) {
-            if main.get("name").and_then(|v| v.as_str()).map(|s| s.trim().is_empty()).unwrap_or(true) {
+            if main
+              .get("name")
+              .and_then(|v| v.as_str())
+              .map(|s| s.trim().is_empty())
+              .unwrap_or(true)
+            {
               main.insert("name".to_string(), serde_json::json!("Knapsack"));
               patched = true;
             }
@@ -8729,7 +8777,10 @@ async fn prepare_gateway_config(
               .unwrap_or(true);
             if needs_default {
               identity.insert(key.to_string(), value);
-              eprintln!("[clawd/service] Patched agents.list.main.identity.{} default", key);
+              eprintln!(
+                "[clawd/service] Patched agents.list.main.identity.{} default",
+                key
+              );
               patched = true;
             }
           }
@@ -11813,7 +11864,9 @@ pub async fn cycle_service(_app_handle: &tauri::AppHandle) {
       .status();
     GATEWAY_PID.store(0, Ordering::Relaxed);
   }
-  kill_process_on_port(18789);
+  for port in [18789u16, 18791u16, 18800u16] {
+    kill_process_on_port(port);
+  }
 
   // Brief pause before restarting
   tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -11849,7 +11902,9 @@ pub fn cleanup_gateway_on_exit() {
       .status();
     GATEWAY_PID.store(0, Ordering::Relaxed);
   }
-  kill_process_on_port(18789);
+  for port in [18789u16, 18791u16, 18800u16] {
+    kill_process_on_port(port);
+  }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -13238,7 +13293,11 @@ fn parse_deep_link_param(url: &str, key: &str) -> Option<String> {
     if let Some((k, v)) = pair.split_once('=') {
       if k == key {
         // Percent-decode the value (handles %40 → @ for emails, etc.)
-        let decoded = v.replace("%40", "@").replace("%2B", "+").replace("%20", " ").replace("+", " ");
+        let decoded = v
+          .replace("%40", "@")
+          .replace("%2B", "+")
+          .replace("%20", " ")
+          .replace("+", " ");
         return Some(decoded);
       }
     }
@@ -13276,7 +13335,11 @@ async fn exchange_and_store_knapsack_code(
   let body_text = resp.text().await.unwrap_or_default();
 
   if !status.is_success() {
-    log::error!("[knapsack_auth] exchange endpoint returned {}: {}", status, body_text);
+    log::error!(
+      "[knapsack_auth] exchange endpoint returned {}: {}",
+      status,
+      body_text
+    );
     return Err(format!("Sign-in failed ({})", status));
   }
 
@@ -13353,15 +13416,12 @@ pub async fn knapsack_auth_callback(
 /// Clears the stored Knapsack credentials and switches the active provider
 /// to whatever other provider has a saved key (fallback: openai).
 #[post("/api/clawd/service/knapsack-disconnect")]
-pub async fn knapsack_disconnect(
-  app_handle: web::Data<tauri::AppHandle>,
-) -> impl Responder {
+pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
-      return HttpResponse::InternalServerError().json(
-        serde_json::json!({"ok": false, "message": e})
-      )
+      return HttpResponse::InternalServerError()
+        .json(serde_json::json!({"ok": false, "message": e}))
     }
   };
 
@@ -13371,11 +13431,26 @@ pub async fn knapsack_disconnect(
   tokens.knapsack_email = None;
 
   // Pick a fallback provider that already has a saved key
-  let fallback = if tokens.anthropic_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+  let fallback = if tokens
+    .anthropic_api_key
+    .as_deref()
+    .map(|k| !k.is_empty())
+    .unwrap_or(false)
+  {
     "anthropic"
-  } else if tokens.gemini_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+  } else if tokens
+    .gemini_api_key
+    .as_deref()
+    .map(|k| !k.is_empty())
+    .unwrap_or(false)
+  {
     "gemini"
-  } else if tokens.groq_api_key.as_deref().map(|k| !k.is_empty()).unwrap_or(false) {
+  } else if tokens
+    .groq_api_key
+    .as_deref()
+    .map(|k| !k.is_empty())
+    .unwrap_or(false)
+  {
     "groq"
   } else {
     "openai"
@@ -13383,9 +13458,8 @@ pub async fn knapsack_disconnect(
   tokens.active_provider = Some(fallback.to_string());
 
   if let Err(e) = save_tokens(&app_handle, &tokens) {
-    return HttpResponse::InternalServerError().json(
-      serde_json::json!({"ok": false, "message": e})
-    );
+    return HttpResponse::InternalServerError()
+      .json(serde_json::json!({"ok": false, "message": e}));
   }
 
   // Clear env vars so in-process consumers stop using the old token
@@ -13395,7 +13469,10 @@ pub async fn knapsack_disconnect(
   std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
   std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", fallback);
 
-  log::info!("[knapsack_disconnect] disconnected, fallback provider = {}", fallback);
+  log::info!(
+    "[knapsack_disconnect] disconnected, fallback provider = {}",
+    fallback
+  );
   let _ = app_handle.emit_all(
     "knapsack-disconnected",
     serde_json::json!({"fallback_provider": fallback}),
@@ -13406,7 +13483,10 @@ pub async fn knapsack_disconnect(
 
 /// Handle a `knapsack-auth://connect?code=<code>` deep link (URL scheme fallback).
 pub async fn handle_knapsack_deep_link(app_handle: &tauri::AppHandle, url: &str) {
-  log::info!("[knapsack_auth] deep link received: {}", &url[..url.len().min(80)]);
+  log::info!(
+    "[knapsack_auth] deep link received: {}",
+    &url[..url.len().min(80)]
+  );
 
   let code = match parse_deep_link_param(url, "code") {
     Some(c) => c,

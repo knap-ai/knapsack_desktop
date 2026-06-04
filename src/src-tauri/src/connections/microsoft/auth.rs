@@ -18,26 +18,31 @@ use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
 
 use crate::connections::google::profile::UserInfoResponse;
+use crate::connections::utils::fetch_user_uuid;
 use crate::constants::{KN_MICROSOFT_AUTH_URL, KN_MICROSOFT_REDIRECT_URL, KN_MICROSOFT_TOKEN_URL};
 use crate::db::models::connection::Connection;
 use crate::db::models::user::User;
 use crate::db::models::user_connection::UserConnection;
+use crate::utils::log::knap_log_error;
 use base64::{engine::general_purpose, Engine as _};
 use dotenv::dotenv;
-use rand::{thread_rng,Rng};
+use rand::{thread_rng, Rng};
 use reqwest::Error as ReqwestError;
-use reqwest::{Client, header::{HeaderMap, HeaderValue, AUTHORIZATION}};
+use reqwest::{
+  header::{HeaderMap, HeaderValue, AUTHORIZATION},
+  Client,
+};
 use sha2::{Digest, Sha256};
 use std::env;
 use std::sync::Mutex;
 use tauri::{CustomMenuItem, Manager, Window, WindowBuilder, WindowUrl};
 use url::Url;
-use crate::connections::utils::fetch_user_uuid;
-use crate::utils::log::knap_log_error;
 
 use crate::connections::google::types::FetchError;
 use crate::connections::utils::create_knapsack_api_connection;
-use crate::connections::utils::{get_knapsack_api_connection, FetchUuidError, get_api_access_token};
+use crate::connections::utils::{
+  get_api_access_token, get_knapsack_api_connection, FetchUuidError,
+};
 
 struct OAuthState {
   code_verifier: Mutex<String>,
@@ -114,19 +119,21 @@ struct RefreshResponse {
 
 pub fn get_message_error(error_code: &str) -> &str {
   match error_code {
-      "access_denied" => "You denied access permission",
-      "invalid_client" => "There was a configuration issue with the application",
-      "unauthorized_client" => "This application is not authorized for your organization",
-      "invalid_grant" => "Your session has expired",
-      "interaction_required" => "Additional permissions are required",
-      "login_required" => "Your session has expired",
-      "consent_required" => "Consent is required to continue",
-      "temporarily_unavailable" => "The service is temporarily unavailable",
-      "server_error" => "An unexpected error occurred",
-      "invalid_request" => "There was an issue with the request",
-      "bad_request" => "The request could not be completed",
-      "invalid_resource" | "resource_not_found" => "The requested resource is not available for your Microsoft Tenant.",
-      _ => "An unexpected error occurred during authentication",
+    "access_denied" => "You denied access permission",
+    "invalid_client" => "There was a configuration issue with the application",
+    "unauthorized_client" => "This application is not authorized for your organization",
+    "invalid_grant" => "Your session has expired",
+    "interaction_required" => "Additional permissions are required",
+    "login_required" => "Your session has expired",
+    "consent_required" => "Consent is required to continue",
+    "temporarily_unavailable" => "The service is temporarily unavailable",
+    "server_error" => "An unexpected error occurred",
+    "invalid_request" => "There was an issue with the request",
+    "bad_request" => "The request could not be completed",
+    "invalid_resource" | "resource_not_found" => {
+      "The requested resource is not available for your Microsoft Tenant."
+    }
+    _ => "An unexpected error occurred during authentication",
   }
 }
 
@@ -155,11 +162,11 @@ fn generate_code_verifier() -> String {
 
   let mut rng = thread_rng();
   (0..CODE_VERIFIER_LENGTH)
-      .map(|_| {
-          let idx = rng.gen_range(0..CHARSET.len());
-          CHARSET[idx] as char
-      })
-      .collect()
+    .map(|_| {
+      let idx = rng.gen_range(0..CHARSET.len());
+      CHARSET[idx] as char
+    })
+    .collect()
 }
 
 fn generate_code_challenge(verifier: &str) -> String {
@@ -175,7 +182,7 @@ fn get_authorization_url(config: &OAuthConfig, code_challenge: &str) -> String {
     .append_pair("response_type", "code")
     .append_pair("redirect_uri", &config.redirect_uri)
     .append_pair("scope", &config.scope)
-    .append_pair("state",&config.state);
+    .append_pair("state", &config.state);
   url.to_string()
 }
 
@@ -199,7 +206,6 @@ pub async fn start_oauth(
 
   let code_verifier = generate_code_verifier();
   let code_challenge = generate_code_challenge(&code_verifier);
-
 
   if let Some(oauth_state) = app_handle.try_state::<OAuthState>() {
     *oauth_state.code_verifier.lock().unwrap() = code_verifier.clone();
@@ -266,18 +272,21 @@ async fn refresh_access_token(
   let client = reqwest::Client::new();
   let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
 
-  let access_token_api = get_api_access_token(&email.clone(), None).await
+  let access_token_api = get_api_access_token(&email.clone(), None)
+    .await
     .map_err(|e| FetchUuidError::NetworkError(format!("Failed to refresh access token: {}", e)))?;
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", access_token_api))
-            .map_err(|e| FetchUuidError::NetworkError(format!("Invalid header value: {}", e)))?
-    );
+  let mut headers = HeaderMap::new();
+  headers.insert(
+    AUTHORIZATION,
+    HeaderValue::from_str(&format!("Bearer {}", access_token_api))
+      .map_err(|e| FetchUuidError::NetworkError(format!("Invalid header value: {}", e)))?,
+  );
 
   let response = client
-    .post(format!("{api_server}/api/authentication/microsoft/refresh_access_token/app/"))
+    .post(format!(
+      "{api_server}/api/authentication/microsoft/refresh_access_token/app/"
+    ))
     .headers(headers)
     .json(&serde_json::json!({
       "refresh_token": refresh_token
@@ -285,37 +294,47 @@ async fn refresh_access_token(
     .send()
     .await?;
 
-    if response.status().is_success() {
-      let token_response: TokenAccessResponse = response.json().await?;
-      let refresh = RefreshResponse {
-        access_token: token_response.access_token,
-        refresh_token: Some(refresh_token),
-      };
+  if response.status().is_success() {
+    let token_response: TokenAccessResponse = response.json().await?;
+    let refresh = RefreshResponse {
+      access_token: token_response.access_token,
+      refresh_token: Some(refresh_token),
+    };
 
-      Ok(refresh)
-    } else {
-      let status = response.status();
-      let error_text = response.text().await.unwrap_or_default();
-      log::error!("Microsoft token refresh failed ({}): {}", status, error_text);
+    Ok(refresh)
+  } else {
+    let status = response.status();
+    let error_text = response.text().await.unwrap_or_default();
+    log::error!(
+      "Microsoft token refresh failed ({}): {}",
+      status,
+      error_text
+    );
 
-      // Check for invalid/expired refresh token errors
-      if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::BAD_REQUEST {
-        if error_text.contains("invalid_grant") || error_text.contains("AADSTS") {
-          return Err(Error::KSError("Invalid refresh token".to_string()));
-        }
+    // Check for invalid/expired refresh token errors
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::BAD_REQUEST {
+      if error_text.contains("invalid_grant") || error_text.contains("AADSTS") {
+        return Err(Error::KSError("Invalid refresh token".to_string()));
       }
-
-      Err(Error::KSError(format!(
-        "Failed to refresh token: {}",
-        status
-      )))
     }
+
+    Err(Error::KSError(format!(
+      "Failed to refresh token: {}",
+      status
+    )))
+  }
 }
 
-pub async fn refresh_user_connection(user_connection: UserConnection, email: String) -> Result<UserConnection, Error>{
+pub async fn refresh_user_connection(
+  user_connection: UserConnection,
+  email: String,
+) -> Result<UserConnection, Error> {
   let refresh_response: RefreshResponse = match refresh_access_token(
-    user_connection.refresh_token.clone().unwrap(), email.clone()
-  ).await {
+    user_connection.refresh_token.clone().unwrap(),
+    email.clone(),
+  )
+  .await
+  {
     Ok(response) => response,
     Err(err) => {
       // Check if this is an invalid refresh token error
@@ -335,7 +354,11 @@ pub async fn refresh_user_connection(user_connection: UserConnection, email: Str
           None
         ));
       }
-      return Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
+      return Err(knap_log_error(
+        "Failed to refresh connection token".to_string(),
+        Some(err),
+        None,
+      ));
     }
   };
   let updated_user_connection = UserConnection {
@@ -358,7 +381,10 @@ fn focus_window(window: Window) {
   window.set_focus().expect("Failed to focus window");
 }
 
-pub async fn fetch_microsoft_profile(access_token: &str, refresh_internal: Option<String>) -> Result<UserInfoResponse, Error> {
+pub async fn fetch_microsoft_profile(
+  access_token: &str,
+  refresh_internal: Option<String>,
+) -> Result<UserInfoResponse, Error> {
   let client = reqwest::Client::new();
 
   let response = client
@@ -376,7 +402,7 @@ pub async fn fetch_microsoft_profile(access_token: &str, refresh_internal: Optio
           let err_msg = format!("{:?}", err);
           knap_log_error(err_msg, Some(Error::FetchUuidError(err)), None);
           None
-        },
+        }
       },
       None => None,
     };
@@ -433,16 +459,24 @@ fn create_connections_from_scopes(
     match user_connection_creation_result {
       Ok(_) => {
         connected_scopes.push(scope);
-      },
+      }
       Err(error) => {
-        log::error!("Failed to create user connection for scope {}: {:?}", scope, error);
+        log::error!(
+          "Failed to create user connection for scope {}: {:?}",
+          scope,
+          error
+        );
       }
     };
   }
   connected_scopes
 }
 
-async fn microsoft_signin(code: String, state: String, app_handle: tauri::AppHandle) -> Result<(), Error> {
+async fn microsoft_signin(
+  code: String,
+  state: String,
+  app_handle: tauri::AppHandle,
+) -> Result<(), Error> {
   let oauth_state = app_handle.state::<OAuthState>();
   let code_verifier = oauth_state.code_verifier.lock().unwrap().clone();
   let config = oauth_state.oauth_config.lock().unwrap().clone();
@@ -450,7 +484,12 @@ async fn microsoft_signin(code: String, state: String, app_handle: tauri::AppHan
 
   match get_access_token(&config, &code, &state, &code_verifier).await {
     Ok(token_response) => {
-      let profile = match fetch_microsoft_profile(&token_response.access_token.clone(), Some(token_response.refresh_internal.clone())).await {
+      let profile = match fetch_microsoft_profile(
+        &token_response.access_token.clone(),
+        Some(token_response.refresh_internal.clone()),
+      )
+      .await
+      {
         Ok(profile) => profile,
         Err(error) => {
           return Err(Error::KSError(format!(
@@ -465,7 +504,8 @@ async fn microsoft_signin(code: String, state: String, app_handle: tauri::AppHan
         id: None,
         email: email.clone(),
         uuid: Some(uuid),
-      }.create();
+      }
+      .create();
 
       let connection_keys = create_connections_from_scopes(
         email.clone(),
@@ -475,10 +515,7 @@ async fn microsoft_signin(code: String, state: String, app_handle: tauri::AppHan
       );
 
       // Create Knapsack API connection
-      create_knapsack_api_connection(
-        email.clone(), 
-        token_response.refresh_internal.as_ref()
-      );
+      create_knapsack_api_connection(email.clone(), token_response.refresh_internal.as_ref());
 
       let window = app_handle.get_window(WINDOW_LABEL).unwrap();
       window.emit(
@@ -503,15 +540,19 @@ async fn microsoft_signin(code: String, state: String, app_handle: tauri::AppHan
 
 #[get("/api/knapsack/microsoft/signin")]
 async fn microsoft_signin_api(
-    req: HttpRequest,
-    app_handle: Data<tauri::AppHandle>,
+  req: HttpRequest,
+  app_handle: Data<tauri::AppHandle>,
 ) -> impl Responder {
   let params = match actix_web::web::Query::<SigninParams>::from_query(req.query_string()) {
     Ok(query) => query,
     Err(_) => return HttpResponse::BadRequest().body("Invalid query parameters"),
   };
 
-  match (params.code.as_ref(), params.state.as_ref(), params.error.as_ref()) {
+  match (
+    params.code.as_ref(),
+    params.state.as_ref(),
+    params.error.as_ref(),
+  ) {
     (Some(code), Some(state), None) => handle_successful_signin(code, state, app_handle).await,
     (None, None, Some(error)) => handle_signin_error(error, &params, app_handle),
     _ => HttpResponse::BadRequest().body("Invalid request parameters"),
@@ -523,14 +564,20 @@ async fn handle_successful_signin(
   state: &str,
   app_handle: Data<tauri::AppHandle>,
 ) -> HttpResponse {
-  match microsoft_signin(code.to_string(), state.to_string(), app_handle.get_ref().clone()).await {
+  match microsoft_signin(
+    code.to_string(),
+    state.to_string(),
+    app_handle.get_ref().clone(),
+  )
+  .await
+  {
     Ok(_) => {
       let html_file = app_handle
         .path_resolver()
         .resolve_resource("resources/signin_success.html")
         .expect("failed to resolve resource");
-      let html_string = std::fs::read_to_string(&html_file)
-        .unwrap_or_else(|_| "Signin success!".to_string());
+      let html_string =
+        std::fs::read_to_string(&html_file).unwrap_or_else(|_| "Signin success!".to_string());
       HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html_string)
@@ -550,15 +597,18 @@ fn handle_signin_error(
   let err_msg = format!(
     "Microsoft signin error: {} - description: {}",
     error,
-    params.error_description.as_deref().unwrap_or("No description provided")
+    params
+      .error_description
+      .as_deref()
+      .unwrap_or("No description provided")
   );
   knap_log_error(err_msg.clone(), None, Some(true));
   let html_file = app_handle
     .path_resolver()
     .resolve_resource("resources/signin_error.html")
     .expect("failed to resolve resource");
-  let html_string = std::fs::read_to_string(&html_file)
-    .unwrap_or_else(|_| "Error page not found".to_string());
+  let html_string =
+    std::fs::read_to_string(&html_file).unwrap_or_else(|_| "Error page not found".to_string());
 
   let message = get_message_error(error);
   let action_message = get_action_message(error);
@@ -567,7 +617,10 @@ fn handle_signin_error(
     .replace("{{ERROR_ACTION_MESSAGE}}", action_message)
     .replace(
       "{{ERROR_DESCRIPTION}}",
-      params.error_description.as_deref().unwrap_or("No description provided"),
+      params
+        .error_description
+        .as_deref()
+        .unwrap_or("No description provided"),
     );
 
   HttpResponse::Ok()

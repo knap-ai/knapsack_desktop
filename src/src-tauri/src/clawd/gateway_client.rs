@@ -1775,6 +1775,7 @@ const MAX_SELF_HEAL_ATTEMPTS_PER_SESSION: usize = 3;
 /// the gateway port is responding (i.e. something is on 18789 but it's not
 /// answering our handshake correctly — likely a competing gateway).
 const SELF_HEAL_AFTER_CONSECUTIVE_FAILURES: usize = 3;
+const GATEWAY_HEALTH_PATHS: [&str; 2] = ["/healthz", "/health"];
 
 /// Spawn a background task that retries the WebSocket connection with
 /// exponential backoff (1 s → 2 s → 4 s → 8 s → 15 s cap).
@@ -1938,17 +1939,28 @@ pub fn ensure_reconnect_if_needed() {
 /// errors that a raw TCP connect-then-drop generates.  Any HTTP response
 /// (including 401/404) confirms the port is up.
 pub async fn is_gateway_port_open() -> bool {
-  let client = match reqwest::Client::builder()
-    .timeout(Duration::from_millis(500))
-    .build()
-  {
-    Ok(c) => c,
-    Err(_) => return false,
+  let is_gateway_http_open = |timeout: Duration| async move {
+    let client = match reqwest::Client::builder().timeout(timeout).build() {
+      Ok(c) => c,
+      Err(_) => return false,
+    };
+    for path in GATEWAY_HEALTH_PATHS {
+      let url = format!("http://127.0.0.1:18789{}", path);
+      let probe = tokio::time::timeout(timeout, client.get(&url).send());
+      if let Ok(Ok(resp)) = probe.await {
+        let status = resp.status();
+        if status.is_success()
+          || status.is_informational()
+          || status.is_redirection()
+          || status.is_client_error()
+        {
+          return true;
+        }
+      }
+    }
+    false
   };
-  let http_probe = tokio::time::timeout(
-    Duration::from_millis(500),
-    client.get("http://127.0.0.1:18789/health").send(),
-  );
+  let http_probe = is_gateway_http_open(Duration::from_millis(500));
   let token = get_gateway_token();
   let ws_probe = async {
     match token {
@@ -1958,7 +1970,7 @@ pub async fn is_gateway_port_open() -> bool {
   };
 
   let (http_ok, ws_ok) = tokio::join!(http_probe, ws_probe);
-  http_ok.map(|r| r.is_ok()).unwrap_or(false) || ws_ok
+  http_ok || ws_ok
 }
 
 async fn gateway_ws_handshake_open(token: &str, timeout: Duration) -> bool {

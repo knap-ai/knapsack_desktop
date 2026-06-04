@@ -1,29 +1,29 @@
-use tokio;
+use serde_json::{Map, Value};
 use std::env;
 use std::sync::Arc;
+use tokio;
 use tokio::sync::Mutex;
-use serde_json::{ Value, Map };
 
 use reqwest::Client;
 
-use chrono::{Duration, DateTime, Utc, TimeZone};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use actix_web::web::Data;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 
 use crate::connections::api::ConnectionsEnum;
-use crate::connections::microsoft::constants::{ MICROSOFT_CALENDAR_SCOPE, MICROSOFT_BASE_URL };
-use crate::connections::microsoft::auth::{ refresh_user_connection };
+use crate::connections::microsoft::auth::refresh_user_connection;
+use crate::connections::microsoft::constants::{MICROSOFT_BASE_URL, MICROSOFT_CALENDAR_SCOPE};
 use crate::ConnectionsData;
 
+use crate::connections::google::calendar::FetchCalendarEventPayload;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::user_connection::UserConnection;
 use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
-use tauri::Manager;
-use crate::connections::google::calendar::FetchCalendarEventPayload;
 use crate::utils::log::knap_log_error;
+use tauri::Manager;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchMicrosoftCalendarParams {
@@ -41,113 +41,111 @@ pub struct FetchMicrosoftCalendarFailResponse {
   details: String,
 }
 
-
 #[derive(Deserialize, Debug)]
 struct Event {
-    id: Option<String>,
-    seriesMasterId: Option<String>,
-    subject: Option<String>,
-    start: Option<MSDateTime>,
-    end: Option<MSDateTime>,
-    location: Option<Location>,
-    attendees: Option<Vec<Attendee>>,
-    body: Option<Body>,
-    organizer: Option<Organizer>,
-    isOnlineMeeting: Option<bool>,
-    onlineMeetingUrl: Option<String>,
-    recurrence: Option<Recurrence>,
+  id: Option<String>,
+  seriesMasterId: Option<String>,
+  subject: Option<String>,
+  start: Option<MSDateTime>,
+  end: Option<MSDateTime>,
+  location: Option<Location>,
+  attendees: Option<Vec<Attendee>>,
+  body: Option<Body>,
+  organizer: Option<Organizer>,
+  isOnlineMeeting: Option<bool>,
+  onlineMeetingUrl: Option<String>,
+  recurrence: Option<Recurrence>,
 }
-
 
 #[derive(Deserialize, Debug)]
 struct MSDateTime {
-    dateTime: Option<String>,
-    timeZone: Option<String>,
+  dateTime: Option<String>,
+  timeZone: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Location {
-    displayName: Option<String>,
-    address: Option<Address>,
+  displayName: Option<String>,
+  address: Option<Address>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Pattern {
-    r#type: Option<String>,
-    interval: Option<u32>,
-    daysOfWeek: Option<Vec<String>>,
-    firstDayOfWeek: Option<String>,
-    index: Option<String>,
+  r#type: Option<String>,
+  interval: Option<u32>,
+  daysOfWeek: Option<Vec<String>>,
+  firstDayOfWeek: Option<String>,
+  index: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Recurrence {
-    pattern: Option<Pattern>,
-    range: Option<Range>,
+  pattern: Option<Pattern>,
+  range: Option<Range>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Range {
-    r#type: Option<String>,
-    startDate: Option<String>,
-    endDate: Option<String>,
-    numberOfOccurrences: Option<u32>,
+  r#type: Option<String>,
+  startDate: Option<String>,
+  endDate: Option<String>,
+  numberOfOccurrences: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Address {
-    street: Option<String>,
-    city: Option<String>,
-    state: Option<String>,
-    countryOrRegion: Option<String>,
-    postalCode: Option<String>,
+  street: Option<String>,
+  city: Option<String>,
+  state: Option<String>,
+  countryOrRegion: Option<String>,
+  postalCode: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct Attendee {
-    emailAddress: Option<EmailAddress>,
-    status: Option<ResponseStatus>,
+  emailAddress: Option<EmailAddress>,
+  status: Option<ResponseStatus>,
 }
 
 #[derive(Deserialize, Debug)]
 struct EmailAddress {
-    name: Option<String>,
-    address: Option<String>,
+  name: Option<String>,
+  address: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ResponseStatus {
-    response: Option<String>,
-    time: Option<String>,
+  response: Option<String>,
+  time: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct Body {
-    contentType: Option<String>,
-    content: Option<String>,
+  contentType: Option<String>,
+  content: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
 struct Organizer {
-    emailAddress: Option<EmailAddress>,
+  emailAddress: Option<EmailAddress>,
 }
 
 #[derive(Deserialize, Debug)]
 struct EventResponse {
-    value: Vec<Event>,
-    #[serde(rename = "@odata.nextLink")]
-    next_link: Option<String>,
+  value: Vec<Event>,
+  #[serde(rename = "@odata.nextLink")]
+  next_link: Option<String>,
 }
 
 fn convert_date_string_to_timestamp(date: &str) -> Option<i64> {
   let cleaned_date = date.trim_end_matches('0').trim_end_matches('.');
 
   match Utc.datetime_from_str(cleaned_date, "%Y-%m-%dT%H:%M:%S") {
-      Ok(datetime) => Some(datetime.timestamp()),
-      Err(e) => {
-          eprintln!("Error converting timestamp: {:?}", e);
-          None
-      }
+    Ok(datetime) => Some(datetime.timestamp()),
+    Err(e) => {
+      eprintln!("Error converting timestamp: {:?}", e);
+      None
+    }
   }
 }
 
@@ -162,7 +160,7 @@ fn create_calendar_event(event: Event, calendar_account_email: String) -> Result
   let mut attendees_maps: Vec<Map<String, Value>> = Vec::new();
   if let Some(attendees) = event.attendees {
     for attendee in attendees {
-      if let Some(emailAddress) =  attendee.emailAddress{
+      if let Some(emailAddress) = attendee.emailAddress {
         let mut attendee_map = Map::new();
         attendee_map.insert(
           "email".to_string(),
@@ -175,14 +173,14 @@ fn create_calendar_event(event: Event, calendar_account_email: String) -> Result
 
         attendees_maps.push(attendee_map);
       }
-    } 
+    }
   }
   let mut recurrence_json: Option<String> = None;
   if let Some(recurrence) = &event.recurrence {
-      match serde_json::to_string(recurrence) {
-          Ok(json) => recurrence_json = Some(json),
-          Err(e) => eprintln!("Error during recurrence serialization {:?}", e),
-      }
+    match serde_json::to_string(recurrence) {
+      Ok(json) => recurrence_json = Some(json),
+      Err(e) => eprintln!("Error during recurrence serialization {:?}", e),
+    }
   }
 
   let recurrence_id = event.seriesMasterId;
@@ -227,10 +225,10 @@ fn create_calendar_event(event: Event, calendar_account_email: String) -> Result
   calendar_event.create()
 }
 
-async fn fetch_calendar(  
+async fn fetch_calendar(
   email: String,
   app_handle: tauri::AppHandle,
-  connections_data: Arc<Mutex<ConnectionsData>>
+  connections_data: Arc<Mutex<ConnectionsData>>,
 ) -> Result<(), Error> {
   let user_connection = match UserConnection::find_by_user_email_and_scope(
     email.clone(),
@@ -245,15 +243,19 @@ async fn fetch_calendar(
     }
   };
 
-  let update_user_connection = match refresh_user_connection(user_connection.clone(), email.clone()).await {
-    Ok(updated_user_connection) => updated_user_connection,
-    Err(error) => {
-      log::error!("Failed to refresh access token: {:?}", error);
-      let msg = format!("Failed to refresh access token in microsoft calendar for user: {}", email);
-      knap_log_error(msg, Some(error), None);
-      return Err(Error::KSError("Fail to refresh access token".to_string()));
-    }
-  };
+  let update_user_connection =
+    match refresh_user_connection(user_connection.clone(), email.clone()).await {
+      Ok(updated_user_connection) => updated_user_connection,
+      Err(error) => {
+        log::error!("Failed to refresh access token: {:?}", error);
+        let msg = format!(
+          "Failed to refresh access token in microsoft calendar for user: {}",
+          email
+        );
+        knap_log_error(msg, Some(error), None);
+        return Err(Error::KSError("Fail to refresh access token".to_string()));
+      }
+    };
 
   if ConnectionsData::lock_and_get_connection_is_syncing(
     connections_data.clone(),
@@ -273,8 +275,12 @@ async fn fetch_calendar(
   let client = Client::new();
   let now = Utc::now();
 
-  let one_month_ago = (chrono::Utc::now() - chrono::Duration::days(31)).format("%Y-%m-%dT%H:%M:%SZ").to_string();;
-  let one_month_later = (chrono::Utc::now() + chrono::Duration::days(31)).format("%Y-%m-%dT%H:%M:%SZ").to_string();;
+  let one_month_ago = (chrono::Utc::now() - chrono::Duration::days(31))
+    .format("%Y-%m-%dT%H:%M:%SZ")
+    .to_string();
+  let one_month_later = (chrono::Utc::now() + chrono::Duration::days(31))
+    .format("%Y-%m-%dT%H:%M:%SZ")
+    .to_string();
 
   let mut url = format!(
     "{}/me/events?$filter=start/dateTime ge '{}' and start/dateTime lt '{}'&$top=500",
@@ -326,22 +332,26 @@ async fn fetch_calendar(
 
   let event_count = event_ids_total.len();
   CalendarEvent::delete_calendar_events_removed(event_ids_total.clone(), &email);
-  UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), (chrono::Utc::now() + chrono::Duration::days(31)));
+  UserConnection::update_last_sync_by_id(
+    user_connection.id.unwrap(),
+    (chrono::Utc::now() + chrono::Duration::days(31)),
+  );
 
   ConnectionsData::lock_and_set_connection_is_syncing(
     connections_data.clone(),
     ConnectionsEnum::MicrosoftCalendar,
     false,
-  ).await;
+  )
+  .await;
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit(
     "finish_fetch_calendar",
     FetchCalendarEventPayload {
       success: true,
       synced_events_count: event_count,
-    }
+    },
   );
-  
+
   Ok(())
 }
 
@@ -360,16 +370,16 @@ async fn fetch_microsoft_calendar_api(
     params.email.clone(),
     unwrapped_app_handle,
     unwrapped_connections_data,
-  ).await {
+  )
+  .await
+  {
     Ok(_) => HttpResponse::Ok().json(FetchMicrosoftCalendarResponse { success: true }),
     Err(error) => {
       log::error!("Fetch calendar fail {:?}", error);
-      HttpResponse::BadRequest().json(
-        FetchMicrosoftCalendarFailResponse { 
-          success: false, 
-          details: format!("Fetch calendar error: {:?}", error)
-        }
-      )
+      HttpResponse::BadRequest().json(FetchMicrosoftCalendarFailResponse {
+        success: false,
+        details: format!("Fetch calendar error: {:?}", error),
+      })
     }
   }
 }

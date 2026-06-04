@@ -1,12 +1,12 @@
 use reqwest::StatusCode;
-use tokio_retry::strategy::{ExponentialBackoff, jitter};
-use tokio_retry::Retry;
 use std::time::Duration;
+use tokio_retry::strategy::{jitter, ExponentialBackoff};
+use tokio_retry::Retry;
 
 use crate::connections::google::constants::{
   GOOGLE_APIS_BASE_URL, GOOGLE_DRIVE_SCOPE, GOOGLE_PROFILE_SCOPE,
 };
-use crate::connections::google::types::{ FetchError };
+use crate::connections::google::types::FetchError;
 use crate::db::models::user_connection::UserConnection;
 use crate::error::Error;
 use actix_web::web::Data;
@@ -39,53 +39,61 @@ pub struct FetchGoogleProfileParams {
   email: String,
 }
 
-pub async fn fetch_google_profile(access_token: String, refresh_internal: Option<String>) -> Result<UserInfoResponse, FetchError> {
+pub async fn fetch_google_profile(
+  access_token: String,
+  refresh_internal: Option<String>,
+) -> Result<UserInfoResponse, FetchError> {
   let client = reqwest::Client::new();
   let retry_strategy = ExponentialBackoff::from_millis(2000)
-      .max_delay(Duration::from_secs(3))
-      .map(jitter) 
-      .take(3);
+    .max_delay(Duration::from_secs(3))
+    .map(jitter)
+    .take(3);
 
-    let response = Retry::spawn(retry_strategy, || {
-      let access_token = access_token.clone();
-      let client = client.clone();
-      async move {
-        let response = client
-          .get(format!("{}/v3/userinfo", GOOGLE_APIS_BASE_URL))
-          .header("authorization", format!("Bearer {}", access_token))
-          .send()
-          .await
-          .map_err(FetchError::NetworkError)?;
+  let response = Retry::spawn(retry_strategy, || {
+    let access_token = access_token.clone();
+    let client = client.clone();
+    async move {
+      let response = client
+        .get(format!("{}/v3/userinfo", GOOGLE_APIS_BASE_URL))
+        .header("authorization", format!("Bearer {}", access_token))
+        .send()
+        .await
+        .map_err(FetchError::NetworkError)?;
 
-        match response.status() {
-          StatusCode::OK => Ok(response),
-          StatusCode::UNAUTHORIZED => Err(FetchError::InvalidToken),
-          StatusCode::TOO_MANY_REQUESTS => Err(FetchError::RateLimitExceeded),
-          status if status.is_server_error() => Err(FetchError::ServerError(status)),
-          _ => Err(FetchError::UnknownError(format!(
-              "Unexpected status code: {}",
-              response.status()
-          ))),
-        }
+      match response.status() {
+        StatusCode::OK => Ok(response),
+        StatusCode::UNAUTHORIZED => Err(FetchError::InvalidToken),
+        StatusCode::TOO_MANY_REQUESTS => Err(FetchError::RateLimitExceeded),
+        status if status.is_server_error() => Err(FetchError::ServerError(status)),
+        _ => Err(FetchError::UnknownError(format!(
+          "Unexpected status code: {}",
+          response.status()
+        ))),
       }
-  }).await;
+    }
+  })
+  .await;
 
-  let info = response.unwrap().json::<GoogleUserInfoResponse>().await.unwrap();
+  let info = response
+    .unwrap()
+    .json::<GoogleUserInfoResponse>()
+    .await
+    .unwrap();
   let user_uuid: Option<String> = match fetch_user_uuid(&info.email, refresh_internal).await {
     Ok(uuid) => Some(uuid),
     Err(err) => {
       let err_msg = format!("{:?}", err);
       knap_log_error(err_msg, Some(Error::FetchUuidError(err)), None);
       None
-    },
+    }
   };
   Ok(UserInfoResponse {
-      success: true,
-      email: Some(info.email),
-      profile_image: info.picture,
-      name: Some(info.name),
-      uuid: user_uuid,
-      message: None,
+    success: true,
+    email: Some(info.email),
+    profile_image: info.picture,
+    name: Some(info.name),
+    uuid: user_uuid,
+    message: None,
   })
 }
 

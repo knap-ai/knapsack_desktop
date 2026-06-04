@@ -1,8 +1,7 @@
+use crate::error::Error;
 use hound;
 use serde::Serialize;
 use std::path::Path;
-use crate::error::Error;
-
 
 use log::{debug, info};
 

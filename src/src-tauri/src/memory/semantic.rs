@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
+use crate::utils::platform::{get_os, OS};
 use crate::{
   api::document::DisplayDocument,
   llm::types::{LLMError, MaxTokensArgs, StringToTokensArgs},
@@ -33,7 +34,6 @@ use crate::{
 };
 use priority_queue::PriorityQueue;
 use std::time::Instant;
-use crate::utils::platform::{OS, get_os};
 
 use super::qdrant::{create_collection, get_point, search_points, upsert_points};
 
@@ -268,7 +268,7 @@ impl SemanticService {
     priority: u16,
   ) {
     if get_os() != OS::MACOS {
-      return
+      return;
     }
 
     let mut upsert_payloads = Vec::new();
@@ -620,7 +620,7 @@ impl SemanticService {
                 priority,
               );
             }
-          },
+          }
           None => {
             // No items in queue, sleep for a while
             tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;

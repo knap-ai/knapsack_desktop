@@ -78,7 +78,7 @@ impl Default for Thread {
       thread_type: ThreadType::Chat,
       recorded: Some(false),
       saved_transcript: None,
-      prompt_template: None
+      prompt_template: None,
     }
   }
 }
@@ -180,17 +180,40 @@ impl Thread {
       let mut stmt = connection.prepare(
         "INSERT INTO threads (timestamp, hideFollowUp, feed_item_id, thread_type, title, subtitle, prompt_template) VALUES (strftime('%s','now'), ?1, ?2, ?3, ?4, ?5, ?6)",
       )?;
-      stmt.execute((self.hide_follow_up, self.feed_item_id, self.thread_type.to_string().clone(), self.title.clone(), self.subtitle.clone(), self.prompt_template.clone()))?;
+      stmt.execute((
+        self.hide_follow_up,
+        self.feed_item_id,
+        self.thread_type.to_string().clone(),
+        self.title.clone(),
+        self.subtitle.clone(),
+        self.prompt_template.clone(),
+      ))?;
     } else if self.id.is_some() && self.timestamp.is_none() {
       let mut stmt = connection.prepare(
         "INSERT INTO threads (id, timestamp, hideFollowUp, feed_item_id, thread_type, title, subtitle, prompt_template) VALUES (?1, strftime('%s','now'), ?2, ?3, ?4, ?5, ?6, ?7)",
       )?;
-      stmt.execute((&self.id, &self.hide_follow_up, self.feed_item_id, self.thread_type.to_string(), self.title.clone(), self.subtitle.clone(), self.prompt_template.clone()))?;
+      stmt.execute((
+        &self.id,
+        &self.hide_follow_up,
+        self.feed_item_id,
+        self.thread_type.to_string(),
+        self.title.clone(),
+        self.subtitle.clone(),
+        self.prompt_template.clone(),
+      ))?;
     } else {
       let mut stmt = connection.prepare(
         "INSERT INTO threads (timestamp, hideFollowUp, feed_item_id, thread_type, title, subtitle, prompt_template) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
       )?;
-      stmt.execute((&self.timestamp, &self.hide_follow_up, self.feed_item_id, self.thread_type.to_string(), self.title.clone(), self.subtitle.clone(), self.prompt_template.clone()))?;
+      stmt.execute((
+        &self.timestamp,
+        &self.hide_follow_up,
+        self.feed_item_id,
+        self.thread_type.to_string(),
+        self.title.clone(),
+        self.subtitle.clone(),
+        self.prompt_template.clone(),
+      ))?;
     }
 
     self.id = Some(connection.last_insert_rowid() as u64);
@@ -206,7 +229,17 @@ impl Thread {
     let connection = get_db_conn();
     let mut stmt =
       connection.prepare("UPDATE threads SET timestamp = ?2, hideFollowUp = ?3, thread_type = ?4, title = ?5, subtitle = ?6, recorded = ?7, saved_transcript = ?8, prompt_template = ?9 WHERE id = ?1")?;
-    stmt.execute(params![self.id, self.timestamp, self.hide_follow_up, self.thread_type.to_string(), self.title, self.subtitle, self.recorded, self.saved_transcript, self.prompt_template])?;
+    stmt.execute(params![
+      self.id,
+      self.timestamp,
+      self.hide_follow_up,
+      self.thread_type.to_string(),
+      self.title,
+      self.subtitle,
+      self.recorded,
+      self.saved_transcript,
+      self.prompt_template
+    ])?;
     Ok(())
   }
 

@@ -1,19 +1,19 @@
+use super::encode::save_chunk;
+use super::transcribe::finalize_chunk;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use tauri::api::process::Command;
-use tokio::time::{sleep, Duration};
-use wasapi::*;
-use super::encode::save_chunk;
-use super::transcribe::finalize_chunk;
 use std::time::Instant;
+use tauri::api::process::Command;
 use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
+use tokio::time::{sleep, Duration};
+use wasapi::*;
 
 use crate::error::Error;
 
@@ -55,7 +55,7 @@ impl AudioRecorder {
     let (tx_capt, rx_capt): (
       std::sync::mpsc::SyncSender<Vec<f32>>,
       std::sync::mpsc::Receiver<Vec<f32>>,
-  ) = mpsc::sync_channel(2);
+    ) = mpsc::sync_channel(2);
 
     let is_recording_clone = self.is_recording.clone();
     let captured_data = self.captured_data.clone();
@@ -84,41 +84,41 @@ impl AudioRecorder {
             let mut captured_data = self.captured_data.lock().unwrap();
             captured_data.extend(chunk.clone());
           }
-           samples.extend(chunk);
-           let mut last_save = last_save.lock().unwrap();
-           let now = Instant::now();
-           if now.duration_since(*last_save).as_secs() >= 150 {
-               let mut counter = chunk_counter.lock().unwrap();
-               let chunk_filename = format!("{}_{}.flac", output_path, *counter);
-               let transcript_filename = format!("{}.txt", output_path);
- 
-               let semaphore_clone = semaphore.clone();
-               let samples_to_save: Vec<f32>;
-               {
-                let mut captured_data = self.captured_data.lock().unwrap();
-                samples_to_save = captured_data.drain(..).collect();
-              }
-              if  !self.is_paused.load(Ordering::SeqCst) {
-               std::thread::spawn(move || {
-                   let rt = Runtime::new().unwrap();
-                   rt.block_on(async {
-                       let permit = semaphore_clone.acquire().await.unwrap();
-                       let samples_i32: Vec<i32> = samples_to_save
-                                    .iter()
-                                    .map(|&sample| (sample * i16::MAX as f32) as i16 as i32)
-                                    .collect();
-                       save_chunk(samples_i32, chunk_filename.clone(), 1, 44100);
-                       finalize_chunk(chunk_filename, transcript_filename).await;
-                       drop(permit);
-                   });
-               });
- 
-               *last_save = now;
-               *counter += 1;
-              } else{
-                *last_save = now;
-              }
-           }
+          samples.extend(chunk);
+          let mut last_save = last_save.lock().unwrap();
+          let now = Instant::now();
+          if now.duration_since(*last_save).as_secs() >= 150 {
+            let mut counter = chunk_counter.lock().unwrap();
+            let chunk_filename = format!("{}_{}.flac", output_path, *counter);
+            let transcript_filename = format!("{}.txt", output_path);
+
+            let semaphore_clone = semaphore.clone();
+            let samples_to_save: Vec<f32>;
+            {
+              let mut captured_data = self.captured_data.lock().unwrap();
+              samples_to_save = captured_data.drain(..).collect();
+            }
+            if !self.is_paused.load(Ordering::SeqCst) {
+              std::thread::spawn(move || {
+                let rt = Runtime::new().unwrap();
+                rt.block_on(async {
+                  let permit = semaphore_clone.acquire().await.unwrap();
+                  let samples_i32: Vec<i32> = samples_to_save
+                    .iter()
+                    .map(|&sample| (sample * i16::MAX as f32) as i16 as i32)
+                    .collect();
+                  save_chunk(samples_i32, chunk_filename.clone(), 1, 44100);
+                  finalize_chunk(chunk_filename, transcript_filename).await;
+                  drop(permit);
+                });
+              });
+
+              *last_save = now;
+              *counter += 1;
+            } else {
+              *last_save = now;
+            }
+          }
         }
         Err(err) => {
           log::error!("Some error {}", err);
@@ -183,17 +183,15 @@ impl AudioRecorder {
     let render_client = match audio_client.get_audiocaptureclient() {
       Ok(r) => r,
       Err(e) => {
-        log::info!("ERROR - couldn't get CaptureClient: {:?}",
-        e.to_string());
-        return Err(e)
+        log::info!("ERROR - couldn't get CaptureClient: {:?}", e.to_string());
+        return Err(e);
       }
     };
     // log::info!("render_client: {:?}", render_client);
     log::info!("render client!");
 
-    let mut sample_queue: VecDeque<u8> = VecDeque::with_capacity(
-      100 * blockalign as usize * (1024 + 2 * buffer_frame_count as usize),
-    );
+    let mut sample_queue: VecDeque<u8> =
+      VecDeque::with_capacity(100 * blockalign as usize * (1024 + 2 * buffer_frame_count as usize));
     log::info!("sample_queue: {:?}", sample_queue.len());
     let session_control = audio_client.get_audiosessioncontrol()?;
 
@@ -204,22 +202,22 @@ impl AudioRecorder {
     loop {
       while sample_queue.len() > (blockalign as usize * chunksize) {
         let mut chunk = vec![0f32; chunksize];
-                for i in 0..chunksize {
-                    let left = f32::from_le_bytes([
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                    ]);
-                    let right = f32::from_le_bytes([
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                        sample_queue.pop_front().unwrap(),
-                    ]);
-                    chunk[i] = (left + right); // Convert to mono
-                }
-                tx_capt.send(chunk)?;
+        for i in 0..chunksize {
+          let left = f32::from_le_bytes([
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+          ]);
+          let right = f32::from_le_bytes([
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+            sample_queue.pop_front().unwrap(),
+          ]);
+          chunk[i] = (left + right); // Convert to mono
+        }
+        tx_capt.send(chunk)?;
       }
       // log::info!("capturing");
       render_client.read_from_device_to_deque(&mut sample_queue)?;
@@ -244,36 +242,34 @@ impl AudioRecorder {
     // self.is_recording.store(false, Ordering::SeqCst);
     println!("FINISHED the atomic bool change");
     let semaphore = self.semaphore.clone();
-        let output_path = self.output_path.clone();
-        let chunk_counter = self.chunk_counter.clone();
-        let final_samples: Vec<f32> = {
-          let mut captured_data = self.captured_data.lock().unwrap();
-          std::mem::take(&mut *captured_data)
-      };
-        std::thread::spawn(move || {
-            let rt = Runtime::new().unwrap();
-            rt.block_on(async {
-                let permit = semaphore.acquire().await.unwrap();
+    let output_path = self.output_path.clone();
+    let chunk_counter = self.chunk_counter.clone();
+    let final_samples: Vec<f32> = {
+      let mut captured_data = self.captured_data.lock().unwrap();
+      std::mem::take(&mut *captured_data)
+    };
+    std::thread::spawn(move || {
+      let rt = Runtime::new().unwrap();
+      rt.block_on(async {
+        let permit = semaphore.acquire().await.unwrap();
 
-                let mut counter = chunk_counter.lock().unwrap();
-                let chunk_filename = format!("{}_{}.flac", output_path, *counter);
-                let transcript_filename = format!("{}.txt", output_path);
-            if !final_samples.is_empty() {
-                let samples_i32: Vec<i32> = final_samples
-                    .iter()
-                    .map(|&sample| (sample * i16::MAX as f32) as i16 as i32)
-                    .collect();
-                save_chunk(samples_i32, chunk_filename.clone(), 1, 44100);
-                finalize_chunk(chunk_filename, transcript_filename).await;
+        let mut counter = chunk_counter.lock().unwrap();
+        let chunk_filename = format!("{}_{}.flac", output_path, *counter);
+        let transcript_filename = format!("{}.txt", output_path);
+        if !final_samples.is_empty() {
+          let samples_i32: Vec<i32> = final_samples
+            .iter()
+            .map(|&sample| (sample * i16::MAX as f32) as i16 as i32)
+            .collect();
+          save_chunk(samples_i32, chunk_filename.clone(), 1, 44100);
+          finalize_chunk(chunk_filename, transcript_filename).await;
 
-                *counter += 1;
-            }
-                drop(permit);
-            });
-        });
+          *counter += 1;
+        }
+        drop(permit);
+      });
+    });
   }
-
-
 }
 pub fn count_microphone_users() -> u64 {
   // TODO:
@@ -284,7 +280,7 @@ pub async fn record_speaker_output(
   is_recording: Arc<AtomicBool>,
   is_paused: Arc<AtomicBool>,
   output_file: &str,
-  semaphore: Arc<Semaphore>
+  semaphore: Arc<Semaphore>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   println!("------- RECORDING WINDOWS SPEAKER OUTPUT -------");
   let audio_recorder = AudioRecorder {
@@ -307,7 +303,7 @@ pub async fn record_speaker_output(
       audio_recorder.stop_recording();
       println!("STOPPED RECORDING!");
       Ok(())
-    },
+    }
     Err(_) => Err(format!("Failed to start recording.").into()),
   };
   res

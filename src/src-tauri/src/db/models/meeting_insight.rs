@@ -16,7 +16,11 @@ pub struct MeetingInsight {
 }
 
 impl MeetingInsight {
-  pub fn create(thread_id: u64, elapsed_minutes: i64, insight: &str) -> Result<MeetingInsight, Error> {
+  pub fn create(
+    thread_id: u64,
+    elapsed_minutes: i64,
+    insight: &str,
+  ) -> Result<MeetingInsight, Error> {
     let connection = get_db_conn();
     let now = SystemTime::now()
       .duration_since(UNIX_EPOCH)
