@@ -27,6 +27,7 @@ mod heartbeat;
 mod library_curator;
 mod llm;
 mod local_fs;
+mod mcp;
 mod memory;
 mod pty;
 mod search;
@@ -36,7 +37,6 @@ mod transcribe;
 mod user;
 mod utils;
 mod workspaces;
-mod mcp;
 
 use connections::api::ConnectionsData;
 use log::info;
@@ -61,7 +61,10 @@ use uuid::Uuid;
 use window_shadows::set_shadow;
 
 use crate::audio::microphone::open_microphone_settings;
-use crate::audio::permission::{open_screen_recording_settings, check_audio_permissions, reset_audio_permissions, diagnose_audio_permissions};
+use crate::audio::permission::{
+  check_audio_permissions, diagnose_audio_permissions, open_screen_recording_settings,
+  reset_audio_permissions,
+};
 use crate::connections::microsoft::auth::start_oauth;
 use crate::db::db::{start_database, KNAPSACK_DB_FILENAME};
 use crate::utils::log::setup_logger;
@@ -84,12 +87,22 @@ pub const TRANSCRIPTS_DIR: &str = "transcripts";
 #[cfg(target_os = "windows")]
 fn windows_work_area() -> Option<(i32, i32, i32, i32)> {
   #[repr(C)]
-  struct Rect { left: i32, top: i32, right: i32, bottom: i32 }
+  struct Rect {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+  }
   extern "system" {
     fn SystemParametersInfoW(action: u32, param: u32, pvparam: *mut Rect, winini: u32) -> i32;
   }
   const SPI_GETWORKAREA: u32 = 0x0030;
-  let mut rc = Rect { left: 0, top: 0, right: 0, bottom: 0 };
+  let mut rc = Rect {
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+  };
   let ok = unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rc, 0) };
   if ok != 0 {
     Some((rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top))
@@ -236,17 +249,15 @@ fn setup_handler(
   });
 
   // Start the heartbeat background loop
-  std::thread::spawn(move || {
-    match tokio::runtime::Runtime::new() {
-      Ok(runtime) => {
-        runtime.block_on(heartbeat::engine::start_heartbeat_loop(
-          heartbeat_app_handle,
-          heartbeat_is_chatting,
-        ));
-      }
-      Err(e) => {
-        eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
-      }
+  std::thread::spawn(move || match tokio::runtime::Runtime::new() {
+    Ok(runtime) => {
+      runtime.block_on(heartbeat::engine::start_heartbeat_loop(
+        heartbeat_app_handle,
+        heartbeat_is_chatting,
+      ));
+    }
+    Err(e) => {
+      eprintln!("Failed to create tokio runtime for heartbeat: {}", e);
     }
   });
 
@@ -580,16 +591,22 @@ fn activate_main_window_from_notification(window: tauri::Window) {
         #[cfg(target_os = "windows")]
         {
           if let Some((_wa_x, wa_y, _wa_w, wa_h)) = windows_work_area() {
-            let scale_factor = notification_window.current_monitor()
-              .ok().flatten()
+            let scale_factor = notification_window
+              .current_monitor()
+              .ok()
+              .flatten()
               .map(|m| m.scale_factor())
               .unwrap_or(1.0);
             // Subtract frame overhead so the outer window fits in the work area
-            let frame_overhead_physical = main_window.outer_size()
+            let frame_overhead_physical = main_window
+              .outer_size()
               .ok()
-              .and_then(|outer| main_window.inner_size().ok().map(|inner| {
-                outer.height as i32 - inner.height as i32
-              }))
+              .and_then(|outer| {
+                main_window
+                  .inner_size()
+                  .ok()
+                  .map(|inner| outer.height as i32 - inner.height as i32)
+              })
               .unwrap_or(0);
             let usable_h = (wa_h - frame_overhead_physical).max(400);
             let wa_h_logical = usable_h as f64 / scale_factor;
@@ -598,9 +615,10 @@ fn activate_main_window_from_notification(window: tauri::Window) {
               width: NOTIF_WIDTH,
               height: wa_h_logical,
             }));
-            let _ = main_window.set_position(tauri::Position::Physical(
-              tauri::PhysicalPosition { x: notif_pos.x, y: wa_y },
-            ));
+            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+              x: notif_pos.x,
+              y: wa_y,
+            }));
           }
         }
 
@@ -621,12 +639,10 @@ fn activate_main_window_from_notification(window: tauri::Window) {
             }));
 
             let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
-            let _ = main_window.set_position(tauri::Position::Physical(
-              tauri::PhysicalPosition {
-                x: notif_pos.x,
-                y: (y * scale_factor) as i32,
-              },
-            ));
+            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+              x: notif_pos.x,
+              y: (y * scale_factor) as i32,
+            }));
           }
         }
       }
@@ -643,10 +659,7 @@ fn activate_main_window_from_notification(window: tauri::Window) {
 /// the meeting window, opens chat via platform-specific keyboard shortcut,
 /// pastes, and sends. Falls back to clipboard-only on non-macOS.
 #[tauri::command]
-async fn send_meeting_chat_message(
-  platform: String,
-  message: String,
-) -> Result<bool, String> {
+async fn send_meeting_chat_message(platform: String, message: String) -> Result<bool, String> {
   #[cfg(target_os = "macos")]
   {
     use std::process::Command;
@@ -658,7 +671,8 @@ async fn send_meeting_chat_message(
       .map_err(|e| format!("Failed to start pbcopy: {}", e))?;
     if let Some(ref mut stdin) = pbcopy.stdin {
       use std::io::Write;
-      stdin.write_all(message.as_bytes())
+      stdin
+        .write_all(message.as_bytes())
         .map_err(|e| format!("Failed to write to pbcopy: {}", e))?;
     }
     pbcopy.wait().map_err(|e| format!("pbcopy failed: {}", e))?;
@@ -668,22 +682,28 @@ async fn send_meeting_chat_message(
     let (open_chat_keys, close_chat_keys, target_app) = match platform.as_str() {
       "zoom" => {
         // Zoom: Cmd+Shift+H toggles chat panel
-        ("key code 4 using {command down, shift down}",   // H
-         "key code 4 using {command down, shift down}",   // toggle off
-         r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#)
+        (
+          "key code 4 using {command down, shift down}", // H
+          "key code 4 using {command down, shift down}", // toggle off
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#,
+        )
       }
       "teams" => {
         // Teams: Cmd+Shift+M toggles chat (newer) or Cmd+2
-        ("key code 46 using {command down, shift down}",  // M
-         "key code 46 using {command down, shift down}",  // toggle off
-         r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#)
+        (
+          "key code 46 using {command down, shift down}", // M
+          "key code 46 using {command down, shift down}", // toggle off
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#,
+        )
       }
       _ => {
         // Google Meet in browser: Cmd+Shift+C toggles chat
         // We target the frontmost browser
-        ("key code 8 using {command down, shift down}",   // C
-         "key code 8 using {command down, shift down}",   // toggle off
-         r#"tell application "System Events" to set targetApp to name of first application process whose frontmost is true"#)
+        (
+          "key code 8 using {command down, shift down}", // C
+          "key code 8 using {command down, shift down}", // toggle off
+          r#"tell application "System Events" to set targetApp to name of first application process whose frontmost is true"#,
+        )
       }
     };
 
@@ -721,7 +741,10 @@ async fn send_meeting_chat_message(
 
     if !output.status.success() {
       let stderr = String::from_utf8_lossy(&output.stderr);
-      log::warn!("Meeting chat AppleScript failed: {}. Message is still on clipboard.", stderr);
+      log::warn!(
+        "Meeting chat AppleScript failed: {}. Message is still on clipboard.",
+        stderr
+      );
       // Return false to indicate auto-paste failed (message is on clipboard as fallback)
       return Ok(false);
     }
@@ -747,10 +770,13 @@ async fn send_meeting_chat_message(
       .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
     if let Some(ref mut stdin) = child.stdin {
       use std::io::Write;
-      stdin.write_all(message.as_bytes())
+      stdin
+        .write_all(message.as_bytes())
         .map_err(|e| format!("Failed to write to clipboard: {}", e))?;
     }
-    child.wait().map_err(|e| format!("Clipboard command failed: {}", e))?;
+    child
+      .wait()
+      .map_err(|e| format!("Clipboard command failed: {}", e))?;
     Ok(false) // auto-paste not supported, message is on clipboard
   }
 }
@@ -762,10 +788,9 @@ fn position_browser_beside_app(app: tauri::AppHandle) {
   #[cfg(target_os = "macos")]
   {
     if let Some(main_window) = app.get_window("main") {
-      if let (Ok(main_pos), Ok(Some(monitor))) = (
-        main_window.outer_position(),
-        main_window.current_monitor(),
-      ) {
+      if let (Ok(main_pos), Ok(Some(monitor))) =
+        (main_window.outer_position(), main_window.current_monitor())
+      {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
 
@@ -823,26 +848,34 @@ async fn emit_event(window: tauri::Window, event: String, payload: Value) -> Res
 }
 
 #[tauri::command]
-async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>) -> Result<Vec<String>, String> {
-    let log_dir = app
-        .path_resolver()
-        .app_log_dir()
-        .ok_or("Could not resolve log directory")?;
+async fn kn_read_logs(
+  app: AppHandle,
+  log_type: String,
+  max_lines: Option<usize>,
+) -> Result<Vec<String>, String> {
+  let log_dir = app
+    .path_resolver()
+    .app_log_dir()
+    .ok_or("Could not resolve log directory")?;
 
-    let log_path = match log_type.as_str() {
-        "error" => log_dir.join("ks_error.log"),
-        "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
-        "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
-        _ => log_dir.join("ks.log"),
-    };
+  let log_path = match log_type.as_str() {
+    "error" => log_dir.join("ks_error.log"),
+    "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
+    "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
+    _ => log_dir.join("ks.log"),
+  };
 
-    let content = std::fs::read_to_string(&log_path)
-        .map_err(|e| format!("Failed to read log file {}: {}", log_path.display(), e))?;
+  let content = std::fs::read_to_string(&log_path)
+    .map_err(|e| format!("Failed to read log file {}: {}", log_path.display(), e))?;
 
-    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-    let max = max_lines.unwrap_or(500);
-    let start = if lines.len() > max { lines.len() - max } else { 0 };
-    Ok(lines[start..].to_vec())
+  let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+  let max = max_lines.unwrap_or(500);
+  let start = if lines.len() > max {
+    lines.len() - max
+  } else {
+    0
+  };
+  Ok(lines[start..].to_vec())
 }
 
 /// Streaming variant for live log tailing.  Returns only the bytes after
@@ -851,83 +884,83 @@ async fn kn_read_logs(app: AppHandle, log_type: String, max_lines: Option<usize>
 /// (new size < since_offset), we reset and return the full tail instead.
 #[tauri::command]
 async fn kn_read_logs_since(
-    app: AppHandle,
-    log_type: String,
-    since_offset: u64,
+  app: AppHandle,
+  log_type: String,
+  since_offset: u64,
 ) -> Result<(Vec<String>, u64), String> {
-    let log_dir = app
-        .path_resolver()
-        .app_log_dir()
-        .ok_or("Could not resolve log directory")?;
+  let log_dir = app
+    .path_resolver()
+    .app_log_dir()
+    .ok_or("Could not resolve log directory")?;
 
-    let log_path = match log_type.as_str() {
-        "error" => log_dir.join("ks_error.log"),
-        "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
-        "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
-        _ => log_dir.join("ks.log"),
-    };
+  let log_path = match log_type.as_str() {
+    "error" => log_dir.join("ks_error.log"),
+    "clawdbot_err" => crate::clawd::service::gateway_stderr_log(),
+    "clawdbot_out" => crate::clawd::service::gateway_stdout_log(),
+    _ => log_dir.join("ks.log"),
+  };
 
-    let metadata = std::fs::metadata(&log_path)
-        .map_err(|e| format!("Failed to stat log file: {}", e))?;
-    let file_size = metadata.len();
+  let metadata =
+    std::fs::metadata(&log_path).map_err(|e| format!("Failed to stat log file: {}", e))?;
+  let file_size = metadata.len();
 
-    // When since_offset exceeds the file size (first poll uses a large sentinel,
-    // or the file was rotated/truncated), start from a reasonable tail so we
-    // show recent context without dumping the whole file.
-    let read_from = if since_offset > file_size {
-        file_size.saturating_sub(32 * 1024) // last 32 KB
-    } else {
-        since_offset
-    };
+  // When since_offset exceeds the file size (first poll uses a large sentinel,
+  // or the file was rotated/truncated), start from a reasonable tail so we
+  // show recent context without dumping the whole file.
+  let read_from = if since_offset > file_size {
+    file_size.saturating_sub(32 * 1024) // last 32 KB
+  } else {
+    since_offset
+  };
 
-    if read_from >= file_size {
-        return Ok((vec![], file_size));
-    }
+  if read_from >= file_size {
+    return Ok((vec![], file_size));
+  }
 
-    use std::io::{Read, Seek, SeekFrom};
-    let mut f = std::fs::File::open(&log_path)
-        .map_err(|e| format!("Failed to open log file: {}", e))?;
-    f.seek(SeekFrom::Start(read_from))
-        .map_err(|e| format!("Seek failed: {}", e))?;
+  use std::io::{Read, Seek, SeekFrom};
+  let mut f =
+    std::fs::File::open(&log_path).map_err(|e| format!("Failed to open log file: {}", e))?;
+  f.seek(SeekFrom::Start(read_from))
+    .map_err(|e| format!("Seek failed: {}", e))?;
 
-    let mut buf = String::new();
-    f.read_to_string(&mut buf)
-        .map_err(|e| format!("Read failed: {}", e))?;
+  let mut buf = String::new();
+  f.read_to_string(&mut buf)
+    .map_err(|e| format!("Read failed: {}", e))?;
 
-    // If we seeked into the middle of a line, skip to the first newline.
-    let content = if read_from > 0 {
-        buf.find('\n').map(|i| &buf[i + 1..]).unwrap_or("")
-    } else {
-        &buf
-    };
+  // If we seeked into the middle of a line, skip to the first newline.
+  let content = if read_from > 0 {
+    buf.find('\n').map(|i| &buf[i + 1..]).unwrap_or("")
+  } else {
+    &buf
+  };
 
-    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
-    Ok((lines, file_size))
+  let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+  Ok((lines, file_size))
 }
 
 #[tauri::command]
 async fn kn_get_openclaw_version(app: AppHandle) -> Result<String, String> {
-    let pkg_path = app
-        .path_resolver()
-        .resolve_resource("resources/clawdbot/package.json")
-        .ok_or("Could not resolve clawdbot package.json")?;
-    let content = std::fs::read_to_string(&pkg_path)
-        .map_err(|e| format!("Failed to read clawdbot package.json: {}", e))?;
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse clawdbot package.json: {}", e))?;
-    json["version"]
-        .as_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "No version field in clawdbot package.json".to_string())
+  let pkg_path = app
+    .path_resolver()
+    .resolve_resource("resources/clawdbot/package.json")
+    .ok_or("Could not resolve clawdbot package.json")?;
+  let content = std::fs::read_to_string(&pkg_path)
+    .map_err(|e| format!("Failed to read clawdbot package.json: {}", e))?;
+  let json: serde_json::Value = serde_json::from_str(&content)
+    .map_err(|e| format!("Failed to parse clawdbot package.json: {}", e))?;
+  json["version"]
+    .as_str()
+    .map(|s| s.to_string())
+    .ok_or_else(|| "No version field in clawdbot package.json".to_string())
 }
 
 #[tauri::command]
 async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
-    let log_dir = app
-        .path_resolver()
-        .app_log_dir()
-        .ok_or("Could not resolve log directory")?;
-    Ok(log_dir.to_string_lossy().to_string())
+  let log_dir = app
+    .path_resolver()
+    .app_log_dir()
+    .ok_or("Could not resolve log directory")?;
+  Ok(log_dir.to_string_lossy().to_string())
 }
 
 /// Return a shell command that launches the bundled OpenClaw channel-configure
@@ -935,286 +968,301 @@ async fn kn_get_log_path(app: AppHandle) -> Result<String, String> {
 /// the full interactive setup flow.
 #[tauri::command]
 async fn kn_openclaw_configure_channels_cmd(app: AppHandle) -> Result<String, String> {
-    use std::path::PathBuf;
+  use std::path::PathBuf;
 
-    fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
-        paths.iter().find(|p| p.exists()).cloned()
-    }
+  fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
+    paths.iter().find(|p| p.exists()).cloned()
+  }
 
-    let resolve = |rel: &str| -> PathBuf {
-        app.path_resolver()
-            .resolve_resource(rel)
-            .unwrap_or_else(|| PathBuf::from(rel))
-    };
+  let resolve = |rel: &str| -> PathBuf {
+    app
+      .path_resolver()
+      .resolve_resource(rel)
+      .unwrap_or_else(|| PathBuf::from(rel))
+  };
 
-    // Resolve node binary (same logic as service.rs)
-    let bundled_node = resolve("resources/node/node");
-    let node_candidates: Vec<PathBuf> = if cfg!(debug_assertions) {
-        vec![
-            PathBuf::from("/opt/homebrew/bin/node"),
-            PathBuf::from("/usr/local/bin/node"),
-            PathBuf::from("/usr/bin/node"),
-            bundled_node,
-        ]
+  // Resolve node binary (same logic as service.rs)
+  let bundled_node = resolve("resources/node/node");
+  let node_candidates: Vec<PathBuf> = if cfg!(debug_assertions) {
+    vec![
+      PathBuf::from("/opt/homebrew/bin/node"),
+      PathBuf::from("/usr/local/bin/node"),
+      PathBuf::from("/usr/bin/node"),
+      bundled_node,
+    ]
+  } else {
+    vec![
+      bundled_node,
+      PathBuf::from("/opt/homebrew/bin/node"),
+      PathBuf::from("/usr/local/bin/node"),
+      PathBuf::from("/usr/bin/node"),
+    ]
+  };
+
+  let node_path =
+    first_existing(&node_candidates).ok_or("Node.js not found. Please reinstall Knapsack.")?;
+
+  // Resolve OpenClaw entry
+  let entry_path = if cfg!(debug_assertions) {
+    let sys = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
+    let ws = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/clawdbot/dist/entry.js");
+    if sys.exists() {
+      sys
     } else {
-        vec![
-            bundled_node,
-            PathBuf::from("/opt/homebrew/bin/node"),
-            PathBuf::from("/usr/local/bin/node"),
-            PathBuf::from("/usr/bin/node"),
-        ]
-    };
-
-    let node_path = first_existing(&node_candidates)
-        .ok_or("Node.js not found. Please reinstall Knapsack.")?;
-
-    // Resolve OpenClaw entry
-    let entry_path = if cfg!(debug_assertions) {
-        let sys = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
-        let ws = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources/clawdbot/dist/entry.js");
-        if sys.exists() { sys } else { ws }
-    } else {
-        resolve("resources/clawdbot/dist/entry.js")
-    };
-
-    if !entry_path.exists() {
-        return Err(format!("OpenClaw not found at {}", entry_path.display()));
+      ws
     }
+  } else {
+    resolve("resources/clawdbot/dist/entry.js")
+  };
 
-    let home_path = app
-        .path_resolver()
-        .app_data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("clawdbot");
+  if !entry_path.exists() {
+    return Err(format!("OpenClaw not found at {}", entry_path.display()));
+  }
 
-    // Build a shell command with OPENCLAW_HOME set
-    Ok(format!(
-        "OPENCLAW_HOME=\"{}\" \"{}\" \"{}\" configure --section channels",
-        home_path.display(),
-        node_path.display(),
-        entry_path.display()
-    ))
+  let home_path = app
+    .path_resolver()
+    .app_data_dir()
+    .unwrap_or_else(|| PathBuf::from("."))
+    .join("clawdbot");
+
+  // Build a shell command with OPENCLAW_HOME set
+  Ok(format!(
+    "OPENCLAW_HOME=\"{}\" \"{}\" \"{}\" configure --section channels",
+    home_path.display(),
+    node_path.display(),
+    entry_path.display()
+  ))
 }
 
 #[tauri::command]
 async fn kn_execute_command(command: String, cwd: Option<String>) -> Result<String, String> {
-    use std::process::Command;
+  use std::process::Command;
 
-    let (shell, args) = if cfg!(target_os = "windows") {
-        ("cmd".to_string(), vec!["/C".to_string(), command])
-    } else {
-        // Use a login shell so the user's PATH (node, npm, claude, etc.) is available
-        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-        (user_shell, vec!["-l".to_string(), "-c".to_string(), command])
-    };
+  let (shell, args) = if cfg!(target_os = "windows") {
+    ("cmd".to_string(), vec!["/C".to_string(), command])
+  } else {
+    // Use a login shell so the user's PATH (node, npm, claude, etc.) is available
+    let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+    (
+      user_shell,
+      vec!["-l".to_string(), "-c".to_string(), command],
+    )
+  };
 
-    let mut cmd = Command::new(&shell);
-    cmd.args(&args);
+  let mut cmd = Command::new(&shell);
+  cmd.args(&args);
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+  }
+
+  if let Some(dir) = cwd {
+    cmd.current_dir(dir);
+  } else {
+    // Default to user home so cmd.exe doesn't inherit a potentially
+    // invalid working directory from the Tauri process on Windows.
+    if let Some(home) = dirs::home_dir() {
+      cmd.current_dir(home);
     }
+  }
 
-    if let Some(dir) = cwd {
-        cmd.current_dir(dir);
-    } else {
-        // Default to user home so cmd.exe doesn't inherit a potentially
-        // invalid working directory from the Tauri process on Windows.
-        if let Some(home) = dirs::home_dir() {
-            cmd.current_dir(home);
-        }
+  let output = cmd
+    .output()
+    .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+  let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+  let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+  // Push command output to global terminal buffer so the chat AI can see it
+  for line in stdout.lines() {
+    pty::push_terminal_line("app", line);
+  }
+  for line in stderr.lines() {
+    pty::push_terminal_line("app", line);
+  }
+
+  if output.status.success() {
+    Ok(stdout)
+  } else {
+    // Include both stdout and stderr so error messages aren't swallowed
+    let mut msg = String::new();
+    if !stderr.is_empty() {
+      msg.push_str(&stderr);
     }
-
-    let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    // Push command output to global terminal buffer so the chat AI can see it
-    for line in stdout.lines() {
-        pty::push_terminal_line("app", line);
+    if !stdout.is_empty() {
+      if !msg.is_empty() {
+        msg.push('\n');
+      }
+      msg.push_str(&stdout);
     }
-    for line in stderr.lines() {
-        pty::push_terminal_line("app", line);
+    if msg.is_empty() {
+      msg = format!("Command failed with exit code: {}", output.status);
     }
-
-    if output.status.success() {
-        Ok(stdout)
-    } else {
-        // Include both stdout and stderr so error messages aren't swallowed
-        let mut msg = String::new();
-        if !stderr.is_empty() {
-            msg.push_str(&stderr);
-        }
-        if !stdout.is_empty() {
-            if !msg.is_empty() { msg.push('\n'); }
-            msg.push_str(&stdout);
-        }
-        if msg.is_empty() {
-            msg = format!("Command failed with exit code: {}", output.status);
-        }
-        Err(msg)
-    }
+    Err(msg)
+  }
 }
 
 // ── Streaming process support (for long-running commands like Claude Code) ──
 
 struct StreamingProcessState {
-    pids: Arc<StdMutex<std::collections::HashMap<String, u32>>>,
+  pids: Arc<StdMutex<std::collections::HashMap<String, u32>>>,
 }
 
 #[tauri::command]
 async fn kn_spawn_streaming_command(
-    app: AppHandle,
-    command: String,
-    cwd: Option<String>,
-    session_id: String,
-    state: State<'_, StreamingProcessState>,
+  app: AppHandle,
+  command: String,
+  cwd: Option<String>,
+  session_id: String,
+  state: State<'_, StreamingProcessState>,
 ) -> Result<String, String> {
-    use std::io::{BufRead, BufReader};
-    use std::process::{Command, Stdio};
+  use std::io::{BufRead, BufReader};
+  use std::process::{Command, Stdio};
 
-    let process_id = Uuid::new_v4().to_string();
+  let process_id = Uuid::new_v4().to_string();
 
-    let (shell, args) = if cfg!(target_os = "windows") {
-        ("cmd".to_string(), vec!["/C".to_string(), command])
-    } else {
-        let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-        (user_shell, vec!["-l".to_string(), "-c".to_string(), command])
-    };
+  let (shell, args) = if cfg!(target_os = "windows") {
+    ("cmd".to_string(), vec!["/C".to_string(), command])
+  } else {
+    let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+    (
+      user_shell,
+      vec!["-l".to_string(), "-c".to_string(), command],
+    )
+  };
 
-    let mut cmd = Command::new(&shell);
-    cmd.args(&args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+  let mut cmd = Command::new(&shell);
+  cmd
+    .args(&args)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
 
-    // Make the child its own process group so we can kill it + children without
-    // accidentally terminating the Knapsack app.
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
+  // Make the child its own process group so we can kill it + children without
+  // accidentally terminating the Knapsack app.
+  #[cfg(unix)]
+  {
+    use std::os::unix::process::CommandExt;
+    cmd.process_group(0);
+  }
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+  }
 
-    if let Some(ref dir) = cwd {
-        cmd.current_dir(dir);
-    }
+  if let Some(ref dir) = cwd {
+    cmd.current_dir(dir);
+  }
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
-    let child_pid = child.id();
+  let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn: {}", e))?;
+  let child_pid = child.id();
 
-    // Store PID so it can be killed later
-    state
-        .pids
-        .lock()
-        .unwrap()
-        .insert(process_id.clone(), child_pid);
+  // Store PID so it can be killed later
+  state
+    .pids
+    .lock()
+    .unwrap()
+    .insert(process_id.clone(), child_pid);
 
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
+  let stdout = child.stdout.take();
+  let stderr = child.stderr.take();
 
-    // Background thread: stream stdout line-by-line via Tauri events
-    let app1 = app.clone();
-    let sid1 = session_id.clone();
-    let pid1 = process_id.clone();
-    if let Some(stdout) = stdout {
-        std::thread::spawn(move || {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines().flatten() {
-                let _ = app1.emit_all(
-                    "streaming-stdout",
-                    json!({
-                        "processId": pid1,
-                        "sessionId": sid1,
-                        "text": line,
-                    }),
-                );
-            }
-        });
-    }
-
-    // Background thread: stream stderr line-by-line via Tauri events
-    let app2 = app.clone();
-    let sid2 = session_id.clone();
-    let pid2 = process_id.clone();
-    if let Some(stderr) = stderr {
-        std::thread::spawn(move || {
-            let reader = BufReader::new(stderr);
-            for line in reader.lines().flatten() {
-                let _ = app2.emit_all(
-                    "streaming-stderr",
-                    json!({
-                        "processId": pid2,
-                        "sessionId": sid2,
-                        "text": line,
-                    }),
-                );
-            }
-        });
-    }
-
-    // Background thread: wait for exit, emit exit event, clean up PID map
-    let app3 = app.clone();
-    let sid3 = session_id.clone();
-    let pid3 = process_id.clone();
-    let pids_ref = state.pids.clone();
+  // Background thread: stream stdout line-by-line via Tauri events
+  let app1 = app.clone();
+  let sid1 = session_id.clone();
+  let pid1 = process_id.clone();
+  if let Some(stdout) = stdout {
     std::thread::spawn(move || {
-        let status = child.wait();
-        let exit_code = status.map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
-        let _ = app3.emit_all(
-            "streaming-exit",
-            json!({
-                "processId": pid3,
-                "sessionId": sid3,
-                "exitCode": exit_code,
-            }),
+      let reader = BufReader::new(stdout);
+      for line in reader.lines().flatten() {
+        let _ = app1.emit_all(
+          "streaming-stdout",
+          json!({
+              "processId": pid1,
+              "sessionId": sid1,
+              "text": line,
+          }),
         );
-        pids_ref.lock().unwrap().remove(&pid3);
+      }
     });
+  }
 
-    Ok(process_id)
+  // Background thread: stream stderr line-by-line via Tauri events
+  let app2 = app.clone();
+  let sid2 = session_id.clone();
+  let pid2 = process_id.clone();
+  if let Some(stderr) = stderr {
+    std::thread::spawn(move || {
+      let reader = BufReader::new(stderr);
+      for line in reader.lines().flatten() {
+        let _ = app2.emit_all(
+          "streaming-stderr",
+          json!({
+              "processId": pid2,
+              "sessionId": sid2,
+              "text": line,
+          }),
+        );
+      }
+    });
+  }
+
+  // Background thread: wait for exit, emit exit event, clean up PID map
+  let app3 = app.clone();
+  let sid3 = session_id.clone();
+  let pid3 = process_id.clone();
+  let pids_ref = state.pids.clone();
+  std::thread::spawn(move || {
+    let status = child.wait();
+    let exit_code = status.map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
+    let _ = app3.emit_all(
+      "streaming-exit",
+      json!({
+          "processId": pid3,
+          "sessionId": sid3,
+          "exitCode": exit_code,
+      }),
+    );
+    pids_ref.lock().unwrap().remove(&pid3);
+  });
+
+  Ok(process_id)
 }
 
 #[tauri::command]
 async fn kn_kill_streaming_process(
-    process_id: String,
-    state: State<'_, StreamingProcessState>,
+  process_id: String,
+  state: State<'_, StreamingProcessState>,
 ) -> Result<(), String> {
-    let pids = state.pids.lock().unwrap();
-    if let Some(&pid) = pids.get(&process_id) {
-        #[cfg(unix)]
-        {
-            // Send SIGTERM to the process group to also kill child processes
-            unsafe {
-                libc::kill(-(pid as i32), libc::SIGTERM);
-            }
-        }
-        #[cfg(windows)]
-        {
-            use std::process::Command;
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x08000000;
-            Command::new("taskkill")
-                .args(&["/PID", &pid.to_string(), "/T", "/F"])
-                .creation_flags(CREATE_NO_WINDOW)
-                .output()
-                .ok();
-        }
-        Ok(())
-    } else {
-        Err("Process not found".to_string())
+  let pids = state.pids.lock().unwrap();
+  if let Some(&pid) = pids.get(&process_id) {
+    #[cfg(unix)]
+    {
+      // Send SIGTERM to the process group to also kill child processes
+      unsafe {
+        libc::kill(-(pid as i32), libc::SIGTERM);
+      }
     }
+    #[cfg(windows)]
+    {
+      use std::os::windows::process::CommandExt;
+      use std::process::Command;
+      const CREATE_NO_WINDOW: u32 = 0x08000000;
+      Command::new("taskkill")
+        .args(&["/PID", &pid.to_string(), "/T", "/F"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok();
+    }
+    Ok(())
+  } else {
+    Err("Process not found".to_string())
+  }
 }
 
 fn create_data_dir() {
@@ -1242,7 +1290,11 @@ fn build_default_tray_menu() -> SystemTrayMenu {
   let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
   let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
   let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
+  let version = CustomMenuItem::new(
+    "version",
+    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
+  )
+  .disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
   let quit = CustomMenuItem::new("quit", "Quit");
 
@@ -1287,7 +1339,7 @@ fn handle_tray_menu_click(app: &AppHandle, id: &str) {
     }
     "quit" => {
       clawd::service::cleanup_gateway_on_exit();
-      std::process::exit(0);
+      app.exit(0);
     }
     _ => {
       if id.starts_with("meeting_") {
@@ -1339,7 +1391,11 @@ fn update_tray_menu(app: AppHandle, groups: Vec<TrayMeetingGroup>) {
   let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
   let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
   let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new("version", format!("Knapsack v{}", env!("CARGO_PKG_VERSION"))).disabled();
+  let version = CustomMenuItem::new(
+    "version",
+    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
+  )
+  .disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
   let quit = CustomMenuItem::new("quit", "Quit");
 
@@ -1812,7 +1868,7 @@ async fn main() {
       });
   }
 
-  builder
-    .run(context)
-    .expect("error while running tauri application");
+  let run_result = builder.run(context);
+  clawd::service::cleanup_gateway_on_exit();
+  run_result.expect("error while running tauri application");
 }

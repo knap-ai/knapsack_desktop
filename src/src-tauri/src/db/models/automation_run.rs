@@ -2,9 +2,9 @@ use rusqlite::{params, params_from_iter, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::db::db::get_db_conn;
+use crate::db::models::feed_item::FeedItem;
 use crate::error::Error;
 use serde_json::Value;
-use crate::db::models::feed_item::FeedItem;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,23 +24,28 @@ impl AutomationRun {
     event_id: u64,
     timestamp: i64,
     automation_uuid: &str,
-    user_id: u64
-) -> Result<Option<Self>, Error> {
+    user_id: u64,
+  ) -> Result<Option<Self>, Error> {
     let conn = get_db_conn();
-    let mut stmt = conn.prepare(
-      "SELECT id, automation_uuid, user_id, thread_id, 
+    let mut stmt = conn
+      .prepare(
+        "SELECT id, automation_uuid, user_id, thread_id, 
         schedule_timestamp, execution_timestamp, run_params, feed_item_id
         FROM automation_runs
         WHERE automation_uuid = ?1
         AND user_id = ?2
         AND json_extract(run_params, '$.event_id') = ?3
-        AND json_extract(run_params, '$.timestamp') = ?4"
-    ).map_err(|e| Error::KSError(e.to_string()))?;
+        AND json_extract(run_params, '$.timestamp') = ?4",
+      )
+      .map_err(|e| Error::KSError(e.to_string()))?;
 
-    stmt.query_row(
-      params![automation_uuid, user_id, event_id, timestamp],
-      |row| Self::build_struct_from_row(row)
-    ).optional().map_err(|e| Error::KSError(e.to_string()))
+    stmt
+      .query_row(
+        params![automation_uuid, user_id, event_id, timestamp],
+        |row| Self::build_struct_from_row(row),
+      )
+      .optional()
+      .map_err(|e| Error::KSError(e.to_string()))
   }
 
   pub fn find_by_id(id: u64) -> Result<Option<AutomationRun>> {
@@ -137,25 +142,29 @@ impl AutomationRun {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(params) {
           let event_id = json.get("event_id").and_then(|v| v.as_u64());
           let timestamp = json.get("timestamp").and_then(|v| v.as_i64());
-          
+
           match (event_id, timestamp) {
             (Some(e), Some(t)) => (e, t),
-            _ => return Err(Error::KSError("Missing event_id or timestamp in run_params".into()))
+            _ => {
+              return Err(Error::KSError(
+                "Missing event_id or timestamp in run_params".into(),
+              ))
+            }
           }
         } else {
           return Err(Error::KSError("Invalid JSON in run_params".into()));
         }
-      },
-      None => return Err(Error::KSError("Missing run_params".into()))
+      }
+      None => return Err(Error::KSError("Missing run_params".into())),
     };
-  
+
     let maybe_instance = AutomationRun::find_run_by_calendar_event(
       event_id,
       timestamp,
       &self.automation_uuid,
       self.user_id,
     )?;
-  
+
     match maybe_instance {
       Some(instance) => {
         self.id = instance.id;
@@ -184,7 +193,10 @@ impl AutomationRun {
     Ok(())
   }
 
-  pub fn delete_outdated_calendar_runs(calendar_event_ids: &[u64], from_timestamp: i64) -> Result<(), Error> {
+  pub fn delete_outdated_calendar_runs(
+    calendar_event_ids: &[u64],
+    from_timestamp: i64,
+  ) -> Result<(), Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
       "
@@ -196,7 +208,11 @@ impl AutomationRun {
     )?;
 
     let rows = stmt.query_map([from_timestamp], |row| {
-      Ok((row.get::<_, u64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<u64>>(2)?))
+      Ok((
+        row.get::<_, u64>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, Option<u64>>(2)?,
+      ))
     })?;
 
     let mut ids_to_delete = Vec::new();
@@ -222,20 +238,33 @@ impl AutomationRun {
       let delete_query = format!("DELETE FROM automation_runs WHERE id IN ({})", placeholders);
 
       let mut delete_stmt = connection.prepare(&delete_query)?;
-      match delete_stmt.execute(params_from_iter(ids_to_delete)){
-        Ok(_) => {},
-        Err(e) => return Err(Error::KSError(format!("Error deleting automation runs: {:?}", e))),
+      match delete_stmt.execute(params_from_iter(ids_to_delete)) {
+        Ok(_) => {}
+        Err(e) => {
+          return Err(Error::KSError(format!(
+            "Error deleting automation runs: {:?}",
+            e
+          )))
+        }
       };
     }
 
     if !feed_item_ids_to_delete.is_empty() {
       let placeholders = vec!["?"; feed_item_ids_to_delete.len()].join(",");
-      let update_query = format!("UPDATE feed_items SET deleted = \"true\" WHERE id IN ({})", placeholders);
+      let update_query = format!(
+        "UPDATE feed_items SET deleted = \"true\" WHERE id IN ({})",
+        placeholders
+      );
 
       let mut update_stmt = connection.prepare(&update_query)?;
-      match update_stmt.execute(params_from_iter(feed_item_ids_to_delete)){
-        Ok(_) => {},
-        Err(e) => return Err(Error::KSError(format!("Error deleting feed items: {:?}", e))),
+      match update_stmt.execute(params_from_iter(feed_item_ids_to_delete)) {
+        Ok(_) => {}
+        Err(e) => {
+          return Err(Error::KSError(format!(
+            "Error deleting feed items: {:?}",
+            e
+          )))
+        }
       };
     }
 

@@ -22,13 +22,20 @@ const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(30);
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Record token usage from a chat API response (best-effort, never panics).
-fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp, input_text: &str) {
+fn record_chat_usage(
+  provider: &str,
+  model: &str,
+  resp: &chat_agent::OaiChatResp,
+  input_text: &str,
+) {
   let (input_tokens, output_tokens) = if let Some(ref usage) = resp.usage {
     (usage.prompt_tokens, usage.completion_tokens)
   } else {
     // Estimate tokens from text when the API doesn't return usage
     let input_est = estimate_tokens(input_text);
-    let output_est = resp.choices.first()
+    let output_est = resp
+      .choices
+      .first()
       .and_then(|c| c.message.content.as_deref())
       .map(|t| estimate_tokens(t))
       .unwrap_or(0);
@@ -56,7 +63,11 @@ fn record_chat_usage(provider: &str, model: &str, resp: &chat_agent::OaiChatResp
   } else {
     log::info!(
       "[clawd/chat] Recorded: provider={}, model={}, in={}, out={}, cost=${:.6}",
-      provider, model, input_tokens, output_tokens, cost
+      provider,
+      model,
+      input_tokens,
+      output_tokens,
+      cost
     );
   }
 }
@@ -222,7 +233,10 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
 /// This keeps the fallback browser aligned with the gateway-managed profile
 /// instead of opening a second legacy profile under ~/.openclaw.
 fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
-  app_clawdbot_home(app_handle).join("browser").join("openclaw").join("user-data")
+  app_clawdbot_home(app_handle)
+    .join("browser")
+    .join("openclaw")
+    .join("user-data")
 }
 
 /// Cross-platform home directory string (prefers dirs::home_dir, then HOME/USERPROFILE).
@@ -233,8 +247,11 @@ fn home_dir_string() -> String {
       std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| {
-          if cfg!(target_os = "windows") { r"C:\Users\Default".to_string() }
-          else { "/tmp".to_string() }
+          if cfg!(target_os = "windows") {
+            r"C:\Users\Default".to_string()
+          } else {
+            "/tmp".to_string()
+          }
         })
     })
 }
@@ -262,13 +279,18 @@ fn knapsack_extension_dir() -> Option<PathBuf> {
   }
 
   // Check for locally installed extension (copied during onboarding or first-run)
-  let local_ext = PathBuf::from(&home).join(".knapsack").join("chrome-extension");
+  let local_ext = PathBuf::from(&home)
+    .join(".knapsack")
+    .join("chrome-extension");
   if local_ext.join("manifest.json").exists() {
     return Some(local_ext);
   }
 
   // Check for extension installed via openclaw CLI
-  let openclaw_ext = PathBuf::from(&home).join(".openclaw").join("browser").join("chrome-extension");
+  let openclaw_ext = PathBuf::from(&home)
+    .join(".openclaw")
+    .join("browser")
+    .join("chrome-extension");
   if openclaw_ext.join("manifest.json").exists() {
     return Some(openclaw_ext);
   }
@@ -326,18 +348,35 @@ fn open_url_in_chrome(app_handle: &tauri::AppHandle, url: &str) -> Result<(), St
   #[cfg(target_os = "windows")]
   {
     // Try Chrome → Brave → Edge in well-known Windows install locations.
-    let program_files = std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
-    let program_files_x86 = std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+    let program_files =
+      std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
+    let program_files_x86 =
+      std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let candidates = vec![
       format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
-      format!(r"{}\Google\Chrome\Application\chrome.exe", program_files_x86),
+      format!(
+        r"{}\Google\Chrome\Application\chrome.exe",
+        program_files_x86
+      ),
       format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
-      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files),
-      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", program_files_x86),
-      format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", local_appdata),
+      format!(
+        r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+        program_files
+      ),
+      format!(
+        r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+        program_files_x86
+      ),
+      format!(
+        r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+        local_appdata
+      ),
       format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files),
-      format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files_x86),
+      format!(
+        r"{}\Microsoft\Edge\Application\msedge.exe",
+        program_files_x86
+      ),
     ];
     for browser in &candidates {
       if Path::new(browser).exists() {
@@ -353,7 +392,12 @@ fn open_url_in_chrome(app_handle: &tauri::AppHandle, url: &str) -> Result<(), St
   #[cfg(target_os = "linux")]
   {
     // Try common binary names on Linux.
-    for bin in &["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"] {
+    for bin in &[
+      "google-chrome",
+      "google-chrome-stable",
+      "chromium-browser",
+      "chromium",
+    ] {
       if let Ok(output) = std::process::Command::new("which").arg(bin).output() {
         if output.status.success() {
           return std::process::Command::new(bin)
@@ -377,7 +421,10 @@ fn fallback_open_url(app_handle: &tauri::AppHandle, url: &str) -> Result<(), Str
       Ok(())
     }
     Err(chrome_err) => {
-      eprintln!("[clawd/browser] Chrome fallback failed ({}), using system default", chrome_err);
+      eprintln!(
+        "[clawd/browser] Chrome fallback failed ({}), using system default",
+        chrome_err
+      );
       tauri::api::shell::open(&app_handle.shell_scope(), url, None)
         .map_err(|e| format!("System shell open also failed: {}", e))
     }
@@ -552,13 +599,19 @@ fn is_paid_provider(provider: &str) -> bool {
 
 /// Emit a provider-fallback event so the frontend can notify the user.
 fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reason: &str) {
-  let _ = app_handle.emit_all("provider-fallback", json!({
-    "from": from,
-    "to": to,
-    "reason": reason,
-    "timestamp": chrono::Utc::now().to_rfc3339(),
-  }));
-  eprintln!("[provider-fallback] Switched from {} to {} (reason: {})", from, to, reason);
+  let _ = app_handle.emit_all(
+    "provider-fallback",
+    json!({
+      "from": from,
+      "to": to,
+      "reason": reason,
+      "timestamp": chrono::Utc::now().to_rfc3339(),
+    }),
+  );
+  eprintln!(
+    "[provider-fallback] Switched from {} to {} (reason: {})",
+    from, to, reason
+  );
 }
 
 /// Pending emails awaiting user confirmation.  The key is a random token; the
@@ -568,16 +621,16 @@ fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reas
 /// user seeing the draft first.
 #[derive(Clone)]
 struct PendingEmail {
-    to: String,
-    cc: Option<String>,
-    subject: String,
-    body_html: String,
-    thread_id: Option<String>,
-    created_at: std::time::Instant,
+  to: String,
+  cc: Option<String>,
+  subject: String,
+  body_html: String,
+  thread_id: Option<String>,
+  created_at: std::time::Instant,
 }
 
 static PENDING_EMAILS: Lazy<Mutex<HashMap<String, PendingEmail>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+  Lazy::new(|| Mutex::new(HashMap::new()));
 
 static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
@@ -596,7 +649,10 @@ fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
     || session_id.contains("..")
     || session_id.contains('\0')
   {
-    log::warn!("Rejected unsafe session_id for transcript: {:?}", session_id);
+    log::warn!(
+      "Rejected unsafe session_id for transcript: {:?}",
+      session_id
+    );
     return None;
   }
 
@@ -611,7 +667,9 @@ fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
   // Belt-and-suspenders: verify the resolved path is still under sessions_dir
   match path.canonicalize().or_else(|_| {
     // File may not exist yet — canonicalize the parent instead
-    sessions_dir.canonicalize().map(|base| base.join(format!("{}.jsonl", session_id)))
+    sessions_dir
+      .canonicalize()
+      .map(|base| base.join(format!("{}.jsonl", session_id)))
   }) {
     Ok(resolved) => {
       if let Ok(base) = sessions_dir.canonicalize() {
@@ -631,7 +689,10 @@ fn gateway_transcript_path(session_id: &str) -> Option<PathBuf> {
 
 /// Load conversation history from the gateway's JSONL transcript file.
 /// Returns the last `max_messages` user/assistant messages (ignoring system/tool).
-fn load_history_from_transcript(session_id: &str, max_messages: usize) -> Vec<chat_agent::OaiMessage> {
+fn load_history_from_transcript(
+  session_id: &str,
+  max_messages: usize,
+) -> Vec<chat_agent::OaiMessage> {
   let path = match gateway_transcript_path(session_id) {
     Some(p) => p,
     None => return Vec::new(),
@@ -739,7 +800,9 @@ fn update_sessions_json(session_id: &str) {
   if let Some(obj) = entry.as_object_mut() {
     obj.insert("updatedAt".to_string(), json!(now));
     // Ensure sessionId is set
-    obj.entry("sessionId".to_string()).or_insert(json!(session_id));
+    obj
+      .entry("sessionId".to_string())
+      .or_insert(json!(session_id));
   }
 
   if let Ok(json_str) = serde_json::to_string_pretty(&store) {
@@ -808,10 +871,19 @@ pub async fn open_browser(
   // Try browser control via gateway RPC first
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request(
-    "POST", "/tabs/open", Some(rpc_query), Some(serde_json::json!({"url": url.clone()})), None,
-  ).await {
+    "POST",
+    "/tabs/open",
+    Some(rpc_query),
+    Some(serde_json::json!({"url": url.clone()})),
+    None,
+  )
+  .await
+  {
     Ok(result) => {
-      let target_id = result.get("targetId").and_then(|v| v.as_str()).map(|s| s.to_string());
+      let target_id = result
+        .get("targetId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
       return HttpResponse::Ok().json(OpenBrowserResponse {
         success: true,
         message: format!("Opened via Clawdbot ({profile}): {}", url),
@@ -820,7 +892,10 @@ pub async fn open_browser(
       });
     }
     Err(e) => {
-      eprintln!("[clawd/browser] open_browser RPC failed, falling back to shell: {}", e);
+      eprintln!(
+        "[clawd/browser] open_browser RPC failed, falling back to shell: {}",
+        e
+      );
     }
   }
 
@@ -891,9 +966,16 @@ pub async fn focus_tab(
 
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request(
-    "POST", "/tabs/focus", Some(rpc_query), Some(serde_json::json!({"targetId": target_id})), None,
-  ).await {
-    Ok(_) => HttpResponse::Ok().json(serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id})),
+    "POST",
+    "/tabs/focus",
+    Some(rpc_query),
+    Some(serde_json::json!({"targetId": target_id})),
+    None,
+  )
+  .await
+  {
+    Ok(_) => HttpResponse::Ok()
+      .json(serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id})),
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
@@ -917,16 +999,36 @@ pub async fn snapshot(
 ) -> impl Responder {
   let profile = clawd_profile(query.chrome);
   let mut rpc_query = serde_json::json!({"profile": profile});
-  if let Some(tid) = query.targetId.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+  if let Some(tid) = query
+    .targetId
+    .as_ref()
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty())
+  {
     rpc_query["targetId"] = json!(tid);
   }
-  if let Some(mode) = query.mode.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+  if let Some(mode) = query
+    .mode
+    .as_ref()
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty())
+  {
     rpc_query["mode"] = json!(mode);
   }
-  if let Some(r) = query.refs.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+  if let Some(r) = query
+    .refs
+    .as_ref()
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty())
+  {
     rpc_query["refs"] = json!(r);
   }
-  if let Some(f) = query.format.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+  if let Some(f) = query
+    .format
+    .as_ref()
+    .map(|s| s.trim())
+    .filter(|s| !s.is_empty())
+  {
     rpc_query["format"] = json!(f);
   }
   if let Some(labels) = query.labels {
@@ -938,7 +1040,11 @@ pub async fn snapshot(
 
   match gateway_client::browser_request("GET", "/snapshot", Some(rpc_query), None, None).await {
     Ok(result) => {
-      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      let text = if result.is_string() {
+        result.as_str().unwrap().to_string()
+      } else {
+        result.to_string()
+      };
       HttpResponse::Ok().body(text)
     }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
@@ -966,9 +1072,14 @@ pub async fn act(
     obj.remove("chrome");
   }
 
-  match gateway_client::browser_request("POST", "/act", Some(rpc_query), Some(forward), None).await {
+  match gateway_client::browser_request("POST", "/act", Some(rpc_query), Some(forward), None).await
+  {
     Ok(result) => {
-      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      let text = if result.is_string() {
+        result.as_str().unwrap().to_string()
+      } else {
+        result.to_string()
+      };
       HttpResponse::Ok().body(text)
     }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
@@ -1248,7 +1359,6 @@ fn parse_sse_payload_text(raw: &str) -> String {
   parts.join("")
 }
 
-
 /// Send a chat message through the gateway's agent pipeline.
 /// Read recent terminal output from the built-in terminal sessions.
 /// Used by the chat agent's `read_terminal` tool so the AI can see what's
@@ -1258,7 +1368,10 @@ pub async fn terminal_output(
   query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
   let session_id = query.get("session_id").map(|s| s.as_str());
-  let max_lines = query.get("max_lines").and_then(|s| s.parse::<usize>().ok()).unwrap_or(100);
+  let max_lines = query
+    .get("max_lines")
+    .and_then(|s| s.parse::<usize>().ok())
+    .unwrap_or(100);
   let output = crate::pty::read_terminal_output(session_id, max_lines);
   HttpResponse::Ok().json(serde_json::json!({
     "ok": true,
@@ -1290,7 +1403,11 @@ pub async fn agent_chat(
 
   // Split attachments: images → gateway RPC params (gateway handles data-URL stripping and
   // MIME sniffing); non-images → text extracted in Rust and appended to the message.
-  let raw_attachments = body.get("attachments").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+  let raw_attachments = body
+    .get("attachments")
+    .and_then(|v| v.as_array())
+    .cloned()
+    .unwrap_or_default();
   let mut gateway_attachments: Vec<serde_json::Value> = Vec::new();
   let mut text_with_attachments = text.clone();
 
@@ -1313,7 +1430,8 @@ pub async fn agent_chat(
         extracted
       };
       text_with_attachments.push_str(&format!(
-        "\n\n--- PDF: {} ---\n{}\n--- End ---", name, truncated
+        "\n\n--- PDF: {} ---\n{}\n--- End ---",
+        name, truncated
       ));
     } else if file_type.contains("wordprocessingml")
       || file_type == "application/msword"
@@ -1327,21 +1445,25 @@ pub async fn agent_chat(
         extracted
       };
       text_with_attachments.push_str(&format!(
-        "\n\n--- Document: {} ---\n{}\n--- End ---", name, truncated
+        "\n\n--- Document: {} ---\n{}\n--- End ---",
+        name, truncated
       ));
     } else if !content.is_empty() {
       // Plain text / CSV / markdown — content is raw text, not base64
       text_with_attachments.push_str(&format!(
-        "\n\n--- File: {} ---\n{}\n--- End ---", name, content
+        "\n\n--- File: {} ---\n{}\n--- End ---",
+        name, content
       ));
     }
   }
 
   // Try gateway agent-chat if port is open
   let gateway_reply = if gateway_client::is_gateway_port_open().await {
-    eprintln!("[clawd/agent-chat] Sending to gateway: {:?} (attachments: {})",
+    eprintln!(
+      "[clawd/agent-chat] Sending to gateway: {:?} (attachments: {})",
       &text_with_attachments[..text_with_attachments.len().min(100)],
-      gateway_attachments.len());
+      gateway_attachments.len()
+    );
 
     match tokio::time::timeout(
       AGENT_CHAT_GATEWAY_TIMEOUT,
@@ -1350,12 +1472,19 @@ pub async fn agent_chat(
     .await
     {
       Ok(Ok(result)) => {
-        eprintln!("[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
-          result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
-        let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
-        eprintln!("[clawd/agent-chat] status={}, has result/payloads={}",
+        eprintln!(
+          "[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
+          result.as_object().map(|o| o.keys().collect::<Vec<_>>())
+        );
+        let status = result
+          .get("status")
+          .and_then(|s| s.as_str())
+          .unwrap_or("unknown");
+        eprintln!(
+          "[clawd/agent-chat] status={}, has result/payloads={}",
           status,
-          result.pointer("/result/payloads").is_some());
+          result.pointer("/result/payloads").is_some()
+        );
 
         let reply = result
           .pointer("/result/payloads")
@@ -1387,7 +1516,10 @@ pub async fn agent_chat(
           let trimmed = reply.trim();
           let is_http_error = trimmed.len() >= 4
             && trimmed.as_bytes().get(3) == Some(&b' ')
-            && trimmed[..3].parse::<u16>().map(|c| (300..=599).contains(&c)).unwrap_or(false);
+            && trimmed[..3]
+              .parse::<u16>()
+              .map(|c| (300..=599).contains(&c))
+              .unwrap_or(false);
           if is_http_error {
             eprintln!(
               "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
@@ -1395,7 +1527,10 @@ pub async fn agent_chat(
             );
             None
           } else {
-            eprintln!("[clawd/agent-chat] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
+            eprintln!(
+              "[clawd/agent-chat] Reply (first 200 chars): {:?}",
+              &reply[..reply.len().min(200)]
+            );
             Some(reply)
           }
         } else {
@@ -1404,7 +1539,10 @@ pub async fn agent_chat(
         }
       }
       Ok(Err(e)) => {
-        eprintln!("[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat", e);
+        eprintln!(
+          "[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat",
+          e
+        );
         None
       }
       Err(_) => {
@@ -1448,51 +1586,45 @@ pub async fn agent_chat(
         .send()
         .await
       {
-        Ok(res) => {
-          match res.json::<JsonValue>().await {
-            Ok(data) => {
-              let reply = data.get("reply").and_then(|v| v.as_str()).unwrap_or("");
-              let model = data.get("model").and_then(|v| v.as_str());
-              if !reply.is_empty() {
-                eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
-                HttpResponse::Ok().json(serde_json::json!({
-                  "ok": true,
-                  "reply": reply,
-                  "gateway": false,
-                  "model": model,
-                }))
-              } else {
-                let msg = data.get("message").or(data.get("error"))
-                  .and_then(|v| v.as_str())
-                  .unwrap_or("No reply from direct chat");
-                HttpResponse::Ok().json(serde_json::json!({
-                  "ok": false,
-                  "message": msg,
-                }))
-              }
-            }
-            Err(e) => {
+        Ok(res) => match res.json::<JsonValue>().await {
+          Ok(data) => {
+            let reply = data.get("reply").and_then(|v| v.as_str()).unwrap_or("");
+            let model = data.get("model").and_then(|v| v.as_str());
+            if !reply.is_empty() {
+              eprintln!("[clawd/agent-chat] Direct chat fallback succeeded");
+              HttpResponse::Ok().json(serde_json::json!({
+                "ok": true,
+                "reply": reply,
+                "gateway": false,
+                "model": model,
+              }))
+            } else {
+              let msg = data
+                .get("message")
+                .or(data.get("error"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("No reply from direct chat");
               HttpResponse::Ok().json(serde_json::json!({
                 "ok": false,
-                "message": format!("Failed to parse direct chat response: {}", e),
+                "message": msg,
               }))
             }
           }
-        }
-        Err(e) => {
-          HttpResponse::Ok().json(serde_json::json!({
+          Err(e) => HttpResponse::Ok().json(serde_json::json!({
             "ok": false,
-            "message": format!("Direct chat request failed: {}", e),
-          }))
-        }
+            "message": format!("Failed to parse direct chat response: {}", e),
+          })),
+        },
+        Err(e) => HttpResponse::Ok().json(serde_json::json!({
+          "ok": false,
+          "message": format!("Direct chat request failed: {}", e),
+        })),
       }
     }
-    Err(e) => {
-      HttpResponse::Ok().json(serde_json::json!({
-        "ok": false,
-        "message": format!("Failed to init HTTP client: {}", e),
-      }))
-    }
+    Err(e) => HttpResponse::Ok().json(serde_json::json!({
+      "ok": false,
+      "message": format!("Failed to init HTTP client: {}", e),
+    })),
   }
 }
 
@@ -1501,9 +1633,7 @@ pub async fn agent_chat(
 /// Accepts `{ text, agentId?, channel? }`.  If the gateway is unavailable the
 /// request fails explicitly so the cadence system knows to retry later.
 #[post("/api/clawd/agent-run")]
-pub async fn agent_run(
-  body: web::Json<JsonValue>,
-) -> impl Responder {
+pub async fn agent_run(body: web::Json<JsonValue>) -> impl Responder {
   let text = body
     .get("text")
     .and_then(|v| v.as_str())
@@ -1521,15 +1651,20 @@ pub async fn agent_run(
       .json(serde_json::json!({"ok": false, "message": "Gateway not available"}));
   }
 
-  eprintln!("[clawd/agent-run] Sending to gateway: {:?}", &text[..text.len().min(100)]);
+  eprintln!(
+    "[clawd/agent-run] Sending to gateway: {:?}",
+    &text[..text.len().min(100)]
+  );
 
   let agent_id = body.get("agentId").and_then(|v| v.as_str());
   let channel = body.get("channel").and_then(|v| v.as_str());
 
   match gateway_client::agent_run(&text, agent_id, channel, None).await {
     Ok(result) => {
-      eprintln!("[clawd/agent-run] Gateway returned OK. Keys: {:?}",
-        result.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+      eprintln!(
+        "[clawd/agent-run] Gateway returned OK. Keys: {:?}",
+        result.as_object().map(|o| o.keys().collect::<Vec<_>>())
+      );
 
       let reply = result
         .pointer("/result/payloads")
@@ -1555,9 +1690,11 @@ pub async fn agent_run(
         HttpResponse::Ok()
           .json(serde_json::json!({"ok": false, "message": "Empty reply from gateway"}))
       } else {
-        eprintln!("[clawd/agent-run] Reply (first 200 chars): {:?}", &reply[..reply.len().min(200)]);
-        HttpResponse::Ok()
-          .json(serde_json::json!({"ok": true, "reply": reply, "gateway": true}))
+        eprintln!(
+          "[clawd/agent-run] Reply (first 200 chars): {:?}",
+          &reply[..reply.len().min(200)]
+        );
+        HttpResponse::Ok().json(serde_json::json!({"ok": true, "reply": reply, "gateway": true}))
       }
     }
     Err(e) => {
@@ -1756,11 +1893,21 @@ pub async fn chat(
     .get("memoryNotes")
     .and_then(|v| v.as_array())
     .map(|arr| {
-      arr.iter().filter_map(|entry| {
-        let ts = entry.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
-        let summary = entry.get("summary").and_then(|v| v.as_str()).unwrap_or("");
-        if summary.is_empty() { None } else { Some(format!("- {}: {}", ts, summary)) }
-      }).collect()
+      arr
+        .iter()
+        .filter_map(|entry| {
+          let ts = entry
+            .get("timestamp")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+          let summary = entry.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+          if summary.is_empty() {
+            None
+          } else {
+            Some(format!("- {}: {}", ts, summary))
+          }
+        })
+        .collect()
     })
     .unwrap_or_default();
 
@@ -1769,7 +1916,10 @@ pub async fn chat(
 
   // When preferFast is set (e.g. Quick Chat overlay), prefer the fastest provider:
   // Groq > Gemini Flash > user's active provider
-  let prefer_fast = body.get("preferFast").and_then(|v| v.as_bool()).unwrap_or(false);
+  let prefer_fast = body
+    .get("preferFast")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
 
   // Determine which provider to use
   let provider = if prefer_fast {
@@ -1790,10 +1940,10 @@ pub async fn chat(
         return HttpResponse::BadRequest().json(serde_json::json!({
           "ok": false,
           "message": "Ollama is not enabled. Enable it in Settings and Save, then re-enable."
-        }))
+        }));
       }
       "ollama-local".to_string()
-    },
+    }
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -1847,9 +1997,9 @@ pub async fn chat(
         return HttpResponse::BadRequest().json(serde_json::json!({
           "ok": false,
           "message": "Knapsack account not connected. Sign in via Settings → Provider."
-        }))
+        }));
       }
-    },
+    }
     _ => match openai_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -1881,15 +2031,25 @@ pub async fn chat(
     // Helper: GET request via gateway RPC
     async fn do_get(path: &str, query: &JsonValue) -> anyhow::Result<String> {
       match gateway_client::browser_request("GET", path, Some(query.clone()), None, None).await {
-        Ok(v) => Ok(if v.is_string() { v.as_str().unwrap().to_string() } else { v.to_string() }),
+        Ok(v) => Ok(if v.is_string() {
+          v.as_str().unwrap().to_string()
+        } else {
+          v.to_string()
+        }),
         Err(e) => anyhow::bail!("{}", e),
       }
     }
 
     // Helper: POST request via gateway RPC
     async fn do_post(path: &str, payload: JsonValue, query: &JsonValue) -> anyhow::Result<String> {
-      match gateway_client::browser_request("POST", path, Some(query.clone()), Some(payload), None).await {
-        Ok(v) => Ok(if v.is_string() { v.as_str().unwrap().to_string() } else { v.to_string() }),
+      match gateway_client::browser_request("POST", path, Some(query.clone()), Some(payload), None)
+        .await
+      {
+        Ok(v) => Ok(if v.is_string() {
+          v.as_str().unwrap().to_string()
+        } else {
+          v.to_string()
+        }),
         Err(e) => anyhow::bail!("{}", e),
       }
     }
@@ -1913,14 +2073,27 @@ pub async fn chat(
       };
 
       // Try gateway RPC first, fall back to system shell open immediately
-      let out = match do_post("/tabs/open", serde_json::json!({"url": url.clone()}), &query).await {
+      let out = match do_post(
+        "/tabs/open",
+        serde_json::json!({"url": url.clone()}),
+        &query,
+      )
+      .await
+      {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] open_url gateway failed ({}), falling back to Chrome", e);
+          eprintln!(
+            "[clawd/chat] open_url gateway failed ({}), falling back to Chrome",
+            e
+          );
           match fallback_open_url(&app_handle, &url) {
             Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to open URL via gateway ({}) and Chrome fallback ({})", e, shell_err);
+              anyhow::bail!(
+                "Failed to open URL via gateway ({}) and Chrome fallback ({})",
+                e,
+                shell_err
+              );
             }
           }
         }
@@ -1964,11 +2137,18 @@ pub async fn chat(
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
-          eprintln!("[clawd/chat] navigate gateway failed ({}), falling back to Chrome", e);
+          eprintln!(
+            "[clawd/chat] navigate gateway failed ({}), falling back to Chrome",
+            e
+          );
           match fallback_open_url(&app_handle, &url) {
             Ok(_) => format!("Opened in Chrome (fallback): {}", url),
             Err(shell_err) => {
-              anyhow::bail!("Failed to navigate via gateway ({}) and Chrome fallback ({})", e, shell_err);
+              anyhow::bail!(
+                "Failed to navigate via gateway ({}) and Chrome fallback ({})",
+                e,
+                shell_err
+              );
             }
           }
         }
@@ -1987,7 +2167,12 @@ pub async fn chat(
         anyhow::bail!("targetId is required");
       }
 
-      let out = do_post("/tabs/focus", serde_json::json!({"targetId": target_id}), &query).await?;
+      let out = do_post(
+        "/tabs/focus",
+        serde_json::json!({"targetId": target_id}),
+        &query,
+      )
+      .await?;
       return Ok(json!({"ok": true, "result": out}));
     }
 
@@ -2006,7 +2191,11 @@ pub async fn chat(
               || msg.contains("not running")
               || msg.contains("not ready");
             if is_transient && attempt < 1 {
-              eprintln!("[clawd/chat] list_tabs attempt {} failed ({}), retrying...", attempt + 1, msg);
+              eprintln!(
+                "[clawd/chat] list_tabs attempt {} failed ({}), retrying...",
+                attempt + 1,
+                msg
+              );
               tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
               continue;
             }
@@ -2046,8 +2235,15 @@ pub async fn chat(
               || last_err.contains("not running")
               || last_err.contains("not ready");
             if is_transient && attempt < 2 {
-              eprintln!("[clawd/chat] snapshot attempt {} failed ({}), retrying...", attempt + 1, last_err);
-              tokio::time::sleep(std::time::Duration::from_millis(1500 * (attempt as u64 + 1))).await;
+              eprintln!(
+                "[clawd/chat] snapshot attempt {} failed ({}), retrying...",
+                attempt + 1,
+                last_err
+              );
+              tokio::time::sleep(std::time::Duration::from_millis(
+                1500 * (attempt as u64 + 1),
+              ))
+              .await;
               continue;
             }
             anyhow::bail!("{}", last_err);
@@ -2685,23 +2881,36 @@ pub async fn chat(
         if !pref.is_empty() {
           pref
         } else {
-          let has = |v: &str| std::env::var(v).map(|k| !k.trim().is_empty()).unwrap_or(false);
-          if has("ANTHROPIC_API_KEY") { "claude".to_string() }
-          else if has("OPENAI_API_KEY") { "codex".to_string() }
-          else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") { "gemini".to_string() }
-          else if has("XAI_API_KEY") { "grok".to_string() }
-          else { "opencode".to_string() }
+          let has = |v: &str| {
+            std::env::var(v)
+              .map(|k| !k.trim().is_empty())
+              .unwrap_or(false)
+          };
+          if has("ANTHROPIC_API_KEY") {
+            "claude".to_string()
+          } else if has("OPENAI_API_KEY") {
+            "codex".to_string()
+          } else if has("GEMINI_API_KEY") || has("GOOGLE_API_KEY") {
+            "gemini".to_string()
+          } else if has("XAI_API_KEY") {
+            "grok".to_string()
+          } else {
+            "opencode".to_string()
+          }
         }
       };
 
       // Emit a "claude-code-started" event so the frontend auto-opens the Activity Panel
-      let _ = app_handle.emit_all("claude-code-started", json!({
-        "processId": process_id,
-        "sessionId": session_id,
-        "prompt": prompt,
-        "cwd": wd,
-        "agent": coding_agent,
-      }));
+      let _ = app_handle.emit_all(
+        "claude-code-started",
+        json!({
+          "processId": process_id,
+          "sessionId": session_id,
+          "prompt": prompt,
+          "cwd": wd,
+          "agent": coding_agent,
+        }),
+      );
 
       // Build the command string for the chosen CLI.
       // claude: --yes auto-accepts tool use so it can read/write files without prompting.
@@ -2713,34 +2922,66 @@ pub async fn chat(
       let claude_cmd = match coding_agent.as_str() {
         "codex" => {
           #[cfg(target_os = "windows")]
-          { format!("codex --approval-mode auto-edit \"{}\"", prompt.replace('"', "\\\"")) }
+          {
+            format!(
+              "codex --approval-mode auto-edit \"{}\"",
+              prompt.replace('"', "\\\"")
+            )
+          }
           #[cfg(not(target_os = "windows"))]
-          { format!("codex --approval-mode auto-edit '{}'", prompt.replace('\'', "'\\''")) }
+          {
+            format!(
+              "codex --approval-mode auto-edit '{}'",
+              prompt.replace('\'', "'\\''")
+            )
+          }
         }
         "gemini" => {
           #[cfg(target_os = "windows")]
-          { format!("gemini -p \"{}\"", prompt.replace('"', "\\\"")) }
+          {
+            format!("gemini -p \"{}\"", prompt.replace('"', "\\\""))
+          }
           #[cfg(not(target_os = "windows"))]
-          { format!("gemini -p '{}'", prompt.replace('\'', "'\\''")) }
+          {
+            format!("gemini -p '{}'", prompt.replace('\'', "'\\''"))
+          }
         }
         "antigravity" | "agy" => "agy".to_string(),
         "opencode" => {
           #[cfg(target_os = "windows")]
-          { format!("npx -y opencode-ai run \"{}\"", prompt.replace('"', "\\\"")) }
+          {
+            format!("npx -y opencode-ai run \"{}\"", prompt.replace('"', "\\\""))
+          }
           #[cfg(not(target_os = "windows"))]
-          { format!("npx -y opencode-ai run '{}'", prompt.replace('\'', "'\\''")) }
+          {
+            format!("npx -y opencode-ai run '{}'", prompt.replace('\'', "'\\''"))
+          }
         }
         "grok" | "xai" => {
           #[cfg(target_os = "windows")]
-          { format!("npx -y opencode-ai run --model xai/grok-code-fast-1 \"{}\"", prompt.replace('"', "\\\"")) }
+          {
+            format!(
+              "npx -y opencode-ai run --model xai/grok-code-fast-1 \"{}\"",
+              prompt.replace('"', "\\\"")
+            )
+          }
           #[cfg(not(target_os = "windows"))]
-          { format!("npx -y opencode-ai run --model xai/grok-code-fast-1 '{}'", prompt.replace('\'', "'\\''")) }
+          {
+            format!(
+              "npx -y opencode-ai run --model xai/grok-code-fast-1 '{}'",
+              prompt.replace('\'', "'\\''")
+            )
+          }
         }
         _ => {
           #[cfg(target_os = "windows")]
-          { format!("claude --yes \"{}\"", prompt.replace('"', "\\\"")) }
+          {
+            format!("claude --yes \"{}\"", prompt.replace('"', "\\\""))
+          }
           #[cfg(not(target_os = "windows"))]
-          { format!("claude --yes '{}'", prompt.replace('\'', "'\\''")) }
+          {
+            format!("claude --yes '{}'", prompt.replace('\'', "'\\''"))
+          }
         }
       };
 
@@ -2776,7 +3017,9 @@ pub async fn chat(
             ];
             let mut paths: Vec<&str> = existing_path.split(';').collect();
             for e in &extra {
-              if !paths.contains(&e.as_str()) { paths.push(e); }
+              if !paths.contains(&e.as_str()) {
+                paths.push(e);
+              }
             }
             c.env("PATH", paths.join(";"));
           }
@@ -2813,11 +3056,14 @@ pub async fn chat(
             let mut collected = String::new();
             let reader = BufReader::new(stdout);
             for line in reader.lines().flatten() {
-              let _ = app.emit_all("streaming-stdout", json!({
-                "processId": pid,
-                "sessionId": sid,
-                "text": line,
-              }));
+              let _ = app.emit_all(
+                "streaming-stdout",
+                json!({
+                  "processId": pid,
+                  "sessionId": sid,
+                  "text": line,
+                }),
+              );
               collected.push_str(&line);
               collected.push('\n');
             }
@@ -2835,11 +3081,14 @@ pub async fn chat(
           Some(std::thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().flatten() {
-              let _ = app.emit_all("streaming-stderr", json!({
-                "processId": pid,
-                "sessionId": sid,
-                "text": line,
-              }));
+              let _ = app.emit_all(
+                "streaming-stderr",
+                json!({
+                  "processId": pid,
+                  "sessionId": sid,
+                  "text": line,
+                }),
+              );
             }
           }))
         } else {
@@ -2859,14 +3108,18 @@ pub async fn chat(
         }
 
         // Emit exit event
-        let _ = app3.emit_all("streaming-exit", json!({
-          "processId": pid3,
-          "sessionId": sid3,
-          "exitCode": exit_code,
-        }));
+        let _ = app3.emit_all(
+          "streaming-exit",
+          json!({
+            "processId": pid3,
+            "sessionId": sid3,
+            "exitCode": exit_code,
+          }),
+        );
 
         Ok::<(i32, String), String>((exit_code, all_stdout))
-      }).await;
+      })
+      .await;
 
       match result {
         Ok(Ok((exit_code, stdout))) => {
@@ -2900,20 +3153,31 @@ pub async fn chat(
     // Open Activity Panel — allows the AI to open the terminal drawer in the sidebar
     if name == "open_activity_panel" {
       let _ = app_handle.emit_all("open-activity-panel", json!({}));
-      return Ok(json!({"ok": true, "message": "Activity Panel opened. The user can now see the terminal and any running processes."}));
+      return Ok(
+        json!({"ok": true, "message": "Activity Panel opened. The user can now see the terminal and any running processes."}),
+      );
     }
 
     // Read terminal output — allows AI to see what's in the terminal without user pasting
     if name == "read_terminal" {
       let session_id = args_map.get("session_id").and_then(|v| v.as_str());
-      let max_lines = args_map.get("max_lines").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+      let max_lines = args_map
+        .get("max_lines")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50) as usize;
       let output = crate::pty::read_terminal_output(session_id, max_lines);
       if output.is_empty() {
-        return Ok(json!({"ok": true, "terminal_output": "No terminal output available. The terminal may not have been used yet."}));
+        return Ok(
+          json!({"ok": true, "terminal_output": "No terminal output available. The terminal may not have been used yet."}),
+        );
       }
       let mut summary = String::new();
       for (sid, lines) in &output {
-        summary.push_str(&format!("--- Terminal session: {} ({} lines) ---\n", sid, lines.len()));
+        summary.push_str(&format!(
+          "--- Terminal session: {} ({} lines) ---\n",
+          sid,
+          lines.len()
+        ));
         summary.push_str(&lines.join("\n"));
         summary.push_str("\n\n");
       }
@@ -3108,8 +3372,14 @@ pub async fn chat(
         }));
       }
 
-      let confirmed = args_map.get("confirmed").and_then(|v| v.as_bool()).unwrap_or(false);
-      let pending_id = args_map.get("pending_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+      let confirmed = args_map
+        .get("confirmed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+      let pending_id = args_map
+        .get("pending_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string());
 
       // Phase 2: send a previously confirmed draft.
       if confirmed {
@@ -3125,10 +3395,12 @@ pub async fn chat(
         };
         let draft = match pending {
           Some(d) => d,
-          None => return Ok(json!({
-            "ok": false,
-            "error": "No pending email found for this pending_id. The draft may have expired (10 min). Please draft the email again."
-          })),
+          None => {
+            return Ok(json!({
+              "ok": false,
+              "error": "No pending email found for this pending_id. The draft may have expired (10 min). Please draft the email again."
+            }))
+          }
         };
         match crate::clawd::gmail::send_gmail_email(
           user_email,
@@ -3147,16 +3419,38 @@ pub async fn chat(
       }
 
       // Phase 1: draft the email and store it as pending.
-      let mut to = args_map.get("to").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-      let cc = args_map.get("cc").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
-      let subject = args_map.get("subject").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-      let body_html = args_map.get("body").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-      let thread_id = args_map.get("thread_id").and_then(|v| v.as_str()).map(|s| s.trim().to_string());
+      let mut to = args_map
+        .get("to")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+      let cc = args_map
+        .get("cc")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string());
+      let subject = args_map
+        .get("subject")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+      let body_html = args_map
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+      let thread_id = args_map
+        .get("thread_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string());
 
       // When replying to an existing thread, look up the actual sender from the local DB
       // so we don't rely on the LLM guessing the recipient's email address.
       if let Some(ref tid) = thread_id {
-        if let Ok(thread_emails) = crate::db::models::email::Email::get_last_email_by_thread_id(tid) {
+        if let Ok(thread_emails) = crate::db::models::email::Email::get_last_email_by_thread_id(tid)
+        {
           if let Some(most_recent) = thread_emails.first() {
             let db_sender = most_recent.sender.trim().to_string();
             if !db_sender.is_empty() && db_sender != user_email {
@@ -3175,24 +3469,30 @@ pub async fn chat(
         let mut store = PENDING_EMAILS.lock().unwrap();
         // Expire stale drafts
         store.retain(|_, v| v.created_at.elapsed().as_secs() < 600);
-        store.insert(pid.clone(), PendingEmail {
-          to: to.clone(),
-          cc: cc.clone(),
-          subject: subject.clone(),
-          body_html: body_html.clone(),
-          thread_id: thread_id.clone(),
-          created_at: std::time::Instant::now(),
-        });
+        store.insert(
+          pid.clone(),
+          PendingEmail {
+            to: to.clone(),
+            cc: cc.clone(),
+            subject: subject.clone(),
+            body_html: body_html.clone(),
+            thread_id: thread_id.clone(),
+            created_at: std::time::Instant::now(),
+          },
+        );
       }
 
       // Signal the frontend to show the draft in the Email Autopilot compose UI.
-      let _ = app_handle.emit_all("compose-email-ready", json!({
-        "to": to,
-        "cc": cc,
-        "subject": subject,
-        "body": body_html,
-        "threadId": thread_id,
-      }));
+      let _ = app_handle.emit_all(
+        "compose-email-ready",
+        json!({
+          "to": to,
+          "cc": cc,
+          "subject": subject,
+          "body": body_html,
+          "threadId": thread_id,
+        }),
+      );
 
       return Ok(json!({
         "ok": true,
@@ -3977,7 +4277,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
   let mut tools = chat_agent::default_tools();
   if advanced_mode {
     tools.extend(chat_agent::advanced_tools());
-    eprintln!("[clawd/chat] Advanced mode enabled — run_command and run_claude_code tools available");
+    eprintln!(
+      "[clawd/chat] Advanced mode enabled — run_command and run_claude_code tools available"
+    );
   }
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
@@ -3995,33 +4297,42 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     _ => super::service::get_openai_model(&app_handle),
   };
   let current_ollama_base = ollama_base_url(&app_handle);
-  eprintln!("[clawd/chat] Using provider={} model={}", current_provider, current_model);
+  eprintln!(
+    "[clawd/chat] Using provider={} model={}",
+    current_provider, current_model
+  );
 
   // Helper: call the appropriate provider's chat API
   async fn call_provider(
-      prov: &str, key: &str, model: &str,
-      msgs: Vec<chat_agent::OaiMessage>, tls: Vec<chat_agent::OaiToolSpec>,
-      ollama_base: &str,
-    ) -> anyhow::Result<chat_agent::OaiChatResp> {
-      match prov {
-        "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
-        "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
-        "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
-        "xai" => chat_agent::openai_compatible_chat(key, model, "https://api.x.ai/v1", msgs, tls).await,
-        "ollama" => {
-          let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
-          chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
-        },
-        "openrouter" => {
-          chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls).await
-        },
-        "knapsack" => {
-          let base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
-          chat_agent::openai_compatible_chat(key, model, base, msgs, tls).await
-        },
-        _ => chat_agent::openai_chat(key, model, msgs, tls).await,
+    prov: &str,
+    key: &str,
+    model: &str,
+    msgs: Vec<chat_agent::OaiMessage>,
+    tls: Vec<chat_agent::OaiToolSpec>,
+    ollama_base: &str,
+  ) -> anyhow::Result<chat_agent::OaiChatResp> {
+    match prov {
+      "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
+      "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,
+      "groq" => chat_agent::groq_chat(key, model, msgs, tls).await,
+      "xai" => {
+        chat_agent::openai_compatible_chat(key, model, "https://api.x.ai/v1", msgs, tls).await
       }
+      "ollama" => {
+        let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
+        chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
+      }
+      "openrouter" => {
+        chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
+          .await
+      }
+      "knapsack" => {
+        let base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+        chat_agent::openai_compatible_chat(key, model, base, msgs, tls).await
+      }
+      _ => chat_agent::openai_chat(key, model, msgs, tls).await,
     }
+  }
 
   let mut tool_iter = 0u32;
   for _ in 0..75 {
@@ -4032,14 +4343,23 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       let delay_ms: u64 = match current_provider.as_str() {
         "anthropic" => 500, // Anthropic has tighter rate limits
         "gemini" => 300,
-        "ollama" => 0,      // Local — no rate limits
-        _ => 100, // OpenAI is more generous
+        "ollama" => 0, // Local — no rate limits
+        _ => 100,      // OpenAI is more generous
       };
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
     // Try primary provider, then fallback to others on credit/rate-limit errors
-    let resp = match call_provider(&current_provider, &current_api_key, &current_model, messages.clone(), tools.clone(), &current_ollama_base).await {
+    let resp = match call_provider(
+      &current_provider,
+      &current_api_key,
+      &current_model,
+      messages.clone(),
+      tools.clone(),
+      &current_ollama_base,
+    )
+    .await
+    {
       Ok(r) => r,
       Err(e) => {
         let err_str = e.to_string();
@@ -4057,9 +4377,16 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         }
         // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
         // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
-        eprintln!("[clawd/chat] {} hit credit/rate limit: {}", current_provider, err_str);
+        eprintln!(
+          "[clawd/chat] {} hit credit/rate limit: {}",
+          current_provider, err_str
+        );
         let disable_paid = is_paid_fallback_disabled();
-        let ollama_key = if ollama_is_enabled(&app_handle) { Some("ollama-local".to_string()) } else { None };
+        let ollama_key = if ollama_is_enabled(&app_handle) {
+          Some("ollama-local".to_string())
+        } else {
+          None
+        };
         let fallbacks: [(&str, Option<String>); 7] = [
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
@@ -4071,7 +4398,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         ];
         let mut fallback_resp = None;
         for (fb_provider, fb_key_opt) in &fallbacks {
-          if *fb_provider == current_provider.as_str() { continue; }
+          if *fb_provider == current_provider.as_str() {
+            continue;
+          }
           // Skip paid providers if paid fallback is disabled and the user's
           // active provider is not itself a paid provider
           if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
@@ -4088,8 +4417,20 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               "openrouter" => super::service::get_openrouter_model(&app_handle),
               _ => super::service::get_openai_model(&app_handle),
             };
-            eprintln!("[clawd/chat] Trying fallback provider={} model={}", fb_provider, fb_model);
-            match call_provider(fb_provider, fb_key, &fb_model, messages.clone(), tools.clone(), &current_ollama_base).await {
+            eprintln!(
+              "[clawd/chat] Trying fallback provider={} model={}",
+              fb_provider, fb_model
+            );
+            match call_provider(
+              fb_provider,
+              fb_key,
+              &fb_model,
+              messages.clone(),
+              tools.clone(),
+              &current_ollama_base,
+            )
+            .await
+            {
               Ok(r) => {
                 eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
                 emit_fallback_event(&app_handle, &current_provider, fb_provider, &err_str);
@@ -4100,7 +4441,10 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                 break;
               }
               Err(fb_err) => {
-                eprintln!("[clawd/chat] Fallback {} also failed: {}", fb_provider, fb_err);
+                eprintln!(
+                  "[clawd/chat] Fallback {} also failed: {}",
+                  fb_provider, fb_err
+                );
               }
             }
           }
@@ -4147,30 +4491,42 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         let dropped: Vec<_> = history.drain(0..drain).collect();
         // Summarize dropped messages so the model knows what was discussed,
         // rather than silently losing that context.
-        let summary_lines: Vec<String> = dropped.iter().filter_map(|msg| {
-          // Truncate by char count, not byte length, to avoid panicking on
-          // multi-byte UTF-8 characters (emoji, CJK, etc.).
-          fn snip200(s: &str) -> String {
-            let mut chars = s.chars();
-            let head: String = chars.by_ref().take(200).collect();
-            if chars.next().is_some() { format!("{}…", head) } else { head }
-          }
-          match msg {
-            chat_agent::OaiMessage::User { content, .. } =>
-              Some(format!("User: {}", snip200(content))),
-            chat_agent::OaiMessage::Assistant { content, .. } =>
-              content.as_ref().map(|c| format!("Assistant: {}", snip200(c))),
-            _ => None,
-          }
-        }).collect();
+        let summary_lines: Vec<String> = dropped
+          .iter()
+          .filter_map(|msg| {
+            // Truncate by char count, not byte length, to avoid panicking on
+            // multi-byte UTF-8 characters (emoji, CJK, etc.).
+            fn snip200(s: &str) -> String {
+              let mut chars = s.chars();
+              let head: String = chars.by_ref().take(200).collect();
+              if chars.next().is_some() {
+                format!("{}…", head)
+              } else {
+                head
+              }
+            }
+            match msg {
+              chat_agent::OaiMessage::User { content, .. } => {
+                Some(format!("User: {}", snip200(content)))
+              }
+              chat_agent::OaiMessage::Assistant { content, .. } => content
+                .as_ref()
+                .map(|c| format!("Assistant: {}", snip200(c))),
+              _ => None,
+            }
+          })
+          .collect();
         if !summary_lines.is_empty() {
-          history.insert(0, chat_agent::OaiMessage::System {
-            content: format!(
-              "[Earlier conversation ({} messages, now summarized):\n{}]",
-              summary_lines.len(),
-              summary_lines.join("\n")
-            ),
-          });
+          history.insert(
+            0,
+            chat_agent::OaiMessage::System {
+              content: format!(
+                "[Earlier conversation ({} messages, now summarized):\n{}]",
+                summary_lines.len(),
+                summary_lines.join("\n")
+              ),
+            },
+          );
         }
       }
       return HttpResponse::Ok().json(serde_json::json!({"ok": true, "reply": reply}));
@@ -4186,7 +4542,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       let name = &tc.function.name;
       let args = &tc.function.arguments;
       eprintln!("[clawd/chat] tool call: {} args={}", name, args);
-      let mut result = match run_tool(name, args, &app_handle, &profile, &user_email, &user_name).await {
+      let mut result = match run_tool(name, args, &app_handle, &profile, &user_email, &user_name)
+        .await
+      {
         Ok(v) => {
           eprintln!("[clawd/chat] tool {} succeeded", name);
           v
@@ -4245,9 +4603,15 @@ pub async fn screenshot(
     obj.remove("chrome");
   }
 
-  match gateway_client::browser_request("POST", "/screenshot", Some(rpc_query), Some(forward), None).await {
+  match gateway_client::browser_request("POST", "/screenshot", Some(rpc_query), Some(forward), None)
+    .await
+  {
     Ok(result) => {
-      let text = if result.is_string() { result.as_str().unwrap().to_string() } else { result.to_string() };
+      let text = if result.is_string() {
+        result.as_str().unwrap().to_string()
+      } else {
+        result.to_string()
+      };
       HttpResponse::Ok().body(text)
     }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
@@ -4342,7 +4706,11 @@ fn parse_ddg_lite_snapshot(text: &str, max_results: usize) -> Vec<BrowserSearchR
       if is_ddg_ad_or_tracker_url(&url) {
         continue;
       }
-      results.push(BrowserSearchResult { title, url, snippet });
+      results.push(BrowserSearchResult {
+        title,
+        url,
+        snippet,
+      });
       if results.len() >= max_results {
         break;
       }
@@ -4376,8 +4744,12 @@ fn extract_html_attr(tag: &str, attr: &str) -> Option<String> {
     let before = lower[..attr_start].chars().next_back();
     let after = lower[attr_end..].chars().next();
 
-    let valid_before = before.map(|c| c.is_whitespace() || c == '<').unwrap_or(true);
-    let valid_after = after.map(|c| c.is_whitespace() || c == '=').unwrap_or(false);
+    let valid_before = before
+      .map(|c| c.is_whitespace() || c == '<')
+      .unwrap_or(true);
+    let valid_after = after
+      .map(|c| c.is_whitespace() || c == '=')
+      .unwrap_or(false);
     if !valid_before || !valid_after {
       search_from = attr_end;
       continue;
@@ -4394,7 +4766,9 @@ fn extract_html_attr(tag: &str, attr: &str) -> Option<String> {
     if let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') {
       let value_start = quote.len_utf8();
       let value_rest = &rest[value_start..];
-      return value_rest.find(quote).map(|end| value_rest[..end].to_string());
+      return value_rest
+        .find(quote)
+        .map(|end| value_rest[..end].to_string());
     }
 
     let end = rest
@@ -4425,7 +4799,11 @@ fn normalize_ddg_search_url(raw_href: &str) -> Option<String> {
   };
 
   if let Ok(parsed) = url::Url::parse(&absolute) {
-    if parsed.domain().map(|d| d.ends_with("duckduckgo.com")).unwrap_or(false) {
+    if parsed
+      .domain()
+      .map(|d| d.ends_with("duckduckgo.com"))
+      .unwrap_or(false)
+    {
       if parsed.path().contains("/y.js") {
         return None;
       }
@@ -4619,10 +4997,14 @@ pub async fn browser_search(
       Some(serde_json::json!({ "url": ddg_url })),
       None,
     ),
-  ).await;
+  )
+  .await;
 
   let target_id: Option<String> = match &open_result {
-    Ok(Ok(v)) => v.get("targetId").and_then(|t| t.as_str()).map(|s| s.to_string()),
+    Ok(Ok(v)) => v
+      .get("targetId")
+      .and_then(|t| t.as_str())
+      .map(|s| s.to_string()),
     _ => None,
   };
 
@@ -4640,7 +5022,8 @@ pub async fn browser_search(
     let snap_result = tokio::time::timeout(
       std::time::Duration::from_secs(10),
       gateway_client::browser_request("GET", "/snapshot", Some(snap_query), None, None),
-    ).await;
+    )
+    .await;
 
     // Always close the tab
     if let Some(tid) = &target_id {
@@ -4650,7 +5033,8 @@ pub async fn browser_search(
         Some(rpc_query.clone()),
         Some(serde_json::json!({ "targetId": tid })),
         None,
-      ).await;
+      )
+      .await;
     }
 
     if let Ok(Ok(snap)) = snap_result {
@@ -4663,7 +5047,11 @@ pub async fn browser_search(
       let mut results = parse_ddg_lite_snapshot(&text, max_results.saturating_add(5));
       sanitize_search_results(&mut results, max_results);
       if !results.is_empty() {
-        log::info!("[browser_search] browser CDP: {} results for {:?}", results.len(), q);
+        log::info!(
+          "[browser_search] browser CDP: {} results for {:?}",
+          results.len(),
+          q
+        );
         return HttpResponse::Ok().json(BrowserSearchResponse {
           success: true,
           message: None,
@@ -4707,7 +5095,10 @@ pub async fn browser_search(
         }
         sanitize_search_results(&mut results, max_results);
         if !results.is_empty() {
-          log::info!("[browser_search] DDG HTTP fallback: {} results", results.len());
+          log::info!(
+            "[browser_search] DDG HTTP fallback: {} results",
+            results.len()
+          );
           return HttpResponse::Ok().json(BrowserSearchResponse {
             success: true,
             message: None,
@@ -4790,7 +5181,10 @@ fn strip_html_tags(html: &str) -> String {
   for ch in html.chars() {
     match ch {
       '<' => in_tag = true,
-      '>' => { in_tag = false; result.push(' '); }
+      '>' => {
+        in_tag = false;
+        result.push(' ');
+      }
       c if !in_tag => result.push(c),
       _ => {}
     }
@@ -4801,7 +5195,9 @@ fn strip_html_tags(html: &str) -> String {
   for line in result.lines() {
     let trimmed = line.trim();
     if trimmed.is_empty() {
-      if !prev_blank { out.push('\n'); }
+      if !prev_blank {
+        out.push('\n');
+      }
       prev_blank = true;
     } else {
       out.push_str(trimmed);

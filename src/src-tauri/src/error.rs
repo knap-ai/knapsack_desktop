@@ -4,14 +4,13 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::{error::Error as StdError, fmt};
 
+use crate::connections::utils::FetchUuidError;
 use crate::llm::types::LLMError;
 use crate::server::qdrant::start_qdrant;
-use crate::connections::utils::FetchUuidError;
 
 #[derive(Debug, From)]
 #[allow(dead_code)]
 pub enum Error {
-
   #[from]
   KSError(String), // Generic Knapsack Error
 

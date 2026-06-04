@@ -174,7 +174,6 @@ async function waitForHealthyGatewayChild(port, _pid, host = "127.0.0.1", timeou
 }
 async function runGatewayLoop(params) {
 	let startupStartedAt = Date.now();
-	const eagerLifecycleRuntime = await loadGatewayLifecycleRuntimeModule();
 	let lock = await acquireGatewayLock({ port: params.lockPort });
 	let server = null;
 	let shuttingDown = false;
@@ -606,9 +605,7 @@ async function runGatewayLoop(params) {
 			request("restart", "SIGUSR1", restartReason);
 		})().catch((err) => {
 			gatewayLog$1.error(`SIGUSR1 handler failed: ${formatErrorMessage(err)}`);
-			try {
-				eagerLifecycleRuntime.markGatewaySigusr1RestartHandled();
-			} catch {}
+			loadGatewayLifecycleRuntimeModule().then(({ markGatewaySigusr1RestartHandled }) => markGatewaySigusr1RestartHandled()).catch(() => void 0);
 		});
 	};
 	process.on("SIGTERM", onSigterm);

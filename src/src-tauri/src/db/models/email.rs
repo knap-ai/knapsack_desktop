@@ -58,7 +58,7 @@ impl Email {
   pub fn update(&self) -> Result<(), Error> {
     let connection = get_db_conn();
     connection.execute(
-        "UPDATE emails SET 
+      "UPDATE emails SET 
             subject = ?1, 
             date = ?2, 
             sender = ?3, 
@@ -71,23 +71,23 @@ impl Email {
             is_archived = ?10 ,
             is_deleted =?12
         WHERE email_uid = ?11",
-        params![
-            self.subject,
-            self.date,
-            self.sender,
-            self.body,
-            self.recipient,
-            self.cc,
-            self.thread_id,
-            self.is_starred,
-            self.is_read,
-            self.is_archived,
-            self.email_uid,
-            self.is_deleted
-        ],
+      params![
+        self.subject,
+        self.date,
+        self.sender,
+        self.body,
+        self.recipient,
+        self.cc,
+        self.thread_id,
+        self.is_starred,
+        self.is_read,
+        self.is_archived,
+        self.email_uid,
+        self.is_deleted
+      ],
     )?;
     Ok(())
-}
+  }
 
   pub fn create(&mut self) -> Result<(), Error> {
     if self.id.is_some() {
@@ -412,27 +412,38 @@ impl Email {
     Ok(emails)
   }
 
-  pub async fn mark_deleted_emails(fetched_uuids: &[String], days: i64, account_email: &str) -> Result<(), Error> {
+  pub async fn mark_deleted_emails(
+    fetched_uuids: &[String],
+    days: i64,
+    account_email: &str,
+  ) -> Result<(), Error> {
     let connection = get_db_conn();
     let days_ago = chrono::Utc::now() - chrono::Duration::days(days);
     let days_ago_timestamp = days_ago.timestamp() as u64;
     let current_timestamp = chrono::Utc::now().timestamp() as u64;
 
-    let placeholders: String = fetched_uuids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let placeholders: String = fetched_uuids
+      .iter()
+      .map(|_| "?")
+      .collect::<Vec<_>>()
+      .join(",");
     let query = format!(
-        "UPDATE emails SET is_deleted = TRUE
+      "UPDATE emails SET is_deleted = TRUE
         WHERE email_uid NOT IN ({})
         AND account_email = ?
         AND date >= ?
         AND date <= ?
         AND is_deleted = FALSE",
-        placeholders
+      placeholders
     );
 
     let mut stmt = connection.prepare(&query)?;
 
     let account_email_owned = account_email.to_owned();
-    let mut params: Vec<&dyn rusqlite::ToSql> = fetched_uuids.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+    let mut params: Vec<&dyn rusqlite::ToSql> = fetched_uuids
+      .iter()
+      .map(|s| s as &dyn rusqlite::ToSql)
+      .collect();
     params.push(&account_email_owned);
     params.push(&days_ago_timestamp);
     params.push(&current_timestamp);
@@ -457,7 +468,6 @@ fn create_email_document(id: u64, hash: String) -> Document {
   };
   document
 }
-
 
 impl KnowledgeSnippet for Email {
   fn get_title(&self) -> String {
@@ -521,5 +531,4 @@ impl KnowledgeSnippet for Email {
   fn get_hyperlink(&self) -> String {
     format!("https://mail.google.com/mail/u/0/#inbox/{}", self.email_uid)
   }
-  
 }

@@ -90,14 +90,12 @@ pub async fn send_gmail_email(
 ) -> Result<String, String> {
   // 1. Get OAuth access token
   let scope = GOOGLE_GMAIL_SCOPE.to_string();
-  let user_connection =
-    UserConnection::find_by_user_email_and_scope(user_email.to_string(), scope)
-      .map_err(|e| format!("Email account not connected: {:?}", e))?;
+  let user_connection = UserConnection::find_by_user_email_and_scope(user_email.to_string(), scope)
+    .map_err(|e| format!("Email account not connected: {:?}", e))?;
 
-  let access_token =
-    refresh_connection_token(user_email.to_string(), user_connection)
-      .await
-      .map_err(|e| format!("Failed to refresh auth token: {:?}", e))?;
+  let access_token = refresh_connection_token(user_email.to_string(), user_connection)
+    .await
+    .map_err(|e| format!("Failed to refresh auth token: {:?}", e))?;
 
   // 2. Build the MIME message
   let message_id = format!("<{}.knapsack@gmail.com>", Uuid::new_v4());
@@ -122,10 +120,7 @@ pub async fn send_gmail_email(
     }
   }
 
-  let html_body = format!(
-    "<div dir=\"ltr\">{}</div>",
-    body
-  );
+  let html_body = format!("<div dir=\"ltr\">{}</div>", body);
 
   let raw_message = format!("{}\r\n\r\n{}", headers.join("\r\n"), html_body);
   let encoded = URL_SAFE_NO_PAD.encode(raw_message.as_bytes());

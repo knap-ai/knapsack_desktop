@@ -1,6 +1,6 @@
+use crate::error::Error;
 use actix_web::{delete, HttpResponse, Responder};
 use serde_json::json;
-use crate::error::Error;
 
 #[delete("/api/knapsack/audio")]
 async fn delete_audio_files() -> impl Responder {
@@ -18,12 +18,12 @@ async fn delete_audio_files() -> impl Responder {
 
   if output_wav_path.exists() {
     let _ = std::fs::remove_file(output_wav_path)
-     .map_err(|e| Error::KSError(format!("Failed to remove output WAV file: {}", e)));
+      .map_err(|e| Error::KSError(format!("Failed to remove output WAV file: {}", e)));
   }
 
   if output_raw_path.exists() {
     let _ = std::fs::remove_file(output_raw_path)
-     .map_err(|e| Error::KSError(format!("Failed to remove output WAV file: {}", e)));
+      .map_err(|e| Error::KSError(format!("Failed to remove output WAV file: {}", e)));
   }
 
   if processed_mp3_path.exists() {
@@ -37,5 +37,3 @@ async fn delete_audio_files() -> impl Responder {
     "message": "Audio files deleted successfully"
   }))
 }
-
-

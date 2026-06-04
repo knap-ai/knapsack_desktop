@@ -1,8 +1,8 @@
 use coreaudio_sys::{
   kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioHardwarePropertyDevices,
   kAudioObjectPropertyElementMain, kAudioObjectPropertyScopeGlobal, kAudioObjectSystemObject,
-  AudioDeviceID, AudioObjectGetPropertyData, AudioObjectGetPropertyDataSize,
-  AudioObjectPropertyAddress, AudioBufferList, AudioTimeStamp, OSStatus,
+  AudioBufferList, AudioDeviceID, AudioObjectGetPropertyData, AudioObjectGetPropertyDataSize,
+  AudioObjectPropertyAddress, AudioTimeStamp, OSStatus,
 };
 use std::sync::{
   atomic::{AtomicBool, Ordering},
@@ -41,9 +41,7 @@ extern "C" {
     aggregate_device_id: *mut AudioDeviceID,
   ) -> OSStatus;
 
-  fn AudioHardwareDestroyAggregateDevice(
-    aggregate_device_id: AudioDeviceID,
-  ) -> OSStatus;
+  fn AudioHardwareDestroyAggregateDevice(aggregate_device_id: AudioDeviceID) -> OSStatus;
 
   fn AudioDeviceCreateIOProcIDWithBlock(
     io_proc_id: *mut *mut libc::c_void, // AudioDeviceIOProcID*
@@ -59,20 +57,11 @@ extern "C" {
     io_proc_id: *mut *mut libc::c_void,
   ) -> OSStatus;
 
-  fn AudioDeviceStart(
-    device: AudioDeviceID,
-    io_proc_id: *mut libc::c_void,
-  ) -> OSStatus;
+  fn AudioDeviceStart(device: AudioDeviceID, io_proc_id: *mut libc::c_void) -> OSStatus;
 
-  fn AudioDeviceStop(
-    device: AudioDeviceID,
-    io_proc_id: *mut libc::c_void,
-  ) -> OSStatus;
+  fn AudioDeviceStop(device: AudioDeviceID, io_proc_id: *mut libc::c_void) -> OSStatus;
 
-  fn AudioDeviceDestroyIOProcID(
-    device: AudioDeviceID,
-    io_proc_id: *mut libc::c_void,
-  ) -> OSStatus;
+  fn AudioDeviceDestroyIOProcID(device: AudioDeviceID, io_proc_id: *mut libc::c_void) -> OSStatus;
 }
 
 // Property selectors for reading tap format
@@ -235,13 +224,17 @@ pub async fn record_speaker_output(
 
   #[cfg(target_os = "macos")]
   {
-    use objc2::runtime::{AnyClass, AnyObject, Bool as ObjcBool};
-    use objc2::{msg_send, msg_send_id, sel, rc::{Allocated, Id}};
     use core_foundation::base::{CFRelease, TCFType};
-    use core_foundation::string::CFString;
+    use core_foundation::boolean::CFBoolean;
     use core_foundation::dictionary::CFDictionary;
     use core_foundation::number::CFNumber;
-    use core_foundation::boolean::CFBoolean;
+    use core_foundation::string::CFString;
+    use objc2::runtime::{AnyClass, AnyObject, Bool as ObjcBool};
+    use objc2::{
+      msg_send, msg_send_id,
+      rc::{Allocated, Id},
+      sel,
+    };
 
     // Store semaphore for chunk saving
     {
@@ -301,12 +294,18 @@ pub async fn record_speaker_output(
         let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, uuid];
         let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
         let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-        std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+        std::ffi::CStr::from_ptr(tap_uuid_str)
+          .to_str()
+          .unwrap()
+          .to_string()
       } else if has_upper_uuid {
         let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, UUID];
         let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
         let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-        std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+        std::ffi::CStr::from_ptr(tap_uuid_str)
+          .to_str()
+          .unwrap()
+          .to_string()
       } else {
         // macOS 26+: try `tapUUID` or `identifier` as alternative selectors.
         let has_tap_uuid: bool = {
@@ -324,12 +323,18 @@ pub async fn record_speaker_output(
           let tap_uuid: Id<AnyObject> = msg_send_id![&*tap_desc, tapUUID];
           let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_uuid, UUIDString];
           let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+          std::ffi::CStr::from_ptr(tap_uuid_str)
+            .to_str()
+            .unwrap()
+            .to_string()
         } else if has_identifier {
           let tap_id_obj: Id<AnyObject> = msg_send_id![&*tap_desc, identifier];
           let tap_uuid_string: Id<AnyObject> = msg_send_id![&*tap_id_obj, UUIDString];
           let tap_uuid_str: *const libc::c_char = msg_send![&*tap_uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(tap_uuid_str).to_str().unwrap().to_string()
+          std::ffi::CStr::from_ptr(tap_uuid_str)
+            .to_str()
+            .unwrap()
+            .to_string()
         } else {
           // Last resort: generate a fresh NSUUID. The aggregate device
           // creation may fail, but at least the app won't crash.
@@ -338,7 +343,10 @@ pub async fn record_speaker_output(
           let nsuuid: Id<AnyObject> = msg_send_id![nsuuid_class, UUID];
           let uuid_string: Id<AnyObject> = msg_send_id![&*nsuuid, UUIDString];
           let uuid_str: *const libc::c_char = msg_send![&*uuid_string, UTF8String];
-          std::ffi::CStr::from_ptr(uuid_str).to_str().unwrap().to_string()
+          std::ffi::CStr::from_ptr(uuid_str)
+            .to_str()
+            .unwrap()
+            .to_string()
         }
       }
     };
@@ -353,11 +361,14 @@ pub async fn record_speaker_output(
       )
     };
     if status != 0 {
-      return Err(format!(
-        "AudioHardwareCreateProcessTap failed with status {}. \
+      return Err(
+        format!(
+          "AudioHardwareCreateProcessTap failed with status {}. \
          Ensure the app has 'System Audio Recording' permission in System Settings.",
-        status
-      ).into());
+          status
+        )
+        .into(),
+      );
     }
     log::info!("[audio tap] Created process tap with ID {}", tap_id);
 
@@ -365,15 +376,17 @@ pub async fn record_speaker_output(
     // Build the tap sub-device entry
     let tap_uid_cf = CFString::new(&tap_uuid_rust);
     let sub_tap_uid_key = CFString::from_static_string("uid");
-    let sub_tap_dict = CFDictionary::from_CFType_pairs(&[
-      (sub_tap_uid_key.as_CFType(), tap_uid_cf.as_CFType()),
-    ]);
+    let sub_tap_dict =
+      CFDictionary::from_CFType_pairs(&[(sub_tap_uid_key.as_CFType(), tap_uid_cf.as_CFType())]);
 
     let taps_array = core_foundation::array::CFArray::from_CFTypes(&[sub_tap_dict]);
 
     // Aggregate device properties
     let agg_name = CFString::new("KnapsackAudioTapAggregate");
-    let agg_uid = CFString::new(&format!("ai.knapsack.audio-tap-aggregate-{}", tap_uuid_rust));
+    let agg_uid = CFString::new(&format!(
+      "ai.knapsack.audio-tap-aggregate-{}",
+      tap_uuid_rust
+    ));
 
     let name_key = CFString::from_static_string("name");
     let uid_key = CFString::from_static_string("uid");
@@ -385,7 +398,10 @@ pub async fn record_speaker_output(
       (name_key.as_CFType(), agg_name.as_CFType()),
       (uid_key.as_CFType(), agg_uid.as_CFType()),
       (tap_list_key.as_CFType(), taps_array.as_CFType()),
-      (tap_auto_start_key.as_CFType(), CFBoolean::false_value().as_CFType()),
+      (
+        tap_auto_start_key.as_CFType(),
+        CFBoolean::false_value().as_CFType(),
+      ),
       (private_key.as_CFType(), CFBoolean::true_value().as_CFType()),
     ]);
 
@@ -397,13 +413,21 @@ pub async fn record_speaker_output(
       )
     };
     if status != 0 {
-      unsafe { AudioHardwareDestroyProcessTap(tap_id); }
-      return Err(format!(
-        "AudioHardwareCreateAggregateDevice failed with status {}",
-        status
-      ).into());
+      unsafe {
+        AudioHardwareDestroyProcessTap(tap_id);
+      }
+      return Err(
+        format!(
+          "AudioHardwareCreateAggregateDevice failed with status {}",
+          status
+        )
+        .into(),
+      );
     }
-    log::info!("[audio tap] Created aggregate device with ID {}", aggregate_device_id);
+    log::info!(
+      "[audio tap] Created aggregate device with ID {}",
+      aggregate_device_id
+    );
 
     // --- Step 4: Initialize audio state ---
     {
@@ -433,10 +457,7 @@ pub async fn record_speaker_output(
         AudioHardwareDestroyAggregateDevice(aggregate_device_id);
         AudioHardwareDestroyProcessTap(tap_id);
       }
-      return Err(format!(
-        "AudioDeviceCreateIOProcID failed with status {}",
-        status
-      ).into());
+      return Err(format!("AudioDeviceCreateIOProcID failed with status {}", status).into());
     }
     log::info!("[audio tap] Created IO proc, starting capture...");
 
@@ -447,10 +468,7 @@ pub async fn record_speaker_output(
         AudioHardwareDestroyAggregateDevice(aggregate_device_id);
         AudioHardwareDestroyProcessTap(tap_id);
       }
-      return Err(format!(
-        "AudioDeviceStart failed with status {}",
-        status
-      ).into());
+      return Err(format!("AudioDeviceStart failed with status {}", status).into());
     }
     log::info!("[audio tap] System audio capture started successfully");
 
@@ -521,7 +539,10 @@ fn get_device_name(device_id: AudioDeviceID) -> Option<String> {
     let name = if utf8.is_null() {
       String::new()
     } else {
-      std::ffi::CStr::from_ptr(utf8).to_str().unwrap_or("").to_string()
+      std::ffi::CStr::from_ptr(utf8)
+        .to_str()
+        .unwrap_or("")
+        .to_string()
     };
     // Release the +1 retain from AudioObjectGetPropertyData
     core_foundation::base::CFRelease(cfstr_ptr as *const libc::c_void);
@@ -545,19 +566,37 @@ pub fn get_active_input_device_names() -> Vec<String> {
 
   let mut size = 0u32;
   if unsafe {
-    AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &devices_address, 0, ptr::null(), &mut size)
-  } != 0 || size == 0 {
+    AudioObjectGetPropertyDataSize(
+      kAudioObjectSystemObject,
+      &devices_address,
+      0,
+      ptr::null(),
+      &mut size,
+    )
+  } != 0
+    || size == 0
+  {
     return vec![];
   }
 
   let num_devices = size as usize / mem::size_of::<AudioDeviceID>();
   let mut devices: Vec<AudioDeviceID> = Vec::with_capacity(num_devices);
   if unsafe {
-    AudioObjectGetPropertyData(kAudioObjectSystemObject, &devices_address, 0, ptr::null(), &mut size, devices.as_mut_ptr() as *mut _)
-  } != 0 {
+    AudioObjectGetPropertyData(
+      kAudioObjectSystemObject,
+      &devices_address,
+      0,
+      ptr::null(),
+      &mut size,
+      devices.as_mut_ptr() as *mut _,
+    )
+  } != 0
+  {
     return vec![];
   }
-  unsafe { devices.set_len(num_devices); }
+  unsafe {
+    devices.set_len(num_devices);
+  }
 
   let input_streams_address = AudioObjectPropertyAddress {
     mSelector: K_AUDIO_DEVICE_PROPERTY_STREAMS,
@@ -575,8 +614,16 @@ pub fn get_active_input_device_names() -> Vec<String> {
     // Must have input streams (is a microphone)
     let mut streams_size = 0u32;
     if unsafe {
-      AudioObjectGetPropertyDataSize(device_id, &input_streams_address, 0, ptr::null(), &mut streams_size)
-    } != 0 || streams_size == 0 {
+      AudioObjectGetPropertyDataSize(
+        device_id,
+        &input_streams_address,
+        0,
+        ptr::null(),
+        &mut streams_size,
+      )
+    } != 0
+      || streams_size == 0
+    {
       continue;
     }
 
@@ -584,8 +631,17 @@ pub fn get_active_input_device_names() -> Vec<String> {
     let mut in_use: u32 = 0;
     let mut prop_size = mem::size_of::<u32>() as u32;
     if unsafe {
-      AudioObjectGetPropertyData(device_id, &running_address, 0, ptr::null(), &mut prop_size, &mut in_use as *mut u32 as *mut _)
-    } != 0 || in_use == 0 {
+      AudioObjectGetPropertyData(
+        device_id,
+        &running_address,
+        0,
+        ptr::null(),
+        &mut prop_size,
+        &mut in_use as *mut u32 as *mut _,
+      )
+    } != 0
+      || in_use == 0
+    {
       continue;
     }
 
@@ -669,8 +725,16 @@ pub fn count_microphone_users() -> u64 {
       // Only count devices with input streams (microphones, not speakers)
       let mut streams_size = 0u32;
       if unsafe {
-        AudioObjectGetPropertyDataSize(device_id, &input_streams_address, 0, ptr::null(), &mut streams_size)
-      } != 0 || streams_size == 0 {
+        AudioObjectGetPropertyDataSize(
+          device_id,
+          &input_streams_address,
+          0,
+          ptr::null(),
+          &mut streams_size,
+        )
+      } != 0
+        || streams_size == 0
+      {
         return false;
       }
 

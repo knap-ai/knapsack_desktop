@@ -28,9 +28,8 @@ impl User {
 
   pub fn find_first_with_email() -> Result<User> {
     let connection = get_db_conn();
-    let mut stmt = connection.prepare(
-      "SELECT id, email, uuid FROM users WHERE email != '' ORDER BY id DESC LIMIT 1",
-    )?;
+    let mut stmt = connection
+      .prepare("SELECT id, email, uuid FROM users WHERE email != '' ORDER BY id DESC LIMIT 1")?;
     let user = stmt.query_row([], |row| {
       Ok(User {
         id: row.get(0)?,

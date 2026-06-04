@@ -70,7 +70,9 @@ impl InferenceThreadRequest {
 /// Local llama_cpp inference has been removed — this is a no-op stub.
 pub async fn start(req: Arc<InferenceThreadRequest>) {
   tauri::async_runtime::spawn(async move {
-    req.send_error("Local llama_cpp inference has been removed. Use Ollama or a cloud provider.".to_string());
+    req.send_error(
+      "Local llama_cpp inference has been removed. Use Ollama or a cloud provider.".to_string(),
+    );
     req.is_chatting.lock().await.store(false, Ordering::Relaxed);
   });
 }

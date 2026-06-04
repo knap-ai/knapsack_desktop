@@ -1,3 +1,4 @@
+pub mod agent_team;
 pub mod browser;
 pub mod channels;
 pub mod chat_agent;
@@ -11,7 +12,6 @@ pub mod gbrain;
 pub mod gmail;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
-pub mod agent_team;
 pub mod peekaboo_watchdog;
 pub mod service;
 pub mod sidecar;

@@ -179,8 +179,8 @@ pub fn get_transcript_content(thread_id: u64) -> Result<String, String> {
     .join("transcripts")
     .join(&transcript.filename);
 
-  let content =
-    read_to_string(&transcript_path).map_err(|e| format!("Failed to read transcript file: {}", e))?;
+  let content = read_to_string(&transcript_path)
+    .map_err(|e| format!("Failed to read transcript file: {}", e))?;
 
   // Truncate very long transcripts
   let max_chars = 80_000;

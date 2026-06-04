@@ -1,6 +1,6 @@
 use rusqlite::{params, OptionalExtension, Result};
-use serde_json;
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 use crate::db::db::get_db_conn;
 
@@ -27,8 +27,8 @@ pub struct CalendarEvent {
 
 #[derive(Debug, Deserialize)]
 struct Participant {
-    email: String,
-    name: String,
+  email: String,
+  name: String,
 }
 
 const SELECT_COLS: &str = "id, event_id, title, description, creator_email, \
@@ -39,15 +39,10 @@ const SELECT_COLS: &str = "id, event_id, title, description, creator_email, \
 impl CalendarEvent {
   pub fn find_by_id(id: u64) -> Result<Option<CalendarEvent>, Error> {
     let connection = get_db_conn();
-    let query = format!(
-      "SELECT {} FROM calendar_events WHERE id = ?1",
-      SELECT_COLS
-    );
+    let query = format!("SELECT {} FROM calendar_events WHERE id = ?1", SELECT_COLS);
     let mut stmt = connection.prepare(&query)?;
     let calendar_event = stmt
-      .query_row(params![id], |row| {
-        CalendarEvent::build_struct_from_row(row)
-      })
+      .query_row(params![id], |row| CalendarEvent::build_struct_from_row(row))
       .optional()?;
 
     Ok(calendar_event)
@@ -80,7 +75,7 @@ impl CalendarEvent {
       Ok(None) => {
         log::warn!("Couldn't find calendar event for event_id: {}", event_id);
         return Ok("".to_string());
-      },
+      }
       Err(_) => {
         log::error!("Couldn't find calendar event because of db error.");
         return Ok("".to_string());
@@ -119,10 +114,7 @@ impl CalendarEvent {
 
   pub fn find_all() -> Vec<CalendarEvent> {
     let connection = get_db_conn();
-    let query = format!(
-      "SELECT {} FROM calendar_events ORDER BY start",
-      SELECT_COLS
-    );
+    let query = format!("SELECT {} FROM calendar_events ORDER BY start", SELECT_COLS);
     let mut stmt = connection
       .prepare(&query)
       .expect("could not prepare query get calendar events");
@@ -159,10 +151,14 @@ impl CalendarEvent {
 
   pub fn find_by_run_params(run_params: Option<String>) -> Result<Option<CalendarEvent>, Error> {
     if let Some(run_params) = run_params {
-      let params = match serde_json::from_str::<std::collections::HashMap<String, u64>>(&run_params) {
+      let params = match serde_json::from_str::<std::collections::HashMap<String, u64>>(&run_params)
+      {
         Ok(p) => p,
         Err(e) => {
-          log::debug!("Error getting calendar_event.id from run_params: {:?}", e.to_string());
+          log::debug!(
+            "Error getting calendar_event.id from run_params: {:?}",
+            e.to_string()
+          );
           return Err(Error::KSError(e.to_string()));
         }
       };
@@ -186,9 +182,19 @@ impl CalendarEvent {
            title = ?3, description = ?4, creator_email = ?5, attendees_json = ?6, \
            location = ?7, start = ?8, end = ?9, google_meet_url = ?10",
         (
-          &self.id, &self.event_id, &self.title, &self.description, &self.creator_email,
-          &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url,
-          &self.recurrence_json, &self.recurrence_id, &self.calendar_account_email,
+          &self.id,
+          &self.event_id,
+          &self.title,
+          &self.description,
+          &self.creator_email,
+          &self.attendees_json,
+          &self.location,
+          &self.start,
+          &self.end,
+          &self.google_meet_url,
+          &self.recurrence_json,
+          &self.recurrence_id,
+          &self.calendar_account_email,
         ),
       )
       .map_err(|e| e.into());
@@ -207,9 +213,19 @@ impl CalendarEvent {
          google_meet_url = ?10, recurrence_json = ?11, recurrence_id = ?12, \
          calendar_account_email = ?13 WHERE id = ?1",
         (
-          &self.id, &self.event_id, &self.title, &self.description, &self.creator_email,
-          &self.attendees_json, &self.location, &self.start, &self.end, &self.google_meet_url,
-          &self.recurrence_json, &self.recurrence_id, &self.calendar_account_email,
+          &self.id,
+          &self.event_id,
+          &self.title,
+          &self.description,
+          &self.creator_email,
+          &self.attendees_json,
+          &self.location,
+          &self.start,
+          &self.end,
+          &self.google_meet_url,
+          &self.recurrence_json,
+          &self.recurrence_id,
+          &self.calendar_account_email,
         ),
       )
       .expect("Could not update calendar event");
@@ -233,20 +249,17 @@ impl CalendarEvent {
       "SELECT {} FROM calendar_events WHERE start >= ?1 and start <= ?2 ORDER BY start ASC",
       SELECT_COLS
     );
-    let mut stmt = connection
-      .prepare(&query)
-      .map_err(|error| {
-        log::error!("Failed to prepare calendar events query: {:?}", error);
-        Error::KSError(format!(
-          "Failed to prepare calendar events query: {:?}",
-          error
-        ))
-      })?;
+    let mut stmt = connection.prepare(&query).map_err(|error| {
+      log::error!("Failed to prepare calendar events query: {:?}", error);
+      Error::KSError(format!(
+        "Failed to prepare calendar events query: {:?}",
+        error
+      ))
+    })?;
 
-    let rows = stmt
-      .query_map([&from_timestamp, &to_timestamp], |row| {
-        CalendarEvent::build_struct_from_row(row)
-      })?;
+    let rows = stmt.query_map([&from_timestamp, &to_timestamp], |row| {
+      CalendarEvent::build_struct_from_row(row)
+    })?;
     let mut calendar_events = Vec::new();
     for calendar_event_result in rows {
       let calendar_event = match calendar_event_result {
@@ -258,7 +271,7 @@ impl CalendarEvent {
             None,
           );
           continue;
-        },
+        }
       };
       calendar_events.push(calendar_event);
     }
@@ -311,16 +324,26 @@ impl CalendarEvent {
           params![calendar_account_email],
         )
         .map_err(|e| {
-          log::error!("Failed to delete all events for account {}: {:?}", calendar_account_email, e);
+          log::error!(
+            "Failed to delete all events for account {}: {:?}",
+            calendar_account_email,
+            e
+          );
           Error::KSError(format!("Failed to delete calendar events: {:?}", e))
         })?;
 
       // Also wipe all legacy empty-email rows — nothing valid should remain there.
       if !calendar_account_email.is_empty() {
         connection
-          .execute("DELETE FROM calendar_events WHERE calendar_account_email = ''", [])
+          .execute(
+            "DELETE FROM calendar_events WHERE calendar_account_email = ''",
+            [],
+          )
           .map_err(|e| {
-            log::error!("Failed to purge legacy empty-email calendar events: {:?}", e);
+            log::error!(
+              "Failed to purge legacy empty-email calendar events: {:?}",
+              e
+            );
             Error::KSError(format!("Failed to purge legacy events: {:?}", e))
           })?;
       }
@@ -351,12 +374,10 @@ impl CalendarEvent {
         "DELETE FROM calendar_events WHERE calendar_account_email = '' AND event_id NOT IN ({})",
         id_list
       );
-      connection
-        .execute(&legacy_query, [])
-        .map_err(|e| {
-          log::error!("Failed to purge stale legacy calendar events: {:?}", e);
-          Error::KSError(format!("Failed to purge stale legacy events: {:?}", e))
-        })?;
+      connection.execute(&legacy_query, []).map_err(|e| {
+        log::error!("Failed to purge stale legacy calendar events: {:?}", e);
+        Error::KSError(format!("Failed to purge stale legacy events: {:?}", e))
+      })?;
     }
 
     Ok(())
@@ -380,7 +401,11 @@ impl CalendarEvent {
         Error::KSError(format!("Failed to cleanup stale calendar events: {:?}", e))
       })?;
     if deleted > 0 {
-      log::info!("Cleaned up {} stale calendar events (ended before {})", deleted, cutoff);
+      log::info!(
+        "Cleaned up {} stale calendar events (ended before {})",
+        deleted,
+        cutoff
+      );
     }
     Ok(deleted)
   }

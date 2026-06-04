@@ -184,40 +184,37 @@ async fn get_recent_calendar_events(
 
 #[derive(Deserialize)]
 struct CalendarGetEventsParams {
-    start_timestamp: u64,
-    end_timestamp: u64,
+  start_timestamp: u64,
+  end_timestamp: u64,
 }
 
 #[get("/api/knapsack/calendar/get_events")]
 async fn get_events(query: web::Query<CalendarGetEventsParams>) -> impl Responder {
-    let events = CalendarEvent::find_by_timestamp_range(
-        query.start_timestamp,
-        query.end_timestamp,
-    );
+  let events = CalendarEvent::find_by_timestamp_range(query.start_timestamp, query.end_timestamp);
 
-    let display_docs: Vec<CalendarSearchResponseDoc> = events
-        .into_iter()
-        .map(|calendar_event| CalendarSearchResponseDoc {
-            event_id: calendar_event.event_id,
-            title: calendar_event.title,
-            description: calendar_event.description,
-            creator_email: calendar_event.creator_email,
-            attendees_json: calendar_event.attendees_json,
-            location: calendar_event.location,
-            start: calendar_event.start,
-            end: calendar_event.end,
-            google_meet_url: calendar_event.google_meet_url,
-            id: calendar_event.id,
-        })
-        .collect();
+  let display_docs: Vec<CalendarSearchResponseDoc> = events
+    .into_iter()
+    .map(|calendar_event| CalendarSearchResponseDoc {
+      event_id: calendar_event.event_id,
+      title: calendar_event.title,
+      description: calendar_event.description,
+      creator_email: calendar_event.creator_email,
+      attendees_json: calendar_event.attendees_json,
+      location: calendar_event.location,
+      start: calendar_event.start,
+      end: calendar_event.end,
+      google_meet_url: calendar_event.google_meet_url,
+      id: calendar_event.id,
+    })
+    .collect();
 
-    let response = GoogleCalendarSearchResponse {
-        success: true,
-        display_docs,
-        error: None,
-    };
+  let response = GoogleCalendarSearchResponse {
+    success: true,
+    display_docs,
+    error: None,
+  };
 
-    HttpResponse::Ok().json(response)
+  HttpResponse::Ok().json(response)
 }
 
 #[get("/api/knapsack/calendar_event/{event_id}")]
