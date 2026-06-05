@@ -1222,7 +1222,6 @@ pub async fn gemini_chat_with_retries(
     model, api_key
   );
 
-  let max_retries = 3;
   let mut last_error = String::new();
 
   for attempt in 0..max_retries {

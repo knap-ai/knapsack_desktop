@@ -875,9 +875,14 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
   }
 }
 
-const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
-  // Core app activities exercised by the desktop QA loop.
+const KNAPSACK_CORE_STARTUP_PLUGINS: &[&str] = &[
+  // Keep the launch gate small: browser access is the only OpenClaw plugin
+  // required before the desktop can be considered locally usable.
   "browser",
+];
+
+const KNAPSACK_DEFERRED_STARTUP_PLUGINS: &[&str] = &[
+  // Google/Microsoft document surfaces.
   "google",
   "microsoft",
   "web-readability",
@@ -1109,7 +1114,7 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     }
   }
 
-  let mut required: Vec<String> = KNAPSACK_REQUIRED_PLUGINS
+  let mut required: Vec<String> = KNAPSACK_CORE_STARTUP_PLUGINS
     .iter()
     .map(|plugin| plugin.to_string())
     .collect();
@@ -8609,7 +8614,7 @@ async fn prepare_gateway_config(
         "defaultProfile": "openclaw" // managed, isolated profile
       },
       "plugins": {
-        "allow": KNAPSACK_REQUIRED_PLUGINS,
+        "allow": KNAPSACK_CORE_STARTUP_PLUGINS,
         "slots": {
           "memory": "none"
         }
@@ -10687,7 +10692,7 @@ pub async fn set_service_enabled(
             }]
           },
           "plugins": {
-            "allow": KNAPSACK_REQUIRED_PLUGINS,
+            "allow": KNAPSACK_CORE_STARTUP_PLUGINS,
             "slots": {
               "memory": "none"
             }
