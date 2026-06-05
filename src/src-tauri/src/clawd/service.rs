@@ -6580,11 +6580,17 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
     if !browser_ok && remaining_ms() > STARTUP_BROWSER_POLL_INTERVAL_MS {
       let probe_timeout = std::time::Duration::from_millis(STARTUP_BROWSER_PROBE_TIMEOUT_MS);
-      let cached_probe = browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
-      if cached_probe.is_available() {
+      let browser_port_ready = browser_control_tcp_port_open(std::time::Duration::from_millis(300))
+        .await
+        || browser_cdp_port_open(std::time::Duration::from_millis(300)).await;
+
+      if browser_port_ready {
         browser_ok = true;
-      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(300)).await {
-        if browser_cdp_port_open(std::time::Duration::from_millis(300)).await {
+        cache_browser_control_status(BrowserControlProbe::Ready);
+      } else {
+        let cached_probe =
+          browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
+        if cached_probe.is_available() {
           browser_ok = true;
         } else {
           let direct_probe = browser_control_status(&tokens.gateway_token, probe_timeout).await;
