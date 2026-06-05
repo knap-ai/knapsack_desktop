@@ -79,15 +79,6 @@ const PLUGIN_BY_PROVIDER = {
 };
 
 function qaPluginAllowlistForProviders(providers) {
-  const explicitAllowlist = String(process.env.KNAPSACK_QA_PLUGIN_ALLOWLIST || "").trim();
-  if (explicitAllowlist) {
-    return explicitAllowlist
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .sort()
-      .join(",");
-  }
   if (!Array.isArray(providers) || providers.length === 0) return null;
   const plugins = new Set(["browser"]);
   for (const channel of configuredChannelPluginIdsForQa()) {
@@ -97,7 +88,7 @@ function qaPluginAllowlistForProviders(providers) {
 }
 
 function configuredChannelPluginIdsForQa() {
-  if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
+  if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "1").trim() === "0") {
     return [];
   }
   if (!process.env.APPDATA) return [];
@@ -110,25 +101,16 @@ function configuredChannelPluginIdsForQa() {
       : null;
     if (!configured || typeof configured !== "object" || Array.isArray(configured)) return [];
     return ["slack", "telegram", "whatsapp"].filter((channel) =>
-      Object.prototype.hasOwnProperty.call(configured, channel)
-        && channelEnabledForQa(configured[channel])
-        && bundledChannelPluginAvailableForQa(channel),
+      Object.prototype.hasOwnProperty.call(configured, channel) && bundledChannelPluginAvailableForQa(channel),
     );
   } catch {
     return [];
   }
 }
 
-function channelEnabledForQa(channelConfig) {
-  if (!channelConfig || typeof channelConfig !== "object" || Array.isArray(channelConfig)) return false;
-  return channelConfig.enabled !== false;
-}
-
 function bundledChannelPluginAvailableForQa(channel) {
   const roots = [
     path.join(__dirname, "..", "src-tauri", "resources", "clawdbot", "dist", "extensions", channel),
-    path.join(__dirname, "..", "src-tauri", "target", "release", "resources", "clawdbot", "dist", "extensions", channel),
-    path.join(__dirname, "..", "src-tauri", "target", "debug", "resources", "clawdbot", "dist", "extensions", channel),
   ];
   if (process.env.APPDATA) {
     roots.push(path.join(
@@ -353,7 +335,6 @@ function parseArgs() {
     startupBudgetMs: 30_000,
     coreOnly: false,
     providers: null,
-    prodBinary: process.env.KNAPSACK_QA_PROD_BINARY || null,
   };
   let mode = "both";
   for (let i = 0; i < args.length; i++) {
@@ -379,19 +360,6 @@ function parseArgs() {
     }
     if (arg === "--prod" || arg === "--release") {
       mode = "prod";
-      continue;
-    }
-    if (arg === "--prod-binary" || arg === "--release-binary") {
-      const next = args[i + 1];
-      if (next) {
-        opts.prodBinary = next;
-        i += 1;
-      }
-      continue;
-    }
-    if (arg.startsWith("--prod-binary=") || arg.startsWith("--release-binary=")) {
-      const value = arg.split("=", 2)[1];
-      if (value) opts.prodBinary = value;
       continue;
     }
     if (
@@ -1376,7 +1344,7 @@ async function checkInterfaceAccess(includeUi) {
     String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_TRANSPORTS || "").trim() === "1";
   if (strictChannelTransports) {
     const inactiveConfiguredChannels = configuredChannelStates
-      .filter((state) => !state.deferred && !state.active)
+      .filter((state) => !state.active)
       .map((state) => `${state.channel}:${state.reason || "not active"}`);
     if (inactiveConfiguredChannels.length > 0) {
       failures.push(`configured channel transports inactive: ${inactiveConfiguredChannels.join("; ")}`);
@@ -1415,7 +1383,7 @@ async function checkInterfaceAccess(includeUi) {
 
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
-  const defaultBinary = path.join(
+  const binary = path.join(
     __dirname,
     "..",
     "src-tauri",
@@ -1423,9 +1391,6 @@ async function runMode(mode, opts = {}) {
     isProd ? "release" : "debug",
     process.platform === "win32" ? "knapsack.exe" : "knapsack",
   );
-  const binary = isProd && opts.prodBinary
-    ? path.resolve(opts.prodBinary)
-    : defaultBinary;
   if (isProd && !existsSync(binary)) {
     return { ok: false, phase: "launch", message: `missing binary at ${binary}` };
   }
@@ -1435,13 +1400,10 @@ async function runMode(mode, opts = {}) {
     OPENCLAW_DISABLE_BUNDLED_PLUGINS: process.env.OPENCLAW_DISABLE_BUNDLED_PLUGINS || "1",
     KNAPSACK_HEALTH_AUTO_START_BROWSER: "1",
     KNAPSACK_STARTUP_READY_AUTO_START_BROWSER: "1",
-    KNAPSACK_STARTUP_READY_DIRECT_CHROME: "1",
   };
   const qaPluginAllowlist = qaPluginAllowlistForProviders(opts.providers);
-  if (qaPluginAllowlist) {
-    launchEnv.OPENCLAW_DISABLE_BUNDLED_PLUGINS = "0";
-  }
   if (pluginAllowlistIncludesChannel(qaPluginAllowlist)) {
+    launchEnv.OPENCLAW_DISABLE_BUNDLED_PLUGINS = "0";
     launchEnv.KNAPSACK_EAGER_CHANNEL_PLUGINS = "1";
   }
   if (qaPluginAllowlist) {
@@ -1510,18 +1472,18 @@ async function runMode(mode, opts = {}) {
     // no-op: cleanup is handled by parent loop
   });
 
-  const serviceApiTimeoutMs = isProd
-    ? Number(process.env.KNAPSACK_QA_PROD_LAUNCH_TIMEOUT_MS || 120_000)
-    : Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
-  const serviceApi = await waitForServiceApiAvailable(proc, serviceApiTimeoutMs);
-  if (!serviceApi.ok) {
-    await cleanup();
-    return {
-      ok: false,
-      phase: "launch",
-      message: serviceApi.message,
-      startupLog,
-    };
+  if (!isProd) {
+    const devLaunchTimeoutMs = Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
+    const serviceApi = await waitForServiceApiAvailable(proc, devLaunchTimeoutMs);
+    if (!serviceApi.ok) {
+      await cleanup();
+      return {
+        ok: false,
+        phase: "launch",
+        message: serviceApi.message,
+        startupLog,
+      };
+    }
   }
 
   await ensureGatewayEnabledForQA(2_500);
