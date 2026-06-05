@@ -311,6 +311,8 @@ static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// First observed timestamp for the current gateway-unreachable period.
 static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
@@ -1821,6 +1823,22 @@ fn remove_incomplete_plugin_runtime_deps_dirs(
   removed
 }
 
+fn schedule_plugin_runtime_deps_cleanup(clawdbot_home: PathBuf, current_version: String) {
+  if PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS
+    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+    .is_err()
+  {
+    return;
+  }
+
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(45));
+    remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &current_version);
+    remove_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &current_version);
+    PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+  });
+}
+
 /// Wipe corrupt `.openclaw-npm-cache` directories inside plugin-runtime-deps
 /// subdirs. These caches are disposable; npm will rebuild them on the next
 /// install attempt.
@@ -2357,6 +2375,75 @@ fn bundled_node_modules_has_declared_dependencies(
     .all(|dep| nm_path.join(dep).join("package.json").exists())
 }
 
+fn missing_declared_node_modules_dependencies(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+) -> Vec<String> {
+  let pkg_path = dir.join("package.json");
+  let Ok(raw) = fs::read_to_string(pkg_path) else {
+    return Vec::new();
+  };
+  let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return Vec::new();
+  };
+  let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) else {
+    return Vec::new();
+  };
+
+  deps
+    .keys()
+    .filter(|dep| !nm_path.join(dep.as_str()).join("package.json").exists())
+    .cloned()
+    .collect()
+}
+
+#[cfg(target_os = "windows")]
+fn fill_missing_node_modules_from_tar(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+  tar_name: &str,
+) {
+  let missing = missing_declared_node_modules_dependencies(dir, nm_path);
+  if missing.is_empty() {
+    return;
+  }
+
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+  eprintln!(
+    "[clawd/service] Filling {} missing bundled node_modules packages from {} in {}",
+    missing.len(),
+    tar_name,
+    dir.display()
+  );
+  let archive_paths: Vec<String> = missing
+    .into_iter()
+    .map(|dep| format!("node_modules/{}", dep.replace('\\', "/")))
+    .collect();
+  let mut args = Vec::with_capacity(2 + archive_paths.len());
+  args.push("-xkf".to_string());
+  args.push(tar_name.to_string());
+  args.extend(archive_paths.iter().cloned());
+  let result = std::process::Command::new("tar")
+    .args(args.iter().map(String::as_str))
+    .current_dir(dir)
+    .creation_flags(CREATE_NO_WINDOW)
+    .status();
+  match result {
+    Ok(status) if status.success() => {}
+    Ok(status) => eprintln!(
+      "[clawd/service] WARNING: tar fill for missing node_modules exited {} in {}",
+      status,
+      dir.display()
+    ),
+    Err(err) => eprintln!(
+      "[clawd/service] WARNING: tar fill for missing node_modules failed in {}: {}",
+      dir.display(),
+      err
+    ),
+  }
+}
+
 fn bundled_node_modules_has_required_runtime_files(nm_path: &std::path::Path) -> bool {
   [
     "@earendil-works/pi-agent-core/package.json",
@@ -2398,6 +2485,22 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
   }
 
   let nm_path = dir.join("node_modules");
+  if cfg!(target_os = "windows") && !cfg!(debug_assertions) && nm_path.is_dir() {
+    #[cfg(target_os = "windows")]
+    fill_missing_node_modules_from_tar(dir, &nm_path, "node_modules.tar");
+    if bundled_node_modules_is_complete(dir, &nm_path) {
+      eprintln!(
+        "[clawd/service] Windows release startup: bundled node_modules ready after non-destructive tar fill in {}",
+        dir.display()
+      );
+    } else {
+      eprintln!(
+        "[clawd/service] WARNING: Windows release startup: bundled node_modules still incomplete after tar fill in {}",
+        dir.display()
+      );
+    }
+    return;
+  }
   let marker_path = nm_path.join(".knapsack-extracted-from-tar.json");
   let tar_meta = fs::metadata(&tar_path).ok();
   let tar_len = tar_meta.as_ref().map(|m| m.len()).unwrap_or(0);
@@ -2614,6 +2717,27 @@ fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
   } else {
     ensure_openclaw_link_to(&extensions_nm, clawdbot_root);
   }
+}
+
+fn schedule_clawdbot_runtime_self_link_warmup(clawdbot_entry: PathBuf, reason: &'static str) {
+  if BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!(
+      "[clawd/service] bundled runtime self-link warmup already scheduled ({})",
+      reason
+    );
+    return;
+  }
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(20));
+    let started = std::time::Instant::now();
+    ensure_clawdbot_runtime_self_link(&clawdbot_entry);
+    BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+    eprintln!(
+      "[clawd/service] bundled runtime self-link warmup completed in {}ms ({})",
+      started.elapsed().as_millis(),
+      reason
+    );
+  });
 }
 
 fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
@@ -6573,8 +6697,11 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         "[clawd/service] startup-ready: Windows gateway lifecycle operation already in progress; waiting"
       );
     } else {
-      eprintln!("[clawd/service] startup-ready: starting Windows gateway");
-      auto_enable_if_needed(app_handle.get_ref()).await;
+      eprintln!("[clawd/service] startup-ready: scheduling Windows gateway start");
+      let ah = app_handle.get_ref().clone();
+      tokio::spawn(async move {
+        auto_enable_if_needed(&ah).await;
+      });
     }
   }
 
@@ -8662,6 +8789,7 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
+  let prepare_started = std::time::Instant::now();
   let tokens = load_or_create_tokens(app_handle)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
@@ -8736,10 +8864,15 @@ async fn prepare_gateway_config(
       return Err("Node.js not found. The bundled Node.js binary is missing and no system Node.js was found. Please reinstall Knapsack or install Node.js (https://nodejs.org).".to_string());
     }
   };
+  let node_ready_started = std::time::Instant::now();
   if let Err(e) = ensure_node_binary_ready(&node_path) {
     eprintln!("[clawd/service] ERROR: {}", e);
     return Err(format!("Node.js is not usable for the gateway. {}", e));
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: node readiness check completed in {}ms",
+    node_ready_started.elapsed().as_millis()
+  );
 
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
@@ -8791,6 +8924,18 @@ async fn prepare_gateway_config(
     "[clawd/service] Using Clawdbot entry: {}",
     clawdbot_entry.display()
   );
+  #[cfg(target_os = "windows")]
+  if cfg!(debug_assertions) {
+    schedule_clawdbot_runtime_self_link_warmup(
+      clawdbot_entry.clone(),
+      "prepare_gateway_config",
+    );
+  } else {
+    eprintln!(
+      "[clawd/service] Skipping bundled runtime self-link mutation on Windows release startup"
+    );
+  }
+  #[cfg(not(target_os = "windows"))]
   ensure_clawdbot_runtime_self_link(&clawdbot_entry);
 
   let clawdbot_home = app_clawdbot_home(app_handle);
@@ -8914,6 +9059,11 @@ async fn prepare_gateway_config(
       ),
     }
     harden_file_permissions(&config_path);
+  } else if cfg!(target_os = "windows") && !cfg!(debug_assertions) {
+    harden_file_permissions(&config_path);
+    eprintln!(
+      "[clawd/service] Windows release startup: using existing config without synchronous repair"
+    );
   } else {
     harden_file_permissions(&config_path);
     // Patch existing configs to ensure required fields are present.
@@ -9900,11 +10050,16 @@ async fn prepare_gateway_config(
     }
   }
 
+  let channel_state_started = std::time::Instant::now();
   if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
     eprintln!(
       "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
     );
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: channel install-state check completed in {}ms",
+    channel_state_started.elapsed().as_millis()
+  );
 
   // Keep the startup-critical root locked down immediately, but run the
   // recursive sweep off the launch path. Large state trees can contain
@@ -10331,6 +10486,11 @@ async fn prepare_gateway_config(
     app_version, os_info, LAUNCH_AGENT_LABEL
   );
 
+  eprintln!(
+    "[clawd/service] prepare_gateway_config completed in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
+
   Ok(ServiceSetup {
     node_path,
     is_bundled_node,
@@ -10434,13 +10594,21 @@ pub async fn set_service_enabled(
       // If a background restart is already in progress, wait for it to
       // finish rather than spawning a second gateway process.
       if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
-        eprintln!(
-          "[clawd/service] Enable request: background restart already in progress, waiting..."
-        );
-        for _ in 0..20 {
-          std::thread::sleep(std::time::Duration::from_millis(500));
-          if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
-            break;
+        let restart_pid = GATEWAY_PID.load(Ordering::Relaxed);
+        if restart_pid == 0 && !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+          eprintln!(
+            "[clawd/service] Enable request: stale background restart flag with no pid/listener; taking over startup"
+          );
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+        } else {
+          eprintln!(
+            "[clawd/service] Enable request: background restart already in progress, waiting..."
+          );
+          for _ in 0..8 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+              break;
+            }
           }
         }
         // If a gateway is now running, skip re-spawn
@@ -10543,15 +10711,12 @@ pub async fn set_service_enabled(
 
       // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
       // 5 minutes for a lock left by a previous crashed/killed process.
-      remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(&app_handle));
-      // Remove stale versioned plugin-runtime-deps dirs to prevent WhatsApp
-      // (and other plugins) from crashing the gateway with ENOENT during
-      // auth-store migration from old→new version staging directories.
-      {
-        let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
-        remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(&app_handle), &ver);
-        remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(&app_handle), &ver);
-      }
+      let clawdbot_home = app_clawdbot_home(&app_handle);
+      remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+      // Defer versioned runtime-deps pruning until after the primary gateway
+      // launch. Optional channel warmup can tolerate this delay; startup cannot.
+      let bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+      schedule_plugin_runtime_deps_cleanup(clawdbot_home, bundle_ver);
 
       // Doctor mutates the same runtime deps/config tree as gateway startup.
       // Keep it opt-in so it cannot race first-run dependency staging.
@@ -13692,12 +13857,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     }
   }
 
-  remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
-  {
-    let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
-    remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
-    remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(app_handle), &ver);
-  }
+  let clawdbot_home = app_clawdbot_home(app_handle);
+  remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+  let bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+  schedule_plugin_runtime_deps_cleanup(clawdbot_home, bundle_ver);
 
   let stdout_log = windows_log_path("stdout");
   let stderr_log = windows_log_path("stderr");
