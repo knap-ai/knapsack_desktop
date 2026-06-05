@@ -793,8 +793,15 @@ function getGatewayStartGuardErrors(params) {
 	return [`Gateway start blocked: set gateway.mode=local (current: ${params.mode}) or pass --allow-unconfigured.`, `Config write audit: ${params.configAuditPath}`];
 }
 async function readGatewayStartupConfig(params) {
-	const { readConfigFileSnapshotWithPluginMetadata } = await import("./config/config.js");
-	const snapshotRead = await params.startupTrace.measure("cli.config-snapshot", () => readConfigFileSnapshotWithPluginMetadata().catch(() => null));
+	const { readConfigFileSnapshot, readConfigFileSnapshotWithPluginMetadata } = await import("./config/config.js");
+	const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1";
+	const snapshotRead = await params.startupTrace.measure("cli.config-snapshot", async () => {
+		if (desktopManagedFastStartup) {
+			const snapshot = await readConfigFileSnapshot({ skipPluginValidation: true });
+			return { snapshot };
+		}
+		return await readConfigFileSnapshotWithPluginMetadata();
+	}).catch(() => null);
 	const snapshot = snapshotRead?.snapshot ?? null;
 	return {
 		cfg: snapshot?.config ?? {},
