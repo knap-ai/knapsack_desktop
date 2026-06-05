@@ -312,6 +312,7 @@ static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// First observed timestamp for the current gateway-unreachable period.
 static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
@@ -2631,6 +2632,27 @@ fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
   } else {
     ensure_openclaw_link_to(&extensions_nm, clawdbot_root);
   }
+}
+
+fn schedule_clawdbot_runtime_self_link_warmup(clawdbot_entry: PathBuf, reason: &'static str) {
+  if BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!(
+      "[clawd/service] bundled runtime self-link warmup already scheduled ({})",
+      reason
+    );
+    return;
+  }
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(20));
+    let started = std::time::Instant::now();
+    ensure_clawdbot_runtime_self_link(&clawdbot_entry);
+    BUNDLED_RUNTIME_SELF_LINK_WARMUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+    eprintln!(
+      "[clawd/service] bundled runtime self-link warmup completed in {}ms ({})",
+      started.elapsed().as_millis(),
+      reason
+    );
+  });
 }
 
 fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
@@ -6539,8 +6561,11 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         "[clawd/service] startup-ready: Windows gateway lifecycle operation already in progress; waiting"
       );
     } else {
-      eprintln!("[clawd/service] startup-ready: starting Windows gateway");
-      auto_enable_if_needed(app_handle.get_ref()).await;
+      eprintln!("[clawd/service] startup-ready: scheduling Windows gateway start");
+      let ah = app_handle.get_ref().clone();
+      tokio::spawn(async move {
+        auto_enable_if_needed(&ah).await;
+      });
     }
   }
 
@@ -8627,6 +8652,7 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
+  let prepare_started = std::time::Instant::now();
   let tokens = load_or_create_tokens(app_handle)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
@@ -8701,10 +8727,15 @@ async fn prepare_gateway_config(
       return Err("Node.js not found. The bundled Node.js binary is missing and no system Node.js was found. Please reinstall Knapsack or install Node.js (https://nodejs.org).".to_string());
     }
   };
+  let node_ready_started = std::time::Instant::now();
   if let Err(e) = ensure_node_binary_ready(&node_path) {
     eprintln!("[clawd/service] ERROR: {}", e);
     return Err(format!("Node.js is not usable for the gateway. {}", e));
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: node readiness check completed in {}ms",
+    node_ready_started.elapsed().as_millis()
+  );
 
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
@@ -8756,6 +8787,12 @@ async fn prepare_gateway_config(
     "[clawd/service] Using Clawdbot entry: {}",
     clawdbot_entry.display()
   );
+  #[cfg(target_os = "windows")]
+  schedule_clawdbot_runtime_self_link_warmup(
+    clawdbot_entry.clone(),
+    "prepare_gateway_config",
+  );
+  #[cfg(not(target_os = "windows"))]
   ensure_clawdbot_runtime_self_link(&clawdbot_entry);
 
   let clawdbot_home = app_clawdbot_home(app_handle);
@@ -9865,11 +9902,16 @@ async fn prepare_gateway_config(
     }
   }
 
+  let channel_state_started = std::time::Instant::now();
   if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
     eprintln!(
       "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
     );
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: channel install-state check completed in {}ms",
+    channel_state_started.elapsed().as_millis()
+  );
 
   // Keep the startup-critical root locked down immediately, but run the
   // recursive sweep off the launch path. Large state trees can contain
@@ -10294,6 +10336,11 @@ async fn prepare_gateway_config(
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
     app_version, os_info, LAUNCH_AGENT_LABEL
+  );
+
+  eprintln!(
+    "[clawd/service] prepare_gateway_config completed in {}ms",
+    prepare_started.elapsed().as_millis()
   );
 
   Ok(ServiceSetup {
