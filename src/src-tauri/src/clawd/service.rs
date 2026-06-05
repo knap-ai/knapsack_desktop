@@ -310,6 +310,7 @@ static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 /// Tracks whether a gateway restart attempt is already in progress,
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// First observed timestamp for the current gateway-unreachable period.
 static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
@@ -2648,6 +2649,38 @@ fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
 /// absent when the dir was created by an older gateway or the link was lost
 /// during an interrupted update.  This function repairs them non-destructively
 /// so the gateway can resume without a full re-stage.
+fn schedule_bundled_plugin_runtime_deps_warmup(
+  node_path: PathBuf,
+  extensions_dir: PathBuf,
+  clawdbot_home: PathBuf,
+  reason: &'static str,
+) {
+  if cfg!(debug_assertions) {
+    return;
+  }
+  if BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!(
+      "[clawd/service] bundled plugin runtime deps warmup already scheduled ({})",
+      reason
+    );
+    return;
+  }
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(8));
+    eprintln!(
+      "[clawd/service] starting bundled plugin runtime deps warmup ({})",
+      reason
+    );
+    install_bundled_plugin_runtime_deps(&node_path, &extensions_dir);
+    ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
+    BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+    eprintln!(
+      "[clawd/service] finished bundled plugin runtime deps warmup ({})",
+      reason
+    );
+  });
+}
+
 fn ensure_plugin_runtime_deps_openclaw_links(clawdbot_home: &std::path::Path) {
   let base = clawdbot_home.join("plugin-runtime-deps");
   let entries = match fs::read_dir(&base) {
@@ -10219,12 +10252,12 @@ async fn prepare_gateway_config(
     }
   }
 
-  // Install runtime deps for bundled plugins (e.g. grammy for telegram).
-  // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
-  if !cfg!(debug_assertions) {
-    install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-    ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
-  }
+  schedule_bundled_plugin_runtime_deps_warmup(
+    node_path.clone(),
+    bundled_plugins_dir.clone(),
+    app_clawdbot_home(app_handle),
+    "prepare_gateway_config",
+  );
 
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
@@ -10786,11 +10819,12 @@ pub async fn set_service_enabled(
         }
       }
 
-      // Install runtime deps for bundled plugins (e.g. grammy for telegram).
-      if !cfg!(debug_assertions) {
-        install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-        ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
-      }
+      schedule_bundled_plugin_runtime_deps_warmup(
+        node_path.clone(),
+        bundled_plugins_dir.clone(),
+        clawdbot_home.clone(),
+        "prepare_gateway_config_windows",
+      );
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
