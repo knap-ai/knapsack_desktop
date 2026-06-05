@@ -88,7 +88,7 @@ function qaPluginAllowlistForProviders(providers) {
 }
 
 function configuredChannelPluginIdsForQa() {
-  if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "1").trim() === "0") {
+  if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
     return [];
   }
   if (!process.env.APPDATA) return [];

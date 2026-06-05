@@ -927,7 +927,7 @@ pub(crate) fn is_bundled_channel_plugin_id(plugin_id: &str) -> bool {
 fn eager_channel_plugin_start_enabled() -> bool {
   std::env::var("KNAPSACK_EAGER_CHANNEL_PLUGINS")
     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-    .unwrap_or(true)
+    .unwrap_or(false)
 }
 
 fn defer_optional_startup_plugins_enabled() -> bool {
