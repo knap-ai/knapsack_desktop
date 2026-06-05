@@ -2416,6 +2416,13 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
   }
 
   let nm_path = dir.join("node_modules");
+  if cfg!(target_os = "windows") && !cfg!(debug_assertions) && nm_path.is_dir() {
+    eprintln!(
+      "[clawd/service] Windows release startup: using bundled node_modules without synchronous tar repair in {}",
+      dir.display()
+    );
+    return;
+  }
   let marker_path = nm_path.join(".knapsack-extracted-from-tar.json");
   let tar_meta = fs::metadata(&tar_path).ok();
   let tar_len = tar_meta.as_ref().map(|m| m.len()).unwrap_or(0);
