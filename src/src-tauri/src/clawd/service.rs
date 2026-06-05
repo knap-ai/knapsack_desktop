@@ -2375,6 +2375,72 @@ fn bundled_node_modules_has_declared_dependencies(
     .all(|dep| nm_path.join(dep).join("package.json").exists())
 }
 
+fn missing_declared_node_modules_dependencies(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+) -> Vec<String> {
+  let pkg_path = dir.join("package.json");
+  let Ok(raw) = fs::read_to_string(pkg_path) else {
+    return Vec::new();
+  };
+  let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return Vec::new();
+  };
+  let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) else {
+    return Vec::new();
+  };
+
+  deps
+    .keys()
+    .filter(|dep| !nm_path.join(dep.as_str()).join("package.json").exists())
+    .cloned()
+    .collect()
+}
+
+#[cfg(target_os = "windows")]
+fn fill_missing_node_modules_from_tar(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+  tar_name: &str,
+) {
+  let missing = missing_declared_node_modules_dependencies(dir, nm_path);
+  if missing.is_empty() {
+    return;
+  }
+
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x08000000;
+  eprintln!(
+    "[clawd/service] Filling {} missing bundled node_modules packages from {} in {}",
+    missing.len(),
+    tar_name,
+    dir.display()
+  );
+  for dep in missing {
+    let archive_path = format!("node_modules/{}", dep.replace('\\', "/"));
+    let result = std::process::Command::new("tar")
+      .args(["-xkf", tar_name, &archive_path])
+      .current_dir(dir)
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    match result {
+      Ok(status) if status.success() => {}
+      Ok(status) => eprintln!(
+        "[clawd/service] WARNING: tar fill for {} exited {} in {}",
+        archive_path,
+        status,
+        dir.display()
+      ),
+      Err(err) => eprintln!(
+        "[clawd/service] WARNING: tar fill for {} failed in {}: {}",
+        archive_path,
+        dir.display(),
+        err
+      ),
+    }
+  }
+}
+
 fn bundled_node_modules_has_required_runtime_files(nm_path: &std::path::Path) -> bool {
   [
     "@earendil-works/pi-agent-core/package.json",
@@ -2417,10 +2483,19 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
 
   let nm_path = dir.join("node_modules");
   if cfg!(target_os = "windows") && !cfg!(debug_assertions) && nm_path.is_dir() {
-    eprintln!(
-      "[clawd/service] Windows release startup: using bundled node_modules without synchronous tar repair in {}",
-      dir.display()
-    );
+    #[cfg(target_os = "windows")]
+    fill_missing_node_modules_from_tar(dir, &nm_path, "node_modules.tar");
+    if bundled_node_modules_is_complete(dir, &nm_path) {
+      eprintln!(
+        "[clawd/service] Windows release startup: bundled node_modules ready after non-destructive tar fill in {}",
+        dir.display()
+      );
+    } else {
+      eprintln!(
+        "[clawd/service] WARNING: Windows release startup: bundled node_modules still incomplete after tar fill in {}",
+        dir.display()
+      );
+    }
     return;
   }
   let marker_path = nm_path.join(".knapsack-extracted-from-tar.json");
