@@ -2416,28 +2416,31 @@ fn fill_missing_node_modules_from_tar(
     tar_name,
     dir.display()
   );
-  for dep in missing {
-    let archive_path = format!("node_modules/{}", dep.replace('\\', "/"));
-    let result = std::process::Command::new("tar")
-      .args(["-xkf", tar_name, &archive_path])
-      .current_dir(dir)
-      .creation_flags(CREATE_NO_WINDOW)
-      .status();
-    match result {
-      Ok(status) if status.success() => {}
-      Ok(status) => eprintln!(
-        "[clawd/service] WARNING: tar fill for {} exited {} in {}",
-        archive_path,
-        status,
-        dir.display()
-      ),
-      Err(err) => eprintln!(
-        "[clawd/service] WARNING: tar fill for {} failed in {}: {}",
-        archive_path,
-        dir.display(),
-        err
-      ),
-    }
+  let archive_paths: Vec<String> = missing
+    .into_iter()
+    .map(|dep| format!("node_modules/{}", dep.replace('\\', "/")))
+    .collect();
+  let mut args = Vec::with_capacity(2 + archive_paths.len());
+  args.push("-xkf".to_string());
+  args.push(tar_name.to_string());
+  args.extend(archive_paths.iter().cloned());
+  let result = std::process::Command::new("tar")
+    .args(args.iter().map(String::as_str))
+    .current_dir(dir)
+    .creation_flags(CREATE_NO_WINDOW)
+    .status();
+  match result {
+    Ok(status) if status.success() => {}
+    Ok(status) => eprintln!(
+      "[clawd/service] WARNING: tar fill for missing node_modules exited {} in {}",
+      status,
+      dir.display()
+    ),
+    Err(err) => eprintln!(
+      "[clawd/service] WARNING: tar fill for missing node_modules failed in {}: {}",
+      dir.display(),
+      err
+    ),
   }
 }
 
