@@ -1090,7 +1090,7 @@ pub async fn gemini_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  gemini_chat_with_retries(api_key, model, messages, tools, 3).await
+  gemini_chat_with_retries(api_key, model, messages, tools, 6).await
 }
 
 /// Call Google Gemini API with an explicit retry count.

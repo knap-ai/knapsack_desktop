@@ -5436,6 +5436,7 @@ async fn run_gateway_self_heal_cycle(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          mark_gateway_launch_started();
           *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
           eprintln!("[clawd/service] self-heal: spawned gateway pid {}", pid);
         }
@@ -5459,7 +5460,10 @@ async fn run_gateway_self_heal_cycle(
     );
   }
 
-  let ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 10_000).await;
+  let mut ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 30_000).await;
+  if !ready && gateway_tcp_port_open(std::time::Duration::from_millis(250)).await {
+    ready = true;
+  }
   if ready {
     eprintln!("[clawd/service] self-heal: gateway healthy after recovery cycle");
     CONSECUTIVE_HEAL_FAILURES.store(0, Ordering::Relaxed);
@@ -5468,6 +5472,11 @@ async fn run_gateway_self_heal_cycle(
     GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
     BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
     patch_paired_json_scopes(&app_handle);
+  } else if let Some(grace_ms) = gateway_launch_grace_active() {
+    eprintln!(
+      "[clawd/service] self-heal: gateway process is still starting after {}ms; preserving launch",
+      grace_ms
+    );
   } else {
     let failures = CONSECUTIVE_HEAL_FAILURES.fetch_add(1, Ordering::Relaxed) + 1;
     eprintln!(
@@ -6757,11 +6766,11 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let ready_started_at = std::time::Instant::now();
   let mut ready = false;
   while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
-    if gateway_reachable_or_ready(std::time::Duration::from_millis(150)).await {
+    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
       ready = true;
       break;
     }
-    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
+    if gateway_reachable_or_ready(std::time::Duration::from_millis(150)).await {
       ready = true;
       break;
     }
@@ -10774,6 +10783,22 @@ pub async fn set_service_enabled(
                 existing_pid
               ),
             });
+          }
+          if process_is_alive(existing_pid) {
+            if let Some(grace_ms) = gateway_launch_grace_active() {
+              eprintln!(
+                "[clawd/service] Enable request: background restart pid {} is still starting after {}ms; preserving startup",
+                existing_pid, grace_ms
+              );
+              return HttpResponse::Ok().json(EnableServiceResponse {
+                success: true,
+                enabled,
+                message: format!(
+                  "Gateway startup is already in progress (pid {}, {}ms)",
+                  existing_pid, grace_ms
+                ),
+              });
+            }
           }
           eprintln!(
             "[clawd/service] Enable request: background restart left non-listening pid {}; continuing with fresh spawn",

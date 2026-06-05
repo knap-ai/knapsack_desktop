@@ -4378,13 +4378,17 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       Ok(r) => r,
       Err(e) => {
         let err_str = e.to_string();
-        let is_credit_or_rate_error = err_str.contains("429")
-          || err_str.contains("rate")
-          || err_str.contains("quota")
-          || err_str.contains("credit")
-          || err_str.contains("insufficient")
-          || err_str.contains("exceeded")
-          || err_str.contains("billing");
+        let err_lower = err_str.to_lowercase();
+        let is_credit_or_rate_error = err_lower.contains("429")
+          || err_lower.contains("503")
+          || err_lower.contains("rate")
+          || err_lower.contains("quota")
+          || err_lower.contains("credit")
+          || err_lower.contains("insufficient")
+          || err_lower.contains("exceeded")
+          || err_lower.contains("billing")
+          || err_lower.contains("unavailable")
+          || err_lower.contains("high demand");
         if !is_credit_or_rate_error {
           return HttpResponse::InternalServerError().json(
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
