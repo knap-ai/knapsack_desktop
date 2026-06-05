@@ -311,6 +311,7 @@ static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// First observed timestamp for the current gateway-unreachable period.
 static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
@@ -1819,6 +1820,22 @@ fn remove_incomplete_plugin_runtime_deps_dirs(
     }
   }
   removed
+}
+
+fn schedule_plugin_runtime_deps_cleanup(clawdbot_home: PathBuf, current_version: String) {
+  if PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS
+    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+    .is_err()
+  {
+    return;
+  }
+
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(45));
+    remove_stale_plugin_runtime_deps_versions(&clawdbot_home, &current_version);
+    remove_incomplete_plugin_runtime_deps_dirs(&clawdbot_home, &current_version);
+    PLUGIN_RUNTIME_DEPS_CLEANUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+  });
 }
 
 /// Wipe corrupt `.openclaw-npm-cache` directories inside plugin-runtime-deps
@@ -10382,13 +10399,21 @@ pub async fn set_service_enabled(
       // If a background restart is already in progress, wait for it to
       // finish rather than spawning a second gateway process.
       if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
-        eprintln!(
-          "[clawd/service] Enable request: background restart already in progress, waiting..."
-        );
-        for _ in 0..20 {
-          std::thread::sleep(std::time::Duration::from_millis(500));
-          if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
-            break;
+        let restart_pid = GATEWAY_PID.load(Ordering::Relaxed);
+        if restart_pid == 0 && !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+          eprintln!(
+            "[clawd/service] Enable request: stale background restart flag with no pid/listener; taking over startup"
+          );
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+        } else {
+          eprintln!(
+            "[clawd/service] Enable request: background restart already in progress, waiting..."
+          );
+          for _ in 0..8 {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+              break;
+            }
           }
         }
         // If a gateway is now running, skip re-spawn
@@ -10491,15 +10516,12 @@ pub async fn set_service_enabled(
 
       // Remove stale plugin runtime-deps locks so the new gateway doesn't wait
       // 5 minutes for a lock left by a previous crashed/killed process.
-      remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(&app_handle));
-      // Remove stale versioned plugin-runtime-deps dirs to prevent WhatsApp
-      // (and other plugins) from crashing the gateway with ENOENT during
-      // auth-store migration from old→new version staging directories.
-      {
-        let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
-        remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(&app_handle), &ver);
-        remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(&app_handle), &ver);
-      }
+      let clawdbot_home = app_clawdbot_home(&app_handle);
+      remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+      // Defer versioned runtime-deps pruning until after the primary gateway
+      // launch. Optional channel warmup can tolerate this delay; startup cannot.
+      let bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+      schedule_plugin_runtime_deps_cleanup(clawdbot_home, bundle_ver);
 
       // Doctor mutates the same runtime deps/config tree as gateway startup.
       // Keep it opt-in so it cannot race first-run dependency staging.
@@ -13640,12 +13662,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     }
   }
 
-  remove_stale_plugin_runtime_deps_locks(&app_clawdbot_home(app_handle));
-  {
-    let ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
-    remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
-    remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(app_handle), &ver);
-  }
+  let clawdbot_home = app_clawdbot_home(app_handle);
+  remove_stale_plugin_runtime_deps_locks(&clawdbot_home);
+  let bundle_ver = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+  schedule_plugin_runtime_deps_cleanup(clawdbot_home, bundle_ver);
 
   let stdout_log = windows_log_path("stdout");
   let stderr_log = windows_log_path("stderr");
