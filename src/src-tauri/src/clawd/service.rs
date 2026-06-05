@@ -2666,7 +2666,7 @@ fn schedule_bundled_plugin_runtime_deps_warmup(
     return;
   }
   std::thread::spawn(move || {
-    std::thread::sleep(std::time::Duration::from_secs(8));
+    std::thread::sleep(std::time::Duration::from_secs(45));
     eprintln!(
       "[clawd/service] starting bundled plugin runtime deps warmup ({})",
       reason
@@ -6583,8 +6583,8 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       let cached_probe = browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
       if cached_probe.is_available() {
         browser_ok = true;
-      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(120)).await {
-        if browser_cdp_port_open(std::time::Duration::from_millis(120)).await {
+      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(300)).await {
+        if browser_cdp_port_open(std::time::Duration::from_millis(300)).await {
           browser_ok = true;
         } else {
           let direct_probe = browser_control_status(&tokens.gateway_token, probe_timeout).await;
@@ -6620,6 +6620,15 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       100
     }))
     .await;
+  }
+
+  if !browser_ok
+    && ready
+    && (browser_control_tcp_port_open(std::time::Duration::from_millis(300)).await
+      || browser_cdp_port_open(std::time::Duration::from_millis(300)).await)
+  {
+    browser_ok = true;
+    cache_browser_control_status(BrowserControlProbe::Ready);
   }
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
