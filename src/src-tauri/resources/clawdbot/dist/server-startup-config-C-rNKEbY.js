@@ -21,7 +21,8 @@ async function loadGatewayStartupConfigSnapshot(params) {
 	const wroteConfig = false;
 	if (configSnapshot.legacyIssues.length > 0 && isNixMode) throw new Error("Legacy config entries detected while running in Nix mode. Update your Nix config to the latest schema and restart.");
 	if (configSnapshot.exists) assertValidGatewayStartupConfigSnapshot(configSnapshot, { includeDoctorHint: true });
-	const autoEnable = params.minimalTestGateway ? {
+	const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1";
+	const autoEnable = params.minimalTestGateway || desktopManagedFastStartup ? {
 		config: configSnapshot.config,
 		changes: []
 	} : await measure("config.snapshot.auto-enable", () => applyPluginAutoEnable({

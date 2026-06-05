@@ -310,6 +310,7 @@ static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 /// Tracks whether a gateway restart attempt is already in progress,
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
 static GATEWAY_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 /// First observed timestamp for the current gateway-unreachable period.
 static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
@@ -485,6 +486,22 @@ fn gateway_launch_grace_active() -> Option<u64> {
   Some(elapsed)
 }
 
+fn gateway_launch_grace_active_with_live_process() -> Option<u64> {
+  let elapsed = gateway_launch_grace_active()?;
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 && process_is_alive(pid) {
+    return Some(elapsed);
+  }
+  #[cfg(target_os = "windows")]
+  if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
+    if process_is_alive(listening_pid) {
+      GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+      return Some(elapsed);
+    }
+  }
+  None
+}
+
 #[cfg(target_os = "macos")]
 fn qa_direct_gateway_process_active() -> bool {
   if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() != Some("1") {
@@ -548,6 +565,12 @@ fn startup_ready_browser_start_enabled() -> bool {
   std::env::var("KNAPSACK_STARTUP_READY_AUTO_START_BROWSER")
     .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
     .unwrap_or(true)
+}
+
+fn startup_ready_direct_chrome_enabled() -> bool {
+  std::env::var("KNAPSACK_STARTUP_READY_DIRECT_CHROME")
+    .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+    .unwrap_or(false)
 }
 
 /// Path to the gateway stderr log file.
@@ -875,9 +898,14 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
   }
 }
 
-const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
-  // Core app activities exercised by the desktop QA loop.
+const KNAPSACK_CORE_STARTUP_PLUGINS: &[&str] = &[
+  // Keep the launch gate small: browser access is the only OpenClaw plugin
+  // required before the desktop can be considered locally usable.
   "browser",
+];
+
+const KNAPSACK_DEFERRED_STARTUP_PLUGINS: &[&str] = &[
+  // Google/Microsoft document surfaces.
   "google",
   "microsoft",
   "web-readability",
@@ -924,6 +952,150 @@ fn eager_channel_plugin_start_enabled() -> bool {
     .unwrap_or(false)
 }
 
+fn defer_optional_startup_plugins_enabled() -> bool {
+  std::env::var("KNAPSACK_DEFER_OPTIONAL_STARTUP_PLUGINS")
+    .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+    .unwrap_or(true)
+}
+
+fn is_deferred_startup_plugin_id(plugin_id: &str) -> bool {
+  KNAPSACK_DEFERRED_STARTUP_PLUGINS
+    .iter()
+    .any(|candidate| *candidate == plugin_id)
+}
+
+fn configured_bundled_channel_plugin_ids(cfg: &serde_json::Value) -> Vec<String> {
+  let mut channels = cfg
+    .pointer("/channels")
+    .and_then(|value| value.as_object())
+    .map(|configured| {
+      configured
+        .keys()
+        .filter(|channel| is_bundled_channel_plugin_id(channel))
+        .cloned()
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  channels.sort();
+  channels.dedup();
+  channels
+}
+
+fn startup_ready_channel_ids(app_handle: &tauri::AppHandle) -> Vec<String> {
+  let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+  let Ok(raw) = fs::read_to_string(&config_path) else {
+    return Vec::new();
+  };
+  let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return Vec::new();
+  };
+  let mut channels = configured_bundled_channel_plugin_ids(&cfg)
+    .into_iter()
+    .filter(|channel| {
+      let disabled = cfg
+        .pointer(&format!("/channels/{}/enabled", channel))
+        .and_then(|value| value.as_bool())
+        == Some(false);
+      !disabled && bundled_plugins_dir(app_handle).join(channel).is_dir()
+    })
+    .collect::<Vec<_>>();
+  channels.sort();
+  channels.dedup();
+  channels
+}
+
+fn qa_plugin_allowlist_override() -> Option<Vec<String>> {
+  let raw = std::env::var("KNAPSACK_QA_PLUGIN_ALLOWLIST").ok()?;
+  let mut plugins = raw
+    .split(',')
+    .map(|plugin| plugin.trim())
+    .filter(|plugin| !plugin.is_empty())
+    .map(|plugin| plugin.to_string())
+    .collect::<Vec<_>>();
+  plugins.sort();
+  plugins.dedup();
+  if plugins.is_empty() {
+    None
+  } else {
+    Some(plugins)
+  }
+}
+
+fn disable_startup_deferred_plugin_entries(
+  cfg: &mut serde_json::Value,
+  allowed: &[String],
+  disable_any_not_allowed: bool,
+) -> bool {
+  let mut changed = false;
+  let mut disabled_plugins = Vec::new();
+  let Some(entries) = cfg
+    .pointer_mut("/plugins/entries")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  for (plugin_id, entry) in entries.iter_mut() {
+    let should_disable = if disable_any_not_allowed {
+      !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    } else {
+      is_deferred_startup_plugin_id(plugin_id)
+        && !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    };
+    if !should_disable {
+      continue;
+    }
+    let Some(entry_obj) = entry.as_object_mut() else {
+      continue;
+    };
+    if entry_obj.get("enabled").and_then(|value| value.as_bool()) == Some(false) {
+      continue;
+    }
+    entry_obj.insert("enabled".to_string(), serde_json::Value::Bool(false));
+    disabled_plugins.push(plugin_id.clone());
+    changed = true;
+  }
+
+  if disabled_plugins.is_empty() {
+    return changed;
+  }
+
+  if cfg.get("meta").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("meta".to_string(), serde_json::json!({}));
+  }
+  let Some(meta) = cfg
+    .pointer_mut("/meta")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return changed;
+  };
+  let mut restore = meta
+    .get("knapsackDeferredStartupDisabledEntries")
+    .and_then(|value| value.as_array())
+    .map(|arr| {
+      arr
+        .iter()
+        .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  for plugin_id in disabled_plugins {
+    if !restore.iter().any(|existing| existing == &plugin_id) {
+      restore.push(plugin_id);
+    }
+  }
+  restore.sort();
+  restore.dedup();
+  meta.insert(
+    "knapsackDeferredStartupDisabledEntries".to_string(),
+    serde_json::json!(restore),
+  );
+  changed
+}
+
 fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -968,7 +1140,7 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
     }
   }
 
-  let mut required: Vec<String> = KNAPSACK_REQUIRED_PLUGINS
+  let mut required: Vec<String> = KNAPSACK_CORE_STARTUP_PLUGINS
     .iter()
     .map(|plugin| plugin.to_string())
     .collect();
@@ -2477,6 +2649,38 @@ fn should_mutate_bundled_clawdbot_runtime(path: &std::path::Path) -> bool {
 /// absent when the dir was created by an older gateway or the link was lost
 /// during an interrupted update.  This function repairs them non-destructively
 /// so the gateway can resume without a full re-stage.
+fn schedule_bundled_plugin_runtime_deps_warmup(
+  node_path: PathBuf,
+  extensions_dir: PathBuf,
+  clawdbot_home: PathBuf,
+  reason: &'static str,
+) {
+  if cfg!(debug_assertions) {
+    return;
+  }
+  if BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!(
+      "[clawd/service] bundled plugin runtime deps warmup already scheduled ({})",
+      reason
+    );
+    return;
+  }
+  std::thread::spawn(move || {
+    std::thread::sleep(std::time::Duration::from_secs(45));
+    eprintln!(
+      "[clawd/service] starting bundled plugin runtime deps warmup ({})",
+      reason
+    );
+    install_bundled_plugin_runtime_deps(&node_path, &extensions_dir);
+    ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
+    BUNDLED_PLUGIN_RUNTIME_DEPS_WARMUP_IN_PROGRESS.store(false, Ordering::Relaxed);
+    eprintln!(
+      "[clawd/service] finished bundled plugin runtime deps warmup ({})",
+      reason
+    );
+  });
+}
+
 fn ensure_plugin_runtime_deps_openclaw_links(clawdbot_home: &std::path::Path) {
   let base = clawdbot_home.join("plugin-runtime-deps");
   let entries = match fs::read_dir(&base) {
@@ -4823,6 +5027,7 @@ async fn run_gateway_self_heal_cycle(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          mark_gateway_launch_started();
           *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
           eprintln!("[clawd/service] self-heal: spawned gateway pid {}", pid);
         }
@@ -4846,7 +5051,10 @@ async fn run_gateway_self_heal_cycle(
     );
   }
 
-  let ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 10_000).await;
+  let mut ready = crate::clawd::gateway_supervisor::wait_for_gateway_ready(&token, 30_000).await;
+  if !ready && gateway_tcp_port_open(std::time::Duration::from_millis(250)).await {
+    ready = true;
+  }
   if ready {
     eprintln!("[clawd/service] self-heal: gateway healthy after recovery cycle");
     CONSECUTIVE_HEAL_FAILURES.store(0, Ordering::Relaxed);
@@ -4855,6 +5063,11 @@ async fn run_gateway_self_heal_cycle(
     GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
     BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
     patch_paired_json_scopes(&app_handle);
+  } else if let Some(grace_ms) = gateway_launch_grace_active() {
+    eprintln!(
+      "[clawd/service] self-heal: gateway process is still starting after {}ms; preserving launch",
+      grace_ms
+    );
   } else {
     let failures = CONSECUTIVE_HEAL_FAILURES.fetch_add(1, Ordering::Relaxed) + 1;
     eprintln!(
@@ -5315,7 +5528,7 @@ async fn browser_control_start_direct(
   }
 }
 
-fn spawn_startup_browser_start_nudge(gateway_token: String) {
+fn spawn_startup_browser_start_nudge(gateway_token: String, app_handle: tauri::AppHandle) {
   if !startup_ready_browser_start_enabled() {
     return;
   }
@@ -5329,6 +5542,23 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
     let started_at = std::time::Instant::now();
     let budget = std::time::Duration::from_secs(12);
     let mut last_error: Option<String> = None;
+
+    if startup_ready_direct_chrome_enabled()
+      && !browser_cdp_port_open(std::time::Duration::from_millis(100)).await
+    {
+      #[cfg(any(target_os = "macos", target_os = "windows"))]
+      {
+        kill_stale_clawdbot_chromes();
+        match start_openclaw_chrome_direct(&app_handle) {
+          Ok(()) => {
+            eprintln!("[clawd/service] startup-ready launched OpenClaw Chrome profile directly");
+          }
+          Err(e) => {
+            last_error = Some(format!("direct OpenClaw Chrome launch failed: {}", e));
+          }
+        }
+      }
+    }
 
     while started_at.elapsed() < budget {
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
@@ -5345,6 +5575,26 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         );
         return;
       } else {
+        if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+          match tokio::time::timeout(
+            std::time::Duration::from_millis(1500),
+            browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(1200)),
+          )
+          .await
+          {
+            Ok(Ok(())) => {
+              eprintln!("[clawd/service] startup-ready browser direct /start nudge succeeded");
+              return;
+            }
+            Ok(Err(e)) => {
+              last_error = Some(format!("browser-control direct /start failed: {}", e));
+            }
+            Err(_) => {
+              last_error = Some("browser-control direct /start timed out".to_string());
+            }
+          }
+        }
+
         match tokio::time::timeout(
           std::time::Duration::from_millis(1500),
           gateway_client::browser_request(
@@ -5405,6 +5655,77 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
   })?;
 
   std::process::Command::new(chrome)
+    .arg("--remote-debugging-port=18800")
+    .arg(format!(
+      "--user-data-dir={}",
+      user_data_dir.to_string_lossy()
+    ))
+    .arg("--profile-directory=Default")
+    .arg("--no-first-run")
+    .arg("--no-default-browser-check")
+    .arg("--disable-background-networking")
+    .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
+    .arg("--disable-sync")
+    .arg("--no-proxy-server")
+    .arg("about:blank")
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+    .map(|_| ())
+    .map_err(|e| format!("failed to launch OpenClaw Chrome profile: {}", e))
+}
+
+#[cfg(target_os = "windows")]
+fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
+  let program_files =
+    std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
+  let program_files_x86 =
+    std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+  let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+  let candidates = [
+    format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
+    format!(
+      r"{}\Google\Chrome\Application\chrome.exe",
+      program_files_x86
+    ),
+    format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      program_files
+    ),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      program_files_x86
+    ),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      local_appdata
+    ),
+    format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files),
+    format!(
+      r"{}\Microsoft\Edge\Application\msedge.exe",
+      program_files_x86
+    ),
+  ];
+  let browser = candidates
+    .iter()
+    .find(|candidate| Path::new(candidate).exists())
+    .ok_or_else(|| "Chrome/Brave/Edge app binary was not found".to_string())?;
+
+  let user_data_dir = app_clawdbot_home(app_handle)
+    .join("browser")
+    .join("openclaw")
+    .join("user-data");
+  fs::create_dir_all(&user_data_dir).map_err(|e| {
+    format!(
+      "failed to create OpenClaw Chrome profile at {}: {}",
+      user_data_dir.display(),
+      e
+    )
+  })?;
+
+  std::process::Command::new(browser)
     .arg("--remote-debugging-port=18800")
     .arg(format!(
       "--user-data-dir={}",
@@ -5766,7 +6087,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
         if qa_direct_gateway_mode() {
-          #[cfg(target_os = "macos")]
+          #[cfg(any(target_os = "macos", target_os = "windows"))]
           {
             match start_openclaw_chrome_direct(&nudge_app_handle) {
               Ok(()) => {
@@ -5785,7 +6106,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             return;
           }
 
-          #[cfg(not(target_os = "macos"))]
+          #[cfg(not(any(target_os = "macos", target_os = "windows")))]
           {
             eprintln!(
               "[clawd/service] QA direct browser nudge is not implemented on this platform"
@@ -6120,6 +6441,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   use crate::clawd::gateway_ws;
 
   const STARTUP_READY_BUDGET_MS: u64 = 30_000;
+  const GATEWAY_READY_BUDGET_MS: u64 = 900;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -6150,7 +6472,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     false
   };
   if should_nudge_browser {
-    spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+    spawn_startup_browser_start_nudge(tokens.gateway_token.clone(), app_handle.get_ref().clone());
   }
 
   #[cfg(target_os = "macos")]
@@ -6188,7 +6510,48 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
     }
   }
+  #[cfg(target_os = "windows")]
+  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+    if let Some(grace_ms) = gateway_launch_grace_active_with_live_process() {
+      eprintln!(
+        "[clawd/service] startup-ready: Windows gateway launch already in progress for {}ms; waiting",
+        grace_ms
+      );
+    } else if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+      eprintln!(
+        "[clawd/service] startup-ready: Windows gateway lifecycle operation already in progress; waiting"
+      );
+    } else {
+      eprintln!("[clawd/service] startup-ready: starting Windows gateway");
+      auto_enable_if_needed(app_handle.get_ref()).await;
+    }
+  }
+
   let mut ready = false;
+  let ready_started_at = std::time::Instant::now();
+  while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
+    if gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
+      ready = true;
+      break;
+    }
+    if gateway_reachable_or_ready(std::time::Duration::from_millis(150)).await {
+      ready = true;
+      break;
+    }
+    if tokio::time::timeout(
+      std::time::Duration::from_millis(250),
+      gateway_ws::config_get(Some(&tokens.gateway_token)),
+    )
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
+    {
+      ready = true;
+      break;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+  }
+
   let mut browser_ok = false;
   let mut channels_ok = !eager_channel_plugin_start_enabled();
   let remaining_ms =
@@ -6217,11 +6580,17 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
     if !browser_ok && remaining_ms() > STARTUP_BROWSER_POLL_INTERVAL_MS {
       let probe_timeout = std::time::Duration::from_millis(STARTUP_BROWSER_PROBE_TIMEOUT_MS);
-      let cached_probe = browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
-      if cached_probe.is_available() {
+      let browser_port_ready = browser_control_tcp_port_open(std::time::Duration::from_millis(300))
+        .await
+        || browser_cdp_port_open(std::time::Duration::from_millis(300)).await;
+
+      if browser_port_ready {
         browser_ok = true;
-      } else if browser_control_tcp_port_open(std::time::Duration::from_millis(120)).await {
-        if browser_cdp_port_open(std::time::Duration::from_millis(120)).await {
+        cache_browser_control_status(BrowserControlProbe::Ready);
+      } else {
+        let cached_probe =
+          browser_control_status_cached(&tokens.gateway_token, probe_timeout).await;
+        if cached_probe.is_available() {
           browser_ok = true;
         } else {
           let direct_probe = browser_control_status(&tokens.gateway_token, probe_timeout).await;
@@ -6233,7 +6602,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
 
       if !browser_ok {
-        spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+        spawn_startup_browser_start_nudge(
+          tokens.gateway_token.clone(),
+          app_handle.get_ref().clone(),
+        );
       }
     }
 
@@ -6254,6 +6626,15 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       100
     }))
     .await;
+  }
+
+  if !browser_ok
+    && ready
+    && (browser_control_tcp_port_open(std::time::Duration::from_millis(300)).await
+      || browser_cdp_port_open(std::time::Duration::from_millis(300)).await)
+  {
+    browser_ok = true;
+    cache_browser_control_status(BrowserControlProbe::Ready);
   }
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
@@ -8434,7 +8815,7 @@ async fn prepare_gateway_config(
         "defaultProfile": "openclaw" // managed, isolated profile
       },
       "plugins": {
-        "allow": KNAPSACK_REQUIRED_PLUGINS,
+        "allow": KNAPSACK_CORE_STARTUP_PLUGINS,
         "slots": {
           "memory": "none"
         }
@@ -9886,12 +10267,12 @@ async fn prepare_gateway_config(
     }
   }
 
-  // Install runtime deps for bundled plugins (e.g. grammy for telegram).
-  // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
-  if !cfg!(debug_assertions) {
-    install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-    ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
-  }
+  schedule_bundled_plugin_runtime_deps_warmup(
+    node_path.clone(),
+    bundled_plugins_dir.clone(),
+    app_clawdbot_home(app_handle),
+    "prepare_gateway_config",
+  );
 
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
@@ -9969,7 +10350,7 @@ pub async fn set_service_enabled(
     let enabled = payload.enabled;
 
     if enabled {
-      if let Some(grace_ms) = gateway_launch_grace_active() {
+      if let Some(grace_ms) = gateway_launch_grace_active_with_live_process() {
         {
           let mut cfg_guard = cfg.write().await;
           cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
@@ -10013,6 +10394,36 @@ pub async fn set_service_enabled(
         // If a gateway is now running, skip re-spawn
         let existing_pid = GATEWAY_PID.load(Ordering::Relaxed);
         if existing_pid > 0 {
+          if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+            eprintln!(
+              "[clawd/service] Enable request: gateway already running (pid {})",
+              existing_pid
+            );
+            return HttpResponse::Ok().json(EnableServiceResponse {
+              success: true,
+              enabled,
+              message: format!(
+                "Gateway already started by background restart (pid {})",
+                existing_pid
+              ),
+            });
+          }
+          if process_is_alive(existing_pid) {
+            if let Some(grace_ms) = gateway_launch_grace_active() {
+              eprintln!(
+                "[clawd/service] Enable request: background restart pid {} is still starting after {}ms; preserving startup",
+                existing_pid, grace_ms
+              );
+              return HttpResponse::Ok().json(EnableServiceResponse {
+                success: true,
+                enabled,
+                message: format!(
+                  "Gateway startup is already in progress (pid {}, {}ms)",
+                  existing_pid, grace_ms
+                ),
+              });
+            }
+          }
           eprintln!(
             "[clawd/service] Enable request: gateway already running (pid {})",
             existing_pid
@@ -10134,21 +10545,23 @@ pub async fn set_service_enabled(
       let stdout_file = match fs::File::create(&stdout_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
             message: format!("Failed to create stdout log: {}", e),
-          })
+          });
         }
       };
       let stderr_file = match fs::File::create(&stderr_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
             message: format!("Failed to create stderr log: {}", e),
-          })
+          });
         }
       };
 
@@ -10168,6 +10581,7 @@ pub async fn set_service_enabled(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          mark_gateway_launch_started();
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
 
@@ -10420,11 +10834,12 @@ pub async fn set_service_enabled(
         }
       }
 
-      // Install runtime deps for bundled plugins (e.g. grammy for telegram).
-      if !cfg!(debug_assertions) {
-        install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-        ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
-      }
+      schedule_bundled_plugin_runtime_deps_warmup(
+        node_path.clone(),
+        bundled_plugins_dir.clone(),
+        clawdbot_home.clone(),
+        "prepare_gateway_config_windows",
+      );
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
       // Without this, OpenClaw refuses to start on a fresh machine.
@@ -10482,7 +10897,7 @@ pub async fn set_service_enabled(
             }]
           },
           "plugins": {
-            "allow": KNAPSACK_REQUIRED_PLUGINS,
+            "allow": KNAPSACK_CORE_STARTUP_PLUGINS,
             "slots": {
               "memory": "none"
             }
@@ -13178,6 +13593,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
 
   // Gateway is not running — start it.
+  if GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway restart already in progress");
+    return;
+  }
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
   mark_gateway_launch_started();
   eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
@@ -13193,12 +13612,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         "[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}",
         e
       );
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
       return;
     }
   };
-
-  // Prevent the background health-check task from racing us.
-  GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
 
   if windows_pid_listening_on_port(18800).is_some() {
     kill_stale_clawdbot_chromes();
