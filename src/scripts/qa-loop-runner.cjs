@@ -1418,10 +1418,13 @@ async function runMode(mode, opts = {}) {
     OPENCLAW_DISABLE_BUNDLED_PLUGINS: process.env.OPENCLAW_DISABLE_BUNDLED_PLUGINS || "1",
     KNAPSACK_HEALTH_AUTO_START_BROWSER: "1",
     KNAPSACK_STARTUP_READY_AUTO_START_BROWSER: "1",
+    KNAPSACK_STARTUP_READY_DIRECT_CHROME: "1",
   };
   const qaPluginAllowlist = qaPluginAllowlistForProviders(opts.providers);
-  if (pluginAllowlistIncludesChannel(qaPluginAllowlist)) {
+  if (qaPluginAllowlist) {
     launchEnv.OPENCLAW_DISABLE_BUNDLED_PLUGINS = "0";
+  }
+  if (pluginAllowlistIncludesChannel(qaPluginAllowlist)) {
     launchEnv.KNAPSACK_EAGER_CHANNEL_PLUGINS = "1";
   }
   if (qaPluginAllowlist) {

@@ -50,7 +50,6 @@ import { n as ensureControlUiAllowedOriginsForNonLoopbackBind } from "./gateway-
 import { n as resolveAssistantIdentity } from "./assistant-identity-BpQbk1Fj.js";
 import { i as getRequiredSharedGatewaySessionGeneration, r as enforceSharedGatewaySessionGenerationForConfigWrite } from "./server-shared-auth-generation-Csm1h6QK.js";
 import { a as createToolEventRecipientRegistry, n as createChatRunState } from "./server-chat-state-5p6_r5uT.js";
-import { a as incrementPresenceVersion, i as getPresenceVersion, n as getHealthCache, o as refreshGatewayHealthSnapshot, r as getHealthVersion } from "./health-state-DDBJpyWb.js";
 import { n as applyGatewayLaneConcurrency, t as resolveHookClientIpConfig } from "./hook-client-ip-config-CtULy7ip.js";
 import { t as GATEWAY_EVENTS } from "./server-methods-list-DSjj8sa9.js";
 import { t as resolveSharedGatewaySessionGeneration } from "./ws-shared-generation-Bp5l7wzu.js";
@@ -63,6 +62,11 @@ import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { createServer as createServer$1 } from "node:https";
+let healthStateModulePromise;
+const loadHealthStateModule = () => {
+	healthStateModulePromise ??= import("./health-state-DDBJpyWb.js");
+	return healthStateModulePromise;
+};
 //#region src/gateway/plugin-channel-reload-targets.ts
 function startDesktopBrowserControlPlaceholder(log) {
 	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1" || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
@@ -1827,7 +1831,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				gatewayPluginConfigAtStart: cfgAtStart,
 				defaultWorkspaceDir: void 0,
 				deferredConfiguredChannelPluginIds: [],
-				startupPluginIds: [],
+				startupPluginIds: ["browser"],
 				pluginLookUpTable: void 0,
 				baseMethods: coreGatewayMethodNames,
 				runtimePluginsLoaded: false,
@@ -2025,6 +2029,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			startupTrace
 		}));
 	}
+	const { a: incrementPresenceVersion, i: getPresenceVersion, n: getHealthCache, o: refreshGatewayHealthSnapshot, r: getHealthVersion } = await startupTrace.measure("runtime.health-state.import", () => loadHealthStateModule());
 	({ getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager);
 	const { createGatewayNodeSessionRuntime } = await import("./server-node-session-runtime-C2gow8hU.js");
 	const { nodeRegistry, nodePresenceTimers, sessionEventSubscribers, sessionMessageSubscribers, nodeSendToSession, nodeSendToAllSubscribed, nodeSubscribe, nodeUnsubscribe, nodeUnsubscribeAll, broadcastVoiceWakeChanged, hasTalkNodeConnected } = createGatewayNodeSessionRuntime({ broadcast });
@@ -2201,7 +2206,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			log
 		})));
 		const { createGatewayAuxHandlers } = await startupTrace.measure("runtime.after-early.import-aux", () => loadAuxHandlersModule());
-		let coreGatewayHandlers = desktopManagedGateway ? {} : (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
+		let coreGatewayHandlers = (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
 		const { execApprovalManager, pluginApprovalManager, extraHandlers } = createGatewayAuxHandlers({
 			log,
 			activateRuntimeSecrets,

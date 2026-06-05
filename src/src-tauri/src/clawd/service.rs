@@ -550,6 +550,12 @@ fn startup_ready_browser_start_enabled() -> bool {
     .unwrap_or(true)
 }
 
+fn startup_ready_direct_chrome_enabled() -> bool {
+  std::env::var("KNAPSACK_STARTUP_READY_DIRECT_CHROME")
+    .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+    .unwrap_or(false)
+}
+
 /// Path to the gateway stderr log file.
 pub fn gateway_stderr_log() -> PathBuf {
   gateway_log_dir().join("knapsack-clawdbot.err.log")
@@ -5470,7 +5476,7 @@ async fn browser_control_start_direct(
   }
 }
 
-fn spawn_startup_browser_start_nudge(gateway_token: String) {
+fn spawn_startup_browser_start_nudge(gateway_token: String, app_handle: tauri::AppHandle) {
   if !startup_ready_browser_start_enabled() {
     return;
   }
@@ -5484,6 +5490,25 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
     let started_at = std::time::Instant::now();
     let budget = std::time::Duration::from_secs(12);
     let mut last_error: Option<String> = None;
+
+    if startup_ready_direct_chrome_enabled()
+      && !browser_cdp_port_open(std::time::Duration::from_millis(100)).await
+    {
+      #[cfg(any(target_os = "macos", target_os = "windows"))]
+      {
+        kill_stale_clawdbot_chromes();
+        match start_openclaw_chrome_direct(&app_handle) {
+          Ok(()) => {
+            eprintln!(
+              "[clawd/service] startup-ready launched OpenClaw Chrome profile directly"
+            );
+          }
+          Err(e) => {
+            last_error = Some(format!("direct OpenClaw Chrome launch failed: {}", e));
+          }
+        }
+      }
+    }
 
     while started_at.elapsed() < budget {
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
@@ -5500,6 +5525,26 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         );
         return;
       } else {
+        if browser_control_tcp_port_open(std::time::Duration::from_millis(100)).await {
+          match tokio::time::timeout(
+            std::time::Duration::from_millis(1500),
+            browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(1200)),
+          )
+          .await
+          {
+            Ok(Ok(())) => {
+              eprintln!("[clawd/service] startup-ready browser direct /start nudge succeeded");
+              return;
+            }
+            Ok(Err(e)) => {
+              last_error = Some(format!("browser-control direct /start failed: {}", e));
+            }
+            Err(_) => {
+              last_error = Some("browser-control direct /start timed out".to_string());
+            }
+          }
+        }
+
         match tokio::time::timeout(
           std::time::Duration::from_millis(1500),
           gateway_client::browser_request(
@@ -5560,6 +5605,77 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
   })?;
 
   std::process::Command::new(chrome)
+    .arg("--remote-debugging-port=18800")
+    .arg(format!(
+      "--user-data-dir={}",
+      user_data_dir.to_string_lossy()
+    ))
+    .arg("--profile-directory=Default")
+    .arg("--no-first-run")
+    .arg("--no-default-browser-check")
+    .arg("--disable-background-networking")
+    .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
+    .arg("--disable-sync")
+    .arg("--no-proxy-server")
+    .arg("about:blank")
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .spawn()
+    .map(|_| ())
+    .map_err(|e| format!("failed to launch OpenClaw Chrome profile: {}", e))
+}
+
+#[cfg(target_os = "windows")]
+fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
+  let program_files =
+    std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
+  let program_files_x86 =
+    std::env::var("PROGRAMFILES(X86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+  let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+  let candidates = [
+    format!(r"{}\Google\Chrome\Application\chrome.exe", program_files),
+    format!(
+      r"{}\Google\Chrome\Application\chrome.exe",
+      program_files_x86
+    ),
+    format!(r"{}\Google\Chrome\Application\chrome.exe", local_appdata),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      program_files
+    ),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      program_files_x86
+    ),
+    format!(
+      r"{}\BraveSoftware\Brave-Browser\Application\brave.exe",
+      local_appdata
+    ),
+    format!(r"{}\Microsoft\Edge\Application\msedge.exe", program_files),
+    format!(
+      r"{}\Microsoft\Edge\Application\msedge.exe",
+      program_files_x86
+    ),
+  ];
+  let browser = candidates
+    .iter()
+    .find(|candidate| Path::new(candidate).exists())
+    .ok_or_else(|| "Chrome/Brave/Edge app binary was not found".to_string())?;
+
+  let user_data_dir = app_clawdbot_home(app_handle)
+    .join("browser")
+    .join("openclaw")
+    .join("user-data");
+  fs::create_dir_all(&user_data_dir).map_err(|e| {
+    format!(
+      "failed to create OpenClaw Chrome profile at {}: {}",
+      user_data_dir.display(),
+      e
+    )
+  })?;
+
+  std::process::Command::new(browser)
     .arg("--remote-debugging-port=18800")
     .arg(format!(
       "--user-data-dir={}",
@@ -5921,7 +6037,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
         if qa_direct_gateway_mode() {
-          #[cfg(target_os = "macos")]
+          #[cfg(any(target_os = "macos", target_os = "windows"))]
           {
             match start_openclaw_chrome_direct(&nudge_app_handle) {
               Ok(()) => {
@@ -5940,7 +6056,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             return;
           }
 
-          #[cfg(not(target_os = "macos"))]
+          #[cfg(not(any(target_os = "macos", target_os = "windows")))]
           {
             eprintln!(
               "[clawd/service] QA direct browser nudge is not implemented on this platform"
@@ -6306,7 +6422,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     false
   };
   if should_nudge_browser {
-    spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+    spawn_startup_browser_start_nudge(tokens.gateway_token.clone(), app_handle.get_ref().clone());
   }
 
   #[cfg(target_os = "macos")]
@@ -6413,7 +6529,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
 
       if !browser_ok {
-        spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
+        spawn_startup_browser_start_nudge(tokens.gateway_token.clone(), app_handle.get_ref().clone());
       }
     }
 
