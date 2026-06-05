@@ -333,7 +333,7 @@ async function getHealthSnapshot(params) {
 				accountId,
 				username: bot.username
 			});
-			const runtimeSnapshot = params?.runtimeSnapshot?.channelAccounts[plugin.id]?.[accountId] ?? (accountId === defaultAccountId ? params?.runtimeSnapshot?.channels[plugin.id] : void 0);
+			const runtimeSnapshot = params?.runtimeSnapshot?.channelAccounts[plugin.id]?.[accountId] ?? (accountId === defaultAccountId ? params?.runtimeSnapshot?.channels?.[plugin.id] : void 0);
 			const nonSensitiveProbeFailure = buildNonSensitiveProbeFailure(plugin.id, probe);
 			const snapshot = await buildChannelAccountSnapshotFromAccount({
 				plugin,
