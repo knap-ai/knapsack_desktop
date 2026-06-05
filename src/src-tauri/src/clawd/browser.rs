@@ -1711,6 +1711,8 @@ pub async fn chat(
   cfg: web::Data<SharedClawdbotConfig>,
   body: web::Json<JsonValue>,
 ) -> impl Responder {
+  let chat_started = std::time::Instant::now();
+  eprintln!("[clawd/chat] request started");
   // expected body: { text: string, sessionId?: string, chrome?: bool, tone?: string, tonePrompt?: string, voiceMode?: bool, autonomyMode?: string, attachments?: [{name, type, content}] }
   let text = body
     .get("text")
@@ -1920,6 +1922,14 @@ pub async fn chat(
     .get("preferFast")
     .and_then(|v| v.as_bool())
     .unwrap_or(false);
+  let disable_fallback = body
+    .get("disableFallback")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  let qa_smoke = body
+    .get("qaSmoke")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
 
   // Determine which provider to use
   let provider = if prefer_fast {
@@ -1989,17 +1999,6 @@ pub async fn chat(
         }))
       }
     },
-    "knapsack" => {
-      let token = std::env::var("KNAPSACK_ACCESS_TOKEN").unwrap_or_default();
-      if !token.trim().is_empty() {
-        token.trim().to_string()
-      } else {
-        return HttpResponse::BadRequest().json(serde_json::json!({
-          "ok": false,
-          "message": "Knapsack account not connected. Sign in via Settings → Provider."
-        }));
-      }
-    }
     _ => match openai_key(&app_handle) {
       Some(k) => k,
       None => {
@@ -3512,11 +3511,18 @@ pub async fn chat(
     anyhow::bail!("unknown tool: {}", name)
   }
 
-  // Load history — seed from gateway JSONL transcript if in-memory is empty
+  // Load history — seed from gateway JSONL transcript if in-memory is empty.
+  // QA smoke probes intentionally avoid transcript/context work so the
+  // readiness gate measures provider reachability instead of full agent setup.
   let mut history_guard = CHAT_HISTORY.lock().unwrap();
-  let history = history_guard
-    .entry(session_id.clone())
-    .or_insert_with(|| load_history_from_transcript(&session_id, 20));
+  let mut smoke_history: Vec<chat_agent::OaiMessage> = Vec::new();
+  let history = if qa_smoke {
+    &mut smoke_history
+  } else {
+    history_guard
+      .entry(session_id.clone())
+      .or_insert_with(|| load_history_from_transcript(&session_id, 20))
+  };
 
   // Memory section — inject persistent notes from previous sessions.
   // The frontend already caps this at 10 entries × 500 chars each (agentMemory.ts).
@@ -3838,8 +3844,11 @@ No email account is directly connected via the send_email tool. However, you CAN
     )
   };
 
-  let system_content = format!(
-    r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
+  let system_content = if qa_smoke {
+    "You are a Knapsack QA readiness probe. Reply with exactly READY.".to_string()
+  } else {
+    format!(
+      r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
 {}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
@@ -4252,16 +4261,17 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 **IMPORTANT:** Buttons always appear below the text, never above. If you refer to an action button in your message, say "click the button below" — never "click the button above".
 
 **Remember**: You are PERSISTENT. When given a complex task, work through it systematically. Try multiple approaches if one fails. Don't stop until the job is FULLY DONE or you've exhausted reasonable options."#,
-    tone_section,
-    voice_section,
-    autonomy_section,
-    meeting_section,
-    advanced_section,
-    skills_section,
-    platform_section,
-    email_section,
-    memory_section
-  );
+      tone_section,
+      voice_section,
+      autonomy_section,
+      meeting_section,
+      advanced_section,
+      skills_section,
+      platform_section,
+      email_section,
+      memory_section
+    )
+  };
 
   let system = chat_agent::OaiMessage::System {
     content: system_content,
@@ -4273,8 +4283,16 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     content: full_text.clone(),
     images: image_attachments.clone(),
   });
+  eprintln!(
+    "[clawd/chat] prompt prepared in {}ms",
+    chat_started.elapsed().as_millis()
+  );
 
-  let mut tools = chat_agent::default_tools();
+  let mut tools = if qa_smoke {
+    Vec::new()
+  } else {
+    chat_agent::default_tools()
+  };
   if advanced_mode {
     tools.extend(chat_agent::advanced_tools());
     eprintln!(
@@ -4293,7 +4311,6 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     "xai" => super::service::get_xai_model(&app_handle),
     "ollama" => ollama_model(&app_handle),
     "openrouter" => super::service::get_openrouter_model(&app_handle),
-    "knapsack" => "auto".to_string(),
     _ => super::service::get_openai_model(&app_handle),
   };
   let current_ollama_base = ollama_base_url(&app_handle);
@@ -4310,6 +4327,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     msgs: Vec<chat_agent::OaiMessage>,
     tls: Vec<chat_agent::OaiToolSpec>,
     ollama_base: &str,
+    _retry_rate_limits: bool,
   ) -> anyhow::Result<chat_agent::OaiChatResp> {
     match prov {
       "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
@@ -4325,10 +4343,6 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       "openrouter" => {
         chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
           .await
-      }
-      "knapsack" => {
-        let base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
-        chat_agent::openai_compatible_chat(key, model, base, msgs, tls).await
       }
       _ => chat_agent::openai_chat(key, model, msgs, tls).await,
     }
@@ -4357,29 +4371,31 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       messages.clone(),
       tools.clone(),
       &current_ollama_base,
+      !disable_fallback,
     )
     .await
     {
       Ok(r) => r,
       Err(e) => {
         let err_str = e.to_string();
-        let err_lower = err_str.to_lowercase();
-        let is_credit_or_rate_error = err_lower.contains("429")
-          || err_lower.contains("503")
-          || err_lower.contains("rate")
-          || err_lower.contains("quota")
-          || err_lower.contains("credit")
-          || err_lower.contains("insufficient")
-          || err_lower.contains("exceeded")
-          || err_lower.contains("billing")
-          || err_lower.contains("unavailable")
-          || err_lower.contains("high demand");
+        let is_credit_or_rate_error = err_str.contains("429")
+          || err_str.contains("rate")
+          || err_str.contains("quota")
+          || err_str.contains("credit")
+          || err_str.contains("insufficient")
+          || err_str.contains("exceeded")
+          || err_str.contains("billing");
         if !is_credit_or_rate_error {
           return HttpResponse::InternalServerError().json(
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
           );
         }
         // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
+        if disable_fallback {
+          return HttpResponse::Ok().json(
+            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
+          );
+        }
         // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
         eprintln!(
           "[clawd/chat] {} hit credit/rate limit: {}",
@@ -4432,6 +4448,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               messages.clone(),
               tools.clone(),
               &current_ollama_base,
+              true,
             )
             .await
             {
@@ -4463,6 +4480,10 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         }
       }
     };
+    eprintln!(
+      "[clawd/chat] provider call returned in {}ms",
+      chat_started.elapsed().as_millis()
+    );
 
     // Record token usage for this chat API call
     record_chat_usage(&current_provider, &current_model, &resp, &full_text);
@@ -4487,7 +4508,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         tool_calls: None,
       };
       // Sync to gateway JSONL transcript so channel bots can see desktop history
-      append_to_transcript(&session_id, &[user_msg.clone(), assistant_msg.clone()]);
+      if !qa_smoke {
+        append_to_transcript(&session_id, &[user_msg.clone(), assistant_msg.clone()]);
+      }
       history.push(user_msg);
       history.push(assistant_msg);
       if history.len() > 20 {

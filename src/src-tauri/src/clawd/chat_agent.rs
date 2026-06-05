@@ -1090,7 +1090,7 @@ pub async fn gemini_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  gemini_chat_with_retries(api_key, model, messages, tools, 6).await
+  gemini_chat_with_retries(api_key, model, messages, tools, 3).await
 }
 
 /// Call Google Gemini API with an explicit retry count.
@@ -1294,16 +1294,20 @@ pub async fn gemini_chat_with_retries(
       });
     }
 
-    if status.as_u16() == 429 {
-      let wait_secs = parse_retry_after(&text).unwrap_or(5.0 + (attempt as f64 * 2.0));
+    if status.as_u16() == 429 || status.as_u16() == 503 {
+      last_error = format!("Gemini HTTP {}: {}", status, text);
+      if attempt + 1 >= max_retries {
+        anyhow::bail!("{}", last_error);
+      }
+      let wait_secs = parse_retry_after(&text).unwrap_or(3.0 + (attempt as f64 * 2.0));
       eprintln!(
-        "Gemini rate limit (attempt {}/{}), waiting {:.1}s...",
+        "Gemini transient error {} (attempt {}/{}), waiting {:.1}s...",
+        status,
         attempt + 1,
         max_retries,
         wait_secs
       );
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
-      last_error = format!("Gemini HTTP {}: {}", status, text);
       continue;
     }
 

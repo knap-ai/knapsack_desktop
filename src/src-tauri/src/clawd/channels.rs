@@ -73,10 +73,9 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
 
   match snapshot {
     Ok(snapshot) => {
-      let mut cache =
-        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-          .await
-          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+        .await
+        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.fetched_at = Some(Instant::now());
       entry.value = Some(snapshot.clone());
@@ -85,10 +84,9 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
       Ok(snapshot)
     }
     Err(error) => {
-      let mut cache =
-        tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
-          .await
-          .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+      let mut cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+        .await
+        .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
       let entry = cache.entry(cache_key).or_default();
       entry.error_at = Some(Instant::now());
       entry.error = Some(error.clone());
@@ -3046,10 +3044,53 @@ struct ChannelDiagnostics {
   /// Channel configs present in the gateway config
   #[serde(rename = "configuredChannels")]
   configured_channels: Vec<String>,
+  /// Per-channel readiness details.
+  #[serde(rename = "channelStates")]
+  channel_states: Vec<ChannelReadiness>,
   /// Issues detected
   issues: Vec<String>,
   /// Auto-repair actions taken
   repairs: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ChannelReadiness {
+  channel: String,
+  configured: bool,
+  #[serde(rename = "pluginAllowed")]
+  plugin_allowed: bool,
+  active: bool,
+  deferred: bool,
+  summary: Option<String>,
+  reason: String,
+}
+
+fn channel_summary_line(channel_summary: &[String], channel: &str) -> Option<String> {
+  let prefix = format!("{}:", channel.to_lowercase());
+  channel_summary.iter().find_map(|line| {
+    let clean = strip_ansi(line);
+    if clean.to_lowercase().starts_with(&prefix) {
+      Some(clean)
+    } else {
+      None
+    }
+  })
+}
+
+fn channel_summary_active(summary: Option<&str>) -> bool {
+  let Some(summary) = summary else {
+    return false;
+  };
+  let status = summary
+    .split_once(':')
+    .map(|(_, rest)| rest.trim().to_lowercase())
+    .unwrap_or_else(|| summary.trim().to_lowercase());
+  status.starts_with("linked")
+    || status.starts_with("configured")
+    || status.starts_with("connected")
+    || status.starts_with("running")
+    || status.starts_with("ready")
+    || status.contains(" connected")
 }
 
 /// Diagnose channel configuration and auto-repair common issues.
@@ -3119,6 +3160,7 @@ pub async fn channel_diagnostics() -> impl Responder {
         has_api_key,
         api_key_provider,
         configured_channels: vec![],
+        channel_states: vec![],
         issues: vec![format!("Cannot reach gateway: {}", e)],
         repairs: vec![],
       });
@@ -3126,7 +3168,9 @@ pub async fn channel_diagnostics() -> impl Responder {
   };
 
   // Fetch gateway config to check model and channel configs
-  let (has_model, model, configured_channels) = match gateway_client::config_get(None).await {
+  let (has_model, model, configured_channels, plugin_allow) = match gateway_client::config_get(None)
+    .await
+  {
     Ok(snapshot) => {
       let config = snapshot.get("config").unwrap_or(&snapshot);
 
@@ -3157,6 +3201,18 @@ pub async fn channel_diagnostics() -> impl Responder {
           }
         }
       }
+      channels.sort();
+
+      let plugin_allow = config
+        .pointer("/plugins/allow")
+        .and_then(|value| value.as_array())
+        .map(|arr| {
+          arr
+            .iter()
+            .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
       // Auto-repair: if model is missing, patch it
       if !hm {
@@ -3374,17 +3430,72 @@ pub async fn channel_diagnostics() -> impl Responder {
         }
       }
 
-      (hm, m, channels)
+      (hm, m, channels, plugin_allow)
     }
     Err(e) => {
       issues.push(format!("Cannot fetch gateway config: {}", e));
-      (false, None, vec![])
+      (false, None, vec![], vec![])
     }
   };
 
   if !has_model {
     issues.push("agents.defaults.model is NOT set — AI cannot generate responses".to_string());
   }
+
+  let mut readiness_channels = configured_channels.clone();
+  for channel in [
+    "whatsapp",
+    "telegram",
+    "slack",
+    "discord",
+    "signal",
+    "irc",
+    "googlechat",
+    "imessage",
+  ] {
+    if channel_summary_line(&channel_summary, channel).is_some()
+      && !readiness_channels
+        .iter()
+        .any(|existing| existing == channel)
+    {
+      readiness_channels.push(channel.to_string());
+    }
+  }
+  readiness_channels.sort();
+  readiness_channels.dedup();
+
+  let channel_states = readiness_channels
+    .iter()
+    .map(|channel| {
+      let configured = configured_channels
+        .iter()
+        .any(|existing| existing == channel);
+      let summary = channel_summary_line(&channel_summary, channel);
+      let active = channel_summary_active(summary.as_deref())
+        || service::gateway_log_has_channel_started(channel);
+      let plugin_allowed = plugin_allow.iter().any(|plugin| plugin == channel);
+      let deferred = configured && !active && !plugin_allowed;
+      let reason = if active {
+        "active according to gateway summary or startup log".to_string()
+      } else if deferred {
+        "configured but plugin is not in startup allowlist; channel is deferred until opened"
+          .to_string()
+      } else if configured {
+        "configured but no active gateway channel summary was observed".to_string()
+      } else {
+        "observed in gateway summary but not configured".to_string()
+      };
+      ChannelReadiness {
+        channel: channel.clone(),
+        configured,
+        plugin_allowed,
+        active,
+        deferred,
+        summary,
+        reason,
+      }
+    })
+    .collect::<Vec<_>>();
 
   HttpResponse::Ok().json(ChannelDiagnostics {
     success: issues.is_empty(),
@@ -3394,6 +3505,7 @@ pub async fn channel_diagnostics() -> impl Responder {
     has_api_key,
     api_key_provider,
     configured_channels,
+    channel_states,
     issues,
     repairs,
   })

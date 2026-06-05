@@ -999,6 +999,78 @@ fn qa_plugin_allowlist_override() -> Option<Vec<String>> {
   }
 }
 
+fn disable_startup_deferred_plugin_entries(
+  cfg: &mut serde_json::Value,
+  allowed: &[String],
+  disable_any_not_allowed: bool,
+) -> bool {
+  let mut changed = false;
+  let mut disabled_plugins = Vec::new();
+  let Some(entries) = cfg
+    .pointer_mut("/plugins/entries")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  for (plugin_id, entry) in entries.iter_mut() {
+    let should_disable = if disable_any_not_allowed {
+      !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    } else {
+      is_deferred_startup_plugin_id(plugin_id)
+        && !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    };
+    if !should_disable {
+      continue;
+    }
+    let Some(entry_obj) = entry.as_object_mut() else {
+      continue;
+    };
+    if entry_obj.get("enabled").and_then(|value| value.as_bool()) == Some(false) {
+      continue;
+    }
+    entry_obj.insert("enabled".to_string(), serde_json::Value::Bool(false));
+    disabled_plugins.push(plugin_id.clone());
+    changed = true;
+  }
+
+  if disabled_plugins.is_empty() {
+    return changed;
+  }
+
+  if cfg.get("meta").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("meta".to_string(), serde_json::json!({}));
+  }
+  let Some(meta) = cfg.pointer_mut("/meta").and_then(|value| value.as_object_mut()) else {
+    return changed;
+  };
+  let mut restore = meta
+    .get("knapsackDeferredStartupDisabledEntries")
+    .and_then(|value| value.as_array())
+    .map(|arr| {
+      arr
+        .iter()
+        .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  for plugin_id in disabled_plugins {
+    if !restore.iter().any(|existing| existing == &plugin_id) {
+      restore.push(plugin_id);
+    }
+  }
+  restore.sort();
+  restore.dedup();
+  meta.insert(
+    "knapsackDeferredStartupDisabledEntries".to_string(),
+    serde_json::json!(restore),
+  );
+  changed
+}
+
 fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -1029,8 +1101,9 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
       }
     }
     let next_allow = serde_json::json!(plugins);
+    let entries_changed = disable_startup_deferred_plugin_entries(cfg, &plugins, true);
     if cfg.pointer("/plugins/allow") == Some(&next_allow) {
-      return false;
+      return entries_changed;
     }
     cfg
       .pointer_mut("/plugins")
@@ -1093,6 +1166,11 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
 
   required.sort();
   required.dedup();
+  let entries_changed = if defer_optional {
+    disable_startup_deferred_plugin_entries(cfg, &required, false)
+  } else {
+    false
+  };
 
   let existing_allow = cfg
     .pointer("/plugins/allow")
@@ -1119,7 +1197,7 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
 
   let next_allow = serde_json::json!(merged);
   if cfg.pointer("/plugins/allow") == Some(&next_allow) {
-    return false;
+    return entries_changed;
   }
 
   cfg
@@ -1169,13 +1247,8 @@ fn expand_deferred_startup_plugin_allowlist(app_handle: &tauri::AppHandle) -> bo
       .unwrap()
       .insert("plugins".to_string(), serde_json::json!({}));
   }
-  let plugins = cfg
-    .pointer_mut("/plugins")
-    .and_then(|value| value.as_object_mut())
-    .unwrap();
-
-  let mut allow = plugins
-    .get("allow")
+  let mut allow = cfg
+    .pointer("/plugins/allow")
     .and_then(|value| value.as_array())
     .map(|arr| {
       arr
@@ -1193,6 +1266,32 @@ fn expand_deferred_startup_plugin_allowlist(app_handle: &tauri::AppHandle) -> bo
       allow.push((*plugin).to_string());
     }
   }
+  let restore_entries = cfg
+    .pointer("/meta/knapsackDeferredStartupDisabledEntries")
+    .and_then(|value| value.as_array())
+    .map(|arr| {
+      arr
+        .iter()
+        .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  if let Some(entries) = cfg
+    .pointer_mut("/plugins/entries")
+    .and_then(|value| value.as_object_mut())
+  {
+    for plugin_id in &restore_entries {
+      if let Some(entry) = entries
+        .get_mut(plugin_id)
+        .and_then(|value| value.as_object_mut())
+      {
+        entry.insert("enabled".to_string(), serde_json::Value::Bool(true));
+      }
+    }
+  }
+  if let Some(meta) = cfg.pointer_mut("/meta").and_then(|value| value.as_object_mut()) {
+    meta.remove("knapsackDeferredStartupDisabledEntries");
+  }
   if !eager_channel_plugin_start_enabled() {
     allow.retain(|plugin| !is_bundled_channel_plugin_id(plugin));
   }
@@ -1200,10 +1299,15 @@ fn expand_deferred_startup_plugin_allowlist(app_handle: &tauri::AppHandle) -> bo
   allow.dedup();
 
   let next_allow = serde_json::json!(allow);
-  if plugins.get("allow") == Some(&next_allow) {
+  if cfg.pointer("/plugins/allow") == Some(&next_allow) && restore_entries.is_empty() {
     return false;
   }
-  plugins.insert("allow".to_string(), next_allow);
+  cfg
+    .pointer_mut("/plugins")
+    .unwrap()
+    .as_object_mut()
+    .unwrap()
+    .insert("allow".to_string(), next_allow);
 
   match serde_json::to_string_pretty(&cfg) {
     Ok(next) => match fs::write(&config_path, format!("{}\n", next)) {
@@ -4948,6 +5052,122 @@ fn remove_stale_gateway_lock_files() {
   }
 }
 
+fn sqlite_sidecar_path(db_path: &Path, suffix: &str) -> PathBuf {
+  let file_name = db_path
+    .file_name()
+    .and_then(|name| name.to_str())
+    .unwrap_or("openclaw.sqlite");
+  db_path.with_file_name(format!("{}{}", file_name, suffix))
+}
+
+fn move_stale_sqlite_sidecar(db_path: &Path, suffix: &str, context: &str) -> bool {
+  let sidecar = sqlite_sidecar_path(db_path, suffix);
+  if !sidecar.exists() {
+    return false;
+  }
+  let file_name = sidecar
+    .file_name()
+    .and_then(|name| name.to_str())
+    .unwrap_or("openclaw.sqlite-sidecar");
+  let backup = sidecar.with_file_name(format!("{}.stale-{}", file_name, now_epoch_ms()));
+  match fs::rename(&sidecar, &backup) {
+    Ok(_) => {
+      eprintln!(
+        "[clawd/service] {}: moved stale SQLite sidecar {} -> {}",
+        context,
+        sidecar.display(),
+        backup.display()
+      );
+      true
+    }
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] {}: warning: failed to move stale SQLite sidecar {}: {}",
+        context,
+        sidecar.display(),
+        e
+      );
+      false
+    }
+  }
+}
+
+fn checkpoint_openclaw_state_db(db_path: &Path) -> Result<(), String> {
+  let conn = rusqlite::Connection::open(db_path)
+    .map_err(|e| format!("open {} failed: {}", db_path.display(), e))?;
+  conn
+    .busy_timeout(std::time::Duration::from_millis(1500))
+    .map_err(|e| format!("set busy_timeout failed: {}", e))?;
+  let checkpoint: (i64, i64, i64) = conn
+    .query_row("PRAGMA wal_checkpoint(TRUNCATE);", [], |row| {
+      Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+    })
+    .map_err(|e| format!("wal_checkpoint failed: {}", e))?;
+  let _ = conn.execute_batch("PRAGMA optimize;");
+  eprintln!(
+    "[clawd/service] OpenClaw state checkpoint complete: busy={}, log={}, checkpointed={}",
+    checkpoint.0, checkpoint.1, checkpoint.2
+  );
+  Ok(())
+}
+
+fn recover_openclaw_state_db_before_gateway_launch(clawdbot_home: &Path, context: &str) {
+  let db_path = clawdbot_home.join("state").join("openclaw.sqlite");
+  if !db_path.exists() {
+    return;
+  }
+
+  #[cfg(target_os = "windows")]
+  if windows_pid_listening_on_port(18789).is_some() {
+    eprintln!(
+      "[clawd/service] {}: skipping OpenClaw state preflight while gateway port is active",
+      context
+    );
+    return;
+  }
+
+  let started = std::time::Instant::now();
+  match checkpoint_openclaw_state_db(&db_path) {
+    Ok(_) => {
+      eprintln!(
+        "[clawd/service] {}: OpenClaw state preflight finished in {}ms",
+        context,
+        started.elapsed().as_millis()
+      );
+    }
+    Err(e) => {
+      let lower = e.to_lowercase();
+      let looks_locked = lower.contains("database is locked")
+        || lower.contains("database is busy")
+        || lower.contains("busy");
+      eprintln!(
+        "[clawd/service] {}: OpenClaw state checkpoint failed: {}",
+        context, e
+      );
+      if !looks_locked {
+        return;
+      }
+
+      // Preserve the WAL and only move the shared-memory lock sidecar. SQLite
+      // can recreate it and still replay committed WAL frames on the next open.
+      if !move_stale_sqlite_sidecar(&db_path, "-shm", context) {
+        return;
+      }
+      match checkpoint_openclaw_state_db(&db_path) {
+        Ok(_) => eprintln!(
+          "[clawd/service] {}: OpenClaw state recovered after moving stale -shm in {}ms",
+          context,
+          started.elapsed().as_millis()
+        ),
+        Err(retry_err) => eprintln!(
+          "[clawd/service] {}: warning: OpenClaw state still locked after -shm recovery: {}",
+          context, retry_err
+        ),
+      }
+    }
+  }
+}
+
 fn run_openclaw_doctor_fix(setup: &ServiceSetup, context: &str) -> bool {
   if setup.program_args.len() < 2 {
     eprintln!(
@@ -5194,6 +5414,7 @@ async fn run_gateway_self_heal_cycle(
     install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir);
     ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
   }
+  recover_openclaw_state_db_before_gateway_launch(&clawdbot_home, "self-heal");
 
   #[cfg(target_os = "windows")]
   {
@@ -10623,6 +10844,10 @@ pub async fn set_service_enabled(
         remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(&app_handle), &ver);
         remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(&app_handle), &ver);
       }
+      recover_openclaw_state_db_before_gateway_launch(
+        &app_clawdbot_home(&app_handle),
+        "enable service",
+      );
 
       // Doctor mutates the same runtime deps/config tree as gateway startup.
       // Keep it opt-in so it cannot race first-run dependency staging.
@@ -13800,6 +14025,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     remove_stale_plugin_runtime_deps_versions(&app_clawdbot_home(app_handle), &ver);
     remove_incomplete_plugin_runtime_deps_dirs(&app_clawdbot_home(app_handle), &ver);
   }
+  recover_openclaw_state_db_before_gateway_launch(
+    &app_clawdbot_home(app_handle),
+    "auto_enable Windows",
+  );
 
   let stdout_log = windows_log_path("stdout");
   let stderr_log = windows_log_path("stderr");
