@@ -1344,7 +1344,7 @@ async function checkInterfaceAccess(includeUi) {
     String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_TRANSPORTS || "").trim() === "1";
   if (strictChannelTransports) {
     const inactiveConfiguredChannels = configuredChannelStates
-      .filter((state) => !state.active)
+      .filter((state) => !state.deferred && !state.active)
       .map((state) => `${state.channel}:${state.reason || "not active"}`);
     if (inactiveConfiguredChannels.length > 0) {
       failures.push(`configured channel transports inactive: ${inactiveConfiguredChannels.join("; ")}`);
