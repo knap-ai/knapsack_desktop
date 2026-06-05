@@ -77,6 +77,15 @@ const PLUGIN_BY_PROVIDER = {
 };
 
 function qaPluginAllowlistForProviders(providers) {
+  const explicitAllowlist = String(process.env.KNAPSACK_QA_PLUGIN_ALLOWLIST || "").trim();
+  if (explicitAllowlist) {
+    return explicitAllowlist
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort()
+      .join(",");
+  }
   if (!Array.isArray(providers) || providers.length === 0) return null;
   const plugins = new Set(["browser"]);
   for (const channel of configuredChannelPluginIdsForQa()) {
@@ -99,16 +108,25 @@ function configuredChannelPluginIdsForQa() {
       : null;
     if (!configured || typeof configured !== "object" || Array.isArray(configured)) return [];
     return ["slack", "telegram", "whatsapp"].filter((channel) =>
-      Object.prototype.hasOwnProperty.call(configured, channel) && bundledChannelPluginAvailableForQa(channel),
+      Object.prototype.hasOwnProperty.call(configured, channel)
+        && channelEnabledForQa(configured[channel])
+        && bundledChannelPluginAvailableForQa(channel),
     );
   } catch {
     return [];
   }
 }
 
+function channelEnabledForQa(channelConfig) {
+  if (!channelConfig || typeof channelConfig !== "object" || Array.isArray(channelConfig)) return false;
+  return channelConfig.enabled !== false;
+}
+
 function bundledChannelPluginAvailableForQa(channel) {
   const roots = [
     path.join(__dirname, "..", "src-tauri", "resources", "clawdbot", "dist", "extensions", channel),
+    path.join(__dirname, "..", "src-tauri", "target", "release", "resources", "clawdbot", "dist", "extensions", channel),
+    path.join(__dirname, "..", "src-tauri", "target", "debug", "resources", "clawdbot", "dist", "extensions", channel),
   ];
   if (process.env.APPDATA) {
     roots.push(path.join(
