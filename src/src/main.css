@@ -621,21 +621,28 @@ html, body {
   flex-shrink: 0;
 }
 
+.notetaker-note__content-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
 .notetaker-note__chat-drawer {
-  position: absolute;
-  right: 16px;
-  bottom: 58px;
-  width: min(540px, calc(100% - 32px));
-  max-height: min(620px, calc(100% - 96px));
-  height: min(620px, calc(100% - 96px));
-  z-index: 30;
+  width: 420px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #ffffff;
-  border: 1px solid #E3E2E2;
-  border-radius: 8px;
-  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.12);
+  border-left: 1px solid #E3E2E2;
+  animation: chat-panel-slide-in 0.2s ease-out;
+}
+
+@keyframes chat-panel-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 .notetaker-note__chat-drawer-header {

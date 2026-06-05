@@ -406,9 +406,19 @@ $ks-red: #C14841;
   &__calendar-event-content {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__calendar-event-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
   }
 
   &__calendar-event-title {
+    flex: 1;
     font-size: 13px;
     font-weight: 500;
     color: $ks-text;
@@ -452,7 +462,8 @@ $ks-red: #C14841;
   }
 
   &__start-now-btn {
-    flex-shrink: 0;
+    align-self: flex-start;
+    margin-top: 4px;
     padding: 4px 12px;
     border-radius: 6px;
     background: $ks-text;

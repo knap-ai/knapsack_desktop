@@ -1228,6 +1228,7 @@ Be direct, specific, and concise. No filler text.`
 
   return (
     <div className="notetaker-note">
+      <div className="notetaker-note__content-row">
       <div className="notetaker-note__scroll-area">
       <div className="notetaker-note__container">
         <div className="w-full flex flex-col gap-3">
@@ -1853,9 +1854,10 @@ Be direct, specific, and concise. No filler text.`
           </div>
         </div>
       )}
+      </div>
 
       {/* Notetaker bottom bar */}
-      {(!isMeetingChatOpen || recordingHandlers.isRecording(thread.id)) && (
+      {(true) && (
       <div className="notetaker-note__bottom-bar">
         {recordingHandlers.isRecording(thread.id) ? (
           <>
@@ -1893,7 +1895,7 @@ Be direct, specific, and concise. No filler text.`
           </>
         ) : (
           <>
-            <button className="notetaker-note__bottom-audio" title="Audio waveform">
+            {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="8" x2="4" y2="16" />
                 <line x1="8" y1="5" x2="8" y2="19" />
@@ -1901,8 +1903,8 @@ Be direct, specific, and concise. No filler text.`
                 <line x1="16" y1="5" x2="16" y2="19" />
                 <line x1="20" y1="8" x2="20" y2="16" />
               </svg>
-            </button>
-            <div
+            </button>}
+            {!isMeetingChatOpen && <div
               className="notetaker-note__bottom-chat"
               onClick={openMeetingChat}
               style={{ cursor: 'pointer' }}
@@ -1914,7 +1916,7 @@ Be direct, specific, and concise. No filler text.`
                 readOnly
                 style={{ cursor: 'pointer' }}
               />
-            </div>
+            </div>}
             {thread.recorded && (
               <button
                 className="notetaker-note__bottom-action"
