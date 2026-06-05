@@ -1510,18 +1510,18 @@ async function runMode(mode, opts = {}) {
     // no-op: cleanup is handled by parent loop
   });
 
-  if (!isProd) {
-    const devLaunchTimeoutMs = Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
-    const serviceApi = await waitForServiceApiAvailable(proc, devLaunchTimeoutMs);
-    if (!serviceApi.ok) {
-      await cleanup();
-      return {
-        ok: false,
-        phase: "launch",
-        message: serviceApi.message,
-        startupLog,
-      };
-    }
+  const serviceApiTimeoutMs = isProd
+    ? Number(process.env.KNAPSACK_QA_PROD_LAUNCH_TIMEOUT_MS || 120_000)
+    : Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
+  const serviceApi = await waitForServiceApiAvailable(proc, serviceApiTimeoutMs);
+  if (!serviceApi.ok) {
+    await cleanup();
+    return {
+      ok: false,
+      phase: "launch",
+      message: serviceApi.message,
+      startupLog,
+    };
   }
 
   await ensureGatewayEnabledForQA(2_500);

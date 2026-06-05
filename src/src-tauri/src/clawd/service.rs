@@ -6477,6 +6477,23 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
     }
   }
+  #[cfg(target_os = "windows")]
+  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+    if let Some(grace_ms) = gateway_launch_grace_active_with_live_process() {
+      eprintln!(
+        "[clawd/service] startup-ready: Windows gateway launch already in progress for {}ms; waiting",
+        grace_ms
+      );
+    } else if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+      eprintln!(
+        "[clawd/service] startup-ready: Windows gateway lifecycle operation already in progress; waiting"
+      );
+    } else {
+      eprintln!("[clawd/service] startup-ready: starting Windows gateway");
+      auto_enable_if_needed(app_handle.get_ref()).await;
+    }
+  }
+
   let mut ready = false;
   let ready_started_at = std::time::Instant::now();
   while ready_started_at.elapsed().as_millis() < u128::from(GATEWAY_READY_BUDGET_MS) {
@@ -13527,6 +13544,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
 
   // Gateway is not running — start it.
+  if GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway restart already in progress");
+    return;
+  }
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
   mark_gateway_launch_started();
   eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
@@ -13542,12 +13563,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         "[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}",
         e
       );
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
       return;
     }
   };
-
-  // Prevent the background health-check task from racing us.
-  GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
 
   if windows_pid_listening_on_port(18800).is_some() {
     kill_stale_clawdbot_chromes();
