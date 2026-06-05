@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-const { existsSync } = require("node:fs");
+const fs = require("node:fs");
+const { existsSync } = fs;
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const process = require("node:process");
@@ -63,6 +64,220 @@ const MODELS_BY_PROVIDER = {
     "openai/gpt-5.5",
   ],
 };
+
+const PLUGIN_BY_PROVIDER = {
+  anthropic: "anthropic",
+  gemini: "google",
+  google: "google",
+  groq: "groq",
+  knapsack: "openai",
+  openai: "openai",
+  openrouter: "openrouter",
+  xai: "xai",
+};
+
+function qaPluginAllowlistForProviders(providers) {
+  if (!Array.isArray(providers) || providers.length === 0) return null;
+  const plugins = new Set(["browser"]);
+  for (const channel of configuredChannelPluginIdsForQa()) {
+    plugins.add(channel);
+  }
+  return Array.from(plugins).sort().join(",");
+}
+
+function configuredChannelPluginIdsForQa() {
+  if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
+    return [];
+  }
+  if (!process.env.APPDATA) return [];
+  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  if (!existsSync(configPath)) return [];
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
+    const configured = config && typeof config === "object" && !Array.isArray(config)
+      ? config.channels
+      : null;
+    if (!configured || typeof configured !== "object" || Array.isArray(configured)) return [];
+    return ["slack", "telegram", "whatsapp"].filter((channel) =>
+      Object.prototype.hasOwnProperty.call(configured, channel) && bundledChannelPluginAvailableForQa(channel),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function bundledChannelPluginAvailableForQa(channel) {
+  const roots = [
+    path.join(__dirname, "..", "src-tauri", "resources", "clawdbot", "dist", "extensions", channel),
+  ];
+  if (process.env.APPDATA) {
+    roots.push(path.join(
+      process.env.APPDATA,
+      "ai.knap.knapsack",
+      "clawdbot",
+      "runtime",
+      "openclaw-2026.6.1-npm",
+      "node_modules",
+      "openclaw",
+      "dist",
+      "extensions",
+      channel,
+    ));
+  }
+  return roots.some((root) => existsSync(root));
+}
+
+function pluginAllowlistIncludesChannel(pluginAllowlist) {
+  const plugins = new Set(String(pluginAllowlist || "").split(",").map((value) => value.trim()).filter(Boolean));
+  return ["slack", "telegram", "whatsapp"].some((channel) => plugins.has(channel));
+}
+
+function qaStartupModelForProvider(provider) {
+  const models = {
+    anthropic: "anthropic/claude-sonnet-4-6",
+    gemini: "google/gemini-2.5-flash",
+    google: "google/gemini-2.5-flash",
+    groq: "groq/llama-3.3-70b-versatile",
+    knapsack: "openai/gpt-5.4",
+    openai: "openai/gpt-5.4",
+    openrouter: "openrouter/auto",
+    xai: "xai/grok-4",
+  };
+  return models[String(provider || "").trim().toLowerCase()] || null;
+}
+
+function patchOpenClawConfigForQa({ pluginAllowlist, provider }) {
+  if (pluginAllowlist || provider) {
+    console.log("[qa-loop] patching OpenClaw config for QA startup provider/plugin isolation");
+  }
+
+  const startupModel = qaStartupModelForProvider(provider);
+  if ((!pluginAllowlist && !startupModel) || !process.env.APPDATA) return null;
+  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  if (!existsSync(configPath)) return null;
+
+  const original = fs.readFileSync(configPath, "utf8");
+  const parseable = original.replace(/^\uFEFF/, "");
+  let config;
+  try {
+    config = JSON.parse(parseable);
+  } catch (error) {
+    console.warn(`[qa-loop] could not parse OpenClaw config for QA patch: ${error.message}`);
+    return null;
+  }
+
+  if (!config || typeof config !== "object" || Array.isArray(config)) return null;
+  if (pluginAllowlist) {
+    const allowedPlugins = new Set(pluginAllowlist.split(",").map((value) => value.trim()).filter(Boolean));
+    config.plugins = config.plugins && typeof config.plugins === "object" && !Array.isArray(config.plugins)
+      ? config.plugins
+      : {};
+    config.plugins.allow = Array.from(allowedPlugins).sort();
+    const entries = config.plugins.entries && typeof config.plugins.entries === "object" && !Array.isArray(config.plugins.entries)
+      ? config.plugins.entries
+      : {};
+    for (const [pluginId, entry] of Object.entries(entries)) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        entry.enabled = allowedPlugins.has(pluginId);
+      }
+    }
+    for (const pluginId of allowedPlugins) {
+      entries[pluginId] = entries[pluginId] && typeof entries[pluginId] === "object" && !Array.isArray(entries[pluginId])
+        ? entries[pluginId]
+        : {};
+      entries[pluginId].enabled = true;
+    }
+    config.plugins.entries = entries;
+    if (config.channels && typeof config.channels === "object" && !Array.isArray(config.channels)) {
+      for (const channel of ["slack", "telegram", "whatsapp"]) {
+        if (
+          allowedPlugins.has(channel) &&
+          config.channels[channel] &&
+          typeof config.channels[channel] === "object" &&
+          !Array.isArray(config.channels[channel])
+        ) {
+          config.channels[channel].enabled = true;
+        }
+      }
+    }
+  }
+  if (startupModel) {
+    config.agents = config.agents && typeof config.agents === "object" && !Array.isArray(config.agents)
+      ? config.agents
+      : {};
+    config.agents.defaults = config.agents.defaults && typeof config.agents.defaults === "object" && !Array.isArray(config.agents.defaults)
+      ? config.agents.defaults
+      : {};
+    config.agents.defaults.model = {
+      primary: startupModel,
+      fallbacks: [],
+    };
+    delete config.agents.defaults.models;
+  }
+  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  console.log(`[qa-loop] patched OpenClaw config for QA: plugins=${pluginAllowlist || "unchanged"} model=${startupModel || "unchanged"}`);
+  return () => {
+    try {
+      fs.writeFileSync(configPath, original);
+      console.log("[qa-loop] restored OpenClaw config after QA run.");
+    } catch (error) {
+      console.warn(`[qa-loop] failed to restore OpenClaw config after QA run: ${error.message}`);
+    }
+  };
+}
+
+function qaDesktopTokenModelForProvider(provider) {
+  const normalized = String(provider || "").trim().toLowerCase();
+  const model = getModelText((MODELS_BY_PROVIDER[normalized] || [])[0]);
+  return model || null;
+}
+
+function patchDesktopTokensForQa(provider) {
+  const normalized = String(provider || "").trim().toLowerCase();
+  const model = qaDesktopTokenModelForProvider(normalized);
+  if (!normalized || !model || !process.env.APPDATA) return null;
+
+  const tokensPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "tokens.json");
+  if (!existsSync(tokensPath)) return null;
+
+  const original = fs.readFileSync(tokensPath, "utf8");
+  const parseable = original.replace(/^\uFEFF/, "");
+  let tokens;
+  try {
+    tokens = JSON.parse(parseable);
+  } catch (error) {
+    console.warn(`[qa-loop] could not parse desktop token config for QA patch: ${error.message}`);
+    return null;
+  }
+
+  if (!tokens || typeof tokens !== "object" || Array.isArray(tokens)) return null;
+  tokens.active_provider = normalized === "google" ? "gemini" : normalized;
+  const tokenModelKeyByProvider = {
+    anthropic: "anthropic_model",
+    gemini: "gemini_model",
+    google: "gemini_model",
+    groq: "groq_model",
+    knapsack: "openai_model",
+    openai: "openai_model",
+    openrouter: "openrouter_model",
+    xai: "xai_model",
+  };
+  const modelKey = tokenModelKeyByProvider[normalized];
+  if (modelKey) {
+    tokens[modelKey] = model;
+  }
+
+  fs.writeFileSync(tokensPath, `${JSON.stringify(tokens, null, 2)}\n`);
+  console.log(`[qa-loop] patched desktop tokens for QA: provider=${tokens.active_provider} model=${model}`);
+  return () => {
+    try {
+      fs.writeFileSync(tokensPath, original);
+      console.log("[qa-loop] restored desktop tokens after QA run.");
+    } catch (error) {
+      console.warn(`[qa-loop] failed to restore desktop tokens after QA run: ${error.message}`);
+    }
+  };
+}
 
 function normalizeResult(value) {
   if (value === null || value === undefined) return null;

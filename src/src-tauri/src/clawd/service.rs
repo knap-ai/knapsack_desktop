@@ -924,6 +924,147 @@ fn eager_channel_plugin_start_enabled() -> bool {
     .unwrap_or(false)
 }
 
+fn defer_optional_startup_plugins_enabled() -> bool {
+  std::env::var("KNAPSACK_DEFER_OPTIONAL_STARTUP_PLUGINS")
+    .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+    .unwrap_or(true)
+}
+
+fn is_deferred_startup_plugin_id(plugin_id: &str) -> bool {
+  KNAPSACK_DEFERRED_STARTUP_PLUGINS
+    .iter()
+    .any(|candidate| *candidate == plugin_id)
+}
+
+fn configured_bundled_channel_plugin_ids(cfg: &serde_json::Value) -> Vec<String> {
+  let mut channels = cfg
+    .pointer("/channels")
+    .and_then(|value| value.as_object())
+    .map(|configured| {
+      configured
+        .keys()
+        .filter(|channel| is_bundled_channel_plugin_id(channel))
+        .cloned()
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  channels.sort();
+  channels.dedup();
+  channels
+}
+
+fn startup_ready_channel_ids(app_handle: &tauri::AppHandle) -> Vec<String> {
+  let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+  let Ok(raw) = fs::read_to_string(&config_path) else {
+    return Vec::new();
+  };
+  let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return Vec::new();
+  };
+  let mut channels = configured_bundled_channel_plugin_ids(&cfg)
+    .into_iter()
+    .filter(|channel| {
+      let disabled = cfg
+        .pointer(&format!("/channels/{}/enabled", channel))
+        .and_then(|value| value.as_bool())
+        == Some(false);
+      !disabled && bundled_plugins_dir(app_handle).join(channel).is_dir()
+    })
+    .collect::<Vec<_>>();
+  channels.sort();
+  channels.dedup();
+  channels
+}
+
+fn qa_plugin_allowlist_override() -> Option<Vec<String>> {
+  let raw = std::env::var("KNAPSACK_QA_PLUGIN_ALLOWLIST").ok()?;
+  let mut plugins = raw
+    .split(',')
+    .map(|plugin| plugin.trim())
+    .filter(|plugin| !plugin.is_empty())
+    .map(|plugin| plugin.to_string())
+    .collect::<Vec<_>>();
+  plugins.sort();
+  plugins.dedup();
+  if plugins.is_empty() {
+    None
+  } else {
+    Some(plugins)
+  }
+}
+
+fn disable_startup_deferred_plugin_entries(
+  cfg: &mut serde_json::Value,
+  allowed: &[String],
+  disable_any_not_allowed: bool,
+) -> bool {
+  let mut changed = false;
+  let mut disabled_plugins = Vec::new();
+  let Some(entries) = cfg
+    .pointer_mut("/plugins/entries")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  for (plugin_id, entry) in entries.iter_mut() {
+    let should_disable = if disable_any_not_allowed {
+      !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    } else {
+      is_deferred_startup_plugin_id(plugin_id)
+        && !allowed.iter().any(|allowed_id| allowed_id == plugin_id)
+    };
+    if !should_disable {
+      continue;
+    }
+    let Some(entry_obj) = entry.as_object_mut() else {
+      continue;
+    };
+    if entry_obj.get("enabled").and_then(|value| value.as_bool()) == Some(false) {
+      continue;
+    }
+    entry_obj.insert("enabled".to_string(), serde_json::Value::Bool(false));
+    disabled_plugins.push(plugin_id.clone());
+    changed = true;
+  }
+
+  if disabled_plugins.is_empty() {
+    return changed;
+  }
+
+  if cfg.get("meta").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("meta".to_string(), serde_json::json!({}));
+  }
+  let Some(meta) = cfg.pointer_mut("/meta").and_then(|value| value.as_object_mut()) else {
+    return changed;
+  };
+  let mut restore = meta
+    .get("knapsackDeferredStartupDisabledEntries")
+    .and_then(|value| value.as_array())
+    .map(|arr| {
+      arr
+        .iter()
+        .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  for plugin_id in disabled_plugins {
+    if !restore.iter().any(|existing| existing == &plugin_id) {
+      restore.push(plugin_id);
+    }
+  }
+  restore.sort();
+  restore.dedup();
+  meta.insert(
+    "knapsackDeferredStartupDisabledEntries".to_string(),
+    serde_json::json!(restore),
+  );
+  changed
+}
+
 fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
