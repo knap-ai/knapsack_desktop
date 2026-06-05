@@ -485,6 +485,22 @@ fn gateway_launch_grace_active() -> Option<u64> {
   Some(elapsed)
 }
 
+fn gateway_launch_grace_active_with_live_process() -> Option<u64> {
+  let elapsed = gateway_launch_grace_active()?;
+  let pid = GATEWAY_PID.load(Ordering::Relaxed);
+  if pid > 0 && process_is_alive(pid) {
+    return Some(elapsed);
+  }
+  #[cfg(target_os = "windows")]
+  if let Some(listening_pid) = windows_pid_listening_on_port(18789) {
+    if process_is_alive(listening_pid) {
+      GATEWAY_PID.store(listening_pid, Ordering::Relaxed);
+      return Some(elapsed);
+    }
+  }
+  None
+}
+
 #[cfg(target_os = "macos")]
 fn qa_direct_gateway_process_active() -> bool {
   if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() != Some("1") {
@@ -1049,7 +1065,10 @@ fn disable_startup_deferred_plugin_entries(
       .unwrap()
       .insert("meta".to_string(), serde_json::json!({}));
   }
-  let Some(meta) = cfg.pointer_mut("/meta").and_then(|value| value.as_object_mut()) else {
+  let Some(meta) = cfg
+    .pointer_mut("/meta")
+    .and_then(|value| value.as_object_mut())
+  else {
     return changed;
   };
   let mut restore = meta
@@ -5499,9 +5518,7 @@ fn spawn_startup_browser_start_nudge(gateway_token: String, app_handle: tauri::A
         kill_stale_clawdbot_chromes();
         match start_openclaw_chrome_direct(&app_handle) {
           Ok(()) => {
-            eprintln!(
-              "[clawd/service] startup-ready launched OpenClaw Chrome profile directly"
-            );
+            eprintln!("[clawd/service] startup-ready launched OpenClaw Chrome profile directly");
           }
           Err(e) => {
             last_error = Some(format!("direct OpenClaw Chrome launch failed: {}", e));
@@ -6529,7 +6546,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
 
       if !browser_ok {
-        spawn_startup_browser_start_nudge(tokens.gateway_token.clone(), app_handle.get_ref().clone());
+        spawn_startup_browser_start_nudge(
+          tokens.gateway_token.clone(),
+          app_handle.get_ref().clone(),
+        );
       }
     }
 
@@ -10265,7 +10285,7 @@ pub async fn set_service_enabled(
     let enabled = payload.enabled;
 
     if enabled {
-      if let Some(grace_ms) = gateway_launch_grace_active() {
+      if let Some(grace_ms) = gateway_launch_grace_active_with_live_process() {
         {
           let mut cfg_guard = cfg.write().await;
           cfg_guard.base_url = Some("http://127.0.0.1:18791".to_string());
@@ -10460,21 +10480,23 @@ pub async fn set_service_enabled(
       let stdout_file = match fs::File::create(&stdout_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
             message: format!("Failed to create stdout log: {}", e),
-          })
+          });
         }
       };
       let stderr_file = match fs::File::create(&stderr_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
             message: format!("Failed to create stderr log: {}", e),
-          })
+          });
         }
       };
 
@@ -10494,6 +10516,7 @@ pub async fn set_service_enabled(
         Ok(child) => {
           let pid = child.id();
           GATEWAY_PID.store(pid, Ordering::Relaxed);
+          mark_gateway_launch_started();
           GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           eprintln!("[clawd/service] Spawned gateway process (pid {})", pid);
 

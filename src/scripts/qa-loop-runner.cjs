@@ -353,6 +353,7 @@ function parseArgs() {
     startupBudgetMs: 30_000,
     coreOnly: false,
     providers: null,
+    prodBinary: process.env.KNAPSACK_QA_PROD_BINARY || null,
   };
   let mode = "both";
   for (let i = 0; i < args.length; i++) {
@@ -378,6 +379,19 @@ function parseArgs() {
     }
     if (arg === "--prod" || arg === "--release") {
       mode = "prod";
+      continue;
+    }
+    if (arg === "--prod-binary" || arg === "--release-binary") {
+      const next = args[i + 1];
+      if (next) {
+        opts.prodBinary = next;
+        i += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith("--prod-binary=") || arg.startsWith("--release-binary=")) {
+      const value = arg.split("=", 2)[1];
+      if (value) opts.prodBinary = value;
       continue;
     }
     if (
@@ -1401,7 +1415,7 @@ async function checkInterfaceAccess(includeUi) {
 
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
-  const binary = path.join(
+  const defaultBinary = path.join(
     __dirname,
     "..",
     "src-tauri",
@@ -1409,6 +1423,9 @@ async function runMode(mode, opts = {}) {
     isProd ? "release" : "debug",
     process.platform === "win32" ? "knapsack.exe" : "knapsack",
   );
+  const binary = isProd && opts.prodBinary
+    ? path.resolve(opts.prodBinary)
+    : defaultBinary;
   if (isProd && !existsSync(binary)) {
     return { ok: false, phase: "launch", message: `missing binary at ${binary}` };
   }
