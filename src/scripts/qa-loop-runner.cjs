@@ -793,7 +793,22 @@ async function checkInterfaceAccess(includeUi) {
   const failures = [];
   if (!root || !root.ok) failures.push("service/status unhealthy");
   if (!health || !health.ok) failures.push("service/health unhealthy");
-  if (!channels || !channels.ok || channels.body?.success !== true) failures.push("channels diagnostics unavailable");
+  const channelsOk = (channels && channels.ok) || Boolean((root && root.body && root.body.channels_ok));
+  if (!channelsOk) failures.push("channels diagnostics unavailable");
+  const channelStates = Array.isArray(channels?.body?.channelStates)
+    ? channels.body.channelStates
+    : [];
+  const configuredChannelStates = channelStates.filter((state) => state && state.configured);
+  const strictChannelTransports =
+    String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_TRANSPORTS || "").trim() === "1";
+  if (strictChannelTransports) {
+    const inactiveConfiguredChannels = configuredChannelStates
+      .filter((state) => !state.deferred && !state.active)
+      .map((state) => `${state.channel}:${state.reason || "not active"}`);
+    if (inactiveConfiguredChannels.length > 0) {
+      failures.push(`configured channel transports inactive: ${inactiveConfiguredChannels.join("; ")}`);
+    }
+  }
   if (!skills || !skills.ok || skills.body?.success !== true) failures.push("skills status unavailable");
   if (!workspaces || !workspaces.ok) failures.push("workspaces unavailable");
   if (!feed || !feed.ok) failures.push("feed_items unavailable");
