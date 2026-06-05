@@ -2967,6 +2967,36 @@ async fn write_current_launch_agent_plist(app_handle: &tauri::AppHandle, context
   true
 }
 
+#[cfg(target_os = "macos")]
+async fn refresh_launch_agent_plist_for_restart(
+  app_handle: &tauri::AppHandle,
+  context: &str,
+) -> bool {
+  if write_current_launch_agent_plist(app_handle, context).await {
+    return true;
+  }
+
+  let plist_path = match launch_agent_plist_path() {
+    Ok(path) => path,
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] {}: cannot resolve plist path for fallback refresh: {}",
+        context, e
+      );
+      return false;
+    }
+  };
+
+  let refreshed = regenerate_macos_plist_with_current_env(&plist_path);
+  if !refreshed {
+    eprintln!(
+      "[clawd/service] {}: fallback env-only plist refresh also failed",
+      context
+    );
+  }
+  refreshed
+}
+
 const GATEWAY_LOCAL_HEALTH_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1000);
 const GATEWAY_HEALTH_CACHE_TTL: std::time::Duration = std::time::Duration::from_millis(750);
 
@@ -7170,7 +7200,8 @@ pub async fn set_api_key(
     #[cfg(target_os = "macos")]
     {
       if let Ok(plist_path) = launch_agent_plist_path() {
-        regenerate_macos_plist_with_current_env(&plist_path);
+        refresh_launch_agent_plist_for_restart(app_handle.get_ref(), "provider switch restart")
+          .await;
         if qa_direct_gateway_mode() {
           bootout_gateway_launch_agent(LAUNCH_AGENT_LABEL);
           let qa_switch_model = switch_model.clone();
@@ -7482,7 +7513,7 @@ pub async fn set_api_key(
       // so the gateway picks up the updated env vars.  Just bootout + relying on
       // the health-check is not enough because the health-check uses kickstart
       // which re-uses the old (stale) plist.
-      regenerate_macos_plist_with_current_env(&plist_path);
+      refresh_launch_agent_plist_for_restart(app_handle.get_ref(), "api key restart").await;
       let uid = unsafe { libc::getuid() };
       let domain = format!("gui/{}", uid);
       let _ = std::process::Command::new("launchctl")
@@ -7777,7 +7808,7 @@ pub async fn ollama_configure(
   #[cfg(target_os = "macos")]
   {
     if let Ok(plist_path) = launch_agent_plist_path() {
-      regenerate_macos_plist_with_current_env(&plist_path);
+      refresh_launch_agent_plist_for_restart(app_handle.get_ref(), "ollama restart").await;
       let uid = unsafe { libc::getuid() };
       let domain = format!("gui/{}", uid);
       let _ = std::process::Command::new("launchctl")
@@ -12370,7 +12401,7 @@ async fn do_gemini_connect(app_handle: &tauri::AppHandle, code: &str) -> Result<
   #[cfg(target_os = "macos")]
   {
     if let Ok(plist_path) = launch_agent_plist_path() {
-      regenerate_macos_plist_with_current_env(&plist_path);
+      refresh_launch_agent_plist_for_restart(app_handle, "gemini oauth restart").await;
       let uid = unsafe { libc::getuid() };
       let domain = format!("gui/{}", uid);
       let _ = std::process::Command::new("launchctl")
@@ -12523,7 +12554,7 @@ pub async fn oauth_callback(
         Err(e) => return oauth_html_page(false, &format!("Failed to get API key: {}", e)),
       };
 
-      match save_and_restart_for_oauth(&app_handle, "openrouter", &key) {
+      match save_and_restart_for_oauth(&app_handle, "openrouter", &key).await {
         Ok(_) => {
           eprintln!("[clawd/service] OpenRouter OAuth: key saved, gateway restarting");
           oauth_html_page(true, "OpenRouter")
@@ -12566,7 +12597,7 @@ async fn exchange_openrouter_code(code: &str) -> Result<String, String> {
     .ok_or_else(|| "Missing 'key' in OpenRouter response".to_string())
 }
 
-fn save_and_restart_for_oauth(
+async fn save_and_restart_for_oauth(
   app_handle: &tauri::AppHandle,
   provider: &str,
   key: &str,
@@ -12598,7 +12629,7 @@ fn save_and_restart_for_oauth(
   #[cfg(target_os = "macos")]
   {
     if let Ok(plist_path) = launch_agent_plist_path() {
-      regenerate_macos_plist_with_current_env(&plist_path);
+      refresh_launch_agent_plist_for_restart(app_handle, "provider oauth restart").await;
       let uid = unsafe { libc::getuid() };
       let domain = format!("gui/{}", uid);
       let _ = std::process::Command::new("launchctl")
