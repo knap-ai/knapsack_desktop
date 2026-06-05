@@ -8788,10 +8788,16 @@ async fn prepare_gateway_config(
     clawdbot_entry.display()
   );
   #[cfg(target_os = "windows")]
-  schedule_clawdbot_runtime_self_link_warmup(
-    clawdbot_entry.clone(),
-    "prepare_gateway_config",
-  );
+  if cfg!(debug_assertions) {
+    schedule_clawdbot_runtime_self_link_warmup(
+      clawdbot_entry.clone(),
+      "prepare_gateway_config",
+    );
+  } else {
+    eprintln!(
+      "[clawd/service] Skipping bundled runtime self-link mutation on Windows release startup"
+    );
+  }
   #[cfg(not(target_os = "windows"))]
   ensure_clawdbot_runtime_self_link(&clawdbot_entry);
 
@@ -8916,6 +8922,11 @@ async fn prepare_gateway_config(
       ),
     }
     harden_file_permissions(&config_path);
+  } else if cfg!(target_os = "windows") && !cfg!(debug_assertions) {
+    harden_file_permissions(&config_path);
+    eprintln!(
+      "[clawd/service] Windows release startup: using existing config without synchronous repair"
+    );
   } else {
     harden_file_permissions(&config_path);
     // Patch existing configs to ensure required fields are present.
