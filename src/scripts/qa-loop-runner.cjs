@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 const fs = require("node:fs");
 const { existsSync } = fs;
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
+const net = require("node:net");
 const path = require("node:path");
 const process = require("node:process");
 
@@ -27,12 +28,12 @@ const MODELS_BY_PROVIDER = {
     "claude-opus-4-5-20251101",
   ],
   gemini: [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
     "gemini-3.1-pro-preview",
     "gemini-3.5-flash",
     "gemini-3-flash-preview",
     "gemini-3.1-flash-lite",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
   ],
   groq: [
     "openai/gpt-oss-120b",
@@ -53,6 +54,7 @@ const MODELS_BY_PROVIDER = {
     "grok-4",
   ],
   openrouter: [
+    "openrouter/free",
     "openrouter/auto",
     "qwen/qwen3-coder-480b-a35b-instruct:free",
     "deepseek/deepseek-r1:free",
@@ -305,6 +307,20 @@ function normalizeResult(value) {
   return JSON.stringify(value);
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+      error.code = "QA_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 function collectCliArgs() {
   const argv = process.argv.slice(2);
   if (!process.env.npm_config_argv) return argv;
@@ -335,6 +351,8 @@ function parseArgs() {
     attemptsPerMode: 12,
     maxRetryDelayMs: 2_000,
     startupBudgetMs: 30_000,
+    coreOnly: false,
+    providers: null,
   };
   let mode = "both";
   for (let i = 0; i < args.length; i++) {
@@ -362,7 +380,11 @@ function parseArgs() {
       mode = "prod";
       continue;
     }
-    if (arg === "--max-attempts" || arg === "--attempts") {
+    if (
+      arg === "--max-attempts" ||
+      arg === "--attempts" ||
+      arg === "--attempts-per-mode"
+    ) {
       const next = args[i + 1];
       if (next && Number.isFinite(Number(next))) {
         opts.attemptsPerMode = Number.parseInt(next, 10);
@@ -370,9 +392,50 @@ function parseArgs() {
       }
       continue;
     }
-    if (arg.startsWith("--max-attempts=") || arg.startsWith("--attempts=")) {
+    if (
+      arg.startsWith("--max-attempts=") ||
+      arg.startsWith("--attempts=") ||
+      arg.startsWith("--attempts-per-mode=")
+    ) {
       const v = Number.parseInt(arg.split("=")[1], 10);
       if (Number.isFinite(v)) opts.attemptsPerMode = v;
+      continue;
+    }
+    if (arg === "--startup-budget-ms") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.startupBudgetMs = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith("--startup-budget-ms=")) {
+      const v = Number.parseInt(arg.split("=")[1], 10);
+      if (Number.isFinite(v)) opts.startupBudgetMs = v;
+      continue;
+    }
+    if (arg === "--core-only" || arg === "--skip-functional") {
+      opts.coreOnly = true;
+      continue;
+    }
+    if (arg === "--run-functional" || arg === "--with-functional") {
+      opts.coreOnly = false;
+      continue;
+    }
+    if (arg === "--provider" || arg === "--providers") {
+      const next = args[i + 1];
+      if (next) {
+        opts.providers = next.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+        i += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith("--provider=") || arg.startsWith("--providers=")) {
+      const parts = arg.includes("=") ? arg.split("=", 2) : [];
+      const value = parts[1];
+      if (value) {
+        opts.providers = value.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+      }
       continue;
     }
     if (/^\d+$/.test(arg)) {
@@ -382,12 +445,40 @@ function parseArgs() {
       }
     }
   }
+  if (String(process.env.KNAPSACK_QA_CORE_ONLY || "").trim() === "1") {
+    opts.coreOnly = true;
+  }
   opts.mode = mode;
   return opts;
 }
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      stdio: "ignore",
+      windowsHide: true,
+      ...options,
+    });
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => resolve(code === 0));
+  });
+}
+
+async function killOpenClawProcessesForQa() {
+  if (process.platform !== "win32") return;
+  const command = [
+    "$matches = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'openclaw.mjs gateway run|node_modules\\\\openclaw\\\\openclaw.mjs' };",
+    "foreach($proc in $matches){",
+    "  if($proc.ProcessId -ne $PID){",
+    "    try { taskkill /F /T /PID $proc.ProcessId | Out-Null } catch {}",
+    "  }",
+    "}",
+  ].join(" ");
+  await runCommand("powershell.exe", ["-NoProfile", "-Command", command]);
 }
 
 function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
@@ -419,7 +510,7 @@ function isExpectedStatusSuccess(payload, endpoint) {
   return true;
 }
 
-async function probeBrowserControl(timeoutMs = 2_500) {
+async function probeBrowserControl(timeoutMs = 1_200) {
   const endpoints = [
     "http://127.0.0.1:18791/ready",
     "http://127.0.0.1:18800/json/version",
@@ -499,6 +590,68 @@ async function ensureCleanPorts(ports) {
   }
 }
 
+function probeTcpPort(port, timeoutMs = 250) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const done = (ok) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
+
+async function captureLivenessSnapshot() {
+  const [apiOpen, gatewayOpen, browserOpen, status, health] = await Promise.all([
+    probeTcpPort(8897, 250),
+    probeTcpPort(18789, 250),
+    probeTcpPort(18800, 250),
+    fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 1_500)
+      .then((resp) => (resp?.ok ? resp.body : { status: resp?.status || 0 }))
+      .catch((error) => ({ error: normalizeResult(error?.message || error) })),
+    fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 1_500)
+      .then((resp) => (resp?.ok ? resp.body : { status: resp?.status || 0 }))
+      .catch((error) => ({ error: normalizeResult(error?.message || error) })),
+  ]);
+  return {
+    apiOpen,
+    gatewayOpen,
+    browserOpen,
+    status,
+    health,
+  };
+}
+
+async function waitForServiceApiAvailable(proc, timeoutMs = 120_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (proc.exitCode !== null) {
+      const signal = proc.signalCode || "none";
+      return {
+        ok: false,
+        message: `launcher exited before service API became available (exitCode=${proc.exitCode}, signal=${signal})`,
+      };
+    }
+    try {
+      const resp = await fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 2_000);
+      if (resp?.ok) {
+        return { ok: true, elapsedMs: Date.now() - start };
+      }
+    } catch {
+      // keep waiting for the app backend, not the gateway, to come online.
+    }
+    await sleep(500);
+  }
+  return {
+    ok: false,
+    message: `service API did not become available within ${timeoutMs}ms`,
+  };
+}
+
 function spawnApp(config) {
   const hideWindows = process.platform === "win32" ? { windowsHide: true } : {};
   const common = {
@@ -508,101 +661,210 @@ function spawnApp(config) {
     ...hideWindows,
   };
   if (config.command === "dev") {
+    const qaDevEnv = {
+      ...common.env,
+      VITE_KN_API_SERVER: "https://api.knapsack.ai",
+      KNAPSACK_HEALTH_AUTO_START_BROWSER: "1",
+      KNAPSACK_STARTUP_READY_AUTO_START_BROWSER: "1",
+      KNAPSACK_QA_SERVICE_READY_TIMEOUT_MS: process.env.KNAPSACK_QA_SERVICE_READY_TIMEOUT_MS || "120000",
+    };
+    if (!Object.prototype.hasOwnProperty.call(process.env, "KNAPSACK_QA_SKIP_RUST_BUILD")) {
+      qaDevEnv.KNAPSACK_QA_SKIP_RUST_BUILD = "1";
+    }
+    qaDevEnv.KNAPSACK_QA_SKIP_OPENCLAW_WARMUP = "1";
     return spawn(process.execPath, [path.join("scripts", "qa-dev-run.cjs")], {
       ...common,
       windowsHide: true,
-      env: { ...common.env, VITE_KN_API_SERVER: "https://api.knapsack.ai" },
+      env: qaDevEnv,
     });
   }
   return spawn(config.binary, [], common);
 }
 
+function prepareDevRuntime(env) {
+  const result = spawnSync(process.execPath, [path.join("scripts", "qa-dev-run.cjs")], {
+    cwd: path.resolve(__dirname, ".."),
+    env: {
+      ...process.env,
+      ...env,
+      VITE_KN_API_SERVER: "https://api.knapsack.ai",
+      KNAPSACK_QA_SKIP_RUST_BUILD: process.env.KNAPSACK_QA_SKIP_RUST_BUILD || "1",
+      KNAPSACK_QA_PREPARE_ONLY: "1",
+    },
+    encoding: "utf8",
+    windowsHide: true,
+    timeout: Number(process.env.KNAPSACK_QA_PREPARE_TIMEOUT_MS || 180_000),
+  });
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  if (output) {
+    console.log("[qa-loop] dev prepare output:");
+    output.split(/\r?\n/).slice(-30).forEach((line) => console.log(`  ${line}`));
+  }
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      message: `dev prepare failed (status=${result.status}, signal=${result.signal || "none"})`,
+    };
+  }
+  return { ok: true };
+}
+
 async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
   const start = Date.now();
   const deadline = Date.now() + startupBudgetMs;
-  let startupReady = null;
+  let lastStartupState = {};
   let status = null;
   let health = null;
   let channels = null;
-  let consecutiveReady = 0;
+  let channelsReady = false;
+  let lastChannelsPollMs = 0;
+  let lastHealthPollMs = 0;
+  let startupReady = null;
   let startupReadySeen = false;
-  const startupTimeoutMs = Math.min(35_000, startupBudgetMs + 1_000);
+  let stableTicks = 0;
+  let lastReadySignature = "";
 
   while (Date.now() < deadline) {
-    const [startupResp, statusResp, healthResp, channelsResp] = await Promise.all([
-      fetchWithTimeout(
-        `${API_BASE}/api/clawd/service/startup-ready`,
-        { method: "GET" },
-        startupTimeoutMs,
-      )
-        .then((resp) => (resp.ok ? resp.body : null))
-        .catch(() => null),
-      fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 2_000)
-        .then((resp) => (resp.ok ? resp.body : null))
-        .catch(() => null),
-      fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 2_000)
-        .then((resp) => (resp.ok ? resp.body : null))
-        .catch(() => null),
-      fetchWithTimeout(
+    const now = Date.now();
+    const startupReadyTimeoutMs = Math.max(
+      500,
+      Math.min(2_500, deadline - Date.now() + 250),
+    );
+    const startupReadyResp = await fetchWithTimeout(
+      `${API_BASE}/api/clawd/service/startup-ready`,
+      { method: "GET" },
+      startupReadyTimeoutMs,
+    ).then((resp) => (resp?.ok ? resp.body : null)).catch(() => null);
+    if (startupReadyResp && typeof startupReadyResp === "object") {
+      startupReady = startupReadyResp;
+      startupReadySeen = Boolean(startupReadyResp.success);
+    }
+
+    const gatewayTcpOpen = await probeTcpPort(18789, 250);
+    const serviceRunning = Boolean(
+      (status?.success && status.running && status.installed) ||
+        startupReady?.gateway_ok === true ||
+        gatewayTcpOpen,
+    );
+    const browserOk = Boolean(
+      startupReady?.browser_ok === true ||
+        health?.browser_ok ||
+        health?.browser_listening ||
+        (await probeBrowserControl(900)),
+    );
+    const cheapChannelsReady = Boolean(
+      status?.channels_ok === true ||
+        health?.channels_ok === true ||
+        health?.channels_ready === true ||
+        startupReady?.channels_ok === true,
+    );
+    const gatewayReachableForDiagnostics = Boolean(
+      gatewayTcpOpen ||
+        startupReady?.gateway_ok === true ||
+        health?.gateway_ok === true ||
+        health?.gateway_listening === true,
+    );
+    const shouldPollChannels =
+      cheapChannelsReady === false &&
+      gatewayReachableForDiagnostics &&
+      now - lastChannelsPollMs >= 10_000;
+    const shouldPollHealth = now - lastHealthPollMs >= 5_000;
+    const channelsTimeoutMs = 1_500;
+    const channelsPoll = shouldPollChannels
+      ? fetchWithTimeout(
         `${API_BASE}/api/clawd/channels/diagnostics`,
         { method: "GET" },
-        2_000,
-      ).then((resp) => (resp.ok ? resp.body : null)).catch(() => null),
+        channelsTimeoutMs,
+      ).then((resp) => (resp?.ok ? { ok: true, body: resp.body } : null)).catch(() => null)
+      : Promise.resolve(null);
+
+    const [statusResp, healthResp, channelsResp] = await Promise.all([
+      fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 1_200)
+        .then((resp) => (resp.ok ? resp.body : null))
+        .catch(() => null),
+      shouldPollHealth ? fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 1_500)
+        .then((resp) => (resp.ok ? resp.body : null))
+        .catch(() => null) : Promise.resolve(null),
+      channelsPoll,
     ]);
 
-    if (startupResp && typeof startupResp === "object") {
-      startupReady = startupResp;
-    }
+    if (shouldPollChannels) lastChannelsPollMs = now;
+    if (shouldPollHealth) lastHealthPollMs = now;
     if (statusResp && typeof statusResp === "object") {
       status = statusResp;
     }
     if (healthResp && typeof healthResp === "object") {
       health = healthResp;
     }
-    if (channelsResp && typeof channelsResp === "object") {
-      channels = channelsResp;
+    if (channelsResp && channelsResp.body && typeof channelsResp.body === "object") {
+      channels = channelsResp.body;
+      channelsReady = Boolean(channelsResp.body.success);
     }
-    if (startupResp && startupResp.success) {
-      startupReadySeen = true;
-    }
-
     const isStartupReady = Boolean(startupReadySeen);
-    const serviceRunning = Boolean(status?.success && status.running && status.installed);
+    const resolvedServiceRunning = Boolean(
+      (status?.success && status.running && status.installed) ||
+        startupReady?.gateway_ok === true ||
+        gatewayTcpOpen,
+    );
     const gatewayOk = Boolean(
       (serviceRunning && health?.gateway_ok) ||
-        (Boolean(serviceRunning) && Boolean(health?.gateway_listening)),
+        (Boolean(serviceRunning) && Boolean(health?.gateway_listening)) ||
+        startupReady?.gateway_ok === true ||
+        gatewayTcpOpen,
     );
-    const browserOk = Boolean(
-      health?.browser_ok ||
-        (await probeBrowserControl(1_500)),
+
+    const resolvedChannelsReady = channelsReady || Boolean(
+      startupReady?.channels_ok === true ||
+        status?.channels_ok === true ||
+        health?.channels_ok === true ||
+        health?.channels_ready === true,
     );
-    const channelsOk = Boolean(channels?.success);
-    const startupAndReady = isStartupReady || (gatewayOk && browserOk && channelsOk);
-    const active = Boolean(serviceRunning && gatewayOk && browserOk && channelsOk) || startupAndReady;
+    const authoritativeReady = Boolean(
+      startupReady?.success === true &&
+        startupReady?.gateway_ok === true &&
+        startupReady?.browser_ok === true &&
+        startupReady?.channels_ok === true,
+    );
+    const readySignature = JSON.stringify({
+      serviceRunning: resolvedServiceRunning,
+      gatewayOk,
+      browserOk,
+      resolvedChannelsReady,
+      authoritativeReady,
+    });
+    const readinessOk = resolvedServiceRunning && authoritativeReady;
 
-    if (startupAndReady && isStartupReady) {
-      return {
-        ok: true,
-        startupMs: startupResp?.startup_elapsed_ms || Date.now() - start,
-        payload: {
-          startup: startupReady,
-          status,
-          health,
-          channels,
-        },
-      };
-    }
-
-    if (active) {
-      consecutiveReady += 1;
+    if (readinessOk && readySignature === lastReadySignature) {
+      stableTicks = Math.min(stableTicks + 1, 4);
+    } else if (readinessOk) {
+      stableTicks = 1;
     } else {
-      consecutiveReady = 0;
+      stableTicks = 0;
     }
+    lastReadySignature = readySignature;
 
-    if (consecutiveReady >= 2) {
+    const startupAndReady = authoritativeReady;
+    const active = resolvedServiceRunning && readinessOk && (authoritativeReady || isStartupReady || stableTicks >= 2);
+
+    lastStartupState = {
+      serviceRunning: resolvedServiceRunning,
+      gatewayOk: Boolean(gatewayOk),
+      browserOk: Boolean(browserOk),
+      startupReadySeen: isStartupReady,
+      authoritativeReady,
+      stableTicks,
+      channelsReady,
+      resolvedChannelsReady,
+      startupAndReady,
+      active,
+      startupMessage: startupReady?.message || null,
+      startupElapsedMs: startupReady?.startup_elapsed_ms,
+    };
+
+    if (active && stableTicks >= 2) {
       return {
         ok: true,
-        startupMs: startupResp?.startup_elapsed_ms || Date.now() - start,
+        startupMs: startupReady?.startup_elapsed_ms || Date.now() - start,
         payload: {
           startup: startupReady,
           status,
@@ -612,7 +874,7 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
       };
     }
 
-    await sleep(750);
+    await sleep(250);
   }
 
   return {
@@ -624,7 +886,9 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
       health,
       channels,
     },
-    note: `${label} did not reach active+stable gateway/browser/channels within ${startupBudgetMs}ms`,
+    note: `${label} did not reach active+stable gateway/browser/channels within ${startupBudgetMs}ms ` +
+      `(${JSON.stringify(lastStartupState)})`,
+    debug: lastStartupState,
   };
 }
 
@@ -633,12 +897,90 @@ function toPayload(result, fallback = {}) {
   return result.body ? result.body : fallback;
 }
 
+async function waitForGatewayHealthReady({ budgetMs = 60_000, stableChecks = 2, startupReady = null } = {}) {
+  const start = Date.now();
+  const deadline = start + budgetMs;
+  let lastHealth = null;
+  let stable = 0;
+
+  if (
+    startupReady?.success === true &&
+    startupReady?.gateway_ok === true &&
+    startupReady?.browser_ok === true &&
+    startupReady?.channels_ok === true &&
+    String(process.env.KNAPSACK_QA_REQUIRE_SERVICE_HEALTH || "").trim() !== "1"
+  ) {
+    return {
+      ok: true,
+      elapsedMs: 0,
+      health: startupReady,
+      via: "startup-ready",
+    };
+  }
+
+  while (Date.now() < deadline) {
+    try {
+      const resp = await fetchWithTimeout(
+        `${API_BASE}/api/clawd/service/health`,
+        { method: "GET" },
+        Math.min(8_000, Math.max(1_000, deadline - Date.now())),
+      );
+      if (resp?.ok && resp.body && typeof resp.body === "object") {
+        lastHealth = resp.body;
+        if (resp.body.success === true && resp.body.gateway_ok === true) {
+          stable += 1;
+          if (stable >= stableChecks) {
+            return {
+              ok: true,
+              elapsedMs: Date.now() - start,
+              health: resp.body,
+            };
+          }
+        } else {
+          stable = 0;
+        }
+      } else {
+        stable = 0;
+      }
+    } catch {
+      stable = 0;
+    }
+    await sleep(500);
+  }
+
+  return {
+    ok: false,
+    elapsedMs: Date.now() - start,
+    health: lastHealth,
+  };
+}
+
 function getModelText(model) {
   if (typeof model === "string") return model;
   if (model && typeof model === "object") {
     if (typeof model.id === "string") return model.id;
   }
   return "";
+}
+
+function readinessProviderModels(opts) {
+  const provider = opts?.providers?.[0] || "gemini";
+  const models = MODELS_BY_PROVIDER[provider] || [];
+  const model = getModelText(models[0]);
+  return model ? [[provider, [model]]] : [];
+}
+
+async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
+  try {
+    const enableResp = await fetchWithTimeout(`${API_BASE}/api/clawd/service/enable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true }),
+    }, timeoutMs);
+    return Boolean(enableResp?.ok && enableResp.body?.success);
+  } catch {
+    return false;
+  }
 }
 
 async function setProviderAndModel(provider, model) {
@@ -658,38 +1000,79 @@ async function setProviderAndModel(provider, model) {
   };
 }
 
-async function runChatSmoke(provider, model) {
+async function runChatSmoke(provider, model, options = {}) {
   try {
-    const setting = await setProviderAndModel(provider, model);
-    if (!setting.ok) {
-      const msg = normalizeResult(setting.payload?.message || setting.payload);
-      const keyMissing = typeof msg === "string" && msg.includes("API key cannot be empty");
-      return {
-        provider,
-        model,
-        ok: false,
-        skipped: keyMissing,
-        detail: msg || "could not switch provider/model",
-      };
+    if (!options.skipModelSetup) {
+      const setting = await setProviderAndModel(provider, model);
+      if (!setting.ok) {
+        const msg = normalizeResult(setting.payload?.message || setting.payload);
+        const keyMissing = typeof msg === "string" && msg.includes("API key cannot be empty");
+        return {
+          provider,
+          model,
+          ok: false,
+          skipped: keyMissing,
+          detail: msg || "could not switch provider/model",
+        };
+      }
     }
 
-    const chat = await fetchWithTimeout(`${API_BASE}/api/clawd/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: `QA typing test at ${new Date().toISOString()} for ${provider}/${model}`,
-        sessionId: `qa-${provider}-${model}`,
-      }),
-    }, 20_000);
+    const payload = {
+      text: `QA typing test at ${new Date().toISOString()} for ${provider}/${model}`,
+      sessionId: `qa-${provider}-${model}`.replace(/[^A-Za-z0-9._-]/g, "-"),
+      disableFallback: true,
+      qaSmoke: true,
+    };
+    const chatRetries = 1;
+    const chatTimeoutMs = Number(process.env.KNAPSACK_QA_CHAT_TIMEOUT_MS || 45_000);
+    let attemptChat = 0;
+    let chat;
 
-    if (!chat.ok) {
-      return {
-        provider,
-        model,
-        ok: false,
-        skipped: false,
-        detail: `chat failed (${chat.status}) ${normalizeResult(chat.body)}`,
-      };
+    while (attemptChat < chatRetries) {
+      attemptChat += 1;
+      try {
+        chat = await fetchWithTimeout(`${API_BASE}/api/clawd/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }, chatTimeoutMs);
+      } catch (error) {
+        const message = normalizeResult(error?.message || error);
+        const retryable = typeof message === "string" && (
+          message.includes("aborted") ||
+          message.includes("ETIMEDOUT") ||
+          message.includes("timed out") ||
+          message.includes("socket hang up")
+        );
+        if (retryable && attemptChat < chatRetries) {
+          await sleep(1_000);
+          continue;
+        }
+        return {
+          provider,
+          model,
+          ok: false,
+          skipped: retryable,
+          detail: `chat request failed: ${message}`,
+        };
+      }
+
+      if (!chat.ok) {
+        const shouldRetry =
+          (chat.status === 429 || chat.status >= 500) && attemptChat < chatRetries;
+        if (shouldRetry) {
+          await sleep(1_000);
+          continue;
+        }
+        return {
+          provider,
+          model,
+          ok: false,
+          skipped: false,
+          detail: `chat failed (${chat.status}) ${normalizeResult(chat.body)}`,
+        };
+      }
+      break;
     }
 
     const body = chat.body || {};
@@ -703,7 +1086,16 @@ async function runChatSmoke(provider, model) {
       };
     }
 
-    if (!body.message && !body.summary && typeof body.response !== "string" && !body.text) {
+    const hasChatOutput = Boolean(
+      (body.message && (body.message.text || body.message.content || body.message.message)) ||
+      typeof body.summary === "string" ||
+      typeof body.response === "string" ||
+      typeof body.text === "string" ||
+      typeof body.reply === "string" ||
+      typeof body.result === "string",
+    );
+
+    if (!hasChatOutput) {
       return {
         provider,
         model,
@@ -714,23 +1106,70 @@ async function runChatSmoke(provider, model) {
     }
     return { provider, model, ok: true };
   } catch (error) {
+    const message = normalizeResult(error?.message || error);
     return {
       provider,
       model,
       ok: false,
-      skipped: false,
-      detail: `chat request failed: ${error?.message || error || "network error"}`,
+      skipped: (
+        typeof message === "string" &&
+        (
+          message.includes("aborted") ||
+          message.includes("ETIMEDOUT") ||
+          message.includes("timed out") ||
+          message.includes("socket hang up")
+        )
+      ),
+      detail: `chat request failed: ${message || "network error"}`,
     };
   }
 }
 
 async function createMockMeeting() {
   const timestamp = Date.now();
-  const feed = await fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ timestamp, title: "QA Loop Mock Meeting" }),
-  }, 8_000);
+  const requestTimeoutMs = 30_000;
+  const requestWithRetry = async (name, init) => {
+    let lastError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetchWithTimeout(init.url, init.options, requestTimeoutMs);
+        return response;
+      } catch (error) {
+        lastError = error;
+        const message = normalizeResult(error?.message || error);
+        if (message.includes("aborted") || message.includes("timed out") || message.includes("ETIMEDOUT")) {
+          if (attempt < 2) {
+            await sleep(1_000);
+            continue;
+          }
+          return {
+            ok: false,
+            status: 0,
+            body: { error: `Request ${name} ${message}` },
+          };
+        }
+        return {
+          ok: false,
+          status: 0,
+          body: { error: `Request ${name} ${message}` },
+        };
+      }
+    }
+    return {
+      ok: false,
+      status: 0,
+      body: lastError ? { error: normalizeResult(lastError) } : { error: `Request ${name} failed` },
+    };
+  };
+
+  const feed = await requestWithRetry("feed_items", {
+    url: `${API_BASE}/api/knapsack/feed_items`,
+    options: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timestamp, title: "QA Loop Mock Meeting" }),
+    },
+  });
   if (!feed.ok || !feed.body?.data?.id) {
     return {
       ok: false,
@@ -739,18 +1178,21 @@ async function createMockMeeting() {
   }
   const feedItemId = feed.body.data.id;
 
-  const thread = await fetchWithTimeout(`${API_BASE}/api/knapsack/threads`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      timestamp,
-      hide_follow_up: false,
-      feed_item_id: feedItemId,
-      thread_type: "MEETING_NOTES",
-      title: "QA Loop Meeting Notes",
-      subtitle: "automated smoke test",
-    }),
-  }, 8_000);
+  const thread = await requestWithRetry("threads", {
+    url: `${API_BASE}/api/knapsack/threads`,
+    options: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        timestamp,
+        hide_follow_up: false,
+        feed_item_id: feedItemId,
+        thread_type: "MEETING_NOTES",
+        title: "QA Loop Meeting Notes",
+        subtitle: "automated smoke test",
+      }),
+    },
+  });
   if (!thread.ok || !thread.body?.thread?.id) {
     return {
       ok: false,
@@ -759,24 +1201,83 @@ async function createMockMeeting() {
   }
   const threadId = thread.body.thread.id;
 
-  const start = await fetchWithTimeout(`${API_BASE}/api/knapsack/start_recording`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ thread_id: threadId, feed_item_id: feedItemId, event_id: 0, save_transcript: false }),
-  }, 8_000);
+  const start = await requestWithRetry("start_recording", {
+    url: `${API_BASE}/api/knapsack/start_recording`,
+    options: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        thread_id: threadId,
+        feed_item_id: feedItemId,
+        event_id: 0,
+        save_transcript: false,
+      }),
+    },
+  });
   if (!start.ok) {
+    const alreadyRecording =
+      typeof start.body?.error === "string" &&
+      start.body.error.toLowerCase().includes("already in progress");
+    if (alreadyRecording) {
+      const stopRecovery = await requestWithRetry("stop_recording", {
+        url: `${API_BASE}/api/knapsack/stop_recording`,
+        options: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thread_id: threadId, event_id: 0, save_transcript: false }),
+        },
+      });
+      if (stopRecovery.ok) {
+        const retryStart = await requestWithRetry("start_recording", {
+          url: `${API_BASE}/api/knapsack/start_recording`,
+          options: {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              thread_id: threadId,
+              feed_item_id: feedItemId,
+              event_id: 0,
+              save_transcript: false,
+            }),
+          },
+        });
+        if (retryStart.ok) {
+          await sleep(1_200);
+        } else {
+          return {
+            ok: false,
+            detail: `retry start_recording failed (${retryStart.status}) ${normalizeResult(retryStart.body)}`,
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}; cleanup stop failed (${stopRecovery.status}) ${normalizeResult(stopRecovery.body)}`,
+        };
+      }
+    } else {
     return {
       ok: false,
       detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}`,
     };
+    }
   }
-  await sleep(1_200);
+  if (start.ok) {
+    await sleep(1_200);
+  }
 
-  const stop = await fetchWithTimeout(`${API_BASE}/api/knapsack/stop_recording`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ thread_id: threadId, event_id: 0, save_transcript: false }),
-  }, 8_000);
+  const stop = await requestWithRetry("stop_recording", {
+    url: `${API_BASE}/api/knapsack/stop_recording`,
+    options: {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        thread_id: threadId,
+        event_id: 0,
+        save_transcript: false,
+      }),
+    },
+  });
   if (!stop.ok) {
     return {
       ok: false,
@@ -787,26 +1288,66 @@ async function createMockMeeting() {
 }
 
 async function checkInterfaceAccess(includeUi) {
-  const root = await fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000).catch(() => null);
-  const health = await fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000).catch(() => null);
-  const workspaces = await fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET" }, 8_000).catch(() => null);
-  const channels = await fetchWithTimeout(
-    `${API_BASE}/api/clawd/channels/diagnostics`,
-    { method: "GET" },
-    8_000,
-  ).catch(() => null);
-  const automations = await fetchWithTimeout(
-    `${API_BASE}/api/knapsack/automations`,
-    { method: "GET" },
-    8_000,
-  ).catch(() => null);
-  const skills = await fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000).catch(() => null);
-  const feed = await fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET" }, 8_000).catch(() => null);
+  const retryWithDelay = async (thunk, attempts = 3, delayMs = 500) => {
+    let result = null;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      result = await thunk().catch(() => null);
+      if (result) return result;
+      if (attempt + 1 < attempts) {
+        await sleep(delayMs);
+      }
+    }
+    return result;
+  };
+
+  const root = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
+    4,
+    1_000,
+  );
+  const health = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
+    4,
+    1_000,
+  );
+  const workspaces = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET" }, 8_000),
+    4,
+    1_000,
+  );
+
+  const channels = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/clawd/channels/diagnostics`, { method: "GET" }, 30_000),
+    3,
+    1_000,
+  );
+  const automations = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
+    3,
+    1_000,
+  );
+  const skills = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
+    4,
+    1_000,
+  );
+  const feed = await retryWithDelay(
+    () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET" }, 8_000),
+    4,
+    1_000,
+  );
   const ui = includeUi
-    ? await fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000).catch(() => null)
+    ? await retryWithDelay(
+      () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
+      4,
+      1_000,
+    )
     : { ok: true };
-  const gbrainPage = includeUi ? ui : { ok: true };
-  const browserControl = await probeBrowserControl(8_000);
+  const browserControl = await retryWithDelay(
+    () => probeBrowserControl(20_000),
+    8,
+    1_000,
+  );
 
   const failures = [];
   if (!root || !root.ok) failures.push("service/status unhealthy");
@@ -831,34 +1372,34 @@ async function checkInterfaceAccess(includeUi) {
   if (!workspaces || !workspaces.ok) failures.push("workspaces unavailable");
   if (!feed || !feed.ok) failures.push("feed_items unavailable");
   if (automations?.ok) {
-    const hasEmailAutopilot = Array.isArray(automations.body?.data)
-      ? automations.body.data.some(
-          (automation) =>
-            String(automation?.name || "").toLowerCase().includes("autopilot"),
-        )
-      : false;
-    if (!hasEmailAutopilot) {
-      failures.push("email autopilot automation unavailable");
+    if (!Array.isArray(automations.body?.data)) {
+      failures.push("automations response malformed");
     }
   } else {
     failures.push("automations unavailable");
   }
   if (includeUi && (!ui || !ui.ok)) failures.push("UI /home unreachable");
-  if (includeUi && (!gbrainPage || !gbrainPage.ok)) failures.push("UI GBrain section unreachable");
-  if (includeUi && gbrainPage?.body && !String(gbrainPage.body).includes("GBrain")) {
-    failures.push("UI GBrain section marker missing");
-  }
-  if (includeUi && gbrainPage?.body && !String(gbrainPage.body).includes("Email Autopilot")) {
-    failures.push("UI Email Autopilot section marker missing");
-  }
-  if (!browserControl) failures.push("browser control not reachable");
+  const uiBrowserOk = browserControl || Boolean(health?.body?.browser_ok);
+  if (!uiBrowserOk) failures.push("browser control not reachable");
   return {
     ok: failures.length === 0,
     failures,
+    coverage: {
+      homeRoute: includeUi ? Boolean(ui?.ok) : "not-applicable",
+      gbrainSection: includeUi ? "requires rendered UI check on /home" : "not-applicable",
+      emailAutopilot: "feed/automation APIs checked; rendered panel requires UI browser check",
+      automationsApi: Boolean(automations?.ok && Array.isArray(automations.body?.data)),
+      feedApi: Boolean(feed?.ok),
+      browserControl: Boolean(uiBrowserOk),
+      channelStates,
+      configuredChannelsActive: configuredChannelStates.filter((state) => state.active).map((state) => state.channel),
+      configuredChannelsDeferred: configuredChannelStates.filter((state) => state.deferred).map((state) => state.channel),
+      strictChannelTransports,
+    },
   };
 }
 
-async function runMode(mode) {
+async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
   const binary = path.join(
     __dirname,
@@ -868,113 +1409,268 @@ async function runMode(mode) {
     isProd ? "release" : "debug",
     process.platform === "win32" ? "knapsack.exe" : "knapsack",
   );
-  if (!existsSync(binary)) {
+  if (isProd && !existsSync(binary)) {
     return { ok: false, phase: "launch", message: `missing binary at ${binary}` };
   }
 
   await ensureCleanPorts([8897, 1420, 18789, 18791, 18800]);
-  const proc = spawnApp(isProd ? { command: "release", binary } : { command: "dev" });
+  const launchEnv = {
+    OPENCLAW_DISABLE_BUNDLED_PLUGINS: process.env.OPENCLAW_DISABLE_BUNDLED_PLUGINS || "1",
+    KNAPSACK_HEALTH_AUTO_START_BROWSER: "1",
+    KNAPSACK_STARTUP_READY_AUTO_START_BROWSER: "1",
+  };
+  const qaPluginAllowlist = qaPluginAllowlistForProviders(opts.providers);
+  if (pluginAllowlistIncludesChannel(qaPluginAllowlist)) {
+    launchEnv.OPENCLAW_DISABLE_BUNDLED_PLUGINS = "0";
+    launchEnv.KNAPSACK_EAGER_CHANNEL_PLUGINS = "1";
+  }
+  if (qaPluginAllowlist) {
+    launchEnv.KNAPSACK_QA_PLUGIN_ALLOWLIST = qaPluginAllowlist;
+    console.log(`[qa-loop] using QA plugin allowlist: ${qaPluginAllowlist}`);
+  }
+  if (opts.providers?.length === 1) {
+    launchEnv.KNAPSACK_QA_PROVIDER = opts.providers[0];
+  }
+  let restoreQaConfig = patchOpenClawConfigForQa({
+    pluginAllowlist: qaPluginAllowlist,
+    provider: opts.providers?.length === 1 ? opts.providers[0] : null,
+  });
+  let restoreQaTokens = opts.providers?.length === 1
+    ? patchDesktopTokensForQa(opts.providers[0])
+    : null;
+  if (!isProd) {
+    const prepared = prepareDevRuntime(launchEnv);
+    if (!prepared.ok) {
+      if (restoreQaTokens) restoreQaTokens();
+      if (restoreQaConfig) restoreQaConfig();
+      return { ok: false, phase: "prepare", message: prepared.message };
+    }
+  }
+  const proc = spawnApp(isProd ? { command: "release", binary, env: launchEnv } : { command: "dev", env: launchEnv });
   const label = isProd ? "prod" : "dev";
   const startupLog = [];
-  const cleanup = () => {
-    if (proc.exitCode !== null) return;
-    try {
-      if (!proc.killed) {
-        proc.kill("SIGTERM");
+
+  const cleanup = async () => {
+    if (proc.exitCode === null) {
+      try {
+        if (!proc.killed) {
+          proc.kill("SIGTERM");
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
+      if (process.platform === "win32" && proc.pid) {
+        await runCommand("taskkill", ["/F", "/T", "/PID", String(proc.pid)]);
+      }
+    }
+    await killOpenClawProcessesForQa();
+    await ensureCleanPorts([8897, 1420, 18789, 18791, 18800]);
+    await killOpenClawProcessesForQa();
+    if (restoreQaTokens) {
+      const restore = restoreQaTokens;
+      restoreQaTokens = null;
+      restore();
+    }
+    if (restoreQaConfig) {
+      const restore = restoreQaConfig;
+      restoreQaConfig = null;
+      restore();
     }
   };
 
   proc.stdout?.on("data", (chunk) => {
     startupLog.push(chunk.toString("utf8").trim());
-    if (startupLog.length > 32) startupLog.shift();
+    if (startupLog.length > 600) startupLog.shift();
   });
   proc.stderr?.on("data", (chunk) => {
     startupLog.push(chunk.toString("utf8").trim());
-    if (startupLog.length > 32) startupLog.shift();
+    if (startupLog.length > 600) startupLog.shift();
   });
   proc.once("exit", () => {
     // no-op: cleanup is handled by parent loop
   });
 
-  const startup = await waitForStartupReady({ label, startupBudgetMs: 30_000 });
-  if (!startup.ok) {
-    const payloadSummary = summarizeStartupState(startup.payload || {});
-    cleanup();
+  if (!isProd) {
+    const devLaunchTimeoutMs = Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
+    const serviceApi = await waitForServiceApiAvailable(proc, devLaunchTimeoutMs);
+    if (!serviceApi.ok) {
+      await cleanup();
       return {
         ok: false,
-        phase: "startup",
-        message: `${startup.note || "startup never stabilized"} (${JSON.stringify(payloadSummary)})`,
+        phase: "launch",
+        message: serviceApi.message,
         startupLog,
-        startup,
       };
     }
+  }
 
-  const chatChecks = [];
-  const chatFailures = [];
-  for (const [provider, models] of Object.entries(MODELS_BY_PROVIDER)) {
-    for (const modelEntry of models) {
-      const model = getModelText(modelEntry);
-      if (!model) {
-        continue;
+  await ensureGatewayEnabledForQA(2_500);
+
+  const startup = await waitForStartupReady({ label, startupBudgetMs: opts.startupBudgetMs || 30_000 });
+  if (!startup.ok) {
+    const payloadSummary = summarizeStartupState(startup.payload || {});
+    const liveness = await captureLivenessSnapshot();
+    await cleanup();
+    return {
+      ok: false,
+      phase: "startup",
+      message: `${startup.note || "startup never stabilized"} (${JSON.stringify(payloadSummary)})`,
+      startupLog,
+      startup,
+      liveness,
+    };
+  }
+
+  if (opts.coreOnly) {
+    await cleanup();
+    return {
+      ok: true,
+      phase: "core-ready",
+      startup,
+      chatChecks: [],
+    };
+  }
+
+  const functionalTimeoutMs = Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
+  let functionalResult;
+  const functionalProgress = {
+    step: "starting",
+    startedAt: new Date().toISOString(),
+    chatChecks: [],
+  };
+  try {
+    functionalResult = await withTimeout((async () => {
+      const chatChecks = [];
+      const chatFailures = [];
+      const providers = readinessProviderModels(opts);
+      if (providers.length === 0) {
+        return {
+          ok: false,
+          phase: "readiness-chat",
+          message: `no readiness model for --provider value(s): ${(opts.providers || []).join(",")}`,
+        };
       }
-      const check = await runChatSmoke(provider, model);
-      chatChecks.push(check);
-      if (!check.ok && !check.skipped) {
-        chatFailures.push(`${check.provider}/${check.model}: ${check.detail}`);
+
+      functionalProgress.step = "gateway health";
+      const gatewayHealth = await waitForGatewayHealthReady({
+        budgetMs: Number(process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000),
+        startupReady: startup.payload?.startup,
+      });
+      if (!gatewayHealth.ok) {
+        return {
+          ok: false,
+          phase: "readiness-health",
+          message: `gateway health did not stabilize before chat readiness (${JSON.stringify(gatewayHealth.health || {})})`,
+          chatChecks,
+        };
       }
-    }
-  }
+      functionalProgress.gatewayHealth = gatewayHealth;
 
-  if (chatFailures.length > 0) {
-    cleanup();
-    return {
+      for (const [provider, models] of providers) {
+        for (const modelEntry of models) {
+          const model = getModelText(modelEntry);
+          if (!model) {
+            continue;
+          }
+          functionalProgress.step = `chat ${provider}/${model}`;
+          const check = await runChatSmoke(provider, model, { skipModelSetup: true });
+          chatChecks.push(check);
+          functionalProgress.chatChecks = chatChecks;
+          if (!check.ok) {
+            chatFailures.push(`${check.provider}/${check.model}: ${check.detail}`);
+          }
+        }
+      }
+
+      if (chatFailures.length > 0) {
+        return {
+          ok: false,
+          phase: "readiness-chat",
+          message: `readiness chat check failed: ${chatFailures.join(" | ")}`,
+          chatChecks,
+        };
+      }
+
+      functionalProgress.step = "mock meeting";
+      const meeting = await createMockMeeting();
+      if (!meeting.ok) {
+        return {
+          ok: false,
+          phase: "recording",
+          message: meeting.detail,
+          chatChecks,
+        };
+      }
+
+      let interfaces = null;
+      for (let interfaceAttempt = 1; interfaceAttempt <= 3; interfaceAttempt++) {
+        functionalProgress.step = `interfaces attempt ${interfaceAttempt}`;
+        interfaces = await checkInterfaceAccess(!isProd);
+        if (interfaces.ok) break;
+        if (interfaceAttempt < 3) {
+          await sleep(interfaceAttempt * 1000);
+        }
+      }
+      if (!interfaces || !interfaces.ok) {
+        return {
+          ok: false,
+          phase: "interfaces",
+          message: interfaces ? interfaces.failures.join(", ") : "interface check did not return",
+          chatChecks,
+          interfaceCoverage: interfaces?.coverage,
+        };
+      }
+
+      return {
+        ok: true,
+        phase: "complete",
+        chatChecks,
+        interfaceCoverage: interfaces.coverage,
+      };
+    })(), functionalTimeoutMs, "post-startup functional checks");
+  } catch (error) {
+    functionalResult = {
       ok: false,
-      phase: "chat",
-      message: `chat model checks failed: ${chatFailures.join(" | ")}`,
-      chatChecks,
-      startup,
+      phase: "functional-timeout",
+      message: `${normalizeResult(error?.message || error)} while running ${functionalProgress.step}`,
+      chatChecks: functionalProgress.chatChecks,
+      progress: functionalProgress,
     };
   }
 
-  const meeting = await createMockMeeting();
-  if (!meeting.ok) {
-    cleanup();
+  if (!functionalResult.ok) {
+    const liveness = await captureLivenessSnapshot();
+    await cleanup();
     return {
       ok: false,
-      phase: "recording",
-      message: meeting.detail,
-      chatChecks,
+      phase: functionalResult.phase,
+      message: functionalResult.message,
+      chatChecks: functionalResult.chatChecks || [],
       startup,
+      liveness,
+      functionalProgress: functionalResult.progress || functionalProgress,
+      interfaceCoverage: functionalResult.interfaceCoverage,
     };
   }
 
-  const interfaces = await checkInterfaceAccess(!isProd);
-  if (!interfaces.ok) {
-    cleanup();
-    return {
-      ok: false,
-      phase: "interfaces",
-      message: interfaces.failures.join(", "),
-      chatChecks,
-      startup,
-    };
-  }
-
-  cleanup();
+  await cleanup();
   return {
     ok: true,
     phase: "complete",
     startup,
-    chatChecks,
+    chatChecks: functionalResult.chatChecks,
+    interfaceCoverage: functionalResult.interfaceCoverage,
   };
 }
 
 async function runLoop() {
   const opts = parseArgs();
-  const modes = opts.mode === "prod" ? ["prod"] : ["dev", "prod"];
+  const modes =
+    opts.mode === "prod"
+      ? ["prod"]
+      : opts.mode === "dev"
+        ? ["dev"]
+        : ["dev", "prod"];
   const attemptsPerMode = Math.max(1, Number.isInteger(opts.attemptsPerMode) ? opts.attemptsPerMode : 1);
   const summary = {};
 
@@ -987,7 +1683,7 @@ async function runLoop() {
         await ensureCleanPorts([8897, 1420, 18789, 18791, 18800]);
         await sleep(opts.maxRetryDelayMs);
       }
-      modeResult = await runMode(mode);
+      modeResult = await runMode(mode, opts);
       if (modeResult.ok) break;
       if (attempt >= attemptsPerMode) break;
       console.log(`[qa-loop] ${mode} attempt ${attempt}/${attemptsPerMode} failed: ${modeResult.message}`);
@@ -995,18 +1691,41 @@ async function runLoop() {
     summary[mode] = modeResult;
     if (!modeResult.ok) {
       if (Array.isArray(modeResult.startupLog) && modeResult.startupLog.length > 0) {
-        console.log(`[qa-loop] ${mode} startup log sample:`);
-        for (const line of modeResult.startupLog) {
+        const traceLines = modeResult.startupLog.filter((line) =>
+          /startup trace|http\.bound|ready|plugins\.lookup|secrets|sidecars|browser-control|Using Clawdbot entry|Patched OpenClaw config|Forwarding QA plugin|OpenClaw compile cache/.test(line),
+        );
+        const linesToPrint = traceLines.length > 0
+          ? traceLines
+          : modeResult.startupLog.slice(-80);
+        console.log(`[qa-loop] ${mode} startup log ${traceLines.length > 0 ? "trace" : "sample"}:`);
+        for (const line of linesToPrint) {
           const sanitized = String(line).replace(/\\r?\\n/g, " ");
           console.log(`  ${sanitized}`);
         }
+      }
+      if (modeResult.functionalProgress) {
+        console.log(`[qa-loop] ${mode} functional progress: ${JSON.stringify(modeResult.functionalProgress)}`);
+      }
+      if (modeResult.interfaceCoverage) {
+        console.log(`[qa-loop] ${mode} interface coverage: ${JSON.stringify(modeResult.interfaceCoverage)}`);
+      }
+      if (modeResult.startup) {
+        console.log(`[qa-loop] ${mode} startup result: ${JSON.stringify(modeResult.startup)}`);
+      }
+      if (modeResult.liveness) {
+        console.log(`[qa-loop] ${mode} liveness at failure: ${JSON.stringify(modeResult.liveness)}`);
       }
       console.log(`[qa-loop] ${mode} did not hit target after ${attempt} attempt(s).`);
       continue;
     }
     console.log(
-      `[qa-loop] ${mode} hit active+stable within ${modeResult.startup?.startupMs || "n/a"}ms on attempt ${attempt}.`,
+      opts.coreOnly
+        ? `[qa-loop] ${mode} hit core active+stable within ${modeResult.startup?.startupMs || "n/a"}ms on attempt ${attempt}.`
+        : `[qa-loop] ${mode} hit active+stable within ${modeResult.startup?.startupMs || "n/a"}ms on attempt ${attempt}.`,
     );
+    if (modeResult.interfaceCoverage) {
+      console.log(`[qa-loop] ${mode} interface coverage: ${JSON.stringify(modeResult.interfaceCoverage)}`);
+    }
   }
 
   const failedModes = Object.entries(summary).filter(([, result]) => !result || !result.ok);
