@@ -1378,6 +1378,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <div className="ClawdInputWrapper">
           <textarea
             ref={textareaRef}
+            data-testid="qa-clawd-chat-input"
             value={input}
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
@@ -2020,14 +2021,60 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // Check backend for a valid key (single source of truth)
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
-      if (keyStatus.has_key) {
-        setHasCompletedOnboarding(true)
-        if (keyStatus.model) {
-          // Only use backend model if the user hasn't made a local choice yet
-          const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
-          if (!localModel) {
-            setSelectedModel(keyStatus.model)
-            localStorage.setItem(OPENAI_MODEL_STORAGE, keyStatus.model)
+        if (keyStatus.has_key) {
+          setHasCompletedOnboarding(true)
+        if (keyStatus.model && keyStatus.active_provider) {
+          // Only use backend model if the user hasn't made a local choice yet.
+          const activeProvider = keyStatus.active_provider as Provider
+          const backendModel = keyStatus.model
+          if (activeProvider === 'openai') {
+            const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedModel(backendModel)
+              localStorage.setItem(OPENAI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'anthropic') {
+            const localModel = localStorage.getItem(ANTHROPIC_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedAnthropicModel(backendModel)
+              localStorage.setItem(ANTHROPIC_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'gemini') {
+            const localModel = localStorage.getItem(GEMINI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedGeminiModel(backendModel)
+              localStorage.setItem(GEMINI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'groq') {
+            const localModel = localStorage.getItem(GROQ_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedGroqModel(backendModel)
+              localStorage.setItem(GROQ_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'xai') {
+            const localModel = localStorage.getItem(XAI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedXaiModel(backendModel)
+              localStorage.setItem(XAI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'openrouter') {
+            const localModel = localStorage.getItem(OPENROUTER_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedOpenRouterModel(backendModel)
+              localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'ollama') {
+            const localModel = localStorage.getItem(OLLAMA_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedOllamaModel(backendModel)
+              localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'knapsack') {
+            const localModel = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedKnapsackModel(backendModel)
+              localStorage.setItem(KNAPSACK_MODEL_STORAGE, backendModel)
+            }
           }
         }
         if (keyStatus.active_provider) {

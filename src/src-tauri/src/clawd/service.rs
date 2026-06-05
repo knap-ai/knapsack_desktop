@@ -4071,6 +4071,57 @@ struct StoredTokens {
   knapsack_model: Option<String>,
 }
 
+fn active_provider_model(tokens: &StoredTokens) -> Option<String> {
+  let active_provider = tokens.active_provider.as_deref().unwrap_or("openai");
+  match active_provider {
+    "openai" => tokens
+      .openai_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("gpt-5.4".to_string())),
+    "anthropic" => tokens
+      .anthropic_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("claude-sonnet-4-5-20250929".to_string())),
+    "gemini" => tokens
+      .gemini_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("gemini-2.5-flash".to_string())),
+    "groq" => tokens
+      .groq_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("meta-llama/llama-4-scout-17b-16e-instruct".to_string())),
+    "xai" => tokens
+      .xai_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("grok-code-fast-1".to_string())),
+    "openrouter" => tokens
+      .openrouter_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("meta-llama/llama-3.3-70b-instruct:free".to_string())),
+    "ollama" => tokens
+      .ollama_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("llama3.1:latest".to_string())),
+    "knapsack" => tokens
+      .knapsack_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("anthropic/claude-haiku-4-5".to_string())),
+    _ => tokens
+      .openai_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("gpt-5.4".to_string())),
+  }
+}
+
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
   app_clawdbot_home(app_handle).join("tokens.json")
 }
@@ -7007,7 +7058,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     || has_gemini_cli
     || has_knapsack;
 
-  let model = tokens.openai_model.clone();
+  let model = active_provider_model(&tokens);
   let active_provider = tokens.active_provider.clone();
 
   let openai_hint = tokens
@@ -8380,6 +8431,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     }
   };
 
+  let model = active_provider_model(&tokens);
   let openai_key = tokens.openai_api_key.filter(|k| !k.trim().is_empty());
   let anthropic_key = tokens.anthropic_api_key.filter(|k| !k.trim().is_empty());
   let gemini_key = tokens.gemini_api_key.filter(|k| !k.trim().is_empty());
@@ -8397,8 +8449,8 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
   HttpResponse::Ok().json(GetApiKeyResponse {
     success: true,
     key,
-    model: tokens.openai_model,
-    active_provider: tokens.active_provider,
+    model,
+    active_provider: tokens.active_provider.clone(),
     openai_key,
     anthropic_key,
     gemini_key,
