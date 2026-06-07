@@ -3514,8 +3514,8 @@ pub async fn channel_diagnostics() -> impl Responder {
 
       (has_model, model, channels)
     }
-    Err(e) => {
-      issues.push(format!("Cannot fetch gateway config: {}", e));
+    None => {
+      issues.push("Cannot fetch gateway config".to_string());
       (false, None, vec![])
     }
   };
