@@ -6516,22 +6516,25 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
-      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode() {
+      let has_version_mismatch = log_content.as_ref().ok().is_some_and(|content| {
+        content.lines().any(|l| {
+          let l = l.to_ascii_lowercase();
+          l.contains("config was last written by a newer openclaw")
+            || l.contains("config was last written by an older openclaw")
+            || l.contains("your openclaw config was written by version")
+            || l.contains("refusing to start the gateway service because this openclaw binary")
+        })
+      });
+      if has_version_mismatch {
+        diagnostic_type = Some("version_mismatch".to_string());
+      }
+      if (runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode())
+        && !has_version_mismatch
+      {
         // During active startup the stderr file commonly contains stale lines
         // from previous gateway runs. Showing/classifying those makes the UI
         // report old crashes while the current gateway is still booting.
       } else if let Ok(content) = log_content {
-        // Detect version mismatch before noise-filtering so we can tag diagnostic_type,
-        // even though the lines are stripped from the user-visible tail below.
-        let has_version_mismatch = content.lines().any(|l| {
-          let l = l.to_ascii_lowercase();
-          l.contains("config was last written by a newer openclaw")
-            || l.contains("config was last written by an older openclaw")
-        });
-        if has_version_mismatch && diagnostic_type.is_none() {
-          diagnostic_type = Some("version_mismatch".to_string());
-        }
-
         // Strip known-noisy lines that appear during normal gateway operation
         // and would only confuse users when shown as a diagnostic.
         let is_noise = |line: &str| {
@@ -6543,6 +6546,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             || (l.contains("security warning") && l.contains("allowinsecureauth"))
             || l.contains("config was last written by a newer openclaw")
             || l.contains("config was last written by an older openclaw")
+            || l.contains("your openclaw config was written by version")
+            || l.contains("refusing to start the gateway service because this openclaw binary")
         };
         let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
         let start = all_filtered.len().saturating_sub(25);
