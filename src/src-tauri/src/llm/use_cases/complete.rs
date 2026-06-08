@@ -69,11 +69,11 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     .ok()
     .filter(|k| !k.trim().is_empty());
   let openai_model =
-    std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+    std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
   let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
     .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
   let gemini_model =
-    std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+    std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -992,11 +992,11 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
         .ok()
         .filter(|k| !k.trim().is_empty());
       let fb_openai_model =
-        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
       let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
         .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
       let fb_gemini_model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
         (

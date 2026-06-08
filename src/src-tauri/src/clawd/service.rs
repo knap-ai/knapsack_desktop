@@ -4078,13 +4078,18 @@ fn active_provider_model(tokens: &StoredTokens) -> Option<String> {
       .openai_model
       .clone()
       .filter(|m| !m.trim().is_empty())
-      .or_else(|| Some("gpt-5.4".to_string())),
+      .or_else(|| Some("gpt-5-mini".to_string())),
     "anthropic" => tokens
       .anthropic_model
       .clone()
       .filter(|m| !m.trim().is_empty())
       .or_else(|| Some("claude-sonnet-4-5-20250929".to_string())),
     "gemini" => tokens
+      .gemini_model
+      .clone()
+      .filter(|m| !m.trim().is_empty())
+      .or_else(|| Some("gemini-2.5-flash".to_string())),
+    "google" | "google-gemini" | "google-gemini-cli" => tokens
       .gemini_model
       .clone()
       .filter(|m| !m.trim().is_empty())
@@ -4118,7 +4123,7 @@ fn active_provider_model(tokens: &StoredTokens) -> Option<String> {
       .openai_model
       .clone()
       .filter(|m| !m.trim().is_empty())
-      .or_else(|| Some("gpt-5.4".to_string())),
+      .or_else(|| Some("gpt-5-mini".to_string())),
   }
 }
 
@@ -4241,8 +4246,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     harden_file_permissions(&path);
     let s =
       fs::read_to_string(&path).map_err(|e| format!("Failed reading {}: {}", path.display(), e))?;
-    let mut t: StoredTokens =
-      serde_json::from_str(&s).map_err(|e| format!("Failed parsing {}: {}", path.display(), e))?;
+    let mut t: StoredTokens = serde_json::from_str(s.trim_start_matches('\u{feff}'))
+      .map_err(|e| format!("Failed parsing {}: {}", path.display(), e))?;
     // Backfill any missing/empty auth tokens.  An empty gateway_token would
     // cause OpenClaw to start with `gateway.auth.token = ""`, which the
     // security audit reports as `gateway.loopback_no_auth` /
@@ -4286,11 +4291,11 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     browser_control_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
-    openai_model: None,   // Defaults to gpt-5.4
+    openai_model: None,   // Defaults to gpt-5-mini
     anthropic_api_key: None,
     anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
     gemini_api_key: None,
-    gemini_model: None, // Defaults to gemini-3.5-flash
+    gemini_model: None, // Defaults to gemini-2.5-flash
     groq_model: None,   // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
     xai_api_key: None,
     xai_model: None, // Defaults to grok-code-fast-1
@@ -4513,12 +4518,12 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   Ok(())
 }
 
-/// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
+/// Get the configured OpenAI model (defaults to gpt-5-mini if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
-    .unwrap_or_else(|| "gpt-5.4".to_string())
+    .unwrap_or_else(|| "gpt-5-mini".to_string())
 }
 
 /// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
@@ -4529,12 +4534,12 @@ pub fn get_anthropic_model(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "claude-sonnet-4-5-20250929".to_string())
 }
 
-/// Get the configured Gemini model (defaults to gemini-3.5-flash if not set)
+/// Get the configured Gemini model (defaults to gemini-2.5-flash if not set)
 pub fn get_gemini_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.gemini_model)
-    .unwrap_or_else(|| "gemini-3.5-flash".to_string())
+    .unwrap_or_else(|| "gemini-2.5-flash".to_string())
 }
 
 /// Get the configured Groq model (defaults to meta-llama/llama-4-scout-17b-16e-instruct if not set)
@@ -6491,8 +6496,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   use crate::clawd::gateway_ws;
 
-  const STARTUP_READY_BUDGET_MS: u64 = 30_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 900;
+  const STARTUP_READY_BUDGET_MS: u64 = 1_500;
+  const GATEWAY_READY_BUDGET_MS: u64 = 250;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -6607,19 +6612,21 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   let mut channels_ok = !eager_channel_plugin_start_enabled();
   let remaining_ms =
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
+  let remaining_timeout =
+    |max_ms: u64| std::time::Duration::from_millis(remaining_ms().min(max_ms).max(50));
 
   while started_at.elapsed().as_millis() < u128::from(STARTUP_READY_BUDGET_MS) {
     if !ready && gateway_tcp_port_open(std::time::Duration::from_millis(100)).await {
       ready = true;
     }
 
-    if !ready && gateway_reachable_or_ready(std::time::Duration::from_millis(1000)).await {
+    if !ready && gateway_reachable_or_ready(remaining_timeout(300)).await {
       ready = true;
     }
 
     if !ready
       && tokio::time::timeout(
-        std::time::Duration::from_millis(1000),
+        remaining_timeout(300),
         gateway_ws::config_get(Some(&tokens.gateway_token)),
       )
       .await
@@ -7368,6 +7375,14 @@ fn normalize_coding_agent(agent: &str) -> Option<String> {
   }
 }
 
+fn normalize_provider_id(raw_provider: &str) -> String {
+  let provider = raw_provider.trim().to_lowercase();
+  match provider.as_str() {
+    "google" | "google-gemini" | "google-gemini-cli" => "gemini".to_string(),
+    _ => provider,
+  }
+}
+
 #[post("/api/clawd/service/set-api-key")]
 pub async fn set_api_key(
   app_handle: web::Data<tauri::AppHandle>,
@@ -7384,11 +7399,7 @@ pub async fn set_api_key(
   };
 
   let key = payload.key.trim().to_string();
-  let provider = payload
-    .provider
-    .as_deref()
-    .unwrap_or("openai")
-    .to_lowercase();
+  let provider = normalize_provider_id(payload.provider.as_deref().unwrap_or("openai"));
 
   if key.is_empty() && payload.model.is_none() && payload.env_var.is_none() {
     if let Some(agent) = &payload.preferred_coding_agent {
@@ -7789,7 +7800,7 @@ pub async fn set_api_key(
     _ => {
       tokens.openai_api_key = Some(key);
       tokens.active_provider = Some("openai".to_string());
-      // Save model if provided, default to gpt-5.4
+      // Save model if provided, default to gpt-5-mini
       if let Some(model) = &payload.model {
         tokens.openai_model = Some(model.trim().to_string());
       }

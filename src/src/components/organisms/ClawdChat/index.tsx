@@ -451,12 +451,8 @@ type GeminiModelOption = {
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Latest fast multimodal Gemini model', vision: true },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking', vision: true },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, strong reasoning and coding', vision: true },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable fast multimodal Gemini model', vision: true },
 ]
 
 type GroqModelOption = {
@@ -1682,13 +1678,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.4'
+    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5-mini'
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
   })
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
-    return localStorage.getItem(GEMINI_MODEL_STORAGE) || 'gemini-3.5-flash'
+    return localStorage.getItem(GEMINI_MODEL_STORAGE) || 'gemini-2.5-flash'
   })
   const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
     return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
@@ -3958,16 +3954,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // messages reflect the model that was actually selected when sent, not the
     // model in localStorage (which can lag behind UI state changes).
     const activeModelAtSend = (() => {
-      if (selectedProvider === 'knapsack') return 'knapsack'
-      const m = selectedProvider === 'ollama' ? selectedOllamaModel
-        : selectedProvider === 'anthropic' ? selectedAnthropicModel
-        : selectedProvider === 'gemini' ? selectedGeminiModel
-        : selectedProvider === 'groq' ? selectedGroqModel
-        : selectedProvider === 'xai' ? selectedXaiModel
-        : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+      if (selectedProvider === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      const m = selectedProvider === 'ollama'
+        ? selectedOllamaModel
+        : selectedProvider === 'anthropic'
+        ? selectedAnthropicModel
+        : selectedProvider === 'gemini'
+        ? selectedGeminiModel
+        : selectedProvider === 'groq'
+        ? selectedGroqModel
+        : selectedProvider === 'xai'
+        ? selectedXaiModel
+        : selectedProvider === 'openrouter'
+        ? selectedOpenRouterModel
         : selectedModel
       return m ? `${selectedProvider}/${m}` : selectedProvider
     })()
+    const selectedModelForProvider = activeModelAtSend.includes('/')
+      ? activeModelAtSend.split('/').slice(1).join('/')
+      : ''
 
     try {
       if (cmd === 'enable') {
@@ -4354,6 +4359,8 @@ ${actualText}`
 
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
+          provider: selectedProvider,
+          model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId: 'ui',
           tone: selectedTone,
@@ -4401,6 +4408,8 @@ ${actualText}`
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              provider: selectedProvider,
+              model: selectedModelForProvider,
               text: requestBody.text,
               advancedMode,
               userEmail: userEmail || '',
