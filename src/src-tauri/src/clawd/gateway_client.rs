@@ -955,7 +955,7 @@ pub fn resolve_default_model() -> String {
       return format!("anthropic/{}", model);
     }
     "openai" if has_key("OPENAI_API_KEY") => {
-      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
       return format!("openai/{}", model);
     }
     "groq" if has_key("GROQ_API_KEY") => {
@@ -970,13 +970,13 @@ pub fn resolve_default_model() -> String {
     }
     "gemini" if has_gemini_key() => {
       let model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
       return format!("google/{}", model);
     }
     // Google OAuth CLI auth (no API key env var — credentials stored in auth-profiles.json).
     "google-gemini-cli" => {
       let model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
       return format!("google-gemini-cli/{}", model);
     }
     _ => {}
@@ -1006,7 +1006,7 @@ pub fn resolve_default_model() -> String {
       return format!("anthropic/{}", model);
     }
     if has_key("OPENAI_API_KEY") {
-      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
+      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
       log::warn!(
         "[resolve_default_model] Falling back to openai/{} (active={})",
         model,
@@ -1040,7 +1040,7 @@ pub fn resolve_default_model() -> String {
   }
   if has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
     return format!("google/{}", model);
   }
   if has_key("OPENROUTER_API_KEY") {
@@ -1094,7 +1094,7 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   );
   if !is_google_primary && has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
     fallbacks.push(format!("google/{}", model));
   }
 
