@@ -54,7 +54,6 @@ import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import GBrain from 'src/components/organisms/GBrain'
 import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
-import { markdownToEmailHtml } from 'src/utils/emails'
 
 export interface ToastrState {
   message?: ReactElement
@@ -670,15 +669,18 @@ function Home({
                     setCurrentTab(TabChoices.Library)
                     setSelectedWorkspace(ws)
                   }}
-                  onEmailClick={(notesMarkdown, meeting) => {
+                  onEmailClick={(_notesMarkdown, meeting) => {
                     const participants = meeting?.participants ?? []
                     const toEmails = participants
                       .filter(p => p.email && p.email !== userEmail)
                       .map(p => p.email)
                       .join(', ')
-                    const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
-                    const notesHtml = markdownToEmailHtml(notesMarkdown)
-                    const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p>${notesHtml}<p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                    const subject = meeting?.title
+                      ? `Great to chat — ${meeting.title}`
+                      : 'Great to chat'
+                    const body = `<p>Hi,</p><p>Great connecting today${meeting?.title ? ` about <strong>${meeting.title}</strong>` : ''}. Thanks again for the conversation — it was a productive meeting.</p><p>What we agreed on:
+<br>- Next steps are captured in my notes.
+<br>- I’ll follow up if anything else pops up.</p><p>If you want a tighter version for this thread, I can help with that too.</p><p>Talk soon,<br>${userName || ''}</p>`
                     feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}
                 />
