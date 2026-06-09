@@ -35,6 +35,8 @@ import { logError } from 'src/utils/errorHandling'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 
+const STARTUP_EMAIL_AUTOPILOT_AUTO_OPEN_DELAY_MS = 5 * 60_000
+
 interface CenterWorkspaceProps {
   feed: IFeed
   llmBar: ILLMBar
@@ -125,19 +127,25 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
 
   useEffect(() => {
     if (feed.loggedEmailAutopilot && feed.subTab === SubTabChoices.Welcome) {
-      const autopilotItem = feed.feedContent[STATIONARY_ITEMS]?.find(
-        item => item.title === 'Email Autopilot',
-      )
+      const timer = window.setTimeout(() => {
+        if (feed.subTab !== SubTabChoices.Welcome) return
 
-      if (autopilotItem) {
-        feed.selectFeedItem(STATIONARY_ITEMS, autopilotItem.id)
+        const autopilotItem = feed.feedContent[STATIONARY_ITEMS]?.find(
+          item => item.title === 'Email Autopilot',
+        )
 
-        if (feed.setSelectedEmailCategory) {
-          feed.setSelectedEmailCategory(EmailImportance.IMPORTANT_NO_RESPONSE)
+        if (autopilotItem) {
+          feed.selectFeedItem(STATIONARY_ITEMS, autopilotItem.id)
+
+          if (feed.setSelectedEmailCategory) {
+            feed.setSelectedEmailCategory(EmailImportance.IMPORTANT_NO_RESPONSE)
+          }
+
+          feed.setSubTab(SubTabChoices.Workspace)
         }
+      }, STARTUP_EMAIL_AUTOPILOT_AUTO_OPEN_DELAY_MS)
 
-        feed.setSubTab(SubTabChoices.Workspace)
-      }
+      return () => window.clearTimeout(timer)
     }
   }, [feed.loggedEmailAutopilot, feed.subTab, feed.feedContent])
 

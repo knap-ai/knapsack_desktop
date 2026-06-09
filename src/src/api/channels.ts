@@ -1,6 +1,7 @@
 /** API helpers for messaging channel endpoints (WhatsApp, iMessage). */
 
 const API_BASE = 'http://127.0.0.1:8897'
+const WHATSAPP_BUNDLED = false
 
 export interface ChannelStatus {
   success: boolean
@@ -60,14 +61,31 @@ async function post<T>(path: string, body?: unknown, timeoutMs = 30_000): Promis
 
 // ── WhatsApp ─────────────────────────────────────────────────
 
-export const getWhatsAppStatus = () =>
-  get<ChannelStatus>('/api/clawd/channels/whatsapp/status')
+export const getWhatsAppStatus = (): Promise<ChannelStatus> =>
+  WHATSAPP_BUNDLED
+    ? get<ChannelStatus>('/api/clawd/channels/whatsapp/status')
+    : Promise.resolve({
+        success: false,
+        enabled: false,
+        configured: false,
+        linked: false,
+        message: 'WhatsApp is not bundled in this build.',
+      })
 
-export const enableWhatsApp = (enabled: boolean) =>
-  post<GenericResponse>('/api/clawd/channels/whatsapp/enable', { enabled })
+export const enableWhatsApp = (enabled: boolean): Promise<GenericResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<GenericResponse>('/api/clawd/channels/whatsapp/enable', { enabled })
+    : Promise.resolve({
+        success: false,
+        configured: false,
+        linked: false,
+        message: 'WhatsApp is not bundled in this build.',
+      })
 
-export const startWhatsAppLogin = () =>
-  post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/login')
+export const startWhatsAppLogin = (): Promise<WhatsAppLoginResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/login')
+    : Promise.resolve({ success: false, message: 'WhatsApp is not bundled in this build.' })
 
 export interface WhatsAppLoginWaitResponse {
   success: boolean
@@ -76,12 +94,20 @@ export interface WhatsAppLoginWaitResponse {
 }
 
 /** Wait for the user to scan the WhatsApp QR code. Blocks until scan or timeout. */
-export const waitWhatsAppLogin = () =>
-  post<WhatsAppLoginWaitResponse>('/api/clawd/channels/whatsapp/login-wait')
+export const waitWhatsAppLogin = (): Promise<WhatsAppLoginWaitResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<WhatsAppLoginWaitResponse>('/api/clawd/channels/whatsapp/login-wait')
+    : Promise.resolve({
+        success: false,
+        connected: false,
+        message: 'WhatsApp is not bundled in this build.',
+      })
 
 /** Re-link WhatsApp: clear stale credentials and start fresh QR login. */
-export const relinkWhatsApp = () =>
-  post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/relink', {})
+export const relinkWhatsApp = (): Promise<WhatsAppLoginResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<WhatsAppLoginResponse>('/api/clawd/channels/whatsapp/relink', {})
+    : Promise.resolve({ success: false, message: 'WhatsApp is not bundled in this build.' })
 
 export interface WhatsAppPhonePairResponse {
   success: boolean
@@ -90,12 +116,21 @@ export interface WhatsAppPhonePairResponse {
 }
 
 /** Link WhatsApp via phone number pairing code (alternative to QR scan). */
-export const loginWhatsAppPhone = (phoneNumber: string) =>
-  post<WhatsAppPhonePairResponse>('/api/clawd/channels/whatsapp/login-phone', { phoneNumber })
+export const loginWhatsAppPhone = (phoneNumber: string): Promise<WhatsAppPhonePairResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<WhatsAppPhonePairResponse>('/api/clawd/channels/whatsapp/login-phone', { phoneNumber })
+    : Promise.resolve({ success: false, message: 'WhatsApp is not bundled in this build.' })
 
 /** Disconnect WhatsApp: logout from Baileys and remove channel config. */
-export const disconnectWhatsApp = () =>
-  post<GenericResponse>('/api/clawd/channels/whatsapp/disconnect', {})
+export const disconnectWhatsApp = (): Promise<GenericResponse> =>
+  WHATSAPP_BUNDLED
+    ? post<GenericResponse>('/api/clawd/channels/whatsapp/disconnect', {})
+    : Promise.resolve({
+        success: false,
+        configured: false,
+        linked: false,
+        message: 'WhatsApp is not bundled in this build.',
+      })
 
 // ── iMessage ─────────────────────────────────────────────────
 
