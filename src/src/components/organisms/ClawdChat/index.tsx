@@ -980,6 +980,7 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"gog",emoji:"📊",description:"Google Workspace — Gmail, Calendar, Drive, Sheets, Docs",source:"OpenClaw",eligible:false},
   {name:"notion",emoji:"📝",description:"Read and edit Notion pages and databases",source:"OpenClaw",eligible:false},
   {name:"slack",emoji:"💬",description:"Team communication via Slack",source:"OpenClaw",eligible:false},
+  {name:"computer-use",emoji:"🖥️",description:"Desktop automation via Codex Computer Use for local app and UI control",source:"OpenClaw",eligible:false,installOptions:[{id:"default",label:"Enable"}]},
   {name:"apple-notes",emoji:"🍎",description:"Create and manage macOS Notes",source:"OpenClaw",eligible:false},
   {name:"apple-reminders",emoji:"⏰",description:"Manage macOS Reminders",source:"OpenClaw",eligible:false},
   {name:"things-mac",emoji:"✅",description:"Things 3 task management for macOS",source:"OpenClaw",eligible:false},
