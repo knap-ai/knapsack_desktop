@@ -64,6 +64,8 @@ export const KN_BACKGROUND_NOTIFICATIONS_ENABLED = 'kn_background_notifications_
 export const KN_BACKGROUND_NOTIFICATIONS_LAST_RUN = 'kn_background_notifications_last_run'
 export const KN_POST_MEETING_FOLLOWUP_ENABLED = 'kn_post_meeting_followup_enabled'
 export const KN_BACKGROUND_NOTIFICATION_HOURS = 'kn_background_notification_hours'
+export const KN_KEEP_SCREEN_ON_WHILE_CLOSED = 'kn_keep_screen_on_while_closed'
+export const KN_KEEP_AWAKE_CONFIRMED = 'kn_keep_awake_confirmed'
 
 export const getBackgroundNotificationsEnabled = async (): Promise<boolean> => {
   const value = await KNLocalStorage.getItem(KN_BACKGROUND_NOTIFICATIONS_ENABLED)
@@ -98,6 +100,24 @@ export const getPostMeetingFollowupEnabled = async (): Promise<boolean> => {
 
 export const setPostMeetingFollowupEnabled = async (enabled: boolean) => {
   await KNLocalStorage.setItem(KN_POST_MEETING_FOLLOWUP_ENABLED, enabled)
+}
+
+export const getKeepAwakeOnLidCloseEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_KEEP_SCREEN_ON_WHILE_CLOSED)
+  return value === true
+}
+
+export const setKeepAwakeOnLidCloseEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_KEEP_SCREEN_ON_WHILE_CLOSED, enabled)
+}
+
+export const getKeepAwakeConfirmationAcknowledged = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_KEEP_AWAKE_CONFIRMED)
+  return value === true
+}
+
+export const setKeepAwakeConfirmationAcknowledged = async () => {
+  await KNLocalStorage.setItem(KN_KEEP_AWAKE_CONFIRMED, true)
 }
 
 // Meeting chat notice settings

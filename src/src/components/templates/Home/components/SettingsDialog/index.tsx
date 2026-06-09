@@ -34,6 +34,10 @@ import {
   setMeetingChatEnabled as setMeetingChatEnabledSetting,
   getMeetingChatAutoSend,
   setMeetingChatAutoSend as setMeetingChatAutoSendSetting,
+  getKeepAwakeOnLidCloseEnabled,
+  getKeepAwakeConfirmationAcknowledged,
+  setKeepAwakeOnLidCloseEnabled,
+  setKeepAwakeConfirmationAcknowledged,
 } from 'src/utils/settings'
 
 import { InputCheckbox } from 'src/components/atoms/input-checkbox'
@@ -251,6 +255,9 @@ export const SettingsDialog = ({
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
   const [meetingChatEnabled, setMeetingChatEnabled] = useState<boolean>(true)
   const [meetingChatAutoSend, setMeetingChatAutoSend] = useState<boolean>(false)
+  const [keepAwakeOnLidCloseEnabled, setKeepAwakeOnLidCloseEnabledState] = useState<boolean>(false)
+  const [showKeepAwakeEnableModal, setShowKeepAwakeEnableModal] = useState<boolean>(false)
+  const [hasAcknowledgedKeepAwakeWarning, setHasAcknowledgedKeepAwakeWarning] = useState<boolean>(false)
   const [connectionsKey, setConnectionsKey] = useState<ConnectionKeys[]>([])
   const [showNotificationLeadTime, setShowNotificationLeadTime] = useState<number>(1)
   const [providerStatus, setProviderStatus] = useState<{
@@ -271,6 +278,7 @@ export const SettingsDialog = ({
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
+  const isMacPlatform = navigator.platform?.includes('Mac')
 
   // Accordion state — which provider section is expanded
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
@@ -410,6 +418,8 @@ export const SettingsDialog = ({
 
     getMeetingChatEnabled().then(setMeetingChatEnabled)
     getMeetingChatAutoSend().then(setMeetingChatAutoSend)
+    getKeepAwakeOnLidCloseEnabled().then(setKeepAwakeOnLidCloseEnabledState)
+    getKeepAwakeConfirmationAcknowledged().then(setHasAcknowledgedKeepAwakeWarning)
   }, [])
 
   const handleNotificationEnabledChange = useCallback(async () => {
@@ -474,6 +484,40 @@ export const SettingsDialog = ({
     setMeetingChatAutoSend(newValue)
     setMeetingChatAutoSendSetting(newValue)
   }
+
+  const applyKeepAwakeOnLidCloseSetting = useCallback((newValue: boolean) => {
+    setKeepAwakeOnLidCloseEnabledState(newValue)
+    setKeepAwakeOnLidCloseEnabled(newValue)
+    invoke('kn_set_keep_awake', { enabled: newValue }).catch(() => {})
+  }, [])
+
+  const confirmKeepAwakeEnable = useCallback(() => {
+    void setKeepAwakeConfirmationAcknowledged()
+    setHasAcknowledgedKeepAwakeWarning(true)
+    setShowKeepAwakeEnableModal(false)
+    applyKeepAwakeOnLidCloseSetting(true)
+  }, [applyKeepAwakeOnLidCloseSetting])
+
+  const cancelKeepAwakeEnable = useCallback(() => {
+    setShowKeepAwakeEnableModal(false)
+  }, [])
+
+  const handleFlipKeepAwakeOnLidClose = useCallback(() => {
+    const newValue = !keepAwakeOnLidCloseEnabled
+    if (!newValue) {
+      applyKeepAwakeOnLidCloseSetting(false)
+      return
+    }
+    if (hasAcknowledgedKeepAwakeWarning) {
+      applyKeepAwakeOnLidCloseSetting(true)
+      return
+    }
+    setShowKeepAwakeEnableModal(true)
+  }, [
+    applyKeepAwakeOnLidCloseSetting,
+    hasAcknowledgedKeepAwakeWarning,
+    keepAwakeOnLidCloseEnabled,
+  ])
 
   // ── Ollama enable/disable ────────────────────────────────────────────────
 
@@ -1288,6 +1332,23 @@ export const SettingsDialog = ({
         </div>
 
         <hr className="border-zinc-200" />
+        {isMacPlatform && (
+          <div className="DocumentsContainer p-6 flex flex-col gap-4">
+            <Typography weight={TypographyWeight.medium}>Power</Typography>
+            <InputCheckbox
+              checked={keepAwakeOnLidCloseEnabled}
+              onClick={handleFlipKeepAwakeOnLidClose}
+            >
+              <Typography className="text-black">Keep computer awake when screen/lid closes</Typography>
+            </InputCheckbox>
+            <Typography className="text-xs text-zinc-500 leading-5">
+              Opt-in behavior while the app is running. Enable only for remote/off-screen workflows;
+              this can increase battery use and heat.
+            </Typography>
+          </div>
+        )}
+
+        <hr className="border-zinc-200" />
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Meeting Chat Notice</Typography>
           <InputCheckbox
@@ -1332,6 +1393,37 @@ export const SettingsDialog = ({
         </div>
         <hr className="border-zinc-200" />
         <SupportSection />
+        {showKeepAwakeEnableModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-5 w-[430px] shadow-xl">
+              <Typography weight={TypographyWeight.medium} className="text-lg">
+                Keep Mac awake when lid/screen closes?
+              </Typography>
+              <p className="mt-2 text-sm text-zinc-600">
+                This enables a system wake assertion while Knapsack is running so your Mac stays awake with
+                the lid closed.
+              </p>
+              <p className="mt-3 text-sm text-zinc-600">
+                Turn it on only when needed for remote recording, remote troubleshooting, or other
+                unattended workflows. It may increase battery use and heat.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  className="px-3 py-1.5 rounded border border-zinc-300 text-sm hover:bg-zinc-100"
+                  onClick={cancelKeepAwakeEnable}
+                >
+                  Not now
+                </button>
+                <button
+                  className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700"
+                  onClick={confirmKeepAwakeEnable}
+                >
+                  Enable
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Dialog>
   )
