@@ -42,8 +42,8 @@ use uuid::Uuid;
 use crate::audio::utils::sanitize_filename;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::feed_item::{FeedItem, FeedItemComplete};
-use crate::db::models::thread::Thread;
 use crate::db::models::meeting_insight::MeetingInsight;
+use crate::db::models::thread::Thread;
 use crate::db::models::transcript::{Transcript, TranscriptWithContent};
 use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
@@ -181,12 +181,18 @@ fn write_audio_data<T, U>(
     std::thread::spawn(move || {
       let rt = match Runtime::new() {
         Ok(rt) => rt,
-        Err(e) => { log::error!("Failed to create tokio runtime: {}", e); return; }
+        Err(e) => {
+          log::error!("Failed to create tokio runtime: {}", e);
+          return;
+        }
       };
       rt.block_on(async {
         let permit = match semaphore.acquire().await {
           Ok(p) => p,
-          Err(e) => { log::error!("Failed to acquire semaphore: {}", e); return; }
+          Err(e) => {
+            log::error!("Failed to acquire semaphore: {}", e);
+            return;
+          }
         };
         save_chunk(chunk_samples, chunk_filename.clone(), channel, sample_rate);
         finalize_chunk(chunk_filename, transcript_filename).await;
@@ -218,7 +224,10 @@ fn get_best_input_device(host: &cpal::Host) -> Option<cpal::Device> {
   // default so Knapsack captures the same mic as the meeting app.
   let active_names = crate::audio::macos::get_active_input_device_names();
   if let Some(preferred_name) = active_names.into_iter().find(|n| n != &default_name) {
-    log::info!("[recording] Preferring actively-used non-default mic: {}", preferred_name);
+    log::info!(
+      "[recording] Preferring actively-used non-default mic: {}",
+      preferred_name
+    );
     if let Ok(mut devices) = host.input_devices() {
       if let Some(dev) = devices.find(|d| d.name().map(|n| n == preferred_name).unwrap_or(false)) {
         return Some(dev);
@@ -335,11 +344,17 @@ pub async fn start_recording(
 
   if recording_state.is_recording.load(Ordering::Relaxed) {
     if recording_state.is_paused.load(Ordering::Relaxed) {
-      log::info!("[recording] Resuming paused recording for thread_id={}", data.thread_id);
+      log::info!(
+        "[recording] Resuming paused recording for thread_id={}",
+        data.thread_id
+      );
       recording_state.is_paused.store(false, Ordering::Relaxed);
       return Ok(HttpResponse::Ok().body("Recording resumed"));
     }
-    log::warn!("[recording] Already recording, rejecting start for thread_id={}", data.thread_id);
+    log::warn!(
+      "[recording] Already recording, rejecting start for thread_id={}",
+      data.thread_id
+    );
     return Ok(HttpResponse::InternalServerError().body("Recording is already in progress"));
   }
 
@@ -367,7 +382,11 @@ pub async fn start_recording(
 
   let opt = Opt::parse();
   let host = cpal::default_host();
-  log::info!("[recording] Audio host: {:?}, device setting: {}", host.id(), opt.device);
+  log::info!(
+    "[recording] Audio host: {:?}, device setting: {}",
+    host.id(),
+    opt.device
+  );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
 
@@ -471,7 +490,11 @@ pub async fn start_recording(
       let _ = std::fs::remove_file(&transcript_file);
     }
     if let Err(e) = existing_transcript.delete() {
-      log::warn!("Failed to delete old transcript for thread {}: {:?}", thread_id, e);
+      log::warn!(
+        "Failed to delete old transcript for thread {}: {:?}",
+        thread_id,
+        e
+      );
     }
   }
 
@@ -558,7 +581,10 @@ pub async fn get_metadata(thread_id: u64) -> Result<Metadata, Error> {
     .or(feed_item_complete.feed_item.timestamp);
 
   Ok(Metadata {
-    filename: feed_item_complete.feed_item.title.unwrap_or("Untitled".to_string()),
+    filename: feed_item_complete
+      .feed_item
+      .title
+      .unwrap_or("Untitled".to_string()),
     participants,
     end_time,
     start_time,
@@ -610,7 +636,11 @@ pub async fn stop_recording(
   if let Some(handle) = mic_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Mic recording task failed to complete: {:?}", e);
-      knap_log_error(format!("[recording_stop_mic_thread_failed] {}", err_msg), None, Some(true));
+      knap_log_error(
+        format!("[recording_stop_mic_thread_failed] {}", err_msg),
+        None,
+        Some(true),
+      );
       return HttpResponse::InternalServerError().body(err_msg);
     }
   }
@@ -652,7 +682,12 @@ pub async fn stop_recording(
   // transcription threads are still holding the semaphore (e.g. due to network
   // issues or rate-limiting from the transcription API).
   let semaphore_timeout = Duration::from_secs(30);
-  let _input_permit = match timeout(semaphore_timeout, recording_state.input_file_semaphore.acquire()).await {
+  let _input_permit = match timeout(
+    semaphore_timeout,
+    recording_state.input_file_semaphore.acquire(),
+  )
+  .await
+  {
     Ok(Ok(permit)) => Some(permit),
     _ => {
       log::warn!("[recording] Timed out waiting for input semaphore — proceeding anyway");
@@ -660,7 +695,12 @@ pub async fn stop_recording(
       None
     }
   };
-  let _output_permit = match timeout(semaphore_timeout, recording_state.output_file_semaphore.acquire()).await {
+  let _output_permit = match timeout(
+    semaphore_timeout,
+    recording_state.output_file_semaphore.acquire(),
+  )
+  .await
+  {
     Ok(Ok(permit)) => Some(permit),
     _ => {
       log::warn!("[recording] Timed out waiting for output semaphore — proceeding anyway");
@@ -680,7 +720,10 @@ pub async fn stop_recording(
       // for real IO errors like permission-denied.
       if let Err(e) = std::fs::remove_file(&input_path) {
         if e.kind() == std::io::ErrorKind::NotFound {
-          log::debug!("input txt file already gone, skipping delete: {:?}", input_path);
+          log::debug!(
+            "input txt file already gone, skipping delete: {:?}",
+            input_path
+          );
         } else {
           let err_msg = format!("Failed to delete input txt file: {:?}", e);
           knap_log_error(err_msg, None, Some(true));
@@ -689,7 +732,10 @@ pub async fn stop_recording(
       if output_path.exists() {
         if let Err(e) = std::fs::remove_file(&output_path) {
           if e.kind() == std::io::ErrorKind::NotFound {
-            log::debug!("output txt file already gone, skipping delete: {:?}", output_path);
+            log::debug!(
+              "output txt file already gone, skipping delete: {:?}",
+              output_path
+            );
           } else {
             let err_msg = format!("Failed to delete output txt file: {:?}", e);
             knap_log_error(err_msg, None, Some(true));
@@ -698,9 +744,16 @@ pub async fn stop_recording(
       }
     }
     Err(e) => {
-      let err_msg = format!("Failed to combine input/output txt file and generate transcript: {:?}", e);
+      let err_msg = format!(
+        "Failed to combine input/output txt file and generate transcript: {:?}",
+        e
+      );
       log::error!("Application error: {:?}", e);
-      knap_log_error(format!("[recording_stop_unify_transcript_failed] {}", err_msg), None, Some(true));
+      knap_log_error(
+        format!("[recording_stop_unify_transcript_failed] {}", err_msg),
+        None,
+        Some(true),
+      );
       return HttpResponse::InternalServerError().json(json!({
         "error": err_msg,
         "status": "error"
@@ -733,8 +786,14 @@ pub async fn stop_recording(
 
   let transcript_dir = home_dir.join(".transcripts");
   let file_name = generate_filename(
-    thread.clone().subtitle.unwrap_or_else(|| "Untitled".to_string()),
-    thread.clone().timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
+    thread
+      .clone()
+      .subtitle
+      .unwrap_or_else(|| "Untitled".to_string()),
+    thread
+      .clone()
+      .timestamp
+      .unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
   );
   let file_path = transcript_dir.join(file_name);
 
@@ -793,7 +852,9 @@ pub fn save_transcript_for_user(thread_id: u64, event_id: u64, path: &str) -> Re
 
     let file_name = generate_filename(
       thread.subtitle.unwrap_or_else(|| "Untitled".to_string()),
-      thread.timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
+      thread
+        .timestamp
+        .unwrap_or_else(|| chrono::Utc::now().timestamp_millis()),
     );
     let file_path = file_path.join(file_name);
 
@@ -1172,7 +1233,9 @@ async fn stream_audio(
   // not the notetaker's own mic stream.  External speakers/monitors are no
   // longer counted because count_microphone_users() filters to input-only.
   let mic_users_beginning = count_microphone_users();
-  stream.play().map_err(|e| format!("Failed to start audio stream: {}", e))?;
+  stream
+    .play()
+    .map_err(|e| format!("Failed to start audio stream: {}", e))?;
   let start_time = Utc::now();
   let mut mic_users_after_connections = 0;
 
@@ -1197,7 +1260,10 @@ async fn stream_audio(
     if (Utc::now() - last_heartbeat) >= heartbeat_interval {
       last_heartbeat = Utc::now();
       let elapsed_minutes = elapsed_time.num_minutes();
-      log::info!("[heartbeat] Generating meeting insight at {} minutes", elapsed_minutes);
+      log::info!(
+        "[heartbeat] Generating meeting insight at {} minutes",
+        elapsed_minutes
+      );
 
       match generate_meeting_insight(&heartbeat_input_filename, &heartbeat_output_filename).await {
         Ok(insight) => {
@@ -1207,11 +1273,14 @@ async fn stream_audio(
             log::warn!("[heartbeat] Failed to persist meeting insight: {:?}", e);
           }
           if let Some(window) = app_handle.get_window(WINDOW_LABEL) {
-            let _ = window.emit("meeting_heartbeat", json!({
-              "threadId": data.thread_id,
-              "insight": insight,
-              "elapsedMinutes": elapsed_minutes,
-            }));
+            let _ = window.emit(
+              "meeting_heartbeat",
+              json!({
+                "threadId": data.thread_id,
+                "insight": insight,
+                "elapsedMinutes": elapsed_minutes,
+              }),
+            );
           }
         }
         Err(e) => {
@@ -1417,7 +1486,11 @@ pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
       "data": insights,
     })),
     Err(e) => {
-      log::error!("Failed to get meeting insights for thread {}: {:?}", thread_id, e);
+      log::error!(
+        "Failed to get meeting insights for thread {}: {:?}",
+        thread_id,
+        e
+      );
       HttpResponse::InternalServerError().json(json!({
         "error": "Failed to get meeting insights",
         "success": false,

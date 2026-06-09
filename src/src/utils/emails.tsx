@@ -67,6 +67,46 @@ export function extractExternalEmails(myEmail: string, emailList: string[]): str
 }
 
 /**
+ * Build a conversational meeting follow-up email from raw meeting notes markdown.
+ * Extracts action items and key decisions, then writes them as plain prose rather
+ * than pasting the full structured notes dump.
+ */
+export function buildFollowUpEmailBody(notesMarkdown: string, meetingTitle?: string, userName?: string): string {
+  const lines = notesMarkdown.split('\n').map(l => l.trim()).filter(Boolean)
+
+  // Pull out action items (lines with checkboxes or starting with "Action:")
+  const actionItems = lines.filter(l =>
+    /^-\s*\[[ xX]\]/.test(l) || /^action item[s]?:/i.test(l) || /^action:/i.test(l)
+  ).map(l => l.replace(/^-\s*\[[ xX]\]\s*/, '').replace(/^action item[s]?:\s*/i, '').replace(/^action:\s*/i, ''))
+
+  // Pull out key decisions / outcomes
+  const decisions = lines.filter(l =>
+    /^(?:decision|outcome|agreed|next step)[s]?:/i.test(l)
+  ).map(l => l.replace(/^[^:]+:\s*/i, ''))
+
+  const greeting = `<p>Hi,</p>`
+  const intro = `<p>Great meeting${meetingTitle ? ` about ${meetingTitle}` : ''} — thanks for your time!</p>`
+
+  let body = greeting + intro
+
+  if (actionItems.length > 0) {
+    body += `<p>Here's what we agreed on:</p><ul style="margin:4px 0;padding-left:20px">`
+    actionItems.forEach(item => { body += `<li>${escHtml(item)}</li>` })
+    body += `</ul>`
+  } else if (decisions.length > 0) {
+    body += `<p>Key takeaways:</p><ul style="margin:4px 0;padding-left:20px">`
+    decisions.forEach(d => { body += `<li>${escHtml(d)}</li>` })
+    body += `</ul>`
+  } else {
+    body += `<p>Happy to share a quick summary if useful — just let me know.</p>`
+  }
+
+  body += `<p>Let me know if you have any questions or if anything needs adjusting.</p>`
+  body += `<p>Best,<br>${escHtml(userName || '')}</p>`
+  return body
+}
+
+/**
  * Decode common encoding issues in email subject lines.
  * Handles HTML entities and RFC 2047 MIME encoded-words that the backend
  * may not have fully decoded.

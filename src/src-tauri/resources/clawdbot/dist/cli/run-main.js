@@ -454,7 +454,8 @@ async function runCli(argv = process$1.argv) {
 		proxyHandle = null;
 		handle?.kill("SIGTERM");
 	};
-	if (!isHelpOrVersionInvocation && shouldStartProxyForCli(normalizedArgv)) {
+	const isDesktopManagedGateway = isTruthyEnvValue(process$1.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY) && isGatewayRunFastPathArgv(normalizedArgv);
+	if (!isDesktopManagedGateway && !isHelpOrVersionInvocation && shouldStartProxyForCli(normalizedArgv)) {
 		const config = await readBestEffortCliConfig();
 		const unownedPrimary = await resolveUnownedCliPrimary({
 			argv: normalizedArgv,
@@ -572,7 +573,7 @@ async function runCli(argv = process$1.argv) {
 			});
 			return;
 		}
-		const shouldUseCliEnvProxy = !isHelpOrVersionInvocation && shouldStartProxyForCli(normalizedArgv);
+		const shouldUseCliEnvProxy = !isDesktopManagedGateway && !isHelpOrVersionInvocation && shouldStartProxyForCli(normalizedArgv);
 		const bootstrapProxyBeforeFastPath = shouldUseCliEnvProxy && shouldBootstrapCliProxyBeforeFastPath();
 		if (!bootstrapProxyBeforeFastPath && await tryRunGatewayRunFastPath(normalizedArgv, startupTrace)) return;
 		if (!isHelpOrVersionInvocation) await bootstrapCliProxyCaptureAndDispatcher(startupTrace, { ensureDispatcher: shouldUseCliEnvProxy });

@@ -42,25 +42,27 @@ async fn llm_complete(
     Err(error) => match error {
       LLMError::TooManyRequests(e) => {
         let message = format!("{}", e);
-        HttpResponse::TooManyRequests()
-          .json(json!({ "success": false, "error_code": "TOO_MANY_REQUESTS", "message": message
-        }))
-      },
+        HttpResponse::TooManyRequests().json(
+          json!({ "success": false, "error_code": "TOO_MANY_REQUESTS", "message": message
+          }),
+        )
+      }
       LLMError::ChatCompletionClientFailed(e) => {
         let message = format!("{}", e);
         HttpResponse::BadRequest()
         .json(json!({ "success": false, "error_code": "CHAT_COMPLETION_CLIENT_FAILED", "message": message }))
-      },
+      }
       LLMError::ChatCompletionFailed(e) => {
         let message = format!("{}", e);
-        HttpResponse::InternalServerError()
-        .json(json!({ "success": false, "error_code": "CHAT_COMPLETION_FAILED", "message": message }))
-      },
+        HttpResponse::InternalServerError().json(
+          json!({ "success": false, "error_code": "CHAT_COMPLETION_FAILED", "message": message }),
+        )
+      }
       e => {
         let message = format!("{}", e);
         HttpResponse::BadRequest()
-        .json(json!({ "success": false, "error_code": "UNKNOWN_ERROR", "message": message }))}
-        ,
+          .json(json!({ "success": false, "error_code": "UNKNOWN_ERROR", "message": message }))
+      }
     },
   }
 }

@@ -36,8 +36,8 @@ use crate::connections;
 use crate::heartbeat::api as heartbeat_api;
 use crate::mcp::api as mcp_api;
 use crate::search;
-use crate::workspaces::api as workspace_api;
 use crate::user::UserInfo;
+use crate::workspaces::api as workspace_api;
 use crate::ConnectionsData;
 use crate::RecordingState;
 
@@ -92,7 +92,10 @@ pub async fn start_server<'a>(
   // Pre-check: detect and attempt to kill zombie processes on this port
   if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
     drop(stream);
-    eprintln!("WARNING: Port {} is already in use! Attempting to kill zombie process...", port);
+    eprintln!(
+      "WARNING: Port {} is already in use! Attempting to kill zombie process...",
+      port
+    );
 
     #[cfg(target_os = "windows")]
     {
@@ -157,7 +160,10 @@ pub async fn start_server<'a>(
     // Verify port is now free
     if let Ok(stream) = std::net::TcpStream::connect(("127.0.0.1", port)) {
       drop(stream);
-      eprintln!("ERROR: Port {} is still in use after cleanup attempt!", port);
+      eprintln!(
+        "ERROR: Port {} is still in use after cleanup attempt!",
+        port
+      );
       eprintln!("ERROR: Another Knapsack instance may be running. Please close it manually.");
     } else {
       eprintln!("SUCCESS: Port {} has been freed.", port);
@@ -301,9 +307,11 @@ pub async fn start_server<'a>(
       .service(clawd::service::set_api_key)
       .service(clawd::service::delete_extra_provider_key)
       .service(clawd::service::get_api_key)
-      // OAuth provider login (OpenRouter browser-based auth)
+      // OAuth provider login (OpenRouter browser-based auth) + Knapsack studio auth
       .service(clawd::service::start_oauth_login)
       .service(clawd::service::oauth_callback)
+      .service(clawd::service::knapsack_auth_callback)
+      .service(clawd::service::knapsack_disconnect)
       .service(clawd::service::gemini_connect)
       // Ollama (local LLM) endpoints
       .service(clawd::service::ollama_status)
@@ -423,7 +431,10 @@ pub async fn start_server<'a>(
   })
   .bind(("127.0.0.1", port))
   .map_err(|e| {
-    eprintln!("FATAL: Failed to bind actix server to 127.0.0.1:{}: {}", port, e);
+    eprintln!(
+      "FATAL: Failed to bind actix server to 127.0.0.1:{}: {}",
+      port, e
+    );
     eprintln!("FATAL: Is another instance of Knapsack already running on this port?");
     e
   })?

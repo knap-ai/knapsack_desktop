@@ -21,9 +21,12 @@ fn groq_api_key() -> Result<String, LLMError> {
     .map(|k| k.trim().to_string())
     .ok()
     .filter(|k| !k.is_empty())
-    .ok_or_else(|| LLMError::ChatCompletionFailed(
-      "GROQ_API_KEY environment variable is not set. Please add your Groq API key in Settings.".to_string()
-    ))
+    .ok_or_else(|| {
+      LLMError::ChatCompletionFailed(
+        "GROQ_API_KEY environment variable is not set. Please add your Groq API key in Settings."
+          .to_string(),
+      )
+    })
 }
 
 #[derive(Deserialize, Debug)]
@@ -134,7 +137,7 @@ impl GroqLlm {
       .part("file", file_part)
       .text("model", "whisper-large-v3-turbo")
       .text("response_format", "verbose_json");
-      // .text("prompt", lexicon_prompt);
+    // .text("prompt", lexicon_prompt);
 
     if let Some(lang) = language {
       form = form.text("language", lang);
@@ -170,13 +173,19 @@ impl GroqLlm {
 
     if !response.status().is_success() {
       let status = response.status();
-      let error_text = response.text().await.unwrap_or_else(|_| String::from("Unable to read error response"));
-      log::error!("Groq API request failed with status {}: {}", status, error_text);
+      let error_text = response
+        .text()
+        .await
+        .unwrap_or_else(|_| String::from("Unable to read error response"));
+      log::error!(
+        "Groq API request failed with status {}: {}",
+        status,
+        error_text
+      );
       return Err(
         LLMError::ChatCompletionFailed(format!(
           "API request failed with status: {} - {}",
-          status,
-          error_text
+          status, error_text
         ))
         .into(),
       );

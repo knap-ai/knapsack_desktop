@@ -1,15 +1,15 @@
 pub mod audio;
-pub mod utils;
-pub mod permission;
 pub mod encode;
-pub mod transcribe;
-pub mod microphone;
 pub mod mic_monitor;
+pub mod microphone;
+pub mod permission;
+pub mod transcribe;
+pub mod utils;
 
 #[cfg(target_os = "macos")]
 pub mod macos;
 
- #[cfg(target_os = "windows")]
+#[cfg(target_os = "windows")]
 pub mod windows;
 
 #[cfg(target_os = "linux")]

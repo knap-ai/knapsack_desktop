@@ -34,7 +34,6 @@ use super::constants::GOOGLE_PROFILE_SCOPE;
 use super::profile::fetch_google_profile;
 use crate::utils::log::knap_log_error;
 
-
 use crate::connections::google::types::FetchError;
 use crate::connections::utils::{
   create_knapsack_api_connection, get_api_access_token, FetchUuidError,
@@ -104,33 +103,39 @@ pub struct AccessTokenResponse {
 
 pub fn get_message_error(error_code: &str) -> &str {
   match error_code {
-      "access_denied" => "You denied access",
-      "invalid_request" => "There was a problem with the authentication request",
-      "unauthorized_client" => "This application is not authorized to make this request",
-      "unsupported_response_type" => "The application requested an unsupported response type",
-      "invalid_scope" => "The requested permission is not valid",
-      "server_error" => "Google encountered an internal error",
-      "temporarily_unavailable" => "Google services are temporarily unavailable",
-      _ => "An unexpected error occurred during authentication with Google",
+    "access_denied" => "You denied access",
+    "invalid_request" => "There was a problem with the authentication request",
+    "unauthorized_client" => "This application is not authorized to make this request",
+    "unsupported_response_type" => "The application requested an unsupported response type",
+    "invalid_scope" => "The requested permission is not valid",
+    "server_error" => "Google encountered an internal error",
+    "temporarily_unavailable" => "Google services are temporarily unavailable",
+    _ => "An unexpected error occurred during authentication with Google",
   }
 }
 
 pub fn get_action_message(error_code: &str) -> &str {
   match error_code {
-      "access_denied" => "Please try again and allow the requested permissions",
-      "invalid_request" => "Please try again later",
-      "unauthorized_client" => "Please contact support",
-      "unsupported_response_type" => "Please contact support",
-      "invalid_scope" => "Please contact the administrator",
-      "server_error" => "Please try again later",
-      "temporarily_unavailable" => "Please try again in a few minutes",
-      _ => "Please try again later",
+    "access_denied" => "Please try again and allow the requested permissions",
+    "invalid_request" => "Please try again later",
+    "unauthorized_client" => "Please contact support",
+    "unsupported_response_type" => "Please contact support",
+    "invalid_scope" => "Please contact the administrator",
+    "server_error" => "Please try again later",
+    "temporarily_unavailable" => "Please try again in a few minutes",
+    _ => "Please try again later",
   }
 }
 
 /// Refresh access token locally using Google's token endpoint.
-async fn refresh_token_locally(refresh_token: String, client_secret: &str) -> Result<String, Error> {
-  let client_id: &'static str = env!("VITE_GOOGLE_CLIENT_ID", "Missing VITE_GOOGLE_CLIENT_ID env var");
+async fn refresh_token_locally(
+  refresh_token: String,
+  client_secret: &str,
+) -> Result<String, Error> {
+  let client_id: &'static str = env!(
+    "VITE_GOOGLE_CLIENT_ID",
+    "Missing VITE_GOOGLE_CLIENT_ID env var"
+  );
   let client = reqwest::Client::new();
 
   let params = [
@@ -154,10 +159,15 @@ async fn refresh_token_locally(refresh_token: String, client_secret: &str) -> Re
     log::error!("Google token refresh failed: {}", error_text);
 
     // Check if this is an invalid/expired refresh token error
-    if error_text.contains("invalid_grant") || error_text.contains("Token has been expired or revoked") {
+    if error_text.contains("invalid_grant")
+      || error_text.contains("Token has been expired or revoked")
+    {
       Err(Error::KSError("Invalid refresh token".to_string()))
     } else {
-      Err(Error::KSError(format!("Token refresh failed: {}", error_text)))
+      Err(Error::KSError(format!(
+        "Token refresh failed: {}",
+        error_text
+      )))
     }
   }
 }
@@ -167,14 +177,15 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
   let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
   let client = reqwest::Client::new();
 
-  let access_token_api = get_api_access_token(&email.clone(), None).await
+  let access_token_api = get_api_access_token(&email.clone(), None)
+    .await
     .map_err(|e| FetchUuidError::NetworkError(format!("Failed to refresh access token: {}", e)))?;
 
   let mut headers = HeaderMap::new();
   headers.insert(
-      AUTHORIZATION,
-      HeaderValue::from_str(&format!("Bearer {}", access_token_api))
-          .map_err(|e| FetchUuidError::NetworkError(format!("Invalid header value: {}", e)))?
+    AUTHORIZATION,
+    HeaderValue::from_str(&format!("Bearer {}", access_token_api))
+      .map_err(|e| FetchUuidError::NetworkError(format!("Invalid header value: {}", e)))?,
   );
 
   let retry_strategy = ExponentialBackoff::from_millis(1000)
@@ -197,7 +208,10 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
         .map_err(|e| Error::KSError(format!("Network error: {}", e)))?;
 
       if resp.status().is_server_error() {
-        log::warn!("Server error refreshing Google token ({}), retrying...", resp.status());
+        log::warn!(
+          "Server error refreshing Google token ({}), retrying...",
+          resp.status()
+        );
         return Err(Error::KSError(format!("Server error: {}", resp.status())));
       }
 
@@ -245,9 +259,7 @@ fn create_connections_from_scopes(
   );
   scopes_index.insert(
     GOOGLE_GMAIL_SCOPE,
-    vec![
-      "https://www.googleapis.com/auth/gmail.modify",
-    ],
+    vec!["https://www.googleapis.com/auth/gmail.modify"],
   );
 
   let mut connected_scopes: Vec<String> = vec![];
@@ -258,8 +270,12 @@ fn create_connections_from_scopes(
       }
       // For calendar, drive, and gmail the calendar_account_email identifies
       // which Google account's data this connection syncs.
-      let calendar_account_email = if [GOOGLE_CALENDAR_SCOPE, GOOGLE_DRIVE_SCOPE, GOOGLE_GMAIL_SCOPE]
-        .contains(scope_key)
+      let calendar_account_email = if [
+        GOOGLE_CALENDAR_SCOPE,
+        GOOGLE_DRIVE_SCOPE,
+        GOOGLE_GMAIL_SCOPE,
+      ]
+      .contains(scope_key)
       {
         email.clone()
       } else {
@@ -315,15 +331,25 @@ fn create_additional_connections(
         id: None,
         email: new_account_email.clone(),
         uuid: None,
-      }.create();
+      }
+      .create();
     }
     create_knapsack_api_connection(new_account_email.clone(), ri.as_str());
   }
 
   let scope_map: &[(&str, &[&str])] = &[
-    (GOOGLE_CALENDAR_SCOPE, &["https://www.googleapis.com/auth/calendar.readonly"]),
-    (GOOGLE_DRIVE_SCOPE,    &["https://www.googleapis.com/auth/drive.readonly"]),
-    (GOOGLE_GMAIL_SCOPE,    &["https://www.googleapis.com/auth/gmail.modify"]),
+    (
+      GOOGLE_CALENDAR_SCOPE,
+      &["https://www.googleapis.com/auth/calendar.readonly"],
+    ),
+    (
+      GOOGLE_DRIVE_SCOPE,
+      &["https://www.googleapis.com/auth/drive.readonly"],
+    ),
+    (
+      GOOGLE_GMAIL_SCOPE,
+      &["https://www.googleapis.com/auth/gmail.modify"],
+    ),
   ];
 
   let mut created: Vec<String> = vec![];
@@ -346,8 +372,14 @@ fn create_additional_connections(
 
 /// Exchange OAuth code for tokens locally using Google's token endpoint.
 /// This is used when GOOGLE_CLIENT_SECRET is configured for self-hosted builds.
-async fn exchange_code_locally(code: String, client_secret: &str) -> Result<GoogleSigninResponse, FetchError> {
-  let client_id: &'static str = env!("VITE_GOOGLE_CLIENT_ID", "Missing VITE_GOOGLE_CLIENT_ID env var");
+async fn exchange_code_locally(
+  code: String,
+  client_secret: &str,
+) -> Result<GoogleSigninResponse, FetchError> {
+  let client_id: &'static str = env!(
+    "VITE_GOOGLE_CLIENT_ID",
+    "Missing VITE_GOOGLE_CLIENT_ID env var"
+  );
   let redirect_uri = "http://localhost:8897/api/knapsack/google/signin";
   let client = reqwest::Client::new();
 
@@ -380,7 +412,10 @@ async fn exchange_code_locally(code: String, client_secret: &str) -> Result<Goog
     StatusCode::BAD_REQUEST => {
       let error_text = response.text().await.unwrap_or_default();
       log::error!("Google token exchange failed: {}", error_text);
-      Err(FetchError::UnknownError(format!("Token exchange failed: {}", error_text)))
+      Err(FetchError::UnknownError(format!(
+        "Token exchange failed: {}",
+        error_text
+      )))
     }
     status => Err(FetchError::UnknownError(format!(
       "Unexpected status code from Google: {:?}",
@@ -466,7 +501,12 @@ async fn complete_google_signin(
     }
   };
 
-  let profile = match fetch_google_profile(response.access_token.clone(), response.refresh_internal.clone()).await {
+  let profile = match fetch_google_profile(
+    response.access_token.clone(),
+    response.refresh_internal.clone(),
+  )
+  .await
+  {
     Ok(profile) => profile,
     Err(err) => {
       log::error!("Fail to fetch Google profile: {:?}", err);
@@ -492,7 +532,12 @@ async fn complete_google_signin(
       response.refresh_internal.clone(),
     ) {
       Ok(created_keys) => {
-        log::info!("Linked additional account {} to user {} for scopes {:?}", calendar_email, primary_email, created_keys);
+        log::info!(
+          "Linked additional account {} to user {} for scopes {:?}",
+          calendar_email,
+          primary_email,
+          created_keys
+        );
         return HttpResponse::Ok().json(json!({
           "success": true,
           "calendar_email": calendar_email,
@@ -522,13 +567,11 @@ async fn complete_google_signin(
     id: None,
     email: email.clone(),
     uuid: Some(uuid),
-  }.create();
+  }
+  .create();
 
   if let Some(ref refresh_internal) = response.refresh_internal {
-    create_knapsack_api_connection(
-      email.clone(),
-      refresh_internal.as_ref(),
-    );
+    create_knapsack_api_connection(email.clone(), refresh_internal.as_ref());
   }
 
   let connection_keys = match create_connections_from_scopes(
@@ -568,7 +611,7 @@ async fn google_signin_api(req: HttpRequest, app_handle: Data<tauri::AppHandle>)
 
 fn handle_successful_signin(
   params: &SigninParams,
-  app_handle: Data<tauri::AppHandle>
+  app_handle: Data<tauri::AppHandle>,
 ) -> HttpResponse {
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit(
@@ -593,23 +636,23 @@ fn handle_successful_signin(
     .body(html_string)
 }
 
-fn handle_error_signin(
-  params: &SigninParams,
-  app_handle: Data<tauri::AppHandle>,
-) -> HttpResponse {
+fn handle_error_signin(params: &SigninParams, app_handle: Data<tauri::AppHandle>) -> HttpResponse {
   let error = params.error.as_ref().unwrap();
   let err_msg = format!(
     "Google signin error: {} - description: {}",
     error,
-    params.error_description.as_deref().unwrap_or("No description provided")
+    params
+      .error_description
+      .as_deref()
+      .unwrap_or("No description provided")
   );
   knap_log_error(err_msg.clone(), None, Some(true));
   let html_file = app_handle
     .path_resolver()
     .resolve_resource("resources/signin_error.html")
     .expect("failed to resolve resource");
-  let html_string = std::fs::read_to_string(&html_file)
-    .unwrap_or_else(|_| "Error page not found".to_string());
+  let html_string =
+    std::fs::read_to_string(&html_file).unwrap_or_else(|_| "Error page not found".to_string());
 
   let message = get_message_error(error);
   let action_message = get_action_message(error);
@@ -618,7 +661,10 @@ fn handle_error_signin(
     .replace("{{ERROR_ACTION_MESSAGE}}", action_message)
     .replace(
       "{{ERROR_DESCRIPTION}}",
-      params.error_description.as_deref().unwrap_or("No description provided"),
+      params
+        .error_description
+        .as_deref()
+        .unwrap_or("No description provided"),
     );
 
   HttpResponse::Ok()
@@ -660,7 +706,10 @@ pub fn create_user_connection(
   user_connection.upsert()
 }
 
-pub async fn refresh_connection_token(email: String, user_connection: UserConnection) -> Result<String, Error> {
+pub async fn refresh_connection_token(
+  email: String,
+  user_connection: UserConnection,
+) -> Result<String, Error> {
   // For secondary Google accounts, `calendar_account_email` differs from `email`
   // (the primary user). Use the secondary account's own identity for the backend
   // token refresh so the correct API credentials are used.
@@ -675,25 +724,37 @@ pub async fn refresh_connection_token(email: String, user_connection: UserConnec
   match google_refresh_token(effective_email.clone(), user_connection.clone().token).await {
     Ok(access_token) => Ok(access_token),
     Err(err) => {
-      // Check if this is an invalid refresh token error
-      let is_invalid_refresh_token =
-        matches!(&err, Error::KSError(msg) if msg.contains("Invalid refresh token"));
+      let err_str = err.to_string();
+      let is_invalid_refresh_token = err_str.contains("Invalid refresh token")
+        || err_str.contains("401 Unauthorized")
+        || err_str.contains("400 Bad Request");
+
       if is_invalid_refresh_token {
-        // Delete the invalid connection so the user can re-authenticate
         let _ = user_connection.clone().delete();
         log::info!(
           "Deleted invalid Google connection for user {} (connection_id: {}). User will need to reconnect.",
           email,
           user_connection.connection_id
         );
-        Err(knap_log_error(
-          format!("Invalid refresh token for user {}. Please reconnect your Google account in Settings.", effective_email),
+        return Err(knap_log_error(
+          format!(
+            "Invalid refresh token for user {}. Please reconnect your Google account in Settings.",
+            effective_email
+          ),
           Some(err),
-          None
-        ))
-      } else {
-        Err(knap_log_error("Failed to refresh connection token".to_string(), Some(err), None))
+          None,
+        ));
       }
+
+      knap_log_error(
+        format!("Failed to refresh connection token: {}", err_str),
+        Some(err),
+        None,
+      );
+      Err(Error::KSError(format!(
+        "Failed to refresh connection token: {}",
+        err_str
+      )))
     }
   }
 }
@@ -705,11 +766,9 @@ async fn fetch_google_auth_token_api(
 ) -> impl Responder {
   let params =
     actix_web::web::Query::<FetchAccessTokenParams>::from_query(req.query_string()).unwrap();
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    params.email.clone(),
-    params.scope.clone(),
-  )
-  .unwrap();
+  let user_connection =
+    UserConnection::find_by_user_email_and_scope(params.email.clone(), params.scope.clone())
+      .unwrap();
   match refresh_connection_token(params.email.clone(), user_connection.clone()).await {
     Ok(access_token) => HttpResponse::Ok().json(AccessTokenResponse {
       success: true,

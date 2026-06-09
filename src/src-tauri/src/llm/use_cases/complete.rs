@@ -22,7 +22,9 @@ use crate::llm::llama_binding::stop_handler::StopHandler;
 use crate::llm::prompt::{
   build_system_message, build_user_message, parse_messages, AdditionalDocument,
 };
-use crate::llm::types::{ChatCompletionArgs, ChatCompletionLlm, LLMError, Message as LlmMessage, MessageSender};
+use crate::llm::types::{
+  ChatCompletionArgs, ChatCompletionLlm, LLMError, Message as LlmMessage, MessageSender,
+};
 use crate::server::actix::InferenceThreads;
 use anyhow::Result;
 
@@ -36,53 +38,72 @@ struct CompletionUsage {
 
 /// Resolved LLM provider info for meeting notes completion.
 struct ResolvedProvider {
-  name: String,        // "openai", "anthropic", "gemini", "groq", "openrouter"
+  name: String, // "openai", "anthropic", "gemini", "groq", "openrouter"
   api_key: String,
   model: String,
-  base_url: String,    // e.g. "https://api.openai.com/v1"
-  is_anthropic: bool,  // Anthropic uses a different API format
+  base_url: String,   // e.g. "https://api.openai.com/v1"
+  is_anthropic: bool, // Anthropic uses a different API format
 }
 
 /// Try to resolve the best available LLM provider from env vars.
 /// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq
 fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
-  let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let openai_key = std::env::var("OPENAI_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let anthropic_key = std::env::var("ANTHROPIC_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
   let gemini_key = std::env::var("GEMINI_API_KEY")
     .or_else(|_| std::env::var("GOOGLE_API_KEY"))
     .ok()
     .filter(|k| !k.trim().is_empty());
-  let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let ollama_key = std::env::var("OLLAMA_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
-  let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
-  let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+  let groq_key = std::env::var("GROQ_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let openrouter_key = std::env::var("OPENROUTER_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let ollama_key = std::env::var("OLLAMA_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let openai_model =
+    std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+  let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+    .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+  let gemini_model =
+    std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
-    "openai" if openai_key.is_some() => return Ok(ResolvedProvider {
-      name: "openai".into(),
-      api_key: openai_key.unwrap(),
-      model: openai_model,
-      base_url: "https://api.openai.com/v1".into(),
-      is_anthropic: false,
-    }),
-    "anthropic" if anthropic_key.is_some() => return Ok(ResolvedProvider {
-      name: "anthropic".into(),
-      api_key: anthropic_key.unwrap(),
-      model: anthropic_model,
-      base_url: "https://api.anthropic.com/v1".into(),
-      is_anthropic: true,
-    }),
-    "gemini" if gemini_key.is_some() => return Ok(ResolvedProvider {
-      name: "gemini".into(),
-      api_key: gemini_key.unwrap(),
-      model: gemini_model,
-      base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
-      is_anthropic: false,
-    }),
+    "openai" if openai_key.is_some() => {
+      return Ok(ResolvedProvider {
+        name: "openai".into(),
+        api_key: openai_key.unwrap(),
+        model: openai_model,
+        base_url: "https://api.openai.com/v1".into(),
+        is_anthropic: false,
+      })
+    }
+    "anthropic" if anthropic_key.is_some() => {
+      return Ok(ResolvedProvider {
+        name: "anthropic".into(),
+        api_key: anthropic_key.unwrap(),
+        model: anthropic_model,
+        base_url: "https://api.anthropic.com/v1".into(),
+        is_anthropic: true,
+      })
+    }
+    "gemini" if gemini_key.is_some() => {
+      return Ok(ResolvedProvider {
+        name: "gemini".into(),
+        api_key: gemini_key.unwrap(),
+        model: gemini_model,
+        base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+        is_anthropic: false,
+      })
+    }
     "groq" if groq_key.is_some() => {
       let groq_model = std::env::var("KNAPSACK_GROQ_MODEL")
         .unwrap_or_else(|_| "meta-llama/llama-4-maverick-17b-128e-instruct".to_string());
@@ -100,9 +121,14 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       let key = openrouter_key.unwrap();
       log::debug!(
         "[resolve_provider] openrouter selected: key_len={} model={} key_starts={} key_ends={}",
-        key.len(), openrouter_model,
+        key.len(),
+        openrouter_model,
         if key.len() > 4 { &key[..4] } else { &key },
-        if key.len() > 4 { &key[key.len()-4..] } else { &key }
+        if key.len() > 4 {
+          &key[key.len() - 4..]
+        } else {
+          &key
+        }
       );
       return Ok(ResolvedProvider {
         name: "openrouter".into(),
@@ -113,24 +139,24 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       });
     }
     "knapsack" => {
-      let email = std::env::var("KNAPSACK_USER_EMAIL").unwrap_or_default();
-      if !email.trim().is_empty() {
-        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
-          .unwrap_or_else(|_| "anthropic/claude-haiku-4-5".to_string());
+      let access_token = std::env::var("KNAPSACK_ACCESS_TOKEN").unwrap_or_default();
+      if !access_token.trim().is_empty() {
         return Ok(ResolvedProvider {
           name: "knapsack".into(),
-          api_key: email,
-          model,
-          base_url: "https://api.knapsack.ai".into(),
+          api_key: access_token,
+          model: "auto".into(),
+          base_url: option_env!("VITE_KN_API_SERVER")
+            .unwrap_or("https://api.knapsack.ai")
+            .into(),
           is_anthropic: false,
         });
       }
     }
     "ollama" if ollama_key.is_some() => {
-      let ollama_base = std::env::var("OLLAMA_HOST")
-        .unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
-      let ollama_model = std::env::var("KNAPSACK_OLLAMA_MODEL")
-        .unwrap_or_else(|_| "llama3.1".to_string());
+      let ollama_base =
+        std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://127.0.0.1:11434".to_string());
+      let ollama_model =
+        std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
       return Ok(ResolvedProvider {
         name: "ollama".into(),
         api_key: "ollama-local".into(),
@@ -152,7 +178,10 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
 
   if !disable_paid || !active_is_free {
     if let Some(key) = openai_key {
-      log::warn!("[resolve_provider] Active provider '{}' unavailable, falling back to openai", active);
+      log::warn!(
+        "[resolve_provider] Active provider '{}' unavailable, falling back to openai",
+        active
+      );
       return Ok(ResolvedProvider {
         name: "openai".into(),
         api_key: key,
@@ -162,11 +191,17 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       });
     }
   } else if openai_key.is_some() {
-    log::info!("[resolve_provider] Skipping OpenAI fallback (paid fallback disabled, active={})", active);
+    log::info!(
+      "[resolve_provider] Skipping OpenAI fallback (paid fallback disabled, active={})",
+      active
+    );
   }
   if !disable_paid || !active_is_free {
     if let Some(key) = anthropic_key {
-      log::warn!("[resolve_provider] Active provider '{}' unavailable, falling back to anthropic", active);
+      log::warn!(
+        "[resolve_provider] Active provider '{}' unavailable, falling back to anthropic",
+        active
+      );
       return Ok(ResolvedProvider {
         name: "anthropic".into(),
         api_key: key,
@@ -176,7 +211,10 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       });
     }
   } else if anthropic_key.is_some() {
-    log::info!("[resolve_provider] Skipping Anthropic fallback (paid fallback disabled, active={})", active);
+    log::info!(
+      "[resolve_provider] Skipping Anthropic fallback (paid fallback disabled, active={})",
+      active
+    );
   }
   if let Some(key) = gemini_key {
     return Ok(ResolvedProvider {
@@ -201,9 +239,14 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
     log::debug!(
       "[resolve_provider] openrouter fallback: key_len={} model={} key_starts={} key_ends={}",
-      key.len(), openrouter_model,
+      key.len(),
+      openrouter_model,
       if key.len() > 4 { &key[..4] } else { &key },
-      if key.len() > 4 { &key[key.len()-4..] } else { &key }
+      if key.len() > 4 {
+        &key[key.len() - 4..]
+      } else {
+        &key
+      }
     );
     return Ok(ResolvedProvider {
       name: "openrouter".into(),
@@ -223,79 +266,95 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
 /// If OpenRouter is configured with a free model, simple tasks are routed there entirely
 /// (cross-provider routing). Otherwise falls back to cheapest model within the same provider.
 fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
-    let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
-        .map(|v| v == "true" || v == "1")
-        .unwrap_or(false);
+  let enabled = std::env::var("KNAPSACK_MODEL_ROUTING_ENABLED")
+    .map(|v| v == "true" || v == "1")
+    .unwrap_or(false);
 
-    if !enabled {
-        return;
+  if !enabled {
+    return;
+  }
+
+  let complexity = classify_task_complexity(prompt);
+  log::info!(
+    "[routing] Task classified as '{}' for provider '{}'",
+    complexity,
+    provider.name
+  );
+
+  if complexity == "haiku" {
+    // Cross-provider routing: if OpenRouter is available and the current provider
+    // is a paid one, route simple tasks to OpenRouter's free model instead.
+    if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" {
+      let openrouter_key = std::env::var("OPENROUTER_API_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty());
+      let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL").unwrap_or_default();
+      if let Some(or_key) = openrouter_key {
+        // Only cross-route if the configured OpenRouter model is a free one
+        if openrouter_model.contains(":free") || openrouter_model.is_empty() {
+          let model = if openrouter_model.is_empty() {
+            "meta-llama/llama-3.3-70b-instruct:free".to_string()
+          } else {
+            openrouter_model
+          };
+          log::info!(
+            "[routing] Cross-provider routing: {} ({}) -> openrouter ({}) for simple task",
+            provider.name,
+            provider.model,
+            model
+          );
+          provider.name = "openrouter".into();
+          provider.api_key = or_key;
+          provider.model = model;
+          provider.base_url = "https://openrouter.ai/api/v1".into();
+          provider.is_anthropic = false;
+          return;
+        }
+      }
     }
 
-    let complexity = classify_task_complexity(prompt);
-    log::info!("[routing] Task classified as '{}' for provider '{}'", complexity, provider.name);
+    // Fallback: downgrade to cheapest model within each provider
+    let (new_model, label) = match provider.name.as_str() {
+      "openai" => ("o3-mini".to_string(), "o3-mini"),
+      "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
+      "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
+      "groq" => (provider.model.clone(), "Groq"),            // already cheap
+      "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
+      "ollama" => (provider.model.clone(), "Ollama"),        // local, no cost
+      _ => (provider.model.clone(), "unchanged"),
+    };
 
-    if complexity == "haiku" {
-        // Cross-provider routing: if OpenRouter is available and the current provider
-        // is a paid one, route simple tasks to OpenRouter's free model instead.
-        if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" {
-            let openrouter_key = std::env::var("OPENROUTER_API_KEY").ok().filter(|k| !k.trim().is_empty());
-            let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL").unwrap_or_default();
-            if let Some(or_key) = openrouter_key {
-                // Only cross-route if the configured OpenRouter model is a free one
-                if openrouter_model.contains(":free") || openrouter_model.is_empty() {
-                    let model = if openrouter_model.is_empty() {
-                        "meta-llama/llama-3.3-70b-instruct:free".to_string()
-                    } else {
-                        openrouter_model
-                    };
-                    log::info!(
-                        "[routing] Cross-provider routing: {} ({}) -> openrouter ({}) for simple task",
-                        provider.name, provider.model, model
-                    );
-                    provider.name = "openrouter".into();
-                    provider.api_key = or_key;
-                    provider.model = model;
-                    provider.base_url = "https://openrouter.ai/api/v1".into();
-                    provider.is_anthropic = false;
-                    return;
-                }
-            }
-        }
-
-        // Fallback: downgrade to cheapest model within each provider
-        let (new_model, label) = match provider.name.as_str() {
-            "openai" => ("o3-mini".to_string(), "o3-mini"),
-            "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
-            "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
-            "groq" => (provider.model.clone(), "Groq"),           // already cheap
-            "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
-            "ollama" => (provider.model.clone(), "Ollama"),       // local, no cost
-            _ => (provider.model.clone(), "unchanged"),
-        };
-
-        if new_model != provider.model {
-            log::info!(
-                "[routing] Downgrading from {} to {} ({}) for simple task",
-                provider.model, new_model, label
-            );
-            provider.model = new_model;
-        }
+    if new_model != provider.model {
+      log::info!(
+        "[routing] Downgrading from {} to {} ({}) for simple task",
+        provider.model,
+        new_model,
+        label
+      );
+      provider.model = new_model;
     }
-    // "sonnet" complexity: keep the user's chosen model as-is
+  }
+  // "sonnet" complexity: keep the user's chosen model as-is
 }
 
 /// Extract token usage from an OpenAI-compatible JSON response.
 fn extract_openai_usage(json: &serde_json::Value) -> CompletionUsage {
   let input_tokens = json["usage"]["prompt_tokens"].as_i64().unwrap_or(0);
   let output_tokens = json["usage"]["completion_tokens"].as_i64().unwrap_or(0);
-  CompletionUsage { input_tokens, output_tokens }
+  CompletionUsage {
+    input_tokens,
+    output_tokens,
+  }
 }
 
 /// Extract token usage from an Anthropic JSON response.
 fn extract_anthropic_usage(json: &serde_json::Value) -> CompletionUsage {
   let input_tokens = json["usage"]["input_tokens"].as_i64().unwrap_or(0);
   let output_tokens = json["usage"]["output_tokens"].as_i64().unwrap_or(0);
-  CompletionUsage { input_tokens, output_tokens }
+  CompletionUsage {
+    input_tokens,
+    output_tokens,
+  }
 }
 
 /// Record token usage to the database (best-effort, never fails the request).
@@ -317,7 +376,11 @@ fn record_usage(provider: &str, model: &str, usage: &CompletionUsage, request_ty
   } else {
     log::info!(
       "[cost] Recorded: provider={}, model={}, in={}, out={}, cost=${:.6}",
-      provider, model, usage.input_tokens, usage.output_tokens, cost
+      provider,
+      model,
+      usage.input_tokens,
+      usage.output_tokens,
+      cost
     );
   }
 }
@@ -339,7 +402,10 @@ fn parse_retry_after(text: &str, attempt: u32) -> f64 {
   for pattern in patterns {
     if let Some(idx) = text.find(pattern) {
       let rest = &text[idx + pattern.len()..];
-      let num_str: String = rest.chars().take_while(|c| c.is_numeric() || *c == '.').collect();
+      let num_str: String = rest
+        .chars()
+        .take_while(|c| c.is_numeric() || *c == '.')
+        .collect();
       if let Ok(secs) = num_str.parse::<f64>() {
         return (secs + 1.0).max(1.0); // small buffer above the stated window
       }
@@ -349,21 +415,53 @@ fn parse_retry_after(text: &str, attempt: u32) -> f64 {
   (2u64.pow(attempt + 1) as f64).min(60.0)
 }
 
+/// Refresh the Knapsack JWT access token using the stored refresh token.
+/// Returns the new access token string on success, or None on any failure.
+async fn refresh_knapsack_token() -> Option<String> {
+  let refresh_token = std::env::var("KNAPSACK_REFRESH_TOKEN").ok()?;
+  if refresh_token.trim().is_empty() {
+    return None;
+  }
+  let client = reqwest::Client::new();
+  let resp = client
+    .get(format!(
+      "{}/api/authentication/refresh/app",
+      option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai")
+    ))
+    .header("refresh-token", refresh_token.trim())
+    .send()
+    .await
+    .ok()?;
+  if !resp.status().is_success() {
+    log::warn!("[knapsack_refresh] token refresh failed: {}", resp.status());
+    return None;
+  }
+  let json: serde_json::Value = resp.json().await.ok()?;
+  let new_token = json["access_token"].as_str()?.to_string();
+  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &new_token);
+  log::info!("[knapsack_refresh] access token refreshed");
+  Some(new_token)
+}
+
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
 /// Retries up to 3 times on transient failures with exponential backoff.
+/// For the knapsack provider a 401 triggers one token refresh + retry.
 async fn openai_compatible_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
   let client = reqwest::Client::new();
-  let msgs: Vec<serde_json::Value> = messages.iter().map(|m| {
-    let role = match m.sender {
-      MessageSender::System => "system",
-      MessageSender::User => "user",
-      MessageSender::Bot => "assistant",
-    };
-    serde_json::json!({"role": role, "content": &m.content})
-  }).collect();
+  let msgs: Vec<serde_json::Value> = messages
+    .iter()
+    .map(|m| {
+      let role = match m.sender {
+        MessageSender::System => "system",
+        MessageSender::User => "user",
+        MessageSender::Bot => "assistant",
+      };
+      serde_json::json!({"role": role, "content": &m.content})
+    })
+    .collect();
 
   let body = serde_json::json!({
     "model": &provider.model,
@@ -380,7 +478,12 @@ async fn openai_compatible_completion(
   let has_non_ascii = provider.api_key.bytes().any(|b| b < 0x20 || b > 0x7e);
   log::debug!(
     "[completion] {} request to {} | key_len={} has_whitespace={} has_non_ascii={} model={}",
-    provider.name, url, key_len, has_whitespace, has_non_ascii, provider.model
+    provider.name,
+    url,
+    key_len,
+    has_whitespace,
+    has_non_ascii,
+    provider.model
   );
 
   // Fail fast if the API key is clearly invalid — non-ASCII bytes would cause
@@ -392,7 +495,13 @@ async fn openai_compatible_completion(
       provider.name
     )));
   }
-  if key_len > 256 || provider.api_key.contains(' ') || provider.api_key.starts_with('#') {
+  // JWT tokens (used by the knapsack provider) are longer than typical API keys but valid.
+  let max_key_len = if provider.name == "knapsack" {
+    2048
+  } else {
+    256
+  };
+  if key_len > max_key_len || provider.api_key.contains(' ') || provider.api_key.starts_with('#') {
     return Err(LLMError::ChatCompletionFailed(format!(
       "{} API key looks malformed (len={}, may contain prose/markdown). Please re-enter your API key in Settings.",
       provider.name, key_len
@@ -401,7 +510,8 @@ async fn openai_compatible_completion(
 
   for attempt in 0..max_retries {
     let auth_header = format!("Bearer {}", &provider.api_key);
-    let resp = match client.post(&url)
+    let resp = match client
+      .post(&url)
       .header("Authorization", &auth_header)
       .header("Content-Type", "application/json")
       .json(&body)
@@ -413,7 +523,13 @@ async fn openai_compatible_completion(
         last_error = format!("{} request failed: {}", provider.name, e);
         if attempt < max_retries - 1 {
           let wait = parse_retry_after(&last_error, attempt as u32);
-          log::warn!("[completion] {} (attempt {}/{}), retrying in {:.1}s...", last_error, attempt + 1, max_retries, wait);
+          log::warn!(
+            "[completion] {} (attempt {}/{}), retrying in {:.1}s...",
+            last_error,
+            attempt + 1,
+            max_retries,
+            wait
+          );
           tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
           continue;
         }
@@ -422,12 +538,14 @@ async fn openai_compatible_completion(
     };
 
     let status = resp.status();
-    let text = resp.text().await
-      .map_err(|e| LLMError::ChatCompletionFailed(format!("{} response read failed: {}", provider.name, e)))?;
+    let text = resp.text().await.map_err(|e| {
+      LLMError::ChatCompletionFailed(format!("{} response read failed: {}", provider.name, e))
+    })?;
 
     if status.is_success() {
-      let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| LLMError::ChatCompletionFailed(format!("{} JSON parse failed: {}", provider.name, e)))?;
+      let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+        LLMError::ChatCompletionFailed(format!("{} JSON parse failed: {}", provider.name, e))
+      })?;
 
       let mut usage = extract_openai_usage(&json);
       if usage.input_tokens == 0 {
@@ -438,7 +556,9 @@ async fn openai_compatible_completion(
       let content = json["choices"][0]["message"]["content"]
         .as_str()
         .map(|s| s.to_string())
-        .ok_or_else(|| LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name)))?;
+        .ok_or_else(|| {
+          LLMError::ChatCompletionFailed(format!("{}: no content in response", provider.name))
+        })?;
 
       if usage.output_tokens == 0 {
         usage.output_tokens = estimate_tokens(&content);
@@ -453,7 +573,11 @@ async fn openai_compatible_completion(
       let wait = parse_retry_after(&text, attempt as u32);
       log::warn!(
         "[completion] {} error {} (attempt {}/{}), retrying in {:.1}s...",
-        provider.name, status, attempt + 1, max_retries, wait
+        provider.name,
+        status,
+        attempt + 1,
+        max_retries,
+        wait
       );
       tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
       last_error = format!("{} error ({}): {}", provider.name, status, text);
@@ -462,8 +586,54 @@ async fn openai_compatible_completion(
 
     // Non-retryable error or final attempt
     if status == reqwest::StatusCode::UNAUTHORIZED {
+      // For Knapsack: attempt one token refresh then retry immediately
+      if provider.name == "knapsack" && attempt == 0 {
+        log::info!("[completion] knapsack 401 — attempting token refresh");
+        if let Some(new_token) = refresh_knapsack_token().await {
+          // Update body with new bearer and retry (loop continues with attempt=1)
+          last_error = format!("knapsack 401 (refreshed token, retrying)");
+          // Re-issue the request directly with the new token so we don't wait for next loop
+          let retry_resp = match client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", new_token))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
+            .await
+          {
+            Ok(r) => r,
+            Err(e) => {
+              return Err(LLMError::ChatCompletionFailed(format!(
+                "knapsack retry failed: {}",
+                e
+              )))
+            }
+          };
+          let retry_status = retry_resp.status();
+          let retry_text = retry_resp.text().await.unwrap_or_default();
+          if retry_status.is_success() {
+            let json: serde_json::Value = serde_json::from_str(&retry_text)
+              .map_err(|e| LLMError::ChatCompletionFailed(format!("knapsack JSON parse: {}", e)))?;
+            let content = json["choices"][0]["message"]["content"]
+              .as_str()
+              .map(|s| s.to_string())
+              .ok_or_else(|| {
+                LLMError::ChatCompletionFailed("knapsack: no content after refresh retry".into())
+              })?;
+            return Ok(content);
+          }
+          return Err(LLMError::ChatCompletionFailed(format!(
+            "knapsack error after refresh ({}): {}",
+            retry_status, retry_text
+          )));
+        }
+      }
       let key_preview = if key_len > 8 {
-        format!("{}...{}", &provider.api_key[..4], &provider.api_key[key_len-4..])
+        format!(
+          "{}...{}",
+          &provider.api_key[..4],
+          &provider.api_key[key_len - 4..]
+        )
       } else {
         "(short)".to_string()
       };
@@ -473,12 +643,21 @@ async fn openai_compatible_completion(
       );
     }
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-      return Err(LLMError::TooManyRequests(format!("{} rate limited", provider.name)));
+      return Err(LLMError::TooManyRequests(format!(
+        "{} rate limited",
+        provider.name
+      )));
     }
-    return Err(LLMError::ChatCompletionFailed(format!("{} error ({}): {}", provider.name, status, text)));
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "{} error ({}): {}",
+      provider.name, status, text
+    )));
   }
 
-  Err(LLMError::ChatCompletionFailed(format!("{} failed after {} retries: {}", provider.name, max_retries, last_error)))
+  Err(LLMError::ChatCompletionFailed(format!(
+    "{} failed after {} retries: {}",
+    provider.name, max_retries, last_error
+  )))
 }
 
 /// Call the Anthropic Messages API.
@@ -495,11 +674,15 @@ async fn anthropic_completion(
   for m in messages {
     match m.sender {
       MessageSender::System => {
-        if !system_text.is_empty() { system_text.push('\n'); }
+        if !system_text.is_empty() {
+          system_text.push('\n');
+        }
         system_text.push_str(&m.content);
       }
       MessageSender::User => msgs.push(serde_json::json!({"role": "user", "content": &m.content})),
-      MessageSender::Bot => msgs.push(serde_json::json!({"role": "assistant", "content": &m.content})),
+      MessageSender::Bot => {
+        msgs.push(serde_json::json!({"role": "assistant", "content": &m.content}))
+      }
     }
   }
 
@@ -516,7 +699,8 @@ async fn anthropic_completion(
   let mut last_error = String::new();
 
   for attempt in 0..max_retries {
-    let resp = match client.post("https://api.anthropic.com/v1/messages")
+    let resp = match client
+      .post("https://api.anthropic.com/v1/messages")
       .header("x-api-key", &provider.api_key)
       .header("anthropic-version", "2023-06-01")
       .header("Content-Type", "application/json")
@@ -529,7 +713,13 @@ async fn anthropic_completion(
         last_error = format!("Anthropic request failed: {}", e);
         if attempt < max_retries - 1 {
           let wait = parse_retry_after(&last_error, attempt as u32);
-          log::warn!("[completion] {} (attempt {}/{}), retrying in {:.1}s...", last_error, attempt + 1, max_retries, wait);
+          log::warn!(
+            "[completion] {} (attempt {}/{}), retrying in {:.1}s...",
+            last_error,
+            attempt + 1,
+            max_retries,
+            wait
+          );
           tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
           continue;
         }
@@ -538,12 +728,14 @@ async fn anthropic_completion(
     };
 
     let status = resp.status();
-    let text = resp.text().await
-      .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic response read failed: {}", e)))?;
+    let text = resp.text().await.map_err(|e| {
+      LLMError::ChatCompletionFailed(format!("Anthropic response read failed: {}", e))
+    })?;
 
     if status.is_success() {
-      let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|e| LLMError::ChatCompletionFailed(format!("Anthropic JSON parse failed: {}", e)))?;
+      let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+        LLMError::ChatCompletionFailed(format!("Anthropic JSON parse failed: {}", e))
+      })?;
 
       let mut usage = extract_anthropic_usage(&json);
       if usage.input_tokens == 0 {
@@ -569,7 +761,10 @@ async fn anthropic_completion(
       let wait = parse_retry_after(&text, attempt as u32);
       log::warn!(
         "[completion] Anthropic error {} (attempt {}/{}), retrying in {:.1}s...",
-        status, attempt + 1, max_retries, wait
+        status,
+        attempt + 1,
+        max_retries,
+        wait
       );
       tokio::time::sleep(tokio::time::Duration::from_secs_f64(wait)).await;
       last_error = format!("Anthropic error ({}): {}", status, text);
@@ -579,10 +774,16 @@ async fn anthropic_completion(
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
       return Err(LLMError::TooManyRequests("Anthropic rate limited".into()));
     }
-    return Err(LLMError::ChatCompletionFailed(format!("Anthropic error ({}): {}", status, text)));
+    return Err(LLMError::ChatCompletionFailed(format!(
+      "Anthropic error ({}): {}",
+      status, text
+    )));
   }
 
-  Err(LLMError::ChatCompletionFailed(format!("Anthropic failed after {} retries: {}", max_retries, last_error)))
+  Err(LLMError::ChatCompletionFailed(format!(
+    "Anthropic failed after {} retries: {}",
+    max_retries, last_error
+  )))
 }
 
 /// Call Knapsack's cloud inference API (`POST /api/desktop/inference`).
@@ -599,9 +800,11 @@ async fn knapsack_completion(
     "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
     email
   );
-  let token_resp = client.get(&token_url).send().await.map_err(|e| {
-    LLMError::ChatCompletionFailed(format!("Knapsack token fetch failed: {}", e))
-  })?;
+  let token_resp = client
+    .get(&token_url)
+    .send()
+    .await
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack token fetch failed: {}", e)))?;
 
   if !token_resp.status().is_success() {
     return Err(LLMError::ChatCompletionFailed(
@@ -609,9 +812,10 @@ async fn knapsack_completion(
     ));
   }
 
-  let token_json: serde_json::Value = token_resp.json().await.map_err(|e| {
-    LLMError::ChatCompletionFailed(format!("Knapsack token parse failed: {}", e))
-  })?;
+  let token_json: serde_json::Value = token_resp
+    .json()
+    .await
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack token parse failed: {}", e)))?;
 
   let token = token_json
     .get("token")
@@ -657,7 +861,9 @@ async fn knapsack_completion(
     .json(&body)
     .send()
     .await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack inference request failed: {}", e)))?;
+    .map_err(|e| {
+      LLMError::ChatCompletionFailed(format!("Knapsack inference request failed: {}", e))
+    })?;
 
   let status = resp.status();
   if !status.is_success() {
@@ -679,9 +885,10 @@ async fn knapsack_completion(
   }
 
   // Consume SSE stream and concatenate content chunks
-  let body_bytes = resp.bytes().await.map_err(|e| {
-    LLMError::ChatCompletionFailed(format!("Knapsack response read failed: {}", e))
-  })?;
+  let body_bytes = resp
+    .bytes()
+    .await
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack response read failed: {}", e)))?;
   let body_str = String::from_utf8_lossy(&body_bytes);
 
   let mut full_text = String::new();
@@ -705,7 +912,10 @@ async fn knapsack_completion(
   }
 
   let usage = CompletionUsage {
-    input_tokens: messages.iter().map(|m| estimate_tokens(&m.content)).sum::<i64>(),
+    input_tokens: messages
+      .iter()
+      .map(|m| estimate_tokens(&m.content))
+      .sum::<i64>(),
     output_tokens: estimate_tokens(&full_text),
   };
   record_usage("knapsack", &provider.model, &usage, "chat");
@@ -714,13 +924,12 @@ async fn knapsack_completion(
 }
 
 /// Complete using the best available provider. Falls back through providers on failure.
-pub async fn multi_provider_completion(
-  messages: Vec<LlmMessage>,
-) -> Result<String, LLMError> {
+pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
   let mut provider = resolve_provider()?;
 
   // Extract the last user message for task complexity classification
-  let user_prompt: String = messages.iter()
+  let user_prompt: String = messages
+    .iter()
     .filter(|m| matches!(m.sender, MessageSender::User))
     .last()
     .map(|m| m.content.clone())
@@ -729,13 +938,20 @@ pub async fn multi_provider_completion(
 
   let key_len = provider.api_key.len();
   let key_preview = if key_len > 8 {
-    format!("{}...{}", &provider.api_key[..4], &provider.api_key[key_len-4..])
+    format!(
+      "{}...{}",
+      &provider.api_key[..4],
+      &provider.api_key[key_len - 4..]
+    )
   } else {
     format!("({}chars)", key_len)
   };
   log::info!(
     "[notes] Using {} ({}) for meeting notes completion [key_len={}, key={}]",
-    provider.name, provider.model, key_len, key_preview
+    provider.name,
+    provider.model,
+    key_len,
+    key_preview
   );
 
   let result = if provider.name == "knapsack" {
@@ -749,7 +965,11 @@ pub async fn multi_provider_completion(
   match result {
     Ok(text) => Ok(text),
     Err(e) => {
-      log::warn!("[notes] {} failed: {}. Trying fallback providers...", provider.name, e);
+      log::warn!(
+        "[notes] {} failed: {}. Trying fallback providers...",
+        provider.name,
+        e
+      );
 
       // Try all other configured providers as fallback.
       // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges.
@@ -758,33 +978,75 @@ pub async fn multi_provider_completion(
         .unwrap_or(true); // Default: paid fallback disabled
       let primary_is_paid = matches!(provider.name.as_str(), "openai" | "anthropic");
 
-      let fb_openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
-      let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty());
+      let fb_openai_key = std::env::var("OPENAI_API_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty());
+      let fb_anthropic_key = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty());
       let fb_gemini_key = std::env::var("GEMINI_API_KEY")
         .or_else(|_| std::env::var("GOOGLE_API_KEY"))
         .ok()
         .filter(|k| !k.trim().is_empty());
-      let fb_groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
-      let fb_openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.4".to_string());
-      let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
-      let fb_gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.5-flash".to_string());
+      let fb_groq_key = std::env::var("GROQ_API_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty());
+      let fb_openai_model =
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+      let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
+        .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+      let fb_gemini_model =
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
-        ("openai", &fb_openai_key, fb_openai_model, "https://api.openai.com/v1", false),
-        ("anthropic", &fb_anthropic_key, fb_anthropic_model, "https://api.anthropic.com/v1", true),
-        ("gemini", &fb_gemini_key, fb_gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai", false),
-        ("groq", &fb_groq_key, "meta-llama/llama-4-maverick-17b-128e-instruct".to_string(), "https://api.groq.com/openai/v1", false),
+        (
+          "openai",
+          &fb_openai_key,
+          fb_openai_model,
+          "https://api.openai.com/v1",
+          false,
+        ),
+        (
+          "anthropic",
+          &fb_anthropic_key,
+          fb_anthropic_model,
+          "https://api.anthropic.com/v1",
+          true,
+        ),
+        (
+          "gemini",
+          &fb_gemini_key,
+          fb_gemini_model,
+          "https://generativelanguage.googleapis.com/v1beta/openai",
+          false,
+        ),
+        (
+          "groq",
+          &fb_groq_key,
+          "meta-llama/llama-4-maverick-17b-128e-instruct".to_string(),
+          "https://api.groq.com/openai/v1",
+          false,
+        ),
       ];
 
       for (fb_name, fb_key_opt, fb_model, fb_url, fb_is_anthropic) in &fallbacks {
-        if *fb_name == provider.name { continue; }
+        if *fb_name == provider.name {
+          continue;
+        }
         // Skip paid providers when paid fallback is disabled and primary isn't paid
         if disable_paid && !primary_is_paid && matches!(*fb_name, "openai" | "anthropic") {
-          log::info!("[notes] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK)", fb_name);
+          log::info!(
+            "[notes] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK)",
+            fb_name
+          );
           continue;
         }
         if let Some(fb_key) = fb_key_opt {
-          log::info!("[notes] Trying fallback provider: {} ({})", fb_name, fb_model);
+          log::info!(
+            "[notes] Trying fallback provider: {} ({})",
+            fb_name,
+            fb_model
+          );
           let fb_provider = ResolvedProvider {
             name: fb_name.to_string(),
             api_key: fb_key.clone(),
@@ -813,11 +1075,14 @@ pub async fn multi_provider_completion(
       if provider.name != "groq" {
         if let Ok(groq) = GroqLlm::new() {
           let primary = "meta-llama/llama-4-maverick-17b-128e-instruct".to_string();
-          match groq.chat_completion(ChatCompletionArgs {
-            model: primary.clone(),
-            messages: messages.clone(),
-            ..Default::default()
-          }).await {
+          match groq
+            .chat_completion(ChatCompletionArgs {
+              model: primary.clone(),
+              messages: messages.clone(),
+              ..Default::default()
+            })
+            .await
+          {
             Ok(text) => {
               let input_est: usize = messages.iter().map(|m| m.content.len()).sum();
               let usage = CompletionUsage {
@@ -826,7 +1091,7 @@ pub async fn multi_provider_completion(
               };
               record_usage("groq", &primary, &usage, "chat");
               return Ok(text);
-            },
+            }
             Err(groq_err) => log::warn!("[notes] Groq SDK fallback also failed: {}", groq_err),
           }
         }
@@ -985,7 +1250,6 @@ pub async fn handle_llm_complete(
   is_chatting: &Arc<Mutex<AtomicBool>>,
   semantic_service: &Arc<Mutex<Option<SemanticService>>>,
 ) -> Result<AbortStream, LLMError> {
-
   is_chatting.lock().await.store(true, Ordering::Relaxed);
 
   let abort_flag = Arc::new(StdRwLock::new(AtomicBool::new(false)));
@@ -1018,9 +1282,7 @@ pub async fn handle_llm_complete(
     payload.0.additional_documents.clone(),
   )
   .await;
-  chat_completion_messages.push(
-    user_message,
-  );
+  chat_completion_messages.push(user_message);
 
   if payload.0.is_local {
     let (token_sender, receiver) = flume::unbounded::<Bytes>();

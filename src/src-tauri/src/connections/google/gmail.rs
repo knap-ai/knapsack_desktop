@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use crate::connections::api::ConnectionsEnum;
 use crate::connections::google::constants::GOOGLE_GMAIL_SCOPE;
+use crate::connections::utils::get_knapsack_api_connection;
 use crate::constants::{EMBEDDING_BATCH_SIZE, GMAIL_DOWNLOADS_THREAD_POOL_SIZE};
 use crate::db::models::user_connection::UserConnection;
 use crate::memory::semantic::SemanticService;
-use crate::ConnectionsData;
 use crate::utils::log::knap_log_error;
-use crate::connections::utils::get_knapsack_api_connection;
+use crate::ConnectionsData;
 use actix_web::web::Data;
 use actix_web::{get, post, web::Json, HttpRequest, HttpResponse, Responder};
 use google_gmail1::api::MessagePartBody;
@@ -28,7 +28,7 @@ use tokio::sync::{Mutex, Semaphore};
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FetchGoogleGmailResponse {
   success: bool,
-  message: String
+  message: String,
 }
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleGmailParams {
@@ -44,7 +44,7 @@ pub struct SetEmailReadResponse {
 pub struct SetEmailReadResponseParams {
   email: String,
   message_id: String,
-  extra_action: Option<String>
+  extra_action: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -78,18 +78,20 @@ fn get_body_content(maybe_body: Option<MessagePartBody>) -> Option<String> {
   }
 }
 
-pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_update: bool, account_email: &str) -> Result<Email, Error> {
+pub async fn upsert_email_by_uid(
+  email_uid: &str,
+  access_token: &str,
+  flag_update: bool,
+  account_email: &str,
+) -> Result<Email, Error> {
   let email_result = Email::find_by_uid(email_uid).ok().flatten();
   if let Some(email) = email_result {
     if email.thread_id.is_some() && !flag_update {
       return Ok(email);
     }
   }
-  
-  let hub = Gmail::new(
-    get_https_client(),
-    access_token.to_string(),
-  );
+
+  let hub = Gmail::new(get_https_client(), access_token.to_string());
   let result = hub.users().messages_get("me", email_uid).doit().await;
 
   let message = match result {
@@ -98,7 +100,6 @@ pub async fn upsert_email_by_uid(email_uid: &str, access_token: &str, flag_updat
   };
 
   let mut thread_id = message.thread_id.unwrap_or_default();
-
 
   let payload = message.payload.unwrap();
   let headers = payload.headers.unwrap();
@@ -209,7 +210,8 @@ pub async fn embed_email(
     email.to_string(),
     String::from(GOOGLE_GMAIL_SCOPE),
   )?;
-  let access_token = refresh_connection_token(email.clone().to_string(), user_connection.clone()).await?;
+  let access_token =
+    refresh_connection_token(email.clone().to_string(), user_connection.clone()).await?;
 
   let email = upsert_email_by_uid(email_uid, &access_token, false, email).await?;
 
@@ -232,7 +234,7 @@ pub async fn fetch_gmail(
   account_email: String,
 ) -> Result<(), Error> {
   let mut maybe_next_page_token: Option<String> = None;
-  let mut all_email_uuids = Vec::new(); 
+  let mut all_email_uuids = Vec::new();
   let hub = Gmail::new(
     hyper::Client::builder().build(
       hyper_rustls::HttpsConnectorBuilder::new()
@@ -272,7 +274,13 @@ pub async fn fetch_gmail(
       let account_email_clone = account_email.clone();
       let task = tauri::async_runtime::spawn(async move {
         let _permit = semaphore_clone.acquire().await.unwrap();
-        let result = upsert_email_by_uid(&message_id, &access_token_clone, flag_update.clone(), &account_email_clone).await;
+        let result = upsert_email_by_uid(
+          &message_id,
+          &access_token_clone,
+          flag_update.clone(),
+          &account_email_clone,
+        )
+        .await;
         match result {
           Ok(email_message) => {
             if (older_date.timestamp() as u64 > email_message.clone().date) {
@@ -343,24 +351,28 @@ async fn start_gmail_data_fetching(
     }
   };
 
-  let user_connection =
-    match UserConnection::find_by_user_email_and_scope(email.clone(), String::from(GOOGLE_GMAIL_SCOPE)) {
-      Ok(connection) => connection,
-      Err(error) => {
-        log::error!("Failed to find user connection: {:?}", error);
-        let msg = format!("Failed to find user connection for user: {}", email);
-        knap_log_error(msg, Some(error), None);
-        return Err(Error::KSError("Fail to get user connection".to_string()));
-      }
-    };
+  let user_connection = match UserConnection::find_by_user_email_and_scope(
+    email.clone(),
+    String::from(GOOGLE_GMAIL_SCOPE),
+  ) {
+    Ok(connection) => connection,
+    Err(error) => {
+      log::error!("Failed to find user connection: {:?}", error);
+      let msg = format!("Failed to find user connection for user: {}", email);
+      knap_log_error(msg, Some(error), None);
+      return Err(Error::KSError("Fail to get user connection".to_string()));
+    }
+  };
   let access_token = match refresh_connection_token(email.clone(), user_connection.clone()).await {
     Ok(token) => token,
     Err(error) => {
-      let msg = format!("Failed to find user connection in google gmail for user: {}", email);
+      let msg = format!(
+        "Failed to find user connection in google gmail for user: {}",
+        email
+      );
       knap_log_error(msg, Some(error), Some(true));
-      return Err(Error::KSError("Fail to refresh access token".to_string() ));
+      return Err(Error::KSError("Fail to refresh access token".to_string()));
     }
-
   };
   let account_email = user_connection.calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
@@ -398,7 +410,7 @@ async fn start_gmail_data_fetching(
     if fetching_day_result.is_err() {
       log::error!("Failed to fetch gmail");
       let msg = format!("Failed to fetch gmail: {}", email);
-      
+
       if let Err(day_error) = fetching_day_result {
         knap_log_error(format!("{} (Day fetch)", msg), Some(day_error), Some(true));
       }
@@ -434,8 +446,14 @@ async fn fetch_google_gmail_api(
   )
   .await
   {
-    Ok(_) => HttpResponse::Ok().json(FetchGoogleGmailResponse { success: true, message: "Fetching gmail data".to_string() }),
-    Err(err) => HttpResponse::BadRequest().json(FetchGoogleGmailResponse { success: false, message: format!("{:?}", err) }),
+    Ok(_) => HttpResponse::Ok().json(FetchGoogleGmailResponse {
+      success: true,
+      message: "Fetching gmail data".to_string(),
+    }),
+    Err(err) => HttpResponse::BadRequest().json(FetchGoogleGmailResponse {
+      success: false,
+      message: format!("{:?}", err),
+    }),
   }
 }
 
@@ -451,12 +469,9 @@ async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Re
     .unwrap();
   let message_id = payload.message_id.clone();
 
-  let hub = Gmail::new(
-    get_https_client(),
-    access_token.to_string(),
-  );
+  let hub = Gmail::new(get_https_client(), access_token.to_string());
 
-  let mut remove_label_ids =  Some(vec!["UNREAD".to_string()]);
+  let mut remove_label_ids = Some(vec!["UNREAD".to_string()]);
   let mut add_label_ids = None;
 
   if payload.extra_action == Some("archive".to_string()) {

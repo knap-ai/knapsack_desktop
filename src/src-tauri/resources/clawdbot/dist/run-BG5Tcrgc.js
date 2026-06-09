@@ -174,7 +174,6 @@ async function waitForHealthyGatewayChild(port, _pid, host = "127.0.0.1", timeou
 }
 async function runGatewayLoop(params) {
 	let startupStartedAt = Date.now();
-	const eagerLifecycleRuntime = await loadGatewayLifecycleRuntimeModule();
 	let lock = await acquireGatewayLock({ port: params.lockPort });
 	let server = null;
 	let shuttingDown = false;
@@ -606,9 +605,7 @@ async function runGatewayLoop(params) {
 			request("restart", "SIGUSR1", restartReason);
 		})().catch((err) => {
 			gatewayLog$1.error(`SIGUSR1 handler failed: ${formatErrorMessage(err)}`);
-			try {
-				eagerLifecycleRuntime.markGatewaySigusr1RestartHandled();
-			} catch {}
+			loadGatewayLifecycleRuntimeModule().then(({ markGatewaySigusr1RestartHandled }) => markGatewaySigusr1RestartHandled()).catch(() => void 0);
 		});
 	};
 	process.on("SIGTERM", onSigterm);
@@ -796,8 +793,15 @@ function getGatewayStartGuardErrors(params) {
 	return [`Gateway start blocked: set gateway.mode=local (current: ${params.mode}) or pass --allow-unconfigured.`, `Config write audit: ${params.configAuditPath}`];
 }
 async function readGatewayStartupConfig(params) {
-	const { readConfigFileSnapshotWithPluginMetadata } = await import("./config/config.js");
-	const snapshotRead = await params.startupTrace.measure("cli.config-snapshot", () => readConfigFileSnapshotWithPluginMetadata().catch(() => null));
+	const { readConfigFileSnapshot, readConfigFileSnapshotWithPluginMetadata } = await import("./config/config.js");
+	const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1";
+	const snapshotRead = await params.startupTrace.measure("cli.config-snapshot", async () => {
+		if (desktopManagedFastStartup) {
+			const snapshot = await readConfigFileSnapshot({ skipPluginValidation: true });
+			return { snapshot };
+		}
+		return await readConfigFileSnapshotWithPluginMetadata();
+	}).catch(() => null);
 	const snapshot = snapshotRead?.snapshot ?? null;
 	return {
 		cfg: snapshot?.config ?? {},

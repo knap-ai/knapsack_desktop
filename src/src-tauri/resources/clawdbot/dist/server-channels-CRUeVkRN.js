@@ -156,8 +156,10 @@ const MAX_RESTART_ATTEMPTS = 10;
 const CHANNEL_STOP_ABORT_TIMEOUT_MS = 5e3;
 const CHANNEL_STARTUP_CONCURRENCY = 4;
 function waitForChannelStartupHandoff() {
+	const delayMs = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" ? Number.parseInt(process.env.OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS ?? "0", 10) : 0;
 	return new Promise((resolve) => {
-		setImmediate(resolve).unref?.();
+		if (Number.isFinite(delayMs) && delayMs > 0) setTimeout(resolve, delayMs).unref?.();
+		else setImmediate(resolve).unref?.();
 	});
 }
 function createRuntimeStore() {
@@ -576,9 +578,10 @@ function createChannelManager(opts) {
 		}));
 	};
 	const startChannels = async () => {
+		const startupPlugins = [...listChannelPlugins()].sort((a, b) => a.id === "whatsapp" ? -1 : b.id === "whatsapp" ? 1 : 0);
 		await runTasksWithConcurrency({
 			limit: CHANNEL_STARTUP_CONCURRENCY,
-			tasks: [...listChannelPlugins()].map((plugin) => async () => {
+			tasks: startupPlugins.map((plugin) => async () => {
 				try {
 					await measureStartup(`channels.${plugin.id}.start`, () => startChannel(plugin.id));
 				} catch (err) {

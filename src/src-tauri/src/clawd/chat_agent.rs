@@ -500,12 +500,26 @@ pub async fn groq_chat(
 
   // Try with images first.  If Groq rejects multipart content (e.g. the model
   // or endpoint doesn't actually support vision), retry with images stripped.
-  let result = openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", messages.clone(), tools.clone()).await;
+  let result = openai_compatible_chat(
+    api_key,
+    model,
+    "https://api.groq.com/openai/v1",
+    messages.clone(),
+    tools.clone(),
+  )
+  .await;
   match &result {
     Err(e) if e.to_string().contains("content must be a string") => {
       eprintln!("[groq_chat] Multipart content rejected, retrying without images");
       let stripped = strip_images(messages);
-      openai_compatible_chat(api_key, model, "https://api.groq.com/openai/v1", stripped, tools).await
+      openai_compatible_chat(
+        api_key,
+        model,
+        "https://api.groq.com/openai/v1",
+        stripped,
+        tools,
+      )
+      .await
     }
     _ => result,
   }
@@ -516,9 +530,10 @@ fn strip_images(messages: Vec<OaiMessage>) -> Vec<OaiMessage> {
   messages
     .into_iter()
     .map(|msg| match msg {
-      OaiMessage::User { content, images } if !images.is_empty() => {
-        OaiMessage::User { content, images: Vec::new() }
-      }
+      OaiMessage::User { content, images } if !images.is_empty() => OaiMessage::User {
+        content,
+        images: Vec::new(),
+      },
       other => other,
     })
     .collect()
@@ -544,54 +559,64 @@ pub async fn openai_compatible_chat(
     || model.starts_with("o3")
     || model.starts_with("o4")
     || model == "gpt-5.2-pro";
-  let temperature = if is_reasoning_model {
-    None
-  } else {
-    Some(0.2)
-  };
+  let temperature = if is_reasoning_model { None } else { Some(0.2) };
 
   // Build messages JSON manually to support multi-part content (text + images) for vision
-  let oai_messages: Vec<JsonValue> = messages.iter().map(|msg| {
-    match msg {
-      OaiMessage::System { content } => json!({"role": "system", "content": content}),
-      OaiMessage::User { content, images } => {
-        if images.is_empty() {
-          json!({"role": "user", "content": content})
-        } else {
-          // Multi-part content: text + image_url blocks (OpenAI vision format)
-          let mut parts: Vec<JsonValue> = vec![json!({"type": "text", "text": content})];
-          for img in images {
-            parts.push(json!({
-              "type": "image_url",
-              "image_url": {
-                "url": format!("data:{};base64,{}", img.media_type, img.data),
-                "detail": "auto"
-              }
-            }));
+  let oai_messages: Vec<JsonValue> = messages
+    .iter()
+    .map(|msg| {
+      match msg {
+        OaiMessage::System { content } => json!({"role": "system", "content": content}),
+        OaiMessage::User { content, images } => {
+          if images.is_empty() {
+            json!({"role": "user", "content": content})
+          } else {
+            // Multi-part content: text + image_url blocks (OpenAI vision format)
+            let mut parts: Vec<JsonValue> = vec![json!({"type": "text", "text": content})];
+            for img in images {
+              parts.push(json!({
+                "type": "image_url",
+                "image_url": {
+                  "url": format!("data:{};base64,{}", img.media_type, img.data),
+                  "detail": "auto"
+                }
+              }));
+            }
+            json!({"role": "user", "content": parts})
           }
-          json!({"role": "user", "content": parts})
+        }
+        OaiMessage::Assistant {
+          content,
+          tool_calls,
+        } => {
+          let mut obj = json!({"role": "assistant"});
+          if let Some(text) = content {
+            obj["content"] = json!(text);
+          }
+          if let Some(tcs) = tool_calls {
+            let tc_json: Vec<JsonValue> = tcs
+              .iter()
+              .map(|tc| {
+                json!({
+                  "id": tc.id,
+                  "type": tc.kind,
+                  "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                })
+              })
+              .collect();
+            obj["tool_calls"] = json!(tc_json);
+          }
+          obj
+        }
+        OaiMessage::Tool {
+          tool_call_id,
+          content,
+        } => {
+          json!({"role": "tool", "tool_call_id": tool_call_id, "content": content})
         }
       }
-      OaiMessage::Assistant { content, tool_calls } => {
-        let mut obj = json!({"role": "assistant"});
-        if let Some(text) = content {
-          obj["content"] = json!(text);
-        }
-        if let Some(tcs) = tool_calls {
-          let tc_json: Vec<JsonValue> = tcs.iter().map(|tc| json!({
-            "id": tc.id,
-            "type": tc.kind,
-            "function": {"name": tc.function.name, "arguments": tc.function.arguments}
-          })).collect();
-          obj["tool_calls"] = json!(tc_json);
-        }
-        obj
-      }
-      OaiMessage::Tool { tool_call_id, content } => {
-        json!({"role": "tool", "tool_call_id": tool_call_id, "content": content})
-      }
-    }
-  }).collect();
+    })
+    .collect();
 
   let mut body = json!({
     "model": model,
@@ -717,18 +742,15 @@ pub async fn openai_compatible_chat(
 /// Parse the retry-after time from OpenAI rate limit error messages
 fn parse_retry_after(text: &str) -> Option<f64> {
   // Look for patterns like "Please try again in 4.183s" or "retry in X seconds"
-  let patterns = [
-    "try again in ",
-    "retry in ",
-    "wait ",
-  ];
+  let patterns = ["try again in ", "retry in ", "wait "];
 
   for pattern in patterns {
     if let Some(idx) = text.find(pattern) {
       let start = idx + pattern.len();
       let rest = &text[start..];
       // Parse the number (could be float like "4.183s")
-      let num_str: String = rest.chars()
+      let num_str: String = rest
+        .chars()
         .take_while(|c| c.is_numeric() || *c == '.')
         .collect();
       if let Ok(secs) = num_str.parse::<f64>() {
@@ -795,9 +817,8 @@ fn fixup_raw_tool_tokens(mut resp: OaiChatResp) -> OaiChatResp {
 
     if !extracted.is_empty() {
       // Strip all raw tool-call tokens from the content.
-      let section_re = regex::Regex::new(
-        r#"<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>"#
-      ).unwrap();
+      let section_re =
+        regex::Regex::new(r#"<\|tool_call_begin\|>[\s\S]*?<\|tool_call_end\|>"#).unwrap();
       cleaned = section_re.replace_all(&cleaned, "").to_string();
       let end_re = regex::Regex::new(r#"<\|tool_calls_section_end\|>"#).unwrap();
       cleaned = end_re.replace_all(&cleaned, "").to_string();
@@ -806,11 +827,18 @@ fn fixup_raw_tool_tokens(mut resp: OaiChatResp) -> OaiChatResp {
       eprintln!(
         "[chat_agent] extracted {} tool call(s) from raw tokens: {:?}",
         extracted.len(),
-        extracted.iter().map(|t| &t.function.name).collect::<Vec<_>>()
+        extracted
+          .iter()
+          .map(|t| &t.function.name)
+          .collect::<Vec<_>>()
       );
 
       msg.tool_calls = extracted;
-      msg.content = if cleaned.is_empty() { None } else { Some(cleaned) };
+      msg.content = if cleaned.is_empty() {
+        None
+      } else {
+        Some(cleaned)
+      };
     }
   }
   resp
@@ -859,7 +887,10 @@ pub async fn anthropic_chat(
           anth_messages.push(json!({"role": "user", "content": parts}));
         }
       }
-      OaiMessage::Assistant { content, tool_calls } => {
+      OaiMessage::Assistant {
+        content,
+        tool_calls,
+      } => {
         let mut content_blocks: Vec<JsonValue> = Vec::new();
         if let Some(text) = content {
           if !text.is_empty() {
@@ -882,7 +913,10 @@ pub async fn anthropic_chat(
         }
         anth_messages.push(json!({"role": "assistant", "content": content_blocks}));
       }
-      OaiMessage::Tool { tool_call_id, content } => {
+      OaiMessage::Tool {
+        tool_call_id,
+        content,
+      } => {
         anth_messages.push(json!({
           "role": "user",
           "content": [{"type": "tool_result", "tool_use_id": tool_call_id, "content": content}]
@@ -892,13 +926,16 @@ pub async fn anthropic_chat(
   }
 
   // Convert OAI tools → Anthropic tool format
-  let anth_tools: Vec<JsonValue> = tools.iter().map(|t| {
-    json!({
-      "name": t.function.name,
-      "description": t.function.description,
-      "input_schema": t.function.parameters
+  let anth_tools: Vec<JsonValue> = tools
+    .iter()
+    .map(|t| {
+      json!({
+        "name": t.function.name,
+        "description": t.function.description,
+        "input_schema": t.function.parameters
+      })
     })
-  }).collect();
+    .collect();
 
   let mut body = json!({
     "model": model,
@@ -943,8 +980,16 @@ pub async fn anthropic_chat(
               }
             }
             Some("tool_use") => {
-              let id = block.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
-              let name = block.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+              let id = block
+                .get("id")
+                .and_then(|i| i.as_str())
+                .unwrap_or("")
+                .to_string();
+              let name = block
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
               let input = block.get("input").cloned().unwrap_or(json!({}));
               tool_calls.push(OaiToolCall {
                 id,
@@ -969,7 +1014,11 @@ pub async fn anthropic_chat(
       return Ok(OaiChatResp {
         choices: vec![OaiChoice {
           message: OaiChoiceMsg {
-            content: if reply_text.is_empty() { None } else { Some(reply_text) },
+            content: if reply_text.is_empty() {
+              None
+            } else {
+              Some(reply_text)
+            },
             tool_calls,
           },
         }],
@@ -981,7 +1030,9 @@ pub async fn anthropic_chat(
       let wait_secs = parse_retry_after(&text).unwrap_or(5.0 + (attempt as f64 * 2.0));
       eprintln!(
         "Anthropic rate limit (attempt {}/{}), waiting {:.1}s...",
-        attempt + 1, max_retries, wait_secs
+        attempt + 1,
+        max_retries,
+        wait_secs
       );
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
       last_error = format!("Anthropic HTTP {}: {}", status, text);
@@ -991,7 +1042,11 @@ pub async fn anthropic_chat(
     anyhow::bail!("Anthropic HTTP {}: {}", status, text);
   }
 
-  anyhow::bail!("Anthropic error after {} retries: {}", max_retries, last_error)
+  anyhow::bail!(
+    "Anthropic error after {} retries: {}",
+    max_retries,
+    last_error
+  )
 }
 
 /// Recursively strip fields that Gemini doesn't support from JSON-Schema
@@ -1004,7 +1059,11 @@ fn clean_schema_for_gemini(val: &mut JsonValue) {
       // Convert "type": ["boolean","string"] → "type": "string"
       if let Some(t) = map.get_mut("type") {
         if let Some(arr) = t.as_array() {
-          if let Some(first) = arr.iter().find(|v| v.as_str() != Some("null")).and_then(|v| v.as_str()) {
+          if let Some(first) = arr
+            .iter()
+            .find(|v| v.as_str() != Some("null"))
+            .and_then(|v| v.as_str())
+          {
             *t = json!(first);
           } else if let Some(first) = arr.first().and_then(|v| v.as_str()) {
             *t = json!(first);
@@ -1030,6 +1089,17 @@ pub async fn gemini_chat(
   model: &str,
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
+  gemini_chat_with_retries(api_key, model, messages, tools, 6).await
+}
+
+/// Call Google Gemini API with an explicit retry count.
+pub async fn gemini_chat_with_retries(
+  api_key: &str,
+  model: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+  max_retries: usize,
 ) -> anyhow::Result<OaiChatResp> {
   let client = reqwest::Client::builder()
     .timeout(Duration::from_secs(90))
@@ -1062,7 +1132,10 @@ pub async fn gemini_chat(
           "parts": parts
         }));
       }
-      OaiMessage::Assistant { content, tool_calls } => {
+      OaiMessage::Assistant {
+        content,
+        tool_calls,
+      } => {
         let mut parts: Vec<JsonValue> = Vec::new();
         if let Some(text) = content {
           if !text.is_empty() {
@@ -1103,11 +1176,14 @@ pub async fn gemini_chat(
         }
         gemini_contents.push(json!({"role": "model", "parts": parts}));
       }
-      OaiMessage::Tool { tool_call_id: _, content } => {
+      OaiMessage::Tool {
+        tool_call_id: _,
+        content,
+      } => {
         // Gemini expects tool results as functionResponse parts in a user turn
         // Try to parse content as JSON for structured response
-        let response_val: JsonValue = serde_json::from_str(content)
-          .unwrap_or_else(|_| json!({"result": content}));
+        let response_val: JsonValue =
+          serde_json::from_str(content).unwrap_or_else(|_| json!({"result": content}));
         gemini_contents.push(json!({
           "role": "user",
           "parts": [{"functionResponse": {"name": "tool", "response": response_val}}]
@@ -1146,7 +1222,6 @@ pub async fn gemini_chat(
     model, api_key
   );
 
-  let max_retries = 3;
   let mut last_error = String::new();
 
   for attempt in 0..max_retries {
@@ -1177,7 +1252,11 @@ pub async fn gemini_chat(
                 }
                 if let Some(fc) = part.get("functionCall") {
                   tc_counter += 1;
-                  let name = fc.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                  let name = fc
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("")
+                    .to_string();
                   let args = fc.get("args").cloned().unwrap_or(json!({}));
                   tool_calls.push(OaiToolCall {
                     id: format!("call_{}", tc_counter),
@@ -1203,7 +1282,11 @@ pub async fn gemini_chat(
       return Ok(OaiChatResp {
         choices: vec![OaiChoice {
           message: OaiChoiceMsg {
-            content: if reply_text.is_empty() { None } else { Some(reply_text) },
+            content: if reply_text.is_empty() {
+              None
+            } else {
+              Some(reply_text)
+            },
             tool_calls,
           },
         }],
@@ -1211,14 +1294,20 @@ pub async fn gemini_chat(
       });
     }
 
-    if status.as_u16() == 429 {
-      let wait_secs = parse_retry_after(&text).unwrap_or(5.0 + (attempt as f64 * 2.0));
+    if status.as_u16() == 429 || status.as_u16() == 503 {
+      last_error = format!("Gemini HTTP {}: {}", status, text);
+      if attempt + 1 >= max_retries {
+        anyhow::bail!("{}", last_error);
+      }
+      let wait_secs = parse_retry_after(&text).unwrap_or(3.0 + (attempt as f64 * 2.0));
       eprintln!(
-        "Gemini rate limit (attempt {}/{}), waiting {:.1}s...",
-        attempt + 1, max_retries, wait_secs
+        "Gemini transient error {} (attempt {}/{}), waiting {:.1}s...",
+        status,
+        attempt + 1,
+        max_retries,
+        wait_secs
       );
       tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
-      last_error = format!("Gemini HTTP {}: {}", status, text);
       continue;
     }
 

@@ -12,6 +12,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import debounce from 'lodash/debounce'
 import { CSSTransition, TransitionGroup } from 'react-transition-group'
+import { getDocumentInfos, getDriveDocumentsIds } from 'src/api/data_source'
 import { FeedItem } from 'src/api/feed_items'
 import { isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
 import { IThread, ThreadType } from 'src/api/threads'
@@ -21,7 +22,10 @@ import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import { useMeetingSynthesis } from 'src/hooks/useMeetingMode'
 import { KN_API_NOTES } from 'src/utils/constants'
+import DataFetcher from 'src/utils/data_fetch'
+import { extractExternalEmails, extractInternalEmails, extractWorkDomains } from 'src/utils/emails'
 import { logError } from 'src/utils/errorHandling'
+import { KNFileType } from 'src/utils/KNSearchFilters'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
@@ -101,7 +105,8 @@ interface MeetingNotesModeProps {
   handleOpenInsights?: (threadId: number | undefined) => void
   onEmailClick?: (notesMarkdown: string, meeting: Meeting | undefined) => void
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
-  onAttendeeClick?: (email: string, name: string) => void
+  hasEmailContext?: boolean
+  onConnectEmail?: () => void
   userEmail?: string
   userName?: string
 }
@@ -130,7 +135,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   handleOpenInsights,
   onEmailClick,
   onLibraryWorkspaceOpen,
-  onAttendeeClick,
+  hasEmailContext = false,
+  onConnectEmail,
   userEmail,
   userName,
 }) => {
@@ -141,6 +147,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+  const [meetingChatInitialInput, setMeetingChatInitialInput] = useState(
+    'What should I pay attention to in this meeting?',
+  )
   const [meetingTranscriptContext, setMeetingTranscriptContext] = useState('')
 
   useEffect(() => {
@@ -189,6 +198,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }
 
   const openMeetingChat = () => {
+    setMeetingChatInitialInput('What should I pay attention to in this meeting?')
     setIsMeetingChatOpen(true)
   }
 
@@ -211,6 +221,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       .join(', ') || 'Unknown'
     const lines = [
       'You are answering from the inline meeting chat. Use the full Knapsack gateway, tools, memory, and normal chat context, but prioritize the meeting context below over broader context when there is a conflict.',
+      `The user is ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''}. Address the user directly and do not confuse them with external attendees.`,
       '',
       'Meeting details:',
       `- Title: ${meeting?.title || thread.subtitle || 'Meeting'}`,
@@ -227,7 +238,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       meetingTranscriptContext || (thread.savedTranscript ? 'Transcript is being loaded or unavailable.' : 'No saved transcript yet. If the meeting is still live, rely on current notes and meeting details.'),
     ]
     return lines.filter(line => line !== '').join('\n')
-  }, [meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle])
+  }, [meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userName])
 
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
@@ -243,12 +254,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [isPrepGenerating, setIsPrepGenerating] = useState(false)
   const [suggestedCalendarEvent, setSuggestedCalendarEvent] = useState<Meeting | null>(null)
   const [showCalendarPicker, setShowCalendarPicker] = useState(false)
+  const [showAttendeePicker, setShowAttendeePicker] = useState(false)
   const calendarPickerRef = useRef<HTMLDivElement>(null)
+  const attendeePickerRef = useRef<HTMLDivElement>(null)
 
   const [inlineInsights, setInlineInsights] = useState<Array<{id: number; mins: number; text: string}>>([])
   const [briefPrepContent, setBriefPrepContent] = useState('')
   const [isBriefPrepGenerating, setIsBriefPrepGenerating] = useState(false)
   const [briefPrepDismissed, setBriefPrepDismissed] = useState(false)
+  const [briefPrepExpanded, setBriefPrepExpanded] = useState(true)
+  const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
+  const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefPrepTriggeredRef = useRef(false)
 
   const sameDayMeetings = useMemo(() => {
@@ -259,16 +275,94 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     ).sort((a, b) => a.start - b.start)
   }, [feed.meetings, timestamp, meeting])
 
+  const attendeeEmails = useMemo(
+    () => meeting?.participants.map(p => p.email).filter(Boolean) ?? [],
+    [meeting?.participants],
+  )
+
+  const attendeeNames = useMemo(
+    () => meeting?.participants.map(p => p.name || p.email.split('@')[0]).filter(Boolean) ?? [],
+    [meeting?.participants],
+  )
+
+  const otherParticipants = useMemo(
+    () => meeting?.participants.filter(p => !userEmail || p.email !== userEmail) ?? [],
+    [meeting?.participants, userEmail],
+  )
+
+  const externalDomains = useMemo(() => {
+    if (!userEmail || attendeeEmails.length === 0) return []
+    return Array.from(new Set(extractWorkDomains(userEmail, attendeeEmails)))
+  }, [attendeeEmails, userEmail])
+
+  const buildBriefPrepDocuments = useCallback(async () => {
+    if (!meeting || !userEmail || attendeeEmails.length === 0) {
+      return { documents: [] as number[], sources: ['Calendar'] }
+    }
+
+    const dataFetcher = new DataFetcher()
+    const internalEmails = extractInternalEmails(userEmail, attendeeEmails)
+    const externalEmails = extractExternalEmails(userEmail, attendeeEmails)
+    const sourceSet = new Set<string>(['Calendar'])
+    const documents = new Set<number>()
+
+    try {
+      const emailDocs = (
+        await Promise.all([
+          internalEmails.length
+            ? dataFetcher.getGmailSearchResultsByAddresses(internalEmails)
+            : Promise.resolve([]),
+          externalEmails.length
+            ? dataFetcher.getGmailSearchResultsByAddresses(externalEmails)
+            : Promise.resolve([]),
+        ])
+      ).flat()
+
+      emailDocs.forEach(doc => {
+        if (doc.documentId) documents.add(doc.documentId)
+      })
+      if (emailDocs.length > 0) sourceSet.add('Email')
+    } catch {
+      // Briefs should still render from calendar/search context if mail search is unavailable.
+    }
+
+    try {
+      const driveIds = await getDriveDocumentsIds(attendeeEmails, userEmail)
+      const driveDocuments = driveIds.length
+        ? await getDocumentInfos(
+            driveIds,
+            driveIds.map(() => KNFileType.DRIVE_FILE),
+            userEmail,
+          )
+        : []
+
+      driveDocuments.forEach(doc => {
+        if (doc.documentId) documents.add(doc.documentId)
+      })
+      if (driveDocuments.length > 0) sourceSet.add('Drive')
+    } catch {
+      // Drive is opportunistic context; do not block the meeting surface on it.
+    }
+
+    sourceSet.add('Previous notes')
+    if (externalDomains.length > 0) sourceSet.add('Web')
+
+    return { documents: Array.from(documents).slice(0, 12), sources: Array.from(sourceSet) }
+  }, [attendeeEmails, externalDomains.length, meeting, userEmail])
+
   useEffect(() => {
-    if (!showCalendarPicker) return
+    if (!showCalendarPicker && !showAttendeePicker) return
     const handler = (e: MouseEvent) => {
       if (calendarPickerRef.current && !calendarPickerRef.current.contains(e.target as Node)) {
         setShowCalendarPicker(false)
       }
+      if (attendeePickerRef.current && !attendeePickerRef.current.contains(e.target as Node)) {
+        setShowAttendeePicker(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [showCalendarPicker])
+  }, [showAttendeePicker, showCalendarPicker])
 
   const templatePrompt: MeetingTemplatePrompt = useMemo(() => {
     if (thread.promptTemplate) {
@@ -579,35 +673,79 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     if (!meeting?.event_id || thread.recorded || briefPrepTriggeredRef.current) return
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
+    setBriefPrepSources(['Calendar'])
     // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
     const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
     const participantList = meeting.participants
       .map(p => p.name ? `${p.name} (${p.email})` : p.email)
       .join(', ')
+    const otherParticipantList = otherParticipants
+      .map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      .join(', ')
+    const startTime = meeting.start
+      ? dayjs.unix(meeting.start).format('MMM D, YYYY h:mm A')
+      : 'unknown time'
     const desc = meeting.description ? ` Context: ${meeting.description}.` : ''
-    addToLLMQueue({
-      prompt: `You are preparing someone for a meeting. Write exactly 3 sentences of plain text — no bullet points, no headers, no markdown formatting. Sentence 1: explain the real reason this meeting is happening and what's at stake. Sentence 2: what the person should focus on or do to make this meeting successful. Sentence 3: the single most important thing to watch out for or remember going in. Be sharp and specific.
+    buildBriefPrepDocuments().then(({ documents, sources }) => {
+      if (sources.length > 0) setBriefPrepSources(sources)
+      addToLLMQueue({
+        prompt: `You are preparing ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''} for a meeting. Always write to this user as "you". Do not treat the user as an external customer, prospect, vendor, or attendee to research.
+
+Use the provided calendar details, prior notes, email, drive, and semantic-search context when available.
+
+Write a concise meeting brief in markdown with no preamble and exactly this structure:
+
+**Why this meeting matters:** one sharp sentence from the user's point of view.
+
+**Open threads:** 2-3 bullets about commitments, unresolved topics, recent interactions, or likely stakes for the user. If context is thin, say what is known from the calendar instead of inventing.
+
+**People to know:** 1-3 bullets naming attendees other than the user and what the user should remember about them.
+
+**Best move:** one direct recommendation for how the user should approach the conversation.
 
 Meeting: ${meeting.title || thread.subtitle || 'Meeting'}
-Participants: ${participantList}${desc}
+Time: ${startTime}
+User: ${userName || 'Unknown'}${userEmail ? ` <${userEmail}>` : ''}
+All participants: ${participantList}
+Participants other than the user: ${otherParticipantList || 'unknown'}${desc}
+External domains: ${externalDomains.join(', ') || 'none'}
 
-Output only the 3 sentences, nothing else.`,
-      semanticSearchQuery: `meeting purpose ${meeting.title || thread.subtitle || ''}`,
-      documents: [],
-      messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
-      messageFinishCallback: async (response) => {
-        clearTimeout(briefPrepTimeout)
-        setBriefPrepContent(response)
-        setIsBriefPrepGenerating(false)
-        return undefined
-      },
-      errorCallback: () => {
-        clearTimeout(briefPrepTimeout)
-        setIsBriefPrepGenerating(false)
-      },
+Be specific, compact, and useful while the user is joining the call.`,
+        semanticSearchQuery: [
+          meeting.title || thread.subtitle || 'meeting',
+          otherParticipantList || participantList,
+          externalDomains.join(' '),
+          userName || '',
+          'previous meeting notes recent email open threads agenda action items',
+        ].filter(Boolean).join(' '),
+        documents,
+        messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
+        messageFinishCallback: async (response) => {
+          clearTimeout(briefPrepTimeout)
+          setBriefPrepContent(response)
+          setIsBriefPrepGenerating(false)
+          return undefined
+        },
+        errorCallback: () => {
+          clearTimeout(briefPrepTimeout)
+          setIsBriefPrepGenerating(false)
+        },
+      })
+    }).catch(() => {
+      clearTimeout(briefPrepTimeout)
+      setIsBriefPrepGenerating(false)
     })
     return () => clearTimeout(briefPrepTimeout)
-  }, [meeting?.event_id])
+  }, [
+    meeting?.event_id,
+    buildBriefPrepDocuments,
+    externalDomains,
+    otherParticipants,
+    thread.recorded,
+    thread.subtitle,
+    userEmail,
+    userName,
+  ])
 
   const getRunParamObject = () => {
     if (runParam) {
@@ -1019,6 +1157,23 @@ Output only the 3 sentences, nothing else.`,
     setIsEditing(!isEditing)
   }
 
+  const getAttendeeLabel = (participant: { name: string; email: string }) =>
+    participant.name || participant.email.split('@')[0]
+
+  const getAttendeeInitials = (participant: { name: string; email: string }) => {
+    const label = getAttendeeLabel(participant).trim()
+    const parts = label.split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    return label.slice(0, 2).toUpperCase()
+  }
+
+  const handleAttendeeSelect = (participant: { name: string; email: string }) => {
+    const workspace = personWorkspaces[participant.email?.toLowerCase()]
+    if (!workspace || !onLibraryWorkspaceOpen) return
+    setShowAttendeePicker(false)
+    onLibraryWorkspaceOpen(workspace)
+  }
+
   const generatePrep = () => {
     if (!meeting || isPrepGenerating) return
     setIsPrepGenerating(true)
@@ -1073,6 +1228,7 @@ Be direct, specific, and concise. No filler text.`
 
   return (
     <div className="notetaker-note">
+      <div className="notetaker-note__content-row">
       <div className="notetaker-note__scroll-area">
       <div className="notetaker-note__container">
         <div className="w-full flex flex-col gap-3">
@@ -1118,14 +1274,66 @@ Be direct, specific, and concise. No filler text.`
                   {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
                 </span>
                 {meeting?.participants && meeting.participants.length > 0 && (
-                  <span className="notetaker-note__meta-item">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                    </svg>
-                    {meeting.participants.slice(0, 3).map(p => p.name || p.email.split('@')[0]).join(', ')}
-                    {meeting.participants.length > 3 && ` +${meeting.participants.length - 3}`}
-                  </span>
+                  <div className="notetaker-note__attendees-wrap" ref={attendeePickerRef}>
+                    <button
+                      type="button"
+                      className="notetaker-note__meta-item notetaker-note__attendees-chip"
+                      onClick={() => setShowAttendeePicker(prev => !prev)}
+                      title="View attendees"
+                    >
+                      <span className="notetaker-note__attendee-stack" aria-hidden="true">
+                        {meeting.participants.slice(0, 3).map((participant, index) => (
+                          <span
+                            key={`${participant.email}-${index}`}
+                            className="notetaker-note__attendee-avatar"
+                          >
+                            {getAttendeeInitials(participant)}
+                          </span>
+                        ))}
+                      </span>
+                      <span className="notetaker-note__attendees-chip-text">
+                        {meeting.participants.length} attendees
+                      </span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    {showAttendeePicker && (
+                      <div className="notetaker-note__attendees-popover">
+                        <div className="notetaker-note__attendees-popover-header">
+                          <span>Attendees</span>
+                          <span>{meeting.participants.length}</span>
+                        </div>
+                        <div className="notetaker-note__attendees-list">
+                          {meeting.participants.map((participant, index) => {
+                            const label = getAttendeeLabel(participant)
+                            const workspace = personWorkspaces[participant.email?.toLowerCase()]
+                            return (
+                              <button
+                                key={`${participant.email}-${index}`}
+                                type="button"
+                                className={`notetaker-note__attendee-row ${workspace ? '' : 'notetaker-note__attendee-row--disabled'}`}
+                                onClick={() => handleAttendeeSelect(participant)}
+                                disabled={!workspace || !onLibraryWorkspaceOpen}
+                                title={workspace ? `Open ${label}'s library record` : 'No library entry yet'}
+                              >
+                                <span className="notetaker-note__attendee-row-avatar">
+                                  {getAttendeeInitials(participant)}
+                                </span>
+                                <span className="notetaker-note__attendee-row-copy">
+                                  <span className="notetaker-note__attendee-row-name">{label}</span>
+                                  <span className="notetaker-note__attendee-row-email">{participant.email}</span>
+                                </span>
+                                <span className="notetaker-note__attendee-row-action">
+                                  {workspace ? 'Open' : 'No entry'}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {thread.recorded && !meeting && sameDayMeetings.length > 0 && (
                   <div className="notetaker-note__link-event-wrap" ref={calendarPickerRef}>
@@ -1332,30 +1540,87 @@ Be direct, specific, and concise. No filler text.`
           />
         )}
 
-        {/* Brief meeting prep — auto-generated on open, hidden once recording starts, dismissable */}
-        {meeting && !thread.recorded && !recordingHandlers.isRecording(thread.id) && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
-          <div className="notetaker-note__brief-prep-card">
-            <div className="notetaker-note__brief-prep-card-header">
-              <span className="notetaker-note__brief-prep-card-label">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-                </svg>
-                Meeting Brief
-              </span>
+        {/* Meeting brief drawer — auto-generated on open and kept available while recording */}
+        {meeting && !thread.recorded && !briefPrepDismissed && (briefPrepContent || isBriefPrepGenerating) && (
+          <div className={`notetaker-note__brief-drawer ${briefPrepExpanded ? 'notetaker-note__brief-drawer--expanded' : 'notetaker-note__brief-drawer--collapsed'}`}>
+            <div className="notetaker-note__brief-drawer-header">
               <button
-                className="notetaker-note__brief-prep-card-dismiss"
-                onClick={() => setBriefPrepDismissed(true)}
-                title="Dismiss"
+                className="notetaker-note__brief-drawer-toggle"
+                onClick={() => setBriefPrepExpanded(prev => !prev)}
+                title={briefPrepExpanded ? 'Collapse brief' : 'Expand brief'}
               >
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                  <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points={briefPrepExpanded ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
                 </svg>
               </button>
+              <div className="notetaker-note__brief-drawer-title-wrap">
+                <span className="notetaker-note__brief-drawer-label">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                  </svg>
+                  Your brief
+                </span>
+                <span className="notetaker-note__brief-drawer-subtitle">
+                  {attendeeNames.length > 0
+                    ? `${attendeeNames.slice(0, 2).join(', ')}${attendeeNames.length > 2 ? ` +${attendeeNames.length - 2}` : ''}`
+                    : 'Prepared from meeting context'}
+                </span>
+              </div>
+              <div className="notetaker-note__brief-drawer-actions">
+                <button
+                  className="notetaker-note__brief-drawer-miss"
+                  onClick={() => {
+                    setMeetingChatInitialInput('What did I miss? Compare the brief, current notes, and available meeting context.')
+                    setIsMeetingChatOpen(true)
+                    setBriefPrepExpanded(false)
+                  }}
+                >
+                  What did I miss?
+                </button>
+                <button
+                  className="notetaker-note__brief-drawer-dismiss"
+                  onClick={() => setBriefPrepDismissed(true)}
+                  title="Dismiss"
+                >
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                    <path d="M1 1L13 13M1 13L13 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
             </div>
-            {isBriefPrepGenerating && !briefPrepContent ? (
-              <p className="notetaker-note__brief-prep-card-loading">Preparing your meeting brief...</p>
-            ) : (
-              <p className="notetaker-note__brief-prep-card-text">{briefPrepContent}</p>
+            {briefPrepExpanded && (
+              <div className="notetaker-note__brief-drawer-body">
+                <div className="notetaker-note__brief-drawer-sources">
+                  {briefPrepSources.map(source => (
+                    <span key={source} className="notetaker-note__brief-source-chip">{source}</span>
+                  ))}
+                </div>
+                {isBriefPrepGenerating && !briefPrepContent ? (
+                  <p className="notetaker-note__brief-prep-card-loading">Preparing your meeting brief...</p>
+                ) : (
+                  <div className="notetaker-note__brief-prep-card-text">
+                    <MarkdownDisplay markdown={briefPrepContent} onChange={() => {}} />
+                  </div>
+                )}
+                {!hasEmailContext && !emailContextBannerDismissed && onConnectEmail && (
+                  <div className="notetaker-note__brief-email-banner">
+                    <div className="notetaker-note__brief-email-copy">
+                      <strong>Missing email context?</strong>
+                      <span>Connect mail to include recent threads with attendees.</span>
+                    </div>
+                    <button className="notetaker-note__brief-email-connect" onClick={onConnectEmail}>
+                      Connect
+                    </button>
+                    <button
+                      className="notetaker-note__brief-email-dismiss"
+                      onClick={() => setEmailContextBannerDismissed(true)}
+                      title="Dismiss"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1535,18 +1800,6 @@ Be direct, specific, and concise. No filler text.`
                           </button>
                         )
                       }
-                      if (onAttendeeClick) {
-                        return (
-                          <button
-                            key={i}
-                            className="notetaker-note__prep-chip notetaker-note__prep-chip--clickable"
-                            onClick={() => onAttendeeClick(p.email, label)}
-                            title={p.email}
-                          >
-                            {label}
-                          </button>
-                        )
-                      }
                       return (
                         <span key={i} className="notetaker-note__prep-chip">
                           {label}
@@ -1596,13 +1849,15 @@ Be direct, specific, and concise. No filler text.`
               compact
               title="Meeting Chat"
               contextPrefix={meetingChatContext}
-              initialInput="What should I pay attention to in this meeting?"
+              initialInput={meetingChatInitialInput}
             />
           </div>
         </div>
       )}
+      </div>
 
       {/* Notetaker bottom bar */}
+      {(true) && (
       <div className="notetaker-note__bottom-bar">
         {recordingHandlers.isRecording(thread.id) ? (
           <>
@@ -1616,19 +1871,21 @@ Be direct, specific, and concise. No filler text.`
             <div className="notetaker-note__bottom-recording-status">
               Privately transcribing...
             </div>
-            <div
-              className="notetaker-note__bottom-chat"
-              onClick={openMeetingChat}
-              style={{ cursor: 'pointer' }}
-            >
-              <input
-                type="text"
-                placeholder="Ask about the meeting"
-                className="notetaker-note__bottom-chat-input"
-                readOnly
+            {!isMeetingChatOpen && (
+              <div
+                className="notetaker-note__bottom-chat"
+                onClick={openMeetingChat}
                 style={{ cursor: 'pointer' }}
-              />
-            </div>
+              >
+                <input
+                  type="text"
+                  placeholder="Ask about the meeting"
+                  className="notetaker-note__bottom-chat-input"
+                  readOnly
+                  style={{ cursor: 'pointer' }}
+                />
+              </div>
+            )}
             <button
               className="notetaker-note__bottom-stop"
               onClick={() => handleStopRecording('Manually')}
@@ -1638,7 +1895,7 @@ Be direct, specific, and concise. No filler text.`
           </>
         ) : (
           <>
-            <button className="notetaker-note__bottom-audio" title="Audio waveform">
+            {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="4" y1="8" x2="4" y2="16" />
                 <line x1="8" y1="5" x2="8" y2="19" />
@@ -1646,8 +1903,8 @@ Be direct, specific, and concise. No filler text.`
                 <line x1="16" y1="5" x2="16" y2="19" />
                 <line x1="20" y1="8" x2="20" y2="16" />
               </svg>
-            </button>
-            <div
+            </button>}
+            {!isMeetingChatOpen && <div
               className="notetaker-note__bottom-chat"
               onClick={openMeetingChat}
               style={{ cursor: 'pointer' }}
@@ -1659,7 +1916,7 @@ Be direct, specific, and concise. No filler text.`
                 readOnly
                 style={{ cursor: 'pointer' }}
               />
-            </div>
+            </div>}
             {thread.recorded && (
               <button
                 className="notetaker-note__bottom-action"
@@ -1677,6 +1934,7 @@ Be direct, specific, and concise. No filler text.`
           </>
         )}
       </div>
+      )}
     </div>
   )
 }

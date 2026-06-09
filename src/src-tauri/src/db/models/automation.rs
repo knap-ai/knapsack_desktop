@@ -71,15 +71,18 @@ impl Automation {
     WHERE messages.id = ?1",
     )?;
     let automation = stmt
-      .query_row(params![message_id], |row| Automation::build_struct_from_row(row))
+      .query_row(params![message_id], |row| {
+        Automation::build_struct_from_row(row)
+      })
       .optional()?;
     Ok(automation)
   }
 
   pub fn find_by_ids() -> Result<Vec<Automation>> {
     let connection = get_db_conn();
-    let mut stmt = connection
-      .prepare("SELECT id, uuid, name, is_active, description, is_beta, show_library, icon FROM automations")?;
+    let mut stmt = connection.prepare(
+      "SELECT id, uuid, name, is_active, description, is_beta, show_library, icon FROM automations",
+    )?;
     let rows = stmt.query_map(params![], |row| Automation::build_struct_from_row(row))?;
     let mut automations = Vec::new();
     for automation in rows {
@@ -166,7 +169,7 @@ impl Automation {
           row.get::<_, Option<i64>>(22).unwrap(),    // trigger_data_source_offset_minutes
           row.get::<_, bool>(23).unwrap(),           // automation_is_beta
           row.get::<_, bool>(24).unwrap(),           // automation_show_library
-          row.get::<_, String>(25).unwrap(), // automation_icon
+          row.get::<_, String>(25).unwrap(),         // automation_icon
         ))
       })
       .expect("Could not execute query");

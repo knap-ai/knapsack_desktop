@@ -27,15 +27,16 @@ fn strip_ansi(text: &str) -> String {
   // Lazily compiled regex for all common terminal escape sequences
   static RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(concat!(
-      r"\x1B\[[0-9;?]*[A-Za-z]",        // CSI sequences (colors, cursor, erase)
+      r"\x1B\[[0-9;?]*[A-Za-z]", // CSI sequences (colors, cursor, erase)
       r"|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)", // OSC sequences
-      r"|\x1B[()#][A-Za-z0-9]",          // Charset selection
-      r"|\x1B[78>=]",                     // Cursor save/restore, keypad mode
-      r"|\x1B[P_^][^\x1B]*\x1B\\",       // DCS/PM/APC sequences
-      r"|\x1B[A-Za-z]",                   // Remaining 2-byte ESC sequences
-      r"|\x9B[0-9;?]*[A-Za-z]",          // 8-bit CSI (rare)
-      r"|[\x00-\x08\x0E-\x1F\x7F]",     // Control chars (except \t \n \r)
-    )).unwrap()
+      r"|\x1B[()#][A-Za-z0-9]",  // Charset selection
+      r"|\x1B[78>=]",            // Cursor save/restore, keypad mode
+      r"|\x1B[P_^][^\x1B]*\x1B\\", // DCS/PM/APC sequences
+      r"|\x1B[A-Za-z]",          // Remaining 2-byte ESC sequences
+      r"|\x9B[0-9;?]*[A-Za-z]",  // 8-bit CSI (rare)
+      r"|[\x00-\x08\x0E-\x1F\x7F]", // Control chars (except \t \n \r)
+    ))
+    .unwrap()
   });
   RE.replace_all(text, "").to_string()
 }
@@ -47,20 +48,31 @@ pub static GLOBAL_TERMINAL_BUFFER: Lazy<Arc<Mutex<HashMap<String, VecDeque<Strin
 
 /// Read recent terminal output for use by the chat agent.
 /// Returns the last `max_lines` lines for the given session (or all sessions).
-pub fn read_terminal_output(session_id: Option<&str>, max_lines: usize) -> HashMap<String, Vec<String>> {
+pub fn read_terminal_output(
+  session_id: Option<&str>,
+  max_lines: usize,
+) -> HashMap<String, Vec<String>> {
   let limit = max_lines.min(OUTPUT_BUFFER_MAX_LINES);
   let buffers = GLOBAL_TERMINAL_BUFFER.lock().unwrap();
   let mut result = HashMap::new();
   match session_id {
     Some(sid) => {
       if let Some(buf) = buffers.get(sid) {
-        let start = if buf.len() > limit { buf.len() - limit } else { 0 };
+        let start = if buf.len() > limit {
+          buf.len() - limit
+        } else {
+          0
+        };
         result.insert(sid.to_string(), buf.iter().skip(start).cloned().collect());
       }
     }
     None => {
       for (sid, buf) in buffers.iter() {
-        let start = if buf.len() > limit { buf.len() - limit } else { 0 };
+        let start = if buf.len() > limit {
+          buf.len() - limit
+        } else {
+          0
+        };
         result.insert(sid.clone(), buf.iter().skip(start).cloned().collect());
       }
     }
@@ -72,7 +84,9 @@ pub fn read_terminal_output(session_id: Option<&str>, max_lines: usize) -> HashM
 /// ANSI escape sequences are stripped so the chat AI gets clean text.
 pub fn push_terminal_line(session_id: &str, line: &str) {
   if let Ok(mut buffers) = GLOBAL_TERMINAL_BUFFER.lock() {
-    let ring = buffers.entry(session_id.to_string()).or_insert_with(VecDeque::new);
+    let ring = buffers
+      .entry(session_id.to_string())
+      .or_insert_with(VecDeque::new);
     let clean = strip_ansi(line);
     // Skip empty lines that were entirely escape sequences
     if clean.trim().is_empty() && !line.trim().is_empty() {
@@ -146,7 +160,10 @@ pub async fn kn_pty_spawn(
 
   info!(
     "[pty] spawn session={} cols={} rows={} cwd={}",
-    session_id, cols, rows, cwd.as_deref().unwrap_or("<default>")
+    session_id,
+    cols,
+    rows,
+    cwd.as_deref().unwrap_or("<default>")
   );
 
   let handle = platform_spawn(&app, &session_id, cwd.as_deref(), cols, rows)?;
@@ -196,7 +213,10 @@ pub async fn kn_pty_read_output(
   session_id: Option<String>,
   max_lines: Option<usize>,
 ) -> Result<HashMap<String, Vec<String>>, String> {
-  Ok(read_terminal_output(session_id.as_deref(), max_lines.unwrap_or(100)))
+  Ok(read_terminal_output(
+    session_id.as_deref(),
+    max_lines.unwrap_or(100),
+  ))
 }
 
 /// Kill a PTY session and clean up resources.
@@ -663,7 +683,13 @@ fn platform_spawn(
     let process_usize = pi.hProcess as usize;
     let hpc_val = hpc;
 
-    (out_read_usize, proc_usize, write_usize, process_usize, hpc_val)
+    (
+      out_read_usize,
+      proc_usize,
+      write_usize,
+      process_usize,
+      hpc_val,
+    )
   };
   // ── Now outside the unsafe block ──
 

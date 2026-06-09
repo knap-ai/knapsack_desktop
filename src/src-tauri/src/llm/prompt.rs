@@ -66,8 +66,9 @@ pub async fn build_user_message(
 
   for additional_document in additional_documents.unwrap_or(vec![]) {
     // println!("############# ADDITIONAL DOC: {:?}", additional_document);
-    if additional_document.doc_type.is_some() && additional_document.doc_type.unwrap() == "transcript".to_string() {
-    }
+    if additional_document.doc_type.is_some()
+      && additional_document.doc_type.unwrap() == "transcript".to_string()
+    {}
     total_doc_knowledge.push_str(&format!(
       "\n> Start of document: {}\n{}\n> End of document: {}\n",
       additional_document.title, additional_document.content, additional_document.title

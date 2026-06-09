@@ -13,11 +13,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::Mutex;
 
-use crate::db::models::user_connection::UserConnection;
-use crate::db::models::user::User;
-use crate::memory::semantic::SemanticService;
 use crate::connections::utils::get_knapsack_api_connection;
-
+use crate::db::models::user::User;
+use crate::db::models::user_connection::UserConnection;
+use crate::memory::semantic::SemanticService;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SuccessResponse {
@@ -128,18 +127,18 @@ async fn get_is_connections_syncing(
 
 #[get("/api/knapsack/connections/signout")]
 async fn signout(
-    _req: HttpRequest,
-    semantic_service: Data<Arc<Mutex<Option<SemanticService>>>>,
-    connections_data: Data<Arc<Mutex<ConnectionsData>>>,
+  _req: HttpRequest,
+  semantic_service: Data<Arc<Mutex<Option<SemanticService>>>>,
+  connections_data: Data<Arc<Mutex<ConnectionsData>>>,
 ) -> impl Responder {
-    if let Some(service) = &*semantic_service.lock().await {
-        service.clear_queue().await;
-    }
-    
-    let mut data = connections_data.lock().await;
-    data.reset();
-    
-    HttpResponse::Ok().json(SuccessResponse { success: true })
+  if let Some(service) = &*semantic_service.lock().await {
+    service.clear_queue().await;
+  }
+
+  let mut data = connections_data.lock().await;
+  data.reset();
+
+  HttpResponse::Ok().json(SuccessResponse { success: true })
 }
 
 #[get("/api/knapsack/get_user_email")]
@@ -212,19 +211,17 @@ async fn get_connections(req: HttpRequest) -> impl Responder {
 #[delete("/api/knapsack/connections/{connection_id}")]
 async fn delete_connection(path: web::Path<String>) -> impl Responder {
   match path.into_inner().parse() {
-    Ok(connection_id) => {
-      match UserConnection::find_by_id(connection_id) {
-        Ok(connections) => match connections.delete() {
-          Ok(_) => HttpResponse::Ok().json(json!({"success": true})),
-          Err(error) => {
-            log::error!("Failed to delete connection: {:?}", error);
-            HttpResponse::BadRequest().json(json!({"success": false}))
-          }
-        },
+    Ok(connection_id) => match UserConnection::find_by_id(connection_id) {
+      Ok(connections) => match connections.delete() {
+        Ok(_) => HttpResponse::Ok().json(json!({"success": true})),
         Err(error) => {
-          log::error!("Failed to retrieve connection {:?}", error);
+          log::error!("Failed to delete connection: {:?}", error);
           HttpResponse::BadRequest().json(json!({"success": false}))
         }
+      },
+      Err(error) => {
+        log::error!("Failed to retrieve connection {:?}", error);
+        HttpResponse::BadRequest().json(json!({"success": false}))
       }
     },
     Err(error) => {
@@ -236,27 +233,25 @@ async fn delete_connection(path: web::Path<String>) -> impl Responder {
 
 #[get("/api/knapsack/connections/refresh_token_api/{user_email}")]
 async fn refresh_knapsack_api_token(path: web::Path<String>) -> impl Responder {
-    let user_email = path.into_inner();
-    
-    match get_knapsack_api_connection(user_email) {
-        Ok(user_connection) => {
-            match user_connection.refresh_token {
-                Some(token) => HttpResponse::Ok().json(json!({
-                    "success": true,
-                    "token": token
-                })),
-                None => HttpResponse::BadRequest().json(json!({
-                    "success": false,
-                    "message": "Refresh token not found for the user"
-                }))
-            }
-        },
-        Err(_) => {
-            log::error!("Failed to get Knapsack API connection");
-            HttpResponse::BadRequest().json(json!({
-                "success": false,
-                "message": "Failed to retrieve Knapsack API connection"
-            }))
-        }
+  let user_email = path.into_inner();
+
+  match get_knapsack_api_connection(user_email) {
+    Ok(user_connection) => match user_connection.refresh_token {
+      Some(token) => HttpResponse::Ok().json(json!({
+          "success": true,
+          "token": token
+      })),
+      None => HttpResponse::BadRequest().json(json!({
+          "success": false,
+          "message": "Refresh token not found for the user"
+      })),
+    },
+    Err(_) => {
+      log::error!("Failed to get Knapsack API connection");
+      HttpResponse::BadRequest().json(json!({
+          "success": false,
+          "message": "Failed to retrieve Knapsack API connection"
+      }))
     }
+  }
 }

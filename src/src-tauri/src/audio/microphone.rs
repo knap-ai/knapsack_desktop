@@ -2,45 +2,45 @@ use serde_json::json;
 
 #[tauri::command]
 pub fn open_microphone_settings() -> Result<serde_json::Value, String> {
-    #[cfg(target_os = "macos")]
-    {
-        use std::process::Command;
+  #[cfg(target_os = "macos")]
+  {
+    use std::process::Command;
 
-        let output = Command::new("open")
-            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
-            .output();
+    let output = Command::new("open")
+      .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+      .output();
 
-        match output {
-            Ok(_) => Ok(json!({ "success": true })),
-            Err(e) => Ok(json!({ 
-                "success": false, 
-                "error": format!("Failed to open settings: {}", e) 
-            }))
-        }
+    match output {
+      Ok(_) => Ok(json!({ "success": true })),
+      Err(e) => Ok(json!({
+          "success": false,
+          "error": format!("Failed to open settings: {}", e)
+      })),
     }
-    
-    #[cfg(target_os = "windows")]
-    {
-        use std::process::Command;
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
+  }
 
-        let output = Command::new("cmd")
-            .args(["/C", "start", "ms-settings:privacy-microphone"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        match output {
-            Ok(_) => Ok(json!({ "success": true })),
-            Err(e) => Ok(json!({
-                "success": false,
-                "error": format!("Failed to open settings: {}", e)
-            }))
-        }
+    let output = Command::new("cmd")
+      .args(["/C", "start", "ms-settings:privacy-microphone"])
+      .creation_flags(CREATE_NO_WINDOW)
+      .output();
+
+    match output {
+      Ok(_) => Ok(json!({ "success": true })),
+      Err(e) => Ok(json!({
+          "success": false,
+          "error": format!("Failed to open settings: {}", e)
+      })),
     }
+  }
 
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        Ok(json!({ "success": false, "error": "This command is only supported on macOS and Windows" }))
-    }
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  {
+    Ok(json!({ "success": false, "error": "This command is only supported on macOS and Windows" }))
+  }
 }

@@ -37,6 +37,8 @@ src-tauri/resources/clawdbot/extensions/twitch/
 src-tauri/resources/clawdbot/extensions/zalo/
 src-tauri/resources/clawdbot/extensions/zalouser/
 dist
+!dist/
+!dist/.gitkeep
 !src-tauri/resources/clawdbot/dist/
 dist-ssr
 *.local

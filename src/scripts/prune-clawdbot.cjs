@@ -340,9 +340,10 @@ if (IS_WIN) {
 // On Windows: pruneDirectoriesOnly (dirs only, fast) + LONG_PATH_PACKAGE_SUBDIRS for known
 // packages whose filenames themselves are too long even without test-artifact dirs.
 // After pruning on Windows, each extension's node_modules is tar-packed into a single
-// node_modules.tar. This keeps WiX under its 65535-file CAB limit (LGHT0306): large dep
-// trees (@jimp, @aws-sdk, @discordjs, @slack, etc.) across all extensions can collectively
-// exceed this limit. service.rs extracts each tar at gateway startup.
+// node_modules.tar. This keeps Windows installer input compact: large dep trees
+// (@jimp, @aws-sdk, @discordjs, @slack, etc.) across all extensions can
+// collectively overwhelm resource bundling. service.rs extracts each tar at
+// gateway startup.
 // Subdirectories of packages whose filenames exceed Windows MAX_PATH (260 chars)
 // when placed under the full extension node_modules install path. WiX light.exe
 // fails with LGHT0103 on these. List the subdir to remove (not the whole package,
@@ -364,11 +365,29 @@ const EXTENSION_UNUSED_PACKAGES = [
   'sharp',
 ];
 
+function extensionStagesRuntimeDependencies(extensionDir) {
+  const pkgPath = path.join(extensionDir, 'package.json');
+  if (!fs.existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    return pkg?.openclaw?.bundle?.stageRuntimeDependencies === true;
+  } catch {
+    return false;
+  }
+}
+
 if (fs.existsSync(distExtensionsDir)) {
   try {
     for (const extEntry of fs.readdirSync(distExtensionsDir, { withFileTypes: true })) {
       if (!extEntry.isDirectory()) continue;
-      const extNodeModules = path.join(distExtensionsDir, extEntry.name, 'node_modules');
+      const extDir = path.join(distExtensionsDir, extEntry.name);
+      const extNodeModules = path.join(extDir, 'node_modules');
+      const extNodeModulesTar = path.join(extDir, 'node_modules.tar');
+      const stagesRuntimeDeps = extensionStagesRuntimeDependencies(extDir);
+      if (IS_WIN && !stagesRuntimeDeps && fs.existsSync(extNodeModulesTar)) {
+        fs.rmSync(extNodeModulesTar, { force: true });
+        console.log(`[prune-clawdbot]     removed unstaged extension node_modules.tar: ${extEntry.name}`);
+      }
       if (fs.existsSync(extNodeModules)) {
         console.log(`[prune-clawdbot]     cleaning extension node_modules: ${extEntry.name}`);
         if (IS_WIN) {
@@ -389,13 +408,16 @@ if (fs.existsSync(distExtensionsDir)) {
           }
         }
 
-        // On Windows: tar-pack extension node_modules to stay under WiX's 65535-file
-        // CAB limit (LGHT0306). Large dep trees (e.g. @jimp, @aws-sdk, @slack,
-        // @discordjs) across all extensions easily exceed this limit.
-        // Packing into one tar per extension reduces thousands of files to one.
-        // service.rs extracts each tar at gateway startup before launching Node.js.
+        // On Windows: only staged plugins need extension-local dependency archives.
+        // Other extensions resolve from the root bundled node_modules; removing their
+        // stray local installs keeps the installer small and the build loop fast.
         if (IS_WIN) {
-          const extDir = path.join(distExtensionsDir, extEntry.name);
+          if (!stagesRuntimeDeps) {
+            fs.rmSync(extNodeModules, { recursive: true, force: true });
+            console.log(`[prune-clawdbot]     removed unstaged extension node_modules: ${extEntry.name}`);
+            continue;
+          }
+
           try {
             const { spawnSync } = require('child_process');
             const result = spawnSync('tar', ['-cf', 'node_modules.tar', 'node_modules'], {

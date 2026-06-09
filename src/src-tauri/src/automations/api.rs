@@ -8,9 +8,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
+use std::{fs, path::Path};
 use tokio::sync::Mutex;
-use std::{ fs, path::Path };
 
+use crate::audio::audio::generate_filename;
 use crate::{
   db::models::{
     automation::Automation,
@@ -32,7 +33,6 @@ use crate::{
   memory::semantic::SemanticService,
   utils::log::knap_log_error,
 };
-use crate::audio::audio::generate_filename;
 
 #[derive(Deserialize, Clone)]
 struct CreateAutomationRequestStep {
@@ -593,7 +593,6 @@ fn create_feed_item_to_schedule_run(
   title: String,
   timestamp: i64,
 ) -> AutomationRun {
-
   let mut feed_item = FeedItem {
     id: None,
     title: Some(title),
@@ -766,18 +765,19 @@ fn schedule_data_source_future_run_google_calendar(
   let valid_events: Vec<&CalendarEvent> = calendar_events
     .iter()
     .filter(|event| {
-      event.attendees_json.as_ref()
+      event
+        .attendees_json
+        .as_ref()
         .map(|attendees| attendees.split(',').count() > 1)
         .unwrap_or(false)
     })
     .collect();
 
-  let valid_event_ids: Vec<u64> = valid_events
-    .iter()
-    .filter_map(|event| event.id)
-    .collect();
+  let valid_event_ids: Vec<u64> = valid_events.iter().filter_map(|event| event.id).collect();
 
-  if let Err(e) = AutomationRun::delete_outdated_calendar_runs(&valid_event_ids, now.timestamp_millis()) {
+  if let Err(e) =
+    AutomationRun::delete_outdated_calendar_runs(&valid_event_ids, now.timestamp_millis())
+  {
     log::error!("Failed to delete outdated calendar runs: {:?}", e);
     let err_msg = "Failed to delete outdated calendar runs".to_string();
     knap_log_error(err_msg, Some(e), None);
@@ -816,28 +816,22 @@ fn schedule_data_source_future_run_google_calendar(
       event_id,
       run_timestamp,
       automation_uuid,
-      user_id
+      user_id,
     ) {
       Ok(Some(run)) if run.feed_item_id.is_some() => {
         log::debug!("Skipping event ID {} with existing feed item", event_id);
         continue;
-      },
-      Ok(Some(run)) => {
-        run
-      },
-      Ok(None) => {
-        AutomationRun {
-          id: None,
-          user_id,
-          automation_uuid: automation_uuid.to_string(),
-          thread_id: None,
-          schedule_timestamp: Some(run_timestamp),
-          execution_timestamp: None,
-          run_params: Some(
-            json!({ "event_id": event_id, "timestamp": run_timestamp }).to_string(),
-          ),
-          feed_item_id: None,
-        }
+      }
+      Ok(Some(run)) => run,
+      Ok(None) => AutomationRun {
+        id: None,
+        user_id,
+        automation_uuid: automation_uuid.to_string(),
+        thread_id: None,
+        schedule_timestamp: Some(run_timestamp),
+        execution_timestamp: None,
+        run_params: Some(json!({ "event_id": event_id, "timestamp": run_timestamp }).to_string()),
+        feed_item_id: None,
       },
       Err(e) => {
         log::error!("Error checking for existing run: {:?}", e);
@@ -847,14 +841,17 @@ fn schedule_data_source_future_run_google_calendar(
       }
     };
 
-    let title = event.title.as_deref().unwrap_or("Untitled Meeting").to_string();
+    let title = event
+      .title
+      .as_deref()
+      .unwrap_or("Untitled Meeting")
+      .to_string();
 
-    automation_run = create_feed_item_to_schedule_run(automation_run, title, event_date.timestamp_millis());
+    automation_run =
+      create_feed_item_to_schedule_run(automation_run, title, event_date.timestamp_millis());
 
     if let Err(e) = automation_run.upsert_schedule() {
-      let err_msg = format!(
-        "Failed to upsert schedule for event {}", event_id
-      );
+      let err_msg = format!("Failed to upsert schedule for event {}", event_id);
       log::error!("Failed to upsert schedule for event {}: {:?}", event_id, e);
       knap_log_error(err_msg, Some(e), None);
     }
@@ -1276,7 +1273,7 @@ async fn get_feed_items() -> Result<HttpResponse, ActixError> {
         data: Some(feed_items_complete),
       };
       Ok(HttpResponse::Ok().json(response))
-    },
+    }
     Err(e) => {
       let error_message = format!("{:?}", e);
       Ok(HttpResponse::InternalServerError().json(StandardResponse {
@@ -1358,7 +1355,6 @@ async fn update_feed_item(
   }
 }
 
-
 #[get("/api/knapsack/thread/transcript")]
 async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixError> {
   let params =
@@ -1372,7 +1368,7 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
         error_code: Some("Thread not found".to_string()),
         message: Some("Thread not found".to_string()),
       }));
-    },
+    }
     Err(e) => {
       log::error!("Failed to get thread: {:?}", e);
       return Ok(HttpResponse::BadRequest().json(StandardResponse {
@@ -1400,8 +1396,10 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let transcript_data_dir = home_dir.join(".transcripts");
 
-
-  let file_name = generate_filename(thread.subtitle.clone().unwrap(), thread.timestamp.clone().unwrap());
+  let file_name = generate_filename(
+    thread.subtitle.clone().unwrap(),
+    thread.timestamp.clone().unwrap(),
+  );
   let file_path = transcript_data_dir.join(file_name);
 
   if !file_path.exists() {
@@ -1414,7 +1412,7 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
 
   let title = if let Some(feed_item) = feed_item {
     feed_item.title
-  }else{
+  } else {
     thread.subtitle
   };
   let content = match fs::read_to_string(file_path) {
@@ -1425,9 +1423,8 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
         error_code: Some(format!("Fail to get the transcript file: {:?}", e)),
         message: Some("Fail to get the transcript file".to_string()),
       }));
-    },
+    }
   };
-
 
   Ok(HttpResponse::Ok().json(GetTranscriptDataResponse {
     success: true,
@@ -1438,5 +1435,4 @@ async fn get_thread_transcript(req: HttpRequest) -> Result<HttpResponse, ActixEr
     }),
     message: None,
   }))
-
 }

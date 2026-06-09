@@ -51,6 +51,9 @@
         "specifier": "./configured-state",
         "exportName": "hasTelegramConfiguredState"
       }
+    },
+    "bundle": {
+      "stageRuntimeDependencies": true
     }
   }
 }

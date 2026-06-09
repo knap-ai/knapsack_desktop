@@ -18,8 +18,8 @@
 mod imp {
   use std::path::PathBuf;
   use std::time::{SystemTime, UNIX_EPOCH};
-  use tokio::process::Command;
   use tokio::io::AsyncReadExt;
+  use tokio::process::Command;
 
   const KNOWN_PATHS: &[&str] = &[
     "/opt/homebrew/bin/peekaboo",
@@ -73,7 +73,9 @@ mod imp {
   /// crash reporters, update prompts.  We attempt to click "Allow" first, then
   /// fall back to "OK", then generic dismiss.
   async fn clear_blocking_dialogs(bin: &PathBuf) {
-    let Some(json) = run(bin, &["dialog", "list", "--json"]).await else { return };
+    let Some(json) = run(bin, &["dialog", "list", "--json"]).await else {
+      return;
+    };
 
     // If the output is non-trivially empty there's at least one dialog open.
     let trimmed = json.trim();
@@ -117,7 +119,9 @@ mod imp {
 
   /// Confirm Knapsack is listed as a running app.
   async fn knapsack_is_running(bin: &PathBuf) -> bool {
-    let Some(json) = run(bin, &["list", "apps", "--json"]).await else { return true };
+    let Some(json) = run(bin, &["list", "apps", "--json"]).await else {
+      return true;
+    };
     // If we can't parse it, assume OK rather than false-positive.
     json.to_lowercase().contains("knapsack")
   }
@@ -128,7 +132,10 @@ mod imp {
       eprintln!("[peekaboo_watchdog] peekaboo not installed — skipping ({label})");
       return;
     };
-    eprintln!("[peekaboo_watchdog] starting watchdog ({label}), bin={}", bin.display());
+    eprintln!(
+      "[peekaboo_watchdog] starting watchdog ({label}), bin={}",
+      bin.display()
+    );
 
     // 1. Clear any dialog that might be blocking the gateway or the OS.
     clear_blocking_dialogs(&bin).await;

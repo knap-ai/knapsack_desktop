@@ -61,7 +61,7 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
       { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
       { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable' },
     ],
-    defaultModel: 'gpt-5.5',
+    defaultModel: 'gpt-5-mini',
   },
   {
     id: 'anthropic',
@@ -98,17 +98,15 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'gemini',
     name: 'Gemini',
-    description: 'Gemini 3.1 Pro, 3 Flash — sign in with Google',
+    description: 'Gemini 2.5 Pro, 2.5 Flash — sign in with Google',
     keyPrefix: 'AIza',
     helpUrl: 'https://aistudio.google.com/apikey',
     helpLabel: 'aistudio.google.com/apikey',
     models: [
-      { id: 'gemini/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning' },
-      { id: 'gemini/gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance' },
-      { id: 'gemini/gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks' },
-      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding' },
+      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, strong reasoning and coding' },
+      { id: 'gemini/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable fast multimodal Gemini model' },
     ],
-    defaultModel: 'gemini/gemini-3.1-pro-preview',
+    defaultModel: 'gemini/gemini-2.5-flash',
   },
 ]
 
@@ -475,7 +473,7 @@ export const ProviderSignInDialog = ({
         setSelectedModel(config.defaultModel)
       } else if (data.active_provider === 'google-gemini-cli') {
         setSelectedProvider('gemini')
-        setSelectedModel('gemini/gemini-2.5-pro')
+        setSelectedModel('gemini/gemini-2.5-flash')
       } else if (data.active_provider === 'knapsack') {
         setSelectedProvider('knapsack')
         const config = PROVIDER_CONFIGS.find(p => p.id === 'knapsack')!

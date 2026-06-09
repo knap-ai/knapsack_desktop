@@ -364,7 +364,10 @@ impl KnowledgeSnippet for LocalFile {
         Vec::new()
       }
     };
-    file_contents.first().cloned().unwrap_or_else(|| format!(""))
+    file_contents
+      .first()
+      .cloned()
+      .unwrap_or_else(|| format!(""))
   }
 
   fn get_hyperlink(&self) -> String {

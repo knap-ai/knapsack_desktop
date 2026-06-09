@@ -6,6 +6,7 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -109,8 +110,68 @@ async fn ensure_gateway_best_effort(token: Option<&str>) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
 
-/// Make a single request to the gateway and return the result
-pub async fn gateway_request(
+fn read_token_from_json(path: &Path) -> Option<String> {
+  let content = std::fs::read_to_string(path).ok()?;
+  let config = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+
+  config
+    .get("gateway_token")
+    .and_then(|v| v.as_str())
+    .or_else(|| {
+      config
+        .get("gateway")
+        .and_then(|g| g.get("auth"))
+        .and_then(|a| a.get("token"))
+        .and_then(|t| t.as_str())
+    })
+    .map(str::trim)
+    .filter(|token| !token.is_empty())
+    .map(ToString::to_string)
+}
+
+fn gateway_token_candidates() -> Vec<PathBuf> {
+  let mut candidates = Vec::new();
+
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
+    if let Ok(dir) = std::env::var(var) {
+      let dir = dir.trim();
+      if !dir.is_empty() {
+        let base = PathBuf::from(dir);
+        candidates.push(base.join("tokens.json"));
+        candidates.push(base.join("openclaw.json"));
+        candidates.push(base.join("clawdbot.json"));
+      }
+    }
+  }
+
+  let home = std::env::var("HOME")
+    .or_else(|_| std::env::var("USERPROFILE"))
+    .unwrap_or_else(|_| ".".to_string());
+  candidates.push(
+    PathBuf::from(&home)
+      .join(".openclaw")
+      .join("openclaw.json"),
+  );
+  candidates.push(
+    PathBuf::from(&home)
+      .join(".clawdbot")
+      .join("clawdbot.json"),
+  );
+
+  candidates
+}
+
+fn should_retry_gateway_auth(error: &str) -> bool {
+  let lower = error.to_lowercase();
+  lower.contains("token mismatch")
+    || lower.contains("unauthorized")
+    || lower.contains("rate_limited")
+    || lower.contains("closed before connect")
+    || lower.contains("connection closed during connect")
+    || lower.contains("connection closed before connect response")
+}
+
+async fn gateway_request_once(
   method: &str,
   params: Option<Value>,
   token: Option<&str>,
@@ -285,6 +346,59 @@ pub async fn gateway_request(
   }
 }
 
+/// Make a single request to the gateway and return the result.
+///
+/// If the auth token drifted out of sync, retry once with the canonical token
+/// from app state before escalating to the gateway self-heal path.
+pub async fn gateway_request(
+  method: &str,
+  params: Option<Value>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let mut current_token = token.map(ToString::to_string);
+  let mut self_heal_attempted = false;
+
+  loop {
+    match gateway_request_once(method, params.clone(), current_token.as_deref()).await {
+      Ok(result) => return Ok(result),
+      Err(error) => {
+        if !should_retry_gateway_auth(&error) {
+          return Err(error);
+        }
+
+        if let Some(recovered_token) = get_gateway_token() {
+          let needs_token_retry = current_token
+            .as_deref()
+            .map(|token| token != recovered_token)
+            .unwrap_or(true);
+          if needs_token_retry {
+            eprintln!(
+              "[gateway_ws] auth/connect failed for {} — retrying with canonical app token",
+              method
+            );
+            current_token = Some(recovered_token);
+            continue;
+          }
+        }
+
+        if !self_heal_attempted && crate::clawd::gateway_client::is_gateway_port_open().await {
+          if let Some(token) = current_token.as_deref() {
+            eprintln!(
+              "[gateway_ws] auth/connect failed for {} with gateway still listening — triggering self-heal",
+              method
+            );
+            self_heal_attempted = true;
+            crate::clawd::service::self_heal_gateway_conflict(token).await;
+            continue;
+          }
+        }
+
+        return Err(error);
+      }
+    }
+  }
+}
+
 /// Get the gateway token from environment or config file
 fn get_gateway_token() -> Option<String> {
   if let Ok(token) = std::env::var("OPENCLAW_GATEWAY_TOKEN") {
@@ -294,31 +408,9 @@ fn get_gateway_token() -> Option<String> {
     }
   }
 
-  // Try to read from config file (openclaw.json first, then clawdbot.json)
-  let home = std::env::var("HOME")
-    .or_else(|_| std::env::var("USERPROFILE"))
-    .unwrap_or_else(|_| ".".to_string());
-  let config_candidates = [
-    std::path::PathBuf::from(&home)
-      .join(".openclaw")
-      .join("openclaw.json"),
-    std::path::PathBuf::from(&home)
-      .join(".clawdbot")
-      .join("clawdbot.json"),
-  ];
-
-  for config_path in &config_candidates {
-    if let Ok(content) = std::fs::read_to_string(config_path) {
-      if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
-        if let Some(token) = config
-          .get("gateway")
-          .and_then(|g| g.get("auth"))
-          .and_then(|a| a.get("token"))
-          .and_then(|t| t.as_str())
-        {
-          return Some(token.to_string());
-        }
-      }
+  for path in gateway_token_candidates() {
+    if let Some(token) = read_token_from_json(&path) {
+      return Some(token);
     }
   }
 

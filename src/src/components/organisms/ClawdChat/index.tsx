@@ -5,6 +5,7 @@ import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
+import { open as shellOpen } from '@tauri-apps/api/shell'
 import { convertFileSrc } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
@@ -224,6 +225,15 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('playwright') || lower.includes('snapshot() is unsupported') || lower.includes('not available in this gateway build')) {
     return '📸 **Screenshot unavailable.** The browser screenshot feature (Playwright) is not installed in the current gateway build. Reinstall Knapsack to get the latest gateway version, then try again.'
   }
+  // Ollama context size exceeded
+  if (lower.includes('exceed_context_size_error') || lower.includes('exceeds the available context size') || (lower.includes('n_ctx') && lower.includes('n_prompt_tokens'))) {
+    const ctxMatch = raw.match(/"n_ctx"\s*:\s*(\d+)/)
+    const tokMatch = raw.match(/"n_prompt_tokens"\s*:\s*(\d+)/)
+    const ctx = ctxMatch ? parseInt(ctxMatch[1]).toLocaleString() : null
+    const tok = tokMatch ? parseInt(tokMatch[1]).toLocaleString() : null
+    const detail = ctx && tok ? ` The conversation is ${tok} tokens but this Ollama model only supports ${ctx}.` : ''
+    return `⚠️ **Ollama context limit reached** (active: \`${activeModel}\`).${detail} To fix: start a new conversation to reduce context, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
+  }
   // Context / prompt too large for model
   if (lower.includes('context overflow') || lower.includes('prompt too large') || (lower.includes('too large') && lower.includes('model'))) {
     return `⚠️ **Context overflow** (active: \`${activeModel}\`). The conversation is too long for this model. Start a new conversation to reduce context size, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
@@ -411,9 +421,7 @@ type ProviderOption = {
 }
 
 const KNAPSACK_MODELS = [
-  { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-  { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
-  { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
+  { id: 'auto', name: 'Auto', description: 'Knapsack selects the best available model for your account' },
 ]
 const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
 
@@ -421,7 +429,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
@@ -453,6 +461,7 @@ type GeminiModelOption = {
 
 const GEMINI_MODELS: GeminiModelOption[] = [
   { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast, broadly capable default for general work', vision: true },
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
   { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
@@ -780,32 +789,43 @@ function clearOnboardingAgents() {
 
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
 
-1. Check the gateway service status by running: curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
-2. Check startup readiness by running: curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
-3. Check if ports are listening without printing process environments: lsof -nP -iTCP:18789 -iTCP:18791 -sTCP:LISTEN 2>/dev/null
+0. Define a JSON pretty-printer helper (works even if python3/jq are missing):
+   JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+
+1. Check the gateway service status:
+   curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
+2. Check startup readiness:
+   curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
+3. Check if ports are listening without printing process environments:
+   lsof -nP -iTCP:18789 -iTCP:18791 -sTCP:LISTEN 2>/dev/null
 4. Check the current Knapsack gateway logs, filtering stale/noisy lines:
    tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || true
-5. Check browser tabs through Knapsack: curl -s http://127.0.0.1:8897/api/clawd/browser/tabs | python3 -m json.tool
+5. Check browser tabs through Knapsack:
+   curl -s http://127.0.0.1:8897/api/clawd/browser/tabs | sh -c "$JSON_PP"
 
 Based on the results, tell me:
 - Whether the gateway process is running
 - Whether the browser (Chrome CDP) is connected
-- Any specific errors you see in the logs (like permission denied, port conflicts, session expired)
-- The recommended fix based on actual evidence found (e.g. restart the gateway, re-link WhatsApp, kill stale processes)
+- Any specific errors you see in the logs (like permission denied, port conflicts, session expired, version mismatch)
+- The recommended fix based on actual evidence found (e.g. restart the gateway, kill stale processes, re-link a channel)
 - Treat live /service/health and /startup-ready as authoritative over old chat messages or stale log lines.
 - Never run ps/pgrep with full command lines or environment output, because provider keys can appear there.
-IMPORTANT: Only suggest Full Disk Access if you see an explicit permission-denied error in the logs. Do not suggest it based on absence of a log file alone.`
+IMPORTANT:
+- Only suggest Full Disk Access if you see an explicit permission-denied error in the logs (absence of logs is not evidence).
+- If the logs mention an OpenClaw version guard (config written by a different/newer version, unknown config key like plugins.bundledDiscovery), treat that as a version mismatch and recommend updating/repairing the bundled gateway rather than generic permission fixes.`
 
 const GATEWAY_RESTART_PROMPT = `Please restart the Knapsack gateway service. Run this command:
-curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | python3 -m json.tool
+JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
 Then check if it recovered:
-curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Tell me whether the gateway and browser are now healthy.`
 
 const GATEWAY_VIEW_LOGS_PROMPT = `Show me the recent Knapsack gateway error logs to help diagnose connectivity issues. Run:
 tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || echo "No relevant gateway error log lines found"
 Then compare against live health:
-curl -s http://127.0.0.1:8897/api/clawd/service/health | python3 -m json.tool
+JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
+curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Summarize only recurring current errors, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), or port conflicts.
 IMPORTANT: Treat live health as authoritative over stale log lines. If the log is empty or not found, do NOT speculate about Full Disk Access or other permissions — the absence of logs does not imply a permission issue.`
 
@@ -1368,6 +1388,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <div className="ClawdInputWrapper">
           <textarea
             ref={textareaRef}
+            data-testid="qa-clawd-chat-input"
             value={input}
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
@@ -1671,7 +1692,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5.4'
+    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5-mini'
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
@@ -1692,10 +1713,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
   const [selectedKnapsackModel, setSelectedKnapsackModel] = useState<string>(() => {
-    return localStorage.getItem(KNAPSACK_MODEL_STORAGE) || 'anthropic/claude-haiku-4-5'
+    const stored = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
+    return KNAPSACK_MODELS.some(model => model.id === stored) ? stored! : 'auto'
   })
   const [knapsackEmail, setKnapsackEmail] = useState<string>('')
+  const [isKnapsackConnecting, setIsKnapsackConnecting] = useState(false)
+  const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
+    return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
+  })
+  // Tracks the backend-confirmed active provider separately from selectedProvider,
+  // which also changes when the user opens an accordion (before any save).
+  const [confirmedProvider, setConfirmedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
   const [savingKey, setSavingKey] = useState(false)
@@ -2002,18 +2031,65 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // Check backend for a valid key (single source of truth)
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
-      if (keyStatus.has_key) {
-        setHasCompletedOnboarding(true)
-        if (keyStatus.model) {
-          // Only use backend model if the user hasn't made a local choice yet
-          const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
-          if (!localModel) {
-            setSelectedModel(keyStatus.model)
-            localStorage.setItem(OPENAI_MODEL_STORAGE, keyStatus.model)
+        if (keyStatus.has_key) {
+          setHasCompletedOnboarding(true)
+        if (keyStatus.model && keyStatus.active_provider) {
+          // Only use backend model if the user hasn't made a local choice yet.
+          const activeProvider = keyStatus.active_provider as Provider
+          const backendModel = keyStatus.model
+          if (activeProvider === 'openai') {
+            const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedModel(backendModel)
+              localStorage.setItem(OPENAI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'anthropic') {
+            const localModel = localStorage.getItem(ANTHROPIC_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedAnthropicModel(backendModel)
+              localStorage.setItem(ANTHROPIC_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'gemini') {
+            const localModel = localStorage.getItem(GEMINI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedGeminiModel(backendModel)
+              localStorage.setItem(GEMINI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'groq') {
+            const localModel = localStorage.getItem(GROQ_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedGroqModel(backendModel)
+              localStorage.setItem(GROQ_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'xai') {
+            const localModel = localStorage.getItem(XAI_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedXaiModel(backendModel)
+              localStorage.setItem(XAI_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'openrouter') {
+            const localModel = localStorage.getItem(OPENROUTER_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedOpenRouterModel(backendModel)
+              localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'ollama') {
+            const localModel = localStorage.getItem(OLLAMA_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedOllamaModel(backendModel)
+              localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
+            }
+          } else if (activeProvider === 'knapsack') {
+            const localModel = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedKnapsackModel(backendModel)
+              localStorage.setItem(KNAPSACK_MODEL_STORAGE, backendModel)
+            }
           }
         }
         if (keyStatus.active_provider) {
           setSelectedProvider(keyStatus.active_provider as Provider)
+          setConfirmedProvider(keyStatus.active_provider as Provider)
           localStorage.setItem(ACTIVE_PROVIDER_STORAGE, keyStatus.active_provider)
         }
         // Store masked key hints for placeholders
@@ -2039,8 +2115,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           setKnapsackEmail(keyStatus.knapsack_email)
         }
         if (keyStatus.knapsack_model) {
-          setSelectedKnapsackModel(keyStatus.knapsack_model)
-          localStorage.setItem(KNAPSACK_MODEL_STORAGE, keyStatus.knapsack_model)
+          const knapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
+          setSelectedKnapsackModel(knapsackModel)
+          localStorage.setItem(KNAPSACK_MODEL_STORAGE, knapsackModel)
         }
         // Restore Ollama model from backend if Ollama is the active provider
         if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
@@ -2867,6 +2944,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         },
       )
       cleanups.push(unlistenCompose)
+
+      // Knapsack deep-link auth callback from the OS URL scheme handler
+      const unlistenKnapsackConnected = await tauriListen<{ email: string }>(
+        'knapsack-connected',
+        (event) => {
+          if (cancelled) return
+          const { email } = event.payload
+          setKnapsackEmail(email)
+          setIsKnapsackConnecting(false)
+          setKnapsackConnectError(null)
+          setSelectedProvider('knapsack')
+          setConfirmedProvider('knapsack')
+          localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+          setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+          pushAssistant(`Connected to Knapsack as **${email}**.`)
+        },
+      )
+      cleanups.push(unlistenKnapsackConnected)
+
+      const unlistenKnapsackError = await tauriListen<{ error: string }>(
+        'knapsack-auth-error',
+        (event) => {
+          if (cancelled) return
+          setIsKnapsackConnecting(false)
+          setKnapsackConnectError(event.payload.error || 'Connection failed')
+        },
+      )
+      cleanups.push(unlistenKnapsackError)
     })()
 
     return () => {
@@ -2990,6 +3095,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: selectedOllamaModel,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setConfirmedProvider('ollama')
+      localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
@@ -3039,6 +3146,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
       }
+      setConfirmedProvider(selectedProvider)
+      localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
       setShowKeyPrompt(false)
       setEditingProviderKey(false)
       setHasCompletedOnboarding(true)
@@ -3859,15 +3968,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // messages reflect the model that was actually selected when sent, not the
     // model in localStorage (which can lag behind UI state changes).
     const activeModelAtSend = (() => {
-      const m = selectedProvider === 'ollama' ? selectedOllamaModel
-        : selectedProvider === 'anthropic' ? selectedAnthropicModel
-        : selectedProvider === 'gemini' ? selectedGeminiModel
-        : selectedProvider === 'groq' ? selectedGroqModel
-        : selectedProvider === 'xai' ? selectedXaiModel
-        : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+      if (selectedProvider === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      const m = selectedProvider === 'ollama'
+        ? selectedOllamaModel
+        : selectedProvider === 'anthropic'
+        ? selectedAnthropicModel
+        : selectedProvider === 'gemini'
+        ? selectedGeminiModel
+        : selectedProvider === 'groq'
+        ? selectedGroqModel
+        : selectedProvider === 'xai'
+        ? selectedXaiModel
+        : selectedProvider === 'openrouter'
+        ? selectedOpenRouterModel
         : selectedModel
       return m ? `${selectedProvider}/${m}` : selectedProvider
     })()
+    const selectedModelForProvider = activeModelAtSend.includes('/')
+      ? activeModelAtSend.split('/').slice(1).join('/')
+      : ''
 
     try {
       if (cmd === 'enable') {
@@ -4254,6 +4373,8 @@ ${actualText}`
 
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
+          provider: selectedProvider,
+          model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId: 'ui',
           tone: selectedTone,
@@ -4278,11 +4399,9 @@ ${actualText}`
 
         // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
         // fall back to direct chat if gateway is unavailable.
-        // Keep the frontend timeout longer than the backend request budget. If
-        // the backend times out a gateway turn, it returns noFallback so the UI
-        // does not start duplicate direct-chat work after the gateway committed
-        // the user turn. The user's abort controller still cancels immediately
-        // if they click Stop.
+        // Keep the frontend timeout longer than the backend request budget.
+        // If the shared gateway session is slow or poisoned, the backend falls
+        // back to direct chat so desktop users still get a timely answer.
         let useDirectChat = false
 
         if (!useDirectChat) {
@@ -4291,17 +4410,20 @@ ${actualText}`
           console.warn('[chat] agent-chat timed out after 300s, falling back to direct chat')
           agentTimeout.abort()
         }, 300_000) : null
-        // Combine user abort + timeout abort
+        // Combine user abort + timeout abort. Fallback to user signal so stop
+        // always works in environments where AbortSignal.any is unavailable.
         const agentSignal = agentTimeout
           ? (typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
               ? (AbortSignal as any).any([controller.signal, agentTimeout.signal])
-              : agentTimeout.signal)
+              : controller.signal)
           : controller.signal
         try {
           const agentRes = await fetch(apiUrl('/api/clawd/agent-chat'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              provider: selectedProvider,
+              model: selectedModelForProvider,
               text: requestBody.text,
               advancedMode,
               userEmail: userEmail || '',
@@ -4693,12 +4815,13 @@ ${actualText}`
             {proactiveMode ? '🔔 Proactive' : '🔕 Reactive'}
           </button>
           <button disabled={busy} onClick={() => { const opening = !showKeyPrompt; setShowKeyPrompt(opening); setShowSkillsPanel(false); setShowChannelsPanel(false); if (opening && externalActivityPanel && onCloseActivity) onCloseActivity() }} className={showKeyPrompt ? 'toggle-on' : ''} title="Change AI provider, API key, or model">
-            {selectedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
-              : selectedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
-              : selectedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
-              : selectedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
-              : selectedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
-              : selectedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+            {confirmedProvider === 'anthropic' ? (ANTHROPIC_MODELS.find(m => m.id === selectedAnthropicModel)?.name || selectedAnthropicModel || 'Anthropic')
+              : confirmedProvider === 'gemini' ? (GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel || 'Gemini')
+              : confirmedProvider === 'groq' ? (GROQ_MODELS.find(m => m.id === selectedGroqModel)?.name || selectedGroqModel || 'Groq')
+              : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
+              : confirmedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
+              : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+              : confirmedProvider === 'knapsack' ? 'Knapsack'
               : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
           <button disabled={busy} onClick={() => setShowToneSelector(true)}>
@@ -6663,10 +6786,100 @@ ${actualText}`
                         <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                       </button>
                       <div className="ClawdAccordionBody">
-                        {knapsackEmail && (
-                          <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>
-                            Signed in as <strong>{knapsackEmail}</strong>
-                          </p>
+                        {knapsackEmail ? (
+                          <>
+                            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#64748b' }}>
+                              Signed in as <strong>{knapsackEmail}</strong>
+                            </p>
+                            <div className="ClawdAccordionActions">
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                onClick={async () => {
+                                  if (confirmedProvider === 'knapsack') return
+                                  setSavingKey(true)
+                                  try {
+                                    await apiPost('/api/clawd/service/set-api-key', {
+                                      provider: 'knapsack',
+                                      key: '',
+                                    })
+                                    setSelectedProvider('knapsack')
+                                    setConfirmedProvider('knapsack')
+                                    localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                    setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
+                                    pushAssistant('Switched to Knapsack.')
+                                  } catch {}
+                                  setSavingKey(false)
+                                }}
+                                disabled={savingKey || confirmedProvider === 'knapsack'}
+                              >
+                                {savingKey ? 'Switching...' : confirmedProvider === 'knapsack' ? 'Active' : 'Use Knapsack'}
+                              </button>
+                              <button
+                                className="ClawdChannelCardAction"
+                                style={{ marginLeft: 8, opacity: 0.7 }}
+                                onClick={async () => {
+                                  try {
+                                    const res = await apiPost<{ ok: boolean; fallback_provider?: string }>(
+                                      '/api/clawd/service/knapsack-disconnect', {}
+                                    )
+                                    const next = (res?.fallback_provider || 'openai') as Provider
+                                    setSelectedProvider(next)
+                                    setConfirmedProvider(next)
+                                    localStorage.setItem(ACTIVE_PROVIDER_STORAGE, next)
+                                  } catch {}
+                                  setKnapsackEmail('')
+                                  setKnapsackConnectError(null)
+                                }}
+                                disabled={savingKey}
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {knapsackConnectError && (
+                              <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, padding: '8px 10px' }}>
+                                {knapsackConnectError}
+                              </p>
+                            )}
+                            {isKnapsackConnecting ? (
+                              <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                                Waiting for sign-in from your browser…{' '}
+                                <button
+                                  style={{ background: 'none', border: 'none', color: '#c54841', cursor: 'pointer', padding: 0, fontSize: 12, textDecoration: 'underline' }}
+                                  onClick={() => setIsKnapsackConnecting(false)}
+                                >
+                                  Cancel
+                                </button>
+                              </p>
+                            ) : (
+                              <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                                Sign in with your Knapsack account to use the cloud AI — no API key needed.
+                              </p>
+                            )}
+                            <div className="ClawdAccordionActions">
+                              <button
+                                className="ClawdChannelCardAction ClawdChannelCardAction--connect"
+                                disabled={isKnapsackConnecting}
+                                onClick={() => {
+                                  setIsKnapsackConnecting(true)
+                                  setKnapsackConnectError(null)
+                                  const callbackUrl = encodeURIComponent('http://127.0.0.1:8897/api/auth/knapsack-callback')
+                                  const studioBase = import.meta.env.VITE_KN_STUDIO_SERVER || 'https://studio.knapsack.ai'
+                                  const studioUrl = `${studioBase}/desktop-connect?callback=${callbackUrl}`
+                                  shellOpen(studioUrl).catch(() => {
+                                    window.open(studioUrl, '_blank')
+                                  })
+                                }}
+                              >
+                                {isKnapsackConnecting ? 'Waiting…' : 'Connect with Knapsack'}
+                              </button>
+                            </div>
+                            <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
+                              A browser window will open. Sign in and click "Connect Desktop" — you'll be redirected back automatically.
+                            </p>
+                          </>
                         )}
                         <label className="ClawdKeyPromptLabel">Model tier</label>
                         <div className="ClawdModelSelector">
@@ -6689,10 +6902,9 @@ ${actualText}`
                           <button
                             className="ClawdChannelCardAction ClawdChannelCardAction--connect"
                             onClick={async () => {
-                              if (!knapsackEmail) return
                               setSavingKey(true)
                               try {
-                                await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail, model: selectedKnapsackModel })
+                                await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail || '', model: selectedKnapsackModel })
                                 setSelectedProvider('knapsack')
                                 localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
                                 setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
@@ -6700,7 +6912,7 @@ ${actualText}`
                               } catch {}
                               setSavingKey(false)
                             }}
-                            disabled={savingKey || !knapsackEmail}
+                            disabled={savingKey}
                           >
                             {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
                           </button>

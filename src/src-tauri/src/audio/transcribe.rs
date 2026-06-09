@@ -25,23 +25,31 @@ struct SttProvider {
 /// while OpenAI's is paid and subject to tighter rate limits.
 fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
-  let openai_key = std::env::var("OPENAI_API_KEY").ok().filter(|k| !k.trim().is_empty());
-  let groq_key = std::env::var("GROQ_API_KEY").ok().filter(|k| !k.trim().is_empty());
+  let openai_key = std::env::var("OPENAI_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let groq_key = std::env::var("GROQ_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
 
   // If the user's active provider supports STT, prefer it
   match active.as_str() {
-    "openai" if openai_key.is_some() => return Ok(SttProvider {
-      name: "openai",
-      api_key: openai_key.unwrap(),
-      base_url: "https://api.openai.com/v1/audio/transcriptions",
-      model: "whisper-1",
-    }),
-    "groq" if groq_key.is_some() => return Ok(SttProvider {
-      name: "groq",
-      api_key: groq_key.unwrap(),
-      base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
-      model: "whisper-large-v3-turbo",
-    }),
+    "openai" if openai_key.is_some() => {
+      return Ok(SttProvider {
+        name: "openai",
+        api_key: openai_key.unwrap(),
+        base_url: "https://api.openai.com/v1/audio/transcriptions",
+        model: "whisper-1",
+      })
+    }
+    "groq" if groq_key.is_some() => {
+      return Ok(SttProvider {
+        name: "groq",
+        api_key: groq_key.unwrap(),
+        base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
+        model: "whisper-large-v3-turbo",
+      })
+    }
     // Anthropic, Gemini, OpenRouter, etc. don't offer STT — fall through
     _ => {}
   }
@@ -99,7 +107,8 @@ async fn speech_to_text(
     return Err(LLMError::ChatCompletionFailed("Audio file does not exist".to_string()).into());
   }
 
-  let file_bytes = tokio::fs::read(&audio_file).await
+  let file_bytes = tokio::fs::read(&audio_file)
+    .await
     .map_err(|_| LLMError::ChatCompletionFailed("Failed to read audio file".to_string()))?;
 
   let file_name = audio_file
@@ -186,7 +195,9 @@ async fn speech_to_text(
     LLMError::ChatCompletionFailed(format!(
       "{} transcription failed with status: {}",
       provider.name,
-      last_status.map(|s| s.to_string()).unwrap_or_else(|| "unknown".to_string())
+      last_status
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "unknown".to_string())
     ))
     .into(),
   )
@@ -195,20 +206,24 @@ async fn speech_to_text(
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
   let provider = resolve_stt_provider()?;
   log::info!("[transcribe] Using {} for speech-to-text", provider.name);
-  match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
-    Ok(transcription) => {
-      log::debug!(
-        "------------------ {} Transcribed text: {}",
-        provider.name,
-        transcription
-      );
-      let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-      let knapsack_data_dir = home_dir.join(".knapsack");
-      let transcripts_dir = knapsack_data_dir.join("transcripts");
-      fs::create_dir_all(&transcripts_dir)?;
+  
+  let max_retries = 3;
+  let mut current_retry = 0;
+  
+  loop {
+    match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
+      Ok(transcription) => {
+        log::debug!(
+          "------------------ {} Transcribed text: {}",
+          provider.name,
+          transcription
+        );
+        let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+        let knapsack_data_dir = home_dir.join(".knapsack");
+        let transcripts_dir = knapsack_data_dir.join("transcripts");
+        fs::create_dir_all(&transcripts_dir)?;
 
-      let transcript_path = transcripts_dir.join(filename);
-
+    let transcript_path = transcripts_dir.join(&filename);
       let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -217,12 +232,47 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
       file.write_all(b"\n ---END-CHUNK---")?;
       file.write_all(b"\n")?;
       log::debug!("WROTE TRANSCRIPT: {:?}", transcript_path);
-      Ok(())
+      return Ok(());
     }
     Err(e) => {
-      knap_log_error(format!("Error transcribing with {}: {:?}", provider.name, e), None, None);
-      Err(e)
+      current_retry += 1;
+      let err_str = format!("{:?}", e);
+
+      if current_retry >= max_retries {
+        knap_log_error(
+          format!("Error transcribing with {}: {}", provider.name, err_str),
+          None,
+          None,
+        );
+        return Err(e);
+      }
+
+      let should_retry = err_str.contains("os error 10054") 
+        || err_str.contains("os error 11001")
+        || err_str.contains("dns error")
+        || err_str.contains("forcibly closed")
+        || err_str.contains("connection error")
+        || err_str.contains("104");
+
+      if should_retry || current_retry < 2 {
+        log::warn!(
+          "Transcription failed, retrying ({}/{}). Error: {}",
+          current_retry,
+          max_retries,
+          err_str
+        );
+        tokio::time::sleep(tokio::time::Duration::from_secs(1 << current_retry)).await;
+        continue;
+      }
+
+      knap_log_error(
+        format!("Error transcribing with {}: {}", provider.name, err_str),
+        None,
+        None,
+      );
+      return Err(e);
     }
+  }
   }
 }
 
@@ -256,7 +306,8 @@ pub async fn generate_meeting_insight(
   let transcripts_dir = home_dir.join(".knapsack/transcripts");
 
   let input_content = read_file_content(&transcripts_dir.join(format!("{}.txt", input_filename)))?;
-  let output_content = read_file_content(&transcripts_dir.join(format!("{}.txt", output_filename)))?;
+  let output_content =
+    read_file_content(&transcripts_dir.join(format!("{}.txt", output_filename)))?;
 
   let transcript_so_far = merge_transcripts(&input_content, &output_content);
 
@@ -271,11 +322,15 @@ pub async fn generate_meeting_insight(
         Based on the transcript so far, provide ONE brief, actionable insight — something \
         interesting the user should know, a question they could ask, or an action they should \
         take. Be specific, concise (1-2 sentences), and directly relevant to the conversation. \
-        Do not summarize the meeting. Do not start with 'Based on the transcript'.".to_string(),
+        Do not summarize the meeting. Do not start with 'Based on the transcript'."
+        .to_string(),
     },
     LlmMessage {
       sender: MessageSender::User,
-      content: format!("Here is the meeting transcript so far:\n\n{}", transcript_so_far),
+      content: format!(
+        "Here is the meeting transcript so far:\n\n{}",
+        transcript_so_far
+      ),
     },
   ];
 
@@ -414,7 +469,10 @@ mod tests {
 
     let result = merge_transcripts(input, output);
 
-    assert!(result.contains("Me:"), "Should contain 'Me:' prefix for input");
+    assert!(
+      result.contains("Me:"),
+      "Should contain 'Me:' prefix for input"
+    );
     assert!(
       result.contains("Them:"),
       "Should contain 'Them:' prefix for output"
@@ -449,7 +507,10 @@ mod tests {
   #[test]
   fn test_merge_transcripts_empty_inputs() {
     let result = merge_transcripts("", "");
-    assert!(result.is_empty(), "Empty inputs should produce empty output");
+    assert!(
+      result.is_empty(),
+      "Empty inputs should produce empty output"
+    );
   }
 
   #[test]
@@ -459,7 +520,10 @@ mod tests {
 
     assert!(result.contains("Me:"), "Should label input as 'Me:'");
     assert!(result.contains("Solo speaker content"));
-    assert!(!result.contains("Them:"), "Should not have 'Them:' with no output");
+    assert!(
+      !result.contains("Them:"),
+      "Should not have 'Them:' with no output"
+    );
   }
 
   #[test]
@@ -469,7 +533,10 @@ mod tests {
 
     assert!(result.contains("Them:"), "Should label output as 'Them:'");
     assert!(result.contains("Remote speaker content"));
-    assert!(!result.contains("Me:"), "Should not have 'Me:' with no input");
+    assert!(
+      !result.contains("Me:"),
+      "Should not have 'Me:' with no input"
+    );
   }
 
   #[test]

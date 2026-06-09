@@ -166,17 +166,16 @@ export const HeartbeatSettings = () => {
       {error && <div className="text-xs text-red-500">{error}</div>}
 
       {/* Enable/Disable toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col flex-1 min-w-0">
           <span className="text-sm text-black">Background AI</span>
-          <span className="text-[10px] text-gray-400">
-            Proactive notifications using cheapest available model.
-            {config.enabled && ' Uses minimal tokens for background checks.'}
+          <span className="text-[10px] text-gray-400 leading-snug">
+            Proactive notifications using cheapest available model. Uses minimal tokens for background checks.
           </span>
         </div>
         <button
           onClick={() => updateConfig({ enabled: !config.enabled } as any)}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors mt-0.5 ${
             config.enabled ? 'bg-green-500' : 'bg-gray-300'
           }`}
         >

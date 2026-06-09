@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>ai.knap.knapsack.auth</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>knapsack-auth</string>
+            </array>
+        </dict>
+    </array>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app requires access to the microphone to record audio.</string>
     <key>NSAudioOutputUsageDescription</key>

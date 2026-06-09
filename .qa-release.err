@@ -1,0 +1,459 @@
+Asset `vite.svg` not found; fallback to vite.svg.html
+Asset `vite.svg` not found; fallback to vite.svg.html
+[clawd/service] auto_enable (Windows): starting gateway
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+Asset `vite.svg` not found; fallback to vite.svg.html
+Asset `vite.svg` not found; fallback to vite.svg.html
+Asset `vite.svg` not found; fallback to vite.svg.html
+[clawd/service] gateway not reachable for 2373ms after launch - waiting before self-heal
+[clawd/service] gateway down: no PID tracked
+[clawd/service] gateway not reachable for 2667ms after launch - waiting before self-heal
+[clawd/service] gateway down: no PID tracked
+[clawd/service] Enable request: Windows gateway launch already in progress for 2667ms; preserving startup
+[clawd/service] gateway not reachable for 3010ms after launch - waiting before self-heal
+[clawd/service] gateway down: no PID tracked
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 3351ms after launch - waiting before self-heal
+[clawd/service] gateway down: no PID tracked
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] auto_enable (Windows): gateway spawned (pid 26680)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 15817ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 16703ms after launch - waiting before self-heal
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 28085ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 29406ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 30833ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 33575ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 37734ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 41930ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 45806ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 46685ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 50908ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 55038ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 59103ms after launch - waiting before self-heal
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 60810ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 63188ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] gateway not reachable for 67291ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 71472ms after launch - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (300ms)
+[clawd/service] gateway not reachable for 77404ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 79755ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 83125ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 88814ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 92572ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 94857ms after launch - waiting before self-heal
+[clawd/service] gateway down: listener pid 26680 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway recovered — resetting browser nudge flag
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] Port 18800 is now free
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] health poll: WS disconnected while gateway is up — re-spawning reconnect task
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 1), backing off 1000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 2), backing off 2000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[gateway_client] reconnect task: gateway port not open yet (attempt 3), backing off 4000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 4), backing off 8000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[gateway_client] reconnect task: gateway port not open yet (attempt 5), backing off 15000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable — starting background self-heal (class=unknown)
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] Sentry alert sent: crash_type=unknown
+[clawd/service] self-heal: starting recovery cycle (class=unknown)
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] gateway not reachable for 1882ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 26680 alive but not responding on port 18789
+[clawd/service] Port 18800 is now free
+[clawd/service] Attempt 1: killing process on port 18789 (pid 26680)
+[clawd/service] Port 18789 is now free
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] self-heal: Windows restart via direct spawn
+[clawd/service] self-heal: spawned gateway pid 35416
+[clawd/service] browser control gateway probe timed out (3000ms)
+[gateway_client] reconnect task: gateway port not open yet (attempt 6), backing off 15000ms
+[clawd/service] gateway not reachable for 0ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 35416 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 3827ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 35416 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 7755ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 35416 alive but not responding on port 18789
+[clawd/service] gateway down: process pid 35416 alive but not responding on port 18789
+[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class=unknown, doctor_ok=true, consecutive_failures=1)
+[clawd/service] gateway not reachable — starting background self-heal (class=unknown)
+[clawd/service] gateway down: process pid 35416 alive but not responding on port 18789
+[clawd/service] self-heal: starting recovery cycle (class=unknown)
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] self-heal: gateway startup is still in progress; deferring restart
+[gateway_client] reconnect task: gateway port not open yet (attempt 7), backing off 15000ms
+[clawd/service] gateway port is listening but health is still pending for 17258ms - waiting before self-heal
+[clawd/service] gateway down: listener pid 35416 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway port is listening but health is still pending for 22645ms - waiting before self-heal
+[clawd/service] gateway down: listener pid 35416 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway recovered — resetting browser nudge flag
+[clawd/service] Port 18800 is now free
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 8), backing off 15000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 9), backing off 15000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[gateway_client] reconnect task: gateway port not open yet (attempt 10), backing off 15000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 11), backing off 15000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control gateway probe timed out (3000ms)
+[gateway_client] reconnect task: connection re-established (attempt 12)
+[clawd/service] browser health probe timed out; keeping last-known-good state for 253ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] Provider switch to 'gemini' (model: google/gemini-3.1-pro-preview) — restarting gateway for provider re-discovery
+[clawd/service] Attempt 1: killing process on port 18789 (pid 35416)
+[gateway_client] WebSocket dropped — spawning reconnect task
+[clawd/service] Port 18789 is now free
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] gateway not reachable — starting background self-heal (class=unknown)
+[gateway_client] reconnect task: gateway port not open yet (attempt 1), backing off 1000ms
+[clawd/service] gateway down: tracked pid 35416 is dead
+[clawd/service] Sentry alert sent: crash_type=unknown
+[clawd/service] self-heal: starting recovery cycle (class=unknown)
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] Port 18800 is now free
+[clawd/service] gateway not reachable for 1355ms (probe_failed=true, post_bind_startup=true) - waiting before self-heal
+[clawd/service] Port 18789 is now free
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] gateway down: tracked pid 35416 is dead
+[clawd/service] Spawned gateway process (pid 20220)
+[clawd/service] gateway not reachable for 2718ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] gateway down: process pid 20220 alive but not responding on port 18789
+[gateway_client] reconnect task: gateway port not open yet (attempt 2), backing off 2000ms
+[clawd/service] Port 18800 is now free
+[clawd/service] Port 18789 is now free
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] self-heal: Windows restart via direct spawn
+[clawd/service] self-heal: spawned gateway pid 33180
+[clawd/service] gateway not reachable for 0ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 33180 alive but not responding on port 18789
+[clawd/service] gateway not reachable for 3903ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 33180 alive but not responding on port 18789
+[gateway_client] reconnect task: gateway port not open yet (attempt 3), backing off 4000ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway not reachable for 7884ms (probe_failed=true, post_bind_startup=false) - waiting before self-heal
+[clawd/service] gateway down: process pid 33180 alive but not responding on port 18789
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] self-heal: gateway still unhealthy after recovery cycle (class=unknown, doctor_ok=true, consecutive_failures=2)
+[clawd/service] gateway not reachable — starting background self-heal (class=unknown)
+[clawd/service] gateway down: process pid 33180 alive but not responding on port 18789
+[clawd/service] self-heal: starting recovery cycle (class=unknown)
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] self-heal: gateway startup is still in progress; deferring restart
+[clawd/service] gateway not reachable — starting background self-heal (class=unknown)
+[clawd/service] gateway down: process pid 33180 alive but not responding on port 18789
+[clawd/service] self-heal: starting recovery cycle (class=unknown)
+[gateway_client] reconnect task: gateway port not open yet (attempt 4), backing off 8000ms
+[clawd/service] Using Node.js: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\node\node.exe (bundled)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] Using Clawdbot entry: \\?\C:\Users\markh\Documents\Codex\2026-05-24\github-plugin-github-openai-curated-allow\knapsack_desktop\src\src-tauri\target\release\resources\clawdbot\dist\knapsack-gateway-entry.js
+[clawd/service] Plugin browser runtime deps satisfied by bundled root node_modules
+[clawd/service] browser control gateway probe timed out (300ms)
+[clawd/service] Plugin slack runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin telegram runtime deps satisfied by bundled root node_modules
+[clawd/service] Plugin whatsapp runtime deps satisfied by bundled root node_modules
+[clawd/service] Knapsack v2.3.2 on windows x86_64 — starting service (ai.knap.knapsack.clawdbot)
+[clawd/service] self-heal: gateway startup is still in progress; deferring restart
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] adopted live gateway listener pid 20220 while health is pending
+[clawd/service] gateway port is listening but health is still pending for 19381ms - waiting before self-heal
+[clawd/service] gateway down: listener pid 20220 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway port is listening but health is still pending for 24764ms - waiting before self-heal
+[clawd/service] gateway down: listener pid 20220 alive but /health is pending
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway recovered — resetting browser nudge flag
+[clawd/service] Port 18800 is now free
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 5), backing off 15000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] startup-ready browser /start nudge did not complete in time: gateway browser /start timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[gateway_client] reconnect task: gateway port not open yet (attempt 6), backing off 15000ms
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] gateway /health is pending, but gateway and browser-control listeners are active; keeping desktop health green
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[gateway_client] reconnect task: gateway port not open yet (attempt 7), backing off 15000ms
+[clawd/service] browser control gateway probe timed out (3000ms)
+[gateway_client] reconnect task: connection re-established (attempt 8)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5619ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 4314ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 1233ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 6914ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5581ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 1267ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 4268ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5579ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 1709ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 4512ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5541ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 4955ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 560ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5544ms
+[clawd/service] browser health probe timed out; keeping last-known-good state for 5785ms
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
+[clawd/service] browser control status probe failed: error sending request for url (http://127.0.0.1:18791/ready): operation timed out
+[clawd/service] browser control gateway probe timed out (3000ms)
