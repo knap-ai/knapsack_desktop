@@ -724,32 +724,37 @@ pub async fn refresh_connection_token(
   match google_refresh_token(effective_email.clone(), user_connection.clone().token).await {
     Ok(access_token) => Ok(access_token),
     Err(err) => {
-      // Check if this is an invalid refresh token error
-      let is_invalid_refresh_token =
-        matches!(&err, Error::KSError(msg) if msg.contains("Invalid refresh token"));
+      let err_str = err.to_string();
+      let is_invalid_refresh_token = err_str.contains("Invalid refresh token")
+        || err_str.contains("401 Unauthorized")
+        || err_str.contains("400 Bad Request");
+
       if is_invalid_refresh_token {
-        // Delete the invalid connection so the user can re-authenticate
         let _ = user_connection.clone().delete();
         log::info!(
           "Deleted invalid Google connection for user {} (connection_id: {}). User will need to reconnect.",
           email,
           user_connection.connection_id
         );
-        Err(knap_log_error(
+        return Err(knap_log_error(
           format!(
             "Invalid refresh token for user {}. Please reconnect your Google account in Settings.",
             effective_email
           ),
           Some(err),
           None,
-        ))
-      } else {
-        Err(knap_log_error(
-          "Failed to refresh connection token".to_string(),
-          Some(err),
-          None,
-        ))
+        ));
       }
+
+      knap_log_error(
+        format!("Failed to refresh connection token: {}", err_str),
+        Some(err),
+        None,
+      );
+      Err(Error::KSError(format!(
+        "Failed to refresh connection token: {}",
+        err_str
+      )))
     }
   }
 }

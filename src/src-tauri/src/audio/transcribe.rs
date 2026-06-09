@@ -206,20 +206,24 @@ async fn speech_to_text(
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
   let provider = resolve_stt_provider()?;
   log::info!("[transcribe] Using {} for speech-to-text", provider.name);
-  match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
-    Ok(transcription) => {
-      log::debug!(
-        "------------------ {} Transcribed text: {}",
-        provider.name,
-        transcription
-      );
-      let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-      let knapsack_data_dir = home_dir.join(".knapsack");
-      let transcripts_dir = knapsack_data_dir.join("transcripts");
-      fs::create_dir_all(&transcripts_dir)?;
+  
+  let max_retries = 3;
+  let mut current_retry = 0;
+  
+  loop {
+    match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
+      Ok(transcription) => {
+        log::debug!(
+          "------------------ {} Transcribed text: {}",
+          provider.name,
+          transcription
+        );
+        let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+        let knapsack_data_dir = home_dir.join(".knapsack");
+        let transcripts_dir = knapsack_data_dir.join("transcripts");
+        fs::create_dir_all(&transcripts_dir)?;
 
-      let transcript_path = transcripts_dir.join(filename);
-
+    let transcript_path = transcripts_dir.join(&filename);
       let mut file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -228,16 +232,47 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
       file.write_all(b"\n ---END-CHUNK---")?;
       file.write_all(b"\n")?;
       log::debug!("WROTE TRANSCRIPT: {:?}", transcript_path);
-      Ok(())
+      return Ok(());
     }
     Err(e) => {
+      current_retry += 1;
+      let err_str = format!("{:?}", e);
+
+      if current_retry >= max_retries {
+        knap_log_error(
+          format!("Error transcribing with {}: {}", provider.name, err_str),
+          None,
+          None,
+        );
+        return Err(e);
+      }
+
+      let should_retry = err_str.contains("os error 10054") 
+        || err_str.contains("os error 11001")
+        || err_str.contains("dns error")
+        || err_str.contains("forcibly closed")
+        || err_str.contains("connection error")
+        || err_str.contains("104");
+
+      if should_retry || current_retry < 2 {
+        log::warn!(
+          "Transcription failed, retrying ({}/{}). Error: {}",
+          current_retry,
+          max_retries,
+          err_str
+        );
+        tokio::time::sleep(tokio::time::Duration::from_secs(1 << current_retry)).await;
+        continue;
+      }
+
       knap_log_error(
-        format!("Error transcribing with {}: {:?}", provider.name, e),
+        format!("Error transcribing with {}: {}", provider.name, err_str),
         None,
         None,
       );
-      Err(e)
+      return Err(e);
     }
+  }
   }
 }
 
