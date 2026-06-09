@@ -33,6 +33,7 @@ const launchAgentPlist = path.join(
   "LaunchAgents",
   "ai.knap.knapsack.clawdbot.plist",
 );
+const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
 
 function qaEnv(extra = {}) {
   const env = {
@@ -476,6 +477,7 @@ async function main() {
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
   ]);
+  fs.mkdirSync(qaStateDir, { recursive: true });
   bootoutLaunchAgent();
   killStaleGateways();
   killStaleOpenClawChrome();
@@ -539,7 +541,11 @@ async function main() {
 
   const appEnv =
     process.platform === "darwin"
-      ? qaEnv({ KNAPSACK_QA_DIRECT_GATEWAY: "1" })
+      ? qaEnv({
+          KNAPSACK_QA_DIRECT_GATEWAY: "1",
+          OPENCLAW_HOME: qaStateDir,
+          OPENCLAW_STATE_DIR: qaStateDir,
+        })
       : qaEnv();
     const app = spawn(binary, [], {
       cwd: tauriDir,

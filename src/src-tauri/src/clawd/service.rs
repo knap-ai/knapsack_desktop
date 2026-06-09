@@ -3479,6 +3479,13 @@ fn read_log_tail_lines_bounded(
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+  if qa_direct_gateway_mode() {
+    if let Some(override_dir) =
+      std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME"))
+    {
+      return PathBuf::from(override_dir);
+    }
+  }
   app_handle
     .path_resolver()
     .app_data_dir()
