@@ -421,7 +421,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3 Flash, 3.1 Flash Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
@@ -453,6 +453,7 @@ type GeminiModelOption = {
 
 const GEMINI_MODELS: GeminiModelOption[] = [
   { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast, broadly capable default for general work', vision: true },
   { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
   { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
