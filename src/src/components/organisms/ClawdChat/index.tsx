@@ -4990,16 +4990,33 @@ ${actualText}`
             so normal restarts and sleep/wake blips don't surface a scary error.
             Suppressed entirely until an API key is saved — the gateway status is
             irrelevant and alarming when the user hasn't set up a key yet. */}
-        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= GATEWAY_CARD_GRACE_POLLS && !channelStatus.gatewayStarting && (
+        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= GATEWAY_CARD_GRACE_POLLS && !channelStatus.gatewayStarting && (() => {
+          const healthMessage = (health.message || '').toLowerCase()
+          const missingService =
+            health.diagnostic_type === 'service_not_installed' ||
+            health.diagnostic_type === 'service_not_loaded' ||
+            healthMessage.includes('launchagent plist not found') ||
+            healthMessage.includes('service is registering') ||
+            healthMessage.includes('service is not loaded')
+          const versionMismatch = health.diagnostic_type === 'version_mismatch' && !missingService
+          const bannerTitle = missingService
+            ? 'Gateway background service is missing'
+            : versionMismatch
+              ? 'OpenClaw version mismatch'
+              : 'Gateway connectivity issue'
+          const bannerDesc = missingService
+            ? 'Knapsack cannot find its background gateway service right now. This usually means the LaunchAgent was removed or did not load after restart. Try restarting the gateway below to reinstall it.'
+            : versionMismatch
+              ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
+              : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'
+          return (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">
-                {health.diagnostic_type === 'version_mismatch' ? 'OpenClaw version mismatch' : 'Gateway connectivity issue'}
+                {bannerTitle}
               </p>
               <p className="ClawdGatewayBannerDesc">
-                {health.diagnostic_type === 'version_mismatch'
-                  ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
-                  : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'}
+                {bannerDesc}
               </p>
               <div className="ClawdPromptActions">
                 <button
@@ -5026,7 +5043,8 @@ ${actualText}`
               </div>
             </div>
           </div>
-        )}
+          )
+        })()}
         {/* Browser-only issue card — gateway OK but browser not responding for ~2 minutes. */}
         {hasCompletedOnboarding && health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= BROWSER_CARD_GRACE_POLLS && (
           <div className="ClawdMsg ClawdMsg-assistant">
