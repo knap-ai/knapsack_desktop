@@ -3479,6 +3479,13 @@ fn read_log_tail_lines_bounded(
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+  if qa_direct_gateway_mode() {
+    if let Some(override_dir) =
+      std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME"))
+    {
+      return PathBuf::from(override_dir);
+    }
+  }
   app_handle
     .path_resolver()
     .app_data_dir()
@@ -8999,6 +9006,7 @@ async fn prepare_gateway_config(
   // ── Config file setup ──────────────────────────────────────────────
   // Ensure OpenClaw config exists with gateway.mode=local for first-run.
   let config_path = clawdbot_home.join("openclaw.json");
+  let config_path_str = config_path.to_string_lossy().to_string();
   let legacy_config_path = clawdbot_home.join("clawdbot.json");
   if legacy_config_path.exists() && !config_path.exists() {
     match fs::rename(&legacy_config_path, &config_path) {
@@ -10261,6 +10269,7 @@ async fn prepare_gateway_config(
     ("HOME".to_string(), user_home.clone()),
     ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
     ("OPENCLAW_STATE_DIR".to_string(), clawdbot_home_str),
+    ("OPENCLAW_CONFIG_PATH".to_string(), config_path_str),
     (
       "OPENCLAW_GATEWAY_TOKEN".to_string(),
       tokens.gateway_token.clone(),

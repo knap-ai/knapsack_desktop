@@ -33,6 +33,7 @@ const launchAgentPlist = path.join(
   "LaunchAgents",
   "ai.knap.knapsack.clawdbot.plist",
 );
+const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
 
 function qaEnv(extra = {}) {
   const env = {
@@ -429,6 +430,11 @@ function startDirectGatewayFromPlist() {
     return null;
   }
 
+  const gatewayStateDir =
+    plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
+    plist.EnvironmentVariables?.OPENCLAW_HOME ||
+    qaStateDir;
+
   console.log(
     "[qa-dev-run] Starting direct dev gateway from LaunchAgent plist",
   );
@@ -439,6 +445,7 @@ function startDirectGatewayFromPlist() {
     stdio: "inherit",
     env: qaEnv({
       ...(plist.EnvironmentVariables || {}),
+      OPENCLAW_CONFIG_PATH: path.join(gatewayStateDir, "openclaw.json"),
       OPENCLAW_QA_DIRECT_GATEWAY: "1",
     }),
     windowsHide: true,
@@ -476,6 +483,7 @@ async function main() {
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
   ]);
+  fs.mkdirSync(qaStateDir, { recursive: true });
   bootoutLaunchAgent();
   killStaleGateways();
   killStaleOpenClawChrome();
@@ -539,7 +547,12 @@ async function main() {
 
   const appEnv =
     process.platform === "darwin"
-      ? qaEnv({ KNAPSACK_QA_DIRECT_GATEWAY: "1" })
+      ? qaEnv({
+          KNAPSACK_QA_DIRECT_GATEWAY: "1",
+          OPENCLAW_HOME: qaStateDir,
+          OPENCLAW_STATE_DIR: qaStateDir,
+          OPENCLAW_CONFIG_PATH: path.join(qaStateDir, "openclaw.json"),
+        })
       : qaEnv();
     const app = spawn(binary, [], {
       cwd: tauriDir,
