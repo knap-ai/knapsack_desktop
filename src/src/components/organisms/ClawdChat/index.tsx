@@ -225,6 +225,15 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('playwright') || lower.includes('snapshot() is unsupported') || lower.includes('not available in this gateway build')) {
     return '📸 **Screenshot unavailable.** The browser screenshot feature (Playwright) is not installed in the current gateway build. Reinstall Knapsack to get the latest gateway version, then try again.'
   }
+  // Ollama context size exceeded
+  if (lower.includes('exceed_context_size_error') || lower.includes('exceeds the available context size') || (lower.includes('n_ctx') && lower.includes('n_prompt_tokens'))) {
+    const ctxMatch = raw.match(/"n_ctx"\s*:\s*(\d+)/)
+    const tokMatch = raw.match(/"n_prompt_tokens"\s*:\s*(\d+)/)
+    const ctx = ctxMatch ? parseInt(ctxMatch[1]).toLocaleString() : null
+    const tok = tokMatch ? parseInt(tokMatch[1]).toLocaleString() : null
+    const detail = ctx && tok ? ` The conversation is ${tok} tokens but this Ollama model only supports ${ctx}.` : ''
+    return `⚠️ **Ollama context limit reached** (active: \`${activeModel}\`).${detail} To fix: start a new conversation to reduce context, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
+  }
   // Context / prompt too large for model
   if (lower.includes('context overflow') || lower.includes('prompt too large') || (lower.includes('too large') && lower.includes('model'))) {
     return `⚠️ **Context overflow** (active: \`${activeModel}\`). The conversation is too long for this model. Start a new conversation to reduce context size, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
