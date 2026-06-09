@@ -328,7 +328,7 @@ async fn refresh_access_token(
 pub async fn refresh_user_connection(
   user_connection: UserConnection,
   email: String,
-) -> Result<UserConnection, Error> {
+  ) -> Result<UserConnection, Error> {
   let refresh_response: RefreshResponse = match refresh_access_token(
     user_connection.refresh_token.clone().unwrap(),
     email.clone(),
@@ -337,9 +337,11 @@ pub async fn refresh_user_connection(
   {
     Ok(response) => response,
     Err(err) => {
-      // Check if this is an invalid refresh token error
-      let is_invalid_refresh_token =
-        matches!(&err, Error::KSError(msg) if msg.contains("Invalid refresh token"));
+      let err_str = err.to_string();
+      let is_invalid_refresh_token = err_str.contains("Invalid refresh token")
+        || err_str.contains("401 Unauthorized")
+        || err_str.contains("400 Bad Request");
+
       if is_invalid_refresh_token {
         // Delete the invalid connection so the user can re-authenticate
         let _ = user_connection.clone().delete();
@@ -349,16 +351,24 @@ pub async fn refresh_user_connection(
           user_connection.connection_id
         );
         return Err(knap_log_error(
-          format!("Invalid refresh token for user {}. Please reconnect your Microsoft account in Settings.", email),
+          format!(
+            "Invalid refresh token for user {}. Please reconnect your Microsoft account in Settings.",
+            email
+          ),
           Some(err),
-          None
+          None,
         ));
       }
-      return Err(knap_log_error(
-        "Failed to refresh connection token".to_string(),
+
+      knap_log_error(
+        format!("Failed to refresh connection token: {}", err_str),
         Some(err),
         None,
-      ));
+      );
+      return Err(Error::KSError(format!(
+        "Failed to refresh connection token: {}",
+        err_str
+      )));
     }
   };
   let updated_user_connection = UserConnection {

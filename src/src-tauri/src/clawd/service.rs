@@ -3636,6 +3636,13 @@ fn read_log_tail_lines_bounded(
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+  if qa_direct_gateway_mode() {
+    if let Some(override_dir) =
+      std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME"))
+    {
+      return PathBuf::from(override_dir);
+    }
+  }
   app_handle
     .path_resolver()
     .app_data_dir()
@@ -6603,7 +6610,35 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
-      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode() {
+      let is_version_mismatch_line = |line: &str| {
+        line.contains("config was last written by a newer openclaw")
+          || line.contains("config was last written by an older openclaw")
+          || line.contains("your openclaw config was written by version")
+          || line.contains("refusing to start the gateway service because this openclaw binary")
+          || line.contains("set openclaw_allow_older_binary_destructive_actions=1")
+          || line.contains("check: `openclaw --version`, `which openclaw`, and `openclaw gateway status --deep`.")
+          || line.contains(
+            "if unexpected, update path so `openclaw` points to the version you want, or reinstall the gateway service from that same openclaw install.",
+          )
+          || line.contains(
+            "run the newer openclaw binary on path, or reinstall the intended gateway service from the newer install.",
+          )
+      };
+      let has_version_mismatch = log_content.as_ref().ok().is_some_and(|content| {
+        content.lines().any(|l| {
+          let l = l.to_ascii_lowercase();
+          is_version_mismatch_line(&l)
+        })
+      });
+        if has_version_mismatch {
+        diagnostic_type = Some("version_mismatch".to_string());
+      }
+      if (runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode())
+        && !has_version_mismatch
+      {
+      if (runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode())
+        && !has_version_mismatch
+      {
         // During active startup the stderr file commonly contains stale lines
         // from previous gateway runs. Showing/classifying those makes the UI
         // report old crashes while the current gateway is still booting.
@@ -6628,8 +6663,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             || l.contains("bonjour: gateway hostname conflict resolved")
             || l.contains("unhandled promise rejection: ciao")
             || (l.contains("security warning") && l.contains("allowinsecureauth"))
-            || l.contains("config was last written by a newer openclaw")
-            || l.contains("config was last written by an older openclaw")
+            || is_version_mismatch_line(&l)
         };
         let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
         let start = all_filtered.len().saturating_sub(25);
@@ -8958,6 +8992,7 @@ async fn prepare_gateway_config(
   // ── Config file setup ──────────────────────────────────────────────
   // Ensure OpenClaw config exists with gateway.mode=local for first-run.
   let config_path = clawdbot_home.join("openclaw.json");
+  let config_path_str = config_path.to_string_lossy().to_string();
   let legacy_config_path = clawdbot_home.join("clawdbot.json");
   let qa_provider_for_config = std::env::var("KNAPSACK_QA_PROVIDER")
     .ok()
@@ -10133,6 +10168,7 @@ async fn prepare_gateway_config(
     ("HOME".to_string(), user_home.clone()),
     ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
     ("OPENCLAW_STATE_DIR".to_string(), clawdbot_home_str),
+    ("OPENCLAW_CONFIG_PATH".to_string(), config_path_str),
     (
       "OPENCLAW_GATEWAY_TOKEN".to_string(),
       tokens.gateway_token.clone(),

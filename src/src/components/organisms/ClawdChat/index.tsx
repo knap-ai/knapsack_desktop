@@ -225,6 +225,15 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('playwright') || lower.includes('snapshot() is unsupported') || lower.includes('not available in this gateway build')) {
     return '📸 **Screenshot unavailable.** The browser screenshot feature (Playwright) is not installed in the current gateway build. Reinstall Knapsack to get the latest gateway version, then try again.'
   }
+  // Ollama context size exceeded
+  if (lower.includes('exceed_context_size_error') || lower.includes('exceeds the available context size') || (lower.includes('n_ctx') && lower.includes('n_prompt_tokens'))) {
+    const ctxMatch = raw.match(/"n_ctx"\s*:\s*(\d+)/)
+    const tokMatch = raw.match(/"n_prompt_tokens"\s*:\s*(\d+)/)
+    const ctx = ctxMatch ? parseInt(ctxMatch[1]).toLocaleString() : null
+    const tok = tokMatch ? parseInt(tokMatch[1]).toLocaleString() : null
+    const detail = ctx && tok ? ` The conversation is ${tok} tokens but this Ollama model only supports ${ctx}.` : ''
+    return `⚠️ **Ollama context limit reached** (active: \`${activeModel}\`).${detail} To fix: start a new conversation to reduce context, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
+  }
   // Context / prompt too large for model
   if (lower.includes('context overflow') || lower.includes('prompt too large') || (lower.includes('too large') && lower.includes('model'))) {
     return `⚠️ **Context overflow** (active: \`${activeModel}\`). The conversation is too long for this model. Start a new conversation to reduce context size, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
@@ -420,7 +429,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
@@ -451,8 +460,12 @@ type GeminiModelOption = {
 }
 
 const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, strong reasoning and coding', vision: true },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable fast multimodal Gemini model', vision: true },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast, broadly capable default for general work', vision: true },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking', vision: true },
 ]
 
 type GroqModelOption = {
@@ -987,6 +1000,7 @@ const FALLBACK_SKILLS: SkillInfo[] = [
   {name:"gog",emoji:"📊",description:"Google Workspace — Gmail, Calendar, Drive, Sheets, Docs",source:"OpenClaw",eligible:false},
   {name:"notion",emoji:"📝",description:"Read and edit Notion pages and databases",source:"OpenClaw",eligible:false},
   {name:"slack",emoji:"💬",description:"Team communication via Slack",source:"OpenClaw",eligible:false},
+  {name:"computer-use",emoji:"🖥️",description:"Desktop automation via Codex Computer Use for local app and UI control",source:"OpenClaw",eligible:false,installOptions:[{id:"default",label:"Enable"}]},
   {name:"apple-notes",emoji:"🍎",description:"Create and manage macOS Notes",source:"OpenClaw",eligible:false},
   {name:"apple-reminders",emoji:"⏰",description:"Manage macOS Reminders",source:"OpenClaw",eligible:false},
   {name:"things-mac",emoji:"✅",description:"Things 3 task management for macOS",source:"OpenClaw",eligible:false},
@@ -5100,16 +5114,33 @@ ${actualText}`
             so normal restarts and sleep/wake blips don't surface a scary error.
             Suppressed entirely until an API key is saved — the gateway status is
             irrelevant and alarming when the user hasn't set up a key yet. */}
-        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= GATEWAY_CARD_GRACE_POLLS && !channelStatus.gatewayStarting && (
+        {hasCompletedOnboarding && health && !health.gateway_ok && gatewayDownPolls >= GATEWAY_CARD_GRACE_POLLS && !channelStatus.gatewayStarting && (() => {
+          const healthMessage = (health.message || '').toLowerCase()
+          const missingService =
+            health.diagnostic_type === 'service_not_installed' ||
+            health.diagnostic_type === 'service_not_loaded' ||
+            healthMessage.includes('launchagent plist not found') ||
+            healthMessage.includes('service is registering') ||
+            healthMessage.includes('service is not loaded')
+          const versionMismatch = health.diagnostic_type === 'version_mismatch' && !missingService
+          const bannerTitle = missingService
+            ? 'Gateway background service is missing'
+            : versionMismatch
+              ? 'OpenClaw version mismatch'
+              : 'Gateway connectivity issue'
+          const bannerDesc = missingService
+            ? 'Knapsack cannot find its background gateway service right now. This usually means the LaunchAgent was removed or did not load after restart. Try restarting the gateway below to reinstall it.'
+            : versionMismatch
+              ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
+              : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'
+          return (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdGatewayBanner">
               <p className="ClawdGatewayBannerTitle">
-                {health.diagnostic_type === 'version_mismatch' ? 'OpenClaw version mismatch' : 'Gateway connectivity issue'}
+                {bannerTitle}
               </p>
               <p className="ClawdGatewayBannerDesc">
-                {health.diagnostic_type === 'version_mismatch'
-                  ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
-                  : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'}
+                {bannerDesc}
               </p>
               <div className="ClawdPromptActions">
                 <button
@@ -5136,7 +5167,8 @@ ${actualText}`
               </div>
             </div>
           </div>
-        )}
+          )
+        })()}
         {/* Browser-only issue card — gateway OK but browser not responding for ~2 minutes. */}
         {hasCompletedOnboarding && health && health.gateway_ok && !health.browser_ok && !channelStatus.gatewayStarting && browserNotReadyPolls >= BROWSER_CARD_GRACE_POLLS && (
           <div className="ClawdMsg ClawdMsg-assistant">
