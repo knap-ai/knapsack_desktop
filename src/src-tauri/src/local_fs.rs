@@ -120,17 +120,16 @@ pub fn read_pdf_contents(path: PathBuf) -> Result<Vec<String>, Box<dyn std::erro
   // new_sidecar() returned Ok(cmd) for a registered binary even when the binary
   // was absent, causing .output() to fail and the error to be logged for every
   // PDF opened from Google Drive.
-  let sidecar_stdout: Option<String> =
-    Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME)
-      .ok()
-      .and_then(|cmd| cmd.args(&["-layout", &path_str, "-"]).output().ok())
-      .map(|output| {
-        if !output.status.success() {
-          error!("pdftotext ERROR: command error {:?}", path_str);
-        }
-        debug!("Content len: {}", output.stdout.len());
-        output.stdout
-      });
+  let sidecar_stdout: Option<String> = Command::new_sidecar(PDF_TO_TEXT_BINARY_NAME)
+    .ok()
+    .and_then(|cmd| cmd.args(&["-layout", &path_str, "-"]).output().ok())
+    .map(|output| {
+      if !output.status.success() {
+        error!("pdftotext ERROR: command error {:?}", path_str);
+      }
+      debug!("Content len: {}", output.stdout.len());
+      output.stdout
+    });
 
   let stdout: String = match sidecar_stdout {
     Some(s) => s,

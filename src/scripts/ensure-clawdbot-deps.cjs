@@ -101,8 +101,12 @@ function findPluginsNeedingRuntimeDeps(clawdbotDir) {
 
 // Collect the directories to install into (source always; target when present).
 const clawdbotDirs = [SOURCE_CLAWDBOT_DIR];
-if (fs.existsSync(TARGET_CLAWDBOT_DIR)) {
+if (fs.existsSync(path.join(TARGET_CLAWDBOT_DIR, 'package.json'))) {
   clawdbotDirs.push(TARGET_CLAWDBOT_DIR);
+} else if (fs.existsSync(TARGET_CLAWDBOT_DIR)) {
+  console.warn(
+    `[ensure-clawdbot-deps] Skipping incomplete target debug clawdbot copy: ${path.relative(path.join(__dirname, '..'), TARGET_CLAWDBOT_DIR)}`,
+  );
 }
 
 // Step 1: install main clawdbot deps in each dir.

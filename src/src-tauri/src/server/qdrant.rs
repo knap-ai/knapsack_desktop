@@ -1,3 +1,4 @@
+use crate::utils::platform::{get_os, OS};
 use std::env;
 use std::fs::{create_dir_all, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -9,7 +10,6 @@ use std::sync::{
 use sysinfo::System;
 use tauri::api::process::Command;
 use tauri::utils::platform;
-use crate::utils::platform::{get_os, OS};
 
 pub const QDRANT_PORT: u16 = 8898;
 pub const QDRANT_STORAGE: &str = ".knapsack/data";
@@ -134,7 +134,9 @@ pub fn kill_existing_qdrant() {
 
   for (pid, process) in sys.processes() {
     if process.name() == "qdrant" {
-      let _ = Command::new("kill").args([format!("-9"), format!("{pid}")]).spawn();
+      let _ = Command::new("kill")
+        .args([format!("-9"), format!("{pid}")])
+        .spawn();
     }
   }
 }

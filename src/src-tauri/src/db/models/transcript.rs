@@ -97,7 +97,9 @@ impl Transcript {
     let connection = get_db_conn();
     let mut stmt = connection
       .prepare("SELECT id, thread_id, filename, start_time, end_time, timestamp FROM transcripts WHERE timestamp >= ?1 ORDER BY timestamp DESC")?;
-    let iter = stmt.query_map(params![since_timestamp], |row| Transcript::build_struct_from_row(row))?;
+    let iter = stmt.query_map(params![since_timestamp], |row| {
+      Transcript::build_struct_from_row(row)
+    })?;
 
     let mut results = Vec::new();
     for item in iter {

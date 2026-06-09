@@ -2,6 +2,10 @@ import { a as resolveWhatsAppGroupRequireMention, i as whatsappSetupWizardProxy,
 import { t as detectWhatsAppLegacyStateMigrations } from "./state-migrations-D_BmQUR9.js";
 //#region extensions/whatsapp/src/channel.setup.ts
 async function isWhatsAppAuthConfigured(account) {
+	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1") {
+		const { r: hasWebCredsSync } = await import("./creds-files-B1kSWtBg.js");
+		return hasWebCredsSync(account.authDir);
+	}
 	const { readWebAuthState } = await import("./auth-store-GTQvJznL.js").then((n) => n.i);
 	return await readWebAuthState(account.authDir) === "linked";
 }

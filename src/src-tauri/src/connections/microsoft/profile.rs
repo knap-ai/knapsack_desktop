@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 use crate::connections::google::profile::UserInfoResponse;
-use crate::connections::microsoft::constants::{ MICROSOFT_PROFILE_SCOPE };
-use crate::connections::microsoft::auth::{ refresh_user_connection, fetch_microsoft_profile };
+use crate::connections::microsoft::auth::{fetch_microsoft_profile, refresh_user_connection};
+use crate::connections::microsoft::constants::MICROSOFT_PROFILE_SCOPE;
 
 use crate::db::models::user_connection::UserConnection;
 
@@ -16,7 +16,12 @@ pub async fn fetch_microsoft_profile_by_email(email: String) -> Result<UserInfoR
   )?;
   let access_token = match refresh_user_connection(user_connection, email.clone()).await {
     Ok(token) => token,
-    Err(e) => return Err(Error::KSError(format!("Failed to refresh connection: {:?}", e))),
+    Err(e) => {
+      return Err(Error::KSError(format!(
+        "Failed to refresh connection: {:?}",
+        e
+      )))
+    }
   };
 
   match fetch_microsoft_profile(&access_token.token, None).await {

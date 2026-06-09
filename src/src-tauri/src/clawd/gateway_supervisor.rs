@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 static RESTART_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
   once_cell::sync::Lazy::new(|| Mutex::new(()));
 const LOCAL_GATEWAY_HEALTH_TIMEOUT: Duration = Duration::from_millis(1000);
+const GATEWAY_HEALTH_PATHS: [&str; 2] = ["/healthz", "/health"];
 
 #[cfg(target_os = "macos")]
 static APP_SIGNATURE_CACHE: once_cell::sync::Lazy<
@@ -50,20 +51,23 @@ pub async fn is_gateway_healthy(token: &str) -> bool {
     Err(_) => return false,
   };
 
-  match client
-    .get(gateway_health_url())
-    .bearer_auth(token)
-    .send()
-    .await
-  {
-    // Any HTTP response (200, 401, 404, 500 …) means the gateway process is
-    // listening on the port.  Only a connection error means it is truly down.
-    // Treating 401 as "unhealthy" caused a restart loop: the supervisor would
-    // kickstart the gateway even though it was running, and the new instance
-    // would fail with EADDRINUSE.
-    Ok(_) => true,
-    Err(_) => false,
+  for path in GATEWAY_HEALTH_PATHS {
+    let url = format!("http://127.0.0.1:18789{}", path);
+    let resp = client.get(&url).bearer_auth(token).send().await;
+
+    if let Ok(resp) = resp {
+      let status = resp.status();
+      if status.is_success()
+        || status.is_informational()
+        || status.is_redirection()
+        || status.is_client_error()
+      {
+        return true;
+      }
+    }
   }
+
+  false
 }
 
 async fn is_gateway_healthy_or_ready(token: &str) -> bool {

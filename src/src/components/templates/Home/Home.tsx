@@ -54,7 +54,7 @@ import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import GBrain from 'src/components/organisms/GBrain'
 import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
-import { markdownToEmailHtml } from 'src/utils/emails'
+import { buildFollowUpEmailBody } from 'src/utils/emails'
 
 export interface ToastrState {
   message?: ReactElement
@@ -102,7 +102,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
-  const [chatInitialInput, setChatInitialInput] = useState('')
+  const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const isResizingRef = useRef(false)
 
@@ -657,14 +657,17 @@ function Home({
                   recordingHandlers={recordingHandlers}
                   connections={connections}
                   onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
+                  onConnectEmail={() => {
+                    const key =
+                      auth.profile?.provider === ConnectionKeys.MICROSOFT_PROFILE
+                        ? ConnectionKeys.MICROSOFT_OUTLOOK
+                        : ConnectionKeys.GOOGLE_GMAIL
+                    onConnectAccountClick([key])
+                  }}
                   userEmail={userEmail}
                   userName={userName}
                   onBack={() => {
                     // Back from note view returns to sidebar
-                  }}
-                  onAttendeeClick={(email, name) => {
-                    setChatInitialInput(`Tell me about ${name || email}`)
-                    setMeetingSubView('chat')
                   }}
                   onLibraryWorkspaceOpen={(ws) => {
                     setCurrentTab(TabChoices.Library)
@@ -677,8 +680,7 @@ function Home({
                       .map(p => p.email)
                       .join(', ')
                     const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
-                    const notesHtml = markdownToEmailHtml(notesMarkdown)
-                    const body = `<p>Hi,</p><p>Thank you for our meeting${meeting?.title ? ` — ${meeting.title}` : ''}. Here's a summary of what we discussed:</p>${notesHtml}<p>Please let me know if you have any questions!</p><p>Best,<br>${userName || ''}</p>`
+                    const body = buildFollowUpEmailBody(notesMarkdown, meeting?.title, userName)
                     feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}
                 />

@@ -320,6 +320,7 @@ function schedulePrimaryModelPrewarm(params, prewarm = prewarmConfiguredPrimaryM
 async function startGatewaySidecars(params) {
 	const postReadySidecars = [];
 	const internalHooksConfigured = hasConfiguredInternalHooks(params.cfg);
+	const deferredDesktopChannels = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_AUTO_START_CHANNELS === "0";
 	await measureStartup(params.startupTrace, "sidecars.internal-hooks", async () => {
 		try {
 			if (internalHooksConfigured) {
@@ -359,7 +360,25 @@ async function startGatewaySidecars(params) {
 				log: params.log,
 				startupTrace: params.startupTrace
 			}, params.prewarmPrimaryModel);
-			await measureStartup(params.startupTrace, "sidecars.channel-start", () => params.startChannels());
+			if (deferredDesktopChannels) {
+				params.logChannels.info("deferring channel startup until after gateway readiness");
+				const delayMs = Number.parseInt(process.env.OPENCLAW_CHANNEL_STARTUP_HANDOFF_DELAY_MS ?? "0", 10);
+				setTimeout(() => {
+					(async () => {
+						try {
+							if (params.loadStartupPlugins) {
+								params.onStartupPluginsLoading?.();
+								const loaded = await measureStartup(params.startupTrace, "plugins.runtime-post-ready", () => params.loadStartupPlugins({ includeDeferred: true }));
+								params.startupTrace?.detail("plugins.runtime-post-ready", [["loadedPluginCount", loaded.pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["gatewayMethodCount", loaded.gatewayMethods.length]]);
+								await params.onStartupPluginsLoaded?.(loaded);
+							}
+							await measureStartup(params.startupTrace, "sidecars.channel-start.deferred", () => params.startChannels());
+						} catch (err) {
+							params.logChannels.error(`deferred channel startup failed: ${String(err)}`);
+						}
+					})();
+				}, Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 5000).unref?.();
+			} else await measureStartup(params.startupTrace, "sidecars.channel-start", () => params.startChannels());
 		} catch (err) {
 			params.logChannels.error(`channel startup failed: ${String(err)}`);
 		}
@@ -563,6 +582,7 @@ function createDeferredGatewayUpdateCheck(params) {
 }
 async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewayPostAttachRuntimeDeps) {
 	let pluginRegistry = params.pluginRegistry;
+	const desktopManagedGateway = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
 	if (!params.minimalTestGateway && params.loadStartupPlugins) {
 		params.onStartupPluginsLoading?.();
 		const loaded = await measureStartup(params.startupTrace, "plugins.runtime-post-bind", () => params.loadStartupPlugins());
@@ -570,7 +590,7 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		params.startupTrace?.detail("plugins.runtime-post-bind", [["loadedPluginCount", pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["gatewayMethodCount", loaded.gatewayMethods.length]]);
 		await params.onStartupPluginsLoaded?.(loaded);
 	}
-	const startupLogPromise = measureStartup(params.startupTrace, "post-attach.log", () => runtimeDeps.logGatewayStartup({
+	const logGatewayStartup = () => runtimeDeps.logGatewayStartup({
 		cfg: params.cfgAtStart,
 		bindHost: params.bindHost,
 		bindHosts: params.bindHosts,
@@ -580,7 +600,8 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		log: params.log,
 		isNixMode: params.isNixMode,
 		startupStartedAt: params.startupStartedAt
-	}));
+	});
+	const startupLogPromise = desktopManagedGateway ? Promise.resolve(null) : measureStartup(params.startupTrace, "post-attach.log", logGatewayStartup);
 	const updateCheck = params.minimalTestGateway ? {
 		start: () => {},
 		stop: () => {}
@@ -624,6 +645,9 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 			logHooks: params.logHooks,
 			logChannels: params.logChannels,
 			startupTrace: params.startupTrace,
+			loadStartupPlugins: params.loadStartupPlugins,
+			onStartupPluginsLoading: params.onStartupPluginsLoading,
+			onStartupPluginsLoaded: params.onStartupPluginsLoaded,
 			onPluginServices: reportPluginServices
 		}));
 		const loaderStatsAfter = getPluginModuleLoaderStats();
@@ -641,7 +665,7 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		if (params.providerAuthPrewarm?.enabled !== false) gatewayLifetimeSidecars.push(scheduleProviderAuthStatePrewarm({
 			getConfig: params.providerAuthPrewarm?.getConfig ?? (() => params.cfgAtStart),
 			log: params.log,
-			delayMs: params.providerAuthPrewarm?.delayMs
+			delayMs: params.providerAuthPrewarm?.delayMs ?? (desktopManagedGateway ? 60000 : void 0)
 		}));
 		params.onPostReadySidecars?.(postReadySidecars);
 		params.onGatewayLifetimeSidecars?.(gatewayLifetimeSidecars);
@@ -649,6 +673,9 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		params.startupTrace?.detail("sidecars.ready", [["loadedPluginCount", pluginRegistry.plugins.filter((plugin) => plugin.status === "loaded").length], ["postReadySidecarCount", postReadySidecars.length + gatewayLifetimeSidecars.length]]);
 		params.startupTrace?.mark("sidecars.ready");
 		params.log.info("gateway ready");
+		if (desktopManagedGateway) measureStartup(params.startupTrace, "post-attach.log.deferred", logGatewayStartup).catch((err) => {
+			params.log.warn(`deferred gateway startup log failed: ${String(err)}`);
+		});
 		return {
 			...result,
 			postReadySidecars,

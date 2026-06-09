@@ -1,3 +1,4 @@
+use super::https_client::get_https_client;
 use crate::connections::api::ConnectionsEnum;
 use crate::db::models::drive_document::{self, create_drive_document};
 use crate::memory::text_splitter::TextSplitter;
@@ -7,7 +8,6 @@ use actix_web::{error, get, post, web::Json, HttpRequest, HttpResponse, Responde
 use chrono::{Duration, Utc};
 use google_calendar3::hyper;
 use google_calendar3::hyper_rustls;
-use super::https_client::get_https_client;
 use google_drive3::api::File;
 use google_drive3::DriveHub;
 use serde::{Deserialize, Serialize};
@@ -20,8 +20,7 @@ use tokio::sync::{Mutex, Semaphore};
 
 use crate::constants::EMBEDDING_BATCH_SIZE;
 use crate::db::models::{
-  drive_document::DriveDocument, local_file::LocalFile,
-  user_connection::UserConnection,
+  drive_document::DriveDocument, local_file::LocalFile, user_connection::UserConnection,
 };
 use crate::error::Error;
 use crate::local_fs;
@@ -336,10 +335,7 @@ pub async fn fetch_drive(
   account_email: String,
 ) -> Result<(), Error> {
   let mut maybe_next_page_token: Option<String> = None;
-  let hub = DriveHub::new(
-    get_https_client(),
-    access_token,
-  );
+  let hub = DriveHub::new(get_https_client(), access_token);
   let days_in_month = 30;
   let limit_date = chrono::Utc::now() - chrono::Duration::days(days_in_month);
   let query = format!(
@@ -384,8 +380,13 @@ pub async fn fetch_drive(
       let account_email_clone = account_email.clone();
       let task = tauri::async_runtime::spawn(async move {
         let _permit = semaphore_clone.acquire().await.unwrap();
-        let drive_document =
-          get_or_create_drive_document_from_file(&file, &temp_dir_clone, &hub_clone, &account_email_clone).await;
+        let drive_document = get_or_create_drive_document_from_file(
+          &file,
+          &temp_dir_clone,
+          &hub_clone,
+          &account_email_clone,
+        )
+        .await;
         drive_documents_clone.lock().await.push(drive_document);
       });
       tasks.push(task);
@@ -435,25 +436,28 @@ async fn start_drive_data_fetching(
   semantic_service: Arc<Mutex<Option<SemanticService>>>,
   connections_data: Arc<Mutex<ConnectionsData>>,
 ) -> Result<(), Error> {
-  let user_connection =
-    match UserConnection::find_by_user_email_and_scope(email.clone(), String::from(GOOGLE_DRIVE_SCOPE)) {
-      Ok(connection) => connection,
-      Err(error) => {
-        let msg = format!("Failed to find user connection for user: {}", email);
-        knap_log_error(msg, Some(error), Some(true));
-        return Err(Error::KSError("Fail to get user connection".to_string()))
-      }
-    };
-  let access_token = match refresh_connection_token(
+  let user_connection = match UserConnection::find_by_user_email_and_scope(
     email.clone(),
-    user_connection.clone(),
-  )
-  .await{
+    String::from(GOOGLE_DRIVE_SCOPE),
+  ) {
+    Ok(connection) => connection,
+    Err(error) => {
+      let msg = format!("Failed to find user connection for user: {}", email);
+      knap_log_error(msg, Some(error), Some(true));
+      return Err(Error::KSError("Fail to get user connection".to_string()));
+    }
+  };
+  let access_token = match refresh_connection_token(email.clone(), user_connection.clone()).await {
     Ok(token) => token,
     Err(error) => {
-      let msg = format!("Failed to refresh access token in google drive for user: {}", email);
+      let msg = format!(
+        "Failed to refresh access token in google drive for user: {}",
+        email
+      );
       knap_log_error(msg, Some(error), None);
-      return Err(Error::KSError("Failed to refresh connection token".to_string()))
+      return Err(Error::KSError(
+        "Failed to refresh connection token".to_string(),
+      ));
     }
   };
 
@@ -473,7 +477,13 @@ async fn start_drive_data_fetching(
       true,
     )
     .await;
-    let result = fetch_drive(access_token, semantic_service, user_connection.clone(), account_email).await;
+    let result = fetch_drive(
+      access_token,
+      semantic_service,
+      user_connection.clone(),
+      account_email,
+    )
+    .await;
     if let Err(error) = result {
       let msg = format!("Failed to fetch drive files: {}", email);
       knap_log_error(msg, Some(error), Some(true));
@@ -505,8 +515,14 @@ async fn fetch_google_drive_api(
   )
   .await
   {
-    Ok(_) => HttpResponse::Ok().json(FetchGoogleDriveResponse { success: true, message: "Fetching drive data".to_string() }),
-    Err(err) => HttpResponse::BadRequest().json(FetchGoogleDriveResponse { success: false, message: format!("{:?}", err) }),
+    Ok(_) => HttpResponse::Ok().json(FetchGoogleDriveResponse {
+      success: true,
+      message: "Fetching drive data".to_string(),
+    }),
+    Err(err) => HttpResponse::BadRequest().json(FetchGoogleDriveResponse {
+      success: false,
+      message: format!("{:?}", err),
+    }),
   }
 }
 
@@ -519,16 +535,10 @@ async fn create_temp_drive_file(
   let user_connection =
     UserConnection::find_by_user_email_and_scope(email.clone(), String::from(GOOGLE_DRIVE_SCOPE))
       .ok()?;
-  let access_token = refresh_connection_token(
-    email.clone(),
-    user_connection.clone(),
-  )
-  .await
-  .ok()?;
-  let hub = DriveHub::new(
-    get_https_client(),
-    access_token,
-  );
+  let access_token = refresh_connection_token(email.clone(), user_connection.clone())
+    .await
+    .ok()?;
+  let hub = DriveHub::new(get_https_client(), access_token);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_drive_temp");
   fs::create_dir_all(temp_dir.clone()).unwrap();
@@ -585,16 +595,10 @@ async fn fetch_google_drive_files(
   let user_connection =
     UserConnection::find_by_user_email_and_scope(email.clone(), String::from(GOOGLE_DRIVE_SCOPE))
       .unwrap();
-  let access_token = refresh_connection_token(
-    email.clone(),
-    user_connection.clone(),
-  )
-  .await
-  .unwrap();
-  let hub = DriveHub::new(
-    get_https_client(),
-    access_token,
-  );
+  let access_token = refresh_connection_token(email.clone(), user_connection.clone())
+    .await
+    .unwrap();
+  let hub = DriveHub::new(get_https_client(), access_token);
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");
   fs::create_dir_all(temp_dir.clone()).unwrap();
@@ -604,7 +608,8 @@ async fn fetch_google_drive_files(
   for file in data.files.iter() {
     let (_response, file) = hub.files().get(&file.id).doit().await.unwrap();
 
-    let drive_document = get_or_create_drive_document_from_file(&file, &temp_dir, &hub, &email).await;
+    let drive_document =
+      get_or_create_drive_document_from_file(&file, &temp_dir, &hub, &email).await;
     let document =
       create_drive_document(drive_document.id.unwrap(), drive_document.checksum.clone());
 
@@ -659,11 +664,9 @@ async fn fetch_google_drive_documents_ids_shared_by_users(
   let unwrapped_semenatic_service = semantic_service.get_ref().clone();
   let unwrapped_connections_data = connections_data.get_ref().clone();
 
-  let ids = fetch_files_id_shared_between_users(
-    list_emails,
-  )
-  .await
-  .unwrap();
+  let ids = fetch_files_id_shared_between_users(list_emails)
+    .await
+    .unwrap();
 
   let documents = DriveDocument::find_by_ids(ids).ok();
   let drive_documents = documents.unwrap();
@@ -685,17 +688,12 @@ async fn fetch_files_id_shared_between_users(
     String::from(GOOGLE_DRIVE_SCOPE),
   )
   .unwrap();
-  let access_token = refresh_connection_token(
-    emails[0].clone().to_string(),
-    user_connection.clone(),  
-  )
-  .await
-  .unwrap();
+  let access_token =
+    refresh_connection_token(emails[0].clone().to_string(), user_connection.clone())
+      .await
+      .unwrap();
 
-  let hub = DriveHub::new(
-    get_https_client(),
-    access_token,
-  );
+  let hub = DriveHub::new(get_https_client(), access_token);
 
   let ninety_days_ago = Utc::now() - Duration::days(90);
   let formatted_date = ninety_days_ago.format("%Y-%m-%dT%H:%M:%S").to_string();

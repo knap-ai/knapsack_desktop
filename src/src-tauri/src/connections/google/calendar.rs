@@ -1,18 +1,18 @@
+use super::https_client::get_https_client;
+use crate::spotlight::WINDOW_LABEL;
 use actix_web::web::Data;
 use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use google_calendar3::{hyper, hyper_rustls, CalendarHub};
-use super::https_client::get_https_client;
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use serde_json::Value;
 use std::sync::Arc;
 use tauri::api::http::Client;
-use tokio::sync::Mutex;
-use crate::spotlight::WINDOW_LABEL;
 use tauri::Manager;
+use tokio::sync::Mutex;
 
-use crate::connections::utils::get_knapsack_api_connection;
 use crate::connections::api::ConnectionsEnum;
+use crate::connections::utils::get_knapsack_api_connection;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::user_connection::UserConnection;
 
@@ -102,10 +102,7 @@ pub async fn fetch_calendar(
 
   let cal_email_clone = calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
-    let hub = CalendarHub::new(
-      get_https_client(),
-      access_token,
-    );
+    let hub = CalendarHub::new(get_https_client(), access_token);
 
     let two_weeks_ago = chrono::Utc::now() - chrono::Duration::days(16);
     let one_month_later = chrono::Utc::now() + chrono::Duration::days(31);
@@ -250,7 +247,7 @@ pub async fn fetch_calendar(
       FetchCalendarEventPayload {
         success: true,
         synced_events_count: event_count,
-      }
+      },
     );
   });
   Ok(())
@@ -281,16 +278,18 @@ async fn fetch_google_calendar_api(
   )
   .await
   {
-    Ok(_) => HttpResponse::Ok().json(
-      FetchGoogleCalendarResponse { success: true, message: "Fetching calendar data".to_string() }
-    ),
+    Ok(_) => HttpResponse::Ok().json(FetchGoogleCalendarResponse {
+      success: true,
+      message: "Fetching calendar data".to_string(),
+    }),
     Err(error) => {
       log::warn!("Fetch calendar failed: {:?}", error);
       let error_msg = format!("Fetch calendar failed: {:?}", error);
-      HttpResponse::BadRequest().json(
-        FetchGoogleCalendarResponse { success: false, message: error_msg }
-      )
-    },
+      HttpResponse::BadRequest().json(FetchGoogleCalendarResponse {
+        success: false,
+        message: error_msg,
+      })
+    }
   }
 }
 

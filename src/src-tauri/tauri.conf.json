@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Knapsack",
-    "version": "2.1.8"
+    "version": "2.3.9"
   },
   "tauri": {
     "allowlist": {
@@ -184,7 +184,8 @@
           "language": "en-US"
         },
         "nsis": {
-          "installMode": "both",
+          "installMode": "currentUser",
+          "template": "windows/installer.nsi",
           "languages": [
             "English"
           ],
@@ -205,7 +206,7 @@
     },
     "systemTray": {
       "iconPath": "icons/tray-icon.png",
-      "iconAsTemplate": true
+      "iconAsTemplate": false
     },
     "macOSPrivateApi": true,
     "windows": []

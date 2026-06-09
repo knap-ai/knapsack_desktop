@@ -515,7 +515,7 @@ Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max, plain text only, no markdown - the headline for the notification>",
   "notificationBody": "<20 words max, plain text only, no markdown - brief summary of what to do next, address the user as 'you'>",
-  "fullAnalysis": "<Your comprehensive follow-up plan in Markdown. Include specific action items as checkboxes, draft email snippets where appropriate, and concrete next steps. Reference specific things discussed in the meeting. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Draft Follow-up Email to Team](knapsack://prompt/Draft a follow-up email summarizing the key decisions and action items from the meeting, addressed to all attendees). The action should be the most impactful follow-up task.>",
+  "fullAnalysis": "<Your comprehensive follow-up plan in Markdown. Keep the tone warm, practical, and conversational. Include specific action items as checkboxes, draft email snippets where appropriate, and concrete next steps. Reference specific things discussed in the meeting. For follow-up email snippets, use a friendly and clear style (subject line + 2-4 short paragraphs) as a natural meeting summary follow-up, not a template-like memo. Do not include full transcripts, raw meeting notes, or long markdown blocks—keep snippets concise and email-ready. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Draft Follow-up Email to Team](knapsack://prompt/Draft a follow-up email summarizing the key decisions and action items from the meeting, addressed to all attendees). The action should be the most impactful follow-up task.>",
   "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Draft Email, Send Summary, Create Tasks>",
   "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
   "actionItemCount": <number of action items identified>,
@@ -525,7 +525,7 @@ Your response MUST be a JSON object with this exact format:
 Rules:
 - Be specific - reference actual topics, names, and decisions from the meeting
 - Action items should have clear owners and deadlines when mentioned
-- If email follow-ups are needed, draft brief outlines of what they should say
+- If email follow-ups are needed, draft concise outlines in a conversational tone, using natural language and a warm, human sounding voice. Avoid reproducing full notes in email drafts.
 - ALWAYS end fullAnalysis with exactly one suggested next action link in [Label](knapsack://prompt/...) format
 - The knapsack://prompt/ content MUST be plain English (e.g., "Draft a reply to Sarah about the budget"). NEVER put tool calls, function calls, HTML tags, or code inside the prompt link.
 - Do NOT write the suggested action text as plain text before the link — only include it once, as the link itself. No duplication.

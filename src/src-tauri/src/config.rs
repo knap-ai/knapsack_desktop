@@ -1,9 +1,9 @@
+use lazy_static::lazy_static;
 use std::path::PathBuf;
 use tokio::sync::RwLock;
-use lazy_static::lazy_static;
 
 lazy_static! {
-    pub static ref CONFIG: RwLock<KnapsackConfig> = RwLock::new(KnapsackConfig::default());
+  pub static ref CONFIG: RwLock<KnapsackConfig> = RwLock::new(KnapsackConfig::default());
 }
 
 #[derive(Debug, Default)]

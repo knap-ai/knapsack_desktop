@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 use crate::db::db::get_db_conn;
-use crate::utils::log::knap_log_error;
 use crate::db::models::automation::Automation;
 use crate::db::models::automation_run::AutomationRun;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::thread::Thread;
 use crate::db::models::thread::ThreadWithMessages;
+use crate::utils::log::knap_log_error;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -59,9 +59,7 @@ impl FeedItem {
       id: Some(row.get(0)?),
       title: Some(row.get(1)?),
       timestamp: Some(row.get(2)?),
-      deleted: row
-      .get::<_, Option<i64>>(3)?
-      .map(|v| v != 0),
+      deleted: row.get::<_, Option<i64>>(3)?.map(|v| v != 0),
     })
   }
 
@@ -96,7 +94,11 @@ impl FeedItem {
         Ok(item) => item,
         Err(e) => {
           log::error!("Error processing feed item: {:?}", e);
-          knap_log_error("Couldn't retrieve feed item in find_all_complete".to_string(), Some(Error::from(e)), None);
+          knap_log_error(
+            "Couldn't retrieve feed item in find_all_complete".to_string(),
+            Some(Error::from(e)),
+            None,
+          );
           continue;
         }
       };
@@ -199,7 +201,12 @@ impl FeedItem {
     if let Some(title) = &self.title {
       let mut check_stmt = connection
         .prepare("SELECT id FROM feed_items WHERE title = ?1 AND timestamp = ?2")
-        .map_err(|e| Error::KSError(format!("Failed to prepare duplicate check statement: {}", e)))?;
+        .map_err(|e| {
+          Error::KSError(format!(
+            "Failed to prepare duplicate check statement: {}",
+            e
+          ))
+        })?;
 
       let timestamp = self.timestamp.unwrap_or_else(|| {
         std::time::SystemTime::now()
@@ -211,8 +218,9 @@ impl FeedItem {
       let existing_id = check_stmt.query_row(params![title, timestamp], |row| row.get::<_, u64>(0));
 
       if let Ok(id) = existing_id {
-        let mut stmt =
-      connection.prepare("SELECT f.id, f.title, f.timestamp, f.deleted FROM feed_items AS f WHERE id = ?1")?;
+        let mut stmt = connection.prepare(
+          "SELECT f.id, f.title, f.timestamp, f.deleted FROM feed_items AS f WHERE id = ?1",
+        )?;
         let feed_item = stmt.query_row([id], |row| FeedItem::build_struct_from_row(row));
         if let Ok(existing_feed_item) = feed_item {
           self.id = existing_feed_item.id;
@@ -226,7 +234,9 @@ impl FeedItem {
 
     let insert_result = if self.timestamp.is_none() {
       let mut stmt = connection
-        .prepare("INSERT OR IGNORE INTO feed_items (timestamp, title) VALUES (strftime('%s','now'), ?1)")
+        .prepare(
+          "INSERT OR IGNORE INTO feed_items (timestamp, title) VALUES (strftime('%s','now'), ?1)",
+        )
         .map_err(|e| Error::KSError(format!("Failed to prepare insert statement: {}", e)))?;
 
       stmt.execute(params![self.title])
@@ -261,9 +271,10 @@ impl FeedItem {
         }
         Ok(())
       }
-      Err(e) => {
-        Err(Error::KSError(format!("Failed to execute insert statement: {}", e)))
-      }
+      Err(e) => Err(Error::KSError(format!(
+        "Failed to execute insert statement: {}",
+        e
+      ))),
     }
   }
 
@@ -281,13 +292,15 @@ impl FeedItem {
 
   pub fn delete_multiple(ids: &[u64]) -> Result<(), Error> {
     let connection = get_db_conn();
-    let mut stmt = connection.prepare("UPDATE feed_items set deleted = \"true\" WHERE id IN (?)")?;
+    let mut stmt =
+      connection.prepare("UPDATE feed_items set deleted = \"true\" WHERE id IN (?)")?;
     match stmt.execute(params_from_iter(ids.iter().cloned())) {
       Ok(_) => Ok(()),
       Err(e) => {
-          return Err(Error::KSError(
-           format!("Error deleting feed items: {:?}", e)
-          ));
+        return Err(Error::KSError(format!(
+          "Error deleting feed items: {:?}",
+          e
+        )));
       }
     }
   }
@@ -300,7 +313,8 @@ impl FeedItem {
     }
     let connection = get_db_conn();
 
-    let mut stmt = connection.prepare("UPDATE feed_items SET title = ?2, deleted = ?3 WHERE id = ?1")?;
+    let mut stmt =
+      connection.prepare("UPDATE feed_items SET title = ?2, deleted = ?3 WHERE id = ?1")?;
 
     let deleted = self.deleted.unwrap_or(false);
     let deleted_int = if deleted { 1 } else { 0 };

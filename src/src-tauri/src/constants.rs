@@ -6,8 +6,10 @@ pub const KN_SEARCH_ITEM_FILTER_TYPE_GMAIL: &str = "GMAIL";
 pub const KN_SEARCH_ITEM_FILTER_TYPE_FILE: &str = "FILES";
 pub const KN_SEARCH_ITEM_FILTER_TYPE_DRIVE: &str = "DRIVE";
 pub const KN_SEARCH_ITEM_FILTER_TYPE_WEB: &str = "WEB";
-pub const KN_MICROSOFT_AUTH_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-pub const KN_MICROSOFT_TOKEN_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+pub const KN_MICROSOFT_AUTH_URL: &str =
+  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
+pub const KN_MICROSOFT_TOKEN_URL: &str =
+  "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 pub const KN_MICROSOFT_REDIRECT_URL: &str = "http://localhost:8897/api/knapsack/microsoft/signin";
 
 pub const EMBEDDING_BATCH_SIZE: usize = 8;

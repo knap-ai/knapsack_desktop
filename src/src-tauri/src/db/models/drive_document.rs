@@ -79,40 +79,39 @@ impl DriveDocument {
     Ok(drive_document)
   }
 
-  pub fn find_by_ids(ids: Vec<String>) -> Result<Vec<DriveDocument>, Error>{
+  pub fn find_by_ids(ids: Vec<String>) -> Result<Vec<DriveDocument>, Error> {
     let connection = get_db_conn();
 
     let formatted_ids = ids
-    .iter()
-    .map(|name| format!("\"{}\"", name))
-    .collect::<Vec<_>>()
-    .join(", ");
+      .iter()
+      .map(|name| format!("\"{}\"", name))
+      .collect::<Vec<_>>()
+      .join(", ");
     let mut stmt = connection
       .prepare(&format!("SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email FROM drive_documents WHERE drive_id IN ({})",
       formatted_ids))?;
 
-    let rows = stmt
-      .query_map([], |row| {
-        Ok(DriveDocument {
-          id: row.get(0)?,
-          drive_id: row.get(1)?,
-          filename: row.get(2)?,
-          file_size: row.get(3)?,
-          date_modified: row.get(4)?,
-          date_created: row.get(5)?,
-          summary: row.get(6)?,
-          checksum: row.get(7)?,
-          url: row.get(8)?,
-          timestamp: row.get(9)?,
-          content_chunks: None,
-          account_email: row.get(10).unwrap_or_default(),
+    let rows = stmt.query_map([], |row| {
+      Ok(DriveDocument {
+        id: row.get(0)?,
+        drive_id: row.get(1)?,
+        filename: row.get(2)?,
+        file_size: row.get(3)?,
+        date_modified: row.get(4)?,
+        date_created: row.get(5)?,
+        summary: row.get(6)?,
+        checksum: row.get(7)?,
+        url: row.get(8)?,
+        timestamp: row.get(9)?,
+        content_chunks: None,
+        account_email: row.get(10).unwrap_or_default(),
       })
     })?;
 
     let mut unique_drive_ids: HashSet<String> = HashSet::new();
-      
+
     let mut drive_document = Vec::new();
-    
+
     for row in rows {
       let document = row?.clone();
       let drive_id = document.drive_id.clone();
@@ -253,7 +252,8 @@ impl DriveDocument {
             Uuid::new_v5(
               &Uuid::NAMESPACE_DNS,
               format!("{}/{}", self.drive_id.clone(), chunk_idx).as_bytes(),
-            ).to_string(),
+            )
+            .to_string(),
           ),
         ),
         (
@@ -357,7 +357,15 @@ impl KnowledgeSnippet for DriveDocument {
       prompt = format!("{}\n\n{}", prompt, self.summary);
     } else {
       for payload in payloads {
-        let content = payload.as_object().map(|item| item.get("content").map(|content| content.as_str()).flatten()).flatten();
+        let content = payload
+          .as_object()
+          .map(|item| {
+            item
+              .get("content")
+              .map(|content| content.as_str())
+              .flatten()
+          })
+          .flatten();
         if let Some(content) = content {
           prompt = format!("{}\n\n{}", prompt, content);
         }

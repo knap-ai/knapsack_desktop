@@ -74,13 +74,16 @@ async function main() {
   const universalBuild = osName === 'darwin' && process.env.UNIVERSAL_BUILD === 'true';
   const binName = osName === 'win' ? 'node.exe' : 'node';
   const targetBin = path.join(TARGET_DIR, binName);
+  const npmCliPath = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
 
   // Skip download if the correct version is already present
   if (fs.existsSync(targetBin)) {
     try {
       const currentVersion = execSync(`"${targetBin}" --version`, { encoding: 'utf8' }).trim();
       if (currentVersion === `v${NODE_VERSION}`) {
-        if (universalBuild) {
+        if (!fs.existsSync(npmCliPath)) {
+          console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
+        } else if (universalBuild) {
           // Verify it's already a universal binary
           const lipoInfo = execSync(`lipo -info "${targetBin}"`, { encoding: 'utf8' });
           if (lipoInfo.includes('x86_64') && lipoInfo.includes('arm64')) {
@@ -89,13 +92,8 @@ async function main() {
           }
           console.log('[prepare-node] Found single-arch binary, need universal — re-downloading.');
         } else {
-          const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-          if (osName === 'win' && !fs.existsSync(npmPkgDest)) {
-            console.log(`[prepare-node] Node.js v${NODE_VERSION} already present but npm package missing — re-downloading to extract npm.`);
-          } else {
-            console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
-            return;
-          }
+          console.log(`[prepare-node] Node.js v${NODE_VERSION} (${osName}-${arch}) already present — skipping download.`);
+          return;
         }
       } else {
         console.log(`[prepare-node] Found ${currentVersion}, need v${NODE_VERSION} — re-downloading.`);
@@ -130,6 +128,19 @@ async function main() {
       execSync(`lipo -create "${path.join(tmpDir, 'node-arm64')}" "${path.join(tmpDir, 'node-x64')}" -output "${targetBin}"`, { stdio: 'inherit' });
       fs.chmodSync(targetBin, 0o755);
 
+      // Extract npm from the arm64 archive (npm is platform-independent JS)
+      const arm64Prefix = `node-v${NODE_VERSION}-darwin-arm64`;
+      const arm64Archive = path.join(tmpDir, `${arm64Prefix}.tar.gz`);
+      execSync(`tar -xzf "${arm64Archive}" -C "${tmpDir}" "${arm64Prefix}/lib/node_modules/npm"`, { stdio: 'inherit' });
+      const npmPkgSrc = path.join(tmpDir, arm64Prefix, 'lib', 'node_modules', 'npm');
+      const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm');
+      if (fs.existsSync(npmPkgSrc)) {
+        fs.cpSync(npmPkgSrc, npmPkgDest, { recursive: true });
+        console.log(`[prepare-node] ✓ npm package installed at ${npmPkgDest}`);
+      } else {
+        console.warn('[prepare-node] Warning: lib/node_modules/npm not found in Node.js archive — plugin runtime deps may require system npm');
+      }
+
     } else {
       // Single-architecture download
       const ext = osName === 'win' ? 'zip' : 'tar.gz';
@@ -160,6 +171,19 @@ async function main() {
         execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/bin/node"`, { stdio: 'inherit' });
         fs.copyFileSync(path.join(tmpDir, prefix, 'bin', 'node'), targetBin);
         fs.chmodSync(targetBin, 0o755);
+        try {
+          execSync(`tar -xzf "${archivePath}" -C "${tmpDir}" "${prefix}/lib/node_modules/npm"`, { stdio: 'inherit' });
+          const npmPkgSrc = path.join(tmpDir, prefix, 'lib', 'node_modules', 'npm');
+          const npmPkgDest = path.join(TARGET_DIR, 'node_modules', 'npm');
+          if (fs.existsSync(npmPkgSrc)) {
+            fs.cpSync(npmPkgSrc, npmPkgDest, { recursive: true });
+            console.log(`[prepare-node] ✓ npm package installed at ${npmPkgDest}`);
+          } else {
+            console.warn('[prepare-node] Warning: lib/node_modules/npm not found in Node.js archive — plugin runtime deps may require system npm');
+          }
+        } catch {
+          console.warn('[prepare-node] Warning: could not extract npm from Node.js archive — plugin runtime deps may require system npm');
+        }
       }
     }
   } finally {

@@ -65,6 +65,7 @@ const child = spawn(command, commandArgs, {
   env: process.env,
   cwd: projectDir,
   shell,
+  windowsHide: isWin,
 });
 
 child.on('error', (err) => {

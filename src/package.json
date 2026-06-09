@@ -1,7 +1,7 @@
 {
   "name": "knapsack",
   "private": true,
-  "version": "2.1.8",
+  "version": "2.3.9",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "clawdbot:duplicates:enforce": "node scripts/report-clawdbot-duplicates.cjs --enforce",
     "clawdbot:gateway-live": "node scripts/smoke-test-gateway-live.cjs",
     "qa:dev": "node scripts/qa-dev-run.cjs",
+    "qa:loop": "node scripts/qa-loop-runner.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",
     "release": "bash scripts/release.sh"
   },

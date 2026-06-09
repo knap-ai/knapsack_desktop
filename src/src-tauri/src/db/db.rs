@@ -8,8 +8,8 @@ use crate::connections::google::constants::{
   GOOGLE_PROVIDER_NAME,
 };
 use crate::connections::microsoft::constants::{
-  MICROSOFT_PROFILE_SCOPE, MICROSOFT_CALENDAR_SCOPE, MICROSOFT_OUTLOOK_SCOPE,
-  MICROSOFT_PROVIDER_NAME, MICROSOFT_ONEDRIVE_SCOPE,
+  MICROSOFT_CALENDAR_SCOPE, MICROSOFT_ONEDRIVE_SCOPE, MICROSOFT_OUTLOOK_SCOPE,
+  MICROSOFT_PROFILE_SCOPE, MICROSOFT_PROVIDER_NAME,
 };
 use crate::db::models::{
   automation::Automation,
@@ -146,7 +146,6 @@ fn should_clean_qdrant() -> bool {
   return false;
 }
 
-
 //TODO: return a error if the start fails
 pub async fn start_database() {
   if let Err(e) = execute_migrations() {
@@ -272,9 +271,7 @@ pub async fn start_database() {
     id: None,
     uuid: String::from("fa5bc3e1-ecb6-454b-85b7-6694abd03309"),
     name: String::from("LinkedIn Post Ideas"),
-    description: String::from(
-      "Write LinkedIn posts using my own expertise and relevant topics.",
-    ),
+    description: String::from("Write LinkedIn posts using my own expertise and relevant topics."),
     is_active: false,
     is_beta: true,
     show_library: true,
@@ -488,5 +485,4 @@ pub async fn start_database() {
   if let Err(error) = result {
     log::error!("Failed to create connection {:?} ", error)
   }
-
 }

@@ -376,9 +376,12 @@ function syncTelegramMenuCommands(params) {
 		});
 		writeCachedCommandHash(accountId, botIdentity, currentHash);
 	};
-	sync().catch((err) => {
+	const syncDelayMs = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" ? Number.parseInt(process.env.OPENCLAW_DEFER_TELEGRAM_MENU_SYNC_MS ?? "5000", 10) : 0;
+	const runSync = () => sync().catch((err) => {
 		runtime.error?.(`Telegram command sync failed: ${String(err)}`);
 	});
+	if (Number.isFinite(syncDelayMs) && syncDelayMs > 0) setTimeout(runSync, syncDelayMs).unref?.();
+	else runSync();
 }
 //#endregion
 //#region extensions/telegram/src/draft-stream.ts

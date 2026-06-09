@@ -22,7 +22,7 @@ import { m as setPreRestartDeferralCheck, p as setGatewaySigusr1RestartPolicy } 
 import { n as readGatewayRestartHandoffSync } from "./restart-handoff-BSak1pJo.js";
 import { t as applyPluginAutoEnable } from "./plugin-auto-enable-CuCUT4Z1.js";
 import { C as createPluginGatewayMethodDescriptors, S as createGatewayMethodRegistry, x as createGatewayMethodDescriptorsFromHandlers } from "./loader-DKK7Ita0.js";
-import { d as pinActivePluginChannelRegistry, f as pinActivePluginHttpRouteRegistry, h as releasePinnedPluginHttpRouteRegistry, m as releasePinnedPluginChannelRegistry } from "./runtime-DHxRl5F1.js";
+import { F as createEmptyPluginRegistry, d as pinActivePluginChannelRegistry, f as pinActivePluginHttpRouteRegistry, h as releasePinnedPluginHttpRouteRegistry, m as releasePinnedPluginChannelRegistry, x as setActivePluginRegistry } from "./runtime-DHxRl5F1.js";
 import { i as resolveMainSessionKey } from "./main-session-D3q_5w0B.js";
 import { n as getLoadedChannelPluginEntryById, r as listLoadedChannelPlugins } from "./registry-loaded-BE-rpJc1.js";
 import "./sessions-CQHHcgC_.js";
@@ -50,7 +50,6 @@ import { n as ensureControlUiAllowedOriginsForNonLoopbackBind } from "./gateway-
 import { n as resolveAssistantIdentity } from "./assistant-identity-BpQbk1Fj.js";
 import { i as getRequiredSharedGatewaySessionGeneration, r as enforceSharedGatewaySessionGenerationForConfigWrite } from "./server-shared-auth-generation-Csm1h6QK.js";
 import { a as createToolEventRecipientRegistry, n as createChatRunState } from "./server-chat-state-5p6_r5uT.js";
-import { a as incrementPresenceVersion, i as getPresenceVersion, n as getHealthCache, o as refreshGatewayHealthSnapshot, r as getHealthVersion } from "./health-state-DDBJpyWb.js";
 import { n as applyGatewayLaneConcurrency, t as resolveHookClientIpConfig } from "./hook-client-ip-config-CtULy7ip.js";
 import { t as GATEWAY_EVENTS } from "./server-methods-list-DSjj8sa9.js";
 import { t as resolveSharedGatewaySessionGeneration } from "./ws-shared-generation-Bp5l7wzu.js";
@@ -61,8 +60,38 @@ import path from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import { WebSocketServer } from "ws";
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { createServer as createServer$1 } from "node:https";
+let healthStateModulePromise;
+const loadHealthStateModule = () => {
+	healthStateModulePromise ??= import("./health-state-DDBJpyWb.js");
+	return healthStateModulePromise;
+};
 //#region src/gateway/plugin-channel-reload-targets.ts
+function startDesktopBrowserControlPlaceholder(log) {
+	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1" || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
+	if (globalThis.__openclawDesktopBrowserControlPlaceholder) return;
+	const response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
+	const server = createNetServer((socket) => {
+		socket.on("error", () => {});
+		socket.end(response);
+	});
+	const clearPlaceholder = () => {
+		if (globalThis.__openclawDesktopBrowserControlPlaceholder?.server === server) delete globalThis.__openclawDesktopBrowserControlPlaceholder;
+	};
+	globalThis.__openclawDesktopBrowserControlPlaceholder = {
+		server,
+		close: () => new Promise((resolve) => {
+			clearPlaceholder();
+			server.close(() => resolve());
+		})
+	};
+	server.once("error", (error) => {
+		clearPlaceholder();
+		if (error?.code !== "EADDRINUSE") log?.warn?.(`desktop browser-control placeholder failed: ${String(error)}`);
+	});
+	server.listen(18791, "127.0.0.1");
+}
 function addNormalizedTarget(targets, value) {
 	const normalized = normalizeOptionalString(value);
 	if (normalized) targets.add(normalized);
@@ -1677,6 +1706,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const { bootstrapGatewayNetworkRuntime } = await import("./server-network-runtime-Br2HEIV9.js");
 	bootstrapGatewayNetworkRuntime();
 	const minimalTestGateway = isVitestRuntimeEnv() && process.env.OPENCLAW_TEST_MINIMAL_GATEWAY === "1";
+	const desktopManagedGateway = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
 	process.env.OPENCLAW_GATEWAY_PORT = String(port);
 	logAcceptedEnvOption({
 		key: "OPENCLAW_RAW_STREAM",
@@ -1697,9 +1727,39 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const startupTrace = createGatewayStartupTrace();
 	const startupConfigModulePromise = import("./server-startup-config-C-rNKEbY.js");
 	let startupPluginsModulePromise = null;
+	let runtimeServicesModulePromise = null;
+	let auxHandlersModulePromise = null;
+	let coreMethodsModulePromise = null;
+	let requestContextModulePromise = null;
+	let wsRuntimeModulePromise = null;
+	let routeCapabilityModulePromise = null;
 	const loadStartupPluginsModule = () => {
 		startupPluginsModulePromise ??= import("./server-startup-plugins-CD06rso_.js");
 		return startupPluginsModulePromise;
+	};
+	const loadRuntimeServicesModule = () => {
+		runtimeServicesModulePromise ??= Promise.all([import("./server-runtime-subscriptions-K1ToqQoD.js"), import("./server-runtime-services-DIy3QoBL.js")]);
+		return runtimeServicesModulePromise;
+	};
+	const loadAuxHandlersModule = () => {
+		auxHandlersModulePromise ??= import("./server-aux-handlers-CLxg0m7D.js");
+		return auxHandlersModulePromise;
+	};
+	const loadCoreMethodsModule = () => {
+		coreMethodsModulePromise ??= import("./server-methods-90LGtoqF.js");
+		return coreMethodsModulePromise;
+	};
+	const loadRequestContextModule = () => {
+		requestContextModulePromise ??= import("./server-request-context-BClu1RJg.js");
+		return requestContextModulePromise;
+	};
+	const loadWsRuntimeModule = () => {
+		wsRuntimeModulePromise ??= import("./server-ws-runtime-CGwRNHq_.js");
+		return wsRuntimeModulePromise;
+	};
+	const loadRouteCapabilityModule = () => {
+		routeCapabilityModulePromise ??= import("./route-capability-DMdOu_-R.js");
+		return routeCapabilityModulePromise;
 	};
 	const { loadGatewayStartupConfigSnapshot } = await startupConfigModulePromise;
 	const startupConfigLoad = await startupTrace.measure("config.snapshot", () => loadGatewayStartupConfigSnapshot({
@@ -1761,18 +1821,36 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		startupLastGoodSnapshot = startupSnapshot;
 	}
 	setRuntimeConfigSnapshot(cfgAtStart, startupLastGoodSnapshot.sourceConfig);
-	const { prepareGatewayPluginBootstrap } = await loadStartupPluginsModule();
-	const pluginBootstrap = await startupTrace.measure("plugins.bootstrap", () => prepareGatewayPluginBootstrap({
-		cfgAtStart,
-		activationSourceConfig: startupActivationSourceConfig,
-		startupRuntimeConfig,
-		pluginMetadataSnapshot: startupConfigLoad.pluginMetadataSnapshot,
-		minimalTestGateway,
-		log,
-		loadRuntimePlugins: false
-	}));
-	const { gatewayPluginConfigAtStart, defaultWorkspaceDir, deferredConfiguredChannelPluginIds, startupPluginIds, pluginLookUpTable, baseMethods, runtimePluginsLoaded } = pluginBootstrap;
+	const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && process.env.OPENCLAW_DESKTOP_FAST_BIND === "1";
 	const coreGatewayMethodNames = listCoreGatewayMethodNames();
+	const pluginBootstrap = await startupTrace.measure("plugins.bootstrap", async () => {
+		if (desktopManagedFastStartup) {
+			const pluginRegistry = createEmptyPluginRegistry();
+			setActivePluginRegistry(pluginRegistry);
+			return {
+				gatewayPluginConfigAtStart: cfgAtStart,
+				defaultWorkspaceDir: void 0,
+				deferredConfiguredChannelPluginIds: [],
+				startupPluginIds: ["browser"],
+				pluginLookUpTable: void 0,
+				baseMethods: coreGatewayMethodNames,
+				runtimePluginsLoaded: false,
+				pluginRegistry,
+				baseGatewayMethods: coreGatewayMethodNames
+			};
+		}
+		const { prepareGatewayPluginBootstrap } = await loadStartupPluginsModule();
+		return prepareGatewayPluginBootstrap({
+			cfgAtStart,
+			activationSourceConfig: startupActivationSourceConfig,
+			startupRuntimeConfig,
+			pluginMetadataSnapshot: startupConfigLoad.pluginMetadataSnapshot,
+			minimalTestGateway,
+			log,
+			loadRuntimePlugins: false
+		});
+	});
+	const { gatewayPluginConfigAtStart, defaultWorkspaceDir, deferredConfiguredChannelPluginIds, startupPluginIds, pluginLookUpTable, baseMethods, runtimePluginsLoaded } = pluginBootstrap;
 	setCurrentPluginMetadataSnapshot(pluginLookUpTable, {
 		config: startupActivationSourceConfig,
 		compatibleConfigs: [
@@ -1873,19 +1951,20 @@ async function startGatewayServer(port = 18789, opts = {}) {
 	const readinessEventLoopHealth = createGatewayEventLoopHealthMonitor();
 	let startupSidecarsReady = minimalTestGateway;
 	let startupPendingReason = "startup-sidecars";
-	const { createChannelManager } = await import("./server-channels-CRUeVkRN.js");
-	const channelManager = createChannelManager({
-		getRuntimeConfig: () => applyPluginAutoEnable({
-			config: getRuntimeConfig(),
-			env: process.env
-		}).config,
-		channelLogs,
-		channelRuntimeEnvs,
-		resolveChannelRuntime: getChannelRuntime,
-		resolveStartupChannelRuntime: getStartupChannelRuntime,
-		getPluginHttpRouteRegistry: () => pluginRegistry,
-		startupTrace
-	});
+	let channelManager = {
+		getRuntimeSnapshot: () => ({ channelAccounts: {} }),
+		startChannels: async () => {},
+		startChannel: async () => {},
+		stopChannel: async () => {},
+		markChannelLoggedOut: () => {}
+	};
+	let getRuntimeSnapshot = () => channelManager.getRuntimeSnapshot();
+	let startChannels = async () => {};
+	let startChannel = async () => {
+		throw new Error("channel manager not ready");
+	};
+	let stopChannel = async () => {};
+	let markChannelLoggedOut = () => {};
 	const getReadiness = createReadinessChecker({
 		channelManager,
 		startedAt: serverStartedAt,
@@ -1924,6 +2003,34 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		logPlugins,
 		getReadiness
 	}));
+	let desktopManagedEarlyBound = false;
+	if (desktopManagedGateway) {
+		await startListening();
+		desktopManagedEarlyBound = true;
+		startupTrace.mark("http.bound");
+		const elapsedSeconds = ((Date.now() - serverStartedAt) / 1e3).toFixed(1);
+		log.info(`http server listening (desktop-managed early-bind; 0 plugins; ${elapsedSeconds}s)`);
+		startDesktopBrowserControlPlaceholder(log);
+	}
+	if (desktopManagedFastStartup) {
+		startupTrace.mark("runtime.channels.deferred");
+	} else {
+		const { createChannelManager } = await startupTrace.measure("runtime.channels.import", () => import("./server-channels-CRUeVkRN.js"));
+		Object.assign(channelManager, createChannelManager({
+			getRuntimeConfig: () => applyPluginAutoEnable({
+				config: getRuntimeConfig(),
+				env: process.env
+			}).config,
+			channelLogs,
+			channelRuntimeEnvs,
+			resolveChannelRuntime: getChannelRuntime,
+			resolveStartupChannelRuntime: getStartupChannelRuntime,
+			getPluginHttpRouteRegistry: () => pluginRegistry,
+			startupTrace
+		}));
+	}
+	const { a: incrementPresenceVersion, i: getPresenceVersion, n: getHealthCache, o: refreshGatewayHealthSnapshot, r: getHealthVersion } = await startupTrace.measure("runtime.health-state.import", () => loadHealthStateModule());
+	({ getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager);
 	const { createGatewayNodeSessionRuntime } = await import("./server-node-session-runtime-C2gow8hU.js");
 	const { nodeRegistry, nodePresenceTimers, sessionEventSubscribers, sessionMessageSubscribers, nodeSendToSession, nodeSendToAllSubscribed, nodeSubscribe, nodeUnsubscribe, nodeUnsubscribeAll, broadcastVoiceWakeChanged, hasTalkNodeConnected } = createGatewayNodeSessionRuntime({ broadcast });
 	applyGatewayLaneConcurrency(cfgAtStart);
@@ -1973,7 +2080,6 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			closeMcpServer: closeMcpLoopbackServerOnDemand
 		});
 	};
-	const { getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager;
 	const refreshGatewayHealthSnapshotWithRuntime = (opts) => refreshGatewayHealthSnapshot({
 		...opts,
 		getRuntimeSnapshot,
@@ -2081,7 +2187,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		runtimeState.bonjourStop = earlyRuntime.bonjourStop;
 		getActiveTaskCount = earlyRuntime.getActiveTaskCount;
 		runtimeState.skillsChangeUnsub = earlyRuntime.skillsChangeUnsub;
-		const [{ startGatewayEventSubscriptions }, gatewayRuntimeServices] = await Promise.all([import("./server-runtime-subscriptions-K1ToqQoD.js"), import("./server-runtime-services-DIy3QoBL.js")]);
+		const [{ startGatewayEventSubscriptions }, gatewayRuntimeServices] = await startupTrace.measure("runtime.after-early.import-services", () => loadRuntimeServicesModule());
 		Object.assign(runtimeState, startGatewayEventSubscriptions({
 			broadcast,
 			broadcastToConnIds,
@@ -2093,14 +2199,14 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			sessionMessageSubscribers,
 			chatAbortControllers
 		}));
-		Object.assign(runtimeState, gatewayRuntimeServices.startGatewayRuntimeServices({
+		Object.assign(runtimeState, await startupTrace.measure("runtime.after-early.start-services", () => gatewayRuntimeServices.startGatewayRuntimeServices({
 			minimalTestGateway,
 			cfgAtStart,
 			channelManager,
 			log
-		}));
-		const { createGatewayAuxHandlers } = await import("./server-aux-handlers-CLxg0m7D.js");
-		const { coreGatewayHandlers } = await import("./server-methods-90LGtoqF.js");
+		})));
+		const { createGatewayAuxHandlers } = await startupTrace.measure("runtime.after-early.import-aux", () => loadAuxHandlersModule());
+		let coreGatewayHandlers = (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
 		const { execApprovalManager, pluginApprovalManager, extraHandlers } = createGatewayAuxHandlers({
 			log,
 			activateRuntimeSecrets,
@@ -2134,7 +2240,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				})
 			]);
 		};
-		let attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+		let attachedGatewayMethodRegistry = await startupTrace.measure("runtime.after-early.method-registry", () => buildAttachedGatewayMethodRegistry(pluginRegistry));
 		const listAttachedGatewayMethods = () => {
 			const methods = attachedGatewayMethodRegistry.listAdvertisedMethods();
 			methods.push(...listStartupChannelGatewayMethods());
@@ -2255,8 +2361,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			};
 		};
 		const unavailableGatewayMethods = new Set(minimalTestGateway ? [] : STARTUP_UNAVAILABLE_GATEWAY_METHODS);
-		const { createGatewayRequestContext } = await import("./server-request-context-BClu1RJg.js");
-		const gatewayRequestContext = createGatewayRequestContext({
+		const { createGatewayRequestContext } = await startupTrace.measure("runtime.after-early.import-request-context", () => loadRequestContextModule());
+		const gatewayRequestContext = await startupTrace.measure("runtime.after-early.request-context", () => createGatewayRequestContext({
 			deps,
 			runtimeState,
 			getRuntimeConfig,
@@ -2321,7 +2427,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			broadcastVoiceWakeChanged,
 			unavailableGatewayMethods,
 			broadcastVoiceWakeRoutingChanged
-		});
+		}));
 		currentPluginRegistryGatewayContext = gatewayRequestContext;
 		const fallbackGatewayContextCleanup = setFallbackGatewayContextResolver(() => gatewayRequestContext);
 		clearFallbackGatewayContextForServer = typeof fallbackGatewayContextCleanup === "function" ? () => {
@@ -2346,8 +2452,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				await refreshAttachedGatewayDiscovery(loaded.pluginRegistry);
 			}
 		}
-		const { attachGatewayWsHandlers } = await import("./server-ws-runtime-CGwRNHq_.js");
-		const { listPluginNodeCapabilities } = await import("./route-capability-DMdOu_-R.js");
+		const { attachGatewayWsHandlers } = await startupTrace.measure("runtime.after-early.import-ws", () => loadWsRuntimeModule());
+		const { listPluginNodeCapabilities } = await startupTrace.measure("runtime.after-early.import-capabilities", () => loadRouteCapabilityModule());
 		const pluginSurfaceScheme = gatewayTls.enabled ? "https" : "http";
 		attachGatewayWsHandlers({
 			wss,
@@ -2374,8 +2480,24 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			broadcast,
 			context: gatewayRequestContext
 		});
-		await startListening();
-		startupTrace.mark("http.bound");
+		if (!desktopManagedEarlyBound) {
+			await startListening();
+			startupTrace.mark("http.bound");
+		}
+		if (desktopManagedGateway) {
+			const elapsedSeconds = ((Date.now() - serverStartedAt) / 1e3).toFixed(1);
+			if (!desktopManagedEarlyBound) log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
+			startDesktopBrowserControlPlaceholder(log);
+			setTimeout(() => {
+				loadCoreMethodsModule().then(({ coreGatewayHandlers: loadedCoreGatewayHandlers }) => {
+					coreGatewayHandlers = loadedCoreGatewayHandlers;
+					attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+					runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
+				}).catch((err) => {
+					log.warn(`desktop-managed core gateway methods failed to load after listen: ${String(err)}`);
+				});
+			}, 1e4).unref?.();
+		}
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		let postAttachRuntimeReturned = false;
 		let scheduledServicesActivated = false;
@@ -2420,7 +2542,24 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			logHooks,
 			logChannels,
 			unavailableGatewayMethods,
-			loadStartupPlugins: runtimePluginsLoaded ? void 0 : async () => {
+			loadStartupPlugins: runtimePluginsLoaded ? void 0 : async (loadOptions = {}) => {
+				const desktopManagedFastStartup = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1" && loadOptions.includeDeferred !== true;
+				const desktopFastPluginIds = new Set(["browser", "duckduckgo"]);
+				const fastStartupPluginIds = startupPluginIds.length > 0 ? startupPluginIds.filter((id) => desktopFastPluginIds.has(id)) : [...desktopFastPluginIds];
+				if (desktopManagedFastStartup) {
+					const { loadGatewayStartupPlugins } = await import("./server-plugin-bootstrap-Cf8Io8s6.js");
+					return loadGatewayStartupPlugins({
+						cfg: gatewayPluginConfigAtStart,
+						activationSourceConfig: startupActivationSourceConfig,
+						workspaceDir: defaultWorkspaceDir,
+						log,
+						baseMethods,
+						coreGatewayMethodNames,
+						hostServices: pluginHostServices,
+						pluginIds: fastStartupPluginIds,
+						startupTrace
+					});
+				}
 				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
 				return loadGatewayStartupPluginRuntime({
 					cfg: gatewayPluginConfigAtStart,
@@ -2430,8 +2569,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 					baseMethods,
 					coreGatewayMethodNames,
 					hostServices: pluginHostServices,
-					startupPluginIds,
-					pluginLookUpTable,
+					...(startupPluginIds.length > 0 && { startupPluginIds }),
+					...(pluginLookUpTable !== void 0 && { pluginLookUpTable }),
 					startupTrace
 				});
 			},
