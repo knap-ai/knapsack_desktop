@@ -279,6 +279,8 @@ export const SettingsDialog = ({
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
   const isMacPlatform = navigator.platform?.includes('Mac')
+  const isWindowsPlatform = navigator.platform?.includes('Win')
+  const showKeepAwakePowerControls = isMacPlatform || isWindowsPlatform
 
   // Accordion state — which provider section is expanded
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
@@ -1332,18 +1334,24 @@ export const SettingsDialog = ({
         </div>
 
         <hr className="border-zinc-200" />
-        {isMacPlatform && (
+        {showKeepAwakePowerControls && (
           <div className="DocumentsContainer p-6 flex flex-col gap-4">
             <Typography weight={TypographyWeight.medium}>Power</Typography>
             <InputCheckbox
               checked={keepAwakeOnLidCloseEnabled}
               onClick={handleFlipKeepAwakeOnLidClose}
             >
-              <Typography className="text-black">Keep computer awake when screen/lid closes</Typography>
+              <Typography className="text-black">
+                {isMacPlatform
+                  ? 'Keep computer awake when screen/lid closes'
+                  : 'Keep computer awake while this app runs'}
+              </Typography>
             </InputCheckbox>
             <Typography className="text-xs text-zinc-500 leading-5">
-              Opt-in behavior while the app is running. Enable only for remote/off-screen workflows;
-              this can increase battery use and heat.
+              {isMacPlatform
+                ? 'Opt-in behavior while the app is running. Enable only for remote/off-screen workflows; this can increase battery use and heat.'
+                : 'Windows keeps the system from entering idle sleep while Knapsack is running. It cannot always override lid-close power settings on every machine.'
+              }
             </Typography>
           </div>
         )}
@@ -1397,15 +1405,19 @@ export const SettingsDialog = ({
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-5 w-[430px] shadow-xl">
               <Typography weight={TypographyWeight.medium} className="text-lg">
-                Keep Mac awake when lid/screen closes?
+                {isMacPlatform ? 'Keep Mac awake when lid/screen closes?' : 'Keep computer awake while Knapsack runs?'}
               </Typography>
               <p className="mt-2 text-sm text-zinc-600">
-                This enables a system wake assertion while Knapsack is running so your Mac stays awake with
-                the lid closed.
+                {isMacPlatform
+                  ? 'This enables a system wake assertion while Knapsack is running so your Mac stays awake with the lid closed.'
+                  : 'This requests that Windows keep the system from sleeping during use while Knapsack is running.'
+                }
               </p>
               <p className="mt-3 text-sm text-zinc-600">
-                Turn it on only when needed for remote recording, remote troubleshooting, or other
-                unattended workflows. It may increase battery use and heat.
+                {isMacPlatform
+                  ? 'Turn it on only when needed for remote recording, remote troubleshooting, or other unattended workflows. It may increase battery use and heat.'
+                  : 'Turn it on only when needed for remote/off-screen workflows. It may increase battery use and heat.'
+                }
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button

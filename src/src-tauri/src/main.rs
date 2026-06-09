@@ -42,6 +42,8 @@ use connections::api::ConnectionsData;
 use log::info;
 use memory::semantic::start_embed_service;
 use memory::semantic::SemanticService;
+#[cfg(target_os = "macos")]
+use once_cell::sync::Lazy;
 use once_cell::sync::OnceCell;
 use std::env;
 use std::fs::create_dir_all;
@@ -130,6 +132,127 @@ pub fn release_type() -> Release {
   #[cfg(not(any(feature = "full", feature = "limited")))]
   {
     return Release::Limited;
+  }
+}
+
+#[cfg(target_os = "macos")]
+static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> = Lazy::new(|| {
+  StdMutex::new(None)
+});
+#[cfg(target_os = "windows")]
+static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
+
+#[tauri::command]
+fn kn_set_keep_awake(enabled: bool) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    keep_awake_macos::set_keep_awake(enabled);
+  }
+  #[cfg(target_os = "windows")]
+  {
+    keep_awake_windows::set_keep_awake(enabled);
+  }
+
+  #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+  {
+    let _ = enabled;
+  }
+
+  Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod keep_awake_macos {
+  use std::process::{Command, Stdio};
+
+  use super::KN_KEEP_AWAKE_PROCESS;
+
+  pub fn set_keep_awake(enabled: bool) {
+    let mut handle = KN_KEEP_AWAKE_PROCESS.lock().unwrap();
+
+    if enabled {
+      if handle.is_some() {
+        return;
+      }
+
+      let app_pid = std::process::id().to_string();
+      let result = Command::new("caffeinate")
+        .arg("-dims")
+        .arg("-w")
+        .arg(app_pid)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+      match result {
+        Ok(child) => {
+          *handle = Some(child);
+          log::info!("macOS keep-awake assertion started (caffeinate)");
+        }
+        Err(err) => {
+          log::warn!("Failed to start caffeinate keep-awake process: {}", err);
+        }
+      }
+      return;
+    }
+
+    if let Some(mut process) = handle.take() {
+      if let Err(err) = process.kill() {
+        log::warn!("Failed to stop caffeinate keep-awake process: {}", err);
+      }
+      let _ = process.wait();
+      log::info!("macOS keep-awake assertion stopped");
+    }
+  }
+}
+
+#[cfg(target_os = "windows")]
+mod keep_awake_windows {
+  use super::KN_KEEP_AWAKE_PROCESS;
+  use super::StdMutex;
+
+  const ES_CONTINUOUS: u32 = 0x80000000;
+  const ES_SYSTEM_REQUIRED: u32 = 0x00000001;
+  const ES_DISPLAY_REQUIRED: u32 = 0x00000002;
+  const ES_AWAYMODE_REQUIRED: u32 = 0x00000040;
+
+  #[link(name = "kernel32")]
+  extern "system" {
+    fn SetThreadExecutionState(es_flags: u32) -> u32;
+  }
+
+  pub fn set_keep_awake(enabled: bool) {
+    let mut active = KN_KEEP_AWAKE_PROCESS.lock().unwrap();
+
+    if enabled && *active {
+      return;
+    }
+
+    if !enabled && !*active {
+      return;
+    }
+
+    let flags = if enabled {
+      ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED | ES_AWAYMODE_REQUIRED
+    } else {
+      ES_CONTINUOUS
+    };
+
+    let result = unsafe { SetThreadExecutionState(flags) };
+
+    if result == 0 {
+      log::warn!(
+        "Failed to {} Windows keep-awake assertion",
+        if enabled { "enable" } else { "disable" }
+      );
+      return;
+    }
+
+    *active = enabled;
+    if enabled {
+      log::info!("Windows keep-awake assertion enabled");
+    } else {
+      log::info!("Windows keep-awake assertion disabled");
+    }
   }
 }
 
@@ -1788,6 +1911,7 @@ async fn main() {
       kn_read_logs_since,
       kn_get_log_path,
       kn_get_openclaw_version,
+      kn_set_keep_awake,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
