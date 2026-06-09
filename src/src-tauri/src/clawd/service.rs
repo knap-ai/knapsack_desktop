@@ -6551,13 +6551,24 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
+      let is_version_mismatch_line = |line: &str| {
+        line.contains("config was last written by a newer openclaw")
+          || line.contains("config was last written by an older openclaw")
+          || line.contains("your openclaw config was written by version")
+          || line.contains("refusing to start the gateway service because this openclaw binary")
+          || line.contains("set openclaw_allow_older_binary_destructive_actions=1")
+          || line.contains("check: `openclaw --version`, `which openclaw`, and `openclaw gateway status --deep`.")
+          || line.contains(
+            "if unexpected, update path so `openclaw` points to the version you want, or reinstall the gateway service from that same openclaw install.",
+          )
+          || line.contains(
+            "run the newer openclaw binary on path, or reinstall the intended gateway service from the newer install.",
+          )
+      };
       let has_version_mismatch = log_content.as_ref().ok().is_some_and(|content| {
         content.lines().any(|l| {
           let l = l.to_ascii_lowercase();
-          l.contains("config was last written by a newer openclaw")
-            || l.contains("config was last written by an older openclaw")
-            || l.contains("your openclaw config was written by version")
-            || l.contains("refusing to start the gateway service because this openclaw binary")
+          is_version_mismatch_line(&l)
         })
       });
       if has_version_mismatch {
@@ -6579,10 +6590,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
             || l.contains("bonjour: gateway hostname conflict resolved")
             || l.contains("unhandled promise rejection: ciao")
             || (l.contains("security warning") && l.contains("allowinsecureauth"))
-            || l.contains("config was last written by a newer openclaw")
-            || l.contains("config was last written by an older openclaw")
-            || l.contains("your openclaw config was written by version")
-            || l.contains("refusing to start the gateway service because this openclaw binary")
+            || is_version_mismatch_line(&l)
         };
         let all_filtered: Vec<&str> = content.lines().filter(|l| !is_noise(l)).collect();
         let start = all_filtered.len().saturating_sub(25);
