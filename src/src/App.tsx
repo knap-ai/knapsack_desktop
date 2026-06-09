@@ -47,7 +47,12 @@ import DataFetcher from './utils/data_fetch'
 import { BaseException } from './utils/exceptions/base'
 import KNAnalytics from './utils/KNAnalytics'
 import { KNLocalStorage, RECONNECT_DISMISSED_AT } from './utils/KNLocalStorage'
-import { isSharingEnabled } from './utils/settings'
+import {
+  getKeepAwakeConfirmationAcknowledged,
+  getKeepAwakeOnLidCloseEnabled,
+  isSharingEnabled,
+  setKeepAwakeOnLidCloseEnabled,
+} from './utils/settings'
 import {
   consumePendingAddAccountFlow,
   parsePendingAddAccountState,
@@ -258,6 +263,24 @@ function App() {
   const reconnectDismissCheckDone = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+
+  useEffect(() => {
+    Promise.all([
+      getKeepAwakeOnLidCloseEnabled(),
+      getKeepAwakeConfirmationAcknowledged(),
+    ])
+      .then(([enabled, confirmed]) => {
+        if (enabled && !confirmed) {
+          return Promise.all([
+            setKeepAwakeOnLidCloseEnabled(false),
+            invoke('kn_set_keep_awake', { enabled: false }),
+          ])
+        }
+
+        return invoke('kn_set_keep_awake', { enabled })
+      })
+      .catch(() => {})
+  }, [])
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const [_webSearchResponse, setWebSearchResponse] = useState<WebSearchResponse | null>(null)
   const [_searchTextValue, setSearchTextValue] = useState<string>('')

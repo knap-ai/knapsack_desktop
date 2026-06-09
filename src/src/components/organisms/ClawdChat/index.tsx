@@ -5131,7 +5131,7 @@ ${actualText}`
           const bannerDesc = missingService
             ? 'Knapsack cannot find its background gateway service right now. This usually means the LaunchAgent was removed or did not load after restart. Try restarting the gateway below to reinstall it.'
             : versionMismatch
-              ? 'The gateway config was written by a different OpenClaw version. Knapsack will attempt to recover automatically — if the gateway does not come back up, try restarting it below.'
+              ? 'An OpenClaw version mismatch was detected in the gateway logs. Knapsack keeps its own gateway active and does not uninstall any software — it just ignores stale writes from older/newer OpenClaw installs and attempts automatic recovery.'
               : 'The gateway isn\'t responding. This can happen after a crash, permission change, or system sleep. Try one of these:'
           return (
           <div className="ClawdMsg ClawdMsg-assistant">
