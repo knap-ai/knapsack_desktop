@@ -402,6 +402,7 @@ type SkillInfo = {
   eligible?: boolean
   enabled?: boolean
   source?: string // built-in, OpenClaw, managed, workspace, extra
+  macOnly?: boolean
   missing?: string[] // missing requirements
   installOptions?: Array<{ id: string; label: string; command?: string }>
   primaryEnv?: string
