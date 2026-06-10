@@ -66,11 +66,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Opus 4.7, Sonnet 4.6, Haiku 4.5',
+    description: 'Claude Fable 5, Opus 4.7, Sonnet 4.6, Haiku 4.5',
     keyPrefix: 'sk-ant-',
     helpUrl: 'https://console.anthropic.com/settings/keys',
     helpLabel: 'console.anthropic.com/settings/keys',
     models: [
+      { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Latest flagship, best coding and vision' },
       { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision' },
       { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for complex tasks' },
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Fast and capable, good balance' },

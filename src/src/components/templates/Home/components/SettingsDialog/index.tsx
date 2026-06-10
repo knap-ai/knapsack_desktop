@@ -1415,8 +1415,8 @@ export const SettingsDialog = ({
               </p>
               <p className="mt-3 text-sm text-zinc-600">
                 {isMacPlatform
-                  ? 'Turn it on only when needed for remote recording, remote troubleshooting, or other unattended workflows. It may increase battery use and heat.'
-                  : 'Turn it on only when needed for remote/off-screen workflows. It may increase battery use and heat.'
+                  ? 'Knapsack does not uninstall or modify any installed software. Turn it on only when needed for remote recording, remote troubleshooting, or other unattended workflows. It may increase battery use and heat.'
+                  : 'Knapsack does not uninstall or modify any installed software. Turn it on only when needed for remote/off-screen workflows. It may increase battery use and heat.'
                 }
               </p>
               <div className="mt-5 flex justify-end gap-2">
