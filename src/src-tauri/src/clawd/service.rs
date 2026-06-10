@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
@@ -3428,6 +3429,10 @@ struct StoredTokens {
   knapsack_email: Option<String>,
   #[serde(default)]
   knapsack_model: Option<String>,
+  #[serde(default)]
+  knapsack_access_token: Option<String>,
+  #[serde(default)]
+  knapsack_refresh_token: Option<String>,
 }
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -3612,6 +3617,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     preferred_coding_agent: None,
     knapsack_email: None,
     knapsack_model: None,
+    knapsack_access_token: None,
+    knapsack_refresh_token: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -3758,6 +3765,18 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let e = e.trim();
     if !e.is_empty() {
       std::env::set_var("KNAPSACK_USER_EMAIL", e);
+    }
+  }
+  if let Some(token) = &tokens.knapsack_access_token {
+    let token = token.trim();
+    if !token.is_empty() {
+      std::env::set_var("KNAPSACK_ACCESS_TOKEN", token);
+    }
+  }
+  if let Some(token) = &tokens.knapsack_refresh_token {
+    let token = token.trim();
+    if !token.is_empty() {
+      std::env::set_var("KNAPSACK_REFRESH_TOKEN", token);
     }
   }
   if let Some(m) = &tokens.knapsack_model {
@@ -4494,6 +4513,44 @@ pub(crate) fn gateway_startup_in_progress() -> bool {
   };
   gateway_pre_bind_startup_in_progress_from_log(&content)
     || gateway_post_bind_startup_in_progress_from_log(&content)
+}
+
+pub(crate) async fn should_defer_optional_startup_api_work() -> bool {
+  gateway_startup_in_progress()
+}
+
+pub(crate) fn is_bundled_channel_plugin_id(channel_id: &str) -> bool {
+  KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS
+    .iter()
+    .any(|id| id == &channel_id)
+}
+
+pub(crate) fn gateway_log_has_channel_started(channel_id: &str) -> bool {
+  let stdout = match std::fs::read_to_string(gateway_stdout_log()) {
+    Ok(contents) => contents,
+    Err(_) => String::new(),
+  };
+  let stderr = match std::fs::read_to_string(gateway_stderr_log()) {
+    Ok(contents) => contents,
+    Err(_) => String::new(),
+  };
+  gateway_log_channel_started_from_log(&stdout, channel_id)
+    || gateway_log_channel_started_from_log(&stderr, channel_id)
+}
+
+fn gateway_log_channel_started_from_log(content: &str, channel_id: &str) -> bool {
+  let hay = content.to_lowercase();
+  let channel = channel_id.to_lowercase();
+  let target_lines = [
+    format!("[gateway] [{}] started", channel),
+    format!("starting {} channel", channel),
+    format!("{} channel", channel),
+    format!("{} plugin", channel),
+    format!("\"{}\"", channel),
+  ];
+  target_lines
+    .iter()
+    .any(|marker| hay.contains(&marker.to_lowercase()))
 }
 
 pub(crate) fn gateway_ready_since_last_start() -> bool {
@@ -11468,7 +11525,177 @@ pub async fn oauth_callback(
       }
     }
     _ => oauth_html_page(false, "Unknown OAuth provider."),
+    }
+}
+
+/// Parse a single query parameter value from a URL string.
+fn parse_deep_link_param(url: &str, key: &str) -> Option<String> {
+  let query_start = url.find('?')?;
+  let query = &url[query_start + 1..];
+  for pair in query.split('&') {
+    if let Some((k, v)) = pair.split_once('=') {
+      if k == key {
+        let decoded = v
+          .replace("%40", "@")
+          .replace("%2B", "+")
+          .replace("%20", " ")
+          .replace("+", " ");
+        return Some(decoded);
+      }
+    }
   }
+  None
+}
+
+#[derive(Debug, Deserialize)]
+struct DesktopSignInApiResponse {
+  access_token: String,
+  refresh_token: String,
+  email: String,
+}
+
+async fn exchange_and_store_knapsack_code(
+  app_handle: &tauri::AppHandle,
+  code: &str,
+) -> Result<String, String> {
+  let api_base = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+  let client = reqwest::Client::new();
+  let resp = client
+    .post(format!("{}/api/authentication/desktop-sign-in", api_base))
+    .json(&serde_json::json!({ "code": code }))
+    .send()
+    .await
+    .map_err(|e| {
+      log::error!("[knapsack_auth] exchange request failed: {}", e);
+      format!("Connection failed: {}", e)
+    })?;
+
+  let status = resp.status();
+  let body_text = resp.text().await.unwrap_or_default();
+  if !status.is_success() {
+    log::error!("[knapsack_auth] exchange endpoint returned {}: {}", status, body_text);
+    return Err(format!("Sign-in failed ({})", status));
+  }
+
+  let sign_in: DesktopSignInApiResponse = serde_json::from_str(&body_text).map_err(|e| {
+    log::error!("[knapsack_auth] failed to parse exchange response: {}", e);
+    "Invalid server response".to_string()
+  })?;
+
+  let mut tokens = load_or_create_tokens(app_handle).map_err(|e| {
+    log::error!("[knapsack_auth] failed to load tokens for storage: {}", e);
+    "Failed to save credentials".to_string()
+  })?;
+
+  tokens.knapsack_access_token = Some(sign_in.access_token.clone());
+  tokens.knapsack_refresh_token = Some(sign_in.refresh_token.clone());
+  tokens.knapsack_email = Some(sign_in.email.clone());
+  tokens.knapsack_model
+    .get_or_insert_with(|| "anthropic/claude-haiku-4-5".to_string());
+  tokens.active_provider = Some("knapsack".to_string());
+
+  if let Err(e) = save_tokens(app_handle, &tokens) {
+    log::error!("[knapsack_auth] failed to save tokens: {}", e);
+  }
+
+  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &sign_in.access_token);
+  std::env::set_var("KNAPSACK_REFRESH_TOKEN", &sign_in.refresh_token);
+  std::env::set_var("KNAPSACK_USER_EMAIL", &sign_in.email);
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
+  if let Some(m) = &tokens.knapsack_model {
+    std::env::set_var("KNAPSACK_KNAPSACK_MODEL", m);
+  }
+
+  log::info!("[knapsack_auth] connected as {}", sign_in.email);
+  let _ = app_handle.emit_all(
+    "knapsack-connected",
+    serde_json::json!({
+      "email": sign_in.email,
+      "model": tokens.knapsack_model.clone().unwrap_or_default(),
+    }),
+  );
+
+  Ok(sign_in.email)
+}
+
+#[derive(Deserialize)]
+pub struct KnapsackCallbackQuery {
+  pub code: Option<String>,
+}
+
+#[get("/api/auth/knapsack-callback")]
+pub async fn knapsack_auth_callback(
+  app_handle: web::Data<tauri::AppHandle>,
+  query: web::Query<KnapsackCallbackQuery>,
+) -> impl Responder {
+  let code = match query.code.as_deref().filter(|c| !c.is_empty()) {
+    Some(c) => c.to_string(),
+    None => return oauth_html_page(false, "Missing authorization code."),
+  };
+
+  match exchange_and_store_knapsack_code(&app_handle, &code).await {
+    Ok(_) => oauth_html_page(true, "Knapsack"),
+    Err(msg) => {
+      let _ = app_handle.emit_all("knapsack-auth-error", serde_json::json!({"error": msg}));
+      oauth_html_page(false, &msg)
+    }
+  }
+}
+
+#[post("/api/clawd/service/knapsack-disconnect")]
+pub async fn knapsack_disconnect(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(serde_json::json!({"ok": false, "message": e}));
+    }
+  };
+
+  tokens.knapsack_access_token = None;
+  tokens.knapsack_refresh_token = None;
+  tokens.knapsack_email = None;
+
+  let fallback = if tokens
+    .anthropic_api_key
+    .as_ref()
+    .map(|k| !k.trim().is_empty())
+    .unwrap_or(false)
+  {
+    "anthropic"
+  } else if tokens
+    .gemini_api_key
+    .as_ref()
+    .map(|k| !k.trim().is_empty())
+    .unwrap_or(false)
+  {
+    "gemini"
+  } else if tokens
+    .groq_api_key
+    .as_ref()
+    .map(|k| !k.trim().is_empty())
+    .unwrap_or(false)
+  {
+    "groq"
+  } else {
+    "openai"
+  };
+
+  tokens.active_provider = Some(fallback.to_string());
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(serde_json::json!({"ok": false, "message": e}));
+  }
+
+  std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
+  std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
+  std::env::remove_var("KNAPSACK_USER_EMAIL");
+  std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", fallback);
+  std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
+  let _ = app_handle.emit_all("knapsack-disconnected", serde_json::json!({"fallback_provider": fallback}));
+  log::info!("[knapsack_disconnect] disconnected, fallback provider = {}", fallback);
+
+  HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
 }
 
 async fn exchange_openrouter_code(code: &str) -> Result<String, String> {

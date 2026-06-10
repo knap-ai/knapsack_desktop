@@ -480,9 +480,11 @@ function binaryNeedsRebuild() {
 }
 
 async function main() {
+  runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
   ]);
+  const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
   bootoutLaunchAgent();
   killStaleGateways();
@@ -508,11 +510,13 @@ async function main() {
   const vite = spawnVite();
   let gateway = null;
   let shuttingDown = false;
+  let app = null;
 
   const cleanup = () => {
     shuttingDown = true;
     if (!vite.killed) vite.kill("SIGTERM");
     if (gateway && !gateway.killed) gateway.kill("SIGTERM");
+    if (app && !app.killed) app.kill("SIGTERM");
     killStaleGateways();
     killStaleOpenClawChrome();
   };
@@ -554,7 +558,7 @@ async function main() {
           OPENCLAW_CONFIG_PATH: path.join(qaStateDir, "openclaw.json"),
         })
       : qaEnv();
-    const app = spawn(binary, [], {
+    app = spawn(binary, [], {
       cwd: tauriDir,
       stdio: "inherit",
       env: appEnv,
@@ -566,6 +570,13 @@ async function main() {
     await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
     startManagedGateway();
   }
+
+  if (prepareOnly) {
+    cleanup();
+    process.exit(0);
+    return;
+  }
+
   app.on("exit", (code, signal) => {
     cleanup();
     if (signal) {

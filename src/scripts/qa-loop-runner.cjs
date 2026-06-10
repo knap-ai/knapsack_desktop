@@ -1655,6 +1655,7 @@ async function runLoop() {
         : ["dev", "prod"];
   const attemptsPerMode = Math.max(1, Number.isInteger(opts.attemptsPerMode) ? opts.attemptsPerMode : 1);
   const summary = {};
+  let abortAllModes = false;
 
   for (const mode of modes) {
     let attempt = 0;
@@ -1667,11 +1668,21 @@ async function runLoop() {
       }
       modeResult = await runMode(mode, opts);
       if (modeResult.ok) break;
-      if (attempt >= attemptsPerMode) break;
+      const failedDuringPrepare = modeResult.phase === "prepare"
+        || String(modeResult.message || "").includes("prepare failed");
+      if (attempt >= attemptsPerMode || failedDuringPrepare) {
+        if (failedDuringPrepare) {
+          abortAllModes = true;
+        }
+        break;
+      }
       console.log(`[qa-loop] ${mode} attempt ${attempt}/${attemptsPerMode} failed: ${modeResult.message}`);
     }
     summary[mode] = modeResult;
     if (!modeResult.ok) {
+      if (abortAllModes) {
+        console.log(`[qa-loop] ${mode} failed during prepare; skipping remaining modes.`);
+      }
       if (Array.isArray(modeResult.startupLog) && modeResult.startupLog.length > 0) {
         const traceLines = modeResult.startupLog.filter((line) =>
           /startup trace|http\.bound|ready|plugins\.lookup|secrets|sidecars|browser-control|Using Clawdbot entry|Patched OpenClaw config|Forwarding QA plugin|OpenClaw compile cache/.test(line),
@@ -1698,6 +1709,7 @@ async function runLoop() {
         console.log(`[qa-loop] ${mode} liveness at failure: ${JSON.stringify(modeResult.liveness)}`);
       }
       console.log(`[qa-loop] ${mode} did not hit target after ${attempt} attempt(s).`);
+      if (abortAllModes) break;
       continue;
     }
     console.log(

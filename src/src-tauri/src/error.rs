@@ -94,6 +94,40 @@ impl fmt::Display for QdrantError {
   }
 }
 
+impl fmt::Display for Error {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      Error::KSError(message) => write!(f, "{}", message),
+      Error::LLMError(error) => write!(f, "{}", error),
+      Error::RusqliteError(error) => write!(f, "{}", error),
+      Error::ReqwestError(error) => write!(f, "{}", error),
+      Error::TauriError(error) => write!(f, "{}", error),
+      Error::IoError(error) => write!(f, "{}", error),
+      Error::TimeError(error) => write!(f, "{}", error),
+      Error::HoundError(error) => write!(f, "{}", error),
+      Error::JoinError(error) => write!(f, "{}", error),
+      Error::FetchUuidError(error) => write!(f, "{}", error),
+    }
+  }
+}
+
+impl StdError for Error {
+  fn source(&self) -> Option<&(dyn StdError + 'static)> {
+    match self {
+      Error::LLMError(error) => Some(error),
+      Error::RusqliteError(error) => Some(error),
+      Error::ReqwestError(error) => Some(error),
+      Error::TauriError(error) => Some(error),
+      Error::IoError(error) => Some(error),
+      Error::TimeError(error) => Some(error),
+      Error::HoundError(error) => Some(error),
+      Error::JoinError(error) => Some(error),
+      Error::FetchUuidError(error) => Some(error),
+      Error::KSError(_) => None,
+    }
+  }
+}
+
 pub fn handle_qdrant_request_error(error: ReqwestError) -> QdrantError {
   if error.is_connect() {
     let _ = start_qdrant();
