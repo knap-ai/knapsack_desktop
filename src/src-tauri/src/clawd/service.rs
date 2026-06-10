@@ -5364,7 +5364,32 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
-      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode() {
+      let is_version_mismatch_line = |line: &str| {
+        line.contains("config was last written by a newer openclaw")
+          || line.contains("config was last written by an older openclaw")
+          || line.contains("your openclaw config was written by version")
+          || line.contains("refusing to start the gateway service because this openclaw binary")
+          || line.contains("set openclaw_allow_older_binary_destructive_actions=1")
+          || line.contains("check: `openclaw --version`, `which openclaw`, and `openclaw gateway status --deep`.")
+          || line.contains(
+            "if unexpected, update path so `openclaw` points to the version you want, or reinstall the gateway service from that same openclaw install.",
+          )
+          || line.contains(
+            "run the newer openclaw binary on path, or reinstall the intended gateway service from the newer install.",
+          )
+      };
+      let has_version_mismatch = log_content.as_ref().ok().is_some_and(|content| {
+        content.lines().any(|l| {
+          let l = l.to_ascii_lowercase();
+          is_version_mismatch_line(&l)
+        })
+      });
+      if has_version_mismatch {
+        diagnostic_type = Some("version_mismatch".to_string());
+      }
+      if (runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode())
+        && !has_version_mismatch
+      {
         // During active startup the stderr file commonly contains stale lines
         // from previous gateway runs. Showing/classifying those makes the UI
         // report old crashes while the current gateway is still booting.
