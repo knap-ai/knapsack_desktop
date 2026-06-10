@@ -946,10 +946,50 @@ function getModelText(model) {
 }
 
 function readinessProviderModels(opts) {
-  const provider = opts?.providers?.[0] || "gemini";
-  const models = MODELS_BY_PROVIDER[provider] || [];
-  const model = getModelText(models[0]);
-  return model ? [[provider, [model]]] : [];
+  const providers = Array.isArray(opts?.providers) && opts.providers.length > 0
+    ? Array.from(new Set(opts.providers.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)))
+    : ["gemini"];
+  if (providers.includes("openai") && !providers.includes("gemini")) {
+    providers.push("gemini");
+  }
+  return providers.map((provider) => {
+    const models = MODELS_BY_PROVIDER[provider] || [];
+    const model = getModelText(models[0]);
+    return model ? [provider, [model]] : null;
+  }).filter(Boolean);
+}
+
+function isTemporaryOpenAiAvailabilityError(message) {
+  const text = String(message || "").toLowerCase();
+  return text.includes("insufficient_quota")
+    || text.includes("too many requests")
+    || text.includes("rate limit")
+    || text.includes("429");
+}
+
+function selectGeminiFallbackModel() {
+  return getModelText(MODELS_BY_PROVIDER.gemini?.[0] || "");
+}
+
+async function runReadinessChatWithFallback(provider, model) {
+  const primary = await runChatSmoke(provider, model);
+  if (!primary.ok && provider === "openai" && isTemporaryOpenAiAvailabilityError(primary.detail)) {
+    const geminiModel = selectGeminiFallbackModel();
+    if (geminiModel) {
+      const fallback = await runChatSmoke("gemini", geminiModel);
+      if (fallback.ok) {
+        return fallback;
+      }
+      return {
+        provider,
+        model,
+        ok: false,
+        skipped: false,
+        detail: `${primary.detail} | fallback to gemini/${geminiModel} also failed: ${fallback.detail}`,
+      };
+    }
+  }
+  return primary;
 }
 
 async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
@@ -1555,7 +1595,7 @@ async function runMode(mode, opts = {}) {
             continue;
           }
           functionalProgress.step = `chat ${provider}/${model}`;
-          const check = await runChatSmoke(provider, model, { skipModelSetup: true });
+          const check = await runReadinessChatWithFallback(provider, model);
           chatChecks.push(check);
           functionalProgress.chatChecks = chatChecks;
           if (!check.ok) {
