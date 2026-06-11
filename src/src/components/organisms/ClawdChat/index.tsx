@@ -6826,16 +6826,17 @@ ${actualText}`
             <div className="ClawdChannelAccordion">
               {/* ── Cloud providers ── */}
               {PROVIDERS.filter(p => p.id !== 'ollama').map(p => {
-                const isActive = selectedProvider === p.id
+                const isOpen = selectedProvider === p.id
+                const isConfirmedActive = confirmedProvider === p.id
 
                 // ── Knapsack (no API key — uses Knapsack account) ──
                 if (p.id === 'knapsack') {
                   return (
-                    <div key="knapsack" className={`ClawdAccordionItem ${isActive ? 'ClawdAccordionItem--open ClawdAccordionItem--connected' : ''}`}>
+                    <div key="knapsack" className={`ClawdAccordionItem ${isOpen ? 'ClawdAccordionItem--open' : ''} ${isConfirmedActive ? 'ClawdAccordionItem--connected' : ''}`}>
                       <button className="ClawdAccordionHeader" onClick={() => setSelectedProvider('knapsack')}>
                         <div className="ClawdAccordionTitle">{p.name}</div>
                         <span className="ClawdAccordionDesc">{p.description}</span>
-                        {isActive && (
+                        {isConfirmedActive && (
                           <span className="ClawdAccordionCheck">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                           </span>
@@ -6963,6 +6964,7 @@ ${actualText}`
                               try {
                                 await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail || '', model: selectedKnapsackModel })
                                 setSelectedProvider('knapsack')
+                                setConfirmedProvider('knapsack')
                                 localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
                                 setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
                                 pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
@@ -6971,7 +6973,7 @@ ${actualText}`
                             }}
                             disabled={savingKey}
                           >
-                            {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
+                            {savingKey ? 'Switching...' : isConfirmedActive ? 'Active' : 'Use Knapsack'}
                           </button>
                         </div>
                         <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
@@ -7005,11 +7007,11 @@ ${actualText}`
                   : setSelectedGroqModel
 
                 return (
-                  <div key={p.id} className={`ClawdAccordionItem ${selectedProvider === p.id ? 'ClawdAccordionItem--open' : ''} ${isActive ? 'ClawdAccordionItem--connected' : ''}`}>
+                  <div key={p.id} className={`ClawdAccordionItem ${isOpen ? 'ClawdAccordionItem--open' : ''} ${isConfirmedActive ? 'ClawdAccordionItem--connected' : ''}`}>
                     <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey(''); setEditingProviderKey(false) }}>
                       <div className="ClawdAccordionTitle">{p.name}</div>
                       <span className="ClawdAccordionDesc">{p.description}</span>
-                      {isActive && (
+                      {isConfirmedActive && (
                         <span className="ClawdAccordionCheck">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                         </span>
@@ -7036,9 +7038,10 @@ ${actualText}`
                                     : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
                                     : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
                                     : p.id === 'xai' ? XAI_MODEL_STORAGE
+                                    : p.id === 'openrouter' ? OPENROUTER_MODEL_STORAGE
                                     : GROQ_MODEL_STORAGE
                                   localStorage.setItem(storageKey, newModel)
-                                  if (isActive) {
+                                  if (isConfirmedActive) {
                                     try {
                                       await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
                                       const modelName = models.find(m => m.id === newModel)?.name || newModel
@@ -7056,10 +7059,10 @@ ${actualText}`
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                              onClick={() => switchProviderModel(p.id, isActive)}
+                              onClick={() => switchProviderModel(p.id, isConfirmedActive)}
                               disabled={savingKey}
                             >
-                              {savingKey ? 'Switching...' : isActive ? 'Select' : 'Select ' + p.name}
+                              {savingKey ? 'Switching...' : isConfirmedActive ? 'Active' : 'Select ' + p.name}
                             </button>
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
