@@ -3332,7 +3332,39 @@ fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
 /// Non-destructive: only writes back when a change was actually made.
 /// Logs a clear warning but never panics or returns an error — startup
 /// must succeed even if the patch cannot be persisted.
-fn sanitize_config_file_allowlist(config_path: &Path) {
+fn sanitize_config_file_version(cfg: &mut serde_json::Value, bundle_version: &str) -> bool {
+  if bundle_version.trim().is_empty() {
+    return false;
+  }
+
+  let mut patched = false;
+  if let Some(meta) = cfg.pointer_mut("/meta").and_then(|meta| meta.as_object_mut()) {
+    match meta.get("lastTouchedVersion").and_then(|v| v.as_str()) {
+      Some(version) if version == bundle_version => {}
+      _ => {
+        meta.insert(
+          "lastTouchedVersion".to_string(),
+          serde_json::Value::String(bundle_version.to_string()),
+        );
+        patched = true;
+      }
+    }
+  } else {
+    cfg.as_object_mut().map(|obj| {
+      obj.insert(
+        "meta".to_string(),
+        serde_json::json!({
+          "lastTouchedVersion": bundle_version,
+        }),
+      );
+      patched = true;
+    });
+  }
+
+  patched
+}
+
+fn sanitize_config_file_allowlist(config_path: &Path, bundle_version: Option<&str>) {
   let contents = match fs::read_to_string(config_path) {
     Ok(s) => s,
     Err(_) => return, // file absent or unreadable — nothing to fix
@@ -3341,8 +3373,11 @@ fn sanitize_config_file_allowlist(config_path: &Path) {
     Ok(v) => v,
     Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
   };
-  let patched =
-    sanitize_channel_allowlist_configs(&mut cfg) | sanitize_rejected_legacy_config_keys(&mut cfg);
+  let mut patched = sanitize_channel_allowlist_configs(&mut cfg)
+    | sanitize_rejected_legacy_config_keys(&mut cfg);
+  if let Some(version) = bundle_version {
+    patched = sanitize_config_file_version(&mut cfg, version) || patched;
+  }
   if patched {
     match fs::write(
       config_path,
@@ -4079,7 +4114,10 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
   }
 }
 
-fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle) {
+fn sanitize_known_gateway_configs(
+  app_handle: &tauri::AppHandle,
+  bundle_version: Option<&str>,
+) {
   let mut candidates = vec![
     app_clawdbot_home(app_handle).join("openclaw.json"),
     app_clawdbot_home(app_handle)
@@ -4095,7 +4133,7 @@ fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle) {
 
   for path in candidates {
     if path.exists() {
-      sanitize_config_file_allowlist(&path);
+      sanitize_config_file_allowlist(&path, bundle_version);
     }
   }
 }
@@ -4293,7 +4331,7 @@ async fn run_gateway_self_heal_cycle(
     }
   };
 
-  sanitize_known_gateway_configs(&app_handle);
+  sanitize_known_gateway_configs(&app_handle, None);
   let doctor_ok = if std::env::var_os("KNAPSACK_RUN_OPENCLAW_DOCTOR_ON_SELF_HEAL").is_some() {
     run_openclaw_doctor_fix(&setup, "self-heal")
   } else {
@@ -4301,7 +4339,7 @@ async fn run_gateway_self_heal_cycle(
   };
   // Some doctor versions write config migrations that the bundled gateway does
   // not yet accept. Re-apply our compatibility sanitizers after doctor runs.
-  sanitize_known_gateway_configs(&app_handle);
+  sanitize_known_gateway_configs(&app_handle, None);
 
   if gateway_startup_in_progress() {
     eprintln!("[clawd/service] self-heal: gateway startup is still in progress; deferring restart");
@@ -7707,6 +7745,8 @@ async fn prepare_gateway_config(
   // Ensure OpenClaw config exists with gateway.mode=local for first-run.
   let config_path = clawdbot_home.join("openclaw.json");
   let legacy_config_path = clawdbot_home.join("clawdbot.json");
+  let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
+  sanitize_known_gateway_configs(&app_handle, Some(bundle_version.trim()));
   if legacy_config_path.exists() && !config_path.exists() {
     match fs::rename(&legacy_config_path, &config_path) {
       Ok(_) => eprintln!("[clawd/service] Migrated config from clawdbot.json to openclaw.json"),
@@ -8610,7 +8650,7 @@ async fn prepare_gateway_config(
     let global_state_dir = home_dir.join(".openclaw");
     let global_config_path = global_state_dir.join("openclaw.json");
     if global_config_path.exists() {
-      sanitize_config_file_allowlist(&global_config_path);
+      sanitize_config_file_allowlist(&global_config_path, None);
     }
     if global_state_dir.exists() {
       schedule_state_subtree_hardening(&global_state_dir, "prepare_gateway_config global state");
@@ -10289,7 +10329,7 @@ pub async fn set_service_enabled(
         let global_state_dir = home_dir.join(".openclaw");
         let global_config_path = global_state_dir.join("openclaw.json");
         if global_config_path.exists() {
-          sanitize_config_file_allowlist(&global_config_path);
+          sanitize_config_file_allowlist(&global_config_path, None);
         }
         if global_state_dir.exists() {
           schedule_state_subtree_hardening(
@@ -11933,7 +11973,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
 
   if qa_direct_gateway_mode() {
     let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
-    sanitize_config_file_allowlist(&config_path);
+    sanitize_config_file_allowlist(&config_path, None);
     patch_paired_json_scopes(app_handle);
     remove_stale_standalone_gateway();
 
@@ -12002,7 +12042,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       // that a bad config (e.g. WhatsApp dmPolicy="allowlist" with no senders)
       // is fixed on disk before the *next* gateway restart.
       let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
-      sanitize_config_file_allowlist(&config_path);
+      sanitize_config_file_allowlist(&config_path, None);
       // Also remove any stale standalone OpenClaw plist — it could be competing
       // on port 18789 and causing the connect/disconnect instability even though
       // our own service is "loaded."
