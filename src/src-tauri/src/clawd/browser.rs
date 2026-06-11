@@ -767,6 +767,53 @@ fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reas
   );
 }
 
+fn parse_retry_after_secs(text: &str, attempt: u32) -> f64 {
+  let lower = text.to_lowercase();
+  for pattern in ["try again in ", "retry in ", "wait "] {
+    if let Some(idx) = lower.find(pattern) {
+      let suffix = &lower[idx + pattern.len()..];
+      let digits: String = suffix
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+      if let Ok(parsed) = digits.parse::<f64>() {
+        if parsed.is_finite() && parsed > 0.0 {
+          return parsed.min(8.0);
+        }
+      }
+    }
+  }
+
+  let base = 0.75_f64 * 2_f64.powi(attempt as i32);
+  base.min(5.0)
+}
+
+fn is_credit_or_rate_error(err_lower: &str) -> bool {
+  err_lower.contains("429")
+    || err_lower.contains("503")
+    || err_lower.contains("rate")
+    || err_lower.contains("quota")
+    || err_lower.contains("credit")
+    || err_lower.contains("insufficient")
+    || err_lower.contains("exceeded")
+    || err_lower.contains("billing")
+    || err_lower.contains("unavailable")
+    || err_lower.contains("high demand")
+}
+
+fn should_retry_knapsack_before_fallback(err_lower: &str) -> bool {
+  err_lower.contains("429")
+    || err_lower.contains("503")
+    || err_lower.contains("rate")
+    || err_lower.contains("unavailable")
+    || err_lower.contains("high demand")
+    || err_lower.contains("timed out")
+    || err_lower.contains("timeout")
+    || err_lower.contains("fetch failed")
+    || err_lower.contains("connection")
+    || err_lower.contains("socket")
+}
+
 /// Pending emails awaiting user confirmation.  The key is a random token; the
 /// value holds the draft details.  `send_email` stores a draft here on first
 /// call and only actually sends when called again with `confirmed: true` and the
@@ -4668,7 +4715,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
-    // Try primary provider, then fallback to others on credit/rate-limit errors
+    // Try primary provider, then fallback to others on credit/rate-limit errors.
+    // For Knapsack specifically, give the selected provider a bounded exponential
+    // backoff window before switching away so first-party issues are visible.
     let resp = match call_provider(
       &app_handle,
       &current_provider,
@@ -4683,112 +4732,171 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     {
       Ok(r) => r,
       Err(e) => {
-        let err_str = e.to_string();
-        let err_lower = err_str.to_lowercase();
-        let is_credit_or_rate_error = err_lower.contains("429")
-          || err_lower.contains("503")
-          || err_lower.contains("rate")
-          || err_lower.contains("quota")
-          || err_lower.contains("credit")
-          || err_lower.contains("insufficient")
-          || err_lower.contains("exceeded")
-          || err_lower.contains("billing")
-          || err_lower.contains("unavailable")
-          || err_lower.contains("high demand");
-        if !is_credit_or_rate_error {
-          return HttpResponse::InternalServerError().json(
-            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
-          );
-        }
-        // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
-        if disable_fallback {
-          return HttpResponse::Ok().json(
-            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, e)}),
-          );
-        }
-        // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
-        eprintln!(
-          "[clawd/chat] {} hit credit/rate limit: {}",
-          current_provider, err_str
-        );
-        let disable_paid = is_paid_fallback_disabled();
-        let ollama_key = if ollama_is_enabled(&app_handle) {
-          Some("ollama-local".to_string())
-        } else {
-          None
-        };
-        let fallbacks: [(&str, Option<String>); 8] = [
-          ("knapsack", knapsack_user_email(&app_handle)),
-          ("openai", openai_key(&app_handle)),
-          ("anthropic", anthropic_key(&app_handle)),
-          ("gemini", gemini_key(&app_handle)),
-          ("groq", groq_key(&app_handle)),
-          ("xai", xai_key(&app_handle)),
-          ("openrouter", openrouter_key(&app_handle)),
-          ("ollama", ollama_key),
-        ];
-        let mut fallback_resp = None;
-        for (fb_provider, fb_key_opt) in &fallbacks {
-          if *fb_provider == current_provider.as_str() {
-            continue;
-          }
-          // Skip paid providers if paid fallback is disabled and the user's
-          // active provider is not itself a paid provider
-          if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
-            eprintln!("[clawd/chat] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK=true)", fb_provider);
-            continue;
-          }
-          if let Some(fb_key) = fb_key_opt {
-            let fb_model = match *fb_provider {
-              "knapsack" => knapsack_model(&app_handle),
-              "anthropic" => super::service::get_anthropic_model(&app_handle),
-              "gemini" => super::service::get_gemini_model(&app_handle),
-              "groq" => super::service::get_groq_model(&app_handle),
-              "xai" => super::service::get_xai_model(&app_handle),
-              "ollama" => ollama_model(&app_handle),
-              "openrouter" => super::service::get_openrouter_model(&app_handle),
-              _ => super::service::get_openai_model(&app_handle),
-            };
+        let mut err_str = e.to_string();
+        let mut err_lower = err_str.to_lowercase();
+        let mut recovered_resp: Option<chat_agent::OaiChatResp> = None;
+
+        if current_provider == "knapsack" && should_retry_knapsack_before_fallback(&err_lower) {
+          let mut attempts_used = 0u32;
+          let max_retries = 3u32;
+          let mut total_wait_secs = 0.0_f64;
+
+          while attempts_used < max_retries {
+            let wait_secs = parse_retry_after_secs(&err_str, attempts_used);
+            total_wait_secs += wait_secs;
+            attempts_used += 1;
             eprintln!(
-              "[clawd/chat] Trying fallback provider={} model={}",
-              fb_provider, fb_model
+              "[clawd/chat] knapsack transient failure; retrying same provider in {:.2}s (attempt {}/{})",
+              wait_secs, attempts_used, max_retries
             );
+            tokio::time::sleep(std::time::Duration::from_secs_f64(wait_secs)).await;
+
             match call_provider(
               &app_handle,
-              fb_provider,
-              fb_key,
-              &fb_model,
+              &current_provider,
+              &current_api_key,
+              &current_model,
               messages.clone(),
               tools.clone(),
               &current_ollama_base,
-              true,
+              !disable_fallback,
             )
             .await
             {
               Ok(r) => {
-                eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
-                emit_fallback_event(&app_handle, &current_provider, fb_provider, &err_str);
-                current_provider = fb_provider.to_string();
-                current_api_key = fb_key.clone();
-                current_model = fb_model;
-                fallback_resp = Some(r);
+                recovered_resp = Some(r);
                 break;
               }
-              Err(fb_err) => {
-                eprintln!(
-                  "[clawd/chat] Fallback {} also failed: {}",
-                  fb_provider, fb_err
-                );
+              Err(retry_err) => {
+                err_str = retry_err.to_string();
+                err_lower = err_str.to_lowercase();
+                if !should_retry_knapsack_before_fallback(&err_lower) {
+                  break;
+                }
               }
             }
           }
-        }
-        match fallback_resp {
-          Some(r) => r,
-          None => {
-            return HttpResponse::Ok().json(
-              serde_json::json!({"ok": false, "message": format!("All AI providers are unavailable. Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.")}),
+
+          if recovered_resp.is_none() {
+            if !is_credit_or_rate_error(&err_lower) {
+              return HttpResponse::InternalServerError().json(
+                serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
+              );
+            }
+            if disable_fallback {
+              let retry_note = format!(
+                "Knapsack remained unavailable after {} retries over {:.1}s",
+                attempts_used, total_wait_secs
+              );
+              return HttpResponse::Ok().json(
+                serde_json::json!({"ok": false, "message": format!("{}: {}", retry_note, err_str)}),
+              );
+            }
+            err_str = format!(
+              "{} after {} retries over {:.1}s",
+              err_str, attempts_used, total_wait_secs
             );
+            err_lower = err_str.to_lowercase();
+          }
+        } else if !is_credit_or_rate_error(&err_lower) {
+          return HttpResponse::InternalServerError().json(
+            serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
+          );
+        }
+
+        if let Some(r) = recovered_resp {
+          r
+        } else {
+          // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
+          if disable_fallback {
+            return HttpResponse::Ok().json(
+              serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
+            );
+          }
+          // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
+          eprintln!(
+            "[clawd/chat] {} hit credit/rate limit: {}",
+            current_provider, err_str
+          );
+          let disable_paid = is_paid_fallback_disabled();
+          let ollama_key = if ollama_is_enabled(&app_handle) {
+            Some("ollama-local".to_string())
+          } else {
+            None
+          };
+          let fallbacks: [(&str, Option<String>); 8] = [
+            ("knapsack", knapsack_access_token(&app_handle)),
+            ("openai", openai_key(&app_handle)),
+            ("anthropic", anthropic_key(&app_handle)),
+            ("gemini", gemini_key(&app_handle)),
+            ("groq", groq_key(&app_handle)),
+            ("xai", xai_key(&app_handle)),
+            ("openrouter", openrouter_key(&app_handle)),
+            ("ollama", ollama_key),
+          ];
+          let mut fallback_resp = None;
+          for (fb_provider, fb_key_opt) in &fallbacks {
+            if *fb_provider == current_provider.as_str() {
+              continue;
+            }
+            // Skip paid providers if paid fallback is disabled and the user's
+            // active provider is not itself a paid provider
+            if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
+              eprintln!("[clawd/chat] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK=true)", fb_provider);
+              continue;
+            }
+            if let Some(fb_key) = fb_key_opt {
+              let fb_model = match *fb_provider {
+                "knapsack" => knapsack_model(&app_handle),
+                "anthropic" => super::service::get_anthropic_model(&app_handle),
+                "gemini" => super::service::get_gemini_model(&app_handle),
+                "groq" => super::service::get_groq_model(&app_handle),
+                "xai" => super::service::get_xai_model(&app_handle),
+                "ollama" => ollama_model(&app_handle),
+                "openrouter" => super::service::get_openrouter_model(&app_handle),
+                _ => super::service::get_openai_model(&app_handle),
+              };
+              eprintln!(
+                "[clawd/chat] Trying fallback provider={} model={}",
+                fb_provider, fb_model
+              );
+              match call_provider(
+                &app_handle,
+                fb_provider,
+                fb_key,
+                &fb_model,
+                messages.clone(),
+                tools.clone(),
+                &current_ollama_base,
+                true,
+              )
+              .await
+              {
+                Ok(r) => {
+                  eprintln!("[clawd/chat] Fallback to {} succeeded", fb_provider);
+                  emit_fallback_event(&app_handle, &current_provider, fb_provider, &err_str);
+                  current_provider = fb_provider.to_string();
+                  current_api_key = fb_key.clone();
+                  current_model = fb_model;
+                  fallback_resp = Some(r);
+                  break;
+                }
+                Err(fb_err) => {
+                  eprintln!(
+                    "[clawd/chat] Fallback {} also failed: {}",
+                    fb_provider, fb_err
+                  );
+                }
+              }
+            }
+          }
+          match fallback_resp {
+            Some(r) => r,
+            None => {
+              return HttpResponse::Ok().json(
+                serde_json::json!({"ok": false, "message": format!("All AI providers are unavailable. Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.")}),
+              );
+            }
           }
         }
       }
