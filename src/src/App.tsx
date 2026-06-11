@@ -768,11 +768,17 @@ function App() {
         const { from, to, reason } = event.payload
         const lowerReason = reason.toLowerCase()
         const isSpendingCap = lowerReason.includes('spending cap') || lowerReason.includes('monthly')
-        const causeLabel = isSpendingCap ? `${from} hit its monthly spending cap` : `${from} is rate-limited`
+        const retriedMatch = reason.match(/after (\d+) retries? over ([0-9.]+)s/i)
+        const retryLabel = retriedMatch
+          ? ` after ${retriedMatch[1]} retries over ${retriedMatch[2]}s`
+          : ''
+        const causeLabel = isSpendingCap
+          ? `${from} hit its monthly spending cap`
+          : `${from} stayed rate-limited${retryLabel}`
         setToastrState({
           message: (
             <>
-              <strong>⚠️ Auto-switched AI provider:</strong> {causeLabel}, so your request was automatically retried with <strong>{to}</strong>. To change this behaviour, go to Settings → Provider.
+              <strong>⚠️ Auto-switched AI provider:</strong> {causeLabel}, so your request was retried with <strong>{to}</strong>. To change this behaviour, go to Settings → Provider.
             </>
           ) as ReactElement,
           alertType: 'warning',
