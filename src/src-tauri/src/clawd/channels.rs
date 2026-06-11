@@ -1916,6 +1916,29 @@ pub async fn generic_channel_configure(
   // Merge the user-provided config with standard channel defaults.
   // Discord, Slack, and GoogleChat use nested dm: { policy, allowFrom };
   // Telegram and Signal use top-level dmPolicy / allowFrom.
+  fn propagate_telegram_allow_from_to_accounts(
+    obj: &mut serde_json::Map<String, serde_json::Value>,
+  ) {
+    let Some(allow_from) = obj.get("allowFrom").and_then(|v| v.as_array()).cloned() else {
+      return;
+    };
+    let Some(accounts) = obj.get_mut("accounts").and_then(|v| v.as_object_mut()) else {
+      return;
+    };
+
+    for account in accounts.values_mut() {
+      let Some(account_obj) = account.as_object_mut() else {
+        continue;
+      };
+      if account_obj.get("allowFrom").is_none() {
+        account_obj.insert(
+          "allowFrom".to_string(),
+          serde_json::Value::Array(allow_from.clone()),
+        );
+      }
+    }
+  }
+
   // All schemas are .strict() so unrecognized keys cause validation errors.
   let mut channel_config = body.config.clone();
   if let Some(obj) = channel_config.as_object_mut() {
@@ -1966,6 +1989,9 @@ pub async fn generic_channel_configure(
       _ => {
         if !obj.contains_key("dmPolicy") {
           obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
+        }
+        if channel == "telegram" {
+          propagate_telegram_allow_from_to_accounts(obj);
         }
       }
     }
@@ -2963,6 +2989,29 @@ pub async fn channel_allowlist_update(
             allow.clone()
           };
           patch_inner.insert("allowFrom".to_string(), serde_json::json!(allow));
+          if channel == "telegram" {
+            if let Some(accounts) = config_snapshot["config"]["channels"]["telegram"]["accounts"]
+              .as_object()
+            {
+              let mut accounts_patch = serde_json::Map::new();
+              for (account_id, account) in accounts {
+                if account.get("allowFrom").is_none() {
+                  accounts_patch.insert(
+                    account_id.clone(),
+                    serde_json::json!({
+                      "allowFrom": allow,
+                    }),
+                  );
+                }
+              }
+              if !accounts_patch.is_empty() {
+                patch_inner.insert(
+                  "accounts".to_string(),
+                  serde_json::Value::Object(accounts_patch),
+                );
+              }
+            }
+          }
         }
       }
 
