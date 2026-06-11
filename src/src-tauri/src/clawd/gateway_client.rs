@@ -930,10 +930,26 @@ pub fn resolve_default_model() -> String {
 
   // Respect the user's active provider selection and configured model
   match active.as_str() {
-    // Knapsack cloud inference: the backend selects the best model based on
-    // the user's subscription — the desktop always sends "auto".
+    // Knapsack cloud inference: users can pin a default model (or use auto).
+    // If stored with a provider prefix, keep only the backend model key.
     "knapsack" => {
-      return "auto".to_string();
+      let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
+        .unwrap_or_else(|_| "auto".to_string());
+      let model = model.trim();
+      let model = if let Some((provider, bare)) = model.split_once('/') {
+        if provider.eq_ignore_ascii_case("knapsack") {
+          bare
+        } else {
+          model
+        }
+      } else {
+        model
+      };
+      return if model.is_empty() {
+        "auto".to_string()
+      } else {
+        model.to_string()
+      };
     }
     "openrouter" => {
       let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
@@ -944,18 +960,14 @@ pub fn resolve_default_model() -> String {
       let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
       return format!("ollama/{}", model);
     }
-    "knapsack" => {
-      // Knapsack cloud inference lets the backend select the concrete model
-      // from the user's subscription and current availability.
-      return "auto".to_string();
-    }
     "anthropic" if has_key("ANTHROPIC_API_KEY") => {
       let model =
         std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
       return format!("anthropic/{}", model);
     }
     "openai" if has_key("OPENAI_API_KEY") => {
-      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+      let model =
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
       return format!("openai/{}", model);
     }
     "groq" if has_key("GROQ_API_KEY") => {
@@ -1006,7 +1018,8 @@ pub fn resolve_default_model() -> String {
       return format!("anthropic/{}", model);
     }
     if has_key("OPENAI_API_KEY") {
-      let model = std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+      let model =
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
       log::warn!(
         "[resolve_default_model] Falling back to openai/{} (active={})",
         model,

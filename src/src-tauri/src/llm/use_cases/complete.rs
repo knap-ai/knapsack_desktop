@@ -38,7 +38,7 @@ struct CompletionUsage {
 
 /// Resolved LLM provider info for meeting notes completion.
 struct ResolvedProvider {
-  name: String, // "openai", "anthropic", "gemini", "groq", "openrouter"
+  name: String, // "openai", "anthropic", "gemini", "groq", "openrouter", "knapsack"
   api_key: String,
   model: String,
   base_url: String,   // e.g. "https://api.openai.com/v1"
@@ -46,7 +46,7 @@ struct ResolvedProvider {
 }
 
 /// Try to resolve the best available LLM provider from env vars.
-/// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq
+/// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq → OpenRouter → Knapsack
 fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY")
@@ -66,6 +66,9 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     .ok()
     .filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let knapsack_email = std::env::var("KNAPSACK_USER_EMAIL")
     .ok()
     .filter(|k| !k.trim().is_empty());
   let openai_model =
@@ -139,12 +142,29 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       });
     }
     "knapsack" => {
-      let access_token = std::env::var("KNAPSACK_ACCESS_TOKEN").unwrap_or_default();
-      if !access_token.trim().is_empty() {
+      if let Some(email) = &knapsack_email {
+        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
+          .unwrap_or_else(|_| "auto".to_string());
+        let model = {
+          let model = model.trim();
+          if let Some((provider, bare)) = model.split_once('/') {
+            if provider.eq_ignore_ascii_case("knapsack") {
+              bare.to_string()
+            } else {
+              model.to_string()
+            }
+          } else {
+            model.to_string()
+          }
+        };
         return Ok(ResolvedProvider {
           name: "knapsack".into(),
-          api_key: access_token,
-          model: "auto".into(),
+          api_key: email.to_string(),
+          model: if model.is_empty() {
+            "auto".to_string()
+          } else {
+            model
+          },
           base_url: option_env!("VITE_KN_API_SERVER")
             .unwrap_or("https://api.knapsack.ai")
             .into(),
@@ -174,7 +194,10 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let disable_paid = std::env::var("KNAPSACK_DISABLE_PAID_FALLBACK")
     .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
     .unwrap_or(true);
-  let active_is_free = matches!(active.as_str(), "groq" | "gemini" | "ollama" | "openrouter");
+  let active_is_free = matches!(
+    active.as_str(),
+    "groq" | "gemini" | "ollama" | "openrouter" | "knapsack"
+  );
 
   if !disable_paid || !active_is_free {
     if let Some(key) = openai_key {
@@ -234,6 +257,34 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       is_anthropic: false,
     });
   }
+  if let Some(email) = &knapsack_email {
+    let model = std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
+    let model = {
+      let model = model.trim();
+      if let Some((provider, bare)) = model.split_once('/') {
+        if provider.eq_ignore_ascii_case("knapsack") {
+          bare.to_string()
+        } else {
+          model.to_string()
+        }
+      } else {
+        model.to_string()
+      }
+    };
+    return Ok(ResolvedProvider {
+      name: "knapsack".into(),
+      api_key: email.to_string(),
+      model: if model.is_empty() {
+        "auto".to_string()
+      } else {
+        model
+      },
+      base_url: option_env!("VITE_KN_API_SERVER")
+        .unwrap_or("https://api.knapsack.ai")
+        .into(),
+      is_anthropic: false,
+    });
+  }
   if let Some(key) = openrouter_key {
     let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
@@ -284,7 +335,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
   if complexity == "haiku" {
     // Cross-provider routing: if OpenRouter is available and the current provider
     // is a paid one, route simple tasks to OpenRouter's free model instead.
-    if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" {
+    if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" && provider.name != "knapsack" {
       let openrouter_key = std::env::var("OPENROUTER_API_KEY")
         .ok()
         .filter(|k| !k.trim().is_empty());
@@ -319,6 +370,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
       "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
       "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
       "groq" => (provider.model.clone(), "Groq"),            // already cheap
+      "knapsack" => (provider.model.clone(), "Knapsack"),
       "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
       "ollama" => (provider.model.clone(), "Ollama"),        // local, no cost
       _ => (provider.model.clone(), "unchanged"),
@@ -441,6 +493,75 @@ async fn refresh_knapsack_token() -> Option<String> {
   std::env::set_var("KNAPSACK_ACCESS_TOKEN", &new_token);
   log::info!("[knapsack_refresh] access token refreshed");
   Some(new_token)
+}
+
+async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> {
+  let email = email.trim();
+  if email.is_empty() {
+    return Err(LLMError::ChatCompletionFailed(
+      "Knapsack account email is missing. Sign in to Knapsack in Settings.".to_string(),
+    ));
+  }
+
+  let access_token = std::env::var("KNAPSACK_ACCESS_TOKEN")
+    .ok()
+    .map(|token| token.trim().to_string())
+    .filter(|token| !token.is_empty());
+  if let Some(token) = access_token {
+    return Ok(token);
+  }
+
+  let client = reqwest::Client::new();
+  let token_url = format!(
+    "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
+    email
+  );
+  match client.get(&token_url).send().await {
+    Ok(resp) => {
+      if resp.status().is_success() {
+        let token_json: serde_json::Value = resp.json().await.map_err(|e| {
+          LLMError::ChatCompletionFailed(format!("Knapsack token parse failed: {}", e))
+        })?;
+        if let Some(jwt) = token_json
+          .get("token")
+          .and_then(|t| t.as_str())
+          .filter(|token| !token.trim().is_empty())
+        {
+          return Ok(jwt.to_string());
+        }
+        if let Some(jwt) = token_json
+          .get("access_token")
+          .and_then(|t| t.as_str())
+          .filter(|token| !token.trim().is_empty())
+        {
+          return Ok(jwt.to_string());
+        }
+        log::warn!(
+          "[knapsack_token] /refresh_token_api response missing token field: {}",
+          token_json
+        );
+      } else {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        log::warn!(
+          "[knapsack_token] /refresh_token_api returned {}: {}",
+          status,
+          text
+        );
+      }
+    }
+    Err(err) => {
+      log::warn!("[knapsack_token] /refresh_token_api request failed: {}", err);
+    }
+  }
+
+  if let Some(new_token) = refresh_knapsack_token().await {
+    return Ok(new_token);
+  }
+
+  Err(LLMError::ChatCompletionFailed(
+    "Knapsack auth failed — please sign in to Knapsack in Settings.".to_string(),
+  ))
 }
 
 /// Call an OpenAI-compatible chat completions endpoint (works for OpenAI, Groq, Gemini).
@@ -591,7 +712,6 @@ async fn openai_compatible_completion(
         log::info!("[completion] knapsack 401 — attempting token refresh");
         if let Some(new_token) = refresh_knapsack_token().await {
           // Update body with new bearer and retry (loop continues with attempt=1)
-          last_error = format!("knapsack 401 (refreshed token, retrying)");
           // Re-issue the request directly with the new token so we don't wait for next loop
           let retry_resp = match client
             .post(&url)
@@ -794,36 +914,7 @@ async fn knapsack_completion(
 ) -> Result<String, LLMError> {
   let email = &provider.api_key;
   let client = reqwest::Client::new();
-
-  // Fetch a fresh JWT from the local gateway
-  let token_url = format!(
-    "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
-    email
-  );
-  let token_resp = client
-    .get(&token_url)
-    .send()
-    .await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack token fetch failed: {}", e)))?;
-
-  if !token_resp.status().is_success() {
-    return Err(LLMError::ChatCompletionFailed(
-      "Knapsack auth failed — please sign in to Knapsack again".into(),
-    ));
-  }
-
-  let token_json: serde_json::Value = token_resp
-    .json()
-    .await
-    .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack token parse failed: {}", e)))?;
-
-  let token = token_json
-    .get("token")
-    .and_then(|t| t.as_str())
-    .ok_or_else(|| {
-      LLMError::ChatCompletionFailed("Knapsack JWT not found in token response".into())
-    })?
-    .to_string();
+  let token = resolve_knapsack_bearer_token(email).await?;
 
   // Separate system prompt from conversation messages
   let system_prompt: String = messages
@@ -997,8 +1088,37 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
         .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
       let fb_gemini_model =
         std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      let fb_knapsack_model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
+        .unwrap_or_else(|_| "auto".to_string());
+      let fb_knapsack_model = {
+        let model = fb_knapsack_model.trim();
+        if let Some((provider, bare)) = model.split_once('/') {
+          if provider.eq_ignore_ascii_case("knapsack") {
+            bare.to_string()
+          } else {
+            model.to_string()
+          }
+        } else {
+          model.to_string()
+        }
+      };
+      let fb_knapsack_key = std::env::var("KNAPSACK_USER_EMAIL")
+        .ok()
+        .filter(|k| !k.trim().is_empty());
 
       let fallbacks: Vec<(&str, &Option<String>, String, &str, bool)> = vec![
+        (
+          "knapsack",
+          &fb_knapsack_key,
+          if fb_knapsack_model.is_empty() {
+            "auto".to_string()
+          } else {
+            fb_knapsack_model.clone()
+          },
+          option_env!("VITE_KN_API_SERVER")
+            .unwrap_or("https://api.knapsack.ai"),
+          false,
+        ),
         (
           "openai",
           &fb_openai_key,
@@ -1056,6 +1176,8 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
           };
           let fb_result = if fb_provider.is_anthropic {
             anthropic_completion(&fb_provider, &messages).await
+          } else if fb_provider.name == "knapsack" {
+            knapsack_completion(&fb_provider, &messages).await
           } else {
             openai_compatible_completion(&fb_provider, &messages).await
           };

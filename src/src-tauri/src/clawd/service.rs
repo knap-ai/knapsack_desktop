@@ -1,13 +1,13 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use tauri::Manager;
 
 use crate::clawd::gateway_client;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -2954,9 +2954,7 @@ fn ensure_imessage_allowlist_config(cfg: &mut serde_json::Value) -> bool {
     && ch.get("enabled").and_then(|value| value.as_bool()) != Some(false)
   {
     ch.insert("enabled".to_string(), serde_json::json!(false));
-    eprintln!(
-      "[clawd/service] Migrated iMessage dmPolicy=disabled to enabled=false"
-    );
+    eprintln!("[clawd/service] Migrated iMessage dmPolicy=disabled to enabled=false");
     patched = true;
   }
 
@@ -3824,6 +3822,19 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   .map_err(|e| format!("Failed writing {}: {}", path.display(), e))?;
   harden_file_permissions(&path);
   Ok(())
+}
+
+fn normalize_provider_model(provider: &str, model: &str) -> String {
+  let model = model.trim();
+  if model.is_empty() {
+    return String::new();
+  }
+  if let Some((prefix, bare)) = model.split_once('/') {
+    if prefix.eq_ignore_ascii_case(provider) {
+      return bare.to_string();
+    }
+  }
+  model.to_string()
 }
 
 /// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
@@ -5953,8 +5964,27 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     || has_gemini_cli
     || has_knapsack;
 
-  let model = tokens.openai_model.clone();
-  let active_provider = tokens.active_provider.clone();
+  let active_provider = tokens
+    .active_provider
+    .clone()
+    .unwrap_or_else(|| "openai".to_string());
+  let model = match active_provider.as_str() {
+    "openai" => tokens.openai_model.clone(),
+    "anthropic" => tokens.anthropic_model.clone(),
+    "gemini" => tokens.gemini_model.clone(),
+    "groq" => tokens.groq_model.clone(),
+    "xai" => tokens.xai_model.clone(),
+    "openrouter" => tokens.openrouter_model.clone(),
+    "ollama" => tokens
+      .ollama_model
+      .clone()
+      .or_else(|| Some("llama3.1:latest".to_string())),
+    "knapsack" => tokens
+      .knapsack_model
+      .clone()
+      .or_else(|| Some("auto".to_string())),
+    _ => tokens.openai_model.clone(),
+  };
 
   let openai_hint = tokens
     .openai_api_key
@@ -6019,7 +6049,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       "No API key configured".to_string()
     },
     model,
-    active_provider,
+    active_provider: Some(active_provider),
     has_openai_key: has_openai,
     has_anthropic_key: has_anthropic,
     has_gemini_key: has_gemini,
@@ -6239,7 +6269,17 @@ pub struct SetApiKeyResponse {
 
 fn normalize_coding_agent(agent: &str) -> Option<String> {
   let agent = agent.trim().to_lowercase();
-  if ["claude", "codex", "antigravity", "agy", "gemini", "grok", "opencode"].contains(&agent.as_str()) {
+  if [
+    "claude",
+    "codex",
+    "antigravity",
+    "agy",
+    "gemini",
+    "grok",
+    "opencode",
+  ]
+  .contains(&agent.as_str())
+  {
     if agent == "agy" {
       return Some("antigravity".to_string());
     }
@@ -6336,10 +6376,7 @@ pub async fn set_api_key(
         .groq_api_key
         .as_ref()
         .map_or(false, |k| !k.is_empty()),
-      "xai" => tokens
-        .xai_api_key
-        .as_ref()
-        .map_or(false, |k| !k.is_empty()),
+      "xai" => tokens.xai_api_key.as_ref().map_or(false, |k| !k.is_empty()),
       "openrouter" => tokens
         .openrouter_api_key
         .as_ref()
@@ -6383,7 +6420,7 @@ pub async fn set_api_key(
           tokens.ollama_model = Some(model.trim().to_string());
         }
         "knapsack" => {
-          tokens.knapsack_model = Some(model.trim().to_string());
+          tokens.knapsack_model = Some(normalize_provider_model("knapsack", model));
         }
         _ => {
           tokens.openai_model = Some(model.trim().to_string());
@@ -6618,7 +6655,7 @@ pub async fn set_api_key(
       tokens.knapsack_email = Some(key);
       tokens.active_provider = Some("knapsack".to_string());
       if let Some(model) = &payload.model {
-        tokens.knapsack_model = Some(model.trim().to_string());
+        tokens.knapsack_model = Some(normalize_provider_model("knapsack", model));
       }
       "Knapsack"
     }
@@ -7306,21 +7343,34 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     "xai" => xai_key.clone(),
     _ => openai_key.clone(),
   };
+  let model = match active {
+    "openai" => tokens.openai_model.clone(),
+    "anthropic" => tokens.anthropic_model.clone(),
+    "gemini" => tokens.gemini_model.clone(),
+    "groq" => tokens.groq_model.clone(),
+    "xai" => tokens.xai_model.clone(),
+    "openrouter" => tokens.openrouter_model.clone(),
+    "ollama" => tokens
+      .ollama_model
+      .or_else(|| Some("llama3.1:latest".to_string())),
+    "knapsack" => tokens.knapsack_model.or_else(|| Some("auto".to_string())),
+    _ => tokens.openai_model,
+  };
 
   HttpResponse::Ok().json(GetApiKeyResponse {
     success: true,
     key,
-    model: tokens.openai_model,
+    model,
     active_provider: tokens.active_provider,
     openai_key,
     anthropic_key,
     gemini_key,
     xai_key,
-    anthropic_model: tokens.anthropic_model,
-    gemini_model: tokens.gemini_model,
-    groq_model: tokens.groq_model,
-    xai_model: tokens.xai_model,
-    openrouter_model: tokens.openrouter_model,
+    anthropic_model: tokens.anthropic_model.clone(),
+    gemini_model: tokens.gemini_model.clone(),
+    groq_model: tokens.groq_model.clone(),
+    xai_model: tokens.xai_model.clone(),
+    openrouter_model: tokens.openrouter_model.clone(),
   })
 }
 
@@ -8055,7 +8105,10 @@ async fn prepare_gateway_config(
                 allow_bundled_arr.push(serde_json::json!(*skill_name));
               }
             } else {
-              skills.insert("allowBundled".to_string(), serde_json::json!(required_allowlist));
+              skills.insert(
+                "allowBundled".to_string(),
+                serde_json::json!(required_allowlist),
+              );
             }
             eprintln!(
               "[clawd/service] Added required macOS bundled skills to skills.allowBundled (peekaboo + computer-use)"
@@ -11525,7 +11578,7 @@ pub async fn oauth_callback(
       }
     }
     _ => oauth_html_page(false, "Unknown OAuth provider."),
-    }
+  }
 }
 
 /// Parse a single query parameter value from a URL string.
@@ -11573,7 +11626,11 @@ async fn exchange_and_store_knapsack_code(
   let status = resp.status();
   let body_text = resp.text().await.unwrap_or_default();
   if !status.is_success() {
-    log::error!("[knapsack_auth] exchange endpoint returned {}: {}", status, body_text);
+    log::error!(
+      "[knapsack_auth] exchange endpoint returned {}: {}",
+      status,
+      body_text
+    );
     return Err(format!("Sign-in failed ({})", status));
   }
 
@@ -11590,8 +11647,13 @@ async fn exchange_and_store_knapsack_code(
   tokens.knapsack_access_token = Some(sign_in.access_token.clone());
   tokens.knapsack_refresh_token = Some(sign_in.refresh_token.clone());
   tokens.knapsack_email = Some(sign_in.email.clone());
-  tokens.knapsack_model
-    .get_or_insert_with(|| "anthropic/claude-haiku-4-5".to_string());
+  let normalized_knapsack_model = tokens
+    .knapsack_model
+    .take()
+    .map(|model| normalize_provider_model("knapsack", &model))
+    .filter(|model| !model.trim().is_empty())
+    .unwrap_or_else(|| "auto".to_string());
+  tokens.knapsack_model = Some(normalized_knapsack_model);
   tokens.active_provider = Some("knapsack".to_string());
 
   if let Err(e) = save_tokens(app_handle, &tokens) {
@@ -11643,13 +11705,12 @@ pub async fn knapsack_auth_callback(
 }
 
 #[post("/api/clawd/service/knapsack-disconnect")]
-pub async fn knapsack_disconnect(
-  app_handle: web::Data<tauri::AppHandle>,
-) -> impl Responder {
+pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   let mut tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
-      return HttpResponse::InternalServerError().json(serde_json::json!({"ok": false, "message": e}));
+      return HttpResponse::InternalServerError()
+        .json(serde_json::json!({"ok": false, "message": e}));
     }
   };
 
@@ -11684,7 +11745,8 @@ pub async fn knapsack_disconnect(
 
   tokens.active_provider = Some(fallback.to_string());
   if let Err(e) = save_tokens(&app_handle, &tokens) {
-    return HttpResponse::InternalServerError().json(serde_json::json!({"ok": false, "message": e}));
+    return HttpResponse::InternalServerError()
+      .json(serde_json::json!({"ok": false, "message": e}));
   }
 
   std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
@@ -11692,8 +11754,14 @@ pub async fn knapsack_disconnect(
   std::env::remove_var("KNAPSACK_USER_EMAIL");
   std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", fallback);
   std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
-  let _ = app_handle.emit_all("knapsack-disconnected", serde_json::json!({"fallback_provider": fallback}));
-  log::info!("[knapsack_disconnect] disconnected, fallback provider = {}", fallback);
+  let _ = app_handle.emit_all(
+    "knapsack-disconnected",
+    serde_json::json!({"fallback_provider": fallback}),
+  );
+  log::info!(
+    "[knapsack_disconnect] disconnected, fallback provider = {}",
+    fallback
+  );
 
   HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
 }

@@ -234,6 +234,31 @@ async fn delete_connection(path: web::Path<String>) -> impl Responder {
 #[get("/api/knapsack/connections/refresh_token_api/{user_email}")]
 async fn refresh_knapsack_api_token(path: web::Path<String>) -> impl Responder {
   let user_email = path.into_inner();
+  let requested_email = user_email.trim().to_lowercase();
+
+  let token_env = std::env::var("KNAPSACK_USER_EMAIL").ok().map(|v| v.trim().to_lowercase());
+  if let (Some(email), Ok(access_token)) = (
+    token_env.as_deref(),
+    std::env::var("KNAPSACK_ACCESS_TOKEN"),
+  ) {
+    if email == requested_email && !access_token.trim().is_empty() {
+      return HttpResponse::Ok().json(json!({
+        "success": true,
+        "token": access_token
+      }));
+    }
+  }
+  if let (Some(email), Ok(refresh_token)) = (
+    token_env.as_deref(),
+    std::env::var("KNAPSACK_REFRESH_TOKEN"),
+  ) {
+    if email == requested_email && !refresh_token.trim().is_empty() {
+      return HttpResponse::Ok().json(json!({
+        "success": true,
+        "token": refresh_token
+      }));
+    }
+  }
 
   match get_knapsack_api_connection(user_email) {
     Ok(user_connection) => match user_connection.refresh_token {

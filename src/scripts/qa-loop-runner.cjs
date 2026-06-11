@@ -10,6 +10,7 @@ const API_BASE = "http://127.0.0.1:8897";
 const UI_BASE = "http://127.0.0.1:1420";
 
 const MODELS_BY_PROVIDER = {
+  ollama: ["markheynen/knapsack-7b-chat-metal:latest"],
   knapsack: ["auto"],
   openai: [
     "gpt-5.5",
@@ -73,6 +74,7 @@ const PLUGIN_BY_PROVIDER = {
   google: "google",
   groq: "groq",
   knapsack: "openai",
+  ollama: "ollama",
   openai: "openai",
   openrouter: "openrouter",
   xai: "xai",
@@ -139,8 +141,9 @@ function qaStartupModelForProvider(provider) {
     anthropic: "anthropic/claude-sonnet-4-6",
     gemini: "google/gemini-2.5-flash",
     google: "google/gemini-2.5-flash",
+    ollama: "ollama/markheynen/knapsack-7b-chat-metal:latest",
     groq: "groq/llama-3.3-70b-versatile",
-    knapsack: "openai/gpt-5.4",
+    knapsack: "knapsack/auto",
     openai: "openai/gpt-5.4",
     openrouter: "openrouter/auto",
     xai: "xai/grok-4",
@@ -259,7 +262,8 @@ function patchDesktopTokensForQa(provider) {
     gemini: "gemini_model",
     google: "gemini_model",
     groq: "groq_model",
-    knapsack: "openai_model",
+    ollama: "ollama_model",
+    knapsack: "knapsack_model",
     openai: "openai_model",
     openrouter: "openrouter_model",
     xai: "xai_model",
@@ -332,9 +336,15 @@ function parseArgs() {
   const opts = {
     attemptsPerMode: 12,
     maxRetryDelayMs: 2_000,
-    startupBudgetMs: 30_000,
+    chatRetries: 2,
+    chatRetryDelayMs: 800,
+    startupBudgetMs: 120_000,
+    functionalTimeoutMs: 90_000,
+    readinessHealthTimeoutMs: 60_000,
     coreOnly: false,
+    strictReadiness: false,
     providers: null,
+    models: null,
   };
   let mode = "both";
   for (let i = 0; i < args.length; i++) {
@@ -383,6 +393,39 @@ function parseArgs() {
       if (Number.isFinite(v)) opts.attemptsPerMode = v;
       continue;
     }
+    if (arg === "--strict-readiness" || arg === "--strict-chat" || arg === "--no-fallback") {
+      opts.strictReadiness = true;
+      continue;
+    }
+    if (arg === "--chat-retries") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.chatRetries = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith("--chat-retries=")) {
+      const v = Number.parseInt(arg.split("=", 2)[1], 10);
+      if (Number.isFinite(v)) opts.chatRetries = v;
+      continue;
+    }
+    if (arg === "--chat-retry-delay-ms" || arg === "--chat-retry-delay") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.chatRetryDelayMs = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (
+      arg.startsWith("--chat-retry-delay-ms=") ||
+      arg.startsWith("--chat-retry-delay=")
+    ) {
+      const v = Number.parseInt(arg.split("=", 2)[1], 10);
+      if (Number.isFinite(v)) opts.chatRetryDelayMs = v;
+      continue;
+    }
     if (arg === "--startup-budget-ms") {
       const next = args[i + 1];
       if (next && Number.isFinite(Number(next))) {
@@ -394,6 +437,38 @@ function parseArgs() {
     if (arg.startsWith("--startup-budget-ms=")) {
       const v = Number.parseInt(arg.split("=")[1], 10);
       if (Number.isFinite(v)) opts.startupBudgetMs = v;
+      continue;
+    }
+    if (arg === "--functional-timeout-ms" || arg === "--functional-timeout") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.functionalTimeoutMs = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (
+      arg.startsWith("--functional-timeout-ms=") ||
+      arg.startsWith("--functional-timeout=")
+    ) {
+      const v = Number.parseInt(arg.split("=", 2)[1], 10);
+      if (Number.isFinite(v)) opts.functionalTimeoutMs = v;
+      continue;
+    }
+    if (arg === "--readiness-health-timeout-ms" || arg === "--gateway-health-timeout-ms") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.readinessHealthTimeoutMs = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (
+      arg.startsWith("--readiness-health-timeout-ms=") ||
+      arg.startsWith("--gateway-health-timeout-ms=")
+    ) {
+      const v = Number.parseInt(arg.split("=", 2)[1], 10);
+      if (Number.isFinite(v)) opts.readinessHealthTimeoutMs = v;
       continue;
     }
     if (arg === "--core-only" || arg === "--skip-functional") {
@@ -420,6 +495,45 @@ function parseArgs() {
       }
       continue;
     }
+    if (arg === "--model" || arg === "--models") {
+      const next = args[i + 1];
+      if (next) {
+        const values = next.split(",").map((value) => value.trim()).filter(Boolean);
+        opts.models = Array.isArray(opts.models) ? opts.models : [];
+        opts.models.push(...values);
+        i += 1;
+      }
+      continue;
+    }
+    if (arg.startsWith("--model=") || arg.startsWith("--models=")) {
+      const parts = arg.includes("=") ? arg.split("=", 2) : [];
+      const value = parts[1];
+      if (value) {
+        const values = value.split(",").map((value) => value.trim()).filter(Boolean);
+        opts.models = Array.isArray(opts.models) ? opts.models : [];
+        opts.models.push(...values);
+      }
+      continue;
+    }
+    if (arg === "--attempt-delay-ms" || arg === "--max-retry-delay-ms") {
+      const next = args[i + 1];
+      if (next && Number.isFinite(Number(next))) {
+        opts.maxRetryDelayMs = Number.parseInt(next, 10);
+        i += 1;
+      }
+      continue;
+    }
+    if (
+      arg.startsWith("--attempt-delay-ms=") ||
+      arg.startsWith("--max-retry-delay-ms=")
+    ) {
+      const v = Number.parseInt(arg.split("=", 2)[1], 10);
+      if (Number.isFinite(v)) opts.maxRetryDelayMs = v;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      continue;
+    }
     if (/^\d+$/.test(arg)) {
       const v = Number.parseInt(arg, 10);
       if (Number.isFinite(v)) {
@@ -432,6 +546,47 @@ function parseArgs() {
   }
   opts.mode = mode;
   return opts;
+}
+
+function resolveProdBinary() {
+  const envBinary = process.env.KNAPSACK_QA_BINARY || process.env.KNAPSACK_QA_BINARY_PATH;
+  if (envBinary) return envBinary;
+
+  const candidates = [];
+  if (process.platform === "darwin") {
+    candidates.push("/Applications/Knapsack.app/Contents/MacOS/Knapsack");
+    if (process.env.HOME) {
+      candidates.push(path.join(process.env.HOME, "Applications", "Knapsack.app", "Contents", "MacOS", "Knapsack"));
+    }
+  }
+
+  const localBinary = path.join(
+    __dirname,
+    "..",
+    "src-tauri",
+    "target",
+    "release",
+    process.platform === "win32" ? "knapsack.exe" : "knapsack",
+  );
+  candidates.push(localBinary);
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return localBinary;
+}
+
+async function ensureLaunchctlServiceLoaded() {
+  if (process.platform !== "darwin") return { attempted: false };
+  const label = "ai.knap.knapsack.clawdbot";
+  const userDomain = `gui/${process.getuid ? process.getuid() : 501}`;
+  const plist = path.join(process.env.HOME || "", "Library", "LaunchAgents", `${label}.plist`);
+  if (!existsSync(plist)) return { attempted: false };
+
+  await runCommand("launchctl", ["bootout", `${userDomain}/${label}`]);
+  await runCommand("launchctl", ["bootstrap", userDomain, plist]);
+  await runCommand("launchctl", ["kickstart", "-k", `${userDomain}/${label}`]);
+  return { attempted: true };
 }
 
 function sleep(ms) {
@@ -705,6 +860,8 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
   let startupReadySeen = false;
   let stableTicks = 0;
   let lastReadySignature = "";
+  let recoveryAttempts = 0;
+  let lastRecoveryAt = 0;
 
   while (Date.now() < deadline) {
     const now = Date.now();
@@ -802,10 +959,18 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
         health?.channels_ready === true,
     );
     const authoritativeReady = Boolean(
-      startupReady?.success === true &&
-        startupReady?.gateway_ok === true &&
-        startupReady?.browser_ok === true &&
-        startupReady?.channels_ok === true,
+      startupReady?.success === true
+        ? (
+          startupReady?.gateway_ok === true &&
+          startupReady?.browser_ok === true &&
+          startupReady?.channels_ok === true
+        )
+        : (
+          serviceRunning &&
+          gatewayOk &&
+          browserOk &&
+          resolvedChannelsReady
+        ),
     );
     const readySignature = JSON.stringify({
       serviceRunning: resolvedServiceRunning,
@@ -814,6 +979,16 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
       resolvedChannelsReady,
       authoritativeReady,
     });
+    const serviceNotLoaded = typeof status?.message === "string" &&
+      status.message.includes("service is not loaded") &&
+      recoveryAttempts < 2 &&
+      Date.now() - lastRecoveryAt > 5_000;
+    if (serviceNotLoaded) {
+      await ensureLaunchctlServiceLoaded();
+      recoveryAttempts += 1;
+      lastRecoveryAt = Date.now();
+    }
+
     const readinessOk = resolvedServiceRunning && authoritativeReady;
 
     if (readinessOk && readySignature === lastReadySignature) {
@@ -945,7 +1120,48 @@ function getModelText(model) {
   return "";
 }
 
+function normalizeProvider(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "google") return "gemini";
+  return normalized;
+}
+
+function parseModelSpec(raw) {
+  const spec = String(raw || "").trim();
+  if (!spec) return null;
+  const slashIndex = spec.indexOf("/");
+  if (slashIndex < 0) {
+    return { provider: null, model: spec };
+  }
+  return {
+    provider: normalizeProvider(spec.slice(0, slashIndex)),
+    model: spec.slice(slashIndex + 1),
+  };
+}
+
 function readinessProviderModels(opts) {
+  const explicitModelSpecs = Array.isArray(opts?.models) ? opts.models : [];
+  if (explicitModelSpecs.length > 0) {
+    const providers = [];
+    const byProvider = new Map();
+    for (const raw of explicitModelSpecs) {
+      const parsed = parseModelSpec(raw);
+      if (!parsed) continue;
+      const provider = parsed.provider
+        || (Array.isArray(opts?.providers) && opts.providers.length === 1
+          ? normalizeProvider(opts.providers[0])
+          : null);
+      const model = getModelText(parsed.model);
+      if (!provider || !model) continue;
+      const normalizedProvider = normalizeProvider(provider);
+      const existing = byProvider.get(normalizedProvider) || [];
+      if (!existing.includes(model)) existing.push(model);
+      byProvider.set(normalizedProvider, existing);
+      if (!providers.includes(normalizedProvider)) providers.push(normalizedProvider);
+    }
+    return providers.map((provider) => [provider, byProvider.get(provider) || []]).filter((entry) => entry[1].length > 0);
+  }
+
   const providers = Array.isArray(opts?.providers) && opts.providers.length > 0
     ? Array.from(new Set(opts.providers.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)))
     : ["gemini"];
@@ -971,12 +1187,57 @@ function selectGeminiFallbackModel() {
   return getModelText(MODELS_BY_PROVIDER.gemini?.[0] || "");
 }
 
-async function runReadinessChatWithFallback(provider, model) {
-  const primary = await runChatSmoke(provider, model);
-  if (!primary.ok && provider === "openai" && isTemporaryOpenAiAvailabilityError(primary.detail)) {
+function selectAlternateProviderModel(provider, failedModel) {
+  const normalizedProvider = normalizeProvider(provider);
+  const knownModels = Array.isArray(MODELS_BY_PROVIDER[normalizedProvider])
+    ? MODELS_BY_PROVIDER[normalizedProvider]
+    : [];
+  const uniqueModels = [...new Set((knownModels || []).map((entry) => getModelText(entry)).filter(Boolean))];
+  const failed = String(failedModel || "").trim();
+  for (const candidate of uniqueModels) {
+    if (String(candidate || "").trim() !== failed) {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function isTransientChatFailure(message) {
+  const text = String(message || "").toLowerCase();
+  return text.includes("fetch failed")
+    || text.includes("aborted")
+    || text.includes("connection")
+    || text.includes("timed out")
+    || text.includes("timeout")
+    || text.includes("socket hang up")
+    || text.includes("connection closed")
+    || text.includes("gateway is starting")
+    || text.includes("gateway is not")
+    || text.includes("429")
+    || text.includes("insufficient_quota")
+    || text.includes("too many requests")
+    || text.includes("rate limit");
+}
+
+async function runReadinessChatWithFallback(provider, model, options = {}) {
+  const chatOptions = {
+    chatRetries: Number(options.chatRetries),
+    chatRetryDelayMs: Number(options.chatRetryDelayMs),
+  };
+  const strictReadiness = Boolean(options.strictReadiness);
+  const primary = await runChatSmoke(provider, model, chatOptions);
+  if (strictReadiness && !primary.ok) {
+    return primary;
+  }
+  const normalizedProvider = normalizeProvider(provider);
+  if (
+    !primary.ok &&
+    (normalizedProvider === "openai" || normalizedProvider === "knapsack") &&
+    isTemporaryOpenAiAvailabilityError(primary.detail)
+  ) {
     const geminiModel = selectGeminiFallbackModel();
     if (geminiModel) {
-      const fallback = await runChatSmoke("gemini", geminiModel);
+      const fallback = await runChatSmoke("gemini", geminiModel, chatOptions);
       if (fallback.ok) {
         return fallback;
       }
@@ -986,6 +1247,22 @@ async function runReadinessChatWithFallback(provider, model) {
         ok: false,
         skipped: false,
         detail: `${primary.detail} | fallback to gemini/${geminiModel} also failed: ${fallback.detail}`,
+      };
+    }
+  }
+  if (!primary.ok && isTransientChatFailure(primary.detail)) {
+    const fallbackModel = selectAlternateProviderModel(provider, model);
+    if (fallbackModel) {
+      const fallback = await runChatSmoke(provider, fallbackModel, chatOptions);
+      if (fallback.ok) {
+        return fallback;
+      }
+      return {
+        provider,
+        model,
+        ok: false,
+        skipped: false,
+        detail: `${primary.detail} | fallback to ${provider}/${fallbackModel} also failed: ${fallback.detail}`,
       };
     }
   }
@@ -1006,6 +1283,7 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 }
 
 async function setProviderAndModel(provider, model) {
+  const startedAt = Date.now();
   const req = await fetchWithTimeout(`${API_BASE}/api/clawd/service/set-api-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1019,19 +1297,26 @@ async function setProviderAndModel(provider, model) {
     ok: Boolean(req.ok),
     payload: req.body,
     status: req.status,
+    elapsedMs: Date.now() - startedAt,
   };
 }
 
 async function runChatSmoke(provider, model, options = {}) {
   try {
+    const startedAt = Date.now();
+    const latency = {};
     if (!options.skipModelSetup) {
       const setting = await setProviderAndModel(provider, model);
+      latency.providerSwitchMs = setting.elapsedMs;
       if (!setting.ok) {
         const msg = normalizeResult(setting.payload?.message || setting.payload);
         const keyMissing = typeof msg === "string" && msg.includes("API key cannot be empty");
         return {
           provider,
           model,
+          startedAt,
+          latencyMs: Date.now() - startedAt,
+          providerSwitchMs: latency.providerSwitchMs,
           ok: false,
           skipped: keyMissing,
           detail: msg || "could not switch provider/model",
@@ -1045,7 +1330,12 @@ async function runChatSmoke(provider, model, options = {}) {
       disableFallback: true,
       qaSmoke: true,
     };
-    const chatRetries = 1;
+    const chatRetries = Number.isFinite(options.chatRetries)
+      ? Math.max(1, Number.parseInt(options.chatRetries, 10))
+      : 1;
+    const chatRetryDelayMs = Number.isFinite(options.chatRetryDelayMs)
+      ? Math.max(100, Number.parseInt(options.chatRetryDelayMs, 10))
+      : 1_000;
     const chatTimeoutMs = Number(process.env.KNAPSACK_QA_CHAT_TIMEOUT_MS || 45_000);
     let attemptChat = 0;
     let chat;
@@ -1053,26 +1343,37 @@ async function runChatSmoke(provider, model, options = {}) {
     while (attemptChat < chatRetries) {
       attemptChat += 1;
       try {
+        const requestStartedAt = Date.now();
         chat = await fetchWithTimeout(`${API_BASE}/api/clawd/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         }, chatTimeoutMs);
+        latency.chatMs = Date.now() - requestStartedAt;
       } catch (error) {
         const message = normalizeResult(error?.message || error);
         const retryable = typeof message === "string" && (
+          message.includes("fetch failed") ||
           message.includes("aborted") ||
+          message.includes("ECONNRESET") ||
+          message.includes("ECONNREFUSED") ||
+          message.includes("failed to connect") ||
+          message.includes("ENOTFOUND") ||
           message.includes("ETIMEDOUT") ||
           message.includes("timed out") ||
           message.includes("socket hang up")
         );
         if (retryable && attemptChat < chatRetries) {
-          await sleep(1_000);
+          await sleep(chatRetryDelayMs);
           continue;
         }
         return {
           provider,
           model,
+          startedAt,
+          latencyMs: Date.now() - startedAt,
+          providerSwitchMs: latency.providerSwitchMs,
+          chatMs: latency.chatMs,
           ok: false,
           skipped: retryable,
           detail: `chat request failed: ${message}`,
@@ -1083,12 +1384,16 @@ async function runChatSmoke(provider, model, options = {}) {
         const shouldRetry =
           (chat.status === 429 || chat.status >= 500) && attemptChat < chatRetries;
         if (shouldRetry) {
-          await sleep(1_000);
+          await sleep(chatRetryDelayMs);
           continue;
         }
         return {
           provider,
           model,
+          startedAt,
+          latencyMs: Date.now() - startedAt,
+          providerSwitchMs: latency.providerSwitchMs,
+          chatMs: latency.chatMs,
           ok: false,
           skipped: false,
           detail: `chat failed (${chat.status}) ${normalizeResult(chat.body)}`,
@@ -1102,6 +1407,10 @@ async function runChatSmoke(provider, model, options = {}) {
       return {
         provider,
         model,
+        startedAt,
+        latencyMs: Date.now() - startedAt,
+        providerSwitchMs: latency.providerSwitchMs,
+        chatMs: latency.chatMs,
         ok: false,
         skipped: false,
         detail: `chat response not ok: ${normalizeResult(body)}`,
@@ -1122,17 +1431,31 @@ async function runChatSmoke(provider, model, options = {}) {
         provider,
         model,
         ok: false,
+        startedAt,
+        latencyMs: Date.now() - startedAt,
+        providerSwitchMs: latency.providerSwitchMs,
+        chatMs: latency.chatMs,
         skipped: false,
         detail: `chat response missing message/summary fields: ${normalizeResult(body)}`,
       };
     }
-    return { provider, model, ok: true };
+    return {
+      provider,
+      model,
+      ok: true,
+      startedAt,
+      latencyMs: Date.now() - startedAt,
+      providerSwitchMs: latency.providerSwitchMs,
+      chatMs: latency.chatMs,
+    };
   } catch (error) {
     const message = normalizeResult(error?.message || error);
     return {
       provider,
       model,
+      startedAt: Date.now(),
       ok: false,
+      latencyMs: null,
       skipped: (
         typeof message === "string" &&
         (
@@ -1423,14 +1746,16 @@ async function checkInterfaceAccess(includeUi) {
 
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
-  const binary = path.join(
+  const debugBinary = path.join(
     __dirname,
     "..",
     "src-tauri",
     "target",
-    isProd ? "release" : "debug",
+    "debug",
     process.platform === "win32" ? "knapsack.exe" : "knapsack",
   );
+  const binary = isProd ? resolveProdBinary() : debugBinary;
+  console.log(`[qa-loop] launching ${isProd ? "prod" : "dev"} mode using ${binary}`);
   if (isProd && !existsSync(binary)) {
     return { ok: false, phase: "launch", message: `missing binary at ${binary}` };
   }
@@ -1554,6 +1879,9 @@ async function runMode(mode, opts = {}) {
   }
 
   const functionalTimeoutMs = Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
+  const readinessHealthTimeoutMs = Number(
+    process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000,
+  );
   let functionalResult;
   const functionalProgress = {
     step: "starting",
@@ -1575,7 +1903,9 @@ async function runMode(mode, opts = {}) {
 
       functionalProgress.step = "gateway health";
       const gatewayHealth = await waitForGatewayHealthReady({
-        budgetMs: Number(process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000),
+        budgetMs: Number.isFinite(opts.readinessHealthTimeoutMs)
+          ? opts.readinessHealthTimeoutMs
+          : readinessHealthTimeoutMs,
         startupReady: startup.payload?.startup,
       });
       if (!gatewayHealth.ok) {
@@ -1589,13 +1919,17 @@ async function runMode(mode, opts = {}) {
       functionalProgress.gatewayHealth = gatewayHealth;
 
       for (const [provider, models] of providers) {
-        for (const modelEntry of models) {
+          for (const modelEntry of models) {
           const model = getModelText(modelEntry);
           if (!model) {
             continue;
           }
           functionalProgress.step = `chat ${provider}/${model}`;
-          const check = await runReadinessChatWithFallback(provider, model);
+          const check = await runReadinessChatWithFallback(provider, model, {
+            chatRetries: Number.isFinite(opts.chatRetries) ? opts.chatRetries : undefined,
+            chatRetryDelayMs: Number.isFinite(opts.chatRetryDelayMs) ? opts.chatRetryDelayMs : undefined,
+            strictReadiness: Boolean(opts.strictReadiness),
+          });
           chatChecks.push(check);
           functionalProgress.chatChecks = chatChecks;
           if (!check.ok) {
@@ -1649,7 +1983,10 @@ async function runMode(mode, opts = {}) {
         chatChecks,
         interfaceCoverage: interfaces.coverage,
       };
-    })(), functionalTimeoutMs, "post-startup functional checks");
+    })(),
+    Number.isFinite(opts.functionalTimeoutMs) ? opts.functionalTimeoutMs : functionalTimeoutMs,
+    "post-startup functional checks",
+  );
   } catch (error) {
     functionalResult = {
       ok: false,
@@ -1759,6 +2096,17 @@ async function runLoop() {
     );
     if (modeResult.interfaceCoverage) {
       console.log(`[qa-loop] ${mode} interface coverage: ${JSON.stringify(modeResult.interfaceCoverage)}`);
+    }
+    if (Array.isArray(modeResult.chatChecks) && modeResult.chatChecks.length > 0) {
+      const latencySummary = modeResult.chatChecks.map((check) => ({
+        provider: check.provider,
+        model: check.model,
+        ok: Boolean(check.ok),
+        latencyMs: check.latencyMs,
+        providerSwitchMs: check.providerSwitchMs,
+        chatMs: check.chatMs,
+      }));
+      console.log(`[qa-loop] ${mode} chat checks latency summary: ${JSON.stringify(latencySummary)}`);
     }
   }
 

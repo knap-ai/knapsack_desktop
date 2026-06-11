@@ -168,9 +168,11 @@ function getActiveModelLabel(): string {
     openai: 'moltbot_openai_model',
     anthropic: 'moltbot_anthropic_model',
     gemini: 'moltbot_gemini_model',
+    knapsack: KNAPSACK_MODEL_STORAGE,
     groq: 'moltbot_groq_model',
     openrouter: 'moltbot_openrouter_model',
     ollama: 'moltbot_ollama_model',
+    xai: 'moltbot_xai_model',
   }
   const model = localStorage.getItem(modelKeys[provider] || '') || ''
   if (model) return `${provider}/${model}`
@@ -2636,6 +2638,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Check whether the currently selected model supports vision (image attachments)
   const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
+    if (selectedProvider === 'knapsack') {
+      const currentId = selectedKnapsackModel || 'auto'
+      return {
+        supported: true,
+        modelName: KNAPSACK_MODELS.find(m => m.id === currentId)?.name || currentId,
+        visionModels: [],
+      }
+    }
     const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
       : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
       : selectedProvider === 'gemini' ? GEMINI_MODELS
@@ -2657,7 +2667,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const supported = current?.vision ?? false
     const visionModels = allModels.filter(m => m.vision).map(m => m.name)
     return { supported, modelName, visionModels }
-  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel])
+  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
 
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3183,6 +3193,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : selectedProvider === 'groq' ? selectedGroqModel
         : selectedProvider === 'xai' ? selectedXaiModel
         : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedProvider === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         key: apiKey.trim(),
@@ -3202,6 +3213,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (selectedProvider === 'knapsack') {
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setConfirmedProvider(selectedProvider)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
@@ -3229,6 +3242,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           modelName = XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel
         } else if (selectedProvider === 'openrouter') {
           modelName = OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel
+        } else if (selectedProvider === 'knapsack') {
+          modelName = KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel
         } else {
           modelName = GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel
         }
@@ -3243,7 +3258,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3260,6 +3275,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'groq' ? selectedGroqModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
+        : providerId === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         provider: providerId,
@@ -3278,6 +3294,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (providerId === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (providerId === 'knapsack') {
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setSelectedProvider(providerId)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
@@ -3291,12 +3309,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'anthropic' ? ANTHROPIC_MODELS
         : providerId === 'gemini' ? GEMINI_MODELS
         : providerId === 'xai' ? XAI_MODELS
+        : providerId === 'knapsack' ? KNAPSACK_MODELS
         : providerId === 'openrouter' ? OPENROUTER_MODELS
         : GROQ_MODELS
       const mv = providerId === 'openai' ? selectedModel
         : providerId === 'anthropic' ? selectedAnthropicModel
         : providerId === 'gemini' ? selectedGeminiModel
         : providerId === 'xai' ? selectedXaiModel
+        : providerId === 'knapsack' ? selectedKnapsackModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
@@ -3308,7 +3328,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
 
   useEffect(() => {
     const init = async () => {
@@ -6826,16 +6846,17 @@ ${actualText}`
             <div className="ClawdChannelAccordion">
               {/* ── Cloud providers ── */}
               {PROVIDERS.filter(p => p.id !== 'ollama').map(p => {
-                const isActive = selectedProvider === p.id
+                const isOpen = selectedProvider === p.id
+                const isConfirmedActive = confirmedProvider === p.id
 
                 // ── Knapsack (no API key — uses Knapsack account) ──
                 if (p.id === 'knapsack') {
                   return (
-                    <div key="knapsack" className={`ClawdAccordionItem ${isActive ? 'ClawdAccordionItem--open ClawdAccordionItem--connected' : ''}`}>
+                    <div key="knapsack" className={`ClawdAccordionItem ${isOpen ? 'ClawdAccordionItem--open' : ''} ${isConfirmedActive ? 'ClawdAccordionItem--connected' : ''}`}>
                       <button className="ClawdAccordionHeader" onClick={() => setSelectedProvider('knapsack')}>
                         <div className="ClawdAccordionTitle">{p.name}</div>
                         <span className="ClawdAccordionDesc">{p.description}</span>
-                        {isActive && (
+                        {isConfirmedActive && (
                           <span className="ClawdAccordionCheck">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                           </span>
@@ -6963,6 +6984,7 @@ ${actualText}`
                               try {
                                 await apiPost('/api/clawd/service/set-api-key', { provider: 'knapsack', key: knapsackEmail || '', model: selectedKnapsackModel })
                                 setSelectedProvider('knapsack')
+                                setConfirmedProvider('knapsack')
                                 localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
                                 setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
                                 pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
@@ -6971,7 +6993,7 @@ ${actualText}`
                             }}
                             disabled={savingKey}
                           >
-                            {savingKey ? 'Switching...' : isActive ? 'Select' : 'Use Knapsack'}
+                            {savingKey ? 'Switching...' : isConfirmedActive ? 'Active' : 'Use Knapsack'}
                           </button>
                         </div>
                         <p style={{ margin: '8px 0 0', fontSize: 11, color: '#94a3b8' }}>
@@ -7005,11 +7027,11 @@ ${actualText}`
                   : setSelectedGroqModel
 
                 return (
-                  <div key={p.id} className={`ClawdAccordionItem ${selectedProvider === p.id ? 'ClawdAccordionItem--open' : ''} ${isActive ? 'ClawdAccordionItem--connected' : ''}`}>
+                  <div key={p.id} className={`ClawdAccordionItem ${isOpen ? 'ClawdAccordionItem--open' : ''} ${isConfirmedActive ? 'ClawdAccordionItem--connected' : ''}`}>
                     <button className="ClawdAccordionHeader" onClick={() => { setSelectedProvider(p.id); setApiKey(''); setEditingProviderKey(false) }}>
                       <div className="ClawdAccordionTitle">{p.name}</div>
                       <span className="ClawdAccordionDesc">{p.description}</span>
-                      {isActive && (
+                      {isConfirmedActive && (
                         <span className="ClawdAccordionCheck">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                         </span>
@@ -7036,9 +7058,10 @@ ${actualText}`
                                     : p.id === 'anthropic' ? ANTHROPIC_MODEL_STORAGE
                                     : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
                                     : p.id === 'xai' ? XAI_MODEL_STORAGE
+                                    : p.id === 'openrouter' ? OPENROUTER_MODEL_STORAGE
                                     : GROQ_MODEL_STORAGE
                                   localStorage.setItem(storageKey, newModel)
-                                  if (isActive) {
+                                  if (isConfirmedActive) {
                                     try {
                                       await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
                                       const modelName = models.find(m => m.id === newModel)?.name || newModel
@@ -7056,10 +7079,10 @@ ${actualText}`
                           <div className="ClawdAccordionActions">
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--connect"
-                              onClick={() => switchProviderModel(p.id, isActive)}
+                              onClick={() => switchProviderModel(p.id, isConfirmedActive)}
                               disabled={savingKey}
                             >
-                              {savingKey ? 'Switching...' : isActive ? 'Select' : 'Select ' + p.name}
+                              {savingKey ? 'Switching...' : isConfirmedActive ? 'Active' : 'Select ' + p.name}
                             </button>
                             <button
                               className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
