@@ -118,6 +118,12 @@ struct StoredTokens {
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
   #[serde(default)]
   preferred_coding_agent: Option<String>,
+  #[serde(default)]
+  knapsack_email: Option<String>,
+  #[serde(default)]
+  knapsack_model: Option<String>,
+  #[serde(default)]
+  knapsack_access_token: Option<String>,
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -185,6 +191,9 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_base_url: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
+    knapsack_email: None,
+    knapsack_model: None,
+    knapsack_access_token: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -552,6 +561,150 @@ fn openrouter_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .and_then(|t| t.openrouter_api_key)
     .map(|s| s.trim().to_string())
     .filter(|s| !s.is_empty())
+}
+
+fn knapsack_access_token(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("KNAPSACK_ACCESS_TOKEN") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.knapsack_access_token)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+async fn refresh_knapsack_access_token() -> Option<String> {
+  let refresh_token = std::env::var("KNAPSACK_REFRESH_TOKEN").ok()?;
+  let refresh_token = refresh_token.trim().to_string();
+  if refresh_token.is_empty() {
+    return None;
+  }
+  let client = reqwest::Client::new();
+  let resp = client
+    .get(format!(
+      "{}/api/authentication/refresh/app",
+      option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai")
+    ))
+    .header("refresh-token", &refresh_token)
+    .send()
+    .await
+    .ok()?;
+  if !resp.status().is_success() {
+    log::warn!(
+      "[knapsack_token] refresh endpoint failed: {}",
+      resp.status()
+    );
+    return None;
+  }
+  let json: serde_json::Value = resp.json().await.ok()?;
+  let token = json
+    .get("access_token")
+    .and_then(|t| t.as_str())
+    .or_else(|| json.get("token").and_then(|t| t.as_str()))
+    .map(|t| t.trim().to_string())
+    .filter(|token| !token.is_empty())?;
+  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &token);
+  Some(token)
+}
+
+async fn knapsack_bearer_token(
+  app_handle: &tauri::AppHandle,
+  email: &str,
+) -> anyhow::Result<String> {
+  if let Some(token) = knapsack_access_token(app_handle) {
+    return Ok(token);
+  }
+
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(15))
+    .build()?;
+  let token_url = format!(
+    "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
+    email
+  );
+  match client.get(&token_url).send().await {
+    Ok(resp) => {
+      if resp.status().is_success() {
+        let token_json: serde_json::Value = resp.json().await?;
+        if let Some(jwt) = token_json
+          .get("token")
+          .and_then(|t| t.as_str())
+          .or_else(|| token_json.get("access_token").and_then(|t| t.as_str()))
+          .filter(|token| !token.trim().is_empty())
+        {
+          return Ok(jwt.to_string());
+        }
+        if let Some(jwt) = std::env::var("KNAPSACK_ACCESS_TOKEN")
+          .ok()
+          .map(|t| t.trim().to_string())
+          .filter(|token| !token.is_empty())
+        {
+          return Ok(jwt);
+        }
+      } else {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        log::warn!(
+          "[knapsack_token] /refresh_token_api returned {}: {}",
+          status,
+          text
+        );
+      }
+    }
+    Err(err) => log::warn!("[knapsack_token] /refresh_token_api request failed: {}", err),
+  }
+
+  if let Some(refreshed) = refresh_knapsack_access_token().await {
+    return Ok(refreshed);
+  }
+
+  anyhow::bail!("Knapsack auth failed — please sign in to Knapsack again")
+}
+
+fn knapsack_user_email(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("KNAPSACK_USER_EMAIL") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.knapsack_email)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+fn normalize_provider_model(provider: &str, model: &str) -> String {
+  let model = model.trim();
+  if model.is_empty() {
+    return String::new();
+  }
+  if let Some((prefix, bare)) = model.split_once('/') {
+    if prefix.eq_ignore_ascii_case(provider) {
+      return bare.to_string();
+    }
+  }
+  model.to_string()
+}
+
+fn knapsack_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.knapsack_model.map(|m| normalize_provider_model("knapsack", &m)))
+    .filter(|m| !m.trim().is_empty())
+    .unwrap_or_else(|| "auto".to_string())
+}
+
+fn knapsack_base_url() -> String {
+  std::env::var("VITE_KN_API_SERVER")
+    .unwrap_or_else(|_| "https://api.knapsack.ai".to_string())
+    .trim_end_matches('/')
+    .to_string()
 }
 
 fn ollama_is_enabled(app_handle: &tauri::AppHandle) -> bool {
@@ -1930,6 +2083,17 @@ pub async fn chat(
     .get("qaSmoke")
     .and_then(|v| v.as_bool())
     .unwrap_or(false);
+  let requested_provider = body
+    .get("provider")
+    .and_then(|v| v.as_str())
+    .map(|p| p.trim().to_lowercase())
+    .filter(|p| !p.is_empty());
+  let requested_model = body
+    .get("model")
+    .and_then(|v| v.as_str())
+    .map(|m| m.trim().to_string())
+    .filter(|m| !m.is_empty());
+  let requested_provider = requested_provider.as_deref();
 
   // Determine which provider to use
   let provider = if prefer_fast {
@@ -1944,7 +2108,30 @@ pub async fn chat(
   } else {
     active_provider(&app_handle)
   };
+  let provider = requested_provider
+    .map(|p| p.to_string())
+    .unwrap_or(provider);
+  if requested_provider.is_some()
+    && !matches!(
+      provider.as_str(),
+      "openai" | "anthropic" | "gemini" | "groq" | "xai" | "openrouter" | "ollama" | "knapsack"
+    )
+  {
+    return HttpResponse::BadRequest().json(serde_json::json!({
+      "ok": false,
+      "message": "Unknown provider requested."
+    }));
+  }
   let api_key = match provider.as_str() {
+    "knapsack" => match knapsack_user_email(&app_handle) {
+      Some(email) => email,
+      None => {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+          "ok": false,
+          "message": "Knapsack account is not connected. Sign in to Knapsack in Settings."
+        }));
+      }
+    },
     "ollama" => {
       if !ollama_is_enabled(&app_handle) {
         return HttpResponse::BadRequest().json(serde_json::json!({
@@ -4304,14 +4491,21 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
   // Determine model based on provider (reads user's selection from stored config)
   let mut current_provider = provider.clone();
   let mut current_api_key = api_key.clone();
-  let mut current_model = match current_provider.as_str() {
-    "anthropic" => super::service::get_anthropic_model(&app_handle),
-    "gemini" => super::service::get_gemini_model(&app_handle),
-    "groq" => super::service::get_groq_model(&app_handle),
-    "xai" => super::service::get_xai_model(&app_handle),
-    "ollama" => ollama_model(&app_handle),
-    "openrouter" => super::service::get_openrouter_model(&app_handle),
-    _ => super::service::get_openai_model(&app_handle),
+  let mut current_model = match requested_model
+    .as_deref()
+    .map(|m| normalize_provider_model(&provider, m))
+  {
+    Some(m) => m,
+    None => match current_provider.as_str() {
+      "knapsack" => knapsack_model(&app_handle),
+      "anthropic" => super::service::get_anthropic_model(&app_handle),
+      "gemini" => super::service::get_gemini_model(&app_handle),
+      "groq" => super::service::get_groq_model(&app_handle),
+      "xai" => super::service::get_xai_model(&app_handle),
+      "ollama" => ollama_model(&app_handle),
+      "openrouter" => super::service::get_openrouter_model(&app_handle),
+      _ => super::service::get_openai_model(&app_handle),
+    },
   };
   let current_ollama_base = ollama_base_url(&app_handle);
   eprintln!(
@@ -4321,6 +4515,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
   // Helper: call the appropriate provider's chat API
   async fn call_provider(
+    app_handle: &tauri::AppHandle,
     prov: &str,
     key: &str,
     model: &str,
@@ -4344,6 +4539,116 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
           .await
       }
+      "knapsack" => {
+        let email = knapsack_user_email(app_handle).ok_or_else(|| {
+          anyhow::anyhow!("Knapsack account is not connected. Sign in to Knapsack in Settings.")
+        })?;
+        let client = reqwest::Client::builder()
+          .timeout(std::time::Duration::from_secs(120))
+          .build()?;
+        let jwt = knapsack_bearer_token(app_handle, &email)
+          .await
+          .map_err(|e| anyhow::anyhow!("Knapsack auth failed: {}", e))?;
+        let mut conversation: Vec<serde_json::Value> = Vec::new();
+        let mut system_prompt = String::new();
+        for m in msgs.iter() {
+          match m {
+            chat_agent::OaiMessage::System { content } => {
+              if !content.trim().is_empty() {
+                if !system_prompt.is_empty() {
+                  system_prompt.push('\n');
+                }
+                system_prompt.push_str(content);
+              }
+            }
+            chat_agent::OaiMessage::User { content, .. } => {
+              if !content.trim().is_empty() {
+                conversation.push(serde_json::json!({"role": "user", "content": content}));
+              }
+            }
+            chat_agent::OaiMessage::Assistant { content, .. } => {
+              if let Some(c) = content {
+                if !c.trim().is_empty() {
+                  conversation.push(serde_json::json!({"role": "assistant", "content": c}));
+                }
+              }
+            }
+            chat_agent::OaiMessage::Tool {
+              tool_call_id: _,
+              content,
+            } => {
+              if !content.trim().is_empty() {
+                conversation.push(serde_json::json!({"role": "tool", "content": content}));
+              }
+            }
+          }
+        }
+        let mut body = serde_json::json!({
+          "messages": conversation,
+          "model": model,
+        });
+        if !system_prompt.is_empty() {
+          body["system_prompt"] = serde_json::Value::String(system_prompt);
+        }
+        let resp = client
+          .post(format!(
+            "{}/api/desktop/inference",
+            knapsack_base_url().trim_end_matches('/')
+          ))
+          .header("Authorization", format!("Bearer {}", jwt))
+          .header("Content-Type", "application/json")
+          .json(&body)
+          .send()
+          .await?;
+        if !resp.status().is_success() {
+          let status = resp.status();
+          let text = resp.text().await.unwrap_or_default();
+          if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(anyhow::anyhow!(
+              "Knapsack session expired — please sign in again"
+            ));
+          }
+          if status == reqwest::StatusCode::PAYMENT_REQUIRED {
+            return Err(anyhow::anyhow!(
+              "No Knapsack credits remaining. Please top up at https://studio.knapsack.ai"
+            ));
+          }
+          return Err(anyhow::anyhow!(
+            "Knapsack inference error ({}): {}",
+            status,
+            text
+          ));
+        }
+        let raw = resp
+          .text()
+          .await
+          .map_err(|e| anyhow::anyhow!("Knapsack response read failed: {}", e))?;
+        let mut full_text = String::new();
+        for line in raw.lines() {
+          if let Some(chunk) = line.strip_prefix("data: ") {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(chunk) {
+              if v.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
+                break;
+              }
+              if let Some(content) = v.get("content").and_then(|c| c.as_str()) {
+                full_text.push_str(content);
+              }
+            }
+          }
+        }
+        if full_text.is_empty() {
+          return Err(anyhow::anyhow!("Knapsack returned an empty response"));
+        }
+        Ok(chat_agent::OaiChatResp {
+          choices: vec![chat_agent::OaiChoice {
+            message: chat_agent::OaiChoiceMsg {
+              content: Some(full_text),
+              tool_calls: Vec::new(),
+            },
+          }],
+          usage: None,
+        })
+      }
       _ => chat_agent::openai_chat(key, model, msgs, tls).await,
     }
   }
@@ -4365,6 +4670,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
     // Try primary provider, then fallback to others on credit/rate-limit errors
     let resp = match call_provider(
+      &app_handle,
       &current_provider,
       &current_api_key,
       &current_model,
@@ -4411,7 +4717,8 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         } else {
           None
         };
-        let fallbacks: [(&str, Option<String>); 7] = [
+        let fallbacks: [(&str, Option<String>); 8] = [
+          ("knapsack", knapsack_user_email(&app_handle)),
           ("openai", openai_key(&app_handle)),
           ("anthropic", anthropic_key(&app_handle)),
           ("gemini", gemini_key(&app_handle)),
@@ -4433,6 +4740,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           }
           if let Some(fb_key) = fb_key_opt {
             let fb_model = match *fb_provider {
+              "knapsack" => knapsack_model(&app_handle),
               "anthropic" => super::service::get_anthropic_model(&app_handle),
               "gemini" => super::service::get_gemini_model(&app_handle),
               "groq" => super::service::get_groq_model(&app_handle),
@@ -4446,6 +4754,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               fb_provider, fb_model
             );
             match call_provider(
+              &app_handle,
               fb_provider,
               fb_key,
               &fb_model,

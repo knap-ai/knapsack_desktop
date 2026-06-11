@@ -168,9 +168,11 @@ function getActiveModelLabel(): string {
     openai: 'moltbot_openai_model',
     anthropic: 'moltbot_anthropic_model',
     gemini: 'moltbot_gemini_model',
+    knapsack: KNAPSACK_MODEL_STORAGE,
     groq: 'moltbot_groq_model',
     openrouter: 'moltbot_openrouter_model',
     ollama: 'moltbot_ollama_model',
+    xai: 'moltbot_xai_model',
   }
   const model = localStorage.getItem(modelKeys[provider] || '') || ''
   if (model) return `${provider}/${model}`
@@ -2636,6 +2638,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Check whether the currently selected model supports vision (image attachments)
   const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
+    if (selectedProvider === 'knapsack') {
+      const currentId = selectedKnapsackModel || 'auto'
+      return {
+        supported: true,
+        modelName: KNAPSACK_MODELS.find(m => m.id === currentId)?.name || currentId,
+        visionModels: [],
+      }
+    }
     const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
       : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
       : selectedProvider === 'gemini' ? GEMINI_MODELS
@@ -2657,7 +2667,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const supported = current?.vision ?? false
     const visionModels = allModels.filter(m => m.vision).map(m => m.name)
     return { supported, modelName, visionModels }
-  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel])
+  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
 
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3183,6 +3193,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : selectedProvider === 'groq' ? selectedGroqModel
         : selectedProvider === 'xai' ? selectedXaiModel
         : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedProvider === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         key: apiKey.trim(),
@@ -3202,6 +3213,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (selectedProvider === 'knapsack') {
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setConfirmedProvider(selectedProvider)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
@@ -3229,6 +3242,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           modelName = XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel
         } else if (selectedProvider === 'openrouter') {
           modelName = OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel
+        } else if (selectedProvider === 'knapsack') {
+          modelName = KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel
         } else {
           modelName = GEMINI_MODELS.find(m => m.id === selectedGeminiModel)?.name || selectedGeminiModel
         }
@@ -3243,7 +3258,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3260,6 +3275,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'groq' ? selectedGroqModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
+        : providerId === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
         provider: providerId,
@@ -3278,6 +3294,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (providerId === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (providerId === 'knapsack') {
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setSelectedProvider(providerId)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
@@ -3291,12 +3309,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'anthropic' ? ANTHROPIC_MODELS
         : providerId === 'gemini' ? GEMINI_MODELS
         : providerId === 'xai' ? XAI_MODELS
+        : providerId === 'knapsack' ? KNAPSACK_MODELS
         : providerId === 'openrouter' ? OPENROUTER_MODELS
         : GROQ_MODELS
       const mv = providerId === 'openai' ? selectedModel
         : providerId === 'anthropic' ? selectedAnthropicModel
         : providerId === 'gemini' ? selectedGeminiModel
         : providerId === 'xai' ? selectedXaiModel
+        : providerId === 'knapsack' ? selectedKnapsackModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
@@ -3308,7 +3328,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
 
   useEffect(() => {
     const init = async () => {
