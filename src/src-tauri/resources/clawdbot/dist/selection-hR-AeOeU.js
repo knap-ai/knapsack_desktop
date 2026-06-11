@@ -8025,6 +8025,20 @@ function isTranscriptOnlyOpenClawAssistantLine(line) {
 		return false;
 	}
 }
+function isBenignReleasedPromptAppendLine(line) {
+	try {
+		const parsed = JSON.parse(line);
+		if (!isJsonRecord(parsed)) return false;
+		if (parsed.type === "custom_message") return parsed.customType === "openclaw.runtime-context";
+		if (parsed.type !== "message") return false;
+		const message = parsed.message;
+		if (!isJsonRecord(message)) return false;
+		if (message.role === "user") return true;
+		return message.role === "assistant" && message.provider === "openclaw" && typeof message.model === "string" && TRANSCRIPT_ONLY_OPENCLAW_ASSISTANT_MODELS.has(message.model);
+	} catch {
+		return false;
+	}
+}
 function normalizeTranscriptEntryId(value) {
 	return typeof value === "string" && value.trim().length > 0 ? value : void 0;
 }
@@ -8092,7 +8106,7 @@ async function sessionFenceAdvanceIsBenign(params) {
 	});
 	if (!text?.endsWith("\n")) return false;
 	const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
-	return lines.length > 0 && lines.every(isTranscriptOnlyOpenClawAssistantLine);
+	return lines.length > 0 && lines.every(isBenignReleasedPromptAppendLine);
 }
 async function sessionFenceRewriteIsBenign(params) {
 	if (!params.previous?.fingerprint.exists || !params.current.exists || !params.previous.text || !sameSessionFileIdentity(params.previous.fingerprint, params.current) || params.current.size > BigInt(MAX_BENIGN_SESSION_FENCE_REWRITE_RESULT_BYTES) || params.current.size > MAX_SAFE_FILE_OFFSET) return false;
