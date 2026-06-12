@@ -1840,11 +1840,6 @@ async fn main() {
           .unwrap();
       }
 
-      let llm_path = app
-        .path_resolver()
-        .resolve_resource("resources/llm.gguf")
-        .expect("failed to resolve resource");
-
       // EMBEDDER_PATH.set(
       //   app
       //     .path_resolver()
