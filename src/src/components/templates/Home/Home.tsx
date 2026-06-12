@@ -268,10 +268,7 @@ function Home({
   )
 
   const handleGoogleMenuItemClick = (connectionKeys: ConnectionKeys[]) => {
-    const scopes = [
-      ...googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes,
-      ...connectionKeys.map(key => googleConnections[key].scopes),
-    ].join(' ')
+    const scopes = [...new Set(connectionKeys.flatMap(key => googleConnections[key].scopes))].join(' ')
     openGoogleAuthScreen(scopes)
   }
 
@@ -388,9 +385,13 @@ function Home({
     <div className="KNMainContainer">
       {googleAuthControls.showGoogleAuthPopup && (
         <GoogleAuthPopup
-          onClose={() => googleAuthControls.setShowGoogleAuthPopup(false)}
+          onClose={() => {
+            googleAuthControls.setShowGoogleAuthPopup(false)
+            googleAuthControls.setRequiredGoogleConnectionKeys([])
+          }}
           onAuth={async () => {
             googleAuthControls.setShowGoogleAuthPopup(false)
+            googleAuthControls.setRequiredGoogleConnectionKeys([])
             // if (googleAuthControls.currentAutomation && googleAuthControls.currentFeedItem) {
             //   feed.handleCustomFeedAutomation(
             //     googleAuthControls.currentAutomation,
@@ -398,6 +399,7 @@ function Home({
             //   )
             // }
           }}
+          requiredConnectionKeys={googleAuthControls.requiredGoogleConnectionKeys}
           userEmail={userEmail}
         />
       )}

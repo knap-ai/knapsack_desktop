@@ -332,6 +332,27 @@ function verifyOpenClawAliasPackage() {
   const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
   const aliasDir = path.join(nodeModulesDir, 'openclaw');
   if (!fs.existsSync(aliasDir)) {
+    const tarPath = path.join(CLAWDBOT_DIR, 'node_modules.tar');
+    if (fs.existsSync(tarPath)) {
+      const tarEntries = new Set(listTarEntries(tarPath));
+      const requiredAliasEntries = [
+        'node_modules/openclaw/package.json',
+        'node_modules/openclaw/index.js',
+        'node_modules/openclaw/plugin-sdk/index.js',
+        'node_modules/openclaw/plugin-sdk/channel-message.js',
+      ];
+      const missingAliasEntries = requiredAliasEntries.filter((entry) => !tarEntries.has(entry));
+      if (missingAliasEntries.length > 0) {
+        console.error(`[verify-clawdbot] MISSING OPENCLAW ALIAS ENTRIES IN node_modules.tar (${missingAliasEntries.length}):`);
+        for (const entry of missingAliasEntries) {
+          console.error(`[verify-clawdbot]   - ${entry}`);
+        }
+        errors += missingAliasEntries.length;
+      } else {
+        console.log('[verify-clawdbot] openclaw alias package: verified in node_modules.tar ✓');
+      }
+      return;
+    }
     console.error('[verify-clawdbot] MISSING: node_modules/openclaw alias package');
     errors++;
     return;
@@ -527,6 +548,7 @@ const CRITICAL_PACKAGE_FILES = [
 ];
 
 const nodeModulesDir = path.join(CLAWDBOT_DIR, 'node_modules');
+const rootNodeModulesTar = path.join(CLAWDBOT_DIR, 'node_modules.tar');
 if (fs.existsSync(nodeModulesDir)) {
   const missing = [];
   const missingFiles = [];
@@ -573,17 +595,20 @@ if (fs.existsSync(nodeModulesDir)) {
   if (missing.length === 0 && missingFiles.length === 0) {
     console.log(`[verify-clawdbot] critical packages: ${CRITICAL_PACKAGES.length} verified in node_modules ✓`);
   }
-} else {
+} else if (!fs.existsSync(rootNodeModulesTar)) {
   console.error('[verify-clawdbot] CRITICAL: node_modules directory is missing entirely');
   errors++;
+} else {
+  console.log('[verify-clawdbot] node_modules directory is packed as node_modules.tar');
 }
 
-const rootNodeModulesTar = path.join(CLAWDBOT_DIR, 'node_modules.tar');
 if (fs.existsSync(rootNodeModulesTar)) {
   const tarEntries = new Set(listTarEntries(rootNodeModulesTar));
-  const missingTarFiles = CRITICAL_PACKAGE_FILES
-    .map((file) => `node_modules/${file}`)
-    .filter((file) => !tarEntries.has(file));
+  const criticalTarFiles = [
+    ...CRITICAL_PACKAGE_FILES.map((file) => `node_modules/${file}`),
+    ...CRITICAL_PACKAGES.map((pkg) => `node_modules/${pkg}/package.json`),
+  ];
+  const missingTarFiles = criticalTarFiles.filter((file) => !tarEntries.has(file));
   if (missingTarFiles.length > 0) {
     console.error(`[verify-clawdbot] MISSING CRITICAL FILES IN node_modules.tar (${missingTarFiles.length}):`);
     for (const file of missingTarFiles) {

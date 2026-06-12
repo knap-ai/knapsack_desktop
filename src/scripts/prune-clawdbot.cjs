@@ -12,6 +12,45 @@ const path = require('path');
 const SCRIPT_DIR = __dirname;
 const CLAWDBOT_DIR = path.join(SCRIPT_DIR, '..', 'src-tauri', 'resources', 'clawdbot');
 const IS_WIN = process.platform === 'win32';
+const ROOT_NODE_MODULES_TAR = path.join(CLAWDBOT_DIR, 'node_modules.tar');
+const STARTUP_CRITICAL_PACKAGES = [
+  'openclaw',
+  'chalk',
+  'commander',
+  'chokidar',
+  'ws',
+  'yaml',
+  'zod',
+  'dotenv',
+  'undici',
+  'ajv',
+  'croner',
+  'json5',
+  'tar',
+  'jszip',
+  'markdown-it',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-agent-core',
+  'typebox',
+  '@clack/core',
+  '@clack/prompts',
+  '@agentclientprotocol/sdk',
+  '@modelcontextprotocol/sdk',
+  '@openclaw/fs-safe',
+  '@openclaw/proxyline',
+  'file-type',
+  'jiti',
+  'web-push',
+  'express',
+  'kysely',
+  'grammy',
+  '@google/genai',
+  'playwright-core',
+  'qrcode',
+  'tokenjuice',
+  'tslog',
+];
 
 if (!fs.existsSync(path.join(CLAWDBOT_DIR, 'node_modules'))) {
   console.log('[prune-clawdbot] No node_modules found — skipping.');
@@ -48,6 +87,85 @@ function rmDir(dir) {
     return true;
   }
   return false;
+}
+
+function packNodeModulesTar({ cwd, finalTarName, label }) {
+  const tar = require(path.join(CLAWDBOT_DIR, 'node_modules', 'tar'));
+  const tmpTarName = `${finalTarName}.tmp`;
+  const finalTarPath = path.join(cwd, finalTarName);
+  const tmpTarPath = path.join(cwd, tmpTarName);
+  fs.rmSync(finalTarPath, { force: true });
+  fs.rmSync(tmpTarPath, { force: true });
+
+  try {
+    tar.c({
+      cwd,
+      file: tmpTarPath,
+      sync: true,
+    }, ['node_modules']);
+    fs.renameSync(tmpTarPath, finalTarPath);
+    return true;
+  } catch (error) {
+    fs.rmSync(tmpTarPath, { force: true });
+    console.warn(`[prune-clawdbot] WARNING: ${label} tar failed: ${error.message}`);
+    return false;
+  }
+}
+
+function packageDir(packageName) {
+  return path.join(nodeModules, ...packageName.split('/'));
+}
+
+function readPackageJson(packageName) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(packageDir(packageName), 'package.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function collectStartupPackageClosure() {
+  const keep = new Set();
+  const queue = [...STARTUP_CRITICAL_PACKAGES];
+  while (queue.length > 0) {
+    const packageName = queue.shift();
+    if (keep.has(packageName)) continue;
+    const pkg = readPackageJson(packageName);
+    if (!pkg) continue;
+    keep.add(packageName);
+    for (const depGroup of ['dependencies', 'optionalDependencies']) {
+      const deps = pkg[depGroup] && typeof pkg[depGroup] === 'object' ? Object.keys(pkg[depGroup]) : [];
+      for (const dep of deps) {
+        if (!keep.has(dep) && fs.existsSync(path.join(packageDir(dep), 'package.json'))) {
+          queue.push(dep);
+        }
+      }
+    }
+  }
+  return keep;
+}
+
+function pruneNodeModulesToPackageSet(keep) {
+  for (const entry of fs.readdirSync(nodeModules, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const entryPath = path.join(nodeModules, entry.name);
+    if (entry.name.startsWith('@')) {
+      for (const scopedEntry of fs.readdirSync(entryPath, { withFileTypes: true })) {
+        if (!scopedEntry.isDirectory()) continue;
+        const scopedName = `${entry.name}/${scopedEntry.name}`;
+        if (!keep.has(scopedName)) {
+          rmDir(path.join(entryPath, scopedEntry.name));
+        }
+      }
+      try {
+        if (fs.readdirSync(entryPath).length === 0) fs.rmdirSync(entryPath);
+      } catch { /* best effort */ }
+      continue;
+    }
+    if (!keep.has(entry.name)) {
+      rmDir(entryPath);
+    }
+  }
 }
 
 function hasRuntimeDefaultExport(sourcePath) {
@@ -102,6 +220,20 @@ function materializeOpenClawAliasPackage() {
     console.warn('[prune-clawdbot] WARNING: dist/plugin-sdk missing; skipped openclaw alias package');
     return;
   }
+
+  const aliasPackagePath = path.join(aliasDir, 'package.json');
+  const aliasIndexPath = path.join(aliasDir, 'index.js');
+  const aliasPluginSdkIndexPath = path.join(aliasDir, 'plugin-sdk', 'index.js');
+  try {
+    const existingPackage = JSON.parse(fs.readFileSync(aliasPackagePath, 'utf8'));
+    if (existingPackage?.name === 'openclaw-bundle-alias'
+        && existingPackage?.type === 'module'
+        && fs.existsSync(aliasIndexPath)
+        && fs.existsSync(aliasPluginSdkIndexPath)) {
+      console.log('[prune-clawdbot] Reusing materialized openclaw alias package');
+      return;
+    }
+  } catch { /* materialize below */ }
 
   rmDir(aliasDir);
   fs.mkdirSync(aliasDir, { recursive: true });
@@ -246,6 +378,14 @@ const SPECIFIC_DIRS_TO_REMOVE = [
   // CSS/SCSS themes — not needed for Node.js terminal output
   'highlight.js/styles',
   'highlight.js/scss',
+  // Type-only SDK payloads with deeply nested paths that WiX cannot reliably
+  // link from the repository checkout on Windows.
+  '@aws-sdk/core/dist-types',
+  '@aws-sdk/nested-clients/dist-types',
+  '@smithy/core/dist-types',
+  '@earendil-works/pi-ai/node_modules/@aws-sdk/client-bedrock-runtime/dist-cjs',
+  '@earendil-works/pi-ai/node_modules/@aws-sdk/client-bedrock-runtime/dist-es',
+  '@earendil-works/pi-ai/node_modules/@aws-sdk/client-bedrock-runtime/dist-types',
 ];
 for (const relDir of SPECIFIC_DIRS_TO_REMOVE) {
   const target = path.join(nodeModules, relDir);
@@ -356,6 +496,15 @@ const LONG_PATH_PACKAGE_SUBDIRS = [
   path.join('@mistralai', 'mistralai', 'src'),
 ];
 
+if (IS_WIN) {
+  for (const subdir of LONG_PATH_PACKAGE_SUBDIRS) {
+    const target = path.join(nodeModules, subdir);
+    if (rmDir(target)) {
+      console.log(`[prune-clawdbot]     removed root long-path subdir: node_modules/${subdir.replace(/\\/g, '/')}`);
+    }
+  }
+}
+
 const EXTENSION_UNUSED_PACKAGES = [
   // Optional native image acceleration pulled in under WhatsApp/Jimp. The
   // channel only needs Jimp's JS QR/media path for Knapsack's bundled runtime,
@@ -419,17 +568,9 @@ if (fs.existsSync(distExtensionsDir)) {
           }
 
           try {
-            const { spawnSync } = require('child_process');
-            const result = spawnSync('tar', ['-cf', 'node_modules.tar', 'node_modules'], {
-              cwd: extDir,
-              stdio: 'pipe',
-            });
-            if (result.status === 0) {
+            if (packNodeModulesTar({ cwd: extDir, finalTarName: 'node_modules.tar', label: `${extEntry.name} extension node_modules` })) {
               fs.rmSync(extNodeModules, { recursive: true, force: true });
               console.log(`[prune-clawdbot]     tarred extension node_modules: ${extEntry.name}`);
-            } else {
-              const err = result.stderr ? result.stderr.toString().trim() : 'unknown error';
-              console.warn(`[prune-clawdbot]     WARNING: tar failed for ${extEntry.name}: ${err}`);
             }
           } catch (e) {
             console.warn(`[prune-clawdbot]     WARNING: could not tar ${extEntry.name}: ${e.message}`);
@@ -457,6 +598,18 @@ try {
   }
 } catch { /* not present — nothing to do */ }
 materializeOpenClawAliasPackage();
+
+if (IS_WIN) {
+  try {
+    if (packNodeModulesTar({ cwd: CLAWDBOT_DIR, finalTarName: 'node_modules.tar', label: 'root node_modules' })) {
+      const keep = collectStartupPackageClosure();
+      pruneNodeModulesToPackageSet(keep);
+      console.log(`[prune-clawdbot] Packed root node_modules into node_modules.tar; kept ${keep.size} startup package(s) extracted`);
+    }
+  } catch (e) {
+    console.warn(`[prune-clawdbot] WARNING: could not tar root node_modules: ${e.message}`);
+  }
+}
 
 // Step 6: Report results
 if (!IS_WIN) {

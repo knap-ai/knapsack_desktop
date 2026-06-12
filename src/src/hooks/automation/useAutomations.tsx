@@ -8,10 +8,22 @@ import {
   scheduleRuns,
   updateAutomationAPI,
 } from 'src/api/automations'
-import { ConnectionKeys, getAccessToken } from 'src/api/connections'
+import {
+  Connection,
+  ConnectionKeys,
+  getAccessToken,
+  getGoogleCalendarConnections,
+  getGoogleDriveConnections,
+  getGoogleGmailConnections,
+} from 'src/api/connections'
 import { FeedItem } from 'src/api/feed_items'
 import { CreateAutomationProps, LLMParams, WebSearchResponse } from 'src/App'
-import { Automation, AutomationRun, AutomationTrigger } from 'src/automations/automation'
+import {
+  Automation,
+  AutomationRun,
+  AutomationTrigger,
+  convertAutomationDataSourceToConnectionKey,
+} from 'src/automations/automation'
 import { StepExecuteContext } from 'src/automations/steps/Base'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import DataFetcher from 'src/utils/data_fetch'
@@ -25,12 +37,56 @@ import { ButtonConfig } from 'src/components/molecules/MeetingNotification'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/tauri'
 
-const checkAuth = async (userEmail: string) => {
-  try {
-    await getAccessToken(userEmail, ConnectionKeys.GOOGLE_PROFILE)
-  } catch (error) {
-    throw error
+const hasRequiredConnection = (
+  connections: Record<string, Connection>,
+  connectionKey: ConnectionKeys,
+) => {
+  switch (connectionKey) {
+    case ConnectionKeys.GOOGLE_CALENDAR:
+      return getGoogleCalendarConnections(connections).length > 0
+    case ConnectionKeys.GOOGLE_DRIVE:
+      return getGoogleDriveConnections(connections).length > 0
+    case ConnectionKeys.GOOGLE_GMAIL:
+      return getGoogleGmailConnections(connections).length > 0
+    default:
+      return !!connections[connectionKey]
   }
+}
+
+const isGoogleConnectionKey = (
+  key: ConnectionKeys | undefined,
+): key is
+  | ConnectionKeys.GOOGLE_CALENDAR
+  | ConnectionKeys.GOOGLE_DRIVE
+  | ConnectionKeys.GOOGLE_GMAIL =>
+  key === ConnectionKeys.GOOGLE_CALENDAR ||
+  key === ConnectionKeys.GOOGLE_DRIVE ||
+  key === ConnectionKeys.GOOGLE_GMAIL
+
+const getAutomationGoogleConnectionKeys = (automation: Automation): ConnectionKeys[] =>
+  automation
+    .getDataSources()
+    .map(source => convertAutomationDataSourceToConnectionKey(source))
+    .filter(isGoogleConnectionKey)
+
+const checkAutomationAuth = async (
+  userEmail: string,
+  automation: Automation,
+  connections: Record<string, Connection>,
+) => {
+  const requiredGoogleKeys = getAutomationGoogleConnectionKeys(automation)
+
+  for (const key of requiredGoogleKeys) {
+    if (!hasRequiredConnection(connections, key)) {
+      return { needsAuth: true, requiredGoogleKeys }
+    }
+  }
+
+  for (const key of requiredGoogleKeys) {
+    await getAccessToken(userEmail, key)
+  }
+
+  return { needsAuth: false, requiredGoogleKeys }
 }
 
 type AutomationHelperFunctions = {
@@ -62,6 +118,7 @@ export type HandleAutomationCallArgs = {
 
 type UseAutomationProps = {
   userEmail: string
+  connections: Record<string, Connection>
   feed?: IFeed
   automationHelperFunctions: AutomationHelperFunctions
 }
@@ -82,6 +139,8 @@ type NotificationService = {
 export interface IGoogleAuthControls {
   showGoogleAuthPopup: boolean
   setShowGoogleAuthPopup: (show: boolean) => void
+  requiredGoogleConnectionKeys: ConnectionKeys[]
+  setRequiredGoogleConnectionKeys: (keys: ConnectionKeys[]) => void
   currentAutomation: string | undefined
   setCurrentAutomation: (automation: string | undefined) => void
   currentFeedItem: FeedItem | undefined
@@ -108,10 +167,12 @@ export type HandleAutomationArgs = {
 
 export function useAutomations({
   userEmail,
+  connections,
   automationHelperFunctions: { submitWebSearch, stopLLMExecution, handleError, addToLLMQueue },
 }: UseAutomationProps) {
   const [automations, setAutomations] = useState<Record<number, Automation>>({})
   const [showGoogleAuthPopup, setShowGoogleAuthPopup] = useState(false)
+  const [requiredGoogleConnectionKeys, setRequiredGoogleConnectionKeys] = useState<ConnectionKeys[]>([])
   const [currentAutomation, setCurrentAutomation] = useState<string>()
   const [currentFeedItem, setCurrentFeedItem] = useState<FeedItem>()
   const [notificationServices, setNotificationServices] = useState<NotificationService[]>([
@@ -226,10 +287,17 @@ export function useAutomations({
       }
       setCurrentFeedItem(args.args?.feedItem)
       try {
-        await checkAuth(userEmail)
+        const authState = await checkAutomationAuth(userEmail, args.automation, connections)
+        if (authState.needsAuth) {
+          setCurrentAutomation(args.automation.getName())
+          setRequiredGoogleConnectionKeys(authState.requiredGoogleKeys)
+          setShowGoogleAuthPopup(authState.requiredGoogleKeys.length > 0)
+          return true
+        }
       } catch {
         setCurrentAutomation(args.automation.getName())
-        // setShowGoogleAuthPopup(true)
+        setRequiredGoogleConnectionKeys(getAutomationGoogleConnectionKeys(args.automation))
+        setShowGoogleAuthPopup(true)
         return true
       }
 
@@ -316,7 +384,7 @@ export function useAutomations({
         return false
       }
     },
-    [userEmail, dataFetcher, handleAutomationError, handleChatbotAutomationRun, submitWebSearch],
+    [userEmail, connections, dataFetcher, handleAutomationError, handleChatbotAutomationRun, submitWebSearch, showGoogleAuthPopup],
   )
 
   const handleAutomationPreview = useCallback(
@@ -553,6 +621,8 @@ export function useAutomations({
   const googleAuthControls: IGoogleAuthControls = {
     showGoogleAuthPopup,
     setShowGoogleAuthPopup,
+    requiredGoogleConnectionKeys,
+    setRequiredGoogleConnectionKeys,
     currentAutomation,
     setCurrentAutomation,
     currentFeedItem,

@@ -13,12 +13,14 @@ const googlePermissions: Record<string, boolean> = {
 interface GoogleAuthPopupProps {
   onClose: () => void;
   onAuth: () => Promise<void>;
+  requiredConnectionKeys?: ConnectionKeys[];
   userEmail: string;
 }
 
 const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
     onClose,
     onAuth,
+    requiredConnectionKeys = [ConnectionKeys.GOOGLE_PROFILE],
     userEmail,
   }) => {
     const [authError, setAuthError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
         if (!isActive) return;
 
         try {
-          await getAccessToken(userEmail, ConnectionKeys.GOOGLE_PROFILE);
+          await Promise.all(requiredConnectionKeys.map(key => getAccessToken(userEmail, key)));
           if (isActive) {
             await onAuth();
             onClose();
@@ -48,23 +50,24 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
         isActive = false;
         clearInterval(interval);
       };
-    }, [userEmail, onAuth, onClose]);
+    }, [requiredConnectionKeys, userEmail, onAuth, onClose]);
 
   const handleAuth = async () => {
     setAuthError(null);
     try {
-      await getAccessToken(userEmail, ConnectionKeys.GOOGLE_PROFILE);
+      await Promise.all(requiredConnectionKeys.map(key => getAccessToken(userEmail, key)));
       onAuth();
       onClose();
     } catch {
-      let scopes: string[] = [];
-      for (const [key, googlePermission] of Object.entries(googlePermissions)) {
-        if (googlePermission) {
-          scopes = [...scopes, ...googleConnections[key].scopes];
+      const scopedKeys = requiredConnectionKeys.length > 0 ? requiredConnectionKeys : [ConnectionKeys.GOOGLE_PROFILE]
+      let scopes: string[] = []
+      for (const key of scopedKeys) {
+        if (googlePermissions[key]) {
+          scopes = [...scopes, ...googleConnections[key].scopes]
         }
       }
       try {
-        openGoogleAuthScreen(scopes.join(' '));
+        openGoogleAuthScreen([...new Set(scopes)].join(' '));
       } catch (error) {
         if (error instanceof GoogleAuthError) {
           setAuthError(error.message);

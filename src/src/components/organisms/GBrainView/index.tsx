@@ -591,7 +591,7 @@ const GBrainView: React.FC<GBrainViewProps> = ({ feed, onOpenMeeting, onOpenWork
   ]
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white" data-testid="qa-gbrain-panel">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 flex-shrink-0">
         <div className="flex flex-col min-w-0">

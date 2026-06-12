@@ -137,6 +137,8 @@ export interface HomeProps {
   googleAuthControls: {
     showGoogleAuthPopup: boolean
     setShowGoogleAuthPopup: (show: boolean) => void
+    requiredGoogleConnectionKeys: ConnectionKeys[]
+    setRequiredGoogleConnectionKeys: (keys: ConnectionKeys[]) => void
   }
   handleAutomationPreview: (
     automation: Automation,
@@ -914,6 +916,7 @@ function App() {
     openNotificationWindow,
   } = useAutomations({
     userEmail,
+    connections,
     automationHelperFunctions: {
       submitWebSearch,
       stopLLMExecution,

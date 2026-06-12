@@ -58,7 +58,7 @@ const EmailTabView = ({
   // If not logged in to email, show login prompt
   if (!feed.loggedEmailAutopilot) {
     return (
-      <div className="EmailTabView w-full h-full">
+      <div className="EmailTabView w-full h-full" data-testid="qa-email-autopilot-panel">
         <LoginWarningAutopilot
           onConnectAccountClick={(key: ConnectionKeys) => {
             feed.setEmailAutopilotStatus({ status: 'sync-email' })
@@ -72,7 +72,7 @@ const EmailTabView = ({
   }
 
   return (
-    <div className="EmailTabView w-full h-full overflow-hidden">
+    <div className="EmailTabView w-full h-full overflow-hidden" data-testid="qa-email-autopilot-panel">
       <div className="EmailTabView__header">
         <h1 className="EmailTabView__title">Email Autopilot</h1>
       </div>

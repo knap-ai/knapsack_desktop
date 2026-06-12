@@ -300,6 +300,9 @@ static GATEWAY_LIFECYCLE_MUTEX: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
 static ROOT_PLUGIN_DEPS_INSTALL_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
   once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 
+static NODE_MODULES_EXTRACTION_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
+  once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
+
 struct GatewayRestartProgressGuard;
 
 impl GatewayRestartProgressGuard {
@@ -1920,6 +1923,102 @@ fn install_bundled_plugin_runtime_deps(
   ensure_openclaw_self_link(&root_nm);
 }
 
+fn bundled_node_modules_has_declared_dependencies(
+  dir: &std::path::Path,
+  nm_path: &std::path::Path,
+) -> bool {
+  let pkg_path = dir.join("package.json");
+  let Ok(raw) = fs::read_to_string(&pkg_path) else {
+    return false;
+  };
+  let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return false;
+  };
+  let deps = pkg.get("dependencies").and_then(|v| v.as_object());
+  if deps.map(|deps| deps.is_empty()).unwrap_or(true) {
+    return nm_path
+      .read_dir()
+      .map(|mut entries| entries.any(|entry| entry.is_ok()))
+      .unwrap_or(false);
+  }
+
+  deps
+    .unwrap()
+    .keys()
+    .all(|dep| nm_path.join(dep).join("package.json").exists())
+}
+
+fn bundled_node_modules_has_required_runtime_files(nm_path: &std::path::Path) -> bool {
+  [
+    "@earendil-works/pi-agent-core/package.json",
+    "@earendil-works/pi-agent-core/dist/index.js",
+    "@earendil-works/pi-agent-core/dist/agent.js",
+  ]
+  .iter()
+  .all(|rel| {
+    rel
+      .split('/')
+      .fold(nm_path.to_path_buf(), |path, part| path.join(part))
+      .exists()
+  })
+}
+
+fn bundled_node_modules_has_startup_runtime_files(nm_path: &std::path::Path) -> bool {
+  [
+    "openclaw/package.json",
+    "openclaw/plugin-sdk/index.js",
+    "chalk/package.json",
+    "commander/package.json",
+    "chokidar/package.json",
+    "ws/package.json",
+    "yaml/package.json",
+    "zod/package.json",
+    "dotenv/package.json",
+    "undici/package.json",
+    "ajv/package.json",
+    "croner/package.json",
+    "json5/package.json",
+    "tar/package.json",
+    "jszip/package.json",
+    "markdown-it/package.json",
+    "@earendil-works/pi-coding-agent/package.json",
+    "@earendil-works/pi-ai/package.json",
+    "@earendil-works/pi-agent-core/package.json",
+    "@earendil-works/pi-agent-core/dist/index.js",
+    "@earendil-works/pi-agent-core/dist/agent.js",
+    "typebox/package.json",
+    "@clack/core/package.json",
+    "@clack/prompts/package.json",
+    "@agentclientprotocol/sdk/package.json",
+    "@modelcontextprotocol/sdk/package.json",
+    "@openclaw/fs-safe/package.json",
+    "@openclaw/proxyline/package.json",
+    "file-type/package.json",
+    "jiti/package.json",
+    "web-push/package.json",
+    "express/package.json",
+    "kysely/package.json",
+    "grammy/package.json",
+    "@google/genai/package.json",
+    "playwright-core/package.json",
+    "qrcode/package.json",
+    "tokenjuice/package.json",
+    "tslog/package.json",
+  ]
+  .iter()
+  .all(|rel| {
+    rel
+      .split('/')
+      .fold(nm_path.to_path_buf(), |path, part| path.join(part))
+      .exists()
+  })
+}
+
+fn bundled_node_modules_is_complete(dir: &std::path::Path, nm_path: &std::path::Path) -> bool {
+  bundled_node_modules_has_declared_dependencies(dir, nm_path)
+    && bundled_node_modules_has_required_runtime_files(nm_path)
+}
+
 /// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
 /// `node_modules.tar` (one file) so WiX stays under its 65535-file CAB limit
 /// (LGHT0306).  This function extracts the tar back to `node_modules/` at
@@ -1940,8 +2039,65 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
     return; // No tar — dev build or macOS/Linux (uses real node_modules dir).
   }
 
+  let _extract_guard = NODE_MODULES_EXTRACTION_MUTEX
+    .lock()
+    .unwrap_or_else(|poisoned| poisoned.into_inner());
+
   let nm_path = dir.join("node_modules");
+  let marker_path = nm_path.join(".knapsack-extracted-from-tar.json");
+  let tar_meta = fs::metadata(&tar_path).ok();
+  let tar_len = tar_meta.as_ref().map(|m| m.len()).unwrap_or(0);
+  let tar_mtime_secs = tar_meta
+    .as_ref()
+    .and_then(|m| m.modified().ok())
+    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+    .map(|d| d.as_secs())
+    .unwrap_or(0);
+
   if nm_path.is_dir() {
+    let marker_current = fs::read_to_string(&marker_path)
+      .ok()
+      .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+      .map(|v| {
+        v.get("tar_len").and_then(|n| n.as_u64()) == Some(tar_len)
+          && v.get("tar_mtime_secs").and_then(|n| n.as_u64()) == Some(tar_mtime_secs)
+      })
+      .unwrap_or(false);
+    if marker_current && bundled_node_modules_is_complete(dir, &nm_path) {
+      return;
+    }
+    if bundled_node_modules_is_complete(dir, &nm_path) {
+      let marker = serde_json::json!({
+        "tar_len": tar_len,
+        "tar_mtime_secs": tar_mtime_secs,
+      });
+      let _ = fs::write(&marker_path, marker.to_string());
+      eprintln!(
+        "[clawd/service] node_modules present and complete in {} - skipping tar extraction",
+        dir.display()
+      );
+      return;
+    }
+    eprintln!(
+      "[clawd/service] node_modules.tar extraction marker missing/stale in {} - re-extracting",
+      dir.display()
+    );
+    if bundled_node_modules_has_startup_runtime_files(&nm_path) {
+      eprintln!(
+        "[clawd/service] startup node_modules subset present in {} - merging node_modules.tar",
+        dir.display()
+      );
+    } else {
+      let _ = fs::remove_dir_all(&nm_path);
+    }
+  }
+
+  if nm_path.is_dir()
+    && !(
+      bundled_node_modules_has_startup_runtime_files(&nm_path)
+        && !bundled_node_modules_is_complete(dir, &nm_path)
+    )
+  {
     // Already extracted — check if the tar is newer (app was updated in-place).
     let tar_mtime = fs::metadata(&tar_path).and_then(|m| m.modified()).ok();
     let nm_mtime = fs::metadata(&nm_path).and_then(|m| m.modified()).ok();
@@ -1986,6 +2142,33 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
       ),
     }
   }
+}
+
+fn ensure_gateway_node_modules_ready(clawdbot_root: &std::path::Path) -> Result<(), String> {
+  let nm_path = clawdbot_root.join("node_modules");
+  if bundled_node_modules_has_startup_runtime_files(&nm_path) {
+    if !bundled_node_modules_is_complete(clawdbot_root, &nm_path) {
+      let root = clawdbot_root.to_path_buf();
+      std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        ensure_node_modules_extracted(&root);
+      });
+    }
+    return Ok(());
+  }
+
+  ensure_node_modules_extracted(clawdbot_root);
+  if bundled_node_modules_is_complete(clawdbot_root, &nm_path) {
+    return Ok(());
+  }
+  if bundled_node_modules_has_startup_runtime_files(&nm_path) {
+    return Ok(());
+  }
+
+  Err(format!(
+    "Bundled gateway startup dependencies are not ready at {} after node_modules.tar extraction",
+    nm_path.display()
+  ))
 }
 
 /// Create `node_modules/openclaw -> ..` (or a junction on Windows) so that
@@ -9228,7 +9411,7 @@ async fn prepare_gateway_config(
   // (dist/entry.js → dist/ → clawdbot/).
   if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
     if should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
-      ensure_node_modules_extracted(clawdbot_root);
+      ensure_gateway_node_modules_ready(clawdbot_root)?;
     } else {
       eprintln!(
         "[clawd/service] Skipping bundled node_modules extraction in signed app bundle: {}",
@@ -9726,7 +9909,17 @@ pub async fn set_service_enabled(
       // Extract node_modules.tar if present (Windows CI/release builds only).
       if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
         if should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
-          ensure_node_modules_extracted(clawdbot_root);
+          if let Err(error) = ensure_gateway_node_modules_ready(clawdbot_root) {
+            eprintln!(
+              "[clawd/service] ERROR: Failed to prepare gateway node_modules: {}",
+              error
+            );
+            return HttpResponse::InternalServerError().json(EnableServiceResponse {
+              success: false,
+              enabled,
+              message: format!("Failed to prepare gateway runtime: {}", error),
+            });
+          }
         } else {
           eprintln!(
             "[clawd/service] Skipping bundled node_modules extraction in signed app bundle: {}",
