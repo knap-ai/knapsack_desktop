@@ -1409,15 +1409,11 @@ fn create_db_env_variable() {
 
 // ── System tray menu bar ──
 
-fn build_default_tray_menu() -> SystemTrayMenu {
+fn build_default_tray_menu(app_version: &str) -> SystemTrayMenu {
   let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
   let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
   let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new(
-    "version",
-    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
-  )
-  .disabled();
+  let version = CustomMenuItem::new("version", format!("Knapsack v{}", app_version)).disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
   let quit = CustomMenuItem::new("quit", "Quit");
 
@@ -1516,7 +1512,7 @@ fn update_tray_menu(app: AppHandle, groups: Vec<TrayMeetingGroup>) {
   let settings = CustomMenuItem::new("settings", "Settings");
   let version = CustomMenuItem::new(
     "version",
-    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
+    format!("Knapsack v{}", app.package_info().version),
   )
   .disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
@@ -1969,7 +1965,7 @@ async fn main() {
 
   // System tray with meetings menu (all platforms)
   {
-    let tray_menu = build_default_tray_menu();
+    let tray_menu = build_default_tray_menu(&context.package_info().version.to_string());
     let system_tray = SystemTray::new().with_menu(tray_menu);
 
     builder = builder
