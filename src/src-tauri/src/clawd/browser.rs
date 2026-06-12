@@ -4597,15 +4597,11 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           .await
           .map_err(|e| anyhow::anyhow!("Knapsack auth failed: {}", e))?;
         let mut conversation: Vec<serde_json::Value> = Vec::new();
-        let mut system_prompt = String::new();
         for m in msgs.iter() {
           match m {
             chat_agent::OaiMessage::System { content } => {
               if !content.trim().is_empty() {
-                if !system_prompt.is_empty() {
-                  system_prompt.push('\n');
-                }
-                system_prompt.push_str(content);
+                conversation.push(serde_json::json!({"role": "system", "content": content}));
               }
             }
             chat_agent::OaiMessage::User { content, .. } => {
@@ -4614,18 +4610,33 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               }
             }
             chat_agent::OaiMessage::Assistant { content, .. } => {
+              let mut message = serde_json::json!({"role": "assistant"});
               if let Some(c) = content {
                 if !c.trim().is_empty() {
-                  conversation.push(serde_json::json!({"role": "assistant", "content": c}));
+                  message["content"] = serde_json::Value::String(c.clone());
                 }
+              }
+              if let chat_agent::OaiMessage::Assistant {
+                tool_calls: Some(tool_calls),
+                ..
+              } = m
+              {
+                if !tool_calls.is_empty() {
+                  message["tool_calls"] = serde_json::to_value(tool_calls)?;
+                }
+              }
+              if message.get("content").is_some() || message.get("tool_calls").is_some() {
+                conversation.push(message);
               }
             }
             chat_agent::OaiMessage::Tool {
-              tool_call_id: _,
+              tool_call_id,
               content,
             } => {
               if !content.trim().is_empty() {
-                conversation.push(serde_json::json!({"role": "tool", "content": content}));
+                conversation.push(
+                  serde_json::json!({"role": "tool", "tool_call_id": tool_call_id, "content": content}),
+                );
               }
             }
           }
@@ -4634,12 +4645,12 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           "messages": conversation,
           "model": model,
         });
-        if !system_prompt.is_empty() {
-          body["system_prompt"] = serde_json::Value::String(system_prompt);
+        if !tls.is_empty() {
+          body["tools"] = serde_json::to_value(&tls)?;
         }
         let resp = client
           .post(format!(
-            "{}/api/desktop/inference",
+            "{}/chat/completions",
             knapsack_base_url().trim_end_matches('/')
           ))
           .header("Authorization", format!("Bearer {}", jwt))
@@ -4666,35 +4677,27 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             text
           ));
         }
-        let raw = resp
-          .text()
+        let out: chat_agent::OaiChatResp = resp
+          .json()
           .await
           .map_err(|e| anyhow::anyhow!("Knapsack response read failed: {}", e))?;
-        let mut full_text = String::new();
-        for line in raw.lines() {
-          if let Some(chunk) = line.strip_prefix("data: ") {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(chunk) {
-              if v.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
-                break;
-              }
-              if let Some(content) = v.get("content").and_then(|c| c.as_str()) {
-                full_text.push_str(content);
-              }
-            }
-          }
-        }
-        if full_text.is_empty() {
+        let has_reply = out
+          .choices
+          .first()
+          .map(|choice| {
+            choice
+              .message
+              .content
+              .as_ref()
+              .map(|c| !c.trim().is_empty())
+              .unwrap_or(false)
+              || !choice.message.tool_calls.is_empty()
+          })
+          .unwrap_or(false);
+        if !has_reply {
           return Err(anyhow::anyhow!("Knapsack returned an empty response"));
         }
-        Ok(chat_agent::OaiChatResp {
-          choices: vec![chat_agent::OaiChoice {
-            message: chat_agent::OaiChoiceMsg {
-              content: Some(full_text),
-              tool_calls: Vec::new(),
-            },
-          }],
-          usage: None,
-        })
+        Ok(out)
       }
       _ => chat_agent::openai_chat(key, model, msgs, tls).await,
     }

@@ -906,7 +906,7 @@ async fn anthropic_completion(
   )))
 }
 
-/// Call Knapsack's cloud inference API (`POST /api/desktop/inference`).
+/// Call Knapsack's cloud chat completions API (`POST /chat/completions`).
 /// Fetches a fresh JWT from the local gateway before each request.
 async fn knapsack_completion(
   provider: &ResolvedProvider,
@@ -916,37 +916,25 @@ async fn knapsack_completion(
   let client = reqwest::Client::new();
   let token = resolve_knapsack_bearer_token(email).await?;
 
-  // Separate system prompt from conversation messages
-  let system_prompt: String = messages
-    .iter()
-    .filter(|m| matches!(m.sender, MessageSender::System))
-    .map(|m| m.content.as_str())
-    .collect::<Vec<_>>()
-    .join("\n");
-
   let conversation: Vec<serde_json::Value> = messages
     .iter()
-    .filter(|m| !matches!(m.sender, MessageSender::System))
     .map(|m| {
       let role = match m.sender {
+        MessageSender::System => "system",
         MessageSender::User => "user",
         MessageSender::Bot => "assistant",
-        _ => "user",
       };
       serde_json::json!({"role": role, "content": &m.content})
     })
     .collect();
 
-  let mut body = serde_json::json!({
+  let body = serde_json::json!({
     "messages": conversation,
     "model": &provider.model,
   });
-  if !system_prompt.is_empty() {
-    body["system_prompt"] = serde_json::Value::String(system_prompt);
-  }
 
   let resp = client
-    .post(format!("{}/api/desktop/inference", &provider.base_url))
+    .post(format!("{}/chat/completions", &provider.base_url))
     .header("Authorization", format!("Bearer {}", token))
     .header("Content-Type", "application/json")
     .json(&body)
@@ -975,26 +963,19 @@ async fn knapsack_completion(
     )));
   }
 
-  // Consume SSE stream and concatenate content chunks
-  let body_bytes = resp
-    .bytes()
+  let response_json: serde_json::Value = resp
+    .json()
     .await
     .map_err(|e| LLMError::ChatCompletionFailed(format!("Knapsack response read failed: {}", e)))?;
-  let body_str = String::from_utf8_lossy(&body_bytes);
-
-  let mut full_text = String::new();
-  for line in body_str.lines() {
-    if let Some(data) = line.strip_prefix("data: ") {
-      if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
-        if json.get("done").and_then(|d| d.as_bool()).unwrap_or(false) {
-          break;
-        }
-        if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
-          full_text.push_str(content);
-        }
-      }
-    }
-  }
+  let full_text = response_json
+    .get("choices")
+    .and_then(|choices| choices.as_array())
+    .and_then(|choices| choices.first())
+    .and_then(|choice| choice.get("message"))
+    .and_then(|message| message.get("content"))
+    .and_then(|content| content.as_str())
+    .unwrap_or_default()
+    .to_string();
 
   if full_text.is_empty() {
     return Err(LLMError::ChatCompletionFailed(
