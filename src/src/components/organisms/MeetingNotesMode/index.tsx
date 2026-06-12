@@ -1227,7 +1227,7 @@ Be direct, specific, and concise. No filler text.`
   }
 
   return (
-    <div className="notetaker-note">
+    <div className={`notetaker-note ${isMeetingChatOpen ? 'notetaker-note--chat-open' : ''}`}>
       <div className="notetaker-note__content-row">
       <div className="notetaker-note__scroll-area">
       <div className="notetaker-note__container">
@@ -1858,7 +1858,9 @@ Be direct, specific, and concise. No filler text.`
 
       {/* Notetaker bottom bar */}
       {(true) && (
-      <div className="notetaker-note__bottom-bar">
+      <div
+        className={`notetaker-note__bottom-bar ${!recordingHandlers.isRecording(thread.id) ? 'notetaker-note__bottom-bar--chat-launcher' : ''}`}
+      >
         {recordingHandlers.isRecording(thread.id) ? (
           <>
             <div className="notetaker-note__bottom-waveform">

@@ -256,6 +256,10 @@ html, body {
   position: relative;
 }
 
+.notetaker-note--chat-open {
+  overflow: hidden;
+}
+
 .notetaker-note__scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -552,6 +556,10 @@ html, body {
   flex-shrink: 0;
 }
 
+.notetaker-note__bottom-bar--chat-launcher {
+  justify-content: flex-end;
+}
+
 .notetaker-note__bottom-audio {
   display: flex;
   align-items: center;
@@ -575,6 +583,11 @@ html, body {
   flex: 1;
 }
 
+.notetaker-note__bottom-bar--chat-launcher .notetaker-note__bottom-chat {
+  flex: 0 1 420px;
+  max-width: min(420px, 100%);
+}
+
 .notetaker-note__bottom-chat-input {
   width: 100%;
   padding: 8px 12px;
@@ -584,6 +597,8 @@ html, body {
   font-size: 13px;
   color: #333333;
   font-family: 'Inter', sans-serif;
+  line-height: 1.4;
+  box-sizing: border-box;
   outline: none;
   transition: border-color 0.15s ease;
 }
@@ -1159,6 +1174,13 @@ html, body {
   box-shadow: 0 -12px 28px rgba(35, 35, 35, 0.12);
   transform: translateX(-50%);
   transition: max-height 0.16s ease, box-shadow 0.16s ease;
+}
+
+.notetaker-note--chat-open .notetaker-note__brief-drawer {
+  left: 24px;
+  right: calc(420px + 24px);
+  width: auto;
+  transform: none;
 }
 
 .notetaker-note__brief-drawer--collapsed {
