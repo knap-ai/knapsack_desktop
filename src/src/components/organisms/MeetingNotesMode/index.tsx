@@ -144,6 +144,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
+  const [isEndingMeeting, setIsEndingMeeting] = useState(false)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
@@ -548,9 +549,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         }
       },
     )
-    const unlistenAutoStartRecordingPromise = listen(
-      'stop_recording',
-      async (event: Event<{ threadId?: number | null }>) => {
+      const unlistenAutoStartRecordingPromise = listen(
+        'stop_recording',
+        async (event: Event<{ threadId?: number | null }>) => {
         if (event.payload?.threadId && event.payload.threadId !== thread.id) return
 
         const statusDisable = await isRecordingStatus()
@@ -560,7 +561,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         // Do NOT update isRecording state here — stopRecording() manages it.
         // Setting it to false before calling handleStopRecording would cause
         // wasRecording to be false inside stopRecording, preventing note generation.
-        handleStopRecording('Automatic')
+        requestStopRecording('Automatic')
       },
     )
     // Listen for heartbeat insights during recording — always show inline, notify if proactive mode on
@@ -924,12 +925,21 @@ Be specific, compact, and useful while the user is joining the call.`,
     }
   }
 
-  // Keep a ref so the listener below always calls the latest handleStopRecording
+  const requestStopRecording = async (type: string) => {
+    setIsEndingMeeting(true)
+    try {
+      await handleStopRecording(type)
+    } finally {
+      setIsEndingMeeting(false)
+    }
+  }
+
+  // Keep a ref so the listener below always calls the latest stop handler
   // without stale-closure issues (recordingHandlers changes each render when
   // isRecordingStates updates, so capturing it in a [thread.id]-scoped effect
   // means isRecording() always returned false and stop was silently skipped).
-  const handleStopRecordingRef = React.useRef(handleStopRecording)
-  handleStopRecordingRef.current = handleStopRecording
+  const handleStopRecordingRef = React.useRef(requestStopRecording)
+  handleStopRecordingRef.current = requestStopRecording
 
   useEffect(() => {
     const unlisten = listen('stop-recording-from-indicator', () => {
@@ -942,6 +952,13 @@ Be specific, compact, and useful while the user is joining the call.`,
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading
   }, [recordingHandlers, thread.id, isLLMLoading])
+
+  const isEndingMeetingState = isEndingMeeting || (
+    recordingHandlers.isLoadingNotes(thread.id) && !recordingHandlers.isRecording(thread.id) && !thread.recorded
+  )
+  const endingMeetingStatusText = isEndingMeeting
+    ? 'Stopping recording and preparing your notes.'
+    : transcribingTexts[transcribingTextIndex]
 
   const [synthTimedOut, setSynthTimedOut] = useState(false)
 
@@ -1053,10 +1070,10 @@ Be specific, compact, and useful while the user is joining the call.`,
                 </div>
               </div>
               <div className="flex-shrink-0 flex items-center gap-2">
-                {!thread.recorded && (
+                {!thread.recorded && !isEndingMeetingState && (
                   <RecordControlPanel
                     onClickJoin={() => handleRecordClick(true)}
-                    onClickEnd={() => handleStopRecording('Manually')}
+                    onClickEnd={() => requestStopRecording('Manually')}
                     onClickPause={() => recordingHandlers.pauseRecording()}
                     onClickResume={() => handleRecordClick(false)}
                     isRecording={recordingHandlers.isRecording(thread.id)}
@@ -1068,6 +1085,23 @@ Be specific, compact, and useful while the user is joining the call.`,
               </div>
             </div>
           </div>
+          {/* End-of-meeting progress */}
+          {isEndingMeetingState && (
+            <div className="notetaker-note__post-meeting-banner">
+              <div className="notetaker-note__post-meeting-line">
+                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
+                  <span style={{ animationDelay: '0ms' }} />
+                  <span style={{ animationDelay: '150ms' }} />
+                  <span style={{ animationDelay: '300ms' }} />
+                  <span style={{ animationDelay: '450ms' }} />
+                </span>
+                {endingMeetingStatusText}
+              </div>
+              <p className="notetaker-note__post-meeting-subtext">
+                Your notes are being finalized. This should only take a moment.
+              </p>
+            </div>
+          )}
           {/* Loading skeleton */}
           {!recordingHandlers.isRecording(thread.id) && (
             <div className="mt-6 space-y-3 animate-pulse">
@@ -1099,7 +1133,7 @@ Be specific, compact, and useful while the user is joining the call.`,
             <div className="flex-1" />
             <button
               className="notetaker-note__bottom-stop"
-              onClick={() => handleStopRecording('Manually')}
+              onClick={() => requestStopRecording('Manually')}
             >
               Stop recording
             </button>
@@ -1227,7 +1261,7 @@ Be direct, specific, and concise. No filler text.`
   }
 
   return (
-    <div className="notetaker-note">
+    <div className={`notetaker-note ${isMeetingChatOpen ? 'notetaker-note--chat-open' : ''}`}>
       <div className="notetaker-note__content-row">
       <div className="notetaker-note__scroll-area">
       <div className="notetaker-note__container">
@@ -1379,10 +1413,10 @@ Be direct, specific, and concise. No filler text.`
               </div>
             </div>
             <div className="flex-shrink-0 flex items-center gap-2">
-              {!thread.recorded && (
+              {!thread.recorded && !isEndingMeetingState && (
                 <RecordControlPanel
                   onClickJoin={() => handleRecordClick(true)}
-                  onClickEnd={() => handleStopRecording('Manually')}
+                  onClickEnd={() => requestStopRecording('Manually')}
                   onClickPause={() => recordingHandlers.pauseRecording()}
                   onClickResume={() => handleRecordClick(false)}
                   isRecording={recordingHandlers.isRecording(thread.id)}
@@ -1391,7 +1425,7 @@ Be direct, specific, and concise. No filler text.`
                   isPaused={recordingHandlers.isPaused}
                 />
               )}
-              {isSynthesizing() && !synthTimedOut && (
+              {isSynthesizing() && !isEndingMeetingState && !synthTimedOut && (
                 <div className="inline-flex justify-center items-center">
                   <div className="text-right text-stone-500 text-sm font-normal font-Inter leading-tight max-w-[18rem]">
                     <TransitionGroup className="relative overflow-hidden whitespace-nowrap h-6">
@@ -1417,6 +1451,22 @@ Be direct, specific, and concise. No filler text.`
               )}
             </div>
           </div>
+          {isEndingMeetingState && (
+            <div className="notetaker-note__post-meeting-banner">
+              <div className="notetaker-note__post-meeting-line">
+                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
+                  <span style={{ animationDelay: '0ms' }} />
+                  <span style={{ animationDelay: '150ms' }} />
+                  <span style={{ animationDelay: '300ms' }} />
+                  <span style={{ animationDelay: '450ms' }} />
+                </span>
+                {endingMeetingStatusText}
+              </div>
+              <p className="notetaker-note__post-meeting-subtext">
+                Your notes are being finalized. This should only take a moment.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Recording notice */}
@@ -1517,7 +1567,7 @@ Be direct, specific, and concise. No filler text.`
         )}
 
         {/* Tab bar for template, transcript, tasks - hidden during active recording for clean view */}
-        {!recordingHandlers.isRecording(thread.id) && (
+        {!recordingHandlers.isRecording(thread.id) && !isEndingMeetingState && (
           <MeetingNotesTabBar
             thread={thread}
             feedItemId={feedItemId}
@@ -1858,7 +1908,9 @@ Be direct, specific, and concise. No filler text.`
 
       {/* Notetaker bottom bar */}
       {(true) && (
-      <div className="notetaker-note__bottom-bar">
+      <div
+        className={`notetaker-note__bottom-bar ${!recordingHandlers.isRecording(thread.id) ? 'notetaker-note__bottom-bar--chat-launcher' : ''}`}
+      >
         {recordingHandlers.isRecording(thread.id) ? (
           <>
             <div className="notetaker-note__bottom-waveform">
@@ -1888,48 +1940,62 @@ Be direct, specific, and concise. No filler text.`
             )}
             <button
               className="notetaker-note__bottom-stop"
-              onClick={() => handleStopRecording('Manually')}
+              onClick={() => requestStopRecording('Manually')}
             >
               Stop recording
             </button>
           </>
         ) : (
           <>
-            {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" y1="8" x2="4" y2="16" />
-                <line x1="8" y1="5" x2="8" y2="19" />
-                <line x1="12" y1="2" x2="12" y2="22" />
-                <line x1="16" y1="5" x2="16" y2="19" />
-                <line x1="20" y1="8" x2="20" y2="16" />
-              </svg>
-            </button>}
-            {!isMeetingChatOpen && <div
-              className="notetaker-note__bottom-chat"
-              onClick={openMeetingChat}
-              style={{ cursor: 'pointer' }}
-            >
-              <input
-                type="text"
-                placeholder="Continue chat"
-                className="notetaker-note__bottom-chat-input"
-                readOnly
-                style={{ cursor: 'pointer' }}
-              />
-            </div>}
-            {thread.recorded && (
-              <button
-                className="notetaker-note__bottom-action"
-                onClick={() => onEmailClick?.(notesMarkdown, meeting)}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-                  <path d="M9 13h6" />
-                  <path d="M9 17h3" />
-                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                </svg>
-                Write follow up email
-              </button>
+            {isEndingMeetingState ? (
+              <span className="notetaker-note__post-meeting-line">
+                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
+                  <span style={{ animationDelay: '0ms' }} />
+                  <span style={{ animationDelay: '150ms' }} />
+                  <span style={{ animationDelay: '300ms' }} />
+                  <span style={{ animationDelay: '450ms' }} />
+                </span>
+                {endingMeetingStatusText}
+              </span>
+            ) : (
+              <>
+                {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="8" x2="4" y2="16" />
+                    <line x1="8" y1="5" x2="8" y2="19" />
+                    <line x1="12" y1="2" x2="12" y2="22" />
+                    <line x1="16" y1="5" x2="16" y2="19" />
+                    <line x1="20" y1="8" x2="20" y2="16" />
+                  </svg>
+                </button>}
+                {!isMeetingChatOpen && <div
+                  className="notetaker-note__bottom-chat"
+                  onClick={openMeetingChat}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Continue chat"
+                    className="notetaker-note__bottom-chat-input"
+                    readOnly
+                    style={{ cursor: 'pointer' }}
+                  />
+                </div>}
+                {thread.recorded && (
+                  <button
+                    className="notetaker-note__bottom-action"
+                    onClick={() => onEmailClick?.(notesMarkdown, meeting)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
+                      <path d="M9 13h6" />
+                      <path d="M9 17h3" />
+                      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                    </svg>
+                    Write follow up email
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
