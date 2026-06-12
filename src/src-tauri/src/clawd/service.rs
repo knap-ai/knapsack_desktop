@@ -7114,6 +7114,156 @@ pub struct OllamaConfigRequest {
   pub base_url: Option<String>,
 }
 
+fn parse_ollama_num_ctx(parameters: &str) -> Option<u64> {
+  let mut last_value = None;
+  for raw_line in parameters.lines() {
+    let trimmed = raw_line.trim();
+    let Some(rest) = trimmed.strip_prefix("num_ctx") else {
+      continue;
+    };
+    let digits: String = rest
+      .trim_start()
+      .chars()
+      .take_while(|c| c.is_ascii_digit())
+      .collect();
+    if let Ok(parsed) = digits.parse::<u64>() {
+      if parsed > 0 {
+        last_value = Some(parsed);
+      }
+    }
+  }
+  last_value
+}
+
+fn parse_ollama_show_context_window(body: &serde_json::Value) -> Option<u64> {
+  let mut context_window = None;
+  if let Some(model_info) = body.get("model_info").and_then(|v| v.as_object()) {
+    for (key, value) in model_info {
+      if !key.ends_with(".context_length") {
+        continue;
+      }
+      if let Some(parsed) = value.as_u64() {
+        if parsed > 0 {
+          context_window = Some(context_window.unwrap_or(0).max(parsed));
+        }
+      }
+    }
+  }
+
+  if let Some(parameters) = body.get("parameters").and_then(|v| v.as_str()) {
+    if let Some(parsed) = parse_ollama_num_ctx(parameters) {
+      context_window = Some(context_window.unwrap_or(0).max(parsed));
+    }
+  }
+
+  context_window
+}
+
+async fn fetch_ollama_model_context_window(base_url: &str, model: &str) -> Option<u64> {
+  let client = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(5))
+    .build()
+    .ok()?;
+
+  let response = client
+    .post(format!("{}/api/show", base_url.trim_end_matches('/')))
+    .json(&serde_json::json!({ "name": model }))
+    .send()
+    .await
+    .ok()?;
+
+  if !response.status().is_success() {
+    return None;
+  }
+
+  let body = response.json::<serde_json::Value>().await.ok()?;
+  parse_ollama_show_context_window(&body)
+}
+
+fn upsert_ollama_provider_config(
+  cfg_val: &mut serde_json::Value,
+  base_url: &str,
+  model: Option<&str>,
+  context_window: Option<u64>,
+) {
+  let Some(root) = cfg_val.as_object_mut() else {
+    return;
+  };
+  let models = root
+    .entry("models")
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut();
+  let Some(models) = models else {
+    return;
+  };
+  let providers = models
+    .entry("providers")
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut();
+  let Some(providers) = providers else {
+    return;
+  };
+  let provider = providers
+    .entry("ollama")
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut();
+  let Some(provider) = provider else {
+    return;
+  };
+
+  provider.insert("baseUrl".to_string(), serde_json::json!(base_url));
+  provider.insert("api".to_string(), serde_json::json!("ollama"));
+  provider.insert("apiKey".to_string(), serde_json::json!("ollama-local"));
+
+  let Some(model) = model.filter(|m| !m.trim().is_empty()) else {
+    return;
+  };
+
+  let models_value = provider
+    .entry("models")
+    .or_insert_with(|| serde_json::json!([]))
+    .as_array_mut();
+  let Some(models_value) = models_value else {
+    return;
+  };
+
+  let existing_entry = models_value
+    .iter_mut()
+    .find(|entry| entry.get("id").and_then(|v| v.as_str()) == Some(model));
+
+  let entry = if let Some(existing_entry) = existing_entry {
+    existing_entry
+  } else {
+    models_value.push(serde_json::json!({ "id": model, "name": model }));
+    models_value.last_mut().unwrap()
+  };
+
+  let Some(entry_obj) = entry.as_object_mut() else {
+    return;
+  };
+  entry_obj.insert("id".to_string(), serde_json::json!(model));
+  entry_obj.insert("name".to_string(), serde_json::json!(model));
+
+  if let Some(context_window) = context_window {
+    entry_obj.insert(
+      "contextWindow".to_string(),
+      serde_json::json!(context_window),
+    );
+    entry_obj.insert(
+      "contextTokens".to_string(),
+      serde_json::json!(context_window),
+    );
+    let max_tokens = context_window.min(8192);
+    entry_obj.insert("maxTokens".to_string(), serde_json::json!(max_tokens));
+    entry_obj.insert(
+      "params".to_string(),
+      serde_json::json!({
+        "num_ctx": context_window,
+      }),
+    );
+  }
+}
+
 /// Enable/disable Ollama and update its configuration.
 #[post("/api/knapsack/ollama/configure")]
 pub async fn ollama_configure(
@@ -7176,6 +7326,14 @@ pub async fn ollama_configure(
   // Update agents.defaults.model in the config file so the gateway uses
   // the correct model on restart (same fix as set_api_key).
   let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
+  let ollama_context_window = if payload.enabled {
+    match (&tokens.ollama_base_url, &tokens.ollama_model) {
+      (Some(base_url), Some(model)) => fetch_ollama_model_context_window(base_url, model).await,
+      _ => None,
+    }
+  } else {
+    None
+  };
   if let Ok(cfg_str) = fs::read_to_string(&config_path) {
     if let Ok(mut cfg_val) = serde_json::from_str::<serde_json::Value>(&cfg_str) {
       let model = crate::clawd::gateway_client::resolve_default_model();
@@ -7194,6 +7352,18 @@ pub async fn ollama_configure(
       defaults.as_object_mut().map(|d| {
         d.insert("model".to_string(), model_cfg);
       });
+      if payload.enabled {
+        let base_url = tokens
+          .ollama_base_url
+          .as_deref()
+          .unwrap_or("http://127.0.0.1:11434");
+        upsert_ollama_provider_config(
+          &mut cfg_val,
+          base_url,
+          tokens.ollama_model.as_deref(),
+          ollama_context_window,
+        );
+      }
       if let Ok(json) = serde_json::to_string_pretty(&cfg_val) {
         let _ = fs::write(&config_path, json);
         harden_file_permissions(&config_path);
