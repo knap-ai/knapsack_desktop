@@ -136,7 +136,7 @@ const SlackChannelConfigSchema = buildChannelConfigSchema(SlackConfigSchema, { u
 	},
 	"streaming.preview.toolProgress": {
 		label: "Slack Draft Tool Progress",
-		help: "Show tool/progress activity in the live draft preview message (default: true). Set false to hide interim tool updates while the draft preview stays active."
+		help: "Show tool/progress activity in the live draft preview message (default: false). Set true to show interim tool updates while the draft preview stays active."
 	},
 	"streaming.preview.commandText": {
 		label: "Slack Draft Command Text",
@@ -164,7 +164,7 @@ const SlackChannelConfigSchema = buildChannelConfigSchema(SlackConfigSchema, { u
 	},
 	"streaming.progress.toolProgress": {
 		label: "Slack Progress Tool Lines",
-		help: "Show compact tool/progress lines in progress draft mode (default: true). Set false to keep only the label until final delivery."
+		help: "Show compact tool/progress lines in progress draft mode (default: false). Set true to show interim tool lines before final delivery."
 	},
 	"streaming.progress.commandText": {
 		label: "Slack Progress Command Text",

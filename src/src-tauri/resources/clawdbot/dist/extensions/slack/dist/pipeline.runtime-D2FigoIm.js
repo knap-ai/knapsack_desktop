@@ -1175,7 +1175,7 @@ async function dispatchPreparedSlackMessage(prepared) {
 	}) : void 0;
 	let hasStreamedMessage = false;
 	const streamMode = slackStreaming.draftMode;
-	const previewToolProgressEnabled = Boolean(draftStream) && resolveChannelStreamingPreviewToolProgress(account.config);
+	const previewToolProgressEnabled = Boolean(draftStream) && resolveChannelStreamingPreviewToolProgress(account.config, false);
 	const suppressDefaultToolProgressMessages = resolveChannelStreamingSuppressDefaultToolProgressMessages(account.config, {
 		draftStreamActive: Boolean(draftStream),
 		previewToolProgressEnabled,
