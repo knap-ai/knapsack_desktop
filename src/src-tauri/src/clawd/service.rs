@@ -5735,6 +5735,37 @@ pub async fn service_logs(query: web::Query<ServiceLogsParams>) -> impl Responde
   }
 }
 
+fn mac_service_status_summary(
+  installed: bool,
+  launchctl_running: bool,
+  gateway_ready: bool,
+  gateway_listening: bool,
+  launch_grace_ms: Option<u64>,
+  qa_direct_grace_ms: Option<u64>,
+  qa_direct_running: bool,
+) -> (bool, String) {
+  let running = launchctl_running
+    || gateway_ready
+    || gateway_listening
+    || launch_grace_ms.is_some()
+    || qa_direct_grace_ms.is_some()
+    || qa_direct_running;
+
+  let message = if let Some(ms) = launch_grace_ms.or(qa_direct_grace_ms) {
+    format!("Clawdbot gateway is starting ({}ms)", ms)
+  } else if gateway_listening && !gateway_ready {
+    "Clawdbot gateway is listening but still completing startup".to_string()
+  } else if running {
+    "Clawdbot service is running".to_string()
+  } else if installed {
+    "Clawdbot service is installed but not running".to_string()
+  } else {
+    "Clawdbot service not installed".to_string()
+  };
+
+  (running, message)
+}
+
 #[get("/api/clawd/service/status")]
 pub async fn service_status() -> impl Responder {
   #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -5798,6 +5829,11 @@ pub async fn service_status() -> impl Responder {
     let installed = plist_path.exists();
 
     let port_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let gateway_listening = if port_ok {
+      true
+    } else {
+      gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
+    };
 
     // Best-effort fallback: `launchctl print gui/<uid>/<label>` exits 0 when loaded.
     let uid = unsafe { libc::getuid() };
@@ -5816,24 +5852,24 @@ pub async fn service_status() -> impl Responder {
     };
 
     let launch_grace_ms = gateway_launch_grace_active();
-    let running = launchctl_running || port_ok || launch_grace_ms.is_some();
+    let qa_direct_grace_ms = qa_direct_gateway_grace_active();
+    let qa_direct_running = qa_direct_gateway_mode() && qa_direct_gateway_process_active();
+    let (running, message) = mac_service_status_summary(
+      installed,
+      launchctl_running,
+      port_ok,
+      gateway_listening,
+      launch_grace_ms,
+      qa_direct_grace_ms,
+      qa_direct_running,
+    );
 
     HttpResponse::Ok().json(ServiceStatusResponse {
       success: true,
       installed,
       running,
       label: LAUNCH_AGENT_LABEL.to_string(),
-      message: if running {
-        if let Some(ms) = launch_grace_ms {
-          format!("Clawdbot gateway is starting ({}ms)", ms)
-        } else {
-          "Clawdbot service is running".to_string()
-        }
-      } else if installed {
-        "Clawdbot service is installed but not running".to_string()
-      } else {
-        "Clawdbot service not installed".to_string()
-      },
+      message,
     })
   }
 }
@@ -13203,5 +13239,19 @@ mod provider_key_tests {
     // Don't clobber custom providers the user may have configured out-of-band.
     assert!(model_ref_has_key("custom/my-model"));
     assert!(model_ref_has_key("minimax/m2.5"));
+  }
+}
+
+#[cfg(test)]
+mod service_status_message_tests {
+  use super::mac_service_status_summary;
+
+  #[test]
+  fn qa_direct_startup_is_not_reported_as_not_running() {
+    let (running, message) =
+      mac_service_status_summary(true, false, false, true, None, Some(123_u64), true);
+
+    assert!(running);
+    assert_eq!(message, "Clawdbot gateway is starting (123ms)");
   }
 }
