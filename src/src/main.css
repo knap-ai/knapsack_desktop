@@ -1432,6 +1432,54 @@ html, body {
 }
 
 /* Live recording welcome banner */
+.notetaker-note__post-meeting-banner {
+  background: #ffffff;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  padding: 20px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+
+.notetaker-note__post-meeting-line {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: #333333;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notetaker-note__post-meeting-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+
+.notetaker-note__post-meeting-wave span {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: #C14841;
+  animation: waveform-bounce 1.2s ease-in-out infinite;
+}
+
+.notetaker-note__post-meeting-subtext {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #777777;
+  line-height: 1.4;
+}
+
 .notetaker-note__live-banner {
   background: #ffffff;
   border: 1px solid #e8e8e8;
