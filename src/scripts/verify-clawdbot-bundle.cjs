@@ -7,6 +7,7 @@
  * Run after prune-clawdbot.cjs and before `tauri build`.
  */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
@@ -408,9 +409,17 @@ if (process.platform === 'win32') {
   console.log('[verify-clawdbot] bundled model catalog smoke: skipped on Windows CI; static sealed-bundle loader checks still apply ✓');
 } else if (sdkAliasChunk && modelCatalogEntry) {
   const modelCatalogUrl = pathToFileURL(modelCatalogEntry).href;
+  const tempOpenClawHome = fs.mkdtempSync(path.join(os.tmpdir(), 'knapsack-openclaw-smoke-'));
+  const tempOpenClawStateDir = path.join(tempOpenClawHome, 'state');
+  const tempOpenClawConfigPath = path.join(tempOpenClawHome, 'openclaw.json');
+  fs.mkdirSync(tempOpenClawStateDir, { recursive: true });
+  fs.writeFileSync(tempOpenClawConfigPath, '{}\n');
   const smoke = spawnSync(process.execPath, ['--input-type=module', '-e', `
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = ${JSON.stringify(extensionsDir)};
     process.env.OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS = 'openai,anthropic';
+    process.env.OPENCLAW_HOME = ${JSON.stringify(tempOpenClawHome)};
+    process.env.OPENCLAW_STATE_DIR = ${JSON.stringify(tempOpenClawStateDir)};
+    process.env.OPENCLAW_CONFIG_PATH = ${JSON.stringify(tempOpenClawConfigPath)};
     const catalog = await import(${JSON.stringify(modelCatalogUrl)});
     const models = await catalog.loadModelCatalog({ readOnly: true, useCache: false });
     if (!Array.isArray(models)) throw new Error('model catalog did not return an array');
@@ -421,10 +430,14 @@ if (process.platform === 'win32') {
       ...process.env,
       OPENCLAW_BUNDLED_PLUGINS_DIR: extensionsDir,
       OPENCLAW_TEST_ONLY_PROVIDER_PLUGIN_IDS: 'openai,anthropic',
+      OPENCLAW_HOME: tempOpenClawHome,
+      OPENCLAW_STATE_DIR: tempOpenClawStateDir,
+      OPENCLAW_CONFIG_PATH: tempOpenClawConfigPath,
     },
     encoding: 'utf8',
     timeout: 120000,
   });
+  fs.rmSync(tempOpenClawHome, { recursive: true, force: true });
   if (smoke.status !== 0) {
     console.error('[verify-clawdbot] CRITICAL: bundled model catalog smoke failed');
     if (smoke.error) console.error(String(smoke.error));

@@ -97,14 +97,25 @@ function NotetakerSidebar({
 
   const currentFeedItem = feed.currentFeedItem()
 
+  const getMeetingEndTime = useCallback((item: FeedItem) => {
+    const start = item.timestamp.getTime()
+    if (!item.calendarEvent?.end) return start + 30 * 60 * 1000
+    return item.calendarEvent.end < start / 100 ? item.calendarEvent.end * 1000 : item.calendarEvent.end
+  }, [])
+
   const upcomingEvents = useMemo(() => {
     if (!feed.feedContent) return {}
-    const startOfToday = dayjs().startOf('day').valueOf()
+    const now = Date.now()
     const events: { item: FeedItem; key: string }[] = []
+    const seenEventKeys = new Set<string>()
     Object.entries(feed.feedContent).forEach(([key, items]) => {
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
-        if (item.calendarEvent && item.timestamp.getTime() >= startOfToday) {
+        if (!item.calendarEvent) return
+        const dedupeKey = item.calendarEvent.event_id || `${item.title}_${Math.floor(item.timestamp.getTime() / 60000)}`
+        if (seenEventKeys.has(dedupeKey)) return
+        if (getMeetingEndTime(item) >= now) {
+          seenEventKeys.add(dedupeKey)
           events.push({ item, key })
         }
       })
@@ -117,7 +128,7 @@ function NotetakerSidebar({
       grouped[dateKey].push(ev)
     })
     return grouped
-  }, [feed.feedContent])
+  }, [feed.feedContent, getMeetingEndTime])
 
   const pastNotes = useMemo(() => {
     if (!feed.feedContent) return {}
@@ -127,7 +138,8 @@ function NotetakerSidebar({
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
         const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
-        if (hasMeetingNotes && item.timestamp.getTime() < now) {
+        const meetingHasEnded = !item.calendarEvent || getMeetingEndTime(item) < now
+        if (hasMeetingNotes && item.timestamp.getTime() < now && meetingHasEnded) {
           if (!groups[key]) groups[key] = []
           groups[key].push({ item, key })
         }
@@ -137,7 +149,7 @@ function NotetakerSidebar({
       groups[key].sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
     })
     return groups
-  }, [feed.feedContent])
+  }, [feed.feedContent, getMeetingEndTime])
 
   const orderedPastKeys = useMemo(() => {
     const keys = Object.entries(pastNotes)
@@ -152,13 +164,9 @@ function NotetakerSidebar({
   const isNowMeeting = useCallback((item: FeedItem) => {
     const now = Date.now()
     const start = item.timestamp.getTime()
-    const end = item.calendarEvent?.end
-      ? item.calendarEvent.end < start / 100
-        ? item.calendarEvent.end * 1000
-        : item.calendarEvent.end
-      : start + 30 * 60 * 1000
+    const end = getMeetingEndTime(item)
     return start <= now && now <= end
-  }, [])
+  }, [getMeetingEndTime])
 
   const formatTimeRange = useCallback((item: FeedItem) => {
     const start = dayjs(item.timestamp).format('h:mm A')
