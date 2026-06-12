@@ -779,41 +779,10 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
 }
 
 const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
-  // Core app activities exercised by the desktop QA loop.
+  // Core readiness depends on browser control. Provider, document, search,
+  // email, and channel plugins are warmed after the gateway is live, or
+  // explicitly included by targeted QA runs.
   "browser",
-  "telegram",
-  "slack",
-  "whatsapp",
-  "google",
-  "microsoft",
-  "web-readability",
-  "document-extract",
-  // Web/search providers.
-  "brave",
-  "duckduckgo",
-  "exa",
-  "firecrawl",
-  "tavily",
-  // Model providers shown in the desktop model picker or commonly configured
-  // by Knapsack users. Keeping the provider set explicit prevents every
-  // bundled default plugin from initializing at gateway startup.
-  "anthropic",
-  "cerebras",
-  "deepseek",
-  "fireworks",
-  "google",
-  "groq",
-  "huggingface",
-  "litellm",
-  "mistral",
-  "moonshot",
-  "ollama",
-  "openai",
-  "openrouter",
-  "qwen",
-  "together",
-  "venice",
-  "xai",
 ];
 
 const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
@@ -2019,10 +1988,11 @@ fn bundled_node_modules_is_complete(dir: &std::path::Path, nm_path: &std::path::
     && bundled_node_modules_has_required_runtime_files(nm_path)
 }
 
-/// On Windows CI builds, prune-clawdbot.cjs packs `node_modules/` into
-/// `node_modules.tar` (one file) so WiX stays under its 65535-file CAB limit
-/// (LGHT0306).  This function extracts the tar back to `node_modules/` at
-/// gateway startup so Node.js can resolve bundled packages from that directory.
+/// On Windows CI builds, prune-clawdbot.cjs packs the full `node_modules/` into
+/// `node_modules.tar` and the launch-critical subset into
+/// `startup_node_modules.tar` so WiX stays under its 65535-file CAB limit
+/// (LGHT0306) without forcing the gateway to unpack the full dependency tree
+/// before process spawn.
 ///
 /// Extraction is attempted in-place (same `dir` that contains the tar).  This
 /// works for per-user Tauri MSI installs (LOCALAPPDATA — writable).  For
@@ -2144,8 +2114,60 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
   }
 }
 
+fn ensure_startup_node_modules_extracted(dir: &std::path::Path) {
+  let startup_tar_path = dir.join("startup_node_modules.tar");
+  if !startup_tar_path.exists() {
+    return;
+  }
+
+  let _extract_guard = NODE_MODULES_EXTRACTION_MUTEX
+    .lock()
+    .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+  let nm_path = dir.join("node_modules");
+  if bundled_node_modules_has_startup_runtime_files(&nm_path) {
+    return;
+  }
+
+  eprintln!(
+    "[clawd/service] Extracting startup_node_modules.tar in {}...",
+    dir.display()
+  );
+
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    let result = std::process::Command::new("tar")
+      .args(["-xf", "startup_node_modules.tar"])
+      .current_dir(dir)
+      .creation_flags(CREATE_NO_WINDOW)
+      .status();
+    match result {
+      Ok(s) if s.success() => eprintln!(
+        "[clawd/service] startup_node_modules.tar extracted in {}",
+        dir.display()
+      ),
+      Ok(s) => eprintln!(
+        "[clawd/service] WARNING: startup_node_modules.tar extraction exited {} in {}",
+        s,
+        dir.display()
+      ),
+      Err(e) => eprintln!(
+        "[clawd/service] WARNING: Failed to run tar for startup_node_modules.tar in {}: {}",
+        dir.display(),
+        e
+      ),
+    }
+  }
+}
+
 fn ensure_gateway_node_modules_ready(clawdbot_root: &std::path::Path) -> Result<(), String> {
   let nm_path = clawdbot_root.join("node_modules");
+  if !bundled_node_modules_has_startup_runtime_files(&nm_path) {
+    ensure_startup_node_modules_extracted(clawdbot_root);
+  }
+
   if bundled_node_modules_has_startup_runtime_files(&nm_path) {
     if !bundled_node_modules_is_complete(clawdbot_root, &nm_path) {
       let root = clawdbot_root.to_path_buf();
@@ -5757,6 +5779,34 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
       }
     }
   }
+
+  #[cfg(target_os = "windows")]
+  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+    if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
+      let tracked_pid = GATEWAY_PID.load(Ordering::Relaxed);
+      let stale_launch = gateway_launch_grace_active()
+        .map(|elapsed| elapsed > 30_000)
+        .unwrap_or(true);
+      if tracked_pid == 0 && stale_launch && !gateway_startup_in_progress() {
+        eprintln!(
+          "[clawd/service] startup-ready: clearing stale Windows gateway startup flag and retrying"
+        );
+        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+        let ah = app_handle.get_ref().clone();
+        tokio::spawn(async move {
+          auto_enable_if_needed(&ah).await;
+        });
+      } else {
+        eprintln!("[clawd/service] startup-ready: Windows gateway startup already in progress");
+      }
+    } else {
+      let ah = app_handle.get_ref().clone();
+      tokio::spawn(async move {
+        auto_enable_if_needed(&ah).await;
+      });
+    }
+  }
+
   let ready =
     gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, GATEWAY_READY_BUDGET_MS)
       .await;
@@ -8000,6 +8050,7 @@ async fn prepare_gateway_config(
   app_handle: &tauri::AppHandle,
   cfg: &SharedClawdbotConfig,
 ) -> Result<ServiceSetup, String> {
+  let prepare_started = std::time::Instant::now();
   let tokens = load_or_create_tokens(app_handle)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
@@ -8083,6 +8134,10 @@ async fn prepare_gateway_config(
     eprintln!("[clawd/service] ERROR: {}", e);
     return Err(format!("Node.js is not usable for the gateway. {}", e));
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: node ready in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
 
   // ── Find clawdbot entry ────────────────────────────────────────────
   let clawdbot_entry = if cfg!(debug_assertions) {
@@ -8126,6 +8181,10 @@ async fn prepare_gateway_config(
     clawdbot_entry.display()
   );
   ensure_clawdbot_runtime_self_link(&clawdbot_entry);
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: runtime self-link checked in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
 
   let clawdbot_home = app_clawdbot_home(app_handle);
   let clawdbot_home_str = clawdbot_home.to_string_lossy().to_string();
@@ -9018,12 +9077,20 @@ async fn prepare_gateway_config(
       }
     }
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: local config ready in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
 
   if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
     eprintln!(
       "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
     );
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: bundled plugin state checked in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
 
   // Keep the startup-critical root locked down immediately, but run the
   // recursive sweep off the launch path. Large state trees can contain
@@ -9093,6 +9160,10 @@ async fn prepare_gateway_config(
       Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
     }
   }
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: workspace ready in {}ms",
+    prepare_started.elapsed().as_millis()
+  );
 
   // ── Build program args ────────────────────────────────────────────
   let program_args = vec![
@@ -9209,6 +9280,10 @@ async fn prepare_gateway_config(
     ),
     (
       "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
+      "1".to_string(),
+    ),
+    (
+      "OPENCLAW_DESKTOP_FAST_BIND".to_string(),
       "1".to_string(),
     ),
     (
@@ -9412,6 +9487,10 @@ async fn prepare_gateway_config(
   if let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) {
     if should_mutate_bundled_clawdbot_runtime(clawdbot_root) {
       ensure_gateway_node_modules_ready(clawdbot_root)?;
+      eprintln!(
+        "[clawd/service] prepare_gateway_config: gateway node_modules ready in {}ms",
+        prepare_started.elapsed().as_millis()
+      );
     } else {
       eprintln!(
         "[clawd/service] Skipping bundled node_modules extraction in signed app bundle: {}",
@@ -9425,11 +9504,19 @@ async fn prepare_gateway_config(
   if !cfg!(debug_assertions) {
     install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
     ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
+    eprintln!(
+      "[clawd/service] prepare_gateway_config: bundled plugin deps checked in {}ms",
+      prepare_started.elapsed().as_millis()
+    );
   }
 
   eprintln!(
     "[clawd/service] Knapsack v{} on {} — starting service ({})",
     app_version, os_info, LAUNCH_AGENT_LABEL
+  );
+  eprintln!(
+    "[clawd/service] prepare_gateway_config: complete in {}ms",
+    prepare_started.elapsed().as_millis()
   );
 
   Ok(ServiceSetup {
@@ -9639,6 +9726,7 @@ pub async fn set_service_enabled(
       let stdout_file = match fs::File::create(&stdout_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
@@ -9649,6 +9737,7 @@ pub async fn set_service_enabled(
       let stderr_file = match fs::File::create(&stderr_log) {
         Ok(f) => f,
         Err(e) => {
+          GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
           return HttpResponse::InternalServerError().json(EnableServiceResponse {
             success: false,
             enabled,
@@ -10903,6 +10992,10 @@ pub async fn set_service_enabled(
         ),
         (
           "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
+          "1".to_string(),
+        ),
+        (
+          "OPENCLAW_DESKTOP_FAST_BIND".to_string(),
           "1".to_string(),
         ),
         (
@@ -12791,6 +12884,10 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   }
 
   // Gateway is not running — start it.
+  if GATEWAY_RESTART_IN_PROGRESS.swap(true, Ordering::Relaxed) {
+    eprintln!("[clawd/service] auto_enable (Windows): gateway start already in progress");
+    return;
+  }
   AUTO_ENABLE_STARTED.store(true, Ordering::Relaxed);
   mark_gateway_launch_started();
   eprintln!("[clawd/service] auto_enable (Windows): starting gateway");
@@ -12806,13 +12903,12 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
         "[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}",
         e
       );
+      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
       return;
     }
   };
 
   // Prevent the background health-check task from racing us.
-  GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
-
   kill_stale_clawdbot_chromes();
   kill_process_on_port(18789);
   std::thread::sleep(std::time::Duration::from_millis(500));

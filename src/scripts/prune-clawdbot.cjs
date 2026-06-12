@@ -12,7 +12,6 @@ const path = require('path');
 const SCRIPT_DIR = __dirname;
 const CLAWDBOT_DIR = path.join(SCRIPT_DIR, '..', 'src-tauri', 'resources', 'clawdbot');
 const IS_WIN = process.platform === 'win32';
-const ROOT_NODE_MODULES_TAR = path.join(CLAWDBOT_DIR, 'node_modules.tar');
 const STARTUP_CRITICAL_PACKAGES = [
   'openclaw',
   'chalk',
@@ -604,7 +603,12 @@ if (IS_WIN) {
     if (packNodeModulesTar({ cwd: CLAWDBOT_DIR, finalTarName: 'node_modules.tar', label: 'root node_modules' })) {
       const keep = collectStartupPackageClosure();
       pruneNodeModulesToPackageSet(keep);
-      console.log(`[prune-clawdbot] Packed root node_modules into node_modules.tar; kept ${keep.size} startup package(s) extracted`);
+      if (packNodeModulesTar({ cwd: CLAWDBOT_DIR, finalTarName: 'startup_node_modules.tar', label: 'startup node_modules' })) {
+        fs.rmSync(path.join(CLAWDBOT_DIR, 'node_modules'), { recursive: true, force: true });
+        console.log(`[prune-clawdbot] Packed startup node_modules into startup_node_modules.tar; kept ${keep.size} startup package(s) for fast launch`);
+      } else {
+        console.log(`[prune-clawdbot] Packed root node_modules into node_modules.tar; kept ${keep.size} startup package(s) extracted`);
+      }
     }
   } catch (e) {
     console.warn(`[prune-clawdbot] WARNING: could not tar root node_modules: ${e.message}`);
