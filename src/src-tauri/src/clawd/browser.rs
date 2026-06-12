@@ -4078,8 +4078,29 @@ No email account is directly connected via the send_email tool. However, you CAN
     )
   };
 
+  let use_compact_local_prompt = provider == "ollama";
+
   let system_content = if qa_smoke {
     "You are a Knapsack QA readiness probe. Reply with exactly READY.".to_string()
+  } else if use_compact_local_prompt {
+    format!(
+      r#"You are Openclaw, a helpful assistant running inside the Knapsack desktop app.
+{}
+
+# CORE BEHAVIOR
+- Be concise, practical, and accurate.
+- Answer directly instead of narrating your process.
+- If the user asks for writing, produce the draft inline.
+- If the request depends on information you do not have, say what is missing briefly.
+
+# LOCAL MODEL MODE
+- You are running on a local Ollama model with limited context.
+- Prefer short answers unless the user asks for detail.
+- Focus on the user's latest request and the most recent chat context.
+- Do not invent links, commands, or facts.
+"#,
+      platform_section
+    )
   } else {
     format!(
       r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
@@ -4511,8 +4532,14 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     content: system_content,
   };
 
+  let history_for_request = if use_compact_local_prompt && history.len() > 6 {
+    history[history.len() - 6..].to_vec()
+  } else {
+    history.clone()
+  };
+
   let mut messages = vec![system];
-  messages.extend(history.clone());
+  messages.extend(history_for_request);
   messages.push(chat_agent::OaiMessage::User {
     content: full_text.clone(),
     images: image_attachments.clone(),
@@ -4522,7 +4549,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     chat_started.elapsed().as_millis()
   );
 
-  let mut tools = if qa_smoke {
+  let mut tools = if qa_smoke || use_compact_local_prompt {
     Vec::new()
   } else {
     chat_agent::default_tools()
