@@ -4725,6 +4725,41 @@ enum BrowserControlProbe {
   Down,
 }
 
+fn parse_browser_control_status_body(body: &str) -> BrowserControlProbe {
+  let trimmed = body.trim();
+  if trimmed.eq_ignore_ascii_case("ok") {
+    return BrowserControlProbe::Ready;
+  }
+
+  match serde_json::from_str::<serde_json::Value>(trimmed) {
+    Ok(value) => {
+      let running = value
+        .get("running")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+      let cdp_ready = value
+        .get("cdpReady")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+      if running && cdp_ready {
+        BrowserControlProbe::Ready
+      } else if running {
+        BrowserControlProbe::Starting
+      } else {
+        BrowserControlProbe::Down
+      }
+    }
+    Err(e) => {
+      eprintln!(
+        "[clawd/service] browser control status probe returned invalid response: {}",
+        e
+      );
+      BrowserControlProbe::Down
+    }
+  }
+}
+
 async fn browser_control_status(
   gateway_token: &str,
   timeout: std::time::Duration,
@@ -4763,28 +4798,11 @@ async fn browser_control_status(
     return BrowserControlProbe::Down;
   }
 
-  match resp.json::<serde_json::Value>().await {
-    Ok(value) => {
-      let running = value
-        .get("running")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-      let cdp_ready = value
-        .get("cdpReady")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-      if running && cdp_ready {
-        BrowserControlProbe::Ready
-      } else if running {
-        BrowserControlProbe::Starting
-      } else {
-        BrowserControlProbe::Down
-      }
-    }
+  match resp.text().await {
+    Ok(body) => parse_browser_control_status_body(&body),
     Err(e) => {
       eprintln!(
-        "[clawd/service] browser control status probe returned invalid json: {}",
+        "[clawd/service] browser control status probe failed to read response body: {}",
         e
       );
       BrowserControlProbe::Down
@@ -13414,7 +13432,7 @@ mod provider_key_tests {
 
 #[cfg(test)]
 mod service_status_message_tests {
-  use super::mac_service_status_summary;
+  use super::{mac_service_status_summary, parse_browser_control_status_body, BrowserControlProbe};
 
   #[test]
   fn qa_direct_startup_is_not_reported_as_not_running() {
@@ -13423,5 +13441,25 @@ mod service_status_message_tests {
 
     assert!(running);
     assert_eq!(message, "Clawdbot gateway is starting (123ms)");
+  }
+
+  #[test]
+  fn plain_ok_browser_sidecar_response_is_ready() {
+    assert_eq!(
+      parse_browser_control_status_body("OK"),
+      BrowserControlProbe::Ready
+    );
+  }
+
+  #[test]
+  fn browser_sidecar_json_distinguishes_starting_from_ready() {
+    assert_eq!(
+      parse_browser_control_status_body(r#"{"running":true,"cdpReady":false}"#),
+      BrowserControlProbe::Starting
+    );
+    assert_eq!(
+      parse_browser_control_status_body(r#"{"running":true,"cdpReady":true}"#),
+      BrowserControlProbe::Ready
+    );
   }
 }
