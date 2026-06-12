@@ -18,6 +18,7 @@
     "preqa:dev": "node scripts/fix-rollup-native.cjs",
     "qa:loop": "node scripts/qa-loop-runner.cjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
+    "qa:rendered-ui": "node scripts/qa-rendered-ui-smoke.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",
     "postinstall": "node scripts/fix-rollup-native.cjs",

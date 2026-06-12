@@ -4,9 +4,8 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { IThread, ThreadType } from 'src/api/threads'
 import {
   Connection,
-  ConnectionKeys,
-  getGoogleGmailConnections,
-  hasGoogleCalendar,
+  hasCalendarCapability,
+  hasEmailCapability,
 } from 'src/api/connections'
 import { LLMParams } from 'src/App'
 import { IFeed } from 'src/hooks/feed/useFeed'
@@ -342,7 +341,7 @@ const MeetingsTabView = ({
                   </button>
                 </div>
                 {/* Calendar connection prompt */}
-                {connections && !hasGoogleCalendar(connections) && !connections[ConnectionKeys.MICROSOFT_CALENDAR] && onConnectCalendar && (
+                {connections && !hasCalendarCapability(connections) && onConnectCalendar && (
                   <div className="MeetingsTabView__calendar-prompt MeetingsTabView__calendar-prompt--notetaker">
                     <div className="MeetingsTabView__calendar-prompt-content">
                       <img src={CalendarIcon} alt="Calendar" className="MeetingsTabView__calendar-prompt-icon" />
@@ -393,11 +392,7 @@ const MeetingsTabView = ({
                       handleOpenInsights={handleOpenInsights}
                       onEmailClick={onEmailClick}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
-                      hasEmailContext={
-                        !!connections &&
-                        (getGoogleGmailConnections(connections).length > 0 ||
-                          !!connections[ConnectionKeys.MICROSOFT_OUTLOOK])
-                      }
+                      hasEmailContext={!!connections && hasEmailCapability(connections)}
                       onConnectEmail={onConnectEmail}
                       userEmail={userEmail}
                       userName={userName}

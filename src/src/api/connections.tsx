@@ -74,6 +74,18 @@ export const getGoogleGmailConnections = (
 export const hasGoogleCalendar = (connections: Record<string, Connection>): boolean =>
   getGoogleCalendarConnections(connections).length > 0
 
+/** True if at least one Google Gmail account is connected. */
+export const hasGoogleGmail = (connections: Record<string, Connection>): boolean =>
+  getGoogleGmailConnections(connections).length > 0
+
+/** True if a calendar-backed experience can run. */
+export const hasCalendarCapability = (connections: Record<string, Connection>): boolean =>
+  hasGoogleCalendar(connections) || !!connections[ConnectionKeys.MICROSOFT_CALENDAR]
+
+/** True if an email-backed experience can run. */
+export const hasEmailCapability = (connections: Record<string, Connection>): boolean =>
+  hasGoogleGmail(connections) || !!connections[ConnectionKeys.MICROSOFT_OUTLOOK]
+
 export const isConnectionReadyToSync = (connection?: Connection) => {
   return connection?.state && connection.state !== ConnectionStates.SYNCING
 }

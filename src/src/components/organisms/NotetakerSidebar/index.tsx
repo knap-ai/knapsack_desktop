@@ -6,7 +6,7 @@ import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
 import { ThreadType } from 'src/api/threads'
 import { getAppVersion } from 'src/utils/app'
-import { Connection, ConnectionKeys, hasGoogleCalendar } from 'src/api/connections'
+import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { TabChoices } from 'src/components/TabBar'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
@@ -70,10 +70,7 @@ function NotetakerSidebar({
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const hasCalendarConnected = useMemo(
-    () => !!(hasGoogleCalendar(connections) || connections[ConnectionKeys.MICROSOFT_CALENDAR]),
-    [connections],
-  )
+  const hasCalendarConnected = useMemo(() => hasCalendarCapability(connections), [connections])
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -745,6 +742,7 @@ function NotetakerSidebar({
             className={`notetaker-sidebar__bottom-action ${isEmailActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
             onClick={() => onTabChange(TabChoices.Email)}
             title="Email Autopilot"
+            data-testid="qa-nav-email-autopilot"
           >
             {emailIcon}
             <span>Email</span>
@@ -753,6 +751,7 @@ function NotetakerSidebar({
             className={`notetaker-sidebar__bottom-action ${isGBrainActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}
             onClick={() => onTabChange(TabChoices.GBrain)}
             title="GBrain"
+            data-testid="qa-nav-gbrain"
           >
             {gbrainIcon}
             <span>GBrain</span>

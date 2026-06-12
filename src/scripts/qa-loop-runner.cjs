@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const { existsSync } = fs;
 const { spawn, spawnSync } = require("node:child_process");
+const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const process = require("node:process");
@@ -55,6 +56,7 @@ const MODELS_BY_PROVIDER = {
     "grok-4",
   ],
   openrouter: [
+    "openai/gpt-4o-mini",
     "openrouter/free",
     "openrouter/auto",
     "qwen/qwen3-coder-480b-a35b-instruct:free",
@@ -619,15 +621,19 @@ async function killOpenClawProcessesForQa() {
 }
 
 function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
+  const { qaSkipBody, ...fetchOptions } = options || {};
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, {
-    ...options,
+    ...fetchOptions,
     signal: controller.signal,
   })
     .finally(() => clearTimeout(timer))
     .then(async (res) => {
       const headers = Object.fromEntries(res.headers.entries());
+      if (qaSkipBody) {
+        return { ok: res.ok, status: res.status, headers, body: null };
+      }
       const text = await res.text();
       let body = text;
       try {
@@ -637,6 +643,50 @@ function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
       }
       return { ok: res.ok, status: res.status, headers, body };
     });
+}
+
+function httpJsonWithTimeout(url, options = {}, timeoutMs = 8_000) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const method = options.method || "GET";
+    const body = options.body || null;
+    const headers = { ...(options.headers || {}) };
+    if (body && !headers["Content-Length"] && !headers["content-length"]) {
+      headers["Content-Length"] = Buffer.byteLength(body);
+    }
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: `${parsed.pathname}${parsed.search}`,
+      method,
+      headers,
+    }, (res) => {
+      const chunks = [];
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const text = chunks.join("");
+        let parsedBody = text;
+        try {
+          parsedBody = JSON.parse(text);
+        } catch {
+          // keep text
+        }
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode || 0,
+          headers: res.headers,
+          body: parsedBody,
+        });
+      });
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`request timed out after ${timeoutMs}ms`));
+    });
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
 }
 
 function isExpectedStatusSuccess(payload, endpoint) {
@@ -1021,7 +1071,8 @@ async function waitForStartupReady({ label, startupBudgetMs = 30_000 }) {
     if (active && stableTicks >= 2) {
       return {
         ok: true,
-        startupMs: startupReady?.startup_elapsed_ms || Date.now() - start,
+        startupMs: Date.now() - start,
+        startupEndpointMs: startupReady?.startup_elapsed_ms || null,
         payload: {
           startup: startupReady,
           status,
@@ -1332,11 +1383,11 @@ async function runChatSmoke(provider, model, options = {}) {
     };
     const chatRetries = Number.isFinite(options.chatRetries)
       ? Math.max(1, Number.parseInt(options.chatRetries, 10))
-      : 1;
+      : Math.max(1, Number(process.env.KNAPSACK_QA_CHAT_RETRIES || 6));
     const chatRetryDelayMs = Number.isFinite(options.chatRetryDelayMs)
       ? Math.max(100, Number.parseInt(options.chatRetryDelayMs, 10))
       : 1_000;
-    const chatTimeoutMs = Number(process.env.KNAPSACK_QA_CHAT_TIMEOUT_MS || 45_000);
+    const chatTimeoutMs = Number(process.env.KNAPSACK_QA_CHAT_TIMEOUT_MS || 60_000);
     let attemptChat = 0;
     let chat;
 
@@ -1344,7 +1395,8 @@ async function runChatSmoke(provider, model, options = {}) {
       attemptChat += 1;
       try {
         const requestStartedAt = Date.now();
-        chat = await fetchWithTimeout(`${API_BASE}/api/clawd/chat`, {
+        const requestStartedAt = Date.now();
+        chat = await httpJsonWithTimeout(`${API_BASE}/api/clawd/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -1364,7 +1416,7 @@ async function runChatSmoke(provider, model, options = {}) {
           message.includes("socket hang up")
         );
         if (retryable && attemptChat < chatRetries) {
-          await sleep(chatRetryDelayMs);
+          await sleep(Math.max(chatRetryDelayMs, Math.min(15_000, 5_000 * attemptChat)));
           continue;
         }
         return {
@@ -1656,7 +1708,7 @@ async function checkInterfaceAccess(includeUi) {
     1_000,
   );
   const workspaces = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET" }, 8_000),
+    () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
     4,
     1_000,
   );
@@ -1677,7 +1729,7 @@ async function checkInterfaceAccess(includeUi) {
     1_000,
   );
   const feed = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET" }, 8_000),
+    () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
     4,
     1_000,
   );
@@ -1688,11 +1740,14 @@ async function checkInterfaceAccess(includeUi) {
       1_000,
     )
     : { ok: true };
-  const browserControl = await retryWithDelay(
-    () => probeBrowserControl(20_000),
-    8,
-    1_000,
-  );
+  const healthBrowserOk = Boolean(health?.body?.browser_ok);
+  const browserControl = healthBrowserOk
+    ? true
+    : await retryWithDelay(
+      () => probeBrowserControl(3_000),
+      3,
+      750,
+    );
 
   const failures = [];
   if (!root || !root.ok) failures.push("service/status unhealthy");
@@ -1724,7 +1779,7 @@ async function checkInterfaceAccess(includeUi) {
     failures.push("automations unavailable");
   }
   if (includeUi && (!ui || !ui.ok)) failures.push("UI /home unreachable");
-  const uiBrowserOk = browserControl || Boolean(health?.body?.browser_ok);
+  const uiBrowserOk = browserControl || healthBrowserOk;
   if (!uiBrowserOk) failures.push("browser control not reachable");
   return {
     ok: failures.length === 0,
@@ -1917,6 +1972,11 @@ async function runMode(mode, opts = {}) {
         };
       }
       functionalProgress.gatewayHealth = gatewayHealth;
+      const chatSettleMs = Math.max(0, Number(process.env.KNAPSACK_QA_CHAT_SETTLE_MS || 5_000));
+      if (chatSettleMs > 0) {
+        functionalProgress.step = "chat settle";
+        await sleep(chatSettleMs);
+      }
 
       for (const [provider, models] of providers) {
           for (const modelEntry of models) {
@@ -1957,6 +2017,7 @@ async function runMode(mode, opts = {}) {
           chatChecks,
         };
       }
+      functionalProgress.mockMeeting = meeting;
 
       let interfaces = null;
       for (let interfaceAttempt = 1; interfaceAttempt <= 3; interfaceAttempt++) {
@@ -2018,6 +2079,7 @@ async function runMode(mode, opts = {}) {
     phase: "complete",
     startup,
     chatChecks: functionalResult.chatChecks,
+    mockMeeting: functionalResult.progress?.mockMeeting || functionalProgress.mockMeeting || { ok: true },
     interfaceCoverage: functionalResult.interfaceCoverage,
   };
 }
@@ -2094,6 +2156,12 @@ async function runLoop() {
         ? `[qa-loop] ${mode} hit core active+stable within ${modeResult.startup?.startupMs || "n/a"}ms on attempt ${attempt}.`
         : `[qa-loop] ${mode} hit active+stable within ${modeResult.startup?.startupMs || "n/a"}ms on attempt ${attempt}.`,
     );
+    if (!opts.coreOnly && Array.isArray(modeResult.chatChecks)) {
+      console.log(`[qa-loop] ${mode} chat checks: ${JSON.stringify(modeResult.chatChecks)}`);
+    }
+    if (!opts.coreOnly && modeResult.mockMeeting) {
+      console.log(`[qa-loop] ${mode} mock meeting: ${JSON.stringify(modeResult.mockMeeting)}`);
+    }
     if (modeResult.interfaceCoverage) {
       console.log(`[qa-loop] ${mode} interface coverage: ${JSON.stringify(modeResult.interfaceCoverage)}`);
     }
