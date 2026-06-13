@@ -793,21 +793,6 @@ function attachGatewayWsMessageHandler(params) {
 						error: errorShape(code, message, options)
 					});
 				};
-				if (isStartupPending?.()) {
-					markHandshakeFailure(GATEWAY_STARTUP_PENDING_CLOSE_CAUSE);
-					await sendFrame({
-						type: "res",
-						id: frame.id,
-						ok: false,
-						error: errorShape(ErrorCodes.UNAVAILABLE, "gateway starting; retry shortly", {
-							retryable: true,
-							retryAfterMs: 500,
-							details: gatewayStartupUnavailableDetails()
-						})
-					}).catch(() => {});
-					queueMicrotask(() => close(GATEWAY_STARTUP_CLOSE_CODE, GATEWAY_STARTUP_CLOSE_REASON));
-					return;
-				}
 				const { minProtocol, maxProtocol } = connectParams;
 				const supportsCurrentProtocol = maxProtocol >= 4 && minProtocol <= 4;
 				const supportsProbeRestartProtocol = connectParams.client.mode === GATEWAY_CLIENT_MODES.PROBE && maxProtocol >= 4 && minProtocol <= 4;
@@ -1674,6 +1659,31 @@ function attachGatewayWsMessageHandler(params) {
 				});
 			};
 			(async () => {
+				const startupPending = isStartupPending?.() === true;
+				const startupRegistry = getMethodRegistry?.();
+				const startupHandler = req.method === "channels.status" ? startupRegistry?.getHandler(req.method) : void 0;
+				if (startupHandler) {
+					await startupHandler({
+						req,
+						params: req.params ?? {},
+						client,
+						isWebchatConnect,
+						respond,
+						context: buildRequestContext()
+					});
+					return;
+				}
+				if (startupPending) {
+					respond(false, void 0, errorShape(ErrorCodes.UNAVAILABLE, `${req.method} unavailable during gateway startup`, {
+						retryable: true,
+						retryAfterMs: 500,
+						details: {
+							...gatewayStartupUnavailableDetails(),
+							method: req.method
+						}
+					}));
+					return;
+				}
 				const { handleGatewayRequest } = await import("./server-methods-90LGtoqF.js");
 				await handleGatewayRequest({
 					req,
