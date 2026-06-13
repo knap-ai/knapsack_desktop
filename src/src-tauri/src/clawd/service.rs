@@ -2063,10 +2063,8 @@ fn ensure_node_modules_extracted(dir: &std::path::Path) {
   }
 
   if nm_path.is_dir()
-    && !(
-      bundled_node_modules_has_startup_runtime_files(&nm_path)
-        && !bundled_node_modules_is_complete(dir, &nm_path)
-    )
+    && !(bundled_node_modules_has_startup_runtime_files(&nm_path)
+      && !bundled_node_modules_is_complete(dir, &nm_path))
   {
     // Already extracted — check if the tar is newer (app was updated in-place).
     let tar_mtime = fs::metadata(&tar_path).and_then(|m| m.modified()).ok();
@@ -2172,7 +2170,7 @@ fn ensure_gateway_node_modules_ready(clawdbot_root: &std::path::Path) -> Result<
     if !bundled_node_modules_is_complete(clawdbot_root, &nm_path) {
       let root = clawdbot_root.to_path_buf();
       std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(60));
+        std::thread::sleep(std::time::Duration::from_secs(180));
         ensure_node_modules_extracted(&root);
       });
     }
@@ -3543,7 +3541,10 @@ fn sanitize_config_file_version(cfg: &mut serde_json::Value, bundle_version: &st
   }
 
   let mut patched = false;
-  if let Some(meta) = cfg.pointer_mut("/meta").and_then(|meta| meta.as_object_mut()) {
+  if let Some(meta) = cfg
+    .pointer_mut("/meta")
+    .and_then(|meta| meta.as_object_mut())
+  {
     match meta.get("lastTouchedVersion").and_then(|v| v.as_str()) {
       Some(version) if version == bundle_version => {}
       _ => {
@@ -3578,8 +3579,8 @@ fn sanitize_config_file_allowlist(config_path: &Path, bundle_version: Option<&st
     Ok(v) => v,
     Err(_) => return, // not valid JSON — leave alone, gateway will report the real error
   };
-  let mut patched = sanitize_channel_allowlist_configs(&mut cfg)
-    | sanitize_rejected_legacy_config_keys(&mut cfg);
+  let mut patched =
+    sanitize_channel_allowlist_configs(&mut cfg) | sanitize_rejected_legacy_config_keys(&mut cfg);
   if let Some(version) = bundle_version {
     patched = sanitize_config_file_version(&mut cfg, version) || patched;
   }
@@ -4319,10 +4320,7 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
   }
 }
 
-fn sanitize_known_gateway_configs(
-  app_handle: &tauri::AppHandle,
-  bundle_version: Option<&str>,
-) {
+fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle, bundle_version: Option<&str>) {
   let mut candidates = vec![
     app_clawdbot_home(app_handle).join("openclaw.json"),
     app_clawdbot_home(app_handle)
@@ -5210,6 +5208,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
     let qa_direct_waiting_for_process =
       !gateway_ok && qa_direct_gateway_mode() && !qa_direct_gateway_process_active();
+    let gateway_live_for_desktop = gateway_ok
+      || (gateway_listening
+        && (post_bind_startup || runtime_deps_startup || launch_grace_elapsed_ms.is_some()));
     #[cfg(target_os = "macos")]
     let launch_agent_loaded_during_grace = if !gateway_ok && !qa_direct_gateway_mode() {
       let uid = unsafe { libc::getuid() };
@@ -5349,7 +5350,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     #[cfg(not(target_os = "windows"))]
     let browser_probe_timeout = std::time::Duration::from_millis(900);
 
-    let mut browser_probe = if gateway_ok {
+    let mut browser_probe = if gateway_live_for_desktop {
       if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
         BrowserControlProbe::Ready
       } else if BROWSER_STATUS_PROBE_IN_PROGRESS
@@ -5365,7 +5366,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else {
       BrowserControlProbe::Down
     };
-    if gateway_ok
+    if gateway_live_for_desktop
       && browser_probe == BrowserControlProbe::Down
       && browser_cdp_port_open(std::time::Duration::from_millis(250)).await
     {
@@ -5390,7 +5391,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // Passive health polling should observe browser state, not unexpectedly
     // launch a visible Chrome window.  Keep the old self-heal path behind an
     // opt-in environment flag for targeted QA/debugging only.
-    if gateway_ok
+    if gateway_live_for_desktop
       && browser_probe == BrowserControlProbe::Down
       && passive_browser_start_nudge_enabled()
       && now_epoch_ms().saturating_sub(BROWSER_LAST_NUDGE_MS.load(Ordering::Relaxed))
@@ -5758,12 +5759,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let started_at = std::time::Instant::now();
-  if !browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
-    spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
-  }
-
+  let gateway_port_open_for_startup =
+    gateway_tcp_port_open(std::time::Duration::from_millis(50)).await;
   #[cfg(target_os = "macos")]
-  if !gateway_tcp_port_open(std::time::Duration::from_millis(50)).await {
+  if !gateway_port_open_for_startup {
     if let Some(grace_ms) = gateway_launch_grace_active() {
       eprintln!(
         "[clawd/service] startup-ready: gateway launch already in progress for {}ms; waiting",
@@ -5803,7 +5802,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
       let tracked_pid = GATEWAY_PID.load(Ordering::Relaxed);
       let stale_launch = gateway_launch_grace_active()
-        .map(|elapsed| elapsed > 30_000)
+        .map(|elapsed| elapsed > 120_000)
         .unwrap_or(true);
       if tracked_pid == 0 && stale_launch && !gateway_startup_in_progress() {
         eprintln!(
@@ -5818,16 +5817,28 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         eprintln!("[clawd/service] startup-ready: Windows gateway startup already in progress");
       }
     } else {
-      let ah = app_handle.get_ref().clone();
-      tokio::spawn(async move {
-        auto_enable_if_needed(&ah).await;
-      });
+      if let Some(grace_ms) = gateway_launch_grace_active() {
+        eprintln!(
+          "[clawd/service] startup-ready: Windows gateway launch already in progress for {}ms; waiting",
+          grace_ms
+        );
+      } else {
+        let ah = app_handle.get_ref().clone();
+        tokio::spawn(async move {
+          auto_enable_if_needed(&ah).await;
+        });
+      }
     }
   }
 
-  let ready =
-    gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, GATEWAY_READY_BUDGET_MS)
-      .await;
+  let gateway_listening_for_startup =
+    gateway_tcp_port_open(std::time::Duration::from_millis(150)).await;
+  let startup_progress_for_desktop = gateway_listening_for_startup && gateway_startup_in_progress();
+  let ready = if startup_progress_for_desktop {
+    true
+  } else {
+    gateway_supervisor::wait_for_gateway_ready(&tokens.gateway_token, GATEWAY_READY_BUDGET_MS).await
+  };
 
   let remaining_ms =
     || STARTUP_READY_BUDGET_MS.saturating_sub(started_at.elapsed().as_millis() as u64);
@@ -5884,15 +5895,14 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
   };
 
   let elapsed_ms = started_at.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
-  // Startup-ready is the desktop gateway-live gate. Browser and channel warmup
-  // are reported separately so slow or degraded integrations do not keep the
-  // local gateway false.
-  let success = ready;
+  // Startup-ready is the full launch gate. Keep gateway listening visible so
+  // callers can distinguish desktop-safe startup progress from full readiness.
+  let success = ready && browser_ok && channels_ok;
 
   HttpResponse::Ok().json(ServiceHealthResponse {
     success,
     gateway_ok: ready,
-    gateway_listening: Some(ready),
+    gateway_listening: Some(ready || gateway_listening_for_startup),
     browser_ok,
     channels_ok: Some(channels_ok),
     startup_elapsed_ms: Some(elapsed_ms),
@@ -9300,10 +9310,7 @@ async fn prepare_gateway_config(
       "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
       "1".to_string(),
     ),
-    (
-      "OPENCLAW_DESKTOP_FAST_BIND".to_string(),
-      "1".to_string(),
-    ),
+    ("OPENCLAW_DESKTOP_FAST_BIND".to_string(), "1".to_string()),
     (
       "OPENCLAW_DESKTOP_AUTO_START_CHANNELS".to_string(),
       "0".to_string(),
@@ -9520,10 +9527,16 @@ async fn prepare_gateway_config(
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   if !cfg!(debug_assertions) {
-    install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-    ensure_plugin_runtime_deps_openclaw_links(&app_clawdbot_home(app_handle));
+    let warm_node_path = node_path.clone();
+    let warm_bundled_plugins_dir = bundled_plugins_dir.clone();
+    let warm_clawdbot_home = app_clawdbot_home(app_handle);
+    std::thread::spawn(move || {
+      std::thread::sleep(std::time::Duration::from_secs(180));
+      install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir);
+      ensure_plugin_runtime_deps_openclaw_links(&warm_clawdbot_home);
+    });
     eprintln!(
-      "[clawd/service] prepare_gateway_config: bundled plugin deps checked in {}ms",
+      "[clawd/service] prepare_gateway_config: bundled plugin deps warmup queued in {}ms",
       prepare_started.elapsed().as_millis()
     );
   }
@@ -9637,6 +9650,30 @@ pub async fn set_service_enabled(
           });
         }
       }
+      if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+        eprintln!(
+          "[clawd/service] Enable request: gateway port is already bound during startup; preserving in-flight launch"
+        );
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
+      }
+      let tracked_pid = GATEWAY_PID.load(Ordering::Relaxed);
+      if tracked_pid > 0 && process_is_alive(tracked_pid) {
+        if let Some(grace_ms) = gateway_launch_grace_active() {
+          eprintln!(
+          "[clawd/service] Enable request: gateway launch already in progress for {}ms; preserving startup",
+          grace_ms
+        );
+          return HttpResponse::Ok().json(EnableServiceResponse {
+            success: true,
+            enabled,
+            message: "Gateway startup is already in progress".to_string(),
+          });
+        }
+      }
 
       let setup = match prepare_gateway_config(&app_handle, &cfg).await {
         Ok(s) => s,
@@ -9648,6 +9685,18 @@ pub async fn set_service_enabled(
           })
         }
       };
+
+      if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+        eprintln!(
+          "[clawd/service] Enable request: gateway port became bound during setup; preserving in-flight launch"
+        );
+        *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
+      }
 
       // Mark restart in progress so the health-check background task
       // doesn't race us by spawning a second gateway.
@@ -9749,7 +9798,7 @@ pub async fn set_service_enabled(
             success: false,
             enabled,
             message: format!("Failed to create stdout log: {}", e),
-          })
+          });
         }
       };
       let stderr_file = match fs::File::create(&stderr_log) {
@@ -9760,7 +9809,7 @@ pub async fn set_service_enabled(
             success: false,
             enabled,
             message: format!("Failed to create stderr log: {}", e),
-          })
+          });
         }
       };
 
@@ -10037,8 +10086,14 @@ pub async fn set_service_enabled(
 
       // Install runtime deps for bundled plugins (e.g. grammy for telegram).
       if !cfg!(debug_assertions) {
-        install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir);
-        ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
+        let warm_node_path = node_path.clone();
+        let warm_bundled_plugins_dir = bundled_plugins_dir.clone();
+        let warm_clawdbot_home = clawdbot_home.clone();
+        std::thread::spawn(move || {
+          std::thread::sleep(std::time::Duration::from_secs(180));
+          install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir);
+          ensure_plugin_runtime_deps_openclaw_links(&warm_clawdbot_home);
+        });
       }
 
       // Ensure OpenClaw config exists with gateway.mode=local for first-run.
@@ -11012,10 +11067,7 @@ pub async fn set_service_enabled(
           "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
           "1".to_string(),
         ),
-        (
-          "OPENCLAW_DESKTOP_FAST_BIND".to_string(),
-          "1".to_string(),
-        ),
+        ("OPENCLAW_DESKTOP_FAST_BIND".to_string(), "1".to_string()),
         (
           "OPENCLAW_DESKTOP_AUTO_START_CHANNELS".to_string(),
           "0".to_string(),
@@ -12925,6 +12977,15 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
       return;
     }
   };
+
+  if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+    eprintln!(
+      "[clawd/service] auto_enable (Windows): gateway port became bound during setup; preserving in-flight launch"
+    );
+    *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+    GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+    return;
+  }
 
   // Prevent the background health-check task from racing us.
   kill_stale_clawdbot_chromes();
