@@ -368,7 +368,14 @@ pub fn gateway_log_dir() -> PathBuf {
 
 /// Path to the gateway stdout log file.
 pub fn gateway_stdout_log() -> PathBuf {
-  gateway_log_dir().join("knapsack-clawdbot.out.log")
+  #[cfg(target_os = "windows")]
+  {
+    windows_log_path("stdout")
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    gateway_log_dir().join("knapsack-clawdbot.out.log")
+  }
 }
 
 fn mark_gateway_launch_started() {
@@ -455,7 +462,14 @@ fn startup_ready_browser_start_enabled() -> bool {
 
 /// Path to the gateway stderr log file.
 pub fn gateway_stderr_log() -> PathBuf {
-  gateway_log_dir().join("knapsack-clawdbot.err.log")
+  #[cfg(target_os = "windows")]
+  {
+    windows_log_path("stderr")
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    gateway_log_dir().join("knapsack-clawdbot.err.log")
+  }
 }
 
 /// Kill any Chrome processes that were launched by clawdbot/openclaw and may
@@ -5833,7 +5847,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let gateway_listening_for_startup =
     gateway_tcp_port_open(std::time::Duration::from_millis(150)).await;
-  let startup_progress_for_desktop = gateway_listening_for_startup && gateway_startup_in_progress();
+  let startup_progress_for_desktop = (gateway_listening_for_startup && gateway_startup_in_progress())
+    || gateway_post_bind_startup_in_progress()
+    || gateway_runtime_deps_startup_in_progress()
+    || gateway_launch_grace_active().is_some();
   let ready = if startup_progress_for_desktop {
     true
   } else {
@@ -9625,34 +9642,28 @@ pub async fn set_service_enabled(
       // finish rather than spawning a second gateway process.
       if GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
         eprintln!(
-          "[clawd/service] Enable request: background restart already in progress, waiting..."
+          "[clawd/service] Enable request: background restart already in progress; preserving startup"
         );
-        for _ in 0..20 {
-          std::thread::sleep(std::time::Duration::from_millis(500));
-          if !GATEWAY_RESTART_IN_PROGRESS.load(Ordering::Relaxed) {
-            break;
-          }
-        }
-        // If a gateway is now running, skip re-spawn
-        let existing_pid = GATEWAY_PID.load(Ordering::Relaxed);
-        if existing_pid > 0 {
-          eprintln!(
-            "[clawd/service] Enable request: gateway already running (pid {})",
-            existing_pid
-          );
-          return HttpResponse::Ok().json(EnableServiceResponse {
-            success: true,
-            enabled,
-            message: format!(
-              "Gateway already started by background restart (pid {})",
-              existing_pid
-            ),
-          });
-        }
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
       }
       if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
         eprintln!(
           "[clawd/service] Enable request: gateway port is already bound during startup; preserving in-flight launch"
+        );
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
+      }
+      if let Some(grace_ms) = gateway_launch_grace_active() {
+        eprintln!(
+          "[clawd/service] Enable request: gateway launch already in progress for {}ms; preserving startup",
+          grace_ms
         );
         return HttpResponse::Ok().json(EnableServiceResponse {
           success: true,
@@ -9697,10 +9708,23 @@ pub async fn set_service_enabled(
           message: "Gateway startup is already in progress".to_string(),
         });
       }
+      if let Some(grace_ms) = gateway_launch_grace_active() {
+        eprintln!(
+          "[clawd/service] Enable request: gateway launch began during setup for {}ms; preserving in-flight launch",
+          grace_ms
+        );
+        *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+        return HttpResponse::Ok().json(EnableServiceResponse {
+          success: true,
+          enabled,
+          message: "Gateway startup is already in progress".to_string(),
+        });
+      }
 
       // Mark restart in progress so the health-check background task
       // doesn't race us by spawning a second gateway.
       GATEWAY_RESTART_IN_PROGRESS.store(true, Ordering::Relaxed);
+      mark_gateway_launch_started();
 
       // Kill stale Chrome processes holding the CDP port
       kill_stale_clawdbot_chromes();
