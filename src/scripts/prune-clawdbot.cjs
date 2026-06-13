@@ -603,6 +603,7 @@ if (IS_WIN) {
     if (packNodeModulesTar({ cwd: CLAWDBOT_DIR, finalTarName: 'node_modules.tar', label: 'root node_modules' })) {
       const keep = collectStartupPackageClosure();
       pruneNodeModulesToPackageSet(keep);
+      pruneArtifacts(path.join(CLAWDBOT_DIR, 'node_modules'));
       if (packNodeModulesTar({ cwd: CLAWDBOT_DIR, finalTarName: 'startup_node_modules.tar', label: 'startup node_modules' })) {
         fs.rmSync(path.join(CLAWDBOT_DIR, 'node_modules'), { recursive: true, force: true });
         console.log(`[prune-clawdbot] Packed startup node_modules into startup_node_modules.tar; kept ${keep.size} startup package(s) for fast launch`);
