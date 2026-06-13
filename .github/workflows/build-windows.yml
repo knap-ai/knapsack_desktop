@@ -118,20 +118,21 @@ jobs:
       - name: Pack node_modules into tar for Windows installer
         # Run from within the clawdbot dir so tar needs no path juggling.
         # Packing node_modules into one file keeps the Windows installer input
-        # small and avoids slow/fragile handling of thousands of resource files.
+        # small. prune-clawdbot.cjs also emits startup_node_modules.tar, a
+        # compact launch-critical subset that can be extracted quickly before
+        # the gateway binds.
         working-directory: src/src-tauri/resources/clawdbot
         shell: pwsh
         run: |
-          if (-not (Test-Path "node_modules")) {
-            Write-Error "node_modules not found in clawdbot — was npm ci run?"
+          if (-not (Test-Path "node_modules.tar")) {
+            Write-Error "node_modules.tar missing — prune-clawdbot.cjs should create the full runtime archive"
             exit 1
           }
-          Write-Host "Packing node_modules..."
-          tar -cf node_modules.tar node_modules
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "tar failed (exit $LASTEXITCODE)"
+          if (-not (Test-Path "startup_node_modules.tar")) {
+            Write-Error "startup_node_modules.tar missing — prune-clawdbot.cjs should create the launch-critical runtime archive"
             exit 1
           }
+          Write-Host "Reusing node_modules.tar and startup_node_modules.tar produced by prune-clawdbot.cjs"
           $requiredEntries = @(
             "node_modules/@earendil-works/pi-agent-core/dist/index.js",
             "node_modules/@earendil-works/pi-agent-core/dist/agent.js"
@@ -143,15 +144,21 @@ jobs:
               exit 1
             }
           }
-          Remove-Item -Recurse -Force node_modules
+          $startupEntries = tar -tf startup_node_modules.tar
+          foreach ($entry in $requiredEntries) {
+            if ($startupEntries -notcontains $entry) {
+              Write-Error "startup_node_modules.tar missing required runtime file: $entry"
+              exit 1
+            }
+          }
           $mb = [math]::Round((Get-Item node_modules.tar).Length / 1MB, 1)
+          $startupMb = [math]::Round((Get-Item startup_node_modules.tar).Length / 1MB, 1)
           $n  = (Get-ChildItem -Recurse . | Measure-Object).Count
-          Write-Host "node_modules.tar: $mb MB. Windows installer will see $n files."
+          Write-Host "node_modules.tar: $mb MB; startup_node_modules.tar: $startupMb MB. Windows installer will see $n files."
 
       - name: Disable beforeBuildCommand in tauri.conf.json
         # The frontend is already compiled above. Remove beforeBuildCommand so
-        # Tauri doesn't re-run npm run build — after Pack, node_modules is gone
-        # and the prebuild hook (verify-clawdbot-bundle.cjs) would fail.
+        # Tauri doesn't re-run npm run build during packaging.
         shell: pwsh
         run: |
           $confPath = "src/src-tauri/tauri.conf.json"

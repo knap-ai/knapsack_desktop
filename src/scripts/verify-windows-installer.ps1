@@ -98,17 +98,16 @@ foreach ($file in $required) {
 
 $clawdbotRoot = Join-Path $appRoot "resources\clawdbot"
 $tarPath = Join-Path $clawdbotRoot "node_modules.tar"
-$nodeModulesProbe = Join-Path $clawdbotRoot "node_modules\@earendil-works\pi-agent-core\dist\index.js"
-if ((Test-Path $tarPath) -or (Test-Path $nodeModulesProbe)) {
-  if (Test-Path $tarPath) {
-    Write-Host "verified resources\clawdbot\node_modules.tar"
-  }
-  if (Test-Path $nodeModulesProbe) {
-    Write-Host "verified extracted node_modules runtime probe"
-  }
-} else {
-  throw "Missing gateway runtime dependencies: expected node_modules.tar or extracted node_modules probe"
+$startupTarPath = Join-Path $clawdbotRoot "startup_node_modules.tar"
+if (-not (Test-Path $tarPath)) {
+  throw "Missing gateway runtime archive: expected resources\clawdbot\node_modules.tar"
 }
+Write-Host "verified resources\clawdbot\node_modules.tar"
+
+if (-not (Test-Path $startupTarPath)) {
+  throw "Missing gateway startup runtime archive: expected resources\clawdbot\startup_node_modules.tar"
+}
+Write-Host "verified resources\clawdbot\startup_node_modules.tar"
 
 Write-Host "Windows installer artifact verification passed."
 

@@ -1395,7 +1395,6 @@ async function runChatSmoke(provider, model, options = {}) {
       attemptChat += 1;
       try {
         const requestStartedAt = Date.now();
-        const requestStartedAt = Date.now();
         chat = await httpJsonWithTimeout(`${API_BASE}/api/clawd/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
