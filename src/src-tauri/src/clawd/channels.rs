@@ -1068,6 +1068,18 @@ pub async fn whatsapp_login_phone(
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  if configured_channel("imessage").is_none() {
+    return HttpResponse::Ok().json(ChannelStatusResponse {
+      success: true,
+      enabled: false,
+      configured: false,
+      linked: None,
+      provider: None,
+      message: None,
+      account: None,
+    });
+  }
+
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
