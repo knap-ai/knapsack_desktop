@@ -421,7 +421,15 @@ fn get_gateway_token() -> Option<String> {
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let env_token = get_gateway_token();
   let token = token.or(env_token.as_deref());
-  gateway_request("status", None, token).await
+  gateway_request(
+    "channels.status",
+    Some(serde_json::json!({
+      "probe": false,
+      "timeoutMs": 800
+    })),
+    token,
+  )
+  .await
 }
 
 /// Call a channel method on the gateway

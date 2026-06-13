@@ -1749,6 +1749,16 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		coreMethodsModulePromise ??= import("./server-methods-90LGtoqF.js");
 		return coreMethodsModulePromise;
 	};
+	const createDesktopStartupCoreHandlers = () => ({
+		"channels.status": async ({ respond }) => {
+			respond(true, {
+				startup: true,
+				deferred: true,
+				channels: [],
+				warnings: ["channel runtime is still warming in the background"]
+			}, void 0);
+		}
+	});
 	const loadRequestContextModule = () => {
 		requestContextModulePromise ??= import("./server-request-context-BClu1RJg.js");
 		return requestContextModulePromise;
@@ -2206,7 +2216,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			log
 		})));
 		const { createGatewayAuxHandlers } = await startupTrace.measure("runtime.after-early.import-aux", () => loadAuxHandlersModule());
-		let coreGatewayHandlers = (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
+		let coreGatewayHandlers = desktopManagedFastStartup ? createDesktopStartupCoreHandlers() : (await startupTrace.measure("runtime.after-early.import-methods", () => loadCoreMethodsModule())).coreGatewayHandlers;
+		if (desktopManagedFastStartup) startupTrace.mark("runtime.after-early.import-methods.deferred");
 		const { execApprovalManager, pluginApprovalManager, extraHandlers } = createGatewayAuxHandlers({
 			log,
 			activateRuntimeSecrets,
@@ -2496,7 +2507,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 				}).catch((err) => {
 					log.warn(`desktop-managed core gateway methods failed to load after listen: ${String(err)}`);
 				});
-			}, 1e4).unref?.();
+			}, 45e3).unref?.();
 		}
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		let postAttachRuntimeReturned = false;
