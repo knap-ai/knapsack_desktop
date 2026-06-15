@@ -100,6 +100,11 @@ fn runtime_channel<'a>(snapshot: &'a Value, channel: &str) -> Option<&'a Value> 
 }
 
 fn configured_channel(channel: &str) -> Option<Value> {
+  read_config_from_disk()
+    .and_then(|config| config.pointer(&format!("/channels/{}", channel)).cloned())
+}
+
+fn read_config_from_disk() -> Option<Value> {
   let mut candidates = Vec::new();
   if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
     candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
@@ -130,11 +135,52 @@ fn configured_channel(channel: &str) -> Option<Value> {
     let Ok(config) = serde_json::from_str::<Value>(&raw) else {
       continue;
     };
-    if let Some(entry) = config.pointer(&format!("/channels/{}", channel)) {
-      return Some(entry.clone());
-    }
+    return Some(config);
   }
   None
+}
+
+fn configured_channels_from_disk() -> Vec<String> {
+  let mut channels = read_config_from_disk()
+    .and_then(|config| {
+      config
+        .get("channels")
+        .and_then(|channels| channels.as_object())
+        .map(|channels| {
+          channels
+            .iter()
+            .filter_map(|(name, value)| {
+              if value.is_null() {
+                None
+              } else {
+                Some(name.clone())
+              }
+            })
+            .collect::<Vec<_>>()
+        })
+    })
+    .unwrap_or_default();
+  channels.sort();
+  channels
+}
+
+fn plugin_allow_from_disk() -> Vec<String> {
+  let mut plugins = read_config_from_disk()
+    .and_then(|config| {
+      config
+        .pointer("/plugins/allow")
+        .and_then(|value| value.as_array())
+        .map(|allow| {
+          allow
+            .iter()
+            .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+            .collect::<Vec<_>>()
+        })
+    })
+    .unwrap_or_default();
+  plugins.sort();
+  plugins.dedup();
+  plugins
 }
 
 fn runtime_status_response(
@@ -216,6 +262,9 @@ async fn gateway_or_bail() -> Option<HttpResponse> {
 struct SendMessageRequest {
   /// Channel to send through: "whatsapp" or "imessage"
   channel: String,
+  /// Optional account/profile inside the channel (for example Slack "john" or "mindy").
+  #[serde(rename = "accountId")]
+  account_id: Option<String>,
   /// Recipient address: phone number (WhatsApp) or email/phone (iMessage)
   to: String,
   /// The message text
@@ -1312,7 +1361,7 @@ pub async fn voice_enable(
   }
 }
 
-/// Send a message through a connected channel (WhatsApp or iMessage).
+/// Send a message through a connected channel.
 ///
 /// Wraps the gateway's `send` JSON-RPC method. The frontend calls this
 /// to push notification content to the user via their connected channels.
@@ -1322,10 +1371,10 @@ pub async fn send_channel_message(
   body: web::Json<SendMessageRequest>,
 ) -> impl Responder {
   let channel = body.channel.to_lowercase();
-  if channel != "whatsapp" && channel != "imessage" && channel != "telegram" {
+  if channel != "whatsapp" && channel != "imessage" && channel != "telegram" && channel != "slack" {
     return HttpResponse::BadRequest().json(SendMessageResponse {
       success: false,
-      message: Some("Channel must be 'whatsapp', 'imessage', or 'telegram'".to_string()),
+      message: Some("Channel must be 'whatsapp', 'imessage', 'telegram', or 'slack'".to_string()),
     });
   }
 
@@ -1338,12 +1387,20 @@ pub async fn send_channel_message(
     rand::random::<u32>()
   );
 
-  let params = serde_json::json!({
+  let mut params = serde_json::json!({
       "to": body.to,
       "message": body.message,
       "channel": channel,
       "idempotencyKey": idempotency_key,
   });
+  if let Some(account_id) = body
+    .account_id
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    params["accountId"] = serde_json::json!(account_id);
+  }
 
   match gateway_client::call_channel_method("send", Some(params), None).await {
     Ok(_result) => HttpResponse::Ok().json(SendMessageResponse {
@@ -3002,8 +3059,8 @@ pub async fn channel_allowlist_update(
           };
           patch_inner.insert("allowFrom".to_string(), serde_json::json!(allow));
           if channel == "telegram" {
-            if let Some(accounts) = config_snapshot["config"]["channels"]["telegram"]["accounts"]
-              .as_object()
+            if let Some(accounts) =
+              config_snapshot["config"]["channels"]["telegram"]["accounts"].as_object()
             {
               let mut accounts_patch = serde_json::Map::new();
               for (account_id, account) in accounts {
@@ -3491,11 +3548,34 @@ pub async fn channel_diagnostics() -> impl Responder {
         }
       }
 
+      let channels = if channels.is_empty() {
+        let fallback = configured_channels_from_disk();
+        if !fallback.is_empty() {
+          issues.push(
+            "Gateway config RPC returned no channel configs; using disk config fallback"
+              .to_string(),
+          );
+        }
+        fallback
+      } else {
+        channels
+      };
+      let plugin_allow = if plugin_allow.is_empty() {
+        plugin_allow_from_disk()
+      } else {
+        plugin_allow
+      };
+
       (hm, m, channels, plugin_allow)
     }
     Err(e) => {
       issues.push(format!("Cannot fetch gateway config: {}", e));
-      (false, None, vec![], vec![])
+      let configured_channels = configured_channels_from_disk();
+      let plugin_allow = plugin_allow_from_disk();
+      if !configured_channels.is_empty() {
+        issues.push("Using disk config fallback for configured channels".to_string());
+      }
+      (false, None, configured_channels, plugin_allow)
     }
   };
 
@@ -3532,12 +3612,11 @@ pub async fn channel_diagnostics() -> impl Responder {
         .iter()
         .any(|existing| existing == channel);
       let summary = channel_summary_line(&channel_summary, channel);
-      let active = channel_summary_active(summary.as_deref())
-        || service::gateway_log_has_channel_started(channel);
+      let active = channel_summary_active(summary.as_deref());
       let plugin_allowed = plugin_allow.iter().any(|plugin| plugin == channel);
       let deferred = configured && !active && !plugin_allowed;
       let reason = if active {
-        "active according to gateway summary or startup log".to_string()
+        "active according to gateway channel summary".to_string()
       } else if deferred {
         "configured but plugin is not in startup allowlist; channel is deferred until opened"
           .to_string()
@@ -3557,6 +3636,15 @@ pub async fn channel_diagnostics() -> impl Responder {
       }
     })
     .collect::<Vec<_>>();
+
+  for state in &channel_states {
+    if state.configured && state.plugin_allowed && !state.active {
+      issues.push(format!(
+        "Configured channel '{}' is allowed but not active in the gateway channel summary",
+        state.channel
+      ));
+    }
+  }
 
   HttpResponse::Ok().json(ChannelDiagnostics {
     success: issues.is_empty(),

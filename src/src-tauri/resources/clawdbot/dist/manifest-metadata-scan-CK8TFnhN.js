@@ -13,6 +13,19 @@ function isRecord(value) {
 function normalizeTrimmedString(value) {
 	return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
+function parsePluginDiscoveryAllowlist(env) {
+	const raw = normalizeTrimmedString(env.OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST);
+	if (!raw) return null;
+	const ids = raw.split(",").map((value) => value.trim()).filter(Boolean);
+	return ids.length > 0 ? new Set(ids) : null;
+}
+function isPluginCandidateAllowed(candidate, allowlist) {
+	if (!allowlist) return true;
+	const manifest = readManifestObject(candidate.pluginDir);
+	const manifestId = normalizeTrimmedString(manifest?.id);
+	const basename = path.basename(candidate.pluginDir);
+	return Boolean(manifestId && allowlist.has(manifestId) || basename && allowlist.has(basename));
+}
 function resolveUserPath(value, env) {
 	if (value === "~" || value.startsWith("~/")) {
 		const home = env.OPENCLAW_HOME ?? env.HOME ?? env.USERPROFILE ?? os.homedir();
@@ -114,6 +127,7 @@ function uniqueCandidateDirs(candidates) {
 	return [...byPath.values()].toSorted((left, right) => left.rank - right.rank || left.order - right.order);
 }
 function listOpenClawPluginManifestMetadata(env = process.env) {
+	const allowlist = parsePluginDiscoveryAllowlist(env);
 	const candidates = [];
 	let order = 0;
 	candidates.push(...listPersistedIndexPluginDirs(env, order));
@@ -121,7 +135,7 @@ function listOpenClawPluginManifestMetadata(env = process.env) {
 	candidates.push(...listChildPluginDirs(resolveBundledPluginRoot(env), 2, order, "bundled"));
 	order = candidates.length;
 	candidates.push(...listChildPluginDirs(path.join(resolveStateDir(env), "extensions"), 4, order, "global"));
-	const uniqueCandidates = uniqueCandidateDirs(candidates);
+	const uniqueCandidates = uniqueCandidateDirs(candidates).filter((candidate) => isPluginCandidateAllowed(candidate, allowlist));
 	const cacheKey = JSON.stringify(uniqueCandidates.map((candidate) => [
 		candidate.pluginDir,
 		candidate.rank,

@@ -95,8 +95,9 @@ function configuredChannelPluginIdsForQa() {
   if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
     return [];
   }
-  if (!process.env.APPDATA) return [];
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const appDataRoot = knapsackAppDataRoot();
+  if (!appDataRoot) return [];
+  const configPath = path.join(appDataRoot, "clawdbot", "openclaw.json");
   if (!existsSync(configPath)) return [];
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
@@ -110,6 +111,140 @@ function configuredChannelPluginIdsForQa() {
   } catch {
     return [];
   }
+}
+
+function readOpenClawConfigForQa() {
+  const appDataRoot = knapsackAppDataRoot();
+  if (!appDataRoot) return null;
+  const configPath = path.join(appDataRoot, "clawdbot", "openclaw.json");
+  if (!existsSync(configPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
+  }
+}
+
+function firstString(value, options = {}) {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = firstString(item, options);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function firstConcreteTarget(value, options = {}) {
+  const found = firstString(value, options);
+  if (!found || found === "*") return null;
+  return found;
+}
+
+function slackTargetLooksPostable(target) {
+  const value = String(target || "").trim();
+  return /^user:[A-Z0-9]{8,}$/i.test(value)
+    || /^channel:[A-Z0-9]{8,}$/i.test(value)
+    || /^slack:[A-Z0-9]{8,}$/i.test(value)
+    || /^<@[A-Z0-9]{8,}>$/i.test(value)
+    || /^[CDGUW][A-Z0-9]{8,}$/i.test(value);
+}
+
+async function fetchSlackAuthUserId(token) {
+  if (!token || !String(token).trim()) return null;
+  const response = await fetchWithTimeout(
+    "https://slack.com/api/auth.test",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${String(token).trim()}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "",
+    },
+    10_000,
+  ).catch(() => null);
+  const userId = response?.body?.user_id;
+  return typeof userId === "string" && /^U[A-Z0-9]{8,}$/i.test(userId) ? `user:${userId}` : null;
+}
+
+async function qaSlackSendTarget(channelConfig) {
+  const explicit = firstConcreteTarget(channelConfig.qaTarget)
+    || firstConcreteTarget(channelConfig.defaultTo)
+    || firstConcreteTarget(channelConfig.defaultTarget)
+    || firstConcreteTarget(channelConfig.notifyTarget)
+    || firstConcreteTarget(channelConfig.channel);
+  if (explicit && slackTargetLooksPostable(explicit)) return explicit;
+
+  const userTokenTarget = await fetchSlackAuthUserId(
+    channelConfig.userTokenReadOnly || channelConfig.userToken,
+  );
+  if (userTokenTarget) return userTokenTarget;
+
+  return null;
+}
+
+async function qaChannelSendTarget(channel) {
+  const upper = String(channel || "").trim().toUpperCase();
+  const envValue = process.env[`KNAPSACK_QA_${upper}_TO`]
+    || process.env[`KNAPSACK_QA_CHANNEL_${upper}_TO`];
+  if (envValue && envValue.trim()) return envValue.trim();
+
+  const config = readOpenClawConfigForQa();
+  const channelConfig = config?.channels?.[channel];
+  if (!channelConfig || typeof channelConfig !== "object") return null;
+  if (channel === "telegram") {
+    return firstConcreteTarget(channelConfig.allowFrom)
+      || firstConcreteTarget(channelConfig.groupAllowFrom)
+      || firstConcreteTarget(Object.values(channelConfig.accounts || {}).map((account) => account?.allowFrom))
+      || firstConcreteTarget(Object.values(channelConfig.accounts || {}).map((account) => account?.groupAllowFrom));
+  }
+  if (channel === "slack") {
+    return qaSlackSendTarget(channelConfig);
+  }
+  if (channel === "whatsapp" || channel === "imessage") {
+    return firstConcreteTarget(channelConfig.allowFrom);
+  }
+  return null;
+}
+
+async function qaChannelSendRequests(channel) {
+  const to = await qaChannelSendTarget(channel);
+  if (channel !== "slack") return [{ channel, to, accountId: null, label: channel }];
+
+  const config = readOpenClawConfigForQa();
+  const accounts = config?.channels?.slack?.accounts;
+  if (!accounts || typeof accounts !== "object" || Array.isArray(accounts)) {
+    return [{ channel, to, accountId: null, label: "slack" }];
+  }
+  return Object.entries(accounts)
+    .filter(([, account]) => !account || account.enabled !== false)
+    .map(([accountId, account]) => ({
+      channel,
+      to,
+      accountId,
+      label: `slack/${accountId === "default" ? "merlin" : accountId}`,
+      accountName: account?.name,
+    }));
+}
+
+function knapsackAppDataRoot() {
+  if (process.platform === "darwin") {
+    return process.env.HOME
+      ? path.join(process.env.HOME, "Library", "Application Support", "ai.knap.knapsack")
+      : null;
+  }
+  if (process.platform === "win32") {
+    return process.env.APPDATA
+      ? path.join(process.env.APPDATA, "ai.knap.knapsack")
+      : null;
+  }
+  return process.env.XDG_CONFIG_HOME
+    ? path.join(process.env.XDG_CONFIG_HOME, "ai.knap.knapsack")
+    : process.env.HOME
+      ? path.join(process.env.HOME, ".config", "ai.knap.knapsack")
+      : null;
 }
 
 function bundledChannelPluginAvailableForQa(channel) {
@@ -159,8 +294,9 @@ function patchOpenClawConfigForQa({ pluginAllowlist, provider }) {
   }
 
   const startupModel = qaStartupModelForProvider(provider);
-  if ((!pluginAllowlist && !startupModel) || !process.env.APPDATA) return null;
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const appDataRoot = knapsackAppDataRoot();
+  if ((!pluginAllowlist && !startupModel) || !appDataRoot) return null;
+  const configPath = path.join(appDataRoot, "clawdbot", "openclaw.json");
   if (!existsSync(configPath)) return null;
 
   const original = fs.readFileSync(configPath, "utf8");
@@ -341,10 +477,11 @@ function parseArgs() {
     chatRetries: 2,
     chatRetryDelayMs: 800,
     startupBudgetMs: 120_000,
-    functionalTimeoutMs: 90_000,
-    readinessHealthTimeoutMs: 60_000,
+    functionalTimeoutMs: null,
+    readinessHealthTimeoutMs: null,
     coreOnly: false,
     strictReadiness: false,
+    globalProviderSwitch: false,
     providers: null,
     models: null,
   };
@@ -397,6 +534,10 @@ function parseArgs() {
     }
     if (arg === "--strict-readiness" || arg === "--strict-chat" || arg === "--no-fallback") {
       opts.strictReadiness = true;
+      continue;
+    }
+    if (arg === "--global-provider-switch" || arg === "--set-active-provider") {
+      opts.globalProviderSwitch = true;
       continue;
     }
     if (arg === "--chat-retries") {
@@ -1270,6 +1411,18 @@ function isTransientChatFailure(message) {
     || text.includes("rate limit");
 }
 
+function isNonRetryableQaFailure(message) {
+  const text = String(message || "").toLowerCase();
+  return text.includes("session expired")
+    || text.includes("please sign in")
+    || text.includes("api key is not set")
+    || text.includes("api key cannot be empty")
+    || text.includes("not connected")
+    || text.includes("not authenticated")
+    || text.includes("authentication required")
+    || text.includes("invalid api key");
+}
+
 async function runReadinessChatWithFallback(provider, model, options = {}) {
   const chatOptions = {
     chatRetries: Number(options.chatRetries),
@@ -1356,7 +1509,7 @@ async function runChatSmoke(provider, model, options = {}) {
   try {
     const startedAt = Date.now();
     const latency = {};
-    if (!options.skipModelSetup) {
+    if (options.globalProviderSwitch === true) {
       const setting = await setProviderAndModel(provider, model);
       latency.providerSwitchMs = setting.elapsedMs;
       if (!setting.ok) {
@@ -1380,6 +1533,8 @@ async function runChatSmoke(provider, model, options = {}) {
       sessionId: `qa-${provider}-${model}`.replace(/[^A-Za-z0-9._-]/g, "-"),
       disableFallback: true,
       qaSmoke: true,
+      provider,
+      model,
     };
     const chatRetries = Number.isFinite(options.chatRetries)
       ? Math.max(1, Number.parseInt(options.chatRetries, 10))
@@ -1683,6 +1838,109 @@ async function createMockMeeting() {
   return { ok: true };
 }
 
+function summarizeChannelDiagnostics(body) {
+  if (!body || typeof body !== "object") return "no diagnostics body";
+  const configured = Array.isArray(body.configuredChannels)
+    ? body.configuredChannels.join(",")
+    : "";
+  const summaryCount = Array.isArray(body.channelSummary) ? body.channelSummary.length : 0;
+  const states = Array.isArray(body.channelStates)
+    ? body.channelStates
+      .map((state) => {
+        if (!state || typeof state !== "object") return null;
+        return `${state.channel || "unknown"}{configured=${Boolean(state.configured)},allowed=${Boolean(state.pluginAllowed)},active=${Boolean(state.active)},deferred=${Boolean(state.deferred)}}`;
+      })
+      .filter(Boolean)
+      .join(";")
+    : "";
+  const issues = Array.isArray(body.issues) ? body.issues.join("; ") : "";
+  return `configured=[${configured}] summary=${summaryCount} states=[${states}] issues=[${issues}]`;
+}
+
+async function waitForConfiguredChannelDiagnostics(expectedChannels, timeoutMs) {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let last = null;
+  while (Date.now() <= deadline) {
+    last = await fetchWithTimeout(
+      `${API_BASE}/api/clawd/channels/diagnostics`,
+      { method: "GET" },
+      30_000,
+    ).catch((error) => ({
+      ok: false,
+      status: 0,
+      body: { error: normalizeResult(error?.message || error) },
+    }));
+
+    const states = Array.isArray(last?.body?.channelStates) ? last.body.channelStates : [];
+    const configuredStates = states.filter((state) => state && state.configured);
+    const stateByChannel = new Map(configuredStates.map((state) => [state.channel, state]));
+    const allExpectedPresent = expectedChannels.every((channel) => stateByChannel.has(channel));
+    const inactive = expectedChannels
+      .map((channel) => stateByChannel.get(channel))
+      .filter((state) => state && !state.deferred && !state.active);
+
+    if (last?.ok && allExpectedPresent && inactive.length === 0) {
+      return last;
+    }
+    await sleep(5_000);
+  }
+  return last;
+}
+
+async function checkChannelSends(channels) {
+  if (String(process.env.KNAPSACK_QA_SEND_CHANNEL_MESSAGES || "").trim() !== "1") {
+    return { enabled: false, results: [] };
+  }
+  const results = [];
+  const timestamp = new Date().toISOString();
+  for (const channel of channels) {
+    const requests = await qaChannelSendRequests(channel);
+    for (const request of requests) {
+      if (!request.to) {
+        results.push({
+          channel,
+          accountId: request.accountId,
+          label: request.label,
+          ok: false,
+          skipped: true,
+          reason: `missing KNAPSACK_QA_${channel.toUpperCase()}_TO`,
+        });
+        continue;
+      }
+      const message = `Knapsack QA channel send test (${request.label}) ${timestamp}`;
+      const response = await fetchWithTimeout(
+        `${API_BASE}/api/clawd/channels/send`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            channel,
+            to: request.to,
+            message,
+            ...(request.accountId ? { accountId: request.accountId } : {}),
+          }),
+        },
+        60_000,
+      ).catch((error) => ({
+        ok: false,
+        status: 0,
+        body: { message: normalizeResult(error?.message || error) },
+      }));
+      const ok = Boolean(response?.ok && response.body?.success === true);
+      results.push({
+        channel,
+        accountId: request.accountId,
+        label: request.label,
+        ok,
+        skipped: false,
+        status: response?.status || 0,
+        message: ok ? "sent" : normalizeResult(response?.body?.message || response?.body || "send failed"),
+      });
+    }
+  }
+  return { enabled: true, results };
+}
+
 async function checkInterfaceAccess(includeUi) {
   const retryWithDelay = async (thunk, attempts = 3, delayMs = 500) => {
     let result = null;
@@ -1712,11 +1970,17 @@ async function checkInterfaceAccess(includeUi) {
     1_000,
   );
 
-  const channels = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/channels/diagnostics`, { method: "GET" }, 30_000),
-    3,
-    1_000,
-  );
+  const strictChannelTransports =
+    String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_TRANSPORTS || "").trim() === "1";
+  const expectedChannels = strictChannelTransports ? configuredChannelPluginIdsForQa() : [];
+  const channelTimeoutMs = Number(process.env.KNAPSACK_QA_CHANNEL_READY_TIMEOUT_MS || 120_000);
+  const channels = strictChannelTransports && expectedChannels.length > 0
+    ? await waitForConfiguredChannelDiagnostics(expectedChannels, channelTimeoutMs)
+    : await retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/channels/diagnostics`, { method: "GET" }, 30_000),
+      3,
+      1_000,
+    );
   const automations = await retryWithDelay(
     () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
     3,
@@ -1747,6 +2011,7 @@ async function checkInterfaceAccess(includeUi) {
       3,
       750,
     );
+  const channelSendResults = await checkChannelSends(expectedChannels);
 
   const failures = [];
   if (!root || !root.ok) failures.push("service/status unhealthy");
@@ -1757,14 +2022,25 @@ async function checkInterfaceAccess(includeUi) {
     ? channels.body.channelStates
     : [];
   const configuredChannelStates = channelStates.filter((state) => state && state.configured);
-  const strictChannelTransports =
-    String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_TRANSPORTS || "").trim() === "1";
   if (strictChannelTransports) {
+    if (expectedChannels.length > 0 && configuredChannelStates.length === 0) {
+      failures.push(`configured channel diagnostics missing for: ${expectedChannels.join(", ")} (${summarizeChannelDiagnostics(channels?.body)})`);
+    }
     const inactiveConfiguredChannels = configuredChannelStates
       .filter((state) => !state.deferred && !state.active)
       .map((state) => `${state.channel}:${state.reason || "not active"}`);
     if (inactiveConfiguredChannels.length > 0) {
-      failures.push(`configured channel transports inactive: ${inactiveConfiguredChannels.join("; ")}`);
+      failures.push(`configured channel transports inactive: ${inactiveConfiguredChannels.join("; ")} (${summarizeChannelDiagnostics(channels?.body)})`);
+    }
+    if (channelSendResults.enabled) {
+      const requireChannelSends =
+        String(process.env.KNAPSACK_QA_REQUIRE_CHANNEL_SENDS || "").trim() === "1";
+      const failedSends = channelSendResults.results
+        .filter((result) => !result.ok && (requireChannelSends || !result.skipped))
+        .map((result) => `${result.channel}:${result.reason || result.message || "send failed"}`);
+      if (failedSends.length > 0) {
+        failures.push(`channel send checks failed: ${failedSends.join("; ")}`);
+      }
     }
   }
   if (!skills || !skills.ok || skills.body?.success !== true) failures.push("skills status unavailable");
@@ -1791,6 +2067,8 @@ async function checkInterfaceAccess(includeUi) {
       feedApi: Boolean(feed?.ok),
       browserControl: Boolean(uiBrowserOk),
       channelStates,
+      channelDiagnostics: summarizeChannelDiagnostics(channels?.body),
+      channelSendResults,
       configuredChannelsActive: configuredChannelStates.filter((state) => state.active).map((state) => state.channel),
       configuredChannelsDeferred: configuredChannelStates.filter((state) => state.deferred).map((state) => state.channel),
       strictChannelTransports,
@@ -1988,6 +2266,7 @@ async function runMode(mode, opts = {}) {
             chatRetries: Number.isFinite(opts.chatRetries) ? opts.chatRetries : undefined,
             chatRetryDelayMs: Number.isFinite(opts.chatRetryDelayMs) ? opts.chatRetryDelayMs : undefined,
             strictReadiness: Boolean(opts.strictReadiness),
+            globalProviderSwitch: Boolean(opts.globalProviderSwitch),
           });
           chatChecks.push(check);
           functionalProgress.chatChecks = chatChecks;
@@ -2108,9 +2387,13 @@ async function runLoop() {
       if (modeResult.ok) break;
       const failedDuringPrepare = modeResult.phase === "prepare"
         || String(modeResult.message || "").includes("prepare failed");
-      if (attempt >= attemptsPerMode || failedDuringPrepare) {
+      const nonRetryableFailure = isNonRetryableQaFailure(modeResult.message);
+      if (attempt >= attemptsPerMode || failedDuringPrepare || nonRetryableFailure) {
         if (failedDuringPrepare) {
           abortAllModes = true;
+        }
+        if (nonRetryableFailure) {
+          modeResult.nonRetryable = true;
         }
         break;
       }

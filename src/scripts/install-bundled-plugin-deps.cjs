@@ -22,6 +22,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execSync } = require('child_process');
 
 const CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
@@ -40,7 +41,7 @@ const FORCE_STAGE_RUNTIME_DEPS = new Set(['browser']);
 // Channels that Knapsack exposes directly in the UI need their own dependency
 // trees bundled with the extension. Root node_modules is still useful for shared
 // resolution, but it is not enough for channel-local imports and verifier gates.
-const FORCE_EXTENSION_LOCAL_DEPS = new Set(['slack', 'whatsapp']);
+const FORCE_EXTENSION_LOCAL_DEPS = new Set(['slack', 'telegram', 'whatsapp']);
 
 if (!fs.existsSync(EXTENSIONS_DIR)) {
   console.log('[install-bundled-plugin-deps] dist/extensions not found — skipping.');
@@ -51,6 +52,42 @@ const entries = fs.readdirSync(EXTENSIONS_DIR, { withFileTypes: true });
 let installed = 0;
 let alreadyPresent = 0;
 let skipped = 0;
+
+function runtimeDependencyEntries(pkg) {
+  return Object.entries(pkg.dependencies || {})
+    .filter(([, version]) => typeof version === 'string'
+      && !version.startsWith('file:')
+      && !version.startsWith('link:')
+      && !version.startsWith('workspace:')
+      && !version.startsWith('portal:'));
+}
+
+function runtimeDependencySpecs(pkg) {
+  return runtimeDependencyEntries(pkg).map(([dep, version]) => `${dep}@${version}`);
+}
+
+function installPluginRuntimeDeps(pluginDir, specs) {
+  const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knapsack-plugin-deps-'));
+  try {
+    const quotedSpecs = specs.map((spec) => JSON.stringify(spec)).join(' ');
+    execSync(`npm install ${quotedSpecs} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`, {
+      cwd: stagingDir,
+      stdio: 'inherit',
+    });
+    const sourceNm = path.join(stagingDir, 'node_modules');
+    const targetNm = path.join(pluginDir, 'node_modules');
+    fs.mkdirSync(targetNm, { recursive: true });
+    for (const entry of fs.readdirSync(sourceNm)) {
+      fs.cpSync(path.join(sourceNm, entry), path.join(targetNm, entry), {
+        recursive: true,
+        force: true,
+        verbatimSymlinks: true,
+      });
+    }
+  } finally {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+  }
+}
 
 for (const entry of entries) {
   if (!entry.isDirectory()) continue;
@@ -85,7 +122,7 @@ for (const entry of entries) {
   const needsStage = pkg?.openclaw?.bundle?.stageRuntimeDependencies === true || forceLocalDeps;
   if (!needsStage) continue;
 
-  const deps = Object.keys(pkg.dependencies || {});
+  const deps = runtimeDependencyEntries(pkg).map(([dep]) => dep);
   if (deps.length === 0) continue;
 
   const missingRootDeps = deps.filter((dep) => !fs.existsSync(path.join(CLAWDBOT_DIR, 'node_modules', dep)));
@@ -105,10 +142,7 @@ for (const entry of entries) {
 
   console.log(`[install-bundled-plugin-deps] ${pluginName}: installing ${deps.join(', ')}...`);
   try {
-    execSync('npm install --omit=dev --ignore-scripts --no-audit --no-fund', {
-      cwd: pluginDir,
-      stdio: 'inherit',
-    });
+    installPluginRuntimeDeps(pluginDir, runtimeDependencySpecs(pkg));
     console.log(`[install-bundled-plugin-deps] ${pluginName}: done`);
     installed++;
   } catch (err) {
@@ -146,10 +180,9 @@ for (const entry of entries) {
 
   let pkg;
   try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { continue; }
-  if (FORCE_EXTENSION_LOCAL_DEPS.has(pluginName)) continue;
   if (pkg?.openclaw?.bundle?.stageRuntimeDependencies !== true) continue;
 
-  for (const dep of Object.keys(pkg.dependencies || {})) {
+  for (const dep of runtimeDependencyEntries(pkg).map(([name]) => name)) {
     if (!fs.existsSync(path.join(ROOT_NM, dep)) && !missingFromRoot.includes(dep)) {
       missingFromRoot.push(dep);
     }

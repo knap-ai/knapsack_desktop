@@ -1472,17 +1472,17 @@ fn bundled_plugins_dir(app_handle: &tauri::AppHandle) -> PathBuf {
   }
 }
 
-fn configured_channel_fallback_ids(config_path: &Path) -> String {
+fn configured_channel_plugin_ids(config_path: &Path) -> Vec<String> {
   let content = match fs::read_to_string(config_path) {
     Ok(content) => content,
-    Err(_) => return String::new(),
+    Err(_) => return Vec::new(),
   };
   let json: serde_json::Value = match serde_json::from_str(&content) {
     Ok(value) => value,
-    Err(_) => return String::new(),
+    Err(_) => return Vec::new(),
   };
   let Some(channels) = json.get("channels").and_then(|value| value.as_object()) else {
-    return String::new();
+    return Vec::new();
   };
   let mut ids: Vec<String> = channels
     .iter()
@@ -1498,14 +1498,110 @@ fn configured_channel_fallback_ids(config_path: &Path) -> String {
       let trimmed = id.trim().to_ascii_lowercase();
       if trimmed.is_empty() {
         None
-      } else {
+      } else if KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS
+        .iter()
+        .any(|channel_id| *channel_id == trimmed)
+      {
         Some(trimmed)
+      } else {
+        None
       }
     })
     .collect();
   ids.sort();
   ids.dedup();
+  ids
+}
+
+fn configured_channel_fallback_ids(config_path: &Path) -> String {
+  configured_channel_plugin_ids(config_path).join(",")
+}
+
+fn configured_desktop_plugin_discovery_allowlist(config_path: &Path) -> String {
+  let mut ids: Vec<String> = KNAPSACK_REQUIRED_PLUGINS
+    .iter()
+    .map(|plugin| plugin.to_string())
+    .collect();
+  ids.extend(configured_channel_plugin_ids(config_path));
+  ids.sort();
+  ids.dedup();
   ids.join(",")
+}
+
+fn configured_channel_plugin_filter(config_path: &Path) -> Option<HashSet<String>> {
+  let ids = configured_channel_plugin_ids(config_path);
+  if ids.is_empty() {
+    None
+  } else {
+    Some(ids.into_iter().collect())
+  }
+}
+
+async fn gateway_status_rpc_ok(token: &str, timeout: std::time::Duration) -> bool {
+  tokio::time::timeout(timeout, gateway_client::get_channel_status(Some(token)))
+    .await
+    .map(|result| result.is_ok())
+    .unwrap_or(false)
+}
+
+fn plugin_runtime_deps_staging_dir(plugin_name: &str) -> PathBuf {
+  let safe_plugin_name = plugin_name
+    .chars()
+    .map(|ch| {
+      if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+        ch
+      } else {
+        '-'
+      }
+    })
+    .collect::<String>();
+  let unique = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_nanos())
+    .unwrap_or_default();
+  std::env::temp_dir().join(format!(
+    "knapsack-plugin-deps-{}-{}-{}",
+    safe_plugin_name,
+    std::process::id(),
+    unique
+  ))
+}
+
+fn copy_plugin_node_modules_entries(source_nm: &Path, target_nm: &Path) -> std::io::Result<()> {
+  fs::create_dir_all(target_nm)?;
+  for entry in fs::read_dir(source_nm)? {
+    let entry = entry?;
+    let source_path = entry.path();
+    let target_path = target_nm.join(entry.file_name());
+    let file_type = entry.file_type()?;
+    if file_type.is_dir() {
+      if target_path.exists() {
+        fs::remove_dir_all(&target_path)?;
+      }
+      copy_plugin_node_modules_entries(&source_path, &target_path)?;
+    } else if file_type.is_symlink() {
+      if target_path.exists() {
+        let _ = fs::remove_file(&target_path).or_else(|_| fs::remove_dir_all(&target_path));
+      }
+      let target = fs::read_link(&source_path)?;
+      #[cfg(unix)]
+      std::os::unix::fs::symlink(target, &target_path)?;
+      #[cfg(windows)]
+      {
+        if source_path.is_dir() {
+          std::os::windows::fs::symlink_dir(target, &target_path)?;
+        } else {
+          std::os::windows::fs::symlink_file(target, &target_path)?;
+        }
+      }
+    } else {
+      if target_path.exists() {
+        let _ = fs::remove_file(&target_path);
+      }
+      fs::copy(&source_path, &target_path)?;
+    }
+  }
+  Ok(())
 }
 
 /// Install runtime dependencies for bundled plugins that declare
@@ -1518,6 +1614,7 @@ fn configured_channel_fallback_ids(config_path: &Path) -> String {
 fn install_bundled_plugin_runtime_deps(
   node_path: &std::path::Path,
   extensions_dir: &std::path::Path,
+  plugin_filter: Option<&HashSet<String>>,
 ) {
   let _install_guard = ROOT_PLUGIN_DEPS_INSTALL_MUTEX
     .lock()
@@ -1588,6 +1685,13 @@ fn install_bundled_plugin_runtime_deps(
     if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
       continue;
     }
+    let plugin_name = entry.file_name().to_string_lossy().to_string();
+    if plugin_filter
+      .map(|filter| !filter.contains(&plugin_name))
+      .unwrap_or(false)
+    {
+      continue;
+    }
     let plugin_dir = entry.path();
     let pkg_path = plugin_dir.join("package.json");
     if !pkg_path.exists() {
@@ -1610,10 +1714,24 @@ fn install_bundled_plugin_runtime_deps(
       continue;
     }
 
-    let deps: Vec<String> = pkg
+    let deps: Vec<(String, String)> = pkg
       .get("dependencies")
       .and_then(|v| v.as_object())
-      .map(|m| m.keys().cloned().collect())
+      .map(|m| {
+        m.iter()
+          .filter_map(|(dep, version)| {
+            let version = version.as_str()?;
+            if version.starts_with("file:")
+              || version.starts_with("link:")
+              || version.starts_with("workspace:")
+              || version.starts_with("portal:")
+            {
+              return None;
+            }
+            Some((dep.clone(), version.to_string()))
+          })
+          .collect()
+      })
       .unwrap_or_default();
 
     // On Windows CI builds the extension node_modules is packed into
@@ -1622,7 +1740,7 @@ fn install_bundled_plugin_runtime_deps(
     ensure_node_modules_extracted(&plugin_dir);
 
     let nm_dir = plugin_dir.join("node_modules");
-    let all_present = !deps.is_empty() && deps.iter().all(|dep| nm_dir.join(dep).exists());
+    let all_present = !deps.is_empty() && deps.iter().all(|(dep, _)| nm_dir.join(dep).exists());
     if all_present {
       eprintln!(
         "[clawd/service] Plugin {} runtime deps already present",
@@ -1631,19 +1749,44 @@ fn install_bundled_plugin_runtime_deps(
       continue;
     }
 
-    let plugin_name = entry.file_name().to_string_lossy().to_string();
     eprintln!(
       "[clawd/service] Installing runtime deps for plugin {}...",
       plugin_name
     );
 
-    let npm_args = [
-      "install",
+    if deps.is_empty() {
+      eprintln!(
+        "[clawd/service] Plugin {} has no registry runtime deps to install",
+        plugin_name
+      );
+      continue;
+    }
+
+    let dep_specs = deps
+      .iter()
+      .map(|(dep, version)| format!("{}@{}", dep, version))
+      .collect::<Vec<_>>();
+    let mut npm_args: Vec<&str> = vec!["install"];
+    let dep_refs = dep_specs
+      .iter()
+      .map(|spec| spec.as_str())
+      .collect::<Vec<_>>();
+    npm_args.extend(dep_refs.iter().copied());
+    npm_args.extend([
+      "--no-save",
       "--omit=dev",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
-    ];
+    ]);
+    let staging_dir = plugin_runtime_deps_staging_dir(&plugin_name);
+    if let Err(err) = fs::create_dir_all(&staging_dir) {
+      eprintln!(
+        "[clawd/service] WARNING: could not create plugin runtime deps staging dir for {}: {}",
+        plugin_name, err
+      );
+      continue;
+    }
     #[cfg(target_os = "windows")]
     let result = {
       use std::os::windows::process::CommandExt;
@@ -1651,13 +1794,13 @@ fn install_bundled_plugin_runtime_deps(
       match &npm_runner {
         NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
           .arg(npm_cli)
-          .args(npm_args)
-          .current_dir(&plugin_dir)
+          .args(&npm_args)
+          .current_dir(&staging_dir)
           .creation_flags(CREATE_NO_WINDOW)
           .status(),
         NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
-          .args(npm_args)
-          .current_dir(&plugin_dir)
+          .args(&npm_args)
+          .current_dir(&staging_dir)
           .creation_flags(CREATE_NO_WINDOW)
           .status(),
       }
@@ -1666,20 +1809,28 @@ fn install_bundled_plugin_runtime_deps(
     let result = match &npm_runner {
       NpmRunner::NpmCli(npm_cli) => std::process::Command::new(node_path)
         .arg(npm_cli)
-        .args(npm_args)
-        .current_dir(&plugin_dir)
+        .args(&npm_args)
+        .current_dir(&staging_dir)
         .status(),
       NpmRunner::NpmBin(npm_bin) => std::process::Command::new(npm_bin)
-        .args(npm_args)
-        .current_dir(&plugin_dir)
+        .args(&npm_args)
+        .current_dir(&staging_dir)
         .status(),
     };
 
     match result {
-      Ok(s) if s.success() => eprintln!(
-        "[clawd/service] Plugin {} runtime deps installed",
-        plugin_name
-      ),
+      Ok(s) if s.success() => {
+        match copy_plugin_node_modules_entries(&staging_dir.join("node_modules"), &nm_dir) {
+          Ok(()) => eprintln!(
+            "[clawd/service] Plugin {} runtime deps installed",
+            plugin_name
+          ),
+          Err(e) => eprintln!(
+            "[clawd/service] WARNING: copying runtime deps for plugin {} failed: {}",
+            plugin_name, e
+          ),
+        }
+      }
       Ok(s) => eprintln!(
         "[clawd/service] WARNING: npm install for plugin {} exited {}",
         plugin_name, s
@@ -1689,6 +1840,7 @@ fn install_bundled_plugin_runtime_deps(
         plugin_name, e
       ),
     }
+    let _ = fs::remove_dir_all(&staging_dir);
   }
 
   // Pass 2: Shared bundler chunks (e.g. sticker-cache.js) sit in the root dist/ and
@@ -1756,6 +1908,13 @@ fn install_bundled_plugin_runtime_deps(
   if let Ok(root_entries) = fs::read_dir(extensions_dir) {
     for entry in root_entries.flatten() {
       if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+        continue;
+      }
+      let plugin_name = entry.file_name().to_string_lossy().to_string();
+      if plugin_filter
+        .map(|filter| !filter.contains(&plugin_name))
+        .unwrap_or(false)
+      {
         continue;
       }
       let pkg: serde_json::Value = match fs::read_to_string(entry.path().join("package.json"))
@@ -2851,6 +3010,11 @@ async fn browser_cdp_port_open(timeout: std::time::Duration) -> bool {
     tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr)).await,
     Ok(Ok(_))
   )
+}
+
+fn browser_cdp_port_open_sync(timeout: std::time::Duration) -> bool {
+  let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 18800u16));
+  std::net::TcpStream::connect_timeout(&addr, timeout).is_ok()
 }
 
 async fn gateway_tcp_port_open(timeout: std::time::Duration) -> bool {
@@ -4633,7 +4797,7 @@ async fn run_gateway_self_heal_cycle(
 
   let extensions_dir = bundled_plugins_dir(&app_handle);
   if !cfg!(debug_assertions) {
-    install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir);
+    install_bundled_plugin_runtime_deps(&setup.node_path, &extensions_dir, None);
     ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
   }
 
@@ -5099,6 +5263,10 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
 
 #[cfg(target_os = "macos")]
 fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
+  if browser_cdp_port_open_sync(std::time::Duration::from_millis(250)) {
+    return Ok(());
+  }
+
   let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
   if !chrome.exists() {
     return Err("Google Chrome app binary was not found".to_string());
@@ -5140,6 +5308,10 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
 
 #[cfg(target_os = "windows")]
 fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), String> {
+  if browser_cdp_port_open_sync(std::time::Duration::from_millis(250)) {
+    return Ok(());
+  }
+
   let program_files =
     std::env::var("PROGRAMFILES").unwrap_or_else(|_| r"C:\Program Files".to_string());
   let program_files_x86 =
@@ -5266,12 +5438,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     // Gateway health is intentionally unauthenticated. A bound TCP port is not
     // enough: during startup the gateway can accept connections while the Node
     // event loop is still too busy to answer `/health`.
-    let gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let mut gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
     let gateway_listening = if gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
+    if !gateway_ok && gateway_listening {
+      gateway_ok =
+        gateway_status_rpc_ok(&tokens.gateway_token, std::time::Duration::from_millis(900)).await;
+    }
     let gateway_probe_failed = !gateway_ok;
 
     // Track gateway state transitions for recovery logic.
@@ -5825,8 +6001,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   use crate::clawd::{gateway_supervisor, gateway_ws};
 
-  const STARTUP_READY_BUDGET_MS: u64 = 15_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 13_500;
+  const STARTUP_READY_BUDGET_MS: u64 = 45_000;
+  const GATEWAY_READY_BUDGET_MS: u64 = 42_000;
 
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
@@ -5919,7 +6095,8 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
 
   let gateway_listening_for_startup =
     gateway_tcp_port_open(std::time::Duration::from_millis(150)).await;
-  let startup_progress_for_desktop = (gateway_listening_for_startup && gateway_startup_in_progress())
+  let startup_progress_for_desktop = (gateway_listening_for_startup
+    && gateway_startup_in_progress())
     || gateway_post_bind_startup_in_progress()
     || gateway_runtime_deps_startup_in_progress()
     || gateway_launch_grace_active().is_some();
@@ -6022,7 +6199,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     } else if ready {
       "Gateway is ready; browser and channels are still starting up".to_string()
     } else {
-      "Gateway did not become ready within 15s".to_string()
+      "Gateway did not become ready within 45s".to_string()
     },
     diagnostic_type: None,
   })
@@ -9323,6 +9500,7 @@ async fn prepare_gateway_config(
   let bundled_plugins_dir = bundled_plugins_dir(app_handle);
   let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
   let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
+  let plugin_discovery_allowlist = configured_desktop_plugin_discovery_allowlist(&config_path);
 
   let node_dir = node_path
     .parent()
@@ -9395,11 +9573,19 @@ async fn prepare_gateway_config(
       "OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(),
       bundled_plugins_dir_str,
     ),
+    (
+      "OPENCLAW_DISABLE_BUNDLED_PLUGINS".to_string(),
+      "0".to_string(),
+    ),
     ("OPENCLAW_QUIET_CONFIG_VERSION".to_string(), "1".to_string()),
     ("OPENCLAW_DISABLE_BONJOUR".to_string(), "1".to_string()),
     (
       "OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS".to_string(),
       configured_channel_fallback_ids,
+    ),
+    (
+      "OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST".to_string(),
+      plugin_discovery_allowlist,
     ),
     // Keep optional network warmups/providers from delaying the local gateway
     // port. Channels can continue connecting after the UI is already usable.
@@ -9414,6 +9600,10 @@ async fn prepare_gateway_config(
     (
       "OPENCLAW_DEFER_STARTUP_SIDECARS".to_string(),
       "1".to_string(),
+    ),
+    (
+      "OPENCLAW_PROVIDER_AUTH_PREWARM_DELAY_MS".to_string(),
+      "180000".to_string(),
     ),
     (
       "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
@@ -9635,13 +9825,18 @@ async fn prepare_gateway_config(
 
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
-  if !cfg!(debug_assertions) {
+  if cfg!(debug_assertions) {
+    if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
+      install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir, Some(&plugin_filter));
+      ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
+    }
+  } else {
     let warm_node_path = node_path.clone();
     let warm_bundled_plugins_dir = bundled_plugins_dir.clone();
     let warm_clawdbot_home = app_clawdbot_home(app_handle);
     std::thread::spawn(move || {
       std::thread::sleep(std::time::Duration::from_secs(180));
-      install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir);
+      install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir, None);
       ensure_plugin_runtime_deps_openclaw_links(&warm_clawdbot_home);
     });
     eprintln!(
@@ -10200,14 +10395,13 @@ pub async fn set_service_enabled(
         }
       }
 
-      // Install runtime deps for bundled plugins (e.g. grammy for telegram).
       if !cfg!(debug_assertions) {
         let warm_node_path = node_path.clone();
         let warm_bundled_plugins_dir = bundled_plugins_dir.clone();
         let warm_clawdbot_home = clawdbot_home.clone();
         std::thread::spawn(move || {
           std::thread::sleep(std::time::Duration::from_secs(180));
-          install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir);
+          install_bundled_plugin_runtime_deps(&warm_node_path, &warm_bundled_plugins_dir, None);
           ensure_plugin_runtime_deps_openclaw_links(&warm_clawdbot_home);
         });
       }
@@ -10220,6 +10414,16 @@ pub async fn set_service_enabled(
       // Use openclaw.json (preferred in 2026.2+); also check for legacy clawdbot.json.
       let config_path = clawdbot_home.join("openclaw.json");
       let legacy_config_path = clawdbot_home.join("clawdbot.json");
+      if cfg!(debug_assertions) {
+        if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
+          install_bundled_plugin_runtime_deps(
+            &node_path,
+            &bundled_plugins_dir,
+            Some(&plugin_filter),
+          );
+          ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
+        }
+      }
       // If the legacy config exists but the new one doesn't, rename it.
       if legacy_config_path.exists() && !config_path.exists() {
         match fs::rename(&legacy_config_path, &config_path) {
@@ -11089,6 +11293,7 @@ pub async fn set_service_enabled(
       // bundled_plugins_dir was resolved earlier (before config patching)
       let bundled_plugins_dir_str = bundled_plugins_dir.to_string_lossy().to_string();
       let configured_channel_fallback_ids = configured_channel_fallback_ids(&config_path);
+      let plugin_discovery_allowlist = configured_desktop_plugin_discovery_allowlist(&config_path);
       eprintln!(
         "[clawd/service] Skipping blocking OpenClaw doctor --fix during startup config preparation"
       );
@@ -11156,6 +11361,10 @@ pub async fn set_service_enabled(
           "OPENCLAW_BUNDLED_PLUGINS_DIR".to_string(),
           bundled_plugins_dir_str,
         ),
+        (
+          "OPENCLAW_DISABLE_BUNDLED_PLUGINS".to_string(),
+          "0".to_string(),
+        ),
         // Suppress the repetitive "Config was last written by a newer OpenClaw" warning.
         // The gateway logs this on every config read; setting this env var tells it to
         // log the warning only once on startup instead of on every read cycle.
@@ -11164,6 +11373,10 @@ pub async fn set_service_enabled(
         (
           "OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS".to_string(),
           configured_channel_fallback_ids,
+        ),
+        (
+          "OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST".to_string(),
+          plugin_discovery_allowlist,
         ),
         // Keep optional network warmups/providers from delaying the local gateway
         // port. Channels can continue connecting after the UI is already usable.
@@ -11178,6 +11391,10 @@ pub async fn set_service_enabled(
         (
           "OPENCLAW_DEFER_STARTUP_SIDECARS".to_string(),
           "1".to_string(),
+        ),
+        (
+          "OPENCLAW_PROVIDER_AUTH_PREWARM_DELAY_MS".to_string(),
+          "180000".to_string(),
         ),
         (
           "OPENCLAW_DESKTOP_MANAGED_GATEWAY".to_string(),
