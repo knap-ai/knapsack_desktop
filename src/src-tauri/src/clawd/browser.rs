@@ -655,7 +655,10 @@ async fn knapsack_bearer_token(
         );
       }
     }
-    Err(err) => log::warn!("[knapsack_token] /refresh_token_api request failed: {}", err),
+    Err(err) => log::warn!(
+      "[knapsack_token] /refresh_token_api request failed: {}",
+      err
+    ),
   }
 
   if let Some(refreshed) = refresh_knapsack_access_token().await {
@@ -695,7 +698,10 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
 fn knapsack_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
-    .and_then(|t| t.knapsack_model.map(|m| normalize_provider_model("knapsack", &m)))
+    .and_then(|t| {
+      t.knapsack_model
+        .map(|m| normalize_provider_model("knapsack", &m))
+    })
     .filter(|m| !m.trim().is_empty())
     .unwrap_or_else(|| "auto".to_string())
 }
@@ -2448,6 +2454,7 @@ pub async fn chat(
 
       // Don't use "efficient" mode - it truncates too much and loses important content
       let mut snap_query = json!({"profile": profile, "format": "ai", "refs": "aria"});
+      let mut target_id_was_cleared = false;
       if let Some(tid) = target_id {
         snap_query["targetId"] = json!(tid);
       }
@@ -2468,6 +2475,12 @@ pub async fn chat(
               || last_err.contains("not running")
               || last_err.contains("not ready");
             if is_transient && attempt < 2 {
+              if last_err.contains("tab not found") && !target_id_was_cleared {
+                if let Some(obj) = snap_query.as_object_mut() {
+                  obj.remove("targetId");
+                }
+                target_id_was_cleared = true;
+              }
               eprintln!(
                 "[clawd/chat] snapshot attempt {} failed ({}), retrying...",
                 attempt + 1,
@@ -4675,7 +4688,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         if !tls.is_empty() {
           body["tools"] = serde_json::to_value(&tls)?;
         }
-        let resp = client
+        let mut resp = client
           .post(format!(
             "{}/chat/completions",
             knapsack_base_url().trim_end_matches('/')
@@ -4685,6 +4698,20 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           .json(&body)
           .send()
           .await?;
+        if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+          if let Some(refreshed_jwt) = refresh_knapsack_access_token().await {
+            resp = client
+              .post(format!(
+                "{}/chat/completions",
+                knapsack_base_url().trim_end_matches('/')
+              ))
+              .header("Authorization", format!("Bearer {}", refreshed_jwt))
+              .header("Content-Type", "application/json")
+              .json(&body)
+              .send()
+              .await?;
+          }
+        }
         if !resp.status().is_success() {
           let status = resp.status();
           let text = resp.text().await.unwrap_or_default();
@@ -4871,7 +4898,8 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             }
             // Skip paid providers if paid fallback is disabled and the user's
             // active provider is not itself a paid provider
-            if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider) {
+            if disable_paid && is_paid_provider(fb_provider) && !is_paid_provider(&current_provider)
+            {
               eprintln!("[clawd/chat] Skipping paid fallback provider {} (KNAPSACK_DISABLE_PAID_FALLBACK=true)", fb_provider);
               continue;
             }

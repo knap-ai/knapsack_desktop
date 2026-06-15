@@ -14,8 +14,10 @@ const ACP_BACKEND_READY_POLL_MS = 50;
 const PRIMARY_MODEL_PREWARM_TIMEOUT_MS = 5e3;
 const STARTUP_PROVIDER_DISCOVERY_TIMEOUT_MS = 5e3;
 const PROVIDER_AUTH_PREWARM_START_DELAY_MS = 1e3;
+const DESKTOP_PROVIDER_AUTH_PREWARM_START_DELAY_MS = 18e4;
 const PROVIDER_AUTH_REWARM_DELAY_MS = 1e3;
 const SKIP_STARTUP_MODEL_PREWARM_ENV = "OPENCLAW_SKIP_STARTUP_MODEL_PREWARM";
+const PROVIDER_AUTH_PREWARM_DELAY_ENV = "OPENCLAW_PROVIDER_AUTH_PREWARM_DELAY_MS";
 const QMD_STARTUP_IDLE_DELAY_MS = 12e4;
 const RESTART_SENTINEL_FILENAME = "restart-sentinel.json";
 function stopPostReadySidecarsAfterCloseStarted(params) {
@@ -48,6 +50,14 @@ function shouldCheckRestartSentinel(env = process.env) {
 function shouldSkipStartupModelPrewarm(env = process.env) {
 	const raw = env[SKIP_STARTUP_MODEL_PREWARM_ENV]?.trim().toLowerCase();
 	return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+function resolveProviderAuthPrewarmDelayMs(fallbackDelayMs, env = process.env) {
+	const raw = env[PROVIDER_AUTH_PREWARM_DELAY_ENV]?.trim();
+	if (raw) {
+		const parsed = Number.parseInt(raw, 10);
+		if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+	}
+	return fallbackDelayMs;
 }
 function resolveGatewayMemoryStartupPolicy(cfg) {
 	if (cfg.memory?.backend !== "qmd") return { mode: "off" };
@@ -99,7 +109,7 @@ function scheduleProviderAuthStatePrewarm(params) {
 	let rewarmInFlight = false;
 	let pendingRewarmReason;
 	const isStopped = () => stopped;
-	const delayMs = params.delayMs ?? PROVIDER_AUTH_PREWARM_START_DELAY_MS;
+	const delayMs = resolveProviderAuthPrewarmDelayMs(params.delayMs ?? PROVIDER_AUTH_PREWARM_START_DELAY_MS);
 	(async () => {
 		const { clearCurrentProviderAuthState, warmCurrentProviderAuthState } = await import("./model-provider-auth-Drz7aXVk.js");
 		const { setAuthProfileFailureHook } = await import("./auth-profiles-AGNxPMTm.js");
@@ -665,7 +675,7 @@ async function startGatewayPostAttachRuntime(params, runtimeDeps = defaultGatewa
 		if (params.providerAuthPrewarm?.enabled !== false) gatewayLifetimeSidecars.push(scheduleProviderAuthStatePrewarm({
 			getConfig: params.providerAuthPrewarm?.getConfig ?? (() => params.cfgAtStart),
 			log: params.log,
-			delayMs: params.providerAuthPrewarm?.delayMs ?? (desktopManagedGateway ? 60000 : void 0)
+			delayMs: params.providerAuthPrewarm?.delayMs ?? (desktopManagedGateway ? DESKTOP_PROVIDER_AUTH_PREWARM_START_DELAY_MS : void 0)
 		}));
 		params.onPostReadySidecars?.(postReadySidecars);
 		params.onGatewayLifetimeSidecars?.(gatewayLifetimeSidecars);

@@ -477,6 +477,7 @@ function loadPluginManifestRegistry(params = {}) {
 	const config = params.config ?? {};
 	const normalized = normalizePluginsConfigWithResolver(config.plugins);
 	const env = params.env ?? process.env;
+	const pluginIdSet = params.pluginIds?.length ? new Set(params.pluginIds) : null;
 	let installRecords = params.installRecords;
 	let installRecordsLoaded = Boolean(params.installRecords);
 	const getInstallRecords = () => {
@@ -527,6 +528,7 @@ function loadPluginManifestRegistry(params = {}) {
 			continue;
 		}
 		const manifest = manifestRes.manifest;
+		if (pluginIdSet && !pluginIdSet.has(manifest.id)) continue;
 		if (candidate.origin !== "bundled") {
 			const allowLegacyBareMinHostVersion = candidate.origin === "global" && matchesInstalledPluginRecord({
 				pluginId: manifest.id,

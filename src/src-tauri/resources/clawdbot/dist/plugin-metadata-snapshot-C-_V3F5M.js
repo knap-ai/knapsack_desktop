@@ -245,6 +245,7 @@ const MEMO_RELEVANT_ENV_KEYS = [
 	"OPENCLAW_DISABLE_PERSISTED_PLUGIN_REGISTRY",
 	"OPENCLAW_HOME",
 	"OPENCLAW_NIX_MODE",
+	"OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST",
 	"OPENCLAW_STATE_DIR",
 	"USERPROFILE",
 	"XDG_CONFIG_HOME"
@@ -276,6 +277,12 @@ function readJsonObject(filePath) {
 }
 function normalizeString(value) {
 	return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function parsePluginDiscoveryAllowlist(env) {
+	const raw = normalizeString(env.OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST);
+	if (!raw) return;
+	const ids = raw.split(",").map((value) => value.trim()).filter(Boolean);
+	return ids.length > 0 ? ids : void 0;
 }
 function stableMemoValue(value) {
 	if (Array.isArray(value)) return value.map(stableMemoValue);
@@ -708,6 +715,7 @@ function canMemoizePluginMetadataSnapshotResult(result) {
 }
 function loadPluginMetadataSnapshotImpl(params) {
 	const totalStartedAt = performance.now();
+	const pluginIds = parsePluginDiscoveryAllowlist(params.env ?? process.env);
 	const registryStartedAt = performance.now();
 	const registryResult = loadPluginRegistrySnapshotWithMetadata({
 		config: params.config,
@@ -729,13 +737,15 @@ function loadPluginMetadataSnapshotImpl(params) {
 		workspaceDir: params.workspaceDir,
 		env: params.env,
 		diagnostics: [...index.diagnostics],
-		installRecords: index.installRecords
+		installRecords: index.installRecords,
+		...pluginIds ? { pluginIds } : {}
 	}) : loadPluginManifestRegistryForInstalledIndex({
 		index,
 		config: params.config,
 		workspaceDir: params.workspaceDir,
 		env: params.env,
-		includeDisabled: true
+		includeDisabled: true,
+		...pluginIds ? { pluginIds } : {}
 	});
 	const manifestRegistryMs = performance.now() - manifestStartedAt;
 	const normalizePluginId = createPluginRegistryIdNormalizer(index, { manifestRegistry });

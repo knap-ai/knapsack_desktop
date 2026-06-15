@@ -233,6 +233,17 @@ async function tracePluginLifecyclePhaseAsync(phase, fn, details) {
 	}
 }
 //#endregion
+//#region src/plugins/plugin-discovery-allowlist.ts
+function parsePluginDiscoveryAllowlist(env) {
+	const raw = normalizeOptionalString(env.OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST);
+	if (!raw) return null;
+	const ids = raw.split(",").map((value) => value.trim()).filter(Boolean);
+	return ids.length > 0 ? new Set(ids) : null;
+}
+function isDiscoveryPluginIdAllowed(pluginId, allowlist) {
+	return !allowlist || Boolean(pluginId && allowlist.has(pluginId));
+}
+//#endregion
 //#region src/plugins/roots.ts
 function resolvePluginSourceRoots(params) {
 	const env = params.env ?? process.env;
@@ -514,10 +525,11 @@ function mergeDiscoveryResult(target, source, seenSources, seenDiagnostics) {
 		target.diagnostics.push(diagnostic);
 	}
 }
-function collectInstalledPluginRecordPaths(installRecords, env) {
+function collectInstalledPluginRecordPaths(installRecords, env, allowlist) {
 	const paths = [];
 	const seen = /* @__PURE__ */ new Set();
-	for (const record of Object.values(installRecords ?? {})) {
+	for (const [pluginId, record] of Object.entries(installRecords ?? {})) {
+		if (!isDiscoveryPluginIdAllowed(pluginId, allowlist)) continue;
 		const rawPath = typeof record.installPath === "string" && record.installPath.trim() ? record.installPath : typeof record.sourcePath === "string" && record.sourcePath.trim() ? record.sourcePath : void 0;
 		if (!rawPath) continue;
 		const resolved = resolveUserPath(rawPath, env);
@@ -527,15 +539,18 @@ function collectInstalledPluginRecordPaths(installRecords, env) {
 	}
 	return paths;
 }
-function collectManagedPluginRecordPaths(installRecords, env) {
+function collectManagedPluginRecordPaths(installRecords, env, allowlist) {
 	const paths = [];
 	const seen = /* @__PURE__ */ new Set();
-	for (const record of Object.values(installRecords ?? {})) for (const rawPath of [record.installPath, record.sourcePath]) {
+	for (const [pluginId, record] of Object.entries(installRecords ?? {})) {
+		if (!isDiscoveryPluginIdAllowed(pluginId, allowlist)) continue;
+		for (const rawPath of [record.installPath, record.sourcePath]) {
 		if (typeof rawPath !== "string" || !rawPath.trim()) continue;
 		const resolved = resolveUserPath(rawPath, env);
 		if (seen.has(resolved) || !fs.existsSync(resolved)) continue;
 		seen.add(resolved);
 		paths.push(resolved);
+	}
 	}
 	return paths;
 }
@@ -740,11 +755,13 @@ function discoverInDirectory(params) {
 		const entryType = resolveScannedEntryType(entry, fullPath);
 		if (entryType === "file") {
 			if (!isExtensionFile(fullPath)) continue;
+			const idHint = path.basename(entry.name, path.extname(entry.name));
+			if (!isDiscoveryPluginIdAllowed(idHint, params.pluginDiscoveryAllowlist)) continue;
 			addCandidate({
 				candidates: params.candidates,
 				diagnostics: params.diagnostics,
 				seen: params.seen,
-				idHint: path.basename(entry.name, path.extname(entry.name)),
+				idHint,
 				source: fullPath,
 				rootDir: path.dirname(fullPath),
 				origin: params.origin,
@@ -755,6 +772,7 @@ function discoverInDirectory(params) {
 			continue;
 		}
 		if (entryType !== "directory") continue;
+		if (!isDiscoveryPluginIdAllowed(entry.name, params.pluginDiscoveryAllowlist)) continue;
 		if (params.skipDirectories?.has(entry.name)) continue;
 		if (shouldIgnoreScannedDirectory(entry.name)) continue;
 		const fullPathRealPath = safeRealpathSync(fullPath, params.realpathCache) ?? void 0;
@@ -925,11 +943,13 @@ function discoverFromPath(params) {
 			});
 			return;
 		}
+		const idHint = path.basename(resolved, path.extname(resolved));
+		if (!isDiscoveryPluginIdAllowed(idHint, params.pluginDiscoveryAllowlist)) return;
 		addCandidate({
 			candidates: params.candidates,
 			diagnostics: params.diagnostics,
 			seen: params.seen,
-			idHint: path.basename(resolved, path.extname(resolved)),
+			idHint,
 			source: resolved,
 			rootDir: path.dirname(resolved),
 			origin: params.origin,
@@ -940,6 +960,7 @@ function discoverFromPath(params) {
 		return;
 	}
 	if (stat.isDirectory()) {
+		if (!isDiscoveryPluginIdAllowed(path.basename(resolved), params.pluginDiscoveryAllowlist)) return;
 		const resolvedRealPath = safeRealpathSync(resolved, params.realpathCache) ?? void 0;
 		const requireBuiltRuntimeEntry = params.requireBuiltRuntimeEntry ?? isManagedPluginDir({
 			dir: resolved,
@@ -1062,6 +1083,7 @@ function discoverFromPath(params) {
 			seen: params.seen,
 			realpathCache: params.realpathCache,
 			packageManifestCache: params.packageManifestCache,
+			...params.pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist: params.pluginDiscoveryAllowlist } : {},
 			...params.requireBuiltRuntimeEntry !== void 0 ? { requireBuiltRuntimeEntry: params.requireBuiltRuntimeEntry } : {},
 			...params.managedPluginDirs ? { managedPluginDirs: params.managedPluginDirs } : {},
 			...params.skipRootDirKeys ? { skipRootDirKeys: params.skipRootDirKeys } : {}
@@ -1071,6 +1093,7 @@ function discoverFromPath(params) {
 }
 function discoverOpenClawPlugins(params) {
 	const env = params.env ?? process.env;
+	const pluginDiscoveryAllowlist = parsePluginDiscoveryAllowlist(env);
 	const workspaceDir = normalizeOptionalString(params.workspaceDir);
 	const workspaceRoot = workspaceDir ? resolveUserPath(workspaceDir, env) : void 0;
 	const roots = resolvePluginSourceRoots({
@@ -1109,7 +1132,8 @@ function discoverOpenClawPlugins(params) {
 				diagnostics: result.diagnostics,
 				seen,
 				realpathCache,
-				packageManifestCache
+				packageManifestCache,
+				...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 			});
 		}
 		const workspaceMatchesBundledRoot = resolvesToSameDirectory(workspaceRoot, roots.stock, realpathCache);
@@ -1123,7 +1147,8 @@ function discoverOpenClawPlugins(params) {
 			diagnostics: result.diagnostics,
 			seen,
 			realpathCache,
-			packageManifestCache
+			packageManifestCache,
+			...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 		});
 		return result;
 	}, {
@@ -1149,7 +1174,8 @@ function discoverOpenClawPlugins(params) {
 				diagnostics: result.diagnostics,
 				seen,
 				realpathCache,
-				packageManifestCache
+				packageManifestCache,
+				...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 			});
 			result.diagnostics.push({
 				level: "warn",
@@ -1172,7 +1198,8 @@ function discoverOpenClawPlugins(params) {
 			diagnostics: result.diagnostics,
 			seen,
 			realpathCache,
-			packageManifestCache
+			packageManifestCache,
+			...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 		});
 		const sourceCheckoutExtensionsDir = resolveBundledSourceCheckoutExtensionsDir(roots.stock);
 		const sourceCheckoutMatchesBundledRoot = resolvesToSameDirectory(sourceCheckoutExtensionsDir, roots.stock, realpathCache);
@@ -1186,11 +1213,12 @@ function discoverOpenClawPlugins(params) {
 			seen,
 			realpathCache,
 			packageManifestCache,
+			...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {},
 			skipDirectories: readChildDirectoryNames(roots.stock)
 		});
-		const installedPaths = collectInstalledPluginRecordPaths(params.installRecords, env);
+		const installedPaths = collectInstalledPluginRecordPaths(params.installRecords, env, pluginDiscoveryAllowlist);
 		const installedPluginDirKeys = collectManagedPluginDirKeys(installedPaths, realpathCache);
-		const managedPluginDirs = collectManagedPluginDirKeys(collectManagedPluginRecordPaths(params.installRecords, env), realpathCache);
+		const managedPluginDirs = collectManagedPluginDirKeys(collectManagedPluginRecordPaths(params.installRecords, env, pluginDiscoveryAllowlist), realpathCache);
 		for (const installedPath of installedPaths) discoverFromPath({
 			rawPath: installedPath,
 			origin: "global",
@@ -1203,7 +1231,8 @@ function discoverOpenClawPlugins(params) {
 			diagnostics: result.diagnostics,
 			seen,
 			realpathCache,
-			packageManifestCache
+			packageManifestCache,
+			...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 		});
 		discoverInDirectory({
 			dir: roots.global,
@@ -1216,7 +1245,8 @@ function discoverOpenClawPlugins(params) {
 			diagnostics: result.diagnostics,
 			seen,
 			realpathCache,
-			packageManifestCache
+			packageManifestCache,
+			...pluginDiscoveryAllowlist ? { pluginDiscoveryAllowlist } : {}
 		});
 		return result;
 	}, { scope: "shared" });

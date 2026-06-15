@@ -19,12 +19,14 @@
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execSync } = require('child_process');
 
 // Source (checked-in) clawdbot dir
 const SOURCE_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
 // Tauri dev target dir — only present during/after `tauri dev`
 const TARGET_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'target', 'debug', 'resources', 'clawdbot');
+const FORCE_EXTENSION_LOCAL_DEPS = new Set(['slack', 'telegram', 'whatsapp']);
 
 function runNpmInstall(cwd, label) {
   // Prefer `npm ci` when a lockfile is present — it does a clean install from the
@@ -37,6 +39,39 @@ function runNpmInstall(cwd, label) {
     : 'npm install --omit=dev --ignore-scripts --no-audit --no-fund';
   console.log(`[ensure-clawdbot-deps] ${hasLockfile ? 'npm ci' : 'npm install'} in ${label}...`);
   execSync(cmd, { cwd, stdio: 'inherit' });
+}
+
+function runtimeDependencySpecs(pkg) {
+  return Object.entries(pkg.dependencies || {})
+    .filter(([, version]) => typeof version === 'string'
+      && !version.startsWith('file:')
+      && !version.startsWith('link:')
+      && !version.startsWith('workspace:')
+      && !version.startsWith('portal:'))
+    .map(([dep, version]) => `${dep}@${version}`);
+}
+
+function runPluginRuntimeDepsInstall(cwd, label, specs) {
+  if (!specs.length) return;
+  const quotedSpecs = specs.map((spec) => JSON.stringify(spec)).join(' ');
+  const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knapsack-plugin-deps-'));
+  const cmd = `npm install ${quotedSpecs} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`;
+  console.log(`[ensure-clawdbot-deps] npm install targeted runtime deps for ${label}: ${specs.join(', ')}`);
+  try {
+    execSync(cmd, { cwd: stagingDir, stdio: 'inherit' });
+    const sourceNm = path.join(stagingDir, 'node_modules');
+    const targetNm = path.join(cwd, 'node_modules');
+    fs.mkdirSync(targetNm, { recursive: true });
+    for (const entry of fs.readdirSync(sourceNm)) {
+      fs.cpSync(path.join(sourceNm, entry), path.join(targetNm, entry), {
+        recursive: true,
+        force: true,
+        verbatimSymlinks: true,
+      });
+    }
+  } finally {
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+  }
 }
 
 function needsMainInstall(clawdbotDir) {
@@ -82,7 +117,9 @@ function findPluginsNeedingRuntimeDeps(clawdbotDir) {
       const pluginDeps = Object.keys(pkg.dependencies || {});
       // Prefer the root bundle's node_modules. This avoids extension-local
       // installs for upstream package.json files that contain workspace: deps.
-      if (pluginDeps.length > 0 && pluginDeps.every(dep => fs.existsSync(path.join(rootNodeModules, dep)))) {
+      if (!FORCE_EXTENSION_LOCAL_DEPS.has(entry.name)
+        && pluginDeps.length > 0
+        && pluginDeps.every(dep => fs.existsSync(path.join(rootNodeModules, dep)))) {
         continue;
       }
       // Skip if the plugin's own node_modules already has all deps.
@@ -91,7 +128,10 @@ function findPluginsNeedingRuntimeDeps(clawdbotDir) {
         const allPresent = pluginDeps.every(dep => fs.existsSync(path.join(pluginNodeModules, dep)));
         if (allPresent) continue;
       }
-      plugins.push(entry.name);
+      plugins.push({
+        name: entry.name,
+        specs: runtimeDependencySpecs(pkg),
+      });
     } catch {
       // Ignore unreadable package.json
     }
@@ -129,14 +169,18 @@ for (const dir of clawdbotDirs) {
   const pluginsToInstall = findPluginsNeedingRuntimeDeps(dir);
   if (pluginsToInstall.length > 0) {
     console.log(
-      `[ensure-clawdbot-deps] Installing runtime deps for ${pluginsToInstall.length} bundled plugin(s) in ${path.relative(path.join(__dirname, '..'), extensionsDir)}: ${pluginsToInstall.join(', ')}`,
+      `[ensure-clawdbot-deps] Installing runtime deps for ${pluginsToInstall.length} bundled plugin(s) in ${path.relative(path.join(__dirname, '..'), extensionsDir)}: ${pluginsToInstall.map((plugin) => plugin.name).join(', ')}`,
     );
     for (const plugin of pluginsToInstall) {
       try {
-        runNpmInstall(path.join(extensionsDir, plugin), `extensions/${plugin}/`);
+        runPluginRuntimeDepsInstall(
+          path.join(extensionsDir, plugin.name),
+          `extensions/${plugin.name}/`,
+          plugin.specs,
+        );
       } catch (err) {
         // Non-fatal: a plugin dep failure just means that plugin won't load.
-        console.warn(`[ensure-clawdbot-deps] WARNING: failed to install deps for ${plugin}: ${err.message}`);
+        console.warn(`[ensure-clawdbot-deps] WARNING: failed to install deps for ${plugin.name}: ${err.message}`);
       }
     }
   }

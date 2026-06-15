@@ -14,6 +14,10 @@ import { r as createRuntimeProviderAuthLookup, s as hasRuntimeAvailableProviderA
 let currentProviderAuthStates = null;
 const configFingerprintCache = /* @__PURE__ */ new WeakMap();
 let currentProviderAuthStateGeneration = 0;
+function shouldPrewarmExternalCliAuth(env = process.env) {
+	const raw = env.OPENCLAW_PROVIDER_AUTH_PREWARM_EXTERNAL_CLI?.trim().toLowerCase();
+	return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
 function clearCurrentProviderAuthState() {
 	currentProviderAuthStates = null;
 	currentProviderAuthStateGeneration += 1;
@@ -107,13 +111,14 @@ async function warmCurrentProviderAuthState(cfg, options = {}) {
 			cfg,
 			workspaceDir
 		});
-		const store = ensureAuthProfileStore(agentDir, {
+		const prewarmExternalCliAuth = shouldPrewarmExternalCliAuth();
+		const store = prewarmExternalCliAuth ? ensureAuthProfileStore(agentDir, {
 			config: cfg,
 			externalCli: externalCliDiscoveryForProviders({
 				cfg,
 				providers: providerList
 			})
-		});
+		}) : ensureAuthProfileStoreWithoutExternalProfiles(agentDir, { allowKeychainPrompt: false });
 		const state = /* @__PURE__ */ new Map();
 		for (const provider of providers) {
 			if (isWarmStale()) return;
@@ -123,7 +128,8 @@ async function warmCurrentProviderAuthState(cfg, options = {}) {
 				workspaceDir,
 				agentId,
 				store,
-				runtimeAuthLookup
+				runtimeAuthLookup,
+				discoverExternalCliAuth: prewarmExternalCliAuth
 			});
 			state.set(provider, value);
 		}

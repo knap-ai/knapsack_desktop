@@ -34,6 +34,8 @@ const launchAgentPlist = path.join(
   "ai.knap.knapsack.clawdbot.plist",
 );
 const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
+const sourceClawdbotDir = path.join(tauriDir, "resources", "clawdbot");
+const targetClawdbotDir = path.join(tauriDir, "target", "debug", "resources", "clawdbot");
 
 function qaEnv(extra = {}) {
   const env = {
@@ -479,11 +481,41 @@ function binaryNeedsRebuild() {
   return rustSourceMtime > binaryMtime;
 }
 
+function syncDevClawdbotResources() {
+  if (!fs.existsSync(sourceClawdbotDir) || !fs.existsSync(targetClawdbotDir)) return;
+  let copied = 0;
+  const syncTree = (sourceDir, targetDir) => {
+    fs.mkdirSync(targetDir, { recursive: true });
+    for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+      if (entry.name === "node_modules") continue;
+      const sourcePath = path.join(sourceDir, entry.name);
+      const targetPath = path.join(targetDir, entry.name);
+      if (entry.isDirectory()) {
+        syncTree(sourcePath, targetPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const sourceStat = fs.statSync(sourcePath);
+      const targetStat = fs.existsSync(targetPath) ? fs.statSync(targetPath) : null;
+      if (targetStat && targetStat.mtimeMs >= sourceStat.mtimeMs && targetStat.size === sourceStat.size) continue;
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(sourcePath, targetPath);
+      fs.utimesSync(targetPath, sourceStat.atime, sourceStat.mtime);
+      copied++;
+    }
+  };
+  syncTree(sourceClawdbotDir, targetClawdbotDir);
+  if (copied > 0) {
+    console.log(`[qa-dev-run] synced ${copied} updated clawdbot resource file(s) into target/debug/resources`);
+  }
+}
+
 async function main() {
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
   ]);
+  syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
   bootoutLaunchAgent();

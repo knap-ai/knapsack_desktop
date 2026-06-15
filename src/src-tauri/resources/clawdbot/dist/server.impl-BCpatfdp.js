@@ -2572,6 +2572,8 @@ async function startGatewayServer(port = 18789, opts = {}) {
 					});
 				}
 				const { loadGatewayStartupPluginRuntime } = await loadStartupPluginsModule();
+				const configuredDesktopChannelPluginIds = String(process.env.OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+				const deferredStartupPluginIds = [...new Set([...startupPluginIds, ...(loadOptions.includeDeferred === true ? [...deferredConfiguredChannelPluginIds, ...configuredDesktopChannelPluginIds] : [])])];
 				return loadGatewayStartupPluginRuntime({
 					cfg: gatewayPluginConfigAtStart,
 					activationSourceConfig: startupActivationSourceConfig,
@@ -2580,7 +2582,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 					baseMethods,
 					coreGatewayMethodNames,
 					hostServices: pluginHostServices,
-					...(startupPluginIds.length > 0 && { startupPluginIds }),
+					...(deferredStartupPluginIds.length > 0 && { startupPluginIds: deferredStartupPluginIds }),
 					...(pluginLookUpTable !== void 0 && { pluginLookUpTable }),
 					startupTrace
 				});
