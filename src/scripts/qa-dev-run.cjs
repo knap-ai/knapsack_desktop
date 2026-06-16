@@ -37,6 +37,10 @@ const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
 const sourceClawdbotDir = path.join(tauriDir, "resources", "clawdbot");
 const targetClawdbotDir = path.join(tauriDir, "target", "debug", "resources", "clawdbot");
 
+function npmCommand() {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
 function qaEnv(extra = {}) {
   const env = {
     ...process.env,
@@ -80,6 +84,16 @@ function spawnVite() {
       env: qaEnv(),
     },
   );
+}
+
+function rootNodeModulesReady() {
+  return fs.existsSync(viteJs) || fs.existsSync(viteBin);
+}
+
+function ensureRootNodeModules() {
+  if (rootNodeModulesReady()) return;
+  console.log("[qa-dev-run] root node_modules missing; running npm install");
+  runChecked(npmCommand(), ["install"], { cwd: projectDir });
 }
 
 function runChecked(command, args, options = {}) {
@@ -511,6 +525,7 @@ function syncDevClawdbotResources() {
 }
 
 async function main() {
+  ensureRootNodeModules();
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
