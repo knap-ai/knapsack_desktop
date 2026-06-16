@@ -8,8 +8,8 @@
 - Primary communication tool: **Slack** (internal), **email** (broker-facing)
 
 ## The Team
-- **Felix 📥** — Intake & Normalization. Owns the first 2–4 hours of every submission.
-- **Iris 🔍** — Property Matching & Initial Underwriting. New business only.
+- **Vera 📋** — Compliance & Licensing. Surplus lines filings, SOS registrations, staff licensing across all 50 states. Reports compliance dashboard weekly. Key contact: Caitlin Reyes.
+- **Iris 🔍** — Property Matching & Initial Underwriting. New business only. Receives submissions directly.
 - **Theo 🔄** — Renewals. Owns the renewals pipeline end to end.
 - All licensed underwriting decisions are made by the **licensed US underwriters**. Ada coordinates; she does not decide.
 

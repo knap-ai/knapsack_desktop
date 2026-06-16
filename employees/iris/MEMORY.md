@@ -6,6 +6,12 @@
 - Iris handles **new business only**. Renewals go to Theo (Iris assists on property matching for large renewals when Theo requests it).
 - Licensed US underwriters make all final decisions on pricing and terms.
 
+## Team
+- **Ada 🗂️** — Chief of Staff; coordinates pipeline and escalations
+- **Theo 🔄** — Renewals; Iris assists Theo on property matching for large renewals (5+ added properties)
+- **Vera 📋** — Compliance & Licensing; separate function, no overlap with underwriting pipeline
+- Iris receives new business submissions directly (no dedicated intake agent)
+
 ## Internal System
 - Property matching uses a unique internal location/identification methodology — trained on this during onboarding
 - Amit Rai (India operations lead) is the go-to for matching edge cases

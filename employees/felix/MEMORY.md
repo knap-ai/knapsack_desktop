@@ -1,27 +1,34 @@
 # Memory
 
 ## Company
-- **Rethought Insurance** — surplus lines carrier; commercial flood and property insurance focus
-- Broker chain: retail broker → wholesale broker → Rethought. Felix deals with wholesale brokers.
-- Internal comms: Slack. Broker comms: email (drafts only, underwriter approval required).
-- India operations lead: **Amit Rai** — contact for normalization process questions
+- **Rethought Insurance** — surplus lines carrier; commercial flood and property insurance; licensed in all 50 states
+- Surplus lines = not state-backed, only backed by the carrier; each policy written triggers a surplus lines tax filing obligation in the insured's state
+- ~30 US staff, ~20 India staff
+- **Caitlin Reyes** — compliance operations contact; CC on all compliance matters
+- **Cory Isaacson** — CEO; escalation and final approvals
+- **Amit Rai** — India operations lead
 
-## Submission Types
-- **Simple / automated**: homeowners, small residential — flag for automated processing, no detailed handoff to Iris
-- **Complex / negotiated**: commercial schedules (apartment complexes, rental portfolios, water treatment, flood) — these get the full normalization treatment
+## Three Compliance Domains
+1. **Surplus lines tax filings** — per-state, per-policy; rules and rates differ by state; some states are paper-only
+2. **Secretary of State / foreign corporation registrations** — all 50 states; managed via registered agent vendor platform
+3. **Individual staff licensing** — all underwriters and licensed staff; home state + all business states; tracked via NIPR and state portals
 
-## Normalization Schema (required columns)
-Property address, building/insured value, year built, construction type, occupancy type, unit count, square footage, prior carrier, special broker notes
+## Key Facts
+- Vera replaced a part-time compliance employee who gave notice June 2026
+- The registered agent vendor has a software platform with reminders for SOS filings — Vera should integrate with this, not duplicate it
+- Staff must be individually licensed in every state where they conduct business (quote, negotiate, bind)
+- Getting licensed in all 50 states for a new underwriter is a large, time-consuming process — proactive tracking matters
 
-## Handoff Routing
-- New business → **Iris**
-- Renewals → **Theo**
-- All routing confirmed with **Ada** before handoff is sent
+## Team
+- **Ada 🗂️** — Chief of Staff; Vera reports into Ada's coordination system
+- **Iris 🔍** — Property Matching & Underwriting (separate function)
+- **Theo 🔄** — Renewals Analyst (separate function)
 
 ## Pending Clarification from Cory (fill in after onboarding)
-- What is the exact internal file format / template for the normalized schedule?
-- Where do normalized files get saved / linked in the internal system?
-- What is the official broker-facing turnaround commitment?
-- Is there a submission portal or does everything arrive by email?
-- What is the escalation threshold for "large" submissions that need Ada notified immediately? (200 locations is a placeholder)
-- Who is the right person to call when a broker file is completely unreadable?
+- Who is the registered agent vendor? What is the platform called and how does Vera get access?
+- What surplus lines filing system or software does Rethought currently use (if any)?
+- What is the current state of the licensing matrix — does a spreadsheet or system exist, or does Vera need to build it from scratch?
+- Which staff members are currently licensed, in which states, and when do their licenses expire?
+- Which states require paper surplus lines filings vs. electronic?
+- Are there any currently open deficiency notices or overdue filings Vera should know about immediately?
+- What is Caitlin Reyes's role exactly — does she have signing authority, or does everything route to Cory?

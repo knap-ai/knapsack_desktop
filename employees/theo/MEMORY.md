@@ -14,9 +14,10 @@
 - 14 days out: Policy still unquoted = Ada escalates to underwriter as urgent
 
 ## Key Coordination
-- **Felix** triages renewal submissions from the inbox and routes to Theo
+- Theo receives renewal submissions directly from brokers or via Ada (no dedicated intake agent)
 - **Iris** assists on property matching for large renewals (5+ new properties added to schedule)
 - **Ada** owns escalation and pipeline visibility
+- **Vera 📋** handles compliance separately — not part of the renewals pipeline
 
 ## Regulatory Note
 All renewal quotes require licensed underwriter review and approval before going to the broker.
