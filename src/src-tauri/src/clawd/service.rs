@@ -270,11 +270,13 @@ static BROWSER_LAST_NUDGE_MS: AtomicU64 = AtomicU64::new(0);
 /// Tracks whether the gateway was healthy on the last health check.
 /// Used to detect down→up transitions and reset BROWSER_START_NUDGED.
 static GATEWAY_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+static GATEWAY_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Tracks whether the browser was healthy on the last health check.
 /// Used to detect healthy→down transitions (browser crashes) and reset
 /// BROWSER_START_NUDGED so the recovery nudge can fire again.
 static BROWSER_WAS_HEALTHY: AtomicBool = AtomicBool::new(false);
+static BROWSER_LAST_HEALTHY_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Tracks whether a gateway restart attempt is already in progress,
 /// so the health endpoint doesn't spam `launchctl kickstart` on every poll.
@@ -285,13 +287,29 @@ static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
 
 const GATEWAY_HEALTH_SELF_HEAL_GRACE_MS: u64 = 180_000;
 const GATEWAY_POST_BIND_STARTUP_GRACE_MS: u64 = 300_000;
+const GATEWAY_TRANSIENT_FAILURE_GRACE_MS: u64 = 30_000;
 const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
+const BROWSER_TRANSIENT_FAILURE_GRACE_MS: u64 = 15_000;
+const BROWSER_STARTUP_GRACE_MS: u64 = 20_000;
 
 fn now_epoch_ms() -> u64 {
   std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
     .map(|d| d.as_millis().min(u128::from(u64::MAX)) as u64)
     .unwrap_or(0)
+}
+
+fn browser_start_grace_active() -> Option<u64> {
+  let started = BROWSER_LAST_NUDGE_MS.load(Ordering::Relaxed);
+  if started == 0 {
+    return None;
+  }
+  let elapsed = now_epoch_ms().saturating_sub(started);
+  if elapsed < BROWSER_STARTUP_GRACE_MS {
+    Some(elapsed)
+  } else {
+    None
+  }
 }
 
 static GATEWAY_LIFECYCLE_MUTEX: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
@@ -5109,7 +5127,7 @@ enum BrowserControlProbe {
 fn parse_browser_control_status_body(body: &str) -> BrowserControlProbe {
   let trimmed = body.trim();
   if trimmed.eq_ignore_ascii_case("ok") {
-    return BrowserControlProbe::Ready;
+    return BrowserControlProbe::Starting;
   }
 
   match serde_json::from_str::<serde_json::Value>(trimmed) {
@@ -5139,6 +5157,16 @@ fn parse_browser_control_status_body(body: &str) -> BrowserControlProbe {
       BrowserControlProbe::Down
     }
   }
+}
+
+fn gateway_recently_healthy(now_ms: u64, gateway_listening: bool) -> bool {
+  if !gateway_listening {
+    return false;
+  }
+
+  let last_healthy_ms = GATEWAY_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+  last_healthy_ms != 0
+    && now_ms.saturating_sub(last_healthy_ms) < GATEWAY_TRANSIENT_FAILURE_GRACE_MS
 }
 
 async fn browser_control_status(
@@ -5435,46 +5463,52 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       }
     };
 
+    // In qa:dev we sometimes observe the debug desktop process lose the
+    // KNAPSACK_QA_DIRECT_GATEWAY marker even while the supervised direct
+    // gateway process is still the active backend. Use the live process signal
+    // as a fallback so health diagnostics do not regress into launchd-specific
+    // "service not loaded" messaging mid-run.
+    let qa_direct_runtime = qa_direct_gateway_mode() || qa_direct_gateway_process_active();
+    let now_ms = now_epoch_ms();
+
     // Gateway health is intentionally unauthenticated. A bound TCP port is not
     // enough: during startup the gateway can accept connections while the Node
     // event loop is still too busy to answer `/health`.
-    let mut gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
     let gateway_listening = if gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
-    if !gateway_ok && gateway_listening {
-      gateway_ok =
-        gateway_status_rpc_ok(&tokens.gateway_token, std::time::Duration::from_millis(900)).await;
-    }
     let gateway_probe_failed = !gateway_ok;
+    let gateway_transient_stall =
+      !gateway_ok && gateway_recently_healthy(now_ms, gateway_listening);
 
     // Track gateway state transitions for recovery logic.
     let was_healthy = GATEWAY_WAS_HEALTHY.load(Ordering::Relaxed);
 
-    let post_bind_startup = if gateway_ok {
+    let post_bind_startup = if gateway_ok || was_healthy {
       false
     } else {
       gateway_listening || gateway_post_bind_startup_in_progress()
     };
-    let runtime_deps_startup = if gateway_ok {
+    let runtime_deps_startup = if gateway_ok || was_healthy {
       false
     } else {
       gateway_runtime_deps_startup_in_progress()
     };
-    let launch_grace_elapsed_ms = if gateway_ok {
+    let launch_grace_elapsed_ms = if gateway_ok || was_healthy {
       None
     } else {
       gateway_launch_grace_active().or_else(qa_direct_gateway_grace_active)
     };
     let qa_direct_waiting_for_process =
-      !gateway_ok && qa_direct_gateway_mode() && !qa_direct_gateway_process_active();
+      !gateway_ok && qa_direct_runtime && !qa_direct_gateway_process_active();
     let gateway_live_for_desktop = gateway_ok
       || (gateway_listening
         && (post_bind_startup || runtime_deps_startup || launch_grace_elapsed_ms.is_some()));
     #[cfg(target_os = "macos")]
-    let launch_agent_loaded_during_grace = if !gateway_ok && !qa_direct_gateway_mode() {
+    let launch_agent_loaded_during_grace = if !gateway_ok && !qa_direct_runtime {
       let uid = unsafe { libc::getuid() };
       let service = format!("gui/{}/{}", uid, LAUNCH_AGENT_LABEL);
       launchctl_service_loaded(&service, std::time::Duration::from_millis(250))
@@ -5487,6 +5521,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     if gateway_ok {
       // Gateway is up — record it so we can detect down→up transitions.
       GATEWAY_WAS_HEALTHY.store(true, Ordering::Relaxed);
+      GATEWAY_LAST_HEALTHY_MS.store(now_ms, Ordering::Relaxed);
       GATEWAY_UNREACHABLE_SINCE_MS.store(0, Ordering::Relaxed);
       GATEWAY_LAST_LAUNCH_MS.store(0, Ordering::Relaxed);
       QA_DIRECT_GATEWAY_FIRST_SEEN_MS.store(0, Ordering::Relaxed);
@@ -5506,13 +5541,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         // session.  They may still hold the CDP port (18800), preventing
         // the new gateway from launching its own browser.
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        if !qa_direct_gateway_mode() {
+        if !qa_direct_runtime {
           kill_stale_clawdbot_chromes();
         }
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
       }
-    } else {
+    } else if !gateway_transient_stall {
       GATEWAY_WAS_HEALTHY.store(false, Ordering::Relaxed);
       // Gateway is down — browser can't be healthy either, reset its state.
       BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
@@ -5521,13 +5556,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let unreachable_elapsed_ms = if gateway_ok {
       0
     } else {
-      let now = now_epoch_ms();
       let first_seen = GATEWAY_UNREACHABLE_SINCE_MS.load(Ordering::Relaxed);
       if first_seen == 0 {
-        GATEWAY_UNREACHABLE_SINCE_MS.store(now, Ordering::Relaxed);
+        GATEWAY_UNREACHABLE_SINCE_MS.store(now_ms, Ordering::Relaxed);
         0
       } else {
-        now.saturating_sub(first_seen)
+        now_ms.saturating_sub(first_seen)
       }
     };
 
@@ -5553,6 +5587,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       eprintln!(
         "[clawd/service] gateway not reachable for {}ms after launch - waiting before self-heal",
         elapsed
+      );
+    } else if !gateway_ok && gateway_transient_stall {
+      let last_healthy_ms = GATEWAY_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+      eprintln!(
+        "[clawd/service] gateway health probe stalled for {}ms after a recent healthy response - waiting before self-heal",
+        now_ms.saturating_sub(last_healthy_ms)
       );
     } else if !gateway_ok
       && !was_healthy
@@ -5628,11 +5668,25 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else {
       BrowserControlProbe::Down
     };
-    if gateway_live_for_desktop
+    if gateway_transient_stall {
+      browser_probe = BrowserControlProbe::Starting;
+    } else if gateway_ok
       && browser_probe == BrowserControlProbe::Down
       && browser_cdp_port_open(std::time::Duration::from_millis(250)).await
     {
-      browser_probe = BrowserControlProbe::Ready;
+      browser_probe = BrowserControlProbe::Starting;
+    } else if gateway_ok
+      && browser_probe == BrowserControlProbe::Down
+      && (browser_start_grace_active().is_some() || launch_grace_elapsed_ms.is_some())
+    {
+      browser_probe = BrowserControlProbe::Starting;
+    } else if gateway_ok && browser_probe == BrowserControlProbe::Down {
+      let last_healthy_ms = BROWSER_LAST_HEALTHY_MS.load(Ordering::Relaxed);
+      if last_healthy_ms != 0
+        && now_ms.saturating_sub(last_healthy_ms) < BROWSER_TRANSIENT_FAILURE_GRACE_MS
+      {
+        browser_probe = BrowserControlProbe::Starting;
+      }
     }
     let browser_ok = browser_probe == BrowserControlProbe::Ready;
 
@@ -5642,7 +5696,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     let browser_was_healthy = BROWSER_WAS_HEALTHY.load(Ordering::Relaxed);
     if browser_ok {
       BROWSER_WAS_HEALTHY.store(true, Ordering::Relaxed);
-    } else if browser_was_healthy {
+      BROWSER_LAST_HEALTHY_MS.store(now_ms, Ordering::Relaxed);
+    } else if browser_was_healthy && browser_probe == BrowserControlProbe::Down {
       // Browser just went from healthy → down (crashed).
       BROWSER_WAS_HEALTHY.store(false, Ordering::Relaxed);
       BROWSER_START_NUDGED.store(false, Ordering::Relaxed);
@@ -5665,7 +5720,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let token = tokens.gateway_token.clone();
       let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
-        if qa_direct_gateway_mode() {
+        if qa_direct_runtime {
           #[cfg(any(target_os = "macos", target_os = "windows"))]
           {
             match start_openclaw_chrome_direct(&nudge_app_handle) {
@@ -5754,6 +5809,8 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     } else if gateway_ok && browser_probe == BrowserControlProbe::Starting {
       "Clawdbot gateway OK; browser is still starting up — waiting for Chrome CDP to become ready"
         .to_string()
+    } else if gateway_transient_stall {
+      "Clawdbot gateway is temporarily busy — waiting for health to recover".to_string()
     } else if runtime_deps_startup {
       "Clawdbot gateway is staging plugin runtime dependencies — please wait for startup to finish"
         .to_string()
@@ -5780,12 +5837,17 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       {
         match launch_agent_plist_path() {
           Ok(plist) => {
-            if qa_direct_gateway_mode() {
+            if qa_direct_runtime {
               if runtime_deps_startup {
                 message.push_str(
                   "\n[diagnostic] QA direct gateway is installing plugin runtime dependencies.",
                 );
                 diagnostic_type = Some("runtime_deps_installing".to_string());
+              } else if gateway_transient_stall {
+                message.push_str(
+                  "\n[diagnostic] QA direct gateway recently answered health checks and still owns port 18789, but its event loop is temporarily busy.",
+                );
+                diagnostic_type = Some("gateway_busy".to_string());
               } else if gateway_listening {
                 message.push_str(
                   "\n[diagnostic] QA direct gateway is bound to port 18789 but /health is still blocked by startup work.",
@@ -5808,7 +5870,13 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
                 );
                 diagnostic_type = Some("gateway_starting".to_string());
               }
-              eprintln!("[clawd/service] gateway down: QA direct gateway starting");
+              if gateway_transient_stall {
+                eprintln!(
+                  "[clawd/service] gateway busy: QA direct gateway event loop is temporarily stalled"
+                );
+              } else {
+                eprintln!("[clawd/service] gateway down: QA direct gateway starting");
+              }
             } else if !plist.exists() {
               // Differentiate: auto-enable already started means first-install race,
               // otherwise the service truly hasn't been set up.
@@ -5899,7 +5967,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let legacy_err_path = std::path::PathBuf::from("/tmp/knapsack-clawdbot.err.log");
       let log_content =
         read_log_tail_lines_bounded(&[err_path.clone(), legacy_err_path], 256 * 1024, 400);
-      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_gateway_mode() {
+      if runtime_deps_startup || launch_grace_elapsed_ms.is_some() || qa_direct_runtime {
         // During active startup the stderr file commonly contains stale lines
         // from previous gateway runs. Showing/classifying those makes the UI
         // report old crashes while the current gateway is still booting.
@@ -14127,10 +14195,10 @@ mod service_status_message_tests {
   }
 
   #[test]
-  fn plain_ok_browser_sidecar_response_is_ready() {
+  fn plain_ok_browser_sidecar_response_is_starting() {
     assert_eq!(
       parse_browser_control_status_body("OK"),
-      BrowserControlProbe::Ready
+      BrowserControlProbe::Starting
     );
   }
 
