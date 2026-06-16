@@ -170,6 +170,7 @@
       },
       "publisher": "Knap",
       "resources": [
+        "../dist",
         "resources/signin_success.html",
         "resources/signin_error.html",
         "resources/node/**/*",
