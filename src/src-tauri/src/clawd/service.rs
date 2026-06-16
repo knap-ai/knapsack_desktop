@@ -14195,10 +14195,10 @@ mod service_status_message_tests {
   }
 
   #[test]
-  fn plain_ok_browser_sidecar_response_is_ready() {
+  fn plain_ok_browser_sidecar_response_is_starting() {
     assert_eq!(
       parse_browser_control_status_body("OK"),
-      BrowserControlProbe::Ready
+      BrowserControlProbe::Starting
     );
   }
 
