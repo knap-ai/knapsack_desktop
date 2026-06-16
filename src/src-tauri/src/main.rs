@@ -1645,10 +1645,10 @@ async fn main() {
         assert_asset("recording-indicator.html", "recording indicator window");
 
         if !missing.is_empty() {
-          return Err(tauri::Error::AssetNotFound(format!(
+          return Err(Box::new(tauri::Error::AssetNotFound(format!(
             "Bundled UI assets missing (packaging issue): {}. Reinstall from the latest release and report this crash report.",
             missing.join(", ")
-          )));
+          ))));
         }
       }
 
