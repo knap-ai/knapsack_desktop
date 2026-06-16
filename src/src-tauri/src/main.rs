@@ -121,6 +121,27 @@ const NOTIF_END_X_OFFSET: i32 = 20;
 const NOTIF_ANIMATION_DURATION: u32 = 90;
 const NOTIF_FRAME_TIME: u64 = 8;
 
+fn validate_bundled_ui_asset(app: &tauri::App, page: &str, label: &str) -> Option<String> {
+  let candidate_paths = vec![page.to_string(), format!("dist/{page}")];
+  let found = candidate_paths.iter().find_map(|candidate| {
+    app.path_resolver().resolve_resource(candidate).map(|path| {
+      log::info!("Resolved {label} UI asset: {:?}", path);
+      candidate.clone()
+    })
+  });
+
+  if let Some(path) = found {
+    log::info!("Using {label} UI asset at {path}");
+    return Some(path);
+  }
+
+  let tried = candidate_paths.join(", ");
+  log::error!(
+    "Missing required bundled UI asset for {label}. Tried: {tried}. This is usually a packaging issue; please reinstall the app from the latest release."
+  );
+  None
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum Release {
@@ -1610,6 +1631,27 @@ async fn main() {
     .manage(semantic_service.clone())
     .manage(recording_state)
     .setup(move |app| {
+      #[cfg(not(debug_assertions))]
+      {
+        let mut missing = Vec::new();
+        let mut assert_asset = |page, label| {
+          if validate_bundled_ui_asset(app, page, label).is_none() {
+            missing.push(format!("{page} ({label})"));
+          }
+        };
+        assert_asset("index.html", "main window");
+        assert_asset("notification.html", "notification window");
+        assert_asset("overlay.html", "overlay window");
+        assert_asset("recording-indicator.html", "recording indicator window");
+
+        if !missing.is_empty() {
+          return Err(tauri::Error::AssetNotFound(format!(
+            "Bundled UI assets missing (packaging issue): {}. Reinstall from the latest release and report this crash report.",
+            missing.join(", ")
+          )));
+        }
+      }
+
       // Create window with specified logical size
       let mut window_builder = WindowBuilder::new(
         app,

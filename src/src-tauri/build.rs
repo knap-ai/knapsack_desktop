@@ -27,6 +27,23 @@ fn remove_broken_symlinks_recursive(dir: &Path) {
 }
 
 fn main() {
+  let dist_dir = Path::new("../dist");
+  let dist_pages = [
+    "index.html",
+    "notification.html",
+    "overlay.html",
+    "recording-indicator.html",
+  ];
+
+  for page in dist_pages {
+    let candidate = dist_dir.join(page);
+    if !candidate.exists() {
+      panic!(
+        "Missing packaged UI asset: {candidate:?}. This indicates the frontend build did not finish before the Rust build step.",
+      );
+    }
+  }
+
   let is_release = std::env::var("PROFILE").as_deref() == Ok("release");
   let node_modules = Path::new("resources/clawdbot/node_modules");
   let openclaw_self_link = node_modules.join("openclaw");
