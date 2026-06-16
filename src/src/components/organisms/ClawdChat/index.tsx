@@ -603,12 +603,6 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     vision: true,
   },
   {
-    id: 'gpt-5.5-pro',
-    name: 'GPT-5.5 Pro',
-    description: 'Extended thinking for the hardest problems',
-    vision: true,
-  },
-  {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
     description: 'Highly capable, great balance of performance and cost',

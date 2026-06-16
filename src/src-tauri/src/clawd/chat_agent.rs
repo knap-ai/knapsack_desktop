@@ -553,12 +553,13 @@ pub async fn openai_compatible_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
-  // OpenAI reasoning models (o1, o3, o4-mini, gpt-5.2-pro) only support temperature=1 (default).
-  // Ollama models also often reject non-default temperatures for reasoning variants.
+  // OpenAI reasoning models only support temperature=1 (default); passing any value errors.
+  // gpt-5-mini and gpt-5.2-pro are also reasoning models per OpenAI's API.
   let is_reasoning_model = model.starts_with("o1")
     || model.starts_with("o3")
     || model.starts_with("o4")
-    || model == "gpt-5.2-pro";
+    || model == "gpt-5.2-pro"
+    || model == "gpt-5-mini";
   let temperature = if is_reasoning_model { None } else { Some(0.2) };
 
   // Build messages JSON manually to support multi-part content (text + images) for vision
