@@ -162,7 +162,7 @@ jobs:
           for path in \
             "overlay.html" \
             "dist/overlay.html"; do
-            if [ -f "$RESOURCES/$path" ]; do
+            if [ -f "$RESOURCES/$path" ]; then
               has_overlay=1
               break
             fi
