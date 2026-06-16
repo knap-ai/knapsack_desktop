@@ -5025,9 +5025,21 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           }
         }
       };
+      const TOOL_RESULT_MAX: usize = 50_000;
+      let result_str = result.to_string();
+      let content = if result_str.len() > TOOL_RESULT_MAX {
+        format!(
+          "{}... [truncated — tool returned {} bytes, limit {}]",
+          &result_str[..TOOL_RESULT_MAX],
+          result_str.len(),
+          TOOL_RESULT_MAX
+        )
+      } else {
+        result_str
+      };
       messages.push(chat_agent::OaiMessage::Tool {
         tool_call_id: tc.id.clone(),
-        content: result.to_string(),
+        content,
       });
     }
   }

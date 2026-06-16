@@ -56,7 +56,6 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     helpLabel: 'platform.openai.com/api-keys',
     models: [
       { id: 'gpt-5.5', name: 'GPT-5.5', description: 'Newest frontier model, best for complex professional work' },
-      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', description: 'Extended thinking for the hardest problems' },
       { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Highly capable, great balance of performance and cost' },
       { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
       { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable' },
