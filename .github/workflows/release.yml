@@ -3,6 +3,10 @@ name: Release
 on:
   workflow_dispatch:
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -19,6 +23,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -35,10 +40,21 @@ jobs:
           TAG="${{ steps.bump.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main --tags
           git add -A
-          git commit -m "release: $TAG"
+          if git diff --cached --quiet; then
+            echo "No version changes to commit."
+          else
+            git commit -m "release: $TAG"
+          fi
+          git rebase origin/main
+          git push origin HEAD:main
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "ERROR: tag $TAG already exists on origin; refusing to reuse it for a new release commit."
+            exit 1
+          fi
           git tag "$TAG"
-          git push origin HEAD --tags
+          git push origin "refs/tags/$TAG"
 
   # ---------------------------------------------------------------------------
   # macOS — Universal binary (arm64 + x86_64), signed & notarized
