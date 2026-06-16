@@ -11,6 +11,30 @@ const API_BASE = "http://127.0.0.1:8897";
 const UI_BASE = "http://127.0.0.1:1420";
 const KNAPSACK_QA_DEFAULT_EXPECTED_CHANNELS = "telegram,slack";
 
+function desktopClawdbotDir() {
+  if (process.platform === "darwin") {
+    if (!process.env.HOME) return null;
+    return path.join(
+      process.env.HOME,
+      "Library",
+      "Application Support",
+      "ai.knap.knapsack",
+      "clawdbot",
+    );
+  }
+  if (process.platform === "win32") {
+    if (!process.env.APPDATA) return null;
+    return path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot");
+  }
+  if (process.env.XDG_CONFIG_HOME) {
+    return path.join(process.env.XDG_CONFIG_HOME, "ai.knap.knapsack", "clawdbot");
+  }
+  if (process.env.HOME) {
+    return path.join(process.env.HOME, ".config", "ai.knap.knapsack", "clawdbot");
+  }
+  return null;
+}
+
 function parseCommaSeparatedList(value) {
   return String(value || "")
     .split(",")
@@ -26,7 +50,7 @@ function qaExpectedChannelsFromEnv() {
 }
 
 const MODELS_BY_PROVIDER = {
-  ollama: ["knapsack-7b"],
+  ollama: ["markheynen/knapsack-7b-chat-metal:latest"],
   knapsack: ["auto"],
   openai: [
     "gpt-5.5",
@@ -71,9 +95,9 @@ const MODELS_BY_PROVIDER = {
     "grok-4",
   ],
   openrouter: [
+    "openrouter/auto",
     "openai/gpt-4o-mini",
     "openrouter/free",
-    "openrouter/auto",
     "qwen/qwen3-coder-480b-a35b-instruct:free",
     "deepseek/deepseek-r1:free",
     "meta-llama/llama-3.3-70b-instruct:free",
@@ -123,8 +147,9 @@ function configuredChannelPluginIdsForQa() {
   if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
     return [];
   }
-  if (!process.env.APPDATA) return [];
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const clawdbotDir = desktopClawdbotDir();
+  if (!clawdbotDir) return [];
+  const configPath = path.join(clawdbotDir, "openclaw.json");
   if (!existsSync(configPath)) return [];
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
@@ -187,8 +212,9 @@ function patchOpenClawConfigForQa({ pluginAllowlist, provider }) {
   }
 
   const startupModel = qaStartupModelForProvider(provider);
-  if ((!pluginAllowlist && !startupModel) || !process.env.APPDATA) return null;
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const clawdbotDir = desktopClawdbotDir();
+  if ((!pluginAllowlist && !startupModel) || !clawdbotDir) return null;
+  const configPath = path.join(clawdbotDir, "openclaw.json");
   if (!existsSync(configPath)) return null;
 
   const original = fs.readFileSync(configPath, "utf8");
@@ -270,9 +296,10 @@ function qaDesktopTokenModelForProvider(provider) {
 function patchDesktopTokensForQa(provider) {
   const normalized = String(provider || "").trim().toLowerCase();
   const model = qaDesktopTokenModelForProvider(normalized);
-  if (!normalized || !model || !process.env.APPDATA) return null;
+  const clawdbotDir = desktopClawdbotDir();
+  if (!normalized || !model || !clawdbotDir) return null;
 
-  const tokensPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "tokens.json");
+  const tokensPath = path.join(clawdbotDir, "tokens.json");
   if (!existsSync(tokensPath)) return null;
 
   const original = fs.readFileSync(tokensPath, "utf8");
@@ -1387,6 +1414,7 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
+  const requestTimeoutMs = Number(process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS || 30_000);
   const req = await fetchWithTimeout(`${API_BASE}/api/clawd/service/set-api-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1395,7 +1423,7 @@ async function setProviderAndModel(provider, model) {
       model,
       key: "",
     }),
-  }, 12_000);
+  }, requestTimeoutMs);
   return {
     ok: Boolean(req.ok),
     payload: req.body,
@@ -2017,7 +2045,9 @@ async function runMode(mode, opts = {}) {
     };
   }
 
-  const functionalTimeoutMs = Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
+  const functionalTimeoutMs = Number.isFinite(opts.functionalTimeoutMs)
+    ? opts.functionalTimeoutMs
+    : Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
   const readinessHealthTimeoutMs = Number(
     process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000,
   );
