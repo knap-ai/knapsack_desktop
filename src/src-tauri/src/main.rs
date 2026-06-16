@@ -122,7 +122,11 @@ const NOTIF_ANIMATION_DURATION: u32 = 90;
 const NOTIF_FRAME_TIME: u64 = 8;
 
 fn validate_bundled_ui_asset(app: &tauri::App, page: &str, label: &str) -> Option<String> {
-  let candidate_paths = vec![page.to_string(), format!("dist/{page}")];
+  let candidate_paths = vec![
+    page.to_string(),
+    format!("dist/{page}"),
+    format!("_up_/dist/{page}"),
+  ];
   let found = candidate_paths.iter().find_map(|candidate| {
     app
       .path_resolver()

@@ -143,7 +143,8 @@ jobs:
 
           for path in \
             "index.html" \
-            "dist/index.html"; do
+            "dist/index.html" \
+            "_up_/dist/index.html"; do
             if [ -f "$RESOURCES/$path" ]; then
               has_main=1
               break
@@ -152,7 +153,8 @@ jobs:
 
           for path in \
             "notification.html" \
-            "dist/notification.html"; do
+            "dist/notification.html" \
+            "_up_/dist/notification.html"; do
             if [ -f "$RESOURCES/$path" ]; then
               has_notification=1
               break
@@ -161,7 +163,8 @@ jobs:
 
           for path in \
             "overlay.html" \
-            "dist/overlay.html"; do
+            "dist/overlay.html" \
+            "_up_/dist/overlay.html"; do
             if [ -f "$RESOURCES/$path" ]; then
               has_overlay=1
               break
@@ -170,7 +173,8 @@ jobs:
 
           for path in \
             "recording-indicator.html" \
-            "dist/recording-indicator.html"; do
+            "dist/recording-indicator.html" \
+            "_up_/dist/recording-indicator.html"; do
             if [ -f "$RESOURCES/$path" ]; then
               has_recording_indicator=1
               break
