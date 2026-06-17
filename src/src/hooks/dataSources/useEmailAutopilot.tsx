@@ -117,6 +117,11 @@ export function useEmailAutopilot(
 
     const errorCallbackFollowUp = (error: Error) => {
       console.error(error)
+      logError(error, {
+        additionalInfo: 'Email classification request failed',
+        error: error.message,
+      })
+      handleFailMessagesClassified(emails)
     }
 
     const nonStarredEmails = emails.filter(email => !email.isStarred)

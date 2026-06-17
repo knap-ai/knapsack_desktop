@@ -4197,17 +4197,19 @@ When the user says "go to [site] and [do something]", you must:
 
 Examples:
 - "go to LinkedIn and summarize my notifications" → list_tabs() to check, then navigate("https://www.linkedin.com") or focus_tab(), then snapshot() and summarize
-- "check Gmail and find emails from John" → navigate("https://mail.google.com"), then snapshot() and search
+- "check Gmail and find emails from John" → if native email/calendar context is already available in the prompt, answer from that first; otherwise navigate("https://mail.google.com"), then snapshot() and search
 - "open Twitter and show my mentions" → navigate("https://x.com"), then snapshot() and find mentions
 
 **NEVER pass the entire user request as a URL.** Extract the website name and construct a proper URL.
 
 ## Quick Access to Common Services
-- "check my email" / "Gmail" → navigate("https://mail.google.com")
+- If the user's prompt is only asking about their emails, inbox, schedule, meetings, or calendar, and the prompt already includes native Knapsack email/calendar context, answer from that context first instead of opening the browser.
+- Only use browser navigation for Gmail/Calendar/Drive when the user explicitly asks to use the web UI or when the native context/tooling cannot answer the request.
+- "check my email" / "Gmail" → prefer native email context first; only navigate("https://mail.google.com") if native context is unavailable or insufficient
 - "search for X" → navigate("https://www.google.com/search?q=X")  (only the search query goes in the URL)
-- "calendar" → navigate("https://calendar.google.com")
+- "calendar" → prefer native calendar context first; only navigate("https://calendar.google.com") if native context is unavailable or insufficient
 - "tasks" / "Google Tasks" → navigate("https://tasks.google.com")
-- "drive" / "docs" → navigate("https://drive.google.com")
+- "drive" / "docs" → prefer native Drive context when provided; otherwise navigate("https://drive.google.com")
 - "LinkedIn" → navigate("https://www.linkedin.com")
 - "Twitter" / "X" → navigate("https://x.com")
 - "GitHub" → navigate("https://github.com")

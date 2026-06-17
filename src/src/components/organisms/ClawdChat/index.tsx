@@ -950,6 +950,25 @@ async function fetchEmailCalendarContext(): Promise<string> {
   return contextParts.join('\n')
 }
 
+function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
+  const lowerText = text.toLowerCase()
+  const mentionsEmail =
+    lowerText.includes('email') || lowerText.includes('gmail') || lowerText.includes('inbox')
+  const mentionsCalendar =
+    lowerText.includes('calendar') || lowerText.includes('schedule') || lowerText.includes('meeting')
+  const browserSpecific =
+    lowerText.includes('browser')
+    || lowerText.includes('tab')
+    || lowerText.includes('website')
+    || lowerText.includes('gmail.com')
+    || lowerText.includes('calendar.google.com')
+    || lowerText.includes('open ')
+    || lowerText.includes('click ')
+    || lowerText.includes('navigate')
+
+  return (mentionsEmail || mentionsCalendar) && !browserSpecific
+}
+
 // Maps skill names to keywords that indicate the skill would be useful.
 // Checked against each user message; the first match whose skill isn't yet
 // installed is surfaced as an inline suggestion below the AI response.
@@ -1205,15 +1224,15 @@ const ChatMessage = memo(function ChatMessage({
             </div>
           </div>
         )}
-        {m.isClickable ? (
+        {staleGatewayDiagnostic ? (
+          <p>
+            Live status is healthy now. This earlier diagnostic is stale, so its old
+            recovery steps have been hidden.
+          </p>
+        ) : m.isClickable ? (
           <p>{m.text}</p>
         ) : (
           <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
-        )}
-        {staleGatewayDiagnostic && (
-          <div className="ClawdStaleDiagnosticNote">
-            Live status is healthy now. This older diagnostic may be stale, so its recovery actions are hidden.
-          </div>
         )}
         {visibleActions.length > 0 && (
           <div className="ClawdPromptActions">
@@ -4401,6 +4420,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           } catch {
             // If pre-fetch fails, fall back to original behavior
             actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
+          }
+        }
+
+        if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(text)) {
+          try {
+            const context = await fetchEmailCalendarContext()
+            if (context) {
+              actualText = `${text}
+
+Use the native Knapsack email/calendar context below first. Only use browser automation if the native context is missing something required to answer accurately.
+
+${context}`
+            }
+          } catch (err) {
+            console.warn('[ClawdChat] Failed to pre-fetch native email/calendar context:', err)
           }
         }
 
