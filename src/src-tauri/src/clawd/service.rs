@@ -5219,6 +5219,37 @@ async fn browser_control_status(
   }
 }
 
+async fn browser_control_rpc_ready(gateway_token: &str, timeout: std::time::Duration) -> bool {
+  match tokio::time::timeout(
+    timeout,
+    gateway_client::browser_request(
+      "GET",
+      "/tabs",
+      Some(serde_json::json!({ "profile": "openclaw" })),
+      None,
+      Some(gateway_token),
+    ),
+  )
+  .await
+  {
+    Ok(Ok(_)) => true,
+    Ok(Err(e)) => {
+      eprintln!(
+        "[clawd/service] browser control RPC fallback probe failed: {}",
+        e
+      );
+      false
+    }
+    Err(_) => {
+      eprintln!(
+        "[clawd/service] browser control RPC fallback probe timed out ({}ms)",
+        timeout.as_millis()
+      );
+      false
+    }
+  }
+}
+
 async fn browser_control_start_direct(
   gateway_token: &str,
   timeout: std::time::Duration,
@@ -5325,7 +5356,7 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
     .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
     .arg("--disable-sync")
     .arg("--no-proxy-server")
-    .arg("about:blank")
+    .arg("--no-startup-window")
     .stdin(Stdio::null())
     .stdout(Stdio::null())
     .stderr(Stdio::null())
@@ -5401,7 +5432,7 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
     .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
     .arg("--disable-sync")
     .arg("--no-proxy-server")
-    .arg("about:blank")
+    .arg("--no-startup-window")
     .stdin(Stdio::null())
     .stdout(Stdio::null())
     .stderr(Stdio::null())
@@ -5687,6 +5718,16 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       {
         browser_probe = BrowserControlProbe::Starting;
       }
+    }
+    if gateway_ok
+      && browser_probe != BrowserControlProbe::Ready
+      && browser_control_rpc_ready(
+        &tokens.gateway_token,
+        std::time::Duration::from_millis(1200),
+      )
+      .await
+    {
+      browser_probe = BrowserControlProbe::Ready;
     }
     let browser_ok = browser_probe == BrowserControlProbe::Ready;
 
@@ -6221,7 +6262,15 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
           browser_control_status(&tokens.gateway_token, std::time::Duration::from_millis(500))
             .await;
       }
-      probe == BrowserControlProbe::Ready
+      if probe == BrowserControlProbe::Ready {
+        true
+      } else {
+        browser_control_rpc_ready(
+          &tokens.gateway_token,
+          std::time::Duration::from_millis(1200),
+        )
+        .await
+      }
     }
   } else {
     false
@@ -14210,6 +14259,14 @@ mod service_status_message_tests {
     );
     assert_eq!(
       parse_browser_control_status_body(r#"{"running":true,"cdpReady":true}"#),
+      BrowserControlProbe::Ready
+    );
+  }
+
+  #[test]
+  fn plain_ok_browser_sidecar_response_is_not_treated_as_ready() {
+    assert_ne!(
+      parse_browser_control_status_body("OK"),
       BrowserControlProbe::Ready
     );
   }

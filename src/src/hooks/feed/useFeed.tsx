@@ -1636,6 +1636,26 @@ export function useFeed(
 
   const startCalendarMeeting = async (item: FeedItem) => {
     const saveTranscript = await shouldSaveTranscript()
+    const parseNumericEventId = (value: unknown): number => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      if (typeof value === 'string') {
+        const parsed = Number.parseInt(value, 10)
+        if (Number.isFinite(parsed)) return parsed
+      }
+      return 0
+    }
+    const runtimeEventId = (() => {
+      if (item.run?.runParams) {
+        try {
+          const parsed = JSON.parse(item.run.runParams as string)
+          if (typeof parsed?.event_id === 'number') return parsed.event_id
+        } catch {
+          // Fall through to the attached calendar event ID below.
+        }
+      }
+
+      return parseNumericEventId(item.calendarEvent?.id)
+    })()
 
     if (item.id != null) {
       const thread = item.threads?.[0]
@@ -1643,7 +1663,7 @@ export function useFeed(
       const timelineKey = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
       await selectFeedItem(timelineKey, item.id)
       try {
-        await startRecord(thread.id, item.id, 0, saveTranscript)
+        await startRecord(thread.id, item.id, runtimeEventId, saveTranscript)
         setIsRecording(item)
       } catch (recordErr: any) {
         logError(new Error('Failed to start recording for calendar meeting'), {
@@ -1703,7 +1723,12 @@ export function useFeed(
       setSelectedFeedItem(feedItem)
       setSubTab(SubTabChoices.Workspace)
       try {
-        await startRecord(thread.id, feedItem.id, 0, saveTranscript)
+        await startRecord(
+          thread.id,
+          feedItem.id,
+          parseNumericEventId(meeting.id),
+          saveTranscript,
+        )
         setIsRecording(feedItem)
       } catch (recordErr: any) {
         logError(new Error('Failed to start recording for calendar meeting'), {

@@ -1931,15 +1931,25 @@ pub async fn generic_channel_status(
     });
   }
 
-  return HttpResponse::Ok().json(ChannelStatusResponse {
-    success: true,
-    enabled: false,
-    configured: false,
-    linked: Some(false),
-    provider: None,
-    message: Some(format!("{} is not available in this build.", channel)),
-    account: None,
-  });
+  if let Some(bail) = gateway_or_bail().await {
+    return bail;
+  }
+
+  match channel_runtime_snapshot(Some(&channel)).await {
+    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
+    Err(e) => {
+      log::error!("[channels] {}_status gateway error: {}", channel, e);
+      HttpResponse::Ok().json(ChannelStatusResponse {
+        success: service::gateway_log_has_channel_started(&channel),
+        enabled: false,
+        configured: false,
+        linked: Some(false),
+        provider: None,
+        message: Some(format!("Gateway error: {}", e)),
+        account: None,
+      })
+    }
+  }
 }
 
 /// Request body for generic channel configuration.
