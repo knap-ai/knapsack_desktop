@@ -2405,7 +2405,11 @@ fn resolve_token(token: Option<&str>) -> Result<String, String> {
 /// Get channel status from the gateway (pooled).
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  gateway_request_pooled("status", None, &t).await
+  let params = serde_json::json!({
+    "probe": false,
+    "timeoutMs": 2500
+  });
+  call_channel_method("channels.status", Some(params), Some(&t)).await
 }
 
 /// Call a channel method on the gateway (pooled).
