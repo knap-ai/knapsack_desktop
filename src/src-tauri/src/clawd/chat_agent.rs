@@ -553,13 +553,13 @@ pub async fn openai_compatible_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
-  // OpenAI reasoning models only support temperature=1 (default); passing any value errors.
-  // gpt-5-mini and gpt-5.2-pro are also reasoning models per OpenAI's API.
-  let is_reasoning_model = model.starts_with("o1")
-    || model.starts_with("o3")
-    || model.starts_with("o4")
-    || model == "gpt-5.2-pro"
-    || model == "gpt-5-mini";
+  // Newer OpenAI reasoning / GPT-5 family models reject custom temperature on
+  // this direct chat-completions path, so let the provider use its default.
+  let normalized_model = model.trim().to_lowercase();
+  let is_reasoning_model = normalized_model.starts_with("o1")
+    || normalized_model.starts_with("o3")
+    || normalized_model.starts_with("o4")
+    || normalized_model.starts_with("gpt-5");
   let temperature = if is_reasoning_model { None } else { Some(0.2) };
 
   // Build messages JSON manually to support multi-part content (text + images) for vision
