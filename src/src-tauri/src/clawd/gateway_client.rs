@@ -930,13 +930,13 @@ pub fn resolve_default_model() -> String {
 
   // Respect the user's active provider selection and configured model
   match active.as_str() {
-    // Knapsack cloud inference: users can pin a default model (or use auto).
-    // If stored with a provider prefix, keep only the backend model key.
+    // Knapsack cloud inference: keep the provider prefix explicit.
+    // Bare `auto` gets interpreted inconsistently by some gateway paths,
+    // whereas `knapsack/auto` is unambiguous and matches the desktop UI.
     "knapsack" => {
-      let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
-        .unwrap_or_else(|_| "auto".to_string());
+      let model = std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
       let model = model.trim();
-      let model = if let Some((provider, bare)) = model.split_once('/') {
+      let bare = if let Some((provider, bare)) = model.split_once('/') {
         if provider.eq_ignore_ascii_case("knapsack") {
           bare
         } else {
@@ -945,10 +945,10 @@ pub fn resolve_default_model() -> String {
       } else {
         model
       };
-      return if model.is_empty() {
-        "auto".to_string()
+      return if bare.is_empty() {
+        "knapsack/auto".to_string()
       } else {
-        model.to_string()
+        format!("knapsack/{}", bare)
       };
     }
     "openrouter" => {
@@ -2092,15 +2092,18 @@ pub async fn ensure_gateway_and_wait() {
   }
 }
 
-/// Make a request using a persistent gateway connection.
-///
-/// Adds:
-/// - bounded in-flight requests (backpressure)
-/// - circuit breaker to avoid thrashing when gateway is down
-pub async fn gateway_request_pooled(
+fn should_retry_unknown_method(error: &str, method: &str) -> bool {
+  let needle = format!("unknown method: {}", method);
+  error
+    .to_ascii_lowercase()
+    .contains(&needle.to_ascii_lowercase())
+}
+
+async fn gateway_request_pooled_inner(
   method: &str,
   params: Option<Value>,
   token: &str,
+  allow_unknown_method_retry: bool,
 ) -> Result<Value, String> {
   let client = get_or_connect(token).await?;
 
@@ -2123,6 +2126,7 @@ pub async fn gateway_request_pooled(
     .map_err(|_| "Gateway request queue closed".to_string())?;
 
   let id = next_request_id();
+  let retry_params = params.clone();
   let frame = RequestFrame {
     frame_type: "req",
     method: method.to_string(),
@@ -2194,7 +2198,38 @@ pub async fn gateway_request_pooled(
   }
 
   drop(permit);
+  if allow_unknown_method_retry {
+    if let Err(ref error) = out {
+      if should_retry_unknown_method(error, method) {
+        eprintln!(
+          "[gateway_client] {} returned stale unknown-method response; reconnecting and retrying once",
+          method
+        );
+        invalidate_client();
+        return Box::pin(gateway_request_pooled_inner(
+          method,
+          retry_params,
+          token,
+          false,
+        ))
+        .await;
+      }
+    }
+  }
   out
+}
+
+/// Make a request using a persistent gateway connection.
+///
+/// Adds:
+/// - bounded in-flight requests (backpressure)
+/// - circuit breaker to avoid thrashing when gateway is down
+pub async fn gateway_request_pooled(
+  method: &str,
+  params: Option<Value>,
+  token: &str,
+) -> Result<Value, String> {
+  gateway_request_pooled_inner(method, params, token, true).await
 }
 
 /// Make a two-phase request (like `agent`) using the persistent gateway
@@ -2402,10 +2437,17 @@ fn resolve_token(token: Option<&str>) -> Result<String, String> {
   })
 }
 
+fn default_channel_status_params() -> Value {
+  serde_json::json!({
+    "probe": false,
+    "timeoutMs": 2500
+  })
+}
+
 /// Get channel status from the gateway (pooled).
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  gateway_request_pooled("status", None, &t).await
+  gateway_request_pooled("channels.status", Some(default_channel_status_params()), &t).await
 }
 
 /// Call a channel method on the gateway (pooled).
@@ -2629,8 +2671,7 @@ pub async fn agent_run(
 
 /// Get current config from gateway (pooled).
 pub async fn config_get(token: Option<&str>) -> Result<Value, String> {
-  let t = resolve_token(token)?;
-  gateway_request_pooled("config.get", None, &t).await
+  crate::clawd::gateway_ws::config_get(token).await
 }
 
 /// Patch config on gateway (pooled) - requires baseHash from config.get.
@@ -2697,6 +2738,28 @@ mod tests {
     let cfg = json!({"agents": {"defaults": {}}});
     // Must return "" (empty), NOT "null" or some other non-empty sentinel
     assert_eq!(read_model_from_config(&cfg), "");
+  }
+
+  #[test]
+  fn channel_status_request_uses_channels_status_rpc_defaults() {
+    assert_eq!(
+      default_channel_status_params(),
+      json!({
+        "probe": false,
+        "timeoutMs": 2500
+      })
+    );
+  }
+
+  #[test]
+  fn knapsack_default_model_keeps_provider_prefix() {
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
+    std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "auto");
+    assert_eq!(resolve_default_model(), "knapsack/auto");
+    std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "knapsack/gemini-2.5-flash");
+    assert_eq!(resolve_default_model(), "knapsack/gemini-2.5-flash");
+    std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
+    std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───
@@ -2906,5 +2969,17 @@ mod tests {
       Some(&tailscale_val),
       "gateway.tailscale must be preserved unchanged through any patch"
     );
+  }
+
+  #[test]
+  fn retries_only_when_gateway_reports_unknown_requested_method() {
+    assert!(should_retry_unknown_method(
+      "Request failed: Object {\"code\":\"INVALID_REQUEST\",\"message\":\"unknown method: config.get\"}",
+      "config.get"
+    ));
+    assert!(!should_retry_unknown_method(
+      "Request failed: Object {\"code\":\"INVALID_REQUEST\",\"message\":\"unknown method: status\"}",
+      "config.get"
+    ));
   }
 }

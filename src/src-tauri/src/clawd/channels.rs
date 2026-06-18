@@ -95,6 +95,73 @@ async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String
   }
 }
 
+async fn channel_runtime_snapshot_with_fallback(channel: &str) -> Result<Value, String> {
+  match channel_runtime_snapshot(Some(channel)).await {
+    Ok(snapshot) => {
+      let needs_full_snapshot = runtime_channel(&snapshot, channel)
+        .map(|status| {
+          let has_detail = ["enabled", "configured", "connected", "running", "accountId"]
+            .iter()
+            .any(|key| status.get(*key).is_some())
+            || status
+              .get("lastError")
+              .and_then(|value| value.as_str())
+              .map(|value| !value.trim().is_empty())
+              .unwrap_or(false);
+          let has_summary = channel_summary_line(
+            snapshot
+              .get("channelSummary")
+              .and_then(|value| value.as_array())
+              .map(|items| {
+                items
+                  .iter()
+                  .filter_map(|item| item.as_str().map(|text| text.to_string()))
+                  .collect::<Vec<_>>()
+              })
+              .unwrap_or_default()
+              .as_slice(),
+            channel,
+          )
+          .is_some();
+          !has_detail && !has_summary && configured_channel(channel).is_some()
+        })
+        .unwrap_or_else(|| configured_channel(channel).is_some());
+
+      if !needs_full_snapshot {
+        return Ok(snapshot);
+      }
+
+      log::warn!(
+        "[channels] {} filtered status snapshot lacked details; retrying with full snapshot",
+        channel
+      );
+      channel_runtime_snapshot(None).await
+    }
+    Err(filtered_error) => {
+      let filtered_lower = filtered_error.to_ascii_lowercase();
+      let looks_filter_specific = filtered_lower.contains("timed out")
+        || filtered_lower.contains("unknown method")
+        || filtered_lower.contains("invalid params")
+        || filtered_lower.contains("schema");
+      if !looks_filter_specific {
+        return Err(filtered_error);
+      }
+
+      log::warn!(
+        "[channels] {} status filter failed ({}); retrying with full snapshot",
+        channel,
+        filtered_error
+      );
+      channel_runtime_snapshot(None).await.map_err(|full_error| {
+        format!(
+          "{} (full snapshot retry also failed: {})",
+          filtered_error, full_error
+        )
+      })
+    }
+  }
+}
+
 fn runtime_channel<'a>(snapshot: &'a Value, channel: &str) -> Option<&'a Value> {
   snapshot.get("channels")?.get(channel)
 }
@@ -183,6 +250,12 @@ fn plugin_allow_from_disk() -> Vec<String> {
   plugins
 }
 
+fn plugin_allowed_in_config(plugin_id: &str) -> bool {
+  plugin_allow_from_disk()
+    .iter()
+    .any(|plugin| plugin == plugin_id)
+}
+
 fn runtime_status_response(
   snapshot: &Value,
   channel: &str,
@@ -191,6 +264,8 @@ fn runtime_status_response(
 ) -> ChannelStatusResponse {
   let status = runtime_channel(snapshot, channel);
   let config = configured_channel(channel);
+  let (summary_enabled, summary_linked, summary_configured) =
+    parse_channel_from_summary(snapshot, channel);
   let enabled = status
     .and_then(|s| s.get("enabled"))
     .and_then(|v| v.as_bool())
@@ -200,11 +275,11 @@ fn runtime_status_response(
         .and_then(|s| s.get("enabled"))
         .and_then(|v| v.as_bool())
     })
-    .unwrap_or_else(|| config.is_some());
+    .unwrap_or(summary_enabled || config.is_some());
   let configured = status
     .and_then(|s| s.get("configured"))
     .and_then(|v| v.as_bool())
-    .unwrap_or_else(|| enabled || config.is_some());
+    .unwrap_or(summary_configured || summary_linked || enabled || config.is_some());
   let running = status
     .and_then(|s| s.get("running"))
     .and_then(|v| v.as_bool())
@@ -212,12 +287,13 @@ fn runtime_status_response(
   let connected = status
     .and_then(|s| s.get("connected"))
     .and_then(|v| v.as_bool())
-    .unwrap_or(running);
+    .unwrap_or(summary_linked || running);
   let account = status
     .and_then(|s| s.get("accountId"))
     .and_then(|v| v.as_str())
     .filter(|id| !id.is_empty() && *id != "default")
     .map(|id| id.to_string());
+  let account = account.or_else(|| parse_account_from_summary(snapshot, channel));
   let message = status
     .and_then(|s| s.get("lastError"))
     .and_then(|v| v.as_str())
@@ -452,25 +528,35 @@ fn has_browser_enabled(snapshot: &serde_json::Value) -> bool {
     .unwrap_or(false)
 }
 
-/// Check whether `tools.sandbox.tools.allow` includes the minimum set of
-/// tools required for channel messages (Telegram, WhatsApp, etc.) to work.
-/// Without these, the gateway's sandbox mode blocks browser, web, and exec
-/// tools — so the agent silently fails to respond to channel messages even
-/// though the channel shows as "connected" in the UI.
-fn has_sandbox_tools(snapshot: &serde_json::Value) -> bool {
+/// Check whether the channel reply toolchain is present in both the main
+/// allowlist and the sandbox allowlist.
+///
+/// Channel-routed sessions need the `message` tool for explicit reply actions,
+/// and they still rely on browser/web/exec/session tools for typical Knapsack
+/// flows. If either allowlist is missing these entries, the UI can show the
+/// channel as "connected" while routed replies still fail.
+fn has_channel_reply_tools(snapshot: &serde_json::Value) -> bool {
   let config = snapshot.get("config").unwrap_or(snapshot);
-  let allow = match config
+  let tools_allow = match config.pointer("/tools/allow").and_then(|v| v.as_array()) {
+    Some(arr) => arr,
+    None => return false,
+  };
+  let sandbox_allow = match config
     .pointer("/tools/sandbox/tools/allow")
     .and_then(|v| v.as_array())
   {
     Some(arr) => arr,
     None => return false,
   };
-  // Check for a few critical tools that must be present
-  let required = ["exec", "browser", "sessions_send"];
-  required
+  let required_tools_allow = ["message", "browser", "group:web", "exec"];
+  let required_sandbox_allow = ["message", "exec", "browser", "sessions_send"];
+  let has_main = required_tools_allow
     .iter()
-    .all(|tool| allow.iter().any(|item| item.as_str() == Some(tool)))
+    .all(|tool| tools_allow.iter().any(|item| item.as_str() == Some(tool)));
+  let has_sandbox = required_sandbox_allow
+    .iter()
+    .all(|tool| sandbox_allow.iter().any(|item| item.as_str() == Some(tool)));
+  has_main && has_sandbox
 }
 
 fn channel_plugin_requested_by_patch(patch: &serde_json::Value) -> Option<String> {
@@ -559,18 +645,18 @@ fn ensure_channel_plugin_enabled_in_patch(
 /// Also ensures `browser.enabled` is true so the auto-reply agent can use
 /// browser automation (e.g. "check my email" from Telegram).
 ///
-/// Also ensures `tools.sandbox.tools.allow` and `tools.sandbox.tools.deny`
-/// are set so that channel messages can use browser, exec, web, and session
-/// tools.  Without this, channels show "connected" but the AI cannot
-/// respond because sandbox mode blocks all the tools it needs.
+/// Also ensures `tools.allow` plus `tools.sandbox.tools.allow` /
+/// `tools.sandbox.tools.deny` are set so that channel messages can use the
+/// `message` tool alongside browser, exec, web, and session tools.
+/// Without this, channels show "connected" but the AI cannot respond.
 fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> String {
   let needs_model = !has_default_model(snapshot);
   let needs_browser = !has_browser_enabled(snapshot);
-  let needs_sandbox_tools = !has_sandbox_tools(snapshot);
+  let needs_channel_reply_tools = !has_channel_reply_tools(snapshot);
   let parsed_patch: serde_json::Value = serde_json::from_str(channel_patch).unwrap();
   let channel_plugin_id = channel_plugin_requested_by_patch(&parsed_patch);
 
-  if !needs_model && !needs_browser && !needs_sandbox_tools && channel_plugin_id.is_none() {
+  if !needs_model && !needs_browser && !needs_channel_reply_tools && channel_plugin_id.is_none() {
     return channel_patch.to_string();
   }
 
@@ -591,7 +677,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
       .insert("browser".to_string(), serde_json::json!({"enabled": true}));
   }
 
-  if needs_sandbox_tools {
+  if needs_channel_reply_tools {
     // Merge sandbox tools into the patch.  This mirrors what service.rs
     // does at startup, but ensures it also happens when a channel is
     // enabled/reconnected after a config reset (when service.rs startup
@@ -601,6 +687,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
             "tools": {
                 "deny": ["canvas", "nodes", "cron", "gateway"],
                 "allow": [
+                    "message",
                     "exec", "process", "group:fs",
                     "image", "sessions_list", "sessions_history",
                     "sessions_send", "sessions_spawn", "session_status",
@@ -609,9 +696,9 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
             }
         }
     });
-    // Also ensure normal-mode tools.allow includes browser + group:web
+    // Also ensure normal-mode tools.allow includes browser + group:web + message
     let mut tools_val = serde_json::json!({
-        "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+        "allow": ["message", "browser", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}}
@@ -626,7 +713,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
       .as_object_mut()
       .unwrap()
       .insert("tools".to_string(), tools_val);
-    eprintln!("[channels] build_enable_patch: added sandbox tools to config patch");
+    eprintln!("[channels] build_enable_patch: added channel reply tools to config patch");
   }
 
   if let Some(plugin_id) = channel_plugin_id {
@@ -1425,7 +1512,7 @@ pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
-  match channel_runtime_snapshot(Some("telegram")).await {
+  match channel_runtime_snapshot(None).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, "telegram", true, None)),
     Err(e) => {
       log::error!("[channels] telegram_status gateway error: {}", e);
@@ -1935,9 +2022,34 @@ pub async fn generic_channel_status(
     return bail;
   }
 
-  match channel_runtime_snapshot(Some(&channel)).await {
+  let configured = configured_channel(&channel).is_some();
+  let plugin_allowed = plugin_allowed_in_config(&channel);
+  if !configured && !plugin_allowed {
+    return HttpResponse::Ok().json(ChannelStatusResponse {
+      success: true,
+      enabled: false,
+      configured: false,
+      linked: Some(false),
+      provider: None,
+      message: Some("Channel is not configured in this build".to_string()),
+      account: None,
+    });
+  }
+
+  match channel_runtime_snapshot(None).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
     Err(e) => {
+      if e.to_ascii_lowercase().contains("unknown channel") {
+        return HttpResponse::Ok().json(ChannelStatusResponse {
+          success: true,
+          enabled: false,
+          configured,
+          linked: Some(false),
+          provider: None,
+          message: Some("Channel plugin is unavailable in the current gateway runtime".to_string()),
+          account: None,
+        });
+      }
       log::error!("[channels] {}_status gateway error: {}", channel, e);
       HttpResponse::Ok().json(ChannelStatusResponse {
         success: service::gateway_log_has_channel_started(&channel),
@@ -3190,6 +3302,12 @@ struct ChannelReadiness {
   active: bool,
   deferred: bool,
   summary: Option<String>,
+  #[serde(rename = "runtimeConnected")]
+  runtime_connected: bool,
+  #[serde(rename = "runtimeConfigured")]
+  runtime_configured: bool,
+  #[serde(rename = "runtimeRunning")]
+  runtime_running: bool,
   reason: String,
 }
 
@@ -3219,6 +3337,35 @@ fn channel_summary_active(summary: Option<&str>) -> bool {
     || status.starts_with("running")
     || status.starts_with("ready")
     || status.contains(" connected")
+}
+
+fn runtime_channel_active(runtime: Option<&Value>, summary: Option<&str>) -> bool {
+  if channel_summary_active(summary) {
+    return true;
+  }
+
+  let Some(runtime) = runtime else {
+    return false;
+  };
+
+  let runtime_connected = runtime
+    .get("connected")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  let runtime_running = runtime
+    .get("running")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  let runtime_enabled = runtime
+    .get("enabled")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  let runtime_configured = runtime
+    .get("configured")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+
+  runtime_connected || runtime_running || (runtime_enabled && runtime_configured)
 }
 
 /// Diagnose channel configuration and auto-repair common issues.
@@ -3268,17 +3415,8 @@ pub async fn channel_diagnostics() -> impl Responder {
   }
 
   // Fetch channel status from gateway
-  let channel_summary: Vec<String> = match gateway_client::get_channel_status(None).await {
-    Ok(status) => status
-      .get("channelSummary")
-      .and_then(|cs| cs.as_array())
-      .map(|arr| {
-        arr
-          .iter()
-          .filter_map(|v| v.as_str().map(String::from))
-          .collect::<Vec<_>>()
-      })
-      .unwrap_or_default(),
+  let gateway_status = match gateway_client::get_channel_status(None).await {
+    Ok(status) => status,
     Err(e) => {
       return HttpResponse::Ok().json(ChannelDiagnostics {
         success: false,
@@ -3294,6 +3432,23 @@ pub async fn channel_diagnostics() -> impl Responder {
       });
     }
   };
+
+  let channel_summary: Vec<String> = gateway_status
+    .get("channelSummary")
+    .and_then(|cs| cs.as_array())
+    .map(|arr| {
+      arr
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+
+  let runtime_channels = gateway_status
+    .get("channels")
+    .and_then(|channels| channels.as_object())
+    .cloned()
+    .unwrap_or_default();
 
   // Fetch gateway config to check model and channel configs
   let (has_model, model, configured_channels, plugin_allow) = match gateway_client::config_get(None)
@@ -3359,10 +3514,9 @@ pub async fn channel_diagnostics() -> impl Responder {
 
       // ── Web search provider fallback ──────────────────────────────────
       // Priority order:
-      //   1. Brave API  (BRAVE_API_KEY present — explicit config or env var)
+      //   1. Explicit gateway provider / Brave API key
       //   2. Browser CDP  (bundled Chromium available — /api/clawd/browser/search)
-      //   3. DuckDuckGo  (key-free HTTP fallback, browser unavailable)
-      //   4. Surface API key prompt  (only if all above fail)
+      //   3. Surface the missing dependency instead of patching an unsupported fallback
       {
         let brave_key_in_config = snapshot
           .pointer("/plugins/entries/brave/config/webSearch/apiKey")
@@ -3414,68 +3568,37 @@ pub async fn channel_diagnostics() -> impl Responder {
           if browser_ok {
             // Browser CDP is available — it serves as the primary search
             // mechanism via GET /api/clawd/browser/search.
-            // Ensure the gateway web_search tool also has a key-free provider
-            // (DDG) so the AI can use web_search as a secondary path, but
-            // log clearly that browser is the primary.
+            // Do not patch a synthetic DuckDuckGo fallback here: the bundled
+            // gateway schema on some desktop builds only accepts Brave, and
+            // forcing an unsupported provider creates noisy false warnings
+            // during an otherwise healthy startup.
             log::info!("[channels] web_search: browser CDP available — using browser as primary search (BRAVE_API_KEY not set)");
             repairs.push(
-                            "Browser CDP available — using /api/clawd/browser/search as primary \
-                             web search (BRAVE_API_KEY not set). DuckDuckGo configured as secondary."
-                                .to_string(),
-                        );
-            // Also wire up DDG as secondary so web_search tool itself works
-            let re_snapshot = gateway_client::config_get(None).await;
-            if let Ok(snap) = re_snapshot {
-              let bh = extract_base_hash(&snap);
-              let ddg_patch = serde_json::json!({
-                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-              })
-              .to_string();
-              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
-                Ok(_) => log::info!("[channels] web_search: DDG configured as secondary provider"),
-                Err(e) => log::warn!("[channels] web_search DDG secondary patch failed: {}", e),
-              }
-            }
+              "Browser CDP available — using /api/clawd/browser/search as primary \
+                             web search (BRAVE_API_KEY not set)."
+                .to_string(),
+            );
           } else {
-            // Browser not available — configure DDG as the sole fallback.
-            log::info!("[channels] web_search: browser unavailable — configuring DuckDuckGo (BRAVE_API_KEY not set)");
-            let re_snapshot = gateway_client::config_get(None).await;
-            if let Ok(snap) = re_snapshot {
-              let bh = extract_base_hash(&snap);
-              let ddg_patch = serde_json::json!({
-                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-              })
-              .to_string();
-              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
-                Ok(_) => {
-                  repairs.push(
-                    "Configured DuckDuckGo as web_search provider \
-                                         (BRAVE_API_KEY not set, browser unavailable)."
-                      .to_string(),
-                  );
-                }
-                Err(e) => {
-                  log::warn!("[channels] web_search DDG patch failed: {}", e);
-                  // Both browser and DDG unavailable → surface the API key prompt
-                  issues.push(format!(
-                                        "BRAVE_API_KEY not set, browser unavailable, and DuckDuckGo \
-                                         fallback patch failed: {}. Set BRAVE_API_KEY to enable web search.",
-                                        e
-                                    ));
-                }
-              }
-            }
+            log::info!(
+              "[channels] web_search: browser unavailable and no provider configured \
+               (BRAVE_API_KEY not set)"
+            );
+            issues.push(
+              "BRAVE_API_KEY not set and browser unavailable — web_search is disabled in this \
+               gateway build until browser control recovers or Brave is configured."
+                .to_string(),
+            );
           }
         }
       }
 
-      // Auto-repair: if sandbox tools are missing, patch them.
-      // This is critical after a config reset — without sandbox tools,
-      // channel messages (Telegram, WhatsApp, etc.) are silently dropped
-      // because the gateway's sandbox mode blocks all tools.
-      if !has_sandbox_tools(&snapshot) {
+      // Auto-repair: if channel reply tools are missing, patch them.
+      // This is critical after a config reset — without the `message` tool
+      // plus browser/web/exec coverage, channel messages can look connected
+      // while routed replies still fail.
+      if !has_channel_reply_tools(&snapshot) {
         issues.push(
-          "tools.sandbox.tools.allow is missing or incomplete — channel messages cannot use tools"
+          "Channel reply tools are missing or incomplete — channel messages cannot use reply/web tools"
             .to_string(),
         );
         let re_snapshot = gateway_client::config_get(None).await;
@@ -3483,7 +3606,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           let bh = extract_base_hash(&snap);
           let sandbox_patch = serde_json::json!({
               "tools": {
-                  "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+                  "allow": ["message", "browser", "group:web", "exec", "process", "group:fs"],
                   "deny": ["canvas", "nodes", "cron", "gateway"],
                   "exec": {"applyPatch": {"enabled": true}},
                   "media": {"image": {"enabled": true}},
@@ -3491,6 +3614,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                       "tools": {
                           "deny": ["canvas", "nodes", "cron", "gateway"],
                           "allow": [
+                              "message",
                               "exec", "process", "group:fs",
                               "image", "sessions_list", "sessions_history",
                               "sessions_send", "sessions_spawn", "session_status",
@@ -3502,8 +3626,9 @@ pub async fn channel_diagnostics() -> impl Responder {
           })
           .to_string();
           match gateway_client::config_patch(&sandbox_patch, &bh, None).await {
-            Ok(_) => repairs
-              .push("Added tools.sandbox.tools.allow with browser + web + exec tools".to_string()),
+            Ok(_) => repairs.push(
+              "Added channel reply tools with message + browser + web + exec coverage".to_string(),
+            ),
             Err(e) => issues.push(format!("Failed to repair sandbox tools: {}", e)),
           }
         }
@@ -3622,14 +3747,33 @@ pub async fn channel_diagnostics() -> impl Responder {
         .iter()
         .any(|existing| existing == channel);
       let summary = channel_summary_line(&channel_summary, channel);
-      let active = channel_summary_active(summary.as_deref());
+      let runtime = runtime_channels.get(channel);
+      let runtime_configured = runtime
+        .and_then(|value| value.get("configured"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+      let runtime_connected = runtime
+        .and_then(|value| value.get("connected"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+      let runtime_running = runtime
+        .and_then(|value| value.get("running"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+      let active = runtime_channel_active(runtime, summary.as_deref());
       let plugin_allowed = plugin_allow.iter().any(|plugin| plugin == channel);
       let deferred = configured && !active && !plugin_allowed;
       let reason = if active {
-        "active according to gateway channel summary".to_string()
+        if channel_summary_active(summary.as_deref()) {
+          "active according to gateway channel summary".to_string()
+        } else {
+          "active according to gateway runtime snapshot".to_string()
+        }
       } else if deferred {
         "configured but plugin is not in startup allowlist; channel is deferred until opened"
           .to_string()
+      } else if configured && runtime.is_some() {
+        "configured and present in gateway runtime snapshot, but not yet connected".to_string()
       } else if configured {
         "configured but no active gateway channel summary was observed".to_string()
       } else {
@@ -3642,6 +3786,9 @@ pub async fn channel_diagnostics() -> impl Responder {
         active,
         deferred,
         summary,
+        runtime_connected,
+        runtime_configured,
+        runtime_running,
         reason,
       }
     })
@@ -3650,7 +3797,7 @@ pub async fn channel_diagnostics() -> impl Responder {
   for state in &channel_states {
     if state.configured && state.plugin_allowed && !state.active {
       issues.push(format!(
-        "Configured channel '{}' is allowed but not active in the gateway channel summary",
+        "Configured channel '{}' is allowed but not active in the gateway runtime snapshot",
         state.channel
       ));
     }
@@ -4895,7 +5042,7 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 
 #[cfg(test)]
 mod reconnect_retry_tests {
-  use super::{build_enable_patch, is_connection_level_error};
+  use super::{build_enable_patch, is_connection_level_error, runtime_channel_active};
 
   #[test]
   fn connection_closed_is_retryable() {
@@ -4930,6 +5077,7 @@ mod reconnect_retry_tests {
         "browser": {"enabled": true},
         "plugins": {"allow": ["browser", "duckduckgo"]},
         "tools": {
+          "allow": ["browser", "group:web", "exec", "process", "group:fs"],
           "sandbox": {
             "tools": {
               "allow": ["exec", "browser", "sessions_send"],
@@ -4957,5 +5105,69 @@ mod reconnect_retry_tests {
       patch.pointer("/plugins/entries/whatsapp/enabled"),
       Some(&serde_json::json!(true))
     );
+  }
+
+  #[test]
+  fn enable_patch_adds_message_tool_for_channel_replies() {
+    let snapshot = serde_json::json!({
+      "config": {
+        "agents": {"defaults": {"model": "openai/gpt-5.4"}},
+        "browser": {"enabled": true},
+        "plugins": {"allow": ["browser", "duckduckgo"]},
+        "tools": {
+          "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+          "sandbox": {
+            "tools": {
+              "allow": ["exec", "browser", "sessions_send"],
+              "deny": []
+            }
+          }
+        }
+      }
+    });
+
+    let patch = build_enable_patch(
+      r#"{"channels":{"slack":{"accounts":{"default":{"botToken":"xoxb-test","appToken":"xapp-test"}}}}}"#,
+      &snapshot,
+    );
+    let patch: serde_json::Value = serde_json::from_str(&patch).unwrap();
+
+    let allow = patch
+      .pointer("/tools/allow")
+      .and_then(|value| value.as_array())
+      .unwrap();
+    assert!(allow.iter().any(|tool| tool.as_str() == Some("message")));
+    let sandbox_allow = patch
+      .pointer("/tools/sandbox/tools/allow")
+      .and_then(|value| value.as_array())
+      .unwrap();
+    assert!(sandbox_allow
+      .iter()
+      .any(|tool| tool.as_str() == Some("message")));
+  }
+
+  #[test]
+  fn runtime_channel_active_trusts_runtime_when_summary_is_missing() {
+    let runtime = serde_json::json!({
+      "enabled": true,
+      "configured": true,
+      "connected": false,
+      "running": true
+    });
+
+    assert!(runtime_channel_active(Some(&runtime), None));
+  }
+
+  #[test]
+  fn runtime_channel_active_stays_false_without_summary_or_runtime_signal() {
+    let runtime = serde_json::json!({
+      "enabled": true,
+      "configured": false,
+      "connected": false,
+      "running": false
+    });
+
+    assert!(!runtime_channel_active(Some(&runtime), None));
+    assert!(!runtime_channel_active(None, None));
   }
 }
