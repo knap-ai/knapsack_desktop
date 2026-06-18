@@ -937,6 +937,345 @@ fn load_history_from_transcript(
   messages
 }
 
+fn take_prefix_chars(value: &str, max_chars: usize) -> String {
+  let mut chars = value.chars();
+  let head: String = chars.by_ref().take(max_chars).collect();
+  if chars.next().is_some() {
+    format!("{}...", head)
+  } else {
+    head
+  }
+}
+
+fn estimate_message_chars(message: &chat_agent::OaiMessage) -> usize {
+  match message {
+    chat_agent::OaiMessage::System { content } => content.chars().count(),
+    chat_agent::OaiMessage::User { content, images } => {
+      content.chars().count() + images.len() * 256
+    }
+    chat_agent::OaiMessage::Assistant {
+      content,
+      tool_calls,
+    } => {
+      let content_len = content
+        .as_ref()
+        .map(|value| value.chars().count())
+        .unwrap_or(0);
+      let tool_calls_len = tool_calls
+        .as_ref()
+        .map(|calls| {
+          serde_json::to_string(calls)
+            .map(|s| s.chars().count())
+            .unwrap_or(0)
+        })
+        .unwrap_or(0);
+      content_len + tool_calls_len
+    }
+    chat_agent::OaiMessage::Tool {
+      tool_call_id,
+      content,
+    } => tool_call_id.chars().count() + content.chars().count(),
+  }
+}
+
+fn provider_compaction_limits(provider: &str) -> (usize, usize) {
+  match provider {
+    "ollama" => (6usize, 18_000usize),
+    "knapsack" => (18usize, 40_000usize),
+    _ => (18usize, 32_000usize),
+  }
+}
+
+fn provider_aggressive_compaction_limits(provider: &str) -> (usize, usize) {
+  match provider {
+    "ollama" => (4usize, 12_000usize),
+    "knapsack" => (10usize, 18_000usize),
+    _ => (10usize, 14_000usize),
+  }
+}
+
+fn summarize_compacted_message(
+  message: &chat_agent::OaiMessage,
+  max_chars: usize,
+) -> Option<String> {
+  match message {
+    chat_agent::OaiMessage::System { content } => {
+      let trimmed = content.trim();
+      if trimmed.is_empty() {
+        None
+      } else {
+        Some(format!(
+          "Earlier summary: {}",
+          take_prefix_chars(trimmed, max_chars)
+        ))
+      }
+    }
+    chat_agent::OaiMessage::User { content, .. } => {
+      let trimmed = content.trim();
+      if trimmed.is_empty() {
+        None
+      } else {
+        Some(format!("User: {}", take_prefix_chars(trimmed, max_chars)))
+      }
+    }
+    chat_agent::OaiMessage::Assistant {
+      content,
+      tool_calls,
+    } => {
+      let mut parts: Vec<String> = Vec::new();
+      if let Some(value) = content.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty()) {
+        parts.push(format!(
+          "Assistant: {}",
+          take_prefix_chars(value, max_chars)
+        ));
+      }
+      if let Some(calls) = tool_calls.as_ref().filter(|calls| !calls.is_empty()) {
+        let names = calls
+          .iter()
+          .take(4)
+          .map(|call| call.function.name.clone())
+          .collect::<Vec<_>>()
+          .join(", ");
+        if !names.is_empty() {
+          let suffix = if calls.len() > 4 { ", ..." } else { "" };
+          parts.push(format!("Assistant requested tools: {}{}", names, suffix));
+        }
+      }
+      if parts.is_empty() {
+        None
+      } else {
+        Some(parts.join(" | "))
+      }
+    }
+    chat_agent::OaiMessage::Tool { content, .. } => {
+      let trimmed = content.trim();
+      if trimmed.is_empty() {
+        None
+      } else {
+        Some(format!(
+          "Tool result: {}",
+          take_prefix_chars(trimmed, max_chars)
+        ))
+      }
+    }
+  }
+}
+
+fn build_compaction_summary(
+  dropped_messages: &[chat_agent::OaiMessage],
+  max_chars: usize,
+) -> Option<chat_agent::OaiMessage> {
+  if dropped_messages.is_empty() || max_chars < 96 {
+    return None;
+  }
+
+  let line_budget = max_chars.min(240);
+  let mut lines: Vec<String> = Vec::new();
+  let mut used_chars = 0usize;
+
+  for line in dropped_messages
+    .iter()
+    .filter_map(|message| summarize_compacted_message(message, line_budget))
+  {
+    let line_chars = line.chars().count();
+    if !lines.is_empty() && used_chars + line_chars + 1 > max_chars {
+      break;
+    }
+    used_chars += line_chars + usize::from(!lines.is_empty());
+    lines.push(line);
+  }
+
+  if lines.is_empty() {
+    return None;
+  }
+
+  Some(chat_agent::OaiMessage::System {
+    content: format!(
+      "[Earlier conversation compacted to fit the model context budget ({} messages summarized):\n{}]",
+      dropped_messages.len(),
+      lines.join("\n")
+    ),
+  })
+}
+
+fn shrink_message_to_budget(
+  message: &chat_agent::OaiMessage,
+  max_chars: usize,
+) -> chat_agent::OaiMessage {
+  let payload_budget = max_chars.max(64);
+  match message {
+    chat_agent::OaiMessage::System { content } => chat_agent::OaiMessage::System {
+      content: format!(
+        "{} [truncated to fit model context budget]",
+        take_prefix_chars(content, payload_budget)
+      ),
+    },
+    chat_agent::OaiMessage::User { content, images } => chat_agent::OaiMessage::User {
+      content: format!(
+        "{} [truncated to fit model context budget]",
+        take_prefix_chars(content, payload_budget)
+      ),
+      images: images.clone(),
+    },
+    chat_agent::OaiMessage::Assistant {
+      content,
+      tool_calls,
+    } => chat_agent::OaiMessage::Assistant {
+      content: content.as_ref().map(|value| {
+        format!(
+          "{} [truncated to fit model context budget]",
+          take_prefix_chars(value, payload_budget)
+        )
+      }),
+      tool_calls: tool_calls.clone(),
+    },
+    chat_agent::OaiMessage::Tool {
+      tool_call_id,
+      content,
+    } => chat_agent::OaiMessage::Tool {
+      tool_call_id: tool_call_id.clone(),
+      content: format!(
+        "{} [truncated to fit model context budget]",
+        take_prefix_chars(content, payload_budget)
+      ),
+    },
+  }
+}
+
+fn compact_messages_with_limits(
+  messages: &[chat_agent::OaiMessage],
+  max_non_system_messages: usize,
+  max_total_chars: usize,
+) -> Vec<chat_agent::OaiMessage> {
+  if messages.is_empty() {
+    return Vec::new();
+  }
+
+  let total_chars: usize = messages.iter().map(estimate_message_chars).sum();
+  let non_system_messages = messages
+    .iter()
+    .filter(|message| !matches!(message, chat_agent::OaiMessage::System { .. }))
+    .count();
+  let needs_compaction =
+    total_chars > max_total_chars || non_system_messages > max_non_system_messages;
+  if !needs_compaction {
+    return messages.to_vec();
+  }
+
+  let mut selected: Vec<chat_agent::OaiMessage> = Vec::new();
+  let mut dropped: Vec<chat_agent::OaiMessage> = Vec::new();
+  let mut selected_chars = 0usize;
+  let mut seen_non_system = 0usize;
+
+  let system_message = match messages.first() {
+    Some(chat_agent::OaiMessage::System { .. }) => Some(messages[0].clone()),
+    _ => None,
+  };
+  if let Some(system) = system_message.clone() {
+    selected_chars += estimate_message_chars(&system);
+  }
+
+  let start_index = usize::from(system_message.is_some());
+  for message in messages[start_index..].iter().rev() {
+    let per_message_budget = (max_total_chars / 2).clamp(512usize, 6_000usize);
+    let candidate = if estimate_message_chars(message) > per_message_budget {
+      shrink_message_to_budget(message, per_message_budget)
+    } else {
+      message.clone()
+    };
+    let message_chars = estimate_message_chars(&candidate);
+    let would_fit = seen_non_system < max_non_system_messages
+      && (selected.is_empty() || selected_chars + message_chars <= max_total_chars);
+    if would_fit {
+      selected.push(candidate);
+      selected_chars += message_chars;
+      if !matches!(message, chat_agent::OaiMessage::System { .. }) {
+        seen_non_system += 1;
+      }
+    } else {
+      dropped.push(message.clone());
+    }
+  }
+
+  selected.reverse();
+  dropped.reverse();
+
+  let summary_budget = (max_total_chars / 4).clamp(256usize, 4_000usize);
+  let summary_message = build_compaction_summary(&dropped, summary_budget);
+
+  let mut compacted = Vec::with_capacity(
+    selected.len() + usize::from(system_message.is_some()) + usize::from(summary_message.is_some()),
+  );
+  if let Some(system) = system_message {
+    compacted.push(system);
+  }
+  if let Some(summary) = summary_message {
+    compacted.push(summary);
+  }
+  compacted.extend(selected);
+
+  while compacted.len()
+    > usize::from(
+      compacted
+        .first()
+        .map(|m| matches!(m, chat_agent::OaiMessage::System { .. }))
+        .unwrap_or(false),
+    )
+    && compacted.iter().map(estimate_message_chars).sum::<usize>() > max_total_chars
+  {
+    let remove_at = if compacted.len() > 2
+      && matches!(
+        compacted.get(1),
+        Some(chat_agent::OaiMessage::System { .. })
+      ) {
+      2
+    } else {
+      1
+    };
+    if remove_at >= compacted.len() {
+      break;
+    }
+    compacted.remove(remove_at);
+  }
+
+  compacted
+}
+
+fn compact_messages_for_provider(
+  messages: &[chat_agent::OaiMessage],
+  provider: &str,
+) -> Vec<chat_agent::OaiMessage> {
+  let (max_non_system_messages, max_total_chars) = if provider == "ollama" {
+    provider_aggressive_compaction_limits(provider)
+  } else {
+    provider_compaction_limits(provider)
+  };
+  compact_messages_with_limits(messages, max_non_system_messages, max_total_chars)
+}
+
+fn aggressively_compact_messages_for_provider(
+  messages: &[chat_agent::OaiMessage],
+  provider: &str,
+) -> Vec<chat_agent::OaiMessage> {
+  let (max_non_system_messages, max_total_chars) = provider_aggressive_compaction_limits(provider);
+  compact_messages_with_limits(messages, max_non_system_messages, max_total_chars)
+}
+
+fn is_context_window_error(error_lower: &str) -> bool {
+  [
+    "message too large",
+    "context window",
+    "maximum context length",
+    "prompt is too long",
+    "too many tokens",
+    "input tokens",
+    "context length",
+    "token limit exceeded",
+  ]
+  .iter()
+  .any(|needle| error_lower.contains(needle))
+}
+
 /// Append user and assistant messages to the gateway's JSONL transcript.
 fn append_to_transcript(session_id: &str, messages: &[chat_agent::OaiMessage]) {
   let path = match gateway_transcript_path(session_id) {
@@ -4760,6 +5099,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
   }
 
   let mut tool_iter = 0u32;
+  let mut prompt_compaction_alerted = false;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
@@ -4777,12 +5117,78 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     // Try primary provider, then fallback to others on credit/rate-limit errors.
     // For Knapsack specifically, give the selected provider a bounded exponential
     // backoff window before switching away so first-party issues are visible.
+    let provider_messages = compact_messages_for_provider(&messages, &current_provider);
+    let original_chars: usize = messages.iter().map(estimate_message_chars).sum();
+    let compacted_chars: usize = provider_messages.iter().map(estimate_message_chars).sum();
+    let original_non_system_messages = messages
+      .iter()
+      .filter(|message| !matches!(message, chat_agent::OaiMessage::System { .. }))
+      .count();
+    let compacted_non_system_messages = provider_messages
+      .iter()
+      .filter(|message| !matches!(message, chat_agent::OaiMessage::System { .. }))
+      .count();
+    let (max_non_system_messages, max_total_chars) = provider_compaction_limits(&current_provider);
+    if provider_messages.len() != messages.len() || compacted_chars != original_chars {
+      eprintln!(
+        "[clawd/chat] compacted provider messages {} -> {} for {} (chars {} -> {}, non-system {} -> {})",
+        messages.len(), provider_messages.len(), current_provider, original_chars, compacted_chars, original_non_system_messages, compacted_non_system_messages
+      );
+      if !prompt_compaction_alerted {
+        prompt_compaction_alerted = true;
+        sentry::with_scope(
+          |scope| {
+            scope.set_tag("component", "clawd_chat");
+            scope.set_tag("provider", current_provider.clone());
+            scope.set_tag("model", current_model.clone());
+            scope.set_extra(
+              "original_message_count",
+              sentry::protocol::Value::from(messages.len() as i64),
+            );
+            scope.set_extra(
+              "compacted_message_count",
+              sentry::protocol::Value::from(provider_messages.len() as i64),
+            );
+            scope.set_extra(
+              "original_non_system_messages",
+              sentry::protocol::Value::from(original_non_system_messages as i64),
+            );
+            scope.set_extra(
+              "compacted_non_system_messages",
+              sentry::protocol::Value::from(compacted_non_system_messages as i64),
+            );
+            scope.set_extra(
+              "original_chars",
+              sentry::protocol::Value::from(original_chars as i64),
+            );
+            scope.set_extra(
+              "compacted_chars",
+              sentry::protocol::Value::from(compacted_chars as i64),
+            );
+            scope.set_extra(
+              "max_non_system_messages",
+              sentry::protocol::Value::from(max_non_system_messages as i64),
+            );
+            scope.set_extra(
+              "max_total_chars",
+              sentry::protocol::Value::from(max_total_chars as i64),
+            );
+            sentry::capture_message(
+              "[clawd/chat] provider prompt compaction applied",
+              sentry::Level::Warning,
+            );
+          },
+          || {},
+        );
+      }
+    }
+
     let resp = match call_provider(
       &app_handle,
       &current_provider,
       &current_api_key,
       &current_model,
-      messages.clone(),
+      provider_messages.clone(),
       tools.clone(),
       &current_ollama_base,
       !disable_fallback,
@@ -4795,7 +5201,88 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         let mut err_lower = err_str.to_lowercase();
         let mut recovered_resp: Option<chat_agent::OaiChatResp> = None;
 
-        if current_provider == "knapsack" && should_retry_knapsack_before_fallback(&err_lower) {
+        if is_context_window_error(&err_lower) {
+          let aggressive_messages =
+            aggressively_compact_messages_for_provider(&messages, &current_provider);
+          if aggressive_messages.len() < provider_messages.len()
+            || aggressive_messages
+              .iter()
+              .map(estimate_message_chars)
+              .sum::<usize>()
+              < provider_messages
+                .iter()
+                .map(estimate_message_chars)
+                .sum::<usize>()
+          {
+            eprintln!(
+              "[clawd/chat] provider={} hit context-window style error; retrying with aggressive compaction",
+              current_provider
+            );
+            sentry::with_scope(
+              |scope| {
+                scope.set_tag("component", "clawd_chat");
+                scope.set_tag("provider", current_provider.clone());
+                scope.set_tag("model", current_model.clone());
+                scope.set_extra("error", sentry::protocol::Value::from(err_str.clone()));
+                scope.set_extra(
+                  "original_message_count",
+                  sentry::protocol::Value::from(messages.len() as i64),
+                );
+                scope.set_extra(
+                  "aggressively_compacted_message_count",
+                  sentry::protocol::Value::from(aggressive_messages.len() as i64),
+                );
+                sentry::capture_message(
+                  "[clawd/chat] provider context limit triggered aggressive compaction retry",
+                  sentry::Level::Warning,
+                );
+              },
+              || {},
+            );
+
+            match call_provider(
+              &app_handle,
+              &current_provider,
+              &current_api_key,
+              &current_model,
+              aggressive_messages,
+              tools.clone(),
+              &current_ollama_base,
+              !disable_fallback,
+            )
+            .await
+            {
+              Ok(r) => {
+                eprintln!(
+                  "[clawd/chat] aggressive compaction retry succeeded for provider={}",
+                  current_provider
+                );
+                recovered_resp = Some(r);
+              }
+              Err(retry_err) => {
+                err_str = retry_err.to_string();
+                err_lower = err_str.to_lowercase();
+                if is_context_window_error(&err_lower) {
+                  sentry::capture_message(
+                    "[clawd/chat] provider still rejected aggressively compacted prompt",
+                    sentry::Level::Error,
+                  );
+                }
+                // fall through to the normal retry / fallback path below
+              }
+            }
+          } else {
+            sentry::capture_message(
+              "[clawd/chat] provider context limit hit but aggressive compaction could not shrink prompt further",
+              sentry::Level::Warning,
+            );
+          };
+        }
+
+        if recovered_resp.is_none()
+          && current_provider == "knapsack"
+          && should_retry_knapsack_before_fallback(&err_lower)
+        {
           let mut attempts_used = 0u32;
           let max_retries = 3u32;
           let mut total_wait_secs = 0.0_f64;
@@ -4815,7 +5302,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               &current_provider,
               &current_api_key,
               &current_model,
-              messages.clone(),
+              provider_messages.clone(),
               tools.clone(),
               &current_ollama_base,
               !disable_fallback,
@@ -4925,7 +5412,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                 fb_provider,
                 fb_key,
                 &fb_model,
-                messages.clone(),
+                provider_messages.clone(),
                 tools.clone(),
                 &current_ollama_base,
                 true,
@@ -5085,13 +5572,14 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           }
         }
       };
-      const TOOL_RESULT_MAX: usize = 50_000;
+      const TOOL_RESULT_MAX: usize = 12_000;
       let result_str = result.to_string();
-      let content = if result_str.len() > TOOL_RESULT_MAX {
+      let result_chars = result_str.chars().count();
+      let content = if result_chars > TOOL_RESULT_MAX {
         format!(
-          "{}... [truncated — tool returned {} bytes, limit {}]",
-          &result_str[..TOOL_RESULT_MAX],
-          result_str.len(),
+          "{} [truncated — tool returned {} chars, limit {}]",
+          take_prefix_chars(&result_str, TOOL_RESULT_MAX),
+          result_chars,
           TOOL_RESULT_MAX
         )
       } else {
@@ -5726,4 +6214,116 @@ fn strip_html_tags(html: &str) -> String {
     }
   }
   out
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{
+    aggressively_compact_messages_for_provider, compact_messages_for_provider,
+    is_context_window_error, provider_compaction_limits,
+  };
+  use crate::clawd::chat_agent::OaiMessage;
+
+  fn system_message() -> OaiMessage {
+    OaiMessage::System {
+      content: "system".to_string(),
+    }
+  }
+
+  fn user_message(content: String) -> OaiMessage {
+    OaiMessage::User {
+      content,
+      images: Vec::new(),
+    }
+  }
+
+  #[test]
+  fn compact_messages_preserves_knapsack_history_under_budget() {
+    let messages = vec![
+      system_message(),
+      user_message("plan my day".to_string()),
+      OaiMessage::Assistant {
+        content: Some("Sure".to_string()),
+        tool_calls: None,
+      },
+      user_message("check ai news".to_string()),
+    ];
+
+    let compacted = compact_messages_for_provider(&messages, "knapsack");
+
+    assert_eq!(compacted.len(), messages.len());
+  }
+
+  #[test]
+  fn compact_messages_limits_knapsack_history_when_message_count_is_too_high() {
+    let mut messages = vec![system_message()];
+    for idx in 0..25 {
+      messages.push(user_message(format!("message-{idx}")));
+    }
+
+    let compacted = compact_messages_for_provider(&messages, "knapsack");
+    let (max_non_system_messages, _) = provider_compaction_limits("knapsack");
+
+    assert_eq!(compacted.len(), max_non_system_messages + 2);
+    assert!(matches!(compacted.first(), Some(OaiMessage::System { .. })));
+    assert!(matches!(
+      compacted.get(1),
+      Some(OaiMessage::System { content }) if content.contains("Earlier conversation compacted")
+    ));
+    assert!(matches!(
+      compacted.last(),
+      Some(OaiMessage::User { content, .. }) if content == "message-24"
+    ));
+  }
+
+  #[test]
+  fn compact_messages_limits_knapsack_history_when_tool_result_is_huge() {
+    let (_, max_total_chars) = provider_compaction_limits("knapsack");
+    let messages = vec![
+      system_message(),
+      user_message("plan tomorrow".to_string()),
+      OaiMessage::Tool {
+        tool_call_id: "tool-1".to_string(),
+        content: "x".repeat(max_total_chars + 5_000),
+      },
+    ];
+
+    let compacted = compact_messages_for_provider(&messages, "knapsack");
+
+    assert!(compacted.len() >= 2);
+    assert!(compacted.len() <= 3);
+    assert!(matches!(compacted.first(), Some(OaiMessage::System { .. })));
+    assert!(matches!(compacted.last(), Some(OaiMessage::Tool { .. })));
+  }
+
+  #[test]
+  fn aggressive_compaction_shrinks_prompt_further_after_context_error() {
+    let (_, max_total_chars) = provider_compaction_limits("knapsack");
+    let mut messages = vec![system_message()];
+    for idx in 0..8 {
+      messages.push(user_message(format!("message-{idx} {}", "x".repeat(1_500))));
+    }
+    messages.push(OaiMessage::Tool {
+      tool_call_id: "tool-1".to_string(),
+      content: "y".repeat(max_total_chars / 2),
+    });
+
+    let standard = compact_messages_for_provider(&messages, "knapsack");
+    let aggressive = aggressively_compact_messages_for_provider(&messages, "knapsack");
+
+    let standard_chars: usize = standard.iter().map(super::estimate_message_chars).sum();
+    let aggressive_chars: usize = aggressive.iter().map(super::estimate_message_chars).sum();
+    assert!(aggressive_chars < standard_chars);
+  }
+
+  #[test]
+  fn context_window_error_detection_matches_user_visible_failures() {
+    assert!(is_context_window_error(
+      "message too large for this model".to_string().as_str()
+    ));
+    assert!(is_context_window_error(
+      "maximum context length exceeded".to_string().as_str()
+    ));
+    assert!(!is_context_window_error("rate limit exceeded"));
+  }
 }

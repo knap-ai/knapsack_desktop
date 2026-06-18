@@ -34,8 +34,43 @@ const launchAgentPlist = path.join(
   "ai.knap.knapsack.clawdbot.plist",
 );
 const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
+const prodStateDir = path.join(
+  process.env.HOME || "",
+  "Library",
+  "Application Support",
+  "ai.knap.knapsack",
+  "clawdbot",
+);
+const prodConfigPath = path.join(prodStateDir, "openclaw.json");
+const qaConfigPath = path.join(qaStateDir, "openclaw.json");
 const sourceClawdbotDir = path.join(tauriDir, "resources", "clawdbot");
 const targetClawdbotDir = path.join(tauriDir, "target", "debug", "resources", "clawdbot");
+const qaTokensPath = path.join(qaStateDir, "tokens.json");
+const prodTokensPath = path.join(prodStateDir, "tokens.json");
+const qaSeededTokenKeys = [
+  "active_provider",
+  "groq_api_key",
+  "groq_model",
+  "openai_api_key",
+  "openai_model",
+  "anthropic_api_key",
+  "anthropic_model",
+  "gemini_api_key",
+  "gemini_model",
+  "xai_api_key",
+  "xai_model",
+  "openrouter_api_key",
+  "openrouter_model",
+  "ollama_enabled",
+  "ollama_model",
+  "ollama_base_url",
+  "extra_provider_keys",
+  "preferred_coding_agent",
+  "knapsack_email",
+  "knapsack_model",
+  "knapsack_access_token",
+  "knapsack_refresh_token",
+];
 
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
@@ -108,6 +143,129 @@ function runChecked(command, args, options = {}) {
   }
 }
 
+function readJsonFile(file) {
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeJsonFile(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function cloneJson(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function seedQaProviderTokensFromProd() {
+  const prodTokens = readJsonFile(prodTokensPath);
+  if (!prodTokens || typeof prodTokens !== "object") return;
+
+  const existingQaTokens = readJsonFile(qaTokensPath);
+  const qaTokens =
+    existingQaTokens && typeof existingQaTokens === "object" ? existingQaTokens : {};
+
+  let seeded = 0;
+  for (const key of qaSeededTokenKeys) {
+    if (!(key in prodTokens)) continue;
+    const next = prodTokens[key];
+    const prev = qaTokens[key];
+    if (JSON.stringify(prev) === JSON.stringify(next)) continue;
+    qaTokens[key] = next;
+    seeded += 1;
+  }
+
+  if (seeded > 0) {
+    writeJsonFile(qaTokensPath, qaTokens);
+    console.log(
+      `[qa-dev-run] seeded ${seeded} provider token field(s) into isolated QA state`,
+    );
+  }
+}
+
+function seedQaConfigFromProd() {
+  const prodConfig = readJsonFile(prodConfigPath);
+  if (!prodConfig || typeof prodConfig !== "object") return;
+
+  const existingQaConfig = readJsonFile(qaConfigPath);
+  const qaConfig =
+    existingQaConfig && typeof existingQaConfig === "object"
+      ? existingQaConfig
+      : {};
+
+  const next = { ...qaConfig };
+
+  for (const section of ["channels", "models", "tools", "agents", "skills"]) {
+    if (prodConfig[section] !== undefined) {
+      next[section] = cloneJson(prodConfig[section]);
+    }
+  }
+
+  // Let the desktop gateway discover bundled plugins from the channel config
+  // instead of inheriting stale plugin install metadata from prod.
+  delete next.plugins;
+
+  const prodBrowser =
+    prodConfig.browser && typeof prodConfig.browser === "object"
+      ? cloneJson(prodConfig.browser)
+      : {};
+  next.browser = {
+    ...prodBrowser,
+    enabled: true,
+    headless: false,
+    defaultProfile: "openclaw",
+  };
+
+  if (qaConfig.gateway !== undefined) {
+    next.gateway = cloneJson(qaConfig.gateway);
+  }
+
+  if (
+    next.tools &&
+    typeof next.tools === "object" &&
+    next.tools.web &&
+    typeof next.tools.web === "object" &&
+    next.tools.web.search &&
+    typeof next.tools.web.search === "object" &&
+    next.tools.web.search.provider === "duckduckgo"
+  ) {
+    delete next.tools.web.search.provider;
+    if (Object.keys(next.tools.web.search).length === 0) {
+      delete next.tools.web.search;
+    }
+    if (Object.keys(next.tools.web).length === 0) {
+      delete next.tools.web;
+    }
+  }
+
+  const knapsackAccessToken =
+    readJsonFile(qaTokensPath)?.knapsack_access_token || "";
+  if (
+    knapsackAccessToken &&
+    next.agents &&
+    typeof next.agents === "object" &&
+    next.agents.defaults &&
+    typeof next.agents.defaults === "object" &&
+    next.agents.defaults.model &&
+    typeof next.agents.defaults.model === "object" &&
+    next.agents.defaults.model.primary === "auto"
+  ) {
+    next.agents.defaults.model.primary = "knapsack/auto";
+  }
+
+  if (JSON.stringify(next) !== JSON.stringify(qaConfig)) {
+    writeJsonFile(qaConfigPath, next);
+    console.log(
+      "[qa-dev-run] seeded isolated QA openclaw.json from prod config",
+    );
+  }
+}
+
 function waitForUrl(url, timeoutMs = 30_000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
@@ -154,10 +312,15 @@ function waitForFreshLaunchAgentPlist(minMtimeMs, timeoutMs = 45_000) {
           const mtimeMs = fs.statSync(launchAgentPlist).mtimeMs;
           const plist = readLaunchAgentPlist();
           const entry = plist.ProgramArguments?.[1] || "";
+          const plistStateDir =
+            plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
+            plist.EnvironmentVariables?.OPENCLAW_HOME ||
+            "";
           if (
             entry.startsWith(
               path.join(projectDir, "src-tauri", "resources", "clawdbot"),
-            )
+            ) &&
+            path.resolve(plistStateDir || ".") === path.resolve(qaStateDir)
           ) {
             if (mtimeMs < minMtimeMs) {
               console.warn(
@@ -450,6 +613,12 @@ function startDirectGatewayFromPlist() {
     plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
     plist.EnvironmentVariables?.OPENCLAW_HOME ||
     qaStateDir;
+  if (path.resolve(gatewayStateDir) !== path.resolve(qaStateDir)) {
+    console.warn(
+      `[qa-dev-run] Skipping direct gateway: plist state dir is not isolated to this checkout (${gatewayStateDir})`,
+    );
+    return null;
+  }
 
   console.log(
     "[qa-dev-run] Starting direct dev gateway from LaunchAgent plist",
@@ -466,6 +635,70 @@ function startDirectGatewayFromPlist() {
     }),
     windowsHide: true,
   });
+}
+
+function configuredBundledChannelPlugins() {
+  const cfg = readJsonFile(qaConfigPath);
+  const channels = cfg && typeof cfg === "object" ? cfg.channels : null;
+  if (!channels || typeof channels !== "object") return [];
+  const supported = new Set(["slack", "telegram", "whatsapp"]);
+  const plugins = [];
+  for (const [name, value] of Object.entries(channels)) {
+    if (!supported.has(name)) continue;
+    if (
+      value &&
+      typeof value === "object" &&
+      Object.prototype.hasOwnProperty.call(value, "enabled") &&
+      value.enabled === false
+    ) {
+      continue;
+    }
+    plugins.push(name);
+  }
+  return [...new Set(plugins)].sort();
+}
+
+function pluginRuntimeDepsReady(pluginName) {
+  const pluginDir = path.join(sourceClawdbotDir, "dist", "extensions", pluginName);
+  const pkg = readJsonFile(path.join(pluginDir, "package.json"));
+  if (!pkg || typeof pkg !== "object") return true;
+  const needsStage =
+    !!pkg.openclaw &&
+    !!pkg.openclaw.bundle &&
+    pkg.openclaw.bundle.stageRuntimeDependencies === true;
+  if (!needsStage) return true;
+  const deps = pkg.dependencies && typeof pkg.dependencies === "object" ? pkg.dependencies : {};
+  const depNames = Object.keys(deps).filter((dep) => {
+    const version = deps[dep];
+    return (
+      typeof version === "string" &&
+      !version.startsWith("file:") &&
+      !version.startsWith("link:") &&
+      !version.startsWith("workspace:") &&
+      !version.startsWith("portal:")
+    );
+  });
+  if (depNames.length === 0) return true;
+  return depNames.every((dep) =>
+    fs.existsSync(path.join(pluginDir, "node_modules", dep)),
+  );
+}
+
+async function waitForBundledPluginRuntimeDepsReady(timeoutMs = 60_000) {
+  const plugins = configuredBundledChannelPlugins();
+  if (plugins.length === 0) return;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const pending = plugins.filter((pluginName) => !pluginRuntimeDepsReady(pluginName));
+    if (pending.length === 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  const pending = plugins.filter((pluginName) => !pluginRuntimeDepsReady(pluginName));
+  if (pending.length > 0) {
+    throw new Error(
+      `Timed out waiting for bundled plugin runtime deps: ${pending.join(", ")}`,
+    );
+  }
 }
 
 function latestMtimeMs(dir, shouldInclude) {
@@ -533,6 +766,8 @@ async function main() {
   syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
+  seedQaProviderTokensFromProd();
+  seedQaConfigFromProd();
   bootoutLaunchAgent();
   killStaleGateways();
   killStaleOpenClawChrome();
@@ -615,6 +850,7 @@ async function main() {
   await waitForUrl("http://127.0.0.1:8897/api/clawd/service/status", 45_000);
   if (process.platform === "darwin") {
     await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
+    await waitForBundledPluginRuntimeDepsReady(60_000);
     startManagedGateway();
   }
 
