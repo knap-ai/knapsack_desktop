@@ -66,42 +66,126 @@ export function extractExternalEmails(myEmail: string, emailList: string[]): str
   })
 }
 
+function cleanMeetingLine(line: string): string {
+  return line
+    .replace(/^[-*]\s*/, '')
+    .replace(/^-\s*\[[ xX]\]\s*/, '')
+    .replace(/^action item[s]?:\s*/i, '')
+    .replace(/^action:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function ensureSentence(text: string): string {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`
+}
+
+function extractSection(lines: string[], heading: RegExp): string[] {
+  const startIndex = lines.findIndex(line => heading.test(line.trim()))
+  if (startIndex === -1) return []
+  const out: string[] = []
+  for (let i = startIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (!line) continue
+    if (/^##\s+/.test(line)) break
+    out.push(line)
+  }
+  return out
+}
+
+function extractHighlights(lines: string[]): string[] {
+  const sectionLines = extractSection(lines, /^##\s+Highlights/i)
+  return sectionLines
+    .filter(line => /^[-*]\s+/.test(line))
+    .map(cleanMeetingLine)
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function extractActionItems(lines: string[]): string[] {
+  const explicitSection = extractSection(lines, /^##\s+Action Items/i)
+  const sectionMatches = explicitSection
+    .filter(line => /^[-*]\s+/.test(line))
+    .map(cleanMeetingLine)
+    .filter(Boolean)
+
+  if (sectionMatches.length > 0) {
+    return sectionMatches
+  }
+
+  return lines
+    .filter(line => /^-\s*\[[ xX]\]/.test(line) || /^action item[s]?:/i.test(line) || /^action:/i.test(line))
+    .map(cleanMeetingLine)
+    .filter(Boolean)
+}
+
+function extractSummaryParagraph(lines: string[]): string | undefined {
+  const summaryIndex = lines.findIndex(line => /^#\s+Summary/i.test(line.trim()))
+  if (summaryIndex === -1) return
+  const summaryLines: string[] = []
+  for (let i = summaryIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (!line) continue
+    if (/^##\s+/.test(line) || /^#\s+Meeting Notes/i.test(line)) break
+    if (/^[-*]\s+/.test(line)) continue
+    summaryLines.push(line)
+    if (summaryLines.join(' ').length > 240) break
+  }
+  const summary = ensureSentence(summaryLines.join(' ').replace(/\s+/g, ' ').trim())
+  return summary || undefined
+}
+
+function firstName(nameOrEmail?: string): string | undefined {
+  const value = nameOrEmail?.trim()
+  if (!value) return
+  const beforeEmail = value.split('<')[0].trim()
+  const candidate = beforeEmail || value.split('@')[0].trim()
+  const token = candidate.split(/\s+/)[0]?.trim()
+  return token || undefined
+}
+
 /**
- * Build a conversational meeting follow-up email from raw meeting notes markdown.
- * Extracts action items and key decisions, then writes them as plain prose rather
- * than pasting the full structured notes dump.
+ * Build a short, conversational meeting follow-up email from meeting notes.
+ * We intentionally avoid dumping raw task lists into the draft.
  */
-export function buildFollowUpEmailBody(notesMarkdown: string, meetingTitle?: string, userName?: string): string {
-  const lines = notesMarkdown.split('\n').map(l => l.trim()).filter(Boolean)
+export function buildFollowUpEmailBody(
+  notesMarkdown: string,
+  meetingTitle?: string,
+  userName?: string,
+  recipientName?: string,
+): string {
+  const lines = notesMarkdown.split('\n')
+  const summary = extractSummaryParagraph(lines)
+  const highlights = extractHighlights(lines)
+  const actionItems = extractActionItems(lines)
 
-  // Pull out action items (lines with checkboxes or starting with "Action:")
-  const actionItems = lines.filter(l =>
-    /^-\s*\[[ xX]\]/.test(l) || /^action item[s]?:/i.test(l) || /^action:/i.test(l)
-  ).map(l => l.replace(/^-\s*\[[ xX]\]\s*/, '').replace(/^action item[s]?:\s*/i, '').replace(/^action:\s*/i, ''))
-
-  // Pull out key decisions / outcomes
-  const decisions = lines.filter(l =>
-    /^(?:decision|outcome|agreed|next step)[s]?:/i.test(l)
-  ).map(l => l.replace(/^[^:]+:\s*/i, ''))
-
-  const greeting = `<p>Hi,</p>`
-  const intro = `<p>Great meeting${meetingTitle ? ` about ${meetingTitle}` : ''} — thanks for your time!</p>`
+  const greetingName = firstName(recipientName)
+  const greeting = `<p>Hi${greetingName ? ` ${escHtml(greetingName)}` : ''},</p>`
+  const intro = `<p>Great meeting today${meetingTitle ? ` about <strong>${escHtml(meetingTitle)}</strong>` : ''}. Thanks again for your time.</p>`
 
   let body = greeting + intro
 
-  if (actionItems.length > 0) {
-    body += `<p>Here's what we agreed on:</p><ul style="margin:4px 0;padding-left:20px">`
-    actionItems.forEach(item => { body += `<li>${escHtml(item)}</li>` })
-    body += `</ul>`
-  } else if (decisions.length > 0) {
-    body += `<p>Key takeaways:</p><ul style="margin:4px 0;padding-left:20px">`
-    decisions.forEach(d => { body += `<li>${escHtml(d)}</li>` })
-    body += `</ul>`
-  } else {
-    body += `<p>Happy to share a quick summary if useful — just let me know.</p>`
+  if (summary) {
+    body += `<p>${escHtml(summary)}</p>`
   }
 
-  body += `<p>Let me know if you have any questions or if anything needs adjusting.</p>`
+  if (highlights.length > 0) {
+    body += `<p>A few quick takeaways from our conversation:</p><ul style="margin:4px 0;padding-left:20px">`
+    highlights.forEach(item => {
+      body += `<li>${escHtml(ensureSentence(item))}</li>`
+    })
+    body += `</ul>`
+  }
+
+  if (actionItems.length > 0) {
+    body += `<p>I’ll follow up on the next steps we discussed and keep you posted on progress.</p>`
+  } else if (highlights.length === 0 && !summary) {
+    body += `<p>I’m happy to send over anything else that would be helpful from our conversation.</p>`
+  }
+
+  body += `<p>Please let me know if there’s anything you’d like me to prioritize or clarify.</p>`
   body += `<p>Best,<br>${escHtml(userName || '')}</p>`
   return body
 }

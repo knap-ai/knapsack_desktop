@@ -677,12 +677,20 @@ function Home({
                   }}
                   onEmailClick={(notesMarkdown, meeting) => {
                     const participants = meeting?.participants ?? []
+                    const primaryRecipient = participants.find(
+                      p => p.email && p.email !== userEmail,
+                    )
                     const toEmails = participants
                       .filter(p => p.email && p.email !== userEmail)
                       .map(p => p.email)
                       .join(', ')
                     const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
-                    const body = buildFollowUpEmailBody(notesMarkdown, meeting?.title, userName)
+                    const body = buildFollowUpEmailBody(
+                      notesMarkdown,
+                      meeting?.title,
+                      userName,
+                      primaryRecipient?.name || primaryRecipient?.email,
+                    )
                     feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}
                 />
