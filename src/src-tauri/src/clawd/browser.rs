@@ -4773,12 +4773,13 @@ Examples:
 
 ## Quick Access to Common Services
 - If the user's prompt is only asking about their emails, inbox, schedule, meetings, or calendar, and the prompt already includes native Knapsack email/calendar context, answer from that context first instead of opening the browser.
+- If the user pasted or referenced a connected Google Docs / Sheets / Drive URL, fetch it through the local Knapsack Drive endpoint first so you can read the exported text/CSV directly before opening the browser.
 - Only use browser navigation for Gmail/Calendar/Drive when the user explicitly asks to use the web UI or when the native context/tooling cannot answer the request.
 - "check my email" / "Gmail" → prefer native email context first; only navigate("https://mail.google.com") if native context is unavailable or insufficient
 - "search for X" → navigate("https://www.google.com/search?q=X")  (only the search query goes in the URL)
 - "calendar" → prefer native calendar context first; only navigate("https://calendar.google.com") if native context is unavailable or insufficient
 - "tasks" / "Google Tasks" → navigate("https://tasks.google.com")
-- "drive" / "docs" → prefer native Drive context when provided; otherwise navigate("https://drive.google.com")
+- "drive" / "docs" / "sheets" → prefer native Drive context and `http://127.0.0.1:8897/api/knapsack/connections/google/drive/file_text?email=<connected_google_email>&id_or_url=<urlencoded drive or sheets url>` when possible; otherwise navigate("https://drive.google.com")
 - "LinkedIn" → navigate("https://www.linkedin.com")
 - "Twitter" / "X" → navigate("https://x.com")
 - "GitHub" → navigate("https://github.com")

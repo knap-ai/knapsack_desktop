@@ -17,6 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
+use url::Url;
 
 use crate::constants::EMBEDDING_BATCH_SIZE;
 use crate::db::models::{
@@ -40,6 +41,12 @@ pub struct FetchGoogleDriveResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleDriveParams {
   email: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FetchGoogleDriveFileTextParams {
+  email: String,
+  id_or_url: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -152,6 +159,82 @@ struct FetchGoogleDriveFileResponse {
   success: bool,
   error: Option<String>,
   paths: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+struct FetchGoogleDriveFileTextResponse {
+  success: bool,
+  error: Option<String>,
+  file_id: Option<String>,
+  name: Option<String>,
+  mime_type: Option<String>,
+  content: Option<String>,
+  truncated: bool,
+}
+
+fn resolve_google_drive_file_id(id_or_url: &str) -> Option<String> {
+  let trimmed = id_or_url.trim();
+  if trimmed.is_empty() {
+    return None;
+  }
+  if !trimmed.contains("://") {
+    return Some(trimmed.to_string());
+  }
+
+  let parsed = Url::parse(trimmed).ok()?;
+
+  if let Some(id) = parsed
+    .query_pairs()
+    .find_map(|(key, value)| (key == "id").then(|| value.into_owned()))
+  {
+    if !id.is_empty() {
+      return Some(id);
+    }
+  }
+
+  let segments = parsed.path_segments()?.collect::<Vec<_>>();
+  for pair in segments.windows(2) {
+    if pair[0] == "d" && !pair[1].is_empty() {
+      return Some(pair[1].to_string());
+    }
+  }
+
+  if segments.len() >= 2 && segments[0] == "folders" && !segments[1].is_empty() {
+    return Some(segments[1].to_string());
+  }
+
+  None
+}
+
+#[cfg(test)]
+mod tests {
+  use super::resolve_google_drive_file_id;
+
+  #[test]
+  fn extracts_drive_ids_from_google_urls_and_plain_ids() {
+    assert_eq!(
+      resolve_google_drive_file_id("1AbCdEfGhIjKlMnOpQrStUvWxYz"),
+      Some("1AbCdEfGhIjKlMnOpQrStUvWxYz".to_string())
+    );
+    assert_eq!(
+      resolve_google_drive_file_id(
+        "https://docs.google.com/spreadsheets/d/1sheetIdExample123/edit#gid=0"
+      ),
+      Some("1sheetIdExample123".to_string())
+    );
+    assert_eq!(
+      resolve_google_drive_file_id(
+        "https://drive.google.com/file/d/1fileIdExample456/view?usp=sharing"
+      ),
+      Some("1fileIdExample456".to_string())
+    );
+    assert_eq!(
+      resolve_google_drive_file_id(
+        "https://drive.google.com/open?id=1queryParamId789"
+      ),
+      Some("1queryParamId789".to_string())
+    );
+  }
 }
 
 pub async fn embed_drive_document(
@@ -633,6 +716,65 @@ async fn fetch_google_drive_files(
   //     .await;
   // }
   Ok(HttpResponse::Ok().json(json!({ "success": true,  "data": documents })))
+}
+
+#[get("/api/knapsack/connections/google/drive/file_text")]
+async fn fetch_google_drive_file_text(
+  req: HttpRequest,
+) -> Result<HttpResponse, error::Error> {
+  let params =
+    actix_web::web::Query::<FetchGoogleDriveFileTextParams>::from_query(req.query_string())
+      .map_err(|e| error::ErrorBadRequest(e.to_string()))?;
+
+  let file_id = resolve_google_drive_file_id(&params.id_or_url)
+    .ok_or_else(|| error::ErrorBadRequest("Could not extract a Google Drive file id"))?;
+
+  let user_connection = UserConnection::find_by_user_email_and_scope(
+    params.email.clone(),
+    String::from(GOOGLE_DRIVE_SCOPE),
+  )
+  .map_err(|e| error::ErrorBadRequest(format!("Drive connection not found: {:?}", e)))?;
+
+  let access_token = refresh_connection_token(params.email.clone(), user_connection.clone())
+    .await
+    .map_err(|e| error::ErrorInternalServerError(format!("Failed to refresh Drive token: {:?}", e)))?;
+
+  let hub = DriveHub::new(get_https_client(), access_token);
+  let (_response, file) = hub
+    .files()
+    .get(&file_id)
+    .param("fields", "id,name,mimeType")
+    .doit()
+    .await
+    .map_err(|e| error::ErrorBadRequest(format!("Failed to fetch Drive file metadata: {:?}", e)))?;
+
+  let mime_type = file.mime_type.clone().unwrap_or_else(|| "text/plain".to_string());
+  let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+  let temp_dir = home_dir.join("knapsack_temp");
+  fs::create_dir_all(temp_dir.clone())?;
+
+  let chunks = get_drive_file_content(mime_type.clone(), file_id.clone(), temp_dir, hub.clone())
+    .await
+    .ok_or_else(|| error::ErrorBadRequest("Failed to export or download Drive file content"))?;
+
+  let combined = chunks.join("\n");
+  let max_chars = 200_000;
+  let truncated = combined.chars().count() > max_chars;
+  let content = if truncated {
+    combined.chars().take(max_chars).collect::<String>()
+  } else {
+    combined
+  };
+
+  Ok(HttpResponse::Ok().json(FetchGoogleDriveFileTextResponse {
+    success: true,
+    error: None,
+    file_id: Some(file_id),
+    name: file.name.clone(),
+    mime_type: Some(mime_type),
+    content: Some(content),
+    truncated,
+  }))
 }
 
 #[get("/api/knapsack/google/drive/mimeTypes")]

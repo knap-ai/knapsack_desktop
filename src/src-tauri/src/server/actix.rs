@@ -261,6 +261,7 @@ pub async fn start_server<'a>(
       .service(connections::google::profile::fetch_google_profile_api)
       .service(connections::google::drive::fetch_google_drive_api)
       .service(connections::google::drive::fetch_google_drive_files)
+      .service(connections::google::drive::fetch_google_drive_file_text)
       .service(connections::google::drive::fetch_google_drive_mime_types)
       .service(connections::google::drive::fetch_google_drive_documents_ids_shared_by_users)
       .service(connections::google::calendar::fetch_google_calendar_api)
