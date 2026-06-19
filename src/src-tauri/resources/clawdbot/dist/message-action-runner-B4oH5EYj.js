@@ -1030,13 +1030,27 @@ async function maybeApplyCrossContextMarker(params) {
 	});
 }
 async function resolveChannel(cfg, params, toolContext) {
+	const explicitChannel = readStringParam(params, "channel");
+	const rawTarget = readStringParam(params, "target") ?? readStringParam(params, "to") ?? readStringParam(params, "channelId");
+	const normalizedTarget = typeof rawTarget === "string" ? rawTarget.trim() : "";
+	const inferredTargetChannel = !explicitChannel && normalizedTarget ? inferExplicitTargetChannel(normalizedTarget) : void 0;
 	const selection = await resolveMessageChannelSelection({
 		cfg,
-		channel: readStringParam(params, "channel"),
-		fallbackChannel: toolContext?.currentChannelProvider
+		channel: explicitChannel,
+		fallbackChannel: toolContext?.currentChannelProvider ?? inferredTargetChannel
 	});
-	if (selection.source === "tool-context-fallback") params.channel = selection.channel;
+	if ((selection.source === "tool-context-fallback" || selection.source === "single-configured") && !params.channel) params.channel = selection.channel;
 	return selection.channel;
+}
+function inferExplicitTargetChannel(target) {
+	if (/^(channel|group|user):/i.test(target)) {
+		const prefixed = target.split(":", 1)[0]?.toLowerCase();
+		if (prefixed === "channel" || prefixed === "group" || prefixed === "user") return;
+		return prefixed;
+	}
+	if (/^[UCGDW][A-Z0-9]{8,}$/i.test(target)) return "slack";
+	if (/^-?\d{6,}$/.test(target) || /^@[a-z0-9_]{3,}$/i.test(target)) return "telegram";
+	return;
 }
 function addCandidateAndUnprefixedAlias(candidates, value) {
 	const normalized = normalizeOptionalString(value);
