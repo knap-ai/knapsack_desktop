@@ -327,6 +327,8 @@ function friendlyError(raw: string, activeModel?: string): string {
 }
 
 type Role = 'system' | 'user' | 'assistant'
+type Attachment = { name: string; type: string; content: string; preview?: string }
+type QueuedDraft = { text: string; attachments: Attachment[] }
 
 type Msg = {
   id: string
@@ -1171,9 +1173,9 @@ type ChatInputBarProps = {
   isRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
-  attachedFiles: Array<{ name: string; type: string; content: string; preview?: string }>
+  attachedFiles: Attachment[]
   onSend: (text: string) => void
-  onQueue: (text: string) => void
+  onQueue: (text: string, attachments?: Attachment[]) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
@@ -1500,7 +1502,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
           title="Attach files or images"
         >
           📎
@@ -1524,8 +1525,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 e.preventDefault()
                 if (busy) {
                   // Queue the message to send after current request completes
-                  if (input.trim()) {
-                    onQueue(input.trim())
+                  if (input.trim() || attachedFiles.length > 0) {
+                    onQueue(input.trim(), attachedFiles)
                     setInput('')
                     autoResize()
                   }
@@ -1562,10 +1563,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               ⏹️ Stop
             </button>
             <button
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachedFiles.length === 0}
               onClick={() => {
-                if (input.trim()) {
-                  onQueue(input.trim())
+                if (input.trim() || attachedFiles.length > 0) {
+                  onQueue(input.trim(), attachedFiles)
                   setInput('')
                   autoResize()
                 }
@@ -1795,9 +1796,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
-  const queuedMessagesRef = useRef<string[]>([])
+  const queuedMessagesRef = useRef<QueuedDraft[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
-  const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
+  const [queuedMessages, setQueuedMessages] = useState<QueuedDraft[]>([])
   const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
   const [editingQueuedText, setEditingQueuedText] = useState('')
 
@@ -2000,7 +2001,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOutputDevice, _setSelectedOutputDevice] = useState<string>('')
 
   // File upload state
-  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; type: string; content: string; preview?: string }>>([])
+  const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -2020,7 +2021,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
-  const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
   const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
@@ -3637,7 +3638,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage, queuedMessageTexts])
+  }, [msgs, thinkingMessage, queuedMessages])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -3761,7 +3762,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // handleSendWithText queues automatically if the chat is busy mid-inference.
   const busyRef = useRef(false)
   busyRef.current = busy
-  const queueMessageRef = useRef<(text: string) => void>(() => {})
+  const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
@@ -4057,7 +4058,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
 
-  const doSend = async (text: string) => {
+  const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
 
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
@@ -4095,8 +4096,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setReplyToMsg(null)
 
     // Capture current attachments and clear them
-    const currentAttachments = [...attachedFiles]
-    setAttachedFiles([])
+    const currentAttachments = attachmentOverride ? [...attachmentOverride] : [...attachedFiles]
+    if (!attachmentOverride) setAttachedFiles([])
 
     // Show user message with attachment indicators
     const attachmentSummary = currentAttachments.length > 0
@@ -4787,10 +4788,16 @@ ${actualText}`
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
   // Queue a message to send after the current request completes
-  const stableQueueMessage = useCallback((text: string) => {
-    queuedMessagesRef.current = [...queuedMessagesRef.current, text]
+  const stableQueueMessage = useCallback((text: string, attachments: Attachment[] = []) => {
+    const nextDraft: QueuedDraft = { text, attachments: [...attachments] }
+    queuedMessagesRef.current = [...queuedMessagesRef.current, nextDraft]
     setHasQueuedMessage(true)
-    setQueuedMessageTexts(prev => [...prev, text])
+    setQueuedMessages(prev => [...prev, nextDraft])
+    if (attachments.length > 0) {
+      setAttachedFiles(prev =>
+        prev.filter(file => !attachments.some(att => att.name === file.name && att.content === file.content))
+      )
+    }
   }, [])
   // Keep queueMessageRef updated so handleSendWithText can queue mid-inference
   queueMessageRef.current = stableQueueMessage
@@ -4801,10 +4808,10 @@ ${actualText}`
     if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
       const [next, ...rest] = queuedMessagesRef.current
       queuedMessagesRef.current = rest
-      setQueuedMessageTexts(rest)
+      setQueuedMessages(rest)
       setHasQueuedMessage(rest.length > 0)
       // Short delay to let UI settle before sending next message
-      const timer = setTimeout(() => doSendRef.current?.(next), 150)
+      const timer = setTimeout(() => doSendRef.current?.(next.text, next.attachments), 150)
       return () => clearTimeout(timer)
     }
     prevBusyRef.current = busy
@@ -5493,7 +5500,7 @@ ${actualText}`
             </div>
           </div>
         )}
-        {queuedMessageTexts.map((qText, i) => (
+        {queuedMessages.map((queued, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
             {editingQueuedIndex === i ? (
               <div className="ClawdQueuedEdit">
@@ -5507,9 +5514,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     } else if (e.key === 'Escape') {
@@ -5525,9 +5532,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     }}
@@ -5544,18 +5551,25 @@ ${actualText}`
               </div>
             ) : (
               <div className="ClawdBubble">
-                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>
+                  {queued.text || (queued.attachments.length > 0 ? 'Please analyze the attached files.' : '')}
+                </ReactMarkdown>
+                {queued.attachments.length > 0 && (
+                  <div className="ClawdQueuedAttachmentSummary">
+                    Attached: {queued.attachments.map(file => file.name).join(', ')}
+                  </div>
+                )}
               </div>
             )}
             <div className="ClawdQueuedFooter">
-              <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
+              <span className="ClawdQueuedLabel">Queued{queuedMessages.length > 1 ? ` (${i + 1} of ${queuedMessages.length})` : ''}</span>
               {editingQueuedIndex !== i && (
                 <div className="ClawdQueuedActions">
                   <button
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
-                      setEditingQueuedText(qText)
+                      setEditingQueuedText(queued.text)
                       setEditingQueuedIndex(i)
                     }}
                   >
@@ -5567,7 +5581,7 @@ ${actualText}`
                     onClick={() => {
                       const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)
                       queuedMessagesRef.current = updated
-                      setQueuedMessageTexts(updated)
+                      setQueuedMessages(updated)
                       setHasQueuedMessage(updated.length > 0)
                     }}
                   >
