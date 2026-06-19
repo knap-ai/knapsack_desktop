@@ -881,6 +881,54 @@ function capInlineChatContext(text: string): string {
     'Additional inline context omitted to keep the request within the model budget',
   )
 }
+const SLACK_GUIDED_SETUP_PROMPT = `Please set up the Slack integration for Knapsack for me using the browser.
+
+Goals:
+1. Open the Slack app configuration flow and reuse the existing Knapsack/OpenClaw/Vera app if one already exists. Only create a new app if there is no suitable existing one.
+2. Make sure the app is configured for internal workspace use like Merlin.
+3. Add every required setting so the Slack integration works without extra manual guesswork.
+
+Required Slack settings:
+- App Home:
+  - home_tab_enabled = true
+  - messages_tab_enabled = true
+  - messages_tab_read_only_enabled = false
+- Assistant threads enabled
+- Socket Mode enabled
+- App-level token with scope: connections:write
+- Bot token scopes:
+  - app_mentions:read
+  - assistant:write
+  - channels:history
+  - channels:read
+  - chat:write
+  - commands
+  - emoji:read
+  - files:read
+  - files:write
+  - groups:history
+  - groups:read
+  - im:history
+  - im:read
+  - im:write
+  - mpim:history
+  - mpim:read
+  - mpim:write
+  - pins:read
+  - pins:write
+  - reactions:read
+  - reactions:write
+  - usergroups:read
+  - users:read
+- Optional if available: chat:write.customize
+
+When finished:
+1. Reinstall the Slack app to the workspace if Slack requires it.
+2. Confirm that the app can receive direct messages and that sending messages to the app is not turned off.
+3. Give me the exact xoxb bot token and xapp app-level token I should save in Knapsack, or paste them into the Slack token fields if you can interact with them directly.
+4. If any step requires a human admin click or approval, stop and give me one crisp instruction at a time.
+
+Please drive this in the browser and keep going until Slack is fully configured or you hit a real human-only blocker.`
 
 // Check for freshly onboarded agents and build a personalized intro prompt
 function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
@@ -6483,6 +6531,18 @@ ${actualText}`
                       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
+                      <div className="ClawdChannelGuideActions">
+                        <button
+                          className="ClawdChannelGuidePrimaryBtn"
+                          type="button"
+                          onClick={() => handleSendWithText(SLACK_GUIDED_SETUP_PROMPT)}
+                        >
+                          Set up Slack with Knapsack
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote ClawdChannelGuideNote--compact">
+                        Knapsack will open the Slack app setup flow in your browser, apply the required App Home, Messages tab, Socket Mode, and scope settings, and then bring back the tokens you need.
+                      </div>
                       {(() => {
                         const botTrimmed = slackBotToken.trim()
                         const appTrimmed = slackAppToken.trim()
@@ -6491,6 +6551,7 @@ ${actualText}`
                         const canSave = botTrimmed && appTrimmed && botValid && appValid
                         return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Or enter the tokens manually:</div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Bot Token</label>
                           <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
