@@ -2022,23 +2022,68 @@ async function startGatewayServer(port = 18789, opts = {}) {
 		log.info(`http server listening (desktop-managed early-bind; 0 plugins; ${elapsedSeconds}s)`);
 		startDesktopBrowserControlPlaceholder(log);
 	}
-	if (desktopManagedFastStartup) {
-		startupTrace.mark("runtime.channels.deferred");
-	} else {
-		const { createChannelManager } = await startupTrace.measure("runtime.channels.import", () => import("./server-channels-CRUeVkRN.js"));
-		Object.assign(channelManager, createChannelManager({
-			getRuntimeConfig: () => applyPluginAutoEnable({
-				config: getRuntimeConfig(),
-				env: process.env
-			}).config,
-			channelLogs,
-			channelRuntimeEnvs,
-			resolveChannelRuntime: getChannelRuntime,
-			resolveStartupChannelRuntime: getStartupChannelRuntime,
-			getPluginHttpRouteRegistry: () => pluginRegistry,
-			startupTrace
-		}));
-	}
+	const { createChannelManager } = await startupTrace.measure("runtime.channels.import", () => import("./server-channels-CRUeVkRN.js"));
+	const normalizeGatewayRuntimeConfig = (candidate) => {
+		if (!candidate || typeof candidate !== "object") return candidate;
+		if (candidate.channels && typeof candidate.channels === "object") return candidate;
+		if (candidate.config && typeof candidate.config === "object") return candidate.config;
+		if (candidate.runtimeConfig && typeof candidate.runtimeConfig === "object") return candidate.runtimeConfig;
+		return candidate;
+	};
+	const resolveChannelManagerConfig = () => {
+		const liveBase = normalizeGatewayRuntimeConfig(getActiveSecretsRuntimeSnapshot()?.config ?? getRuntimeConfig());
+		const live = applyPluginAutoEnable({
+			config: liveBase,
+			env: process.env
+		}).config;
+		const startup = applyPluginAutoEnable({
+			config: cfgAtStart,
+			env: process.env
+		}).config;
+		const startupChannels = startup?.channels && typeof startup.channels === "object" ? startup.channels : {};
+		const liveChannels = live?.channels && typeof live.channels === "object" ? live.channels : {};
+		const startupChannelIds = Object.keys(startupChannels);
+		if (startupChannelIds.length === 0) return live;
+		const mergedChannels = {
+			...startupChannels,
+			...liveChannels
+		};
+		for (const channelId of startupChannelIds) {
+			const startupChannel = startupChannels[channelId];
+			const liveChannel = liveChannels[channelId];
+			if (!startupChannel || typeof startupChannel !== "object") continue;
+			if (!liveChannel || typeof liveChannel !== "object") {
+				mergedChannels[channelId] = startupChannel;
+				continue;
+			}
+			const startupAccounts = startupChannel.accounts && typeof startupChannel.accounts === "object" ? Object.keys(startupChannel.accounts) : [];
+			const liveAccounts = liveChannel.accounts && typeof liveChannel.accounts === "object" ? Object.keys(liveChannel.accounts) : [];
+			const startupSecrets = ["botToken", "appToken", "userToken", "signingSecret", "accessToken", "token", "apiKey", "phoneNumber"].some((key) => typeof startupChannel[key] === "string" && startupChannel[key].trim().length > 0);
+			const liveSecrets = ["botToken", "appToken", "userToken", "signingSecret", "accessToken", "token", "apiKey", "phoneNumber"].some((key) => typeof liveChannel[key] === "string" && liveChannel[key].trim().length > 0);
+			if (liveAccounts.length > 0 || startupAccounts.length === 0 && liveSecrets) continue;
+			mergedChannels[channelId] = {
+				...startupChannel,
+				...liveChannel,
+				accounts: liveAccounts.length > 0 ? liveChannel.accounts : startupChannel.accounts
+			};
+		}
+		return {
+			...startup,
+			...live,
+			channels: mergedChannels,
+			plugins: live?.plugins ?? startup.plugins
+		};
+	};
+	if (desktopManagedFastStartup) startupTrace.mark("runtime.channels.deferred");
+	Object.assign(channelManager, createChannelManager({
+		getRuntimeConfig: resolveChannelManagerConfig,
+		channelLogs,
+		channelRuntimeEnvs,
+		resolveChannelRuntime: getChannelRuntime,
+		resolveStartupChannelRuntime: getStartupChannelRuntime,
+		getPluginHttpRouteRegistry: () => pluginRegistry,
+		startupTrace
+	}));
 	const { a: incrementPresenceVersion, i: getPresenceVersion, n: getHealthCache, o: refreshGatewayHealthSnapshot, r: getHealthVersion } = await startupTrace.measure("runtime.health-state.import", () => loadHealthStateModule());
 	({ getRuntimeSnapshot, startChannels, startChannel, stopChannel, markChannelLoggedOut } = channelManager);
 	const { createGatewayNodeSessionRuntime } = await import("./server-node-session-runtime-C2gow8hU.js");
@@ -2268,6 +2313,16 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
 			pinActivePluginHttpRouteRegistry(pluginRegistry);
 			pinActivePluginChannelRegistry(pluginRegistry);
+		};
+		const activateDesktopCoreMethods = async (reason) => {
+			try {
+				const { coreGatewayHandlers: loadedCoreGatewayHandlers } = await loadCoreMethodsModule();
+				coreGatewayHandlers = loadedCoreGatewayHandlers;
+				attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+				runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
+			} catch (err) {
+				log.warn(`desktop-managed core gateway methods failed to load after ${reason}: ${String(err)}`);
+			}
 		};
 		const refreshAttachedGatewayDiscovery = async (nextPluginRegistry) => {
 			if (minimalTestGateway) return;
@@ -2500,13 +2555,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			if (!desktopManagedEarlyBound) log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
 			startDesktopBrowserControlPlaceholder(log);
 			setTimeout(() => {
-				loadCoreMethodsModule().then(({ coreGatewayHandlers: loadedCoreGatewayHandlers }) => {
-					coreGatewayHandlers = loadedCoreGatewayHandlers;
-					attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
-					runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
-				}).catch((err) => {
-					log.warn(`desktop-managed core gateway methods failed to load after listen: ${String(err)}`);
-				});
+				activateDesktopCoreMethods("listen timeout");
 			}, 45e3).unref?.();
 		}
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
@@ -2592,6 +2641,7 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			},
 			onStartupPluginsLoaded: async (loaded) => {
 				replaceAttachedPluginRuntime(loaded);
+				if (desktopManagedGateway) await activateDesktopCoreMethods("startup plugins");
 				startupPendingReason = "startup-sidecars";
 				await refreshAttachedGatewayDiscovery(loaded.pluginRegistry);
 			},

@@ -2586,7 +2586,7 @@ fn default_channel_status_params() -> Value {
 /// Get channel status from the gateway (pooled).
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  gateway_request_pooled("channels.status", Some(default_channel_status_params()), &t).await
+  call_channel_method("channels.status", Some(default_channel_status_params()), Some(&t)).await
 }
 
 /// Call a channel method on the gateway (pooled).
