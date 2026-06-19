@@ -1787,6 +1787,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     return []
   })
+  const [chatFindOpen, setChatFindOpen] = useState(false)
+  const [chatFindQuery, setChatFindQuery] = useState('')
+  const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
@@ -2008,6 +2011,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Message threading (reply-to) state
   const [replyToMsg, setReplyToMsg] = useState<Msg | null>(null)
+  const chatFindInputRef = useRef<HTMLInputElement | null>(null)
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
@@ -4809,24 +4813,39 @@ ${actualText}`
   // Keyboard shortcuts
   const clearHistoryRef = useRef(clearHistory)
   clearHistoryRef.current = clearHistory
+  const openChatFindRef = useRef<() => void>(() => {})
+  const closeChatFindRef = useRef<() => void>(() => {})
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') stopGenerationRef.current()
       const mod = e.metaKey || e.ctrlKey
+      if (e.key === 'Escape') {
+        const activeEl = document.activeElement
+        if (chatFindOpen && activeEl === chatFindInputRef.current) {
+          e.preventDefault()
+          closeChatFindRef.current()
+          return
+        }
+        stopGenerationRef.current()
+      }
       // Cmd/Ctrl+Shift+Backspace — clear chat history
       if (mod && e.shiftKey && e.key === 'Backspace') {
         e.preventDefault()
         clearHistoryRef.current()
       }
+      // Cmd/Ctrl+F — search chat history
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        openChatFindRef.current()
+      }
       // Cmd/Ctrl+L — focus chat input
-      if (mod && !e.shiftKey && e.key === 'l') {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [chatFindOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
@@ -4935,6 +4954,53 @@ ${actualText}`
     }),
     [msgs],
   )
+
+  const chatFindMatches = useMemo(() => {
+    const query = chatFindQuery.trim().toLowerCase()
+    if (!query) return [] as Array<{ id: string }>
+    return parsedMsgs
+      .filter(({ msg, cleaned }) => `${cleaned}\n${msg.text}`.toLowerCase().includes(query))
+      .map(({ msg }) => ({ id: msg.id }))
+  }, [parsedMsgs, chatFindQuery])
+
+  useEffect(() => {
+    if (chatFindMatches.length === 0) {
+      setChatFindActiveIndex(0)
+      return
+    }
+    setChatFindActiveIndex(prev => Math.min(prev, chatFindMatches.length - 1))
+  }, [chatFindMatches])
+
+  const openChatFind = useCallback(() => {
+    setChatFindOpen(true)
+    requestAnimationFrame(() => {
+      chatFindInputRef.current?.focus()
+      chatFindInputRef.current?.select()
+    })
+  }, [])
+
+  const closeChatFind = useCallback(() => {
+    setChatFindOpen(false)
+    setChatFindQuery('')
+    setChatFindActiveIndex(0)
+  }, [])
+
+  openChatFindRef.current = openChatFind
+  closeChatFindRef.current = closeChatFind
+
+  const goToChatFindMatch = useCallback((direction: 1 | -1) => {
+    if (chatFindMatches.length === 0) return
+    setChatFindActiveIndex(prev => (prev + direction + chatFindMatches.length) % chatFindMatches.length)
+  }, [chatFindMatches])
+
+  const activeChatFindMatchId = chatFindMatches[chatFindActiveIndex]?.id ?? null
+
+  useEffect(() => {
+    if (!activeChatFindMatchId) return
+    const el = msgRefsMap.current.get(activeChatFindMatchId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeChatFindMatchId])
 
   // Fast id→Msg lookup for reply-to resolution
   const msgsById = useMemo(() => {
@@ -5193,9 +5259,58 @@ ${actualText}`
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+        {chatFindOpen && (
+          <div className="ClawdChatFindBar" role="search" aria-label="Search chat history">
+            <input
+              ref={chatFindInputRef}
+              type="text"
+              value={chatFindQuery}
+              onChange={e => setChatFindQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  goToChatFindMatch(e.shiftKey ? -1 : 1)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeChatFind()
+                }
+              }}
+              placeholder="Search this conversation"
+              aria-label="Search this conversation"
+            />
+            <div className="ClawdChatFindBar__count">
+              {chatFindQuery.trim()
+                ? (chatFindMatches.length > 0 ? `${chatFindActiveIndex + 1}/${chatFindMatches.length}` : '0 results')
+                : 'Type to search'}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(-1)}
+              disabled={chatFindMatches.length === 0}
+              title="Previous match"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(1)}
+              disabled={chatFindMatches.length === 0}
+              title="Next match"
+            >
+              ↓
+            </button>
+            <button type="button" onClick={closeChatFind} title="Close search">
+              Close
+            </button>
+          </div>
+        )}
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
           <div
             key={m.id}
+            className={[
+              chatFindMatches.some(match => match.id === m.id) ? 'ClawdChatMatch' : '',
+              activeChatFindMatchId === m.id ? 'ClawdChatMatch--active' : '',
+            ].filter(Boolean).join(' ')}
             ref={el => {
               if (el) msgRefsMap.current.set(m.id, el)
               else msgRefsMap.current.delete(m.id)
