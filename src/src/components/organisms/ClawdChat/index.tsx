@@ -811,6 +811,74 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
+const MAX_NATIVE_PREFETCH_CONTEXT_CHARS = 6000
+const MAX_TERMINAL_CONTEXT_CHARS = 1800
+const MAX_TERMINAL_CONTEXT_LINES = 12
+const MAX_MEMORY_NOTE_ENTRIES = 6
+const MAX_MEMORY_NOTE_CHARS = 240
+const MAX_MEMORY_NOTE_TOTAL_CHARS = 1800
+const MAX_INLINE_CHAT_CONTEXT_CHARS = 12000
+
+function truncateWithNotice(text: string, maxChars: number, notice: string): string {
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}\n\n[${notice}; truncated from ${text.length} chars]`
+}
+
+function trimMemoryNotes(entries: Array<{ timestamp: string; summary: string }>): Array<{ timestamp: string; summary: string }> {
+  const trimmed = entries
+    .slice(-MAX_MEMORY_NOTE_ENTRIES)
+    .map(entry => ({
+      timestamp: entry.timestamp,
+      summary: (entry.summary || '').trim().slice(0, MAX_MEMORY_NOTE_CHARS),
+    }))
+    .filter(entry => entry.summary.length > 0)
+
+  const kept: Array<{ timestamp: string; summary: string }> = []
+  let totalChars = 0
+  for (const entry of trimmed.reverse()) {
+    const nextChars = entry.summary.length
+    if (kept.length > 0 && totalChars + nextChars > MAX_MEMORY_NOTE_TOTAL_CHARS) continue
+    kept.push(entry)
+    totalChars += nextChars
+  }
+  return kept.reverse()
+}
+
+function shouldIncludeTerminalContext(text: string, advancedMode: boolean, developerMode: boolean): boolean {
+  if (developerMode) return true
+  if (!advancedMode) return false
+  const lower = text.toLowerCase()
+  return [
+    'terminal',
+    'command',
+    'shell',
+    'log',
+    'error',
+    'stack trace',
+    'build',
+    'compile',
+    'test',
+    'debug',
+    'bug',
+    'npm',
+    'node',
+    'python',
+    'rust',
+    'cargo',
+    'git',
+    'repo',
+    'repository',
+    'code',
+  ].some(keyword => lower.includes(keyword))
+}
+
+function capInlineChatContext(text: string): string {
+  return truncateWithNotice(
+    text,
+    MAX_INLINE_CHAT_CONTEXT_CHARS,
+    'Additional inline context omitted to keep the request within the model budget',
+  )
+}
 
 // Check for freshly onboarded agents and build a personalized intro prompt
 function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
@@ -995,7 +1063,11 @@ async function fetchEmailCalendarContext(): Promise<string> {
     console.warn('[ClawdChat] Failed to pre-fetch upcoming meetings:', err)
   }
 
-  return contextParts.join('\n')
+  return truncateWithNotice(
+    contextParts.join('\n'),
+    MAX_NATIVE_PREFETCH_CONTEXT_CHARS,
+    'Native email/calendar context trimmed for foreground chat',
+  )
 }
 
 function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
@@ -4518,7 +4590,7 @@ ${actualText}`
 
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
-        if (!isSmartPrompt) {
+        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedMode, developerMode)) {
           try {
             const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
             if (termRes.ok) {
@@ -4528,10 +4600,15 @@ ${actualText}`
                 if (entries.length > 0) {
                   let termContext = '\n\n---\n[Terminal context — recent output from built-in terminal]\n'
                   for (const [sid, lines] of entries) {
-                    termContext += `[Session: ${sid}]\n${lines.join('\n')}\n`
+                    const recentLines = lines.slice(-MAX_TERMINAL_CONTEXT_LINES)
+                    termContext += `[Session: ${sid}]\n${recentLines.join('\n')}\n`
                   }
                   termContext += '---'
-                  actualText += termContext
+                  actualText += truncateWithNotice(
+                    termContext,
+                    MAX_TERMINAL_CONTEXT_CHARS,
+                    'Terminal context trimmed for foreground chat',
+                  )
                 }
               }
             }
@@ -4545,6 +4622,8 @@ ${actualText}`
           const quotedText = currentReplyTo.text.slice(0, 500).replace(/\n/g, '\n> ')
           actualText = `> ${quotedText}\n\n${actualText}`
         }
+
+        actualText = capInlineChatContext(actualText)
 
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
@@ -4560,7 +4639,7 @@ ${actualText}`
           developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
-          memoryNotes: getAgentMemory('knapsack-chat'), // Persistent cross-session context
+          memoryNotes: trimMemoryNotes(getAgentMemory('knapsack-chat')), // Persistent cross-session context
         }
 
         // Add attachments if present

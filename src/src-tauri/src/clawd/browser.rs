@@ -985,7 +985,12 @@ fn take_prefix_chars(value: &str, max_chars: usize) -> String {
   let mut chars = value.chars();
   let head: String = chars.by_ref().take(max_chars).collect();
   if chars.next().is_some() {
-    format!("{}...", head)
+    if max_chars <= 3 {
+      ".".repeat(max_chars)
+    } else {
+      let shortened: String = head.chars().take(max_chars - 3).collect();
+      format!("{}...", shortened)
+    }
   } else {
     head
   }
@@ -1044,6 +1049,49 @@ fn provider_context_recovery_limits(provider: &str) -> (usize, usize) {
     "knapsack" => (6usize, 12_000usize),
     _ => (6usize, 10_000usize),
   }
+}
+
+fn provider_inline_text_limit(provider: &str) -> usize {
+  match provider {
+    "ollama" => 6_000usize,
+    "knapsack" => 12_000usize,
+    _ => 8_000usize,
+  }
+}
+
+fn clamp_inline_text(text: &str, max_chars: usize, reason: &str) -> String {
+  if text.chars().count() <= max_chars {
+    return text.to_string();
+  }
+  format!(
+    "{}\n\n[{}; truncated from {} chars]",
+    take_prefix_chars(text, max_chars),
+    reason,
+    text.chars().count()
+  )
+}
+
+fn trim_memory_notes(memory_notes: &[String]) -> Vec<String> {
+  const MAX_MEMORY_NOTES: usize = 6;
+  const MAX_MEMORY_NOTE_CHARS: usize = 240;
+  const MAX_MEMORY_TOTAL_CHARS: usize = 1_800;
+
+  let mut kept: Vec<String> = Vec::new();
+  let mut total_chars = 0usize;
+  for note in memory_notes.iter().rev().take(MAX_MEMORY_NOTES) {
+    let trimmed = take_prefix_chars(note.trim(), MAX_MEMORY_NOTE_CHARS);
+    if trimmed.is_empty() {
+      continue;
+    }
+    let note_chars = trimmed.chars().count();
+    if !kept.is_empty() && total_chars + note_chars > MAX_MEMORY_TOTAL_CHARS {
+      continue;
+    }
+    total_chars += note_chars;
+    kept.push(trimmed);
+  }
+  kept.reverse();
+  kept
 }
 
 fn summarize_compacted_message(
@@ -2172,6 +2220,12 @@ pub async fn agent_chat(
     }
   }
 
+  text_with_attachments = clamp_inline_text(
+    &text_with_attachments,
+    12_000usize,
+    "Additional inline context omitted before sending to the shared gateway session",
+  );
+
   // Try gateway agent-chat if port is open
   let gateway_reply = if gateway_client::is_gateway_port_open().await {
     eprintln!(
@@ -2627,6 +2681,7 @@ pub async fn chat(
         .collect()
     })
     .unwrap_or_default();
+  let memory_notes = trim_memory_notes(&memory_notes);
 
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
   let profile = clawd_profile(chrome);
@@ -2758,6 +2813,11 @@ pub async fn chat(
       }
     },
   };
+  let full_text = clamp_inline_text(
+    &full_text,
+    provider_inline_text_limit(&provider),
+    "Additional inline request context omitted to fit the foreground provider budget",
+  );
 
   // Browser control requests go through the gateway's `browser.request` RPC
   // method — no direct HTTP client needed.
@@ -6653,5 +6713,33 @@ mod tests {
     assert!(!should_attempt_fallback_for_provider_error(
       "invalid api key provided for provider"
     ));
+  }
+
+  #[test]
+  fn trim_memory_notes_limits_count_and_total_size() {
+    let notes = (0..10)
+      .map(|idx| format!("note-{idx}: {}", "x".repeat(400)))
+      .collect::<Vec<_>>();
+
+    let trimmed = super::trim_memory_notes(&notes);
+
+    assert!(trimmed.len() <= 6);
+    assert!(trimmed.iter().all(|note: &String| note.chars().count() <= 240));
+    let total_chars: usize = trimmed
+      .iter()
+      .map(|note: &String| note.chars().count())
+      .sum();
+    assert!(total_chars <= 1_800);
+    assert!(trimmed.last().unwrap().contains("note-9"));
+  }
+
+  #[test]
+  fn clamp_inline_text_adds_notice_when_over_budget() {
+    let original = format!("prefix {}", "x".repeat(20_000));
+    let clamped = super::clamp_inline_text(&original, 1_000, "Trimmed for test");
+
+    assert!(clamped.contains("Trimmed for test"));
+    assert!(clamped.contains("truncated from"));
+    assert!(clamped.starts_with("prefix "));
   }
 }
