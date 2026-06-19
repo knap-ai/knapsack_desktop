@@ -392,6 +392,55 @@ function readLaunchAgentPlist() {
   return JSON.parse(result.stdout);
 }
 
+function defaultLiveGatewayStateDir() {
+  return path.join(
+    process.env.HOME || "",
+    "Library",
+    "Application Support",
+    "ai.knap.knapsack",
+    "clawdbot",
+  );
+}
+
+function syncQaGatewayState() {
+  let sourceStateDir = null;
+  try {
+    if (fs.existsSync(launchAgentPlist)) {
+      const plist = readLaunchAgentPlist();
+      sourceStateDir =
+        plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
+        plist.EnvironmentVariables?.OPENCLAW_HOME ||
+        null;
+    }
+  } catch {
+    // Fall back to the standard live state directory below.
+  }
+  sourceStateDir = sourceStateDir || defaultLiveGatewayStateDir();
+  if (!sourceStateDir || sourceStateDir === qaStateDir || !fs.existsSync(sourceStateDir)) {
+    return;
+  }
+
+  fs.mkdirSync(qaStateDir, { recursive: true });
+  for (const fileName of ["openclaw.json", "tokens.json", "clawdbot.json", "paired.json"]) {
+    const sourcePath = path.join(sourceStateDir, fileName);
+    if (!fs.existsSync(sourcePath)) continue;
+    fs.copyFileSync(sourcePath, path.join(qaStateDir, fileName));
+  }
+
+  const sourceDevicesDir = path.join(sourceStateDir, "devices");
+  const targetDevicesDir = path.join(qaStateDir, "devices");
+  if (fs.existsSync(sourceDevicesDir)) {
+    fs.mkdirSync(targetDevicesDir, { recursive: true });
+    for (const entry of fs.readdirSync(sourceDevicesDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      fs.copyFileSync(
+        path.join(sourceDevicesDir, entry.name),
+        path.join(targetDevicesDir, entry.name),
+      );
+    }
+  }
+}
+
 function bootoutLaunchAgent() {
   if (process.platform !== "darwin") return;
   const uid = process.getuid?.();
@@ -831,6 +880,7 @@ async function main() {
   syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
+  syncQaGatewayState();
   seedQaDatabaseFromProd();
   seedQaProviderTokensFromProd();
   seedQaConfigFromProd();

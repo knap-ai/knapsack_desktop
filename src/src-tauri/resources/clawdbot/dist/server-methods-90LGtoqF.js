@@ -2843,6 +2843,19 @@ function resolveChannelsStatusTimeoutMs(params) {
 	if (typeof params.timeoutMsRaw !== "number" || !Number.isFinite(params.timeoutMsRaw)) return fallback;
 	return Math.min(Math.max(1e3, params.timeoutMsRaw), CHANNEL_STATUS_MAX_TIMEOUT_MS);
 }
+function normalizeGatewayRuntimeConfig(candidate) {
+	if (!candidate || typeof candidate !== "object") return candidate;
+	if (candidate.channels && typeof candidate.channels === "object") return candidate;
+	if (candidate.config && typeof candidate.config === "object") return candidate.config;
+	if (candidate.runtimeConfig && typeof candidate.runtimeConfig === "object") return candidate.runtimeConfig;
+	return candidate;
+}
+function resolveChannelRuntimeConfig(context) {
+	return applyPluginAutoEnable({
+		config: normalizeGatewayRuntimeConfig(getActiveSecretsRuntimeSnapshot()?.config ?? context.getRuntimeConfig()),
+		env: process.env
+	}).config;
+}
 function resolveRuntimeAccountSnapshot(params) {
 	const direct = params.runtime.channelAccounts[params.channelId]?.[params.accountId];
 	if (direct) return direct;
@@ -2915,10 +2928,7 @@ const channelsHandlers = {
 		});
 		const rawChannel = params.channel;
 		const requestedChannel = typeof rawChannel === "string" ? normalizeChannelId(rawChannel) : void 0;
-		const cfg = applyPluginAutoEnable({
-			config: context.getRuntimeConfig(),
-			env: process.env
-		}).config;
+		const cfg = resolveChannelRuntimeConfig(context);
 		const runtime = context.getRuntimeSnapshot();
 		const plugins = listChannelPlugins();
 		const selectedPlugins = requestedChannel ? plugins.filter((plugin) => plugin.id === requestedChannel) : plugins;
@@ -3119,10 +3129,7 @@ const channelsHandlers = {
 			return;
 		}
 		try {
-			const cfg = applyPluginAutoEnable({
-				config: context.getRuntimeConfig(),
-				env: process.env
-			}).config;
+			const cfg = resolveChannelRuntimeConfig(context);
 			respond(true, await startChannelAccount({
 				channelId,
 				accountId: params.accountId,
