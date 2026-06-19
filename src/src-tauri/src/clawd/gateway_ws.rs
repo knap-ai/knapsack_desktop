@@ -147,16 +147,8 @@ fn gateway_token_candidates() -> Vec<PathBuf> {
   let home = std::env::var("HOME")
     .or_else(|_| std::env::var("USERPROFILE"))
     .unwrap_or_else(|_| ".".to_string());
-  candidates.push(
-    PathBuf::from(&home)
-      .join(".openclaw")
-      .join("openclaw.json"),
-  );
-  candidates.push(
-    PathBuf::from(&home)
-      .join(".clawdbot")
-      .join("clawdbot.json"),
-  );
+  candidates.push(PathBuf::from(&home).join(".openclaw").join("openclaw.json"));
+  candidates.push(PathBuf::from(&home).join(".clawdbot").join("clawdbot.json"));
 
   candidates
 }

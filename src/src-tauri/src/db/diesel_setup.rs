@@ -2,14 +2,13 @@ use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
-use crate::db::db::KNAPSACK_DB_FILENAME;
+use crate::db::db::resolve_db_path;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub fn execute_migrations() -> Result<(), Box<dyn std::error::Error>> {
   log::debug!("--------------------- Executing migrations --------------------");
-  let home_dir = dirs::home_dir().expect("Could not determine the home directory");
-  let db_path = home_dir.join(KNAPSACK_DB_FILENAME);
+  let db_path = resolve_db_path();
 
   let db_url = db_path.to_str().ok_or("Invalid database path")?;
 

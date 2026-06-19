@@ -36,8 +36,20 @@ const BREAKER_TRIP_AFTER: u32 = 3;
 const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+static LAST_BROWSER_RPC_SUCCESS_MS: AtomicU64 = AtomicU64::new(0);
 fn next_request_id() -> String {
   REQUEST_ID.fetch_add(1, Ordering::SeqCst).to_string()
+}
+
+fn now_epoch_ms() -> u64 {
+  std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis().min(u128::from(u64::MAX)) as u64)
+    .unwrap_or(0)
+}
+
+pub fn last_browser_rpc_success_ms() -> u64 {
+  LAST_BROWSER_RPC_SUCCESS_MS.load(Ordering::Relaxed)
 }
 
 #[derive(Serialize)]
@@ -914,6 +926,8 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
 /// so we don't repeatedly trigger restarts.
 static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
+static BROWSER_CONFIG_RPC_UNSUPPORTED: std::sync::atomic::AtomicBool =
+  std::sync::atomic::AtomicBool::new(false);
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
@@ -1087,6 +1101,16 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   let primary_provider = primary.split('/').next().unwrap_or("").to_lowercase();
   let mut fallbacks = Vec::new();
 
+  // Anthropic first among paid fallbacks: in practice this is the most common
+  // "already configured and actually working" escape hatch on desktop builds.
+  // Without it, an OpenAI quota error can bounce through Groq/Google/OpenRouter
+  // auth failures even though a healthy Anthropic key is available.
+  if primary_provider != "anthropic" && has_key("ANTHROPIC_API_KEY") {
+    let model =
+      std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
+    fallbacks.push(format!("anthropic/{}", model));
+  }
+
   // Groq first: free, fast, and a good rate-limit escape hatch.
   if primary_provider != "groq" && has_key("GROQ_API_KEY") {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
@@ -1147,7 +1171,14 @@ pub fn build_model_config() -> serde_json::Value {
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
 /// we use a throwaway connection and wait for the gateway to come back.
-async fn apply_runtime_browser_config(token: &str) {
+async fn apply_runtime_browser_config(token: &str) -> bool {
+  if BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed) {
+    eprintln!(
+      "[gateway_client] Skipping runtime config.patch because this gateway build does not expose config.get"
+    );
+    return false;
+  }
+
   // Open a temporary WebSocket just for the config.patch exchange.
   let tmp_req = {
     let mut r = GATEWAY_WS_URL.into_client_request().expect("valid URL");
@@ -1159,7 +1190,7 @@ async fn apply_runtime_browser_config(token: &str) {
     Ok(Ok((ws, _))) => ws,
     _ => {
       eprintln!("[gateway_client] Could not open temporary WS for config.patch");
-      return;
+      return false;
     }
   };
 
@@ -1180,16 +1211,16 @@ async fn apply_runtime_browser_config(token: &str) {
     Ok(Ok(t)) => t,
     _ => {
       eprintln!("[gateway_client] Timeout/error waiting for challenge on tmp WS");
-      return;
+      return false;
     }
   };
 
   let event: EventFrame = match serde_json::from_str(&challenge_text) {
     Ok(e) => e,
-    Err(_) => return,
+    Err(_) => return false,
   };
   if event.event != "connect.challenge" {
-    return;
+    return false;
   }
 
   let connect_params = ConnectParams {
@@ -1223,7 +1254,7 @@ async fn apply_runtime_browser_config(token: &str) {
     .await
     .is_err()
   {
-    return;
+    return false;
   }
 
   // Wait for connect response.
@@ -1246,54 +1277,107 @@ async fn apply_runtime_browser_config(token: &str) {
     Err(_) => false,
   };
 
-  // Send config.get to get the baseHash.
-  let config_get_id = next_request_id();
-  let config_get_frame = RequestFrame {
-    frame_type: "req",
-    method: "config.get".to_string(),
-    id: config_get_id.clone(),
-    params: None,
-  };
-  if tmp_write
-    .send(Message::Text(
-      serde_json::to_string(&config_get_frame).unwrap(),
-    ))
-    .await
-    .is_err()
-  {
-    return;
-  }
+  // Send config.get to get the baseHash. During early gateway startup the
+  // control-plane registry can still be warming up, so retry a few times
+  // instead of treating a temporary unknown-method/timeout as a stable state.
+  let mut cfg_val: Option<Value> = None;
+  for (attempt_idx, wait_ms) in [0_u64, 250, 500, 1_000].into_iter().enumerate() {
+    let config_get_id = next_request_id();
+    let config_get_frame = RequestFrame {
+      frame_type: "req",
+      method: "config.get".to_string(),
+      id: config_get_id.clone(),
+      params: None,
+    };
+    if tmp_write
+      .send(Message::Text(
+        serde_json::to_string(&config_get_frame).unwrap(),
+      ))
+      .await
+      .is_err()
+    {
+      eprintln!("[gateway_client] Failed to send config.get on tmp WS");
+      return false;
+    }
 
-  // Read config.get response.
-  let cfg_val: Value = match tokio::time::timeout(Duration::from_secs(5), async {
-    loop {
-      match tmp_read.next().await {
-        Some(Ok(Message::Text(t))) => {
-          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
-            if resp.id == config_get_id && resp.ok {
-              break Ok(
-                resp
-                  .result
-                  .or(resp.data)
-                  .or(resp.payload)
-                  .unwrap_or(Value::Null),
-              );
-            } else if resp.id == config_get_id {
-              break Err("config.get failed");
+    let attempt_result = tokio::time::timeout(Duration::from_secs(5), async {
+      loop {
+        match tmp_read.next().await {
+          Some(Ok(Message::Text(t))) => {
+            if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+              if resp.id == config_get_id && resp.ok {
+                break Ok(
+                  resp
+                    .result
+                    .or(resp.data)
+                    .or(resp.payload)
+                    .unwrap_or(Value::Null),
+                );
+              } else if resp.id == config_get_id {
+                let error_text = resp
+                  .error
+                  .as_ref()
+                  .map(|value| value.to_string())
+                  .unwrap_or_else(|| "config.get failed".to_string());
+                break Err(error_text);
+              }
             }
           }
+          Some(Ok(Message::Close(_))) | None => break Err("connection closed".to_string()),
+          _ => continue,
         }
-        Some(Ok(Message::Close(_))) | None => break Err("connection closed"),
-        _ => continue,
+      }
+    })
+    .await;
+
+    match attempt_result {
+      Ok(Ok(value)) => {
+        cfg_val = Some(value);
+        break;
+      }
+      Ok(Err(error)) => {
+        let unknown_method = should_retry_unknown_method(&error, "config.get");
+        if unknown_method && attempt_idx + 1 >= 4 {
+          BROWSER_CONFIG_RPC_UNSUPPORTED.store(true, Ordering::Relaxed);
+        }
+        if unknown_method && attempt_idx + 1 < 4 {
+          eprintln!(
+            "[gateway_client] config.get unavailable during startup on tmp WS; retrying in {}ms (attempt {}/{})",
+            wait_ms,
+            attempt_idx + 1,
+            4
+          );
+          tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+          continue;
+        }
+        eprintln!(
+          "[gateway_client] config.get failed on tmp WS, skipping runtime patch: {}",
+          error
+        );
+        return false;
+      }
+      Err(_) => {
+        if attempt_idx + 1 < 4 {
+          eprintln!(
+            "[gateway_client] config.get timed out on tmp WS; retrying in {}ms (attempt {}/{})",
+            wait_ms,
+            attempt_idx + 1,
+            4
+          );
+          tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+          continue;
+        }
+        eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
+        return false;
       }
     }
-  })
-  .await
-  {
-    Ok(Ok(v)) => v,
-    _ => {
-      eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
-      return;
+  }
+
+  let cfg_val = match cfg_val {
+    Some(value) => value,
+    None => {
+      eprintln!("[gateway_client] config.get never succeeded on tmp WS, skipping patch");
+      return false;
     }
   };
 
@@ -1305,7 +1389,7 @@ async fn apply_runtime_browser_config(token: &str) {
 
   if base_hash.is_empty() {
     eprintln!("[gateway_client] config.get returned no hash, skipping runtime patch");
-    return;
+    return false;
   }
 
   // Send config.patch with browser + tools settings.
@@ -1418,7 +1502,7 @@ async fn apply_runtime_browser_config(token: &str) {
     .is_err()
   {
     eprintln!("[gateway_client] Failed to send config.patch — connection closed");
-    return;
+    return false;
   }
 
   // Read the config.patch response to detect rate-limiting or other rejection.
@@ -1481,7 +1565,7 @@ async fn apply_runtime_browser_config(token: &str) {
   if !patch_accepted {
     // Patch was rejected — gateway is NOT restarting.  No further action needed;
     // the already-correct disk config will be picked up on the next gateway restart.
-    return;
+    return false;
   }
 
   // Wait for the gateway to restart.  Poll until the port is listening again
@@ -1493,11 +1577,12 @@ async fn apply_runtime_browser_config(token: &str) {
       eprintln!("[gateway_client] Gateway is back up after config.patch");
       // Give it a moment to fully initialize.
       tokio::time::sleep(Duration::from_millis(500)).await;
-      return;
+      return true;
     }
     tokio::time::sleep(Duration::from_millis(wait_ms)).await;
   }
   eprintln!("[gateway_client] Gateway did not come back after config.patch within timeout");
+  false
 }
 
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
@@ -1529,10 +1614,10 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // BROWSER_CONFIG_APPLIED prevents firing on every reconnect after a transient
   // WS drop.
   let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
+    && !BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed)
     && (gateway_already_running || disk_config_changed);
 
   if need_runtime_patch {
-    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
     // Wait briefly for the gateway to be reachable if we just wrote the disk config.
     if disk_config_changed && !gateway_already_running {
       eprintln!(
@@ -1541,7 +1626,13 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     } else {
       eprintln!("[gateway_client] Applying config.patch RPC (gateway running, skipped disk write)");
     }
-    apply_runtime_browser_config(token).await;
+    if apply_runtime_browser_config(token).await {
+      BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
+    } else {
+      eprintln!(
+        "[gateway_client] Runtime config.patch did not complete; leaving patch flag unset for retry"
+      );
+    }
   }
 
   ensure_gateway_best_effort(token).await;
@@ -2099,11 +2190,16 @@ fn should_retry_unknown_method(error: &str, method: &str) -> bool {
     .contains(&needle.to_ascii_lowercase())
 }
 
+fn is_unknown_requested_method(error: &str, method: &str) -> bool {
+  should_retry_unknown_method(error, method)
+}
+
 async fn gateway_request_pooled_inner(
   method: &str,
   params: Option<Value>,
   token: &str,
   allow_unknown_method_retry: bool,
+  allow_connection_retry: bool,
 ) -> Result<Value, String> {
   let client = get_or_connect(token).await?;
 
@@ -2198,6 +2294,25 @@ async fn gateway_request_pooled_inner(
   }
 
   drop(permit);
+  if is_connection_error && allow_connection_retry {
+    let gateway_still_healthy = gateway_ws_handshake_open(token, Duration::from_millis(1500)).await
+      || is_gateway_port_open().await;
+    if gateway_still_healthy {
+      eprintln!(
+        "[gateway_client] {} hit a stale pooled connection while gateway stayed healthy; reconnecting and retrying once",
+        method
+      );
+      invalidate_client();
+      return Box::pin(gateway_request_pooled_inner(
+        method,
+        retry_params.clone(),
+        token,
+        allow_unknown_method_retry,
+        false,
+      ))
+      .await;
+    }
+  }
   if allow_unknown_method_retry {
     if let Err(ref error) = out {
       if should_retry_unknown_method(error, method) {
@@ -2210,6 +2325,7 @@ async fn gateway_request_pooled_inner(
           method,
           retry_params,
           token,
+          false,
           false,
         ))
         .await;
@@ -2229,7 +2345,30 @@ pub async fn gateway_request_pooled(
   params: Option<Value>,
   token: &str,
 ) -> Result<Value, String> {
-  gateway_request_pooled_inner(method, params, token, true).await
+  gateway_request_pooled_inner(method, params, token, true, true).await
+}
+
+/// Make an optional request using the persistent gateway connection.
+///
+/// Some gateway builds legitimately do not expose newer RPC methods yet.
+/// Callers that can safely fall back locally should use this helper so an
+/// unsupported optional method does not trigger a noisy reconnect/retry cycle
+/// that looks like a stale connection or startup regression.
+pub async fn gateway_request_pooled_optional(
+  method: &str,
+  params: Option<Value>,
+  token: &str,
+) -> Result<Value, String> {
+  let out = gateway_request_pooled_inner(method, params, token, false, true).await;
+  if let Err(ref error) = out {
+    if is_unknown_requested_method(error, method) {
+      eprintln!(
+        "[gateway_client] {} is unsupported by the active gateway build; using caller fallback",
+        method
+      );
+    }
+  }
+  out
 }
 
 /// Make a two-phase request (like `agent`) using the persistent gateway
@@ -2529,7 +2668,10 @@ pub async fn browser_request(
     )
     .await
     {
-      Ok(Ok(result)) => return Ok(result),
+      Ok(Ok(result)) => {
+        LAST_BROWSER_RPC_SUCCESS_MS.store(now_epoch_ms(), Ordering::Relaxed);
+        return Ok(result);
+      }
       Ok(Err(e)) => {
         last_err = e;
         if attempt < backoffs.len() && is_transient_browser_error(&last_err) {
@@ -2762,6 +2904,25 @@ mod tests {
     std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
   }
 
+  #[test]
+  fn fallback_models_include_anthropic_when_available() {
+    std::env::set_var("ANTHROPIC_API_KEY", "test-anthropic");
+    std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", "claude-sonnet-4-5");
+    std::env::remove_var("GROQ_API_KEY");
+    std::env::remove_var("GEMINI_API_KEY");
+    std::env::remove_var("GOOGLE_API_KEY");
+    std::env::remove_var("OPENROUTER_API_KEY");
+
+    let fallbacks = collect_fallback_models("openai/gpt-5.5");
+    assert_eq!(
+      fallbacks.first().map(String::as_str),
+      Some("anthropic/claude-sonnet-4-5")
+    );
+
+    std::env::remove_var("ANTHROPIC_API_KEY");
+    std::env::remove_var("KNAPSACK_ANTHROPIC_MODEL");
+  }
+
   // ── ensure_browser_config_at: no spurious change when already correct ───
   // A config that already satisfies every invariant must produce changed=false
   // so that a running gateway is not sent a redundant config.patch.
@@ -2980,6 +3141,14 @@ mod tests {
     assert!(!should_retry_unknown_method(
       "Request failed: Object {\"code\":\"INVALID_REQUEST\",\"message\":\"unknown method: status\"}",
       "config.get"
+    ));
+  }
+
+  #[test]
+  fn detects_unknown_requested_method_case_insensitively() {
+    assert!(is_unknown_requested_method(
+      "request failed: object {\"message\":\"Unknown Method: skills.status\"}",
+      "skills.status"
     ));
   }
 }

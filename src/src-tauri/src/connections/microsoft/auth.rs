@@ -328,7 +328,7 @@ async fn refresh_access_token(
 pub async fn refresh_user_connection(
   user_connection: UserConnection,
   email: String,
-  ) -> Result<UserConnection, Error> {
+) -> Result<UserConnection, Error> {
   let refresh_response: RefreshResponse = match refresh_access_token(
     user_connection.refresh_token.clone().unwrap(),
     email.clone(),

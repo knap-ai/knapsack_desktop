@@ -47,7 +47,11 @@ const sourceClawdbotDir = path.join(tauriDir, "resources", "clawdbot");
 const targetClawdbotDir = path.join(tauriDir, "target", "debug", "resources", "clawdbot");
 const qaTokensPath = path.join(qaStateDir, "tokens.json");
 const prodTokensPath = path.join(prodStateDir, "tokens.json");
+const prodDbPath = path.join(process.env.HOME || "", ".knapsack.db");
+const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
 const qaSeededTokenKeys = [
+  "gateway_token",
+  "browser_control_token",
   "active_provider",
   "groq_api_key",
   "groq_model",
@@ -188,6 +192,32 @@ function seedQaProviderTokensFromProd() {
   }
 }
 
+function removeSqliteSidecars(basePath) {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      fs.rmSync(`${basePath}${suffix}`, { force: true });
+    } catch {
+      // Best effort cleanup; sqlite will recreate these files as needed.
+    }
+  }
+}
+
+function seedQaDatabaseFromProd() {
+  if (!fs.existsSync(prodDbPath)) return;
+  fs.mkdirSync(path.dirname(qaDbPath), { recursive: true });
+  removeSqliteSidecars(qaDbPath);
+  const result = spawnSync("sqlite3", [prodDbPath, `.backup ${qaDbPath}`], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    const stderr = (result.stderr || "").trim();
+    throw new Error(
+      `Failed to seed isolated QA database from ${prodDbPath}${stderr ? `: ${stderr}` : ""}`,
+    );
+  }
+  console.log("[qa-dev-run] seeded isolated QA database snapshot from prod");
+}
+
 function seedQaConfigFromProd() {
   const prodConfig = readJsonFile(prodConfigPath);
   if (!prodConfig || typeof prodConfig !== "object") return;
@@ -312,15 +342,10 @@ function waitForFreshLaunchAgentPlist(minMtimeMs, timeoutMs = 45_000) {
           const mtimeMs = fs.statSync(launchAgentPlist).mtimeMs;
           const plist = readLaunchAgentPlist();
           const entry = plist.ProgramArguments?.[1] || "";
-          const plistStateDir =
-            plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
-            plist.EnvironmentVariables?.OPENCLAW_HOME ||
-            "";
           if (
             entry.startsWith(
               path.join(projectDir, "src-tauri", "resources", "clawdbot"),
-            ) &&
-            path.resolve(plistStateDir || ".") === path.resolve(qaStateDir)
+            )
           ) {
             if (mtimeMs < minMtimeMs) {
               console.warn(
@@ -453,6 +478,41 @@ function gatewayPortHolderPids() {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((pid) => /^\d+$/.test(pid) && pid !== String(process.pid));
+}
+
+function listeningPortHolderPids(port) {
+  const result = spawnSync("lsof", ["-tiTCP:" + String(port), "-sTCP:LISTEN"], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0 || !result.stdout) return [];
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((pid) => /^\d+$/.test(pid) && pid !== String(process.pid));
+}
+
+function killStaleVitePort() {
+  const vitePort = 1420;
+  if (process.platform === "win32") {
+    killWindowsListenersOnPorts([vitePort]);
+    return;
+  }
+  if (process.platform !== "darwin") return;
+
+  const deadline = Date.now() + 3_000;
+  while (Date.now() < deadline) {
+    const holders = listeningPortHolderPids(vitePort);
+    if (holders.length === 0) return;
+    sleep(150);
+  }
+
+  const holders = listeningPortHolderPids(vitePort);
+  if (holders.length > 0) {
+    console.warn(
+      `[qa-dev-run] Force-killing stale Vite port holder(s): ${holders.join(", ")}`,
+    );
+    spawnSync("kill", ["-KILL", ...holders], { stdio: "ignore" });
+  }
 }
 
 function openClawChromePids(profileNeedles) {
@@ -609,15 +669,18 @@ function startDirectGatewayFromPlist() {
     return null;
   }
 
-  const gatewayStateDir =
+  const gatewayStateDir = qaStateDir;
+  const plistStateDir =
     plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
     plist.EnvironmentVariables?.OPENCLAW_HOME ||
-    qaStateDir;
-  if (path.resolve(gatewayStateDir) !== path.resolve(qaStateDir)) {
+    "";
+  if (
+    plistStateDir &&
+    path.resolve(plistStateDir) !== path.resolve(qaStateDir)
+  ) {
     console.warn(
-      `[qa-dev-run] Skipping direct gateway: plist state dir is not isolated to this checkout (${gatewayStateDir})`,
+      `[qa-dev-run] Overriding stale plist state dir ${plistStateDir} with isolated QA state ${qaStateDir}`,
     );
-    return null;
   }
 
   console.log(
@@ -630,6 +693,8 @@ function startDirectGatewayFromPlist() {
     stdio: "inherit",
     env: qaEnv({
       ...(plist.EnvironmentVariables || {}),
+      OPENCLAW_HOME: gatewayStateDir,
+      OPENCLAW_STATE_DIR: gatewayStateDir,
       OPENCLAW_CONFIG_PATH: path.join(gatewayStateDir, "openclaw.json"),
       OPENCLAW_QA_DIRECT_GATEWAY: "1",
     }),
@@ -766,9 +831,11 @@ async function main() {
   syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
+  seedQaDatabaseFromProd();
   seedQaProviderTokensFromProd();
   seedQaConfigFromProd();
   bootoutLaunchAgent();
+  killStaleVitePort();
   killStaleGateways();
   killStaleOpenClawChrome();
 
@@ -838,6 +905,7 @@ async function main() {
           OPENCLAW_HOME: qaStateDir,
           OPENCLAW_STATE_DIR: qaStateDir,
           OPENCLAW_CONFIG_PATH: path.join(qaStateDir, "openclaw.json"),
+          DATABASE_URL: qaDbPath,
         })
       : qaEnv();
     app = spawn(binary, [], {

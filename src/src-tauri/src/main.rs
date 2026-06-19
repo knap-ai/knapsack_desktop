@@ -128,13 +128,10 @@ fn validate_bundled_ui_asset(app: &tauri::App, page: &str, label: &str) -> Optio
     format!("_up_/dist/{page}"),
   ];
   let found = candidate_paths.iter().find_map(|candidate| {
-    app
-      .path_resolver()
-      .resolve_resource(candidate)
-      .map(|path| {
-        log::info!("Resolved {label} UI asset: {:?}", path);
-        candidate.clone()
-      })
+    app.path_resolver().resolve_resource(candidate).map(|path| {
+      log::info!("Resolved {label} UI asset: {:?}", path);
+      candidate.clone()
+    })
   });
 
   if let Some(path) = &found {
@@ -164,9 +161,8 @@ pub fn release_type() -> Release {
 }
 
 #[cfg(target_os = "macos")]
-static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> = Lazy::new(|| {
-  StdMutex::new(None)
-});
+static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> =
+  Lazy::new(|| StdMutex::new(None));
 #[cfg(target_os = "windows")]
 static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
 
@@ -235,8 +231,8 @@ mod keep_awake_macos {
 
 #[cfg(target_os = "windows")]
 mod keep_awake_windows {
-  use super::KN_KEEP_AWAKE_PROCESS;
   use super::StdMutex;
+  use super::KN_KEEP_AWAKE_PROCESS;
 
   const ES_CONTINUOUS: u32 = 0x80000000;
   const ES_SYSTEM_REQUIRED: u32 = 0x00000001;
@@ -1427,6 +1423,9 @@ fn create_data_dir() {
 
 // make the db path OS agnostic
 fn create_db_env_variable() {
+  if env::var_os("DATABASE_URL").is_some() {
+    return;
+  }
   let home_dir = dirs::home_dir().expect("Could not determine the home directory");
   let db_dir = home_dir.join(KNAPSACK_DB_FILENAME);
   let db_path = db_dir.as_path();
