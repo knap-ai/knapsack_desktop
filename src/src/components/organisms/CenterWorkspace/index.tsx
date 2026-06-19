@@ -32,6 +32,7 @@ import { RecordingContextProps } from '../MeetingNotesMode/RecordingContext'
 import Mic from '/assets/images/icons/mic-white.svg'
 import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import { logError } from 'src/utils/errorHandling'
+import { buildFollowUpEmailBody } from 'src/utils/emails'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 
@@ -366,18 +367,24 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
                       userEmail={userEmail}
                       userName={userName}
-                      onEmailClick={(_notesMarkdown, meeting) => {
+                      onEmailClick={(notesMarkdown, meeting) => {
                         const participants = meeting?.participants ?? []
+                        const primaryRecipient = participants.find(
+                          p => p.email && p.email !== userEmail,
+                        )
                         const toEmails = participants
                           .filter(p => p.email && p.email !== userEmail)
                           .map(p => p.email)
                           .join(', ')
                         const subject = meeting?.title
-                          ? `Great to chat — ${meeting.title}`
-                          : 'Great to chat'
-                        const body = `<p>Hi,</p><p>Great connecting today${meeting?.title ? ` about <strong>${meeting.title}</strong>` : ''}. Thanks again for the conversation — it was a productive meeting.</p><p>What we agreed on:
-<br>- Next steps are captured in my notes.
-<br>- I’ll follow up if anything else pops up.</p><p>If you want a tighter version for this thread, I can help with that too.</p><p>Talk soon,<br>${userName || ''}</p>`
+                          ? `Follow up: ${meeting.title}`
+                          : 'Meeting Follow Up'
+                        const body = buildFollowUpEmailBody(
+                          notesMarkdown,
+                          meeting?.title,
+                          userName,
+                          primaryRecipient?.name || primaryRecipient?.email,
+                        )
                         feed.setComposedEmailDraft({ to: toEmails, subject, body })
                       }}
                     />

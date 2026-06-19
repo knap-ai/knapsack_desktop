@@ -167,6 +167,36 @@ static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> =
 static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
 
 #[tauri::command]
+async fn kn_send_composed_email(
+  to: String,
+  cc: Option<String>,
+  subject: String,
+  body: String,
+  thread_id: Option<String>,
+  user_email: String,
+  user_name: Option<String>,
+) -> Result<String, String> {
+  let trimmed_to = to.trim().to_string();
+  let trimmed_subject = subject.trim().to_string();
+  let trimmed_body = body.trim().to_string();
+
+  if trimmed_to.is_empty() || trimmed_subject.is_empty() || trimmed_body.is_empty() {
+    return Err("To, subject, and body are required".to_string());
+  }
+
+  crate::clawd::gmail::send_gmail_email(
+    &user_email,
+    user_name.as_deref().unwrap_or(""),
+    &trimmed_to,
+    cc.as_deref(),
+    &trimmed_subject,
+    &trimmed_body,
+    thread_id.as_deref(),
+  )
+  .await
+}
+
+#[tauri::command]
 fn kn_set_keep_awake(enabled: bool) -> Result<(), String> {
   #[cfg(target_os = "macos")]
   {
@@ -1951,6 +1981,7 @@ async fn main() {
       kn_get_log_path,
       kn_get_openclaw_version,
       kn_set_keep_awake,
+      kn_send_composed_email,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
