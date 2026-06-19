@@ -236,11 +236,12 @@ async fn refresh_knapsack_api_token(path: web::Path<String>) -> impl Responder {
   let user_email = path.into_inner();
   let requested_email = user_email.trim().to_lowercase();
 
-  let token_env = std::env::var("KNAPSACK_USER_EMAIL").ok().map(|v| v.trim().to_lowercase());
-  if let (Some(email), Ok(access_token)) = (
-    token_env.as_deref(),
-    std::env::var("KNAPSACK_ACCESS_TOKEN"),
-  ) {
+  let token_env = std::env::var("KNAPSACK_USER_EMAIL")
+    .ok()
+    .map(|v| v.trim().to_lowercase());
+  if let (Some(email), Ok(access_token)) =
+    (token_env.as_deref(), std::env::var("KNAPSACK_ACCESS_TOKEN"))
+  {
     if email == requested_email && !access_token.trim().is_empty() {
       return HttpResponse::Ok().json(json!({
         "success": true,

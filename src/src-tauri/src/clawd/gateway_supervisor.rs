@@ -501,6 +501,14 @@ pub async fn wait_for_gateway_ready(token: &str, max_wait_ms: u64) -> bool {
 /// circular imports if we later expand supervisor responsibilities.
 #[allow(dead_code)]
 pub fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+  if let Some(raw) =
+    std::env::var_os("OPENCLAW_STATE_DIR").or_else(|| std::env::var_os("OPENCLAW_HOME"))
+  {
+    let path = PathBuf::from(raw);
+    if !path.as_os_str().is_empty() {
+      return path;
+    }
+  }
   app_handle
     .path_resolver()
     .app_data_dir()

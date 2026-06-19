@@ -10,6 +10,7 @@ import { a as getActiveSecretsRuntimeSnapshot, l as setPreparedSecretsRuntimeSna
 import { n as evaluateGatewayAuthSurfaceStates, t as GATEWAY_AUTH_SURFACE_PATHS } from "./runtime-gateway-auth-surfaces-C7es4SNw.js";
 import { i as assertGatewayAuthNotKnownWeak, n as mergeGatewayAuthConfig, r as mergeGatewayTailscaleConfig, t as ensureGatewayStartupAuth } from "./startup-auth-CWNnB8iD.js";
 import { a as prepareSecretsRuntimeFastPathSnapshot, o as resolveRefreshAgentDirs, i as mergeSecretsRuntimeEnv, n as collectCandidateAgentDirs, r as createEmptyRuntimeWebToolsMetadata } from "./runtime-fast-path-B08T2SHO.js";
+import { l as loadAuthProfileStoreWithoutExternalProfiles } from "./store-BMQkMM4l.js";
 import { o as coerceSecretRef } from "./types.secrets-DwPik3M8.js";
 import { isDeepStrictEqual } from "node:util";
 //#region src/gateway/server-startup-config.ts
@@ -55,10 +56,7 @@ function createDesktopManagedNoopSecretsSnapshot(config) {
 	const resolvedConfig = structuredClone(config);
 	const authStores = collectCandidateAgentDirs(resolvedConfig, runtimeEnv).map((agentDir) => ({
 		agentDir,
-		store: {
-			version: 1,
-			profiles: {}
-		}
+		store: loadAuthProfileStoreWithoutExternalProfiles(agentDir, { allowKeychainPrompt: false })
 	}));
 	return {
 		sourceConfig,

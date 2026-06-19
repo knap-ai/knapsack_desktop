@@ -207,6 +207,162 @@ fn read_config_from_disk() -> Option<Value> {
   None
 }
 
+fn read_auth_profiles_from_disk() -> Option<Value> {
+  let mut candidates = Vec::new();
+  if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
+    candidates.push(
+      std::path::PathBuf::from(dir)
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+  if let Ok(dir) = std::env::var("OPENCLAW_HOME") {
+    candidates.push(
+      std::path::PathBuf::from(dir)
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+  if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join("Library")
+        .join("Application Support")
+        .join("ai.knap.knapsack")
+        .join("clawdbot")
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join(".openclaw")
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+
+  for path in candidates {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+      continue;
+    };
+    let Ok(config) = serde_json::from_str::<Value>(&raw) else {
+      continue;
+    };
+    return Some(config);
+  }
+  None
+}
+
+fn provider_auth_profile_present(auth_profiles: &Value, provider: &str) -> bool {
+  auth_profiles
+    .get("profiles")
+    .and_then(|profiles| profiles.as_object())
+    .map(|profiles| {
+      profiles.iter().any(|(profile_id, profile)| {
+        profile_id.starts_with(&format!("{}:", provider))
+          || profile
+            .get("provider")
+            .and_then(|value| value.as_str())
+            .map(|value| value.eq_ignore_ascii_case(provider))
+            .unwrap_or(false)
+      })
+    })
+    .unwrap_or(false)
+}
+
+fn has_non_empty_env_key(var: &str) -> bool {
+  std::env::var(var)
+    .map(|value| !value.trim().is_empty())
+    .unwrap_or(false)
+}
+
+fn inference_auth_status() -> (bool, Option<String>) {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let auth_profiles = read_auth_profiles_from_disk();
+  let provider_available = |provider: &str| match provider {
+    "knapsack" => true,
+    "ollama" => true,
+    "anthropic" => {
+      has_non_empty_env_key("ANTHROPIC_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "anthropic"))
+          .unwrap_or(false)
+    }
+    "openai" => {
+      has_non_empty_env_key("OPENAI_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "openai"))
+          .unwrap_or(false)
+    }
+    "groq" => {
+      has_non_empty_env_key("GROQ_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "groq"))
+          .unwrap_or(false)
+    }
+    "xai" => {
+      has_non_empty_env_key("XAI_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "xai"))
+          .unwrap_or(false)
+    }
+    "openrouter" => {
+      has_non_empty_env_key("OPENROUTER_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "openrouter"))
+          .unwrap_or(false)
+    }
+    "gemini" | "google" => {
+      has_non_empty_env_key("GEMINI_API_KEY")
+        || has_non_empty_env_key("GOOGLE_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "google"))
+          .unwrap_or(false)
+    }
+    "google-gemini-cli" => auth_profiles
+      .as_ref()
+      .map(|profiles| provider_auth_profile_present(profiles, "google-gemini-cli"))
+      .unwrap_or(false),
+    _ => false,
+  };
+
+  if provider_available(&active) {
+    return (true, Some(active));
+  }
+
+  for provider in [
+    "knapsack",
+    "ollama",
+    "anthropic",
+    "openai",
+    "groq",
+    "xai",
+    "google",
+    "openrouter",
+    "google-gemini-cli",
+  ] {
+    if provider_available(provider) {
+      return (true, Some(provider.to_string()));
+    }
+  }
+
+  (false, None)
+}
+
 fn configured_channels_from_disk() -> Vec<String> {
   let mut channels = read_config_from_disk()
     .and_then(|config| {
@@ -248,6 +404,29 @@ fn plugin_allow_from_disk() -> Vec<String> {
   plugins.sort();
   plugins.dedup();
   plugins
+}
+
+fn configured_model_from_disk() -> Option<String> {
+  let config = read_config_from_disk()?;
+  match config.pointer("/agents/defaults/model") {
+    Some(Value::String(model)) if !model.trim().is_empty() => Some(model.clone()),
+    Some(Value::Object(obj)) => obj
+      .get("primary")
+      .and_then(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(|value| value.to_string()),
+    _ => None,
+  }
+}
+
+fn gateway_config_rpc_fallback_ok(error: &str) -> bool {
+  let lower = error.to_ascii_lowercase();
+  (lower.contains("unknown method") && lower.contains("config.get"))
+    || lower.starts_with("timeout waiting for response")
+    || lower.starts_with("failed to send request")
+    || lower.contains("connection closed")
+    || lower.contains("channel closed")
 }
 
 fn plugin_allowed_in_config(plugin_id: &str) -> bool {
@@ -3381,37 +3560,14 @@ pub async fn channel_diagnostics() -> impl Responder {
   let mut issues = Vec::new();
   let mut repairs = Vec::new();
 
-  // Check LLM API key availability in the current process
-  let (has_api_key, api_key_provider) = {
-    if std::env::var("ANTHROPIC_API_KEY")
-      .map(|k| !k.trim().is_empty())
-      .unwrap_or(false)
-    {
-      (true, Some("anthropic".to_string()))
-    } else if std::env::var("OPENAI_API_KEY")
-      .map(|k| !k.trim().is_empty())
-      .unwrap_or(false)
-    {
-      (true, Some("openai".to_string()))
-    } else if std::env::var("GROQ_API_KEY")
-      .map(|k| !k.trim().is_empty())
-      .unwrap_or(false)
-    {
-      (true, Some("groq".to_string()))
-    } else if std::env::var("GEMINI_API_KEY")
-      .map(|k| !k.trim().is_empty())
-      .unwrap_or(false)
-    {
-      (true, Some("gemini".to_string()))
-    } else {
-      (false, None)
-    }
-  };
+  // Desktop builds often resolve inference auth from the managed auth-profile
+  // store, not from process env vars alone. Keep diagnostics aligned with the
+  // real runtime so Knapsack-only, Ollama, and auth-profile-backed providers
+  // don't show false "missing API key" failures.
+  let (has_api_key, api_key_provider) = inference_auth_status();
 
   if !has_api_key {
-    issues.push(
-      "No LLM API key found in environment (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)".to_string(),
-    );
+    issues.push("No usable inference provider auth found (Knapsack session, local Ollama, env key, or auth profile)".to_string());
   }
 
   // Fetch channel status from gateway
@@ -3597,10 +3753,7 @@ pub async fn channel_diagnostics() -> impl Responder {
       // plus browser/web/exec coverage, channel messages can look connected
       // while routed replies still fail.
       if !has_channel_reply_tools(&snapshot) {
-        issues.push(
-          "Channel reply tools are missing or incomplete — channel messages cannot use reply/web tools"
-            .to_string(),
-        );
+        let mut repaired_reply_tools = false;
         let re_snapshot = gateway_client::config_get(None).await;
         if let Ok(snap) = re_snapshot {
           let bh = extract_base_hash(&snap);
@@ -3626,11 +3779,23 @@ pub async fn channel_diagnostics() -> impl Responder {
           })
           .to_string();
           match gateway_client::config_patch(&sandbox_patch, &bh, None).await {
-            Ok(_) => repairs.push(
-              "Added channel reply tools with message + browser + web + exec coverage".to_string(),
-            ),
+            Ok(_) => {
+              repairs.push(
+                "Added channel reply tools with message + browser + web + exec coverage"
+                  .to_string(),
+              );
+              if let Ok(updated_snapshot) = gateway_client::config_get(None).await {
+                repaired_reply_tools = has_channel_reply_tools(&updated_snapshot);
+              }
+            }
             Err(e) => issues.push(format!("Failed to repair sandbox tools: {}", e)),
           }
+        }
+        if !repaired_reply_tools {
+          issues.push(
+            "Channel reply tools are missing or incomplete — channel messages cannot use reply/web tools"
+              .to_string(),
+          );
         }
       }
 
@@ -3704,13 +3869,25 @@ pub async fn channel_diagnostics() -> impl Responder {
       (hm, m, channels, plugin_allow)
     }
     Err(e) => {
-      issues.push(format!("Cannot fetch gateway config: {}", e));
       let configured_channels = configured_channels_from_disk();
       let plugin_allow = plugin_allow_from_disk();
-      if !configured_channels.is_empty() {
-        issues.push("Using disk config fallback for configured channels".to_string());
+      if gateway_config_rpc_fallback_ok(&e) {
+        let model = configured_model_from_disk().or_else(|| {
+          if has_api_key {
+            Some(resolve_default_model())
+          } else {
+            None
+          }
+        });
+        let has_model = model.is_some();
+        (has_model, model, configured_channels, plugin_allow)
+      } else {
+        issues.push(format!("Cannot fetch gateway config: {}", e));
+        if !configured_channels.is_empty() {
+          issues.push("Using disk config fallback for configured channels".to_string());
+        }
+        (false, None, configured_channels, plugin_allow)
       }
-      (false, None, configured_channels, plugin_allow)
     }
   };
 
@@ -5042,7 +5219,9 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 
 #[cfg(test)]
 mod reconnect_retry_tests {
-  use super::{build_enable_patch, is_connection_level_error, runtime_channel_active};
+  use super::{
+    build_enable_patch, inference_auth_status, is_connection_level_error, runtime_channel_active,
+  };
 
   #[test]
   fn connection_closed_is_retryable() {
@@ -5169,5 +5348,75 @@ mod reconnect_retry_tests {
 
     assert!(!runtime_channel_active(Some(&runtime), None));
     assert!(!runtime_channel_active(None, None));
+  }
+
+  #[test]
+  fn inference_auth_status_treats_knapsack_as_usable_without_env_keys() {
+    let original_active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
+    let original_state_dir = std::env::var("OPENCLAW_STATE_DIR").ok();
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
+    std::env::remove_var("OPENCLAW_STATE_DIR");
+
+    let (has_auth, provider) = inference_auth_status();
+    assert!(has_auth);
+    assert_eq!(provider.as_deref(), Some("knapsack"));
+
+    if let Some(value) = original_active {
+      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", value);
+    } else {
+      std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    }
+    if let Some(value) = original_state_dir {
+      std::env::set_var("OPENCLAW_STATE_DIR", value);
+    } else {
+      std::env::remove_var("OPENCLAW_STATE_DIR");
+    }
+  }
+
+  #[test]
+  fn inference_auth_status_reads_google_cli_auth_from_profiles() {
+    let original_active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
+    let original_state_dir = std::env::var("OPENCLAW_STATE_DIR").ok();
+    let tmp = std::env::temp_dir().join(format!(
+      "channels-auth-status-{}-{}",
+      std::process::id(),
+      std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+    ));
+    let agent_dir = tmp.join("agents").join("main").join("agent");
+    std::fs::create_dir_all(&agent_dir).unwrap();
+    std::fs::write(
+      agent_dir.join("auth-profiles.json"),
+      serde_json::json!({
+        "profiles": {
+          "google-gemini-cli:default": {
+            "provider": "google-gemini-cli",
+            "type": "oauth"
+          }
+        }
+      })
+      .to_string(),
+    )
+    .unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", &tmp);
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "google-gemini-cli");
+
+    let (has_auth, provider) = inference_auth_status();
+    assert!(has_auth);
+    assert_eq!(provider.as_deref(), Some("google-gemini-cli"));
+
+    std::fs::remove_dir_all(&tmp).ok();
+    if let Some(value) = original_active {
+      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", value);
+    } else {
+      std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    }
+    if let Some(value) = original_state_dir {
+      std::env::set_var("OPENCLAW_STATE_DIR", value);
+    } else {
+      std::env::remove_var("OPENCLAW_STATE_DIR");
+    }
   }
 }

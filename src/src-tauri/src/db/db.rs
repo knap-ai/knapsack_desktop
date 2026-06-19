@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::connections::google::constants::{
@@ -36,9 +37,19 @@ const AFTER_CONNECT: &str = "PRAGMA busy_timeout=30000;
 PRAGMA journal_mode=WAL;
 PRAGMA synchronous=NORMAL;";
 
-fn create_pool() -> SqlitePool {
+pub fn resolve_db_path() -> PathBuf {
+  if let Some(raw) = std::env::var_os("DATABASE_URL") {
+    let configured = PathBuf::from(raw);
+    if !configured.as_os_str().is_empty() {
+      return configured;
+    }
+  }
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let db_pathbuf = home_dir.join(KNAPSACK_DB_FILENAME);
+  home_dir.join(KNAPSACK_DB_FILENAME)
+}
+
+fn create_pool() -> SqlitePool {
+  let db_pathbuf = resolve_db_path();
   let db_path = db_pathbuf.as_path();
 
   let manager = SqliteConnectionManager::file(db_path.to_str().unwrap())

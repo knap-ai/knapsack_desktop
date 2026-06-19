@@ -291,6 +291,7 @@ const GATEWAY_TRANSIENT_FAILURE_GRACE_MS: u64 = 30_000;
 const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
 const BROWSER_TRANSIENT_FAILURE_GRACE_MS: u64 = 15_000;
 const BROWSER_STARTUP_GRACE_MS: u64 = 20_000;
+const BROWSER_RECENT_RPC_SUCCESS_GRACE_MS: u64 = 15_000;
 
 fn now_epoch_ms() -> u64 {
   std::time::SystemTime::now()
@@ -3089,6 +3090,9 @@ fn read_log_tail_lines_bounded(
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+  if let Some(home) = default_clawdbot_home_from_env() {
+    return home;
+  }
   app_handle
     .path_resolver()
     .app_data_dir()
@@ -3287,6 +3291,67 @@ fn knapsack_email_from_tokens() -> Option<String> {
     .get("knapsack_email")
     .and_then(|email| email.as_str())
     .and_then(normalize_imessage_owner_identifier)
+}
+
+#[cfg(test)]
+mod clawdbot_home_env_tests {
+  use super::default_clawdbot_home_from_env;
+  use std::ffi::OsString;
+  use std::path::PathBuf;
+  use std::sync::{Mutex, OnceLock};
+
+  fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+  }
+
+  #[test]
+  fn default_clawdbot_home_prefers_explicit_state_dir() {
+    let _guard = env_lock().lock().unwrap();
+    let previous_state = std::env::var_os("OPENCLAW_STATE_DIR");
+    let previous_home = std::env::var_os("OPENCLAW_HOME");
+
+    std::env::set_var("OPENCLAW_STATE_DIR", "/tmp/knapsack-qa-state");
+    std::env::set_var("OPENCLAW_HOME", "/tmp/knapsack-qa-home");
+
+    assert_eq!(
+      default_clawdbot_home_from_env(),
+      Some(PathBuf::from("/tmp/knapsack-qa-state"))
+    );
+
+    match previous_state {
+      Some(value) => std::env::set_var("OPENCLAW_STATE_DIR", value),
+      None => std::env::remove_var("OPENCLAW_STATE_DIR"),
+    }
+    match previous_home {
+      Some(value) => std::env::set_var("OPENCLAW_HOME", value),
+      None => std::env::remove_var("OPENCLAW_HOME"),
+    }
+  }
+
+  #[test]
+  fn default_clawdbot_home_falls_back_to_openclaw_home() {
+    let _guard = env_lock().lock().unwrap();
+    let previous_state = std::env::var_os("OPENCLAW_STATE_DIR");
+    let previous_home = std::env::var_os("OPENCLAW_HOME");
+
+    std::env::remove_var("OPENCLAW_STATE_DIR");
+    std::env::set_var("OPENCLAW_HOME", "/tmp/knapsack-qa-home");
+
+    assert_eq!(
+      default_clawdbot_home_from_env(),
+      Some(PathBuf::from("/tmp/knapsack-qa-home"))
+    );
+
+    match previous_state {
+      Some(value) => std::env::set_var("OPENCLAW_STATE_DIR", value),
+      None => std::env::remove_var("OPENCLAW_STATE_DIR"),
+    }
+    match previous_home {
+      Some(value) => std::env::set_var("OPENCLAW_HOME", value),
+      None => std::env::remove_var("OPENCLAW_HOME"),
+    }
+  }
 }
 
 /// Safe default for iMessage DM access. Prefer the signed-in Knapsack email
@@ -3724,6 +3789,66 @@ fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
 
   patched |= remove_redaction_sentinels(cfg, "");
 
+  // Remove stale external plugin entries that the bundled desktop gateway
+  // does not ship and that routinely survive upgrades in disabled form.
+  // Leaving them in place is harmless to runtime, but it creates scary
+  // "plugin not found" warnings that bleed into diagnostics and erode trust.
+  const STALE_OPTIONAL_PLUGIN_IDS: &[&str] =
+    &["codex", "duckduckgo", "google", "groq", "openrouter"];
+
+  if let Some(allow) = cfg
+    .pointer_mut("/plugins/allow")
+    .and_then(|value| value.as_array_mut())
+  {
+    let before_len = allow.len();
+    allow.retain(|value| {
+      value
+        .as_str()
+        .map(|id| !STALE_OPTIONAL_PLUGIN_IDS.contains(&id))
+        .unwrap_or(true)
+    });
+    if allow.len() != before_len {
+      eprintln!("[clawd/service] Removed stale plugin ids from plugins.allow");
+      patched = true;
+    }
+  }
+
+  if let Some(entries) = cfg
+    .pointer_mut("/plugins/entries")
+    .and_then(|value| value.as_object_mut())
+  {
+    let stale_ids: Vec<String> = STALE_OPTIONAL_PLUGIN_IDS
+      .iter()
+      .filter_map(|id| entries.contains_key(*id).then_some((*id).to_string()))
+      .collect();
+    for id in stale_ids {
+      entries.remove(&id);
+      eprintln!(
+        "[clawd/service] Removed stale bundled-plugin config entry: plugins.entries.{}",
+        id
+      );
+      patched = true;
+    }
+  }
+
+  // The desktop bundle already provides browser-backed web search and no
+  // longer installs the old DuckDuckGo plugin. Remove the stale provider pin
+  // so the gateway can auto-detect the supported search path without warning.
+  if cfg
+    .pointer("/tools/web/search/provider")
+    .and_then(|value| value.as_str())
+    == Some("duckduckgo")
+  {
+    if let Some(search) = cfg
+      .pointer_mut("/tools/web/search")
+      .and_then(|value| value.as_object_mut())
+    {
+      search.remove("provider");
+      eprintln!("[clawd/service] Removed stale tools.web.search.provider=duckduckgo override");
+      patched = true;
+    }
+  }
+
   patched
 }
 
@@ -4077,6 +4202,12 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       return;
     }
   };
+  if let Err(e) = sync_portable_api_key_auth_profiles(app_handle, &tokens) {
+    eprintln!(
+      "[clawd/service] Could not sync portable auth profiles from tokens.json: {}",
+      e
+    );
+  }
   if let Some(k) = &tokens.groq_api_key {
     let k = k.trim();
     if !k.is_empty() {
@@ -4247,6 +4378,373 @@ fn is_allowed_extra_env_var(name: &str) -> bool {
   )
 }
 
+fn sync_portable_api_key_auth_profiles(
+  app_handle: &tauri::AppHandle,
+  tokens: &StoredTokens,
+) -> Result<(), String> {
+  let agent_dir = app_clawdbot_home(app_handle)
+    .join("agents")
+    .join("main")
+    .join("agent");
+  ensure_dir(&agent_dir)?;
+  harden_dir_permissions(&agent_dir);
+  let auth_path = agent_dir.join("auth-profiles.json");
+
+  let mut root = match fs::read_to_string(&auth_path) {
+    Ok(content) => serde_json::from_str::<serde_json::Value>(&content).unwrap_or_else(|_| {
+      serde_json::json!({
+        "profiles": {}
+      })
+    }),
+    Err(_) => serde_json::json!({
+      "profiles": {}
+    }),
+  };
+
+  if !root.is_object() {
+    root = serde_json::json!({
+      "profiles": {}
+    });
+  }
+
+  let root_obj = root.as_object_mut().expect("root just forced to object");
+  if !root_obj
+    .get("profiles")
+    .map(|value| value.is_object())
+    .unwrap_or(false)
+  {
+    root_obj.insert("profiles".to_string(), serde_json::json!({}));
+  }
+
+  let profiles = root_obj
+    .get_mut("profiles")
+    .and_then(|value| value.as_object_mut())
+    .expect("profiles just forced to object");
+
+  let mut changed = false;
+  let mut removed_profile_ids = Vec::new();
+  let mut removed_provider_ids = Vec::new();
+
+  let managed_profiles = [
+    (
+      "openai",
+      "openai:default",
+      vec!["openai:default"],
+      tokens.openai_api_key.as_deref(),
+    ),
+    (
+      "anthropic",
+      "anthropic:default",
+      vec!["anthropic:default"],
+      tokens.anthropic_api_key.as_deref(),
+    ),
+    (
+      "google",
+      "google:default",
+      vec!["google:default", "gemini:default"],
+      tokens.gemini_api_key.as_deref(),
+    ),
+    (
+      "groq",
+      "groq:default",
+      vec!["groq:default"],
+      tokens.groq_api_key.as_deref(),
+    ),
+    (
+      "xai",
+      "xai:default",
+      vec!["xai:default"],
+      tokens.xai_api_key.as_deref(),
+    ),
+    (
+      "openrouter",
+      "openrouter:default",
+      vec!["openrouter:default"],
+      tokens.openrouter_api_key.as_deref(),
+    ),
+  ];
+
+  for (provider, canonical_id, managed_ids, maybe_key) in managed_profiles {
+    let normalized_key = maybe_key
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(str::to_string);
+
+    match normalized_key {
+      Some(key) => {
+        let desired = serde_json::json!({
+          "type": "api_key",
+          "provider": provider,
+          "key": key,
+        });
+        if profiles.get(canonical_id) != Some(&desired) {
+          profiles.insert(canonical_id.to_string(), desired);
+          changed = true;
+        }
+        for managed_id in managed_ids {
+          if managed_id != canonical_id && profiles.remove(managed_id).is_some() {
+            removed_profile_ids.push(managed_id.to_string());
+            changed = true;
+          }
+        }
+      }
+      None => {
+        for managed_id in managed_ids {
+          if profiles.remove(managed_id).is_some() {
+            removed_profile_ids.push(managed_id.to_string());
+            changed = true;
+          }
+        }
+        removed_provider_ids.push(provider.to_string());
+      }
+    }
+  }
+
+  if !removed_profile_ids.is_empty() {
+    if let Some(usage_stats) = root_obj
+      .get_mut("usageStats")
+      .and_then(|value| value.as_object_mut())
+    {
+      for profile_id in &removed_profile_ids {
+        if usage_stats.remove(profile_id).is_some() {
+          changed = true;
+        }
+      }
+      if usage_stats.is_empty() {
+        root_obj.remove("usageStats");
+        changed = true;
+      }
+    }
+
+    if let Some(last_good) = root_obj
+      .get_mut("lastGood")
+      .and_then(|value| value.as_object_mut())
+    {
+      for provider_id in &removed_provider_ids {
+        if last_good.remove(provider_id).is_some() {
+          changed = true;
+        }
+      }
+      if last_good.is_empty() {
+        root_obj.remove("lastGood");
+        changed = true;
+      }
+    }
+
+    if let Some(order) = root_obj
+      .get_mut("order")
+      .and_then(|value| value.as_object_mut())
+    {
+      for provider_id in &removed_provider_ids {
+        if order.remove(provider_id).is_some() {
+          changed = true;
+        }
+      }
+      if order.is_empty() {
+        root_obj.remove("order");
+        changed = true;
+      }
+    }
+  }
+
+  if changed {
+    fs::write(
+      &auth_path,
+      serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("Failed writing {}: {}", auth_path.display(), e))?;
+    harden_file_permissions(&auth_path);
+  }
+
+  Ok(())
+}
+
+fn sync_portable_api_key_auth_config(
+  app_handle: &tauri::AppHandle,
+  tokens: &StoredTokens,
+) -> Result<(), String> {
+  let config_path = app_clawdbot_home(app_handle).join("openclaw.json");
+  if !config_path.exists() {
+    return Ok(());
+  }
+
+  let mut root = match fs::read_to_string(&config_path) {
+    Ok(content) => serde_json::from_str::<serde_json::Value>(&content)
+      .map_err(|e| format!("Failed parsing {}: {}", config_path.display(), e))?,
+    Err(e) => return Err(format!("Failed reading {}: {}", config_path.display(), e)),
+  };
+
+  if !root.is_object() {
+    root = serde_json::json!({});
+  }
+
+  let root_obj = root.as_object_mut().expect("root just forced to object");
+  if !root_obj
+    .get("auth")
+    .map(|value| value.is_object())
+    .unwrap_or(false)
+  {
+    root_obj.insert("auth".to_string(), serde_json::json!({}));
+  }
+
+  let auth = root_obj
+    .get_mut("auth")
+    .and_then(|value| value.as_object_mut())
+    .expect("auth just forced to object");
+
+  let mut profiles = auth
+    .get("profiles")
+    .and_then(|value| value.as_object())
+    .cloned()
+    .unwrap_or_default();
+  let mut order = auth
+    .get("order")
+    .and_then(|value| value.as_object())
+    .cloned()
+    .unwrap_or_default();
+
+  let mut changed = false;
+
+  let managed_profiles = [
+    (
+      "openai",
+      "openai:default",
+      vec!["openai:default"],
+      tokens.openai_api_key.as_deref(),
+    ),
+    (
+      "anthropic",
+      "anthropic:default",
+      vec!["anthropic:default"],
+      tokens.anthropic_api_key.as_deref(),
+    ),
+    (
+      "google",
+      "google:default",
+      vec!["google:default", "gemini:default"],
+      tokens.gemini_api_key.as_deref(),
+    ),
+    (
+      "groq",
+      "groq:default",
+      vec!["groq:default"],
+      tokens.groq_api_key.as_deref(),
+    ),
+    (
+      "xai",
+      "xai:default",
+      vec!["xai:default"],
+      tokens.xai_api_key.as_deref(),
+    ),
+    (
+      "openrouter",
+      "openrouter:default",
+      vec!["openrouter:default"],
+      tokens.openrouter_api_key.as_deref(),
+    ),
+  ];
+
+  for (provider, canonical_id, managed_ids, maybe_key) in managed_profiles {
+    let has_key = maybe_key
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .is_some();
+
+    if has_key {
+      let desired = serde_json::json!({
+        "provider": provider,
+        "mode": "api_key",
+      });
+      if profiles.get(canonical_id) != Some(&desired) {
+        profiles.insert(canonical_id.to_string(), desired);
+        changed = true;
+      }
+      for managed_id in &managed_ids {
+        if *managed_id != canonical_id && profiles.remove(*managed_id).is_some() {
+          changed = true;
+        }
+      }
+    } else {
+      for managed_id in &managed_ids {
+        if profiles.remove(*managed_id).is_some() {
+          changed = true;
+        }
+      }
+    }
+
+    let next_order = order
+      .get(provider)
+      .and_then(|value| value.as_array())
+      .map(|items| {
+        items
+          .iter()
+          .filter_map(|value| value.as_str().map(|text| text.to_string()))
+          .collect::<Vec<_>>()
+      })
+      .unwrap_or_default()
+      .into_iter()
+      .filter(|profile_id| {
+        !managed_ids
+          .iter()
+          .any(|managed_id| managed_id == &profile_id.as_str())
+      })
+      .collect::<Vec<_>>();
+
+    if has_key {
+      let mut reordered = vec![canonical_id.to_string()];
+      reordered.extend(next_order);
+      let desired = serde_json::Value::Array(
+        reordered
+          .iter()
+          .map(|profile_id| serde_json::Value::String(profile_id.clone()))
+          .collect(),
+      );
+      if order.get(provider) != Some(&desired) {
+        order.insert(provider.to_string(), desired);
+        changed = true;
+      }
+    } else if next_order.is_empty() {
+      if order.remove(provider).is_some() {
+        changed = true;
+      }
+    } else {
+      let desired = serde_json::Value::Array(
+        next_order
+          .iter()
+          .map(|profile_id| serde_json::Value::String(profile_id.clone()))
+          .collect(),
+      );
+      if order.get(provider) != Some(&desired) {
+        order.insert(provider.to_string(), desired);
+        changed = true;
+      }
+    }
+  }
+
+  if changed {
+    auth.insert(
+      "profiles".to_string(),
+      serde_json::Value::Object(profiles.clone()),
+    );
+    if order.is_empty() {
+      auth.remove("order");
+    } else {
+      auth.insert(
+        "order".to_string(),
+        serde_json::Value::Object(order.clone()),
+      );
+    }
+    fs::write(
+      &config_path,
+      serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("Failed writing {}: {}", config_path.display(), e))?;
+    harden_file_permissions(&config_path);
+  }
+
+  Ok(())
+}
+
 fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(), String> {
   let home = app_clawdbot_home(app_handle);
   ensure_dir(&home)?;
@@ -4258,6 +4756,8 @@ fn save_tokens(app_handle: &tauri::AppHandle, tokens: &StoredTokens) -> Result<(
   )
   .map_err(|e| format!("Failed writing {}: {}", path.display(), e))?;
   harden_file_permissions(&path);
+  sync_portable_api_key_auth_profiles(app_handle, tokens)?;
+  sync_portable_api_key_auth_config(app_handle, tokens)?;
   Ok(())
 }
 
@@ -5176,6 +5676,22 @@ fn gateway_recently_healthy(now_ms: u64, gateway_listening: bool) -> bool {
     && now_ms.saturating_sub(last_healthy_ms) < GATEWAY_TRANSIENT_FAILURE_GRACE_MS
 }
 
+fn is_transient_browser_probe_error(message: &str) -> bool {
+  let lower = message.to_ascii_lowercase();
+  lower.contains("channel closed")
+    || lower.contains("operation was canceled")
+    || lower.contains("received unexpected message from connection")
+    || lower.contains("connection reset")
+    || lower.contains("broken pipe")
+}
+
+fn is_noisy_browser_probe_error(message: &str) -> bool {
+  let lower = message.to_ascii_lowercase();
+  is_transient_browser_probe_error(message)
+    || lower.contains("timed out")
+    || lower.contains("deadline has elapsed")
+}
+
 async fn browser_control_status(
   gateway_token: &str,
   timeout: std::time::Duration,
@@ -5194,11 +5710,26 @@ async fn browser_control_status(
   let resp = match tokio::time::timeout(timeout, fut).await {
     Ok(Ok(resp)) => resp,
     Ok(Err(e)) => {
-      eprintln!("[clawd/service] browser control status probe failed: {}", e);
+      let err_text = e.to_string();
+      if is_transient_browser_probe_error(&err_text) {
+        log::debug!(
+          "[clawd/service] browser control status probe hit transient startup error: {}",
+          err_text
+        );
+        return BrowserControlProbe::Starting;
+      }
+      if is_noisy_browser_probe_error(&err_text) {
+        log::debug!(
+          "[clawd/service] browser control status probe hit short-lived startup error: {}",
+          err_text
+        );
+        return BrowserControlProbe::Down;
+      }
+      eprintln!("[clawd/service] browser control status probe failed: {}", err_text);
       return BrowserControlProbe::Down;
     }
     Err(_) => {
-      eprintln!(
+      log::debug!(
         "[clawd/service] browser control status probe timed out ({}ms)",
         timeout.as_millis()
       );
@@ -5217,11 +5748,26 @@ async fn browser_control_status(
   match resp.text().await {
     Ok(body) => parse_browser_control_status_body(&body),
     Err(e) => {
-      eprintln!(
-        "[clawd/service] browser control status probe failed to read response body: {}",
-        e
-      );
-      BrowserControlProbe::Down
+      let err_text = e.to_string();
+      if is_transient_browser_probe_error(&err_text) {
+        log::debug!(
+          "[clawd/service] browser control status probe body read hit transient startup error: {}",
+          err_text
+        );
+        BrowserControlProbe::Starting
+      } else if is_noisy_browser_probe_error(&err_text) {
+        log::debug!(
+          "[clawd/service] browser control status probe body read hit short-lived startup error: {}",
+          err_text
+        );
+        BrowserControlProbe::Down
+      } else {
+        eprintln!(
+          "[clawd/service] browser control status probe failed to read response body: {}",
+          err_text
+        );
+        BrowserControlProbe::Down
+      }
     }
   }
 }
@@ -5726,6 +6272,14 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         browser_probe = BrowserControlProbe::Starting;
       }
     }
+    if gateway_ok && browser_probe == BrowserControlProbe::Down {
+      let last_browser_rpc_success_ms = gateway_client::last_browser_rpc_success_ms();
+      if last_browser_rpc_success_ms != 0
+        && now_ms.saturating_sub(last_browser_rpc_success_ms) < BROWSER_RECENT_RPC_SUCCESS_GRACE_MS
+      {
+        browser_probe = BrowserControlProbe::Ready;
+      }
+    }
     if gateway_ok
       && browser_probe != BrowserControlProbe::Ready
       && browser_control_rpc_ready(
@@ -5922,6 +6476,12 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
                 eprintln!(
                   "[clawd/service] gateway busy: QA direct gateway event loop is temporarily stalled"
                 );
+              } else if runtime_deps_startup
+                || gateway_listening
+                || launch_grace_elapsed_ms.is_some()
+                || qa_direct_waiting_for_process
+              {
+                eprintln!("[clawd/service] gateway starting: QA direct gateway still warming up");
               } else {
                 eprintln!("[clawd/service] gateway down: QA direct gateway starting");
               }
@@ -8441,7 +9001,11 @@ fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
     .map_err(|e| format!("Failed to run Node.js at {}: {}", node_path.display(), e))?;
 
   let started = std::time::Instant::now();
-  let timeout = std::time::Duration::from_secs(3);
+  let timeout = if cfg!(debug_assertions) || qa_direct_gateway_mode() {
+    std::time::Duration::from_secs(10)
+  } else {
+    std::time::Duration::from_secs(3)
+  };
   loop {
     match child.try_wait() {
       Ok(Some(_)) => break,
@@ -8495,6 +9059,7 @@ async fn prepare_gateway_config(
 ) -> Result<ServiceSetup, String> {
   let prepare_started = std::time::Instant::now();
   let tokens = load_or_create_tokens(app_handle)?;
+  sync_portable_api_key_auth_profiles(app_handle, &tokens)?;
 
   fn first_existing(paths: &[PathBuf]) -> Option<PathBuf> {
     paths.iter().find(|p| p.exists()).cloned()
@@ -9520,6 +10085,8 @@ async fn prepare_gateway_config(
       }
     }
   }
+
+  sync_portable_api_key_auth_config(app_handle, &tokens)?;
   eprintln!(
     "[clawd/service] prepare_gateway_config: local config ready in {}ms",
     prepare_started.elapsed().as_millis()
@@ -9683,11 +10250,16 @@ async fn prepare_gateway_config(
     .join("plugin-runtime-deps")
     .to_string_lossy()
     .to_string();
+  let openclaw_config_path = PathBuf::from(&clawdbot_home_str)
+    .join("openclaw.json")
+    .to_string_lossy()
+    .to_string();
   let mut env = vec![
     ("PATH".to_string(), clawdbot_path),
     ("HOME".to_string(), user_home.clone()),
     ("OPENCLAW_HOME".to_string(), clawdbot_home_str.clone()),
     ("OPENCLAW_STATE_DIR".to_string(), clawdbot_home_str),
+    ("OPENCLAW_CONFIG_PATH".to_string(), openclaw_config_path),
     (
       "OPENCLAW_GATEWAY_TOKEN".to_string(),
       tokens.gateway_token.clone(),
@@ -9917,9 +10489,11 @@ async fn prepare_gateway_config(
     }
   }
   {
-    let home_str = app_clawdbot_home(app_handle).to_string_lossy().to_string();
+    let home = app_clawdbot_home(app_handle);
+    let home_str = home.to_string_lossy().to_string();
     std::env::set_var("OPENCLAW_HOME", &home_str);
     std::env::set_var("OPENCLAW_STATE_DIR", &home_str);
+    std::env::set_var("OPENCLAW_CONFIG_PATH", home.join("openclaw.json"));
   }
 
   // Set browser base_url
@@ -12007,7 +12581,7 @@ pub async fn skills_status(app_handle: web::Data<tauri::AppHandle>) -> impl Resp
   if let Ok(tokens) = load_or_create_tokens(&app_handle) {
     let gateway_result = tokio::time::timeout(
       std::time::Duration::from_secs(5),
-      super::gateway_client::gateway_request_pooled(
+      super::gateway_client::gateway_request_pooled_optional(
         "skills.status",
         Some(serde_json::json!({})),
         &tokens.gateway_token,
@@ -13981,6 +14555,51 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn stale_disabled_plugin_entries_are_removed_from_config() {
+    let mut cfg = serde_json::json!({
+      "plugins": {
+        "allow": ["browser", "duckduckgo", "slack"],
+        "entries": {
+          "browser": { "enabled": true },
+          "duckduckgo": { "enabled": false },
+          "google": { "enabled": false },
+          "groq": { "enabled": false },
+          "openrouter": { "enabled": false },
+          "codex": { "enabled": false },
+          "slack": { "enabled": true }
+        }
+      },
+      "tools": {
+        "web": {
+          "search": {
+            "provider": "duckduckgo"
+          }
+        }
+      }
+    });
+
+    assert!(sanitize_rejected_legacy_config_keys(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/plugins/allow")
+        .and_then(|value| value.as_array())
+        .map(|arr| arr
+          .iter()
+          .filter_map(|value| value.as_str())
+          .collect::<Vec<_>>()),
+      Some(vec!["browser", "slack"])
+    );
+    assert!(cfg.pointer("/plugins/entries/duckduckgo").is_none());
+    assert!(cfg.pointer("/plugins/entries/google").is_none());
+    assert!(cfg.pointer("/plugins/entries/groq").is_none());
+    assert!(cfg.pointer("/plugins/entries/openrouter").is_none());
+    assert!(cfg.pointer("/plugins/entries/codex").is_none());
+    assert!(cfg.pointer("/plugins/entries/browser").is_some());
+    assert!(cfg.pointer("/plugins/entries/slack").is_some());
+    assert!(cfg.pointer("/tools/web/search/provider").is_none());
+  }
+
+  #[test]
   fn runtime_deps_staging_is_startup_progress_until_completion() {
     let staging =
       "2026-05-13T10:44:47 [gateway] [plugins] staging bundled runtime deps before gateway startup";
@@ -14244,7 +14863,10 @@ mod provider_key_tests {
 
 #[cfg(test)]
 mod service_status_message_tests {
-  use super::{mac_service_status_summary, parse_browser_control_status_body, BrowserControlProbe};
+  use super::{
+    is_noisy_browser_probe_error, is_transient_browser_probe_error, mac_service_status_summary,
+    parse_browser_control_status_body, BrowserControlProbe,
+  };
 
   #[test]
   fn qa_direct_startup_is_not_reported_as_not_running() {
@@ -14281,5 +14903,23 @@ mod service_status_message_tests {
       parse_browser_control_status_body("OK"),
       BrowserControlProbe::Ready
     );
+  }
+
+  #[test]
+  fn transient_browser_probe_errors_are_classified() {
+    assert!(is_transient_browser_probe_error("channel closed"));
+    assert!(is_transient_browser_probe_error(
+      "operation was canceled: received unexpected message from connection"
+    ));
+    assert!(!is_transient_browser_probe_error("connection refused"));
+  }
+
+  #[test]
+  fn short_lived_browser_probe_timeouts_are_treated_as_noisy_not_fatal() {
+    assert!(is_noisy_browser_probe_error(
+      "error sending request for url (http://127.0.0.1:18791/?profile=openclaw): operation timed out"
+    ));
+    assert!(is_noisy_browser_probe_error("deadline has elapsed"));
+    assert!(!is_noisy_browser_probe_error("connection refused"));
   }
 }

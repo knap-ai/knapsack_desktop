@@ -392,7 +392,9 @@ pub async fn fetch_drive(
       tasks.push(task);
     }
     for task in tasks {
-      task.await.unwrap();
+      if let Err(err) = task.await {
+        log::error!("[google-drive] worker task failed: {}", err);
+      }
     }
 
     let mut sliced_documents: Vec<HashMap<String, serde_json::Value>> = Vec::new();
