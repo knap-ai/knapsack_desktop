@@ -54,9 +54,7 @@ const MODELS_BY_PROVIDER = {
   knapsack: ["auto"],
   openai: [
     "gpt-5.5",
-    "gpt-5.5-pro",
     "gpt-5.4",
-    "gpt-5.4-pro",
     "o3",
     "gpt-5-mini",
   ],
@@ -199,7 +197,7 @@ function qaStartupModelForProvider(provider) {
     ollama: "ollama/markheynen/knapsack-7b-chat-metal:latest",
     groq: "groq/llama-3.3-70b-versatile",
     knapsack: "knapsack/auto",
-    openai: "openai/gpt-5.4",
+    openai: "openai/gpt-5.5",
     openrouter: "openrouter/auto",
     xai: "xai/grok-4",
   };

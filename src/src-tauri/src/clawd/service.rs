@@ -4268,8 +4268,13 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   }
   if let Some((prefix, bare)) = model.split_once('/') {
     if prefix.eq_ignore_ascii_case(provider) {
-      return bare.to_string();
+      return normalize_provider_model(provider, bare);
     }
+  }
+  if provider.eq_ignore_ascii_case("openai")
+    && (model.eq_ignore_ascii_case("gpt-5.4-pro") || model.eq_ignore_ascii_case("gpt-5.5-pro"))
+  {
+    return "gpt-5.5".to_string();
   }
   model.to_string()
 }
@@ -4279,7 +4284,9 @@ pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
-    .unwrap_or_else(|| "gpt-5.4".to_string())
+    .map(|model| normalize_provider_model("openai", &model))
+    .filter(|model| !model.trim().is_empty())
+    .unwrap_or_else(|| "gpt-5.5".to_string())
 }
 
 /// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
@@ -8207,6 +8214,7 @@ pub struct GetApiKeyResponse {
   pub openai_key: Option<String>,
   pub anthropic_key: Option<String>,
   pub gemini_key: Option<String>,
+  pub groq_key: Option<String>,
   pub xai_key: Option<String>,
   pub anthropic_model: Option<String>,
   pub gemini_model: Option<String>,
@@ -8228,6 +8236,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
         openai_key: None,
         anthropic_key: None,
         gemini_key: None,
+        groq_key: None,
         xai_key: None,
         anthropic_model: None,
         gemini_model: None,
@@ -8241,6 +8250,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
   let openai_key = tokens.openai_api_key.filter(|k| !k.trim().is_empty());
   let anthropic_key = tokens.anthropic_api_key.filter(|k| !k.trim().is_empty());
   let gemini_key = tokens.gemini_api_key.filter(|k| !k.trim().is_empty());
+  let groq_key = tokens.groq_api_key.filter(|k| !k.trim().is_empty());
   let xai_key = tokens.xai_api_key.filter(|k| !k.trim().is_empty());
 
   // Return the currently active provider's key as `key` for backwards compatibility (voice/TTS)
@@ -8248,6 +8258,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
   let key = match active {
     "anthropic" => anthropic_key.clone(),
     "gemini" => gemini_key.clone(),
+    "groq" => groq_key.clone(),
     "xai" => xai_key.clone(),
     _ => openai_key.clone(),
   };
@@ -8273,6 +8284,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     openai_key,
     anthropic_key,
     gemini_key,
+    groq_key,
     xai_key,
     anthropic_model: tokens.anthropic_model.clone(),
     gemini_model: tokens.gemini_model.clone(),

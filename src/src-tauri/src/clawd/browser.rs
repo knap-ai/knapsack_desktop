@@ -689,8 +689,13 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   }
   if let Some((prefix, bare)) = model.split_once('/') {
     if prefix.eq_ignore_ascii_case(provider) {
-      return bare.to_string();
+      return normalize_provider_model(provider, bare);
     }
+  }
+  if provider.eq_ignore_ascii_case("openai")
+    && (model.eq_ignore_ascii_case("gpt-5.4-pro") || model.eq_ignore_ascii_case("gpt-5.5-pro"))
+  {
+    return "gpt-5.5".to_string();
   }
   model.to_string()
 }
@@ -807,12 +812,38 @@ fn is_credit_or_rate_error(err_lower: &str) -> bool {
     || err_lower.contains("high demand")
 }
 
+fn is_transient_or_internal_provider_error(err_lower: &str) -> bool {
+  err_lower.contains("500")
+    || err_lower.contains("502")
+    || err_lower.contains("504")
+    || err_lower.contains("internal server error")
+    || err_lower.contains("server had an error")
+    || err_lower.contains("temporarily unavailable")
+    || err_lower.contains("gateway timeout")
+    || err_lower.contains("bad gateway")
+    || err_lower.contains("exceptions must derive from baseexception")
+    || err_lower.contains("timed out")
+    || err_lower.contains("timeout")
+    || err_lower.contains("fetch failed")
+    || err_lower.contains("connection")
+    || err_lower.contains("socket")
+    || err_lower.contains("econnreset")
+    || err_lower.contains("econnrefused")
+}
+
+fn should_attempt_fallback_for_provider_error(err_lower: &str) -> bool {
+  is_credit_or_rate_error(err_lower) || is_transient_or_internal_provider_error(err_lower)
+}
+
 fn should_retry_knapsack_before_fallback(err_lower: &str) -> bool {
   err_lower.contains("429")
     || err_lower.contains("503")
+    || err_lower.contains("500")
     || err_lower.contains("rate")
     || err_lower.contains("unavailable")
     || err_lower.contains("high demand")
+    || err_lower.contains("internal server error")
+    || err_lower.contains("exceptions must derive from baseexception")
     || err_lower.contains("timed out")
     || err_lower.contains("timeout")
     || err_lower.contains("fetch failed")
@@ -5114,7 +5145,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
     }
 
-    // Try primary provider, then fallback to others on credit/rate-limit errors.
+    // Try primary provider, then fallback to others on transient, credit, or rate-limit errors.
     // For Knapsack specifically, give the selected provider a bounded exponential
     // backoff window before switching away so first-party issues are visible.
     let provider_messages = compact_messages_for_provider(&messages, &current_provider);
@@ -5324,7 +5355,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           }
 
           if recovered_resp.is_none() {
-            if !is_credit_or_rate_error(&err_lower) {
+            if !should_attempt_fallback_for_provider_error(&err_lower) {
               return HttpResponse::InternalServerError().json(
                 serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
               );
@@ -5344,7 +5375,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             );
             err_lower = err_str.to_lowercase();
           }
-        } else if !is_credit_or_rate_error(&err_lower) {
+        } else if !should_attempt_fallback_for_provider_error(&err_lower) {
           return HttpResponse::InternalServerError().json(
             serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
           );
@@ -5361,7 +5392,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           }
           // Respects KNAPSACK_DISABLE_PAID_FALLBACK to avoid silent charges on expensive providers
           eprintln!(
-            "[clawd/chat] {} hit credit/rate limit: {}",
+            "[clawd/chat] {} failed; attempting fallback providers: {}",
             current_provider, err_str
           );
           let disable_paid = is_paid_fallback_disabled();
@@ -5441,7 +5472,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             Some(r) => r,
             None => {
               return HttpResponse::Ok().json(
-                serde_json::json!({"ok": false, "message": format!("All AI providers are unavailable. Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.")}),
+                serde_json::json!({"ok": false, "message": format!("All AI providers are currently unavailable. Your active provider failed and no fallback provider could handle the request. Please try again in a moment, or add another provider in Settings for automatic failover.")}),
               );
             }
           }

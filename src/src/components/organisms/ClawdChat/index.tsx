@@ -191,6 +191,9 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('all fallback providers also failed')) {
     return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.\n\n${addApiKeyAction}`
   }
+  if (lower.includes('all ai providers are currently unavailable')) {
+    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your active provider failed and no backup provider could handle the request. Please try again in a moment, or add another provider in Settings for automatic failover.\n\n${addApiKeyAction}`
+  }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
     return `⚠️ **API quota exceeded** (active: \`${activeModel}\`). Your OpenAI account has run out of credits or hit its spending limit. Add another provider's API key in Settings for automatic failover, or check your billing at [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing).\n\n${addApiKeyAction}`
@@ -282,6 +285,9 @@ function friendlyError(raw: string, activeModel?: string): string {
   // Unsupported parameter value (e.g. temperature on reasoning models)
   if (lower.includes('unsupported value') && lower.includes('temperature')) {
     return `⚠️ **Parameter not supported by \`${activeModel}\`.** This is a reasoning model that doesn't allow custom temperature. This has been fixed — please try again.`
+  }
+  if (lower.includes('knapsack inference error') || lower.includes('exceptions must derive from baseexception') || (lower.includes('internal server error') && lower.includes('knapsack'))) {
+    return `⚠️ **Knapsack is temporarily unavailable** (active: \`${activeModel}\`). The request hit a server-side issue. Please try again in a moment, or switch to a backup model in Settings → Provider.\n\n${switchProviderAction}`
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -545,6 +551,16 @@ const API_BASE = 'http://127.0.0.1:8897'
 // API key is now stored server-side in tokens.json (not localStorage) for security.
 // This in-memory cache avoids repeated backend calls during a single session.
 let _cachedApiKey: string | null = null
+let _cachedSpeechToTextAuth: { provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null = null
+
+type GetApiKeyPayload = {
+  success: boolean
+  key?: string
+  model?: string
+  active_provider?: string
+  openai_key?: string
+  groq_key?: string
+}
 
 async function getOpenAIKey(): Promise<string | null> {
   if (_cachedApiKey) return _cachedApiKey
@@ -557,10 +573,36 @@ async function getOpenAIKey(): Promise<string | null> {
     localStorage.removeItem('moltbot_openai_key')
   }
   try {
-    const resp = await apiGet<{ success: boolean; key?: string; model?: string }>('/api/clawd/service/get-api-key')
-    if (resp.key) {
-      _cachedApiKey = resp.key
-      return resp.key
+    const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    if (resp.openai_key) {
+      _cachedApiKey = resp.openai_key
+      return resp.openai_key
+    }
+  } catch { /* backend not reachable */ }
+  return null
+}
+
+async function getSpeechToTextAuth(): Promise<{ provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null> {
+  if (_cachedSpeechToTextAuth) return _cachedSpeechToTextAuth
+  try {
+    const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    if (resp.openai_key) {
+      _cachedSpeechToTextAuth = {
+        provider: 'openai',
+        apiKey: resp.openai_key,
+        model: 'whisper-1',
+        endpoint: 'https://api.openai.com/v1/audio/transcriptions',
+      }
+      return _cachedSpeechToTextAuth
+    }
+    if (resp.groq_key) {
+      _cachedSpeechToTextAuth = {
+        provider: 'groq',
+        apiKey: resp.groq_key,
+        model: 'whisper-large-v3-turbo',
+        endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
+      }
+      return _cachedSpeechToTextAuth
     }
   } catch { /* backend not reachable */ }
   return null
@@ -575,6 +617,9 @@ const OPENROUTER_MODEL_STORAGE = 'moltbot_openrouter_model'
 const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
+const MIN_VOICE_RECORDING_MS = 900
+const MIN_VOICE_BLOB_BYTES = 4096
+const MIN_VOICE_CHUNK_COUNT = 2
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
 const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
 const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
@@ -595,6 +640,15 @@ type OpenAIModelOption = {
   vision?: boolean
 }
 
+function normalizeOpenAIModelSelection(model: string | null | undefined): string {
+  const trimmed = model?.trim()
+  if (!trimmed) return 'gpt-5.5'
+  if (trimmed === 'gpt-5.4-pro' || trimmed === 'gpt-5.5-pro') {
+    return 'gpt-5.5'
+  }
+  return trimmed
+}
+
 const OPENAI_MODELS: OpenAIModelOption[] = [
   {
     id: 'gpt-5.5',
@@ -606,12 +660,6 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     id: 'gpt-5.4',
     name: 'GPT-5.4',
     description: 'Highly capable, great balance of performance and cost',
-    vision: true,
-  },
-  {
-    id: 'gpt-5.4-pro',
-    name: 'GPT-5.4 Pro',
-    description: 'GPT-5.4 with extended thinking',
     vision: true,
   },
   {
@@ -1764,7 +1812,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5-mini'
+    return normalizeOpenAIModelSelection(localStorage.getItem(OPENAI_MODEL_STORAGE))
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
@@ -1942,6 +1990,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const audioChunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const recordingStartedAtRef = useRef<number>(0)
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
   const [selectedInputDevice, _setSelectedInputDevice] = useState<string>('')
@@ -2112,8 +2161,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (activeProvider === 'openai') {
             const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
             if (!localModel) {
-              setSelectedModel(backendModel)
-              localStorage.setItem(OPENAI_MODEL_STORAGE, backendModel)
+              const normalizedModel = normalizeOpenAIModelSelection(backendModel)
+              setSelectedModel(normalizedModel)
+              localStorage.setItem(OPENAI_MODEL_STORAGE, normalizedModel)
             }
           } else if (activeProvider === 'anthropic') {
             const localModel = localStorage.getItem(ANTHROPIC_MODEL_STORAGE)
@@ -2498,6 +2548,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
       audioChunksRef.current = []
+      recordingStartedAtRef.current = Date.now()
 
       // Set up Web Audio API for silence detection
       const audioContext = new AudioContext()
@@ -2573,7 +2624,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Use the extension we determined at recording start
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
+        const elapsedMs = Date.now() - recordingStartedAtRef.current
+        const chunkCount = audioChunksRef.current.length
         const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
+        console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
+
+        if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size < MIN_VOICE_BLOB_BYTES || elapsedMs < MIN_VOICE_RECORDING_MS) {
+          audioChunksRef.current = []
+          pushAssistantRef.current?.('🎤 I didn’t catch enough audio. Please try again and speak for a second or two after the mic turns on.')
+          return
+        }
+
         await transcribeAudio(audioBlob, recordingExtension)
       }
 
@@ -2601,6 +2662,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     analyserRef.current = null
 
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      const elapsedMs = Date.now() - recordingStartedAtRef.current
+      if (elapsedMs < MIN_VOICE_RECORDING_MS) return
       mediaRecorder.stop()
       setIsRecording(false)
     }
@@ -2609,25 +2672,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
     setIsTranscribing(true)
     try {
-      // Get the API key from backend
-      const storedKey = await getOpenAIKey()
-      if (!storedKey) {
-        pushAssistantRef.current?.('🎤 Please set your OpenAI API key first to use voice input.')
+      const speechAuth = await getSpeechToTextAuth()
+      if (!speechAuth) {
+        pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
         setShowKeyPrompt(true)
         return
       }
 
-      console.log('[Voice] Sending transcription request, format:', extension, 'size:', audioBlob.size)
+      console.log('[Voice] Sending transcription request via', speechAuth.provider, 'format:', extension, 'size:', audioBlob.size)
 
-      // Send to OpenAI Whisper API
       const formData = new FormData()
       formData.append('file', audioBlob, `recording.${extension}`)
-      formData.append('model', 'whisper-1')
+      formData.append('model', speechAuth.model)
 
-      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      const res = await fetch(speechAuth.endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${storedKey}`,
+          'Authorization': `Bearer ${speechAuth.apiKey}`,
         },
         body: formData,
       })
@@ -2641,9 +2702,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
         handleSendWithTextRef.current?.(data.text)
+      } else {
+        pushAssistantRef.current?.('🎤 I didn’t catch any speech. Try again and start speaking after the mic turns on.')
       }
     } catch (e: any) {
-      pushAssistantRef.current?.(`🎤 Transcription failed: ${e?.message || String(e)}`)
+      const raw = e?.message || String(e)
+      const lower = raw.toLowerCase()
+      if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
+        pushAssistantRef.current?.('🎤 I couldn’t hear usable audio in that recording. Please try again and speak for a second or two after the mic turns on.')
+      } else {
+        pushAssistantRef.current?.(`🎤 Transcription failed: ${raw}`)
+      }
     } finally {
       setIsTranscribing(false)
     }
@@ -3213,6 +3282,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: modelForProvider,
         provider: selectedProvider,
       })
+      _cachedSpeechToTextAuth = null
       if (selectedProvider === 'openai') {
         _cachedApiKey = apiKey.trim() // Update in-memory cache for voice/TTS
         localStorage.setItem(OPENAI_MODEL_STORAGE, selectedModel)
