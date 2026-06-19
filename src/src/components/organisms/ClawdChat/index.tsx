@@ -327,6 +327,8 @@ function friendlyError(raw: string, activeModel?: string): string {
 }
 
 type Role = 'system' | 'user' | 'assistant'
+type Attachment = { name: string; type: string; content: string; preview?: string }
+type QueuedDraft = { text: string; attachments: Attachment[] }
 
 type Msg = {
   id: string
@@ -1243,9 +1245,9 @@ type ChatInputBarProps = {
   isRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
-  attachedFiles: Array<{ name: string; type: string; content: string; preview?: string }>
+  attachedFiles: Attachment[]
   onSend: (text: string) => void
-  onQueue: (text: string) => void
+  onQueue: (text: string, attachments?: Attachment[]) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
@@ -1572,7 +1574,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
           title="Attach files or images"
         >
           📎
@@ -1596,8 +1597,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 e.preventDefault()
                 if (busy) {
                   // Queue the message to send after current request completes
-                  if (input.trim()) {
-                    onQueue(input.trim())
+                  if (input.trim() || attachedFiles.length > 0) {
+                    onQueue(input.trim(), attachedFiles)
                     setInput('')
                     autoResize()
                   }
@@ -1634,10 +1635,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               ⏹️ Stop
             </button>
             <button
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachedFiles.length === 0}
               onClick={() => {
-                if (input.trim()) {
-                  onQueue(input.trim())
+                if (input.trim() || attachedFiles.length > 0) {
+                  onQueue(input.trim(), attachedFiles)
                   setInput('')
                   autoResize()
                 }
@@ -1859,14 +1860,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     return []
   })
+  const [chatFindOpen, setChatFindOpen] = useState(false)
+  const [chatFindQuery, setChatFindQuery] = useState('')
+  const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
-  const queuedMessagesRef = useRef<string[]>([])
+  const queuedMessagesRef = useRef<QueuedDraft[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
-  const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
+  const [queuedMessages, setQueuedMessages] = useState<QueuedDraft[]>([])
   const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
   const [editingQueuedText, setEditingQueuedText] = useState('')
 
@@ -2069,7 +2073,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOutputDevice, _setSelectedOutputDevice] = useState<string>('')
 
   // File upload state
-  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; type: string; content: string; preview?: string }>>([])
+  const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -2080,6 +2084,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Message threading (reply-to) state
   const [replyToMsg, setReplyToMsg] = useState<Msg | null>(null)
+  const chatFindInputRef = useRef<HTMLInputElement | null>(null)
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
@@ -2088,7 +2093,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
-  const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
   const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
@@ -3705,7 +3710,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage, queuedMessageTexts])
+  }, [msgs, thinkingMessage, queuedMessages])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -3829,7 +3834,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // handleSendWithText queues automatically if the chat is busy mid-inference.
   const busyRef = useRef(false)
   busyRef.current = busy
-  const queueMessageRef = useRef<(text: string) => void>(() => {})
+  const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
@@ -4125,7 +4130,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
 
-  const doSend = async (text: string) => {
+  const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
 
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
@@ -4163,8 +4168,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setReplyToMsg(null)
 
     // Capture current attachments and clear them
-    const currentAttachments = [...attachedFiles]
-    setAttachedFiles([])
+    const currentAttachments = attachmentOverride ? [...attachmentOverride] : [...attachedFiles]
+    if (!attachmentOverride) setAttachedFiles([])
 
     // Show user message with attachment indicators
     const attachmentSummary = currentAttachments.length > 0
@@ -4862,10 +4867,16 @@ ${actualText}`
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
   // Queue a message to send after the current request completes
-  const stableQueueMessage = useCallback((text: string) => {
-    queuedMessagesRef.current = [...queuedMessagesRef.current, text]
+  const stableQueueMessage = useCallback((text: string, attachments: Attachment[] = []) => {
+    const nextDraft: QueuedDraft = { text, attachments: [...attachments] }
+    queuedMessagesRef.current = [...queuedMessagesRef.current, nextDraft]
     setHasQueuedMessage(true)
-    setQueuedMessageTexts(prev => [...prev, text])
+    setQueuedMessages(prev => [...prev, nextDraft])
+    if (attachments.length > 0) {
+      setAttachedFiles(prev =>
+        prev.filter(file => !attachments.some(att => att.name === file.name && att.content === file.content))
+      )
+    }
   }, [])
   // Keep queueMessageRef updated so handleSendWithText can queue mid-inference
   queueMessageRef.current = stableQueueMessage
@@ -4876,10 +4887,10 @@ ${actualText}`
     if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
       const [next, ...rest] = queuedMessagesRef.current
       queuedMessagesRef.current = rest
-      setQueuedMessageTexts(rest)
+      setQueuedMessages(rest)
       setHasQueuedMessage(rest.length > 0)
       // Short delay to let UI settle before sending next message
-      const timer = setTimeout(() => doSendRef.current?.(next), 150)
+      const timer = setTimeout(() => doSendRef.current?.(next.text, next.attachments), 150)
       return () => clearTimeout(timer)
     }
     prevBusyRef.current = busy
@@ -4888,24 +4899,39 @@ ${actualText}`
   // Keyboard shortcuts
   const clearHistoryRef = useRef(clearHistory)
   clearHistoryRef.current = clearHistory
+  const openChatFindRef = useRef<() => void>(() => {})
+  const closeChatFindRef = useRef<() => void>(() => {})
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') stopGenerationRef.current()
       const mod = e.metaKey || e.ctrlKey
+      if (e.key === 'Escape') {
+        const activeEl = document.activeElement
+        if (chatFindOpen && activeEl === chatFindInputRef.current) {
+          e.preventDefault()
+          closeChatFindRef.current()
+          return
+        }
+        stopGenerationRef.current()
+      }
       // Cmd/Ctrl+Shift+Backspace — clear chat history
       if (mod && e.shiftKey && e.key === 'Backspace') {
         e.preventDefault()
         clearHistoryRef.current()
       }
+      // Cmd/Ctrl+F — search chat history
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        openChatFindRef.current()
+      }
       // Cmd/Ctrl+L — focus chat input
-      if (mod && !e.shiftKey && e.key === 'l') {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [chatFindOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
@@ -5014,6 +5040,53 @@ ${actualText}`
     }),
     [msgs],
   )
+
+  const chatFindMatches = useMemo(() => {
+    const query = chatFindQuery.trim().toLowerCase()
+    if (!query) return [] as Array<{ id: string }>
+    return parsedMsgs
+      .filter(({ msg, cleaned }) => `${cleaned}\n${msg.text}`.toLowerCase().includes(query))
+      .map(({ msg }) => ({ id: msg.id }))
+  }, [parsedMsgs, chatFindQuery])
+
+  useEffect(() => {
+    if (chatFindMatches.length === 0) {
+      setChatFindActiveIndex(0)
+      return
+    }
+    setChatFindActiveIndex(prev => Math.min(prev, chatFindMatches.length - 1))
+  }, [chatFindMatches])
+
+  const openChatFind = useCallback(() => {
+    setChatFindOpen(true)
+    requestAnimationFrame(() => {
+      chatFindInputRef.current?.focus()
+      chatFindInputRef.current?.select()
+    })
+  }, [])
+
+  const closeChatFind = useCallback(() => {
+    setChatFindOpen(false)
+    setChatFindQuery('')
+    setChatFindActiveIndex(0)
+  }, [])
+
+  openChatFindRef.current = openChatFind
+  closeChatFindRef.current = closeChatFind
+
+  const goToChatFindMatch = useCallback((direction: 1 | -1) => {
+    if (chatFindMatches.length === 0) return
+    setChatFindActiveIndex(prev => (prev + direction + chatFindMatches.length) % chatFindMatches.length)
+  }, [chatFindMatches])
+
+  const activeChatFindMatchId = chatFindMatches[chatFindActiveIndex]?.id ?? null
+
+  useEffect(() => {
+    if (!activeChatFindMatchId) return
+    const el = msgRefsMap.current.get(activeChatFindMatchId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeChatFindMatchId])
 
   // Fast id→Msg lookup for reply-to resolution
   const msgsById = useMemo(() => {
@@ -5272,9 +5345,58 @@ ${actualText}`
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+        {chatFindOpen && (
+          <div className="ClawdChatFindBar" role="search" aria-label="Search chat history">
+            <input
+              ref={chatFindInputRef}
+              type="text"
+              value={chatFindQuery}
+              onChange={e => setChatFindQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  goToChatFindMatch(e.shiftKey ? -1 : 1)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeChatFind()
+                }
+              }}
+              placeholder="Search this conversation"
+              aria-label="Search this conversation"
+            />
+            <div className="ClawdChatFindBar__count">
+              {chatFindQuery.trim()
+                ? (chatFindMatches.length > 0 ? `${chatFindActiveIndex + 1}/${chatFindMatches.length}` : '0 results')
+                : 'Type to search'}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(-1)}
+              disabled={chatFindMatches.length === 0}
+              title="Previous match"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(1)}
+              disabled={chatFindMatches.length === 0}
+              title="Next match"
+            >
+              ↓
+            </button>
+            <button type="button" onClick={closeChatFind} title="Close search">
+              Close
+            </button>
+          </div>
+        )}
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
           <div
             key={m.id}
+            className={[
+              chatFindMatches.some(match => match.id === m.id) ? 'ClawdChatMatch' : '',
+              activeChatFindMatchId === m.id ? 'ClawdChatMatch--active' : '',
+            ].filter(Boolean).join(' ')}
             ref={el => {
               if (el) msgRefsMap.current.set(m.id, el)
               else msgRefsMap.current.delete(m.id)
@@ -5457,7 +5579,7 @@ ${actualText}`
             </div>
           </div>
         )}
-        {queuedMessageTexts.map((qText, i) => (
+        {queuedMessages.map((queued, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
             {editingQueuedIndex === i ? (
               <div className="ClawdQueuedEdit">
@@ -5471,9 +5593,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     } else if (e.key === 'Escape') {
@@ -5489,9 +5611,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     }}
@@ -5508,18 +5630,25 @@ ${actualText}`
               </div>
             ) : (
               <div className="ClawdBubble">
-                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>
+                  {queued.text || (queued.attachments.length > 0 ? 'Please analyze the attached files.' : '')}
+                </ReactMarkdown>
+                {queued.attachments.length > 0 && (
+                  <div className="ClawdQueuedAttachmentSummary">
+                    Attached: {queued.attachments.map(file => file.name).join(', ')}
+                  </div>
+                )}
               </div>
             )}
             <div className="ClawdQueuedFooter">
-              <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
+              <span className="ClawdQueuedLabel">Queued{queuedMessages.length > 1 ? ` (${i + 1} of ${queuedMessages.length})` : ''}</span>
               {editingQueuedIndex !== i && (
                 <div className="ClawdQueuedActions">
                   <button
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
-                      setEditingQueuedText(qText)
+                      setEditingQueuedText(queued.text)
                       setEditingQueuedIndex(i)
                     }}
                   >
@@ -5531,7 +5660,7 @@ ${actualText}`
                     onClick={() => {
                       const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)
                       queuedMessagesRef.current = updated
-                      setQueuedMessageTexts(updated)
+                      setQueuedMessages(updated)
                       setHasQueuedMessage(updated.length > 0)
                     }}
                   >

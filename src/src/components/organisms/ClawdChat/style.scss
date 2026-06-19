@@ -295,6 +295,68 @@
   }
 }
 
+.ClawdChatFindBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+
+    &:focus {
+      border-color: rgba(59, 130, 246, 0.45);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+  }
+
+  button {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ClawdChatFindBar__count {
+  flex-shrink: 0;
+  min-width: 68px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  text-align: right;
+}
+
+.ClawdChatMatch {
+  border-radius: 12px;
+}
+
+.ClawdChatMatch--active {
+  outline: 2px solid rgba(59, 130, 246, 0.28);
+  outline-offset: 4px;
+}
+
 .ClawdScrollToBottom {
   position: absolute;
   bottom: 80px;
@@ -469,6 +531,12 @@
   color: #999;
   font-style: italic;
   flex: 1;
+}
+
+.ClawdQueuedAttachmentSummary {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.58);
 }
 
 .ClawdQueuedActions {
