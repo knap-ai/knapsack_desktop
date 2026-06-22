@@ -355,17 +355,27 @@ function waitForFreshLaunchAgentPlist(minMtimeMs, timeoutMs = 45_000) {
             resolve(plist);
             return;
           }
+          if (mtimeMs >= minMtimeMs) {
+            console.warn(
+              `[qa-dev-run] LaunchAgent plist was rewritten for a different checkout (${entry}); proceeding with best-effort direct launch`,
+            );
+            resolve(null);
+            return;
+          }
         }
       } catch {
         // Keep polling while the app is writing the plist.
       }
 
       if (Date.now() - started > timeoutMs) {
-        reject(
-          new Error(
-            `Timed out waiting for a fresh dev Clawdbot LaunchAgent plist`,
-          ),
-        );
+        if (fs.existsSync(launchAgentPlist)) {
+          console.warn(
+            `[qa-dev-run] Timed out waiting for fresh dev Clawdbot LaunchAgent plist at ${launchAgentPlist}; proceeding with best-effort existing file`,
+          );
+          resolve(null);
+          return;
+        }
+        reject(new Error(`Timed out waiting for a fresh dev Clawdbot LaunchAgent plist`));
       } else {
         setTimeout(attempt, 500);
       }
@@ -707,15 +717,13 @@ function startDirectGatewayFromPlist() {
   }
 
   const entry = args[1] || "";
-  if (
-    !entry.startsWith(
-      path.join(projectDir, "src-tauri", "resources", "clawdbot"),
-    )
-  ) {
+  if (!entry) {
+    throw new Error("LaunchAgent plist ProgramArguments[1] is empty");
+  }
+  if (!entry.startsWith(path.join(projectDir, "src-tauri", "resources", "clawdbot"))) {
     console.warn(
-      `[qa-dev-run] Skipping direct gateway: plist is not targeting this checkout (${entry})`,
+      `[qa-dev-run] Starting direct gateway from non-worktree LaunchAgent entry (${entry})`,
     );
-    return null;
   }
 
   const gatewayStateDir = qaStateDir;
@@ -967,9 +975,15 @@ async function main() {
   const appStartedAt = Date.now();
   await waitForUrl("http://127.0.0.1:8897/api/clawd/service/status", 45_000);
   if (process.platform === "darwin") {
-    await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
+    const launchAgent = await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
     await waitForBundledPluginRuntimeDepsReady(60_000);
-    startManagedGateway();
+    if (launchAgent || fs.existsSync(launchAgentPlist)) {
+      startManagedGateway();
+    } else {
+      console.warn(
+        "[qa-dev-run] Continuing without managed direct gateway start; app bootstrap path was not local",
+      );
+    }
   }
 
   if (prepareOnly) {
