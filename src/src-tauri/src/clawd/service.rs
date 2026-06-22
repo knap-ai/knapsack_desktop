@@ -7254,11 +7254,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
-  let has_knapsack = tokens
-    .knapsack_email
-    .as_ref()
-    .map(|e| !e.trim().is_empty())
-    .unwrap_or(false);
+  let has_knapsack = has_knapsack_runtime_auth(&tokens);
   let has_key = has_openai
     || has_anthropic
     || has_gemini
@@ -7378,6 +7374,16 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     knapsack_email: tokens.knapsack_email.clone(),
     knapsack_model: tokens.knapsack_model.clone(),
   })
+}
+
+fn has_nonempty(value: Option<&String>) -> bool {
+  value.map(|s| !s.trim().is_empty()).unwrap_or(false)
+}
+
+fn has_knapsack_runtime_auth(tokens: &StoredTokens) -> bool {
+  has_nonempty(tokens.knapsack_email.as_ref())
+    && (has_nonempty(tokens.knapsack_access_token.as_ref())
+      || has_nonempty(tokens.knapsack_refresh_token.as_ref()))
 }
 
 /// Validate an API key by making a lightweight test request to the provider.
@@ -14921,5 +14927,69 @@ mod service_status_message_tests {
     ));
     assert!(is_noisy_browser_probe_error("deadline has elapsed"));
     assert!(!is_noisy_browser_probe_error("connection refused"));
+  }
+}
+
+#[cfg(test)]
+mod knapsack_runtime_auth_tests {
+  use super::{has_knapsack_runtime_auth, StoredTokens};
+
+  fn empty_tokens() -> StoredTokens {
+    StoredTokens {
+      gateway_token: String::new(),
+      browser_control_token: String::new(),
+      groq_api_key: None,
+      openai_api_key: None,
+      openai_model: None,
+      anthropic_api_key: None,
+      anthropic_model: None,
+      gemini_api_key: None,
+      gemini_model: None,
+      groq_model: None,
+      xai_api_key: None,
+      xai_model: None,
+      openrouter_api_key: None,
+      openrouter_model: None,
+      active_provider: None,
+      ollama_enabled: None,
+      ollama_model: None,
+      ollama_base_url: None,
+      extra_provider_keys: None,
+      preferred_coding_agent: None,
+      knapsack_email: None,
+      knapsack_model: None,
+      knapsack_access_token: None,
+      knapsack_refresh_token: None,
+    }
+  }
+
+  #[test]
+  fn knapsack_auth_requires_email_and_token_material() {
+    let mut tokens = empty_tokens();
+    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
+    assert!(
+      !has_knapsack_runtime_auth(&tokens),
+      "email alone should not be reported as usable Knapsack auth"
+    );
+
+    tokens.knapsack_access_token = Some("access-token".to_string());
+    assert!(has_knapsack_runtime_auth(&tokens));
+
+    tokens.knapsack_access_token = None;
+    tokens.knapsack_refresh_token = Some("refresh-token".to_string());
+    assert!(has_knapsack_runtime_auth(&tokens));
+  }
+
+  #[test]
+  fn knapsack_auth_rejects_blank_fields() {
+    let mut tokens = empty_tokens();
+    tokens.knapsack_email = Some("   ".to_string());
+    tokens.knapsack_access_token = Some("access-token".to_string());
+    assert!(!has_knapsack_runtime_auth(&tokens));
+
+    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
+    tokens.knapsack_access_token = Some("   ".to_string());
+    tokens.knapsack_refresh_token = Some("   ".to_string());
+    assert!(!has_knapsack_runtime_auth(&tokens));
   }
 }

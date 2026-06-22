@@ -690,6 +690,13 @@ fn knapsack_user_email(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn knapsack_fallback_credential(app_handle: &tauri::AppHandle) -> Option<String> {
+  // Knapsack fallback eligibility should follow the real request path:
+  // a connected account email is enough to attempt auth, and the bearer token
+  // can be acquired or refreshed lazily inside `knapsack_bearer_token`.
+  knapsack_user_email(app_handle)
+}
+
 fn normalize_provider_model(provider: &str, model: &str) -> String {
   let model = model.trim();
   if model.is_empty() {
@@ -5681,7 +5688,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             None
           };
           let fallbacks: [(&str, Option<String>); 8] = [
-            ("knapsack", knapsack_access_token(&app_handle)),
+            ("knapsack", knapsack_fallback_credential(&app_handle)),
             ("openai", openai_key(&app_handle)),
             ("anthropic", anthropic_key(&app_handle)),
             ("gemini", gemini_key(&app_handle)),
