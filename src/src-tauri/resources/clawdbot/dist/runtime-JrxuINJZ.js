@@ -9,6 +9,54 @@ import { r as sortWebSearchProvidersForAutoDetect } from "./web-search-providers
 import { n as resolveRuntimeWebSearchProviders, t as resolvePluginWebSearchProviders } from "./web-search-providers.runtime.js";
 import { i as resolveWebProviderConfig, n as providerRequiresCredential, r as readWebProviderEnvValue, t as hasWebProviderEntryCredential } from "./provider-runtime-shared-B1Ic1Utb.js";
 //#region src/web-search/runtime.ts
+const DESKTOP_BROWSER_SEARCH_URL = process.env.KNAPSACK_BROWSER_SEARCH_URL?.trim() || "http://127.0.0.1:8897/api/clawd/browser/search";
+function isDesktopManagedGateway() {
+	return process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY === "1";
+}
+async function runDesktopBrowserWebSearchFallback(params, reason) {
+	if (!isDesktopManagedGateway()) return null;
+	logVerbose(`web_search: attempting desktop browser fallback (${reason})`);
+	const query = typeof params?.args?.query === "string" ? params.args.query.trim() : "";
+	if (!query) return null;
+	const url = new URL(DESKTOP_BROWSER_SEARCH_URL);
+	url.searchParams.set("q", query);
+	const requestedCount = Number.isFinite(params?.args?.count) ? params.args.count : Number.parseInt(String(params?.args?.count ?? ""), 10);
+	if (Number.isFinite(requestedCount) && requestedCount > 0) url.searchParams.set("count", String(Math.min(requestedCount, 10)));
+	const startedAt = Date.now();
+	let response;
+	try {
+		response = await fetch(url.toString(), {
+			method: "GET",
+			headers: { Accept: "application/json" }
+		});
+	} catch (error) {
+		throw new Error(`web_search browser fallback failed to connect (${reason}): ${error instanceof Error ? error.message : String(error)}`);
+	}
+	if (!response.ok) throw new Error(`web_search browser fallback returned ${response.status} (${reason})`);
+	const payload = await response.json();
+	if (!payload || payload.success !== true || !Array.isArray(payload.results)) return null;
+	return {
+		provider: payload.provider || "browser",
+		result: {
+			query,
+			provider: payload.provider || "browser",
+			count: payload.results.length,
+			tookMs: Date.now() - startedAt,
+			externalContent: {
+				untrusted: true,
+				source: "web_search",
+				provider: payload.provider || "browser",
+				wrapped: true
+			},
+			results: payload.results.map((result) => ({
+				title: typeof result?.title === "string" ? result.title : "",
+				url: typeof result?.url === "string" ? result.url : "",
+				snippet: typeof result?.snippet === "string" ? result.snippet : "",
+				siteName: typeof result?.siteName === "string" ? result.siteName : void 0
+			}))
+		}
+	};
+}
 function resolveSearchConfig(cfg) {
 	return resolveWebProviderConfig(cfg, "search");
 }
@@ -179,7 +227,11 @@ async function runWebSearch(params) {
 		runtimeWebSearch,
 		preferRuntimeProviders: params.preferRuntimeProviders ?? true
 	});
-	if (candidates.length === 0) throw new Error("web_search is disabled or no provider is available.");
+	if (candidates.length === 0) {
+		const browserFallback = await runDesktopBrowserWebSearchFallback(params, "no configured provider");
+		if (browserFallback) return browserFallback;
+		throw new Error("web_search is disabled or no provider is available.");
+	}
 	const allowFallback = !hasExplicitWebSearchSelection({
 		search,
 		runtimeWebSearch,
@@ -213,7 +265,15 @@ async function runWebSearch(params) {
 		lastError = error;
 		if (!allowFallback) throw error;
 	}
-	if (sawUnavailableProvider && lastError === void 0) throw new Error("web_search is enabled but no provider is currently available.");
+	if (sawUnavailableProvider && lastError === void 0) {
+		const browserFallback = await runDesktopBrowserWebSearchFallback(params, "configured providers unavailable");
+		if (browserFallback) return browserFallback;
+		throw new Error("web_search is enabled but no provider is currently available.");
+	}
+	if (lastError instanceof Error && /web_search provider .* is not available|disabled or no provider is available/i.test(lastError.message)) {
+		const browserFallback = await runDesktopBrowserWebSearchFallback(params, lastError.message);
+		if (browserFallback) return browserFallback;
+	}
 	throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 //#endregion
