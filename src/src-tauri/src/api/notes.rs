@@ -181,17 +181,28 @@ async fn list_all_notes() -> impl Responder {
             if let Some(filename) = path.file_name() {
               if let Some(filename_str) = filename.to_str() {
                 if let Ok(thread_id) = filename_str.parse::<u64>() {
-                  let metadata = get_metadata(thread_id).await.unwrap();
+                  let metadata = match get_metadata(thread_id).await {
+                    Ok(metadata) => Some(metadata),
+                    Err(error) => {
+                      log::warn!(
+                        "Failed to load note metadata for thread {} ({}): {:?}",
+                        thread_id,
+                        filename_str,
+                        error
+                      );
+                      None
+                    }
+                  };
                   match read_to_string(&path) {
                     Ok(content) => {
                       notes_list.push(json!({
                           "thread_id": thread_id,
                           "content": content,
-                          "filename": metadata.filename.clone(),
-                          "start_time": metadata.start_time.clone(),
-                          "end_time": metadata.end_time.clone(),
-                          "participants": metadata.participants.clone(),
-                          "thread_id": metadata.thread_id.clone()
+                          "filename": metadata.as_ref().map(|value| value.filename.clone()).unwrap_or_else(|| filename_str.to_string()),
+                          "start_time": metadata.as_ref().and_then(|value| value.start_time),
+                          "end_time": metadata.as_ref().and_then(|value| value.end_time),
+                          "participants": metadata.as_ref().and_then(|value| value.participants.clone()),
+                          "thread_id": metadata.as_ref().and_then(|value| value.thread_id).or(Some(thread_id))
                       }));
                     }
                     Err(e) => {
