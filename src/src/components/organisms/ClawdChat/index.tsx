@@ -20,6 +20,7 @@ import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
 import { detectBuildIntent, extractProjectDescription } from 'src/utils/devIntentDetector'
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
+import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -29,6 +30,14 @@ import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 // Instead we parse with balanced-parenthesis counting.
 
 type PromptAction = { label: string; prompt: string }
+
+const SHARE_SUPPORT_DIAGNOSTICS_ACTION =
+  '[Share diagnostics with Knapsack Support](knapsack://prompt/__share_support_diagnostics__)'
+
+function appendSupportDiagnosticsAction(message: string): string {
+  if (message.includes('__share_support_diagnostics__')) return message
+  return `${message}\n\n${SHARE_SUPPORT_DIAGNOSTICS_ACTION}`
+}
 
 // All recognized prompt link prefixes — the AI may use any of these forms
 const PROMPT_MARKERS = ['knapsack://prompt/', 'knapsack://prompt=', 'knapsack://prompt(']
@@ -1908,6 +1917,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     return []
   })
+  const msgsRef = useRef<Msg[]>([])
+  useEffect(() => {
+    msgsRef.current = msgs
+  }, [msgs])
   const [chatFindOpen, setChatFindOpen] = useState(false)
   const [chatFindQuery, setChatFindQuery] = useState('')
   const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
@@ -4015,6 +4028,33 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       return
     }
 
+    if (text === '__share_support_diagnostics__') {
+      const sourceMsg = srcMsgId ? msgsRef.current.find(m => m.id === srcMsgId) : null
+      const issueSummary = sourceMsg?.text || 'Knapsack surfaced an error in chat.'
+      try {
+        const draft = await buildSupportDiagnosticsDraft({
+          issueSummary,
+          activeModel: getActiveModelLabel(),
+        })
+        if (srcMsgId) {
+          setMsgs(prev => prev.map(m =>
+            m.id === srcMsgId
+              ? { ...m, confirmedActionPrompts: [...(m.confirmedActionPrompts ?? []), text] }
+              : m
+          ))
+        }
+        window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: draft }))
+        pushAssistantRef.current?.(
+          'I drafted a support email with a sanitized diagnostics attachment addressed to **support@knap.ai**.',
+        )
+      } catch (error: any) {
+        pushAssistantRef.current?.(
+          `I couldn't prepare the diagnostics bundle: ${error?.message || String(error)}`,
+        )
+      }
+      return
+    }
+
     // Handle special "enable advanced and resend" action
     const advPrefix = '__enable_advanced_and_resend__'
     if (text.startsWith(advPrefix)) {
@@ -4771,7 +4811,9 @@ ${actualText}`
                   if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') ||
                       lowerReply.includes('spending cap') || lowerReply.includes('no api key found') ||
                       lowerReply.includes('configure auth for this agent')) {
-                    displayText = friendlyError(displayText, getActiveModelLabel())
+                    displayText = appendSupportDiagnosticsAction(
+                      friendlyError(displayText, getActiveModelLabel()),
+                    )
                   }
                 }
                 setMsgs(prev => [
@@ -4847,7 +4889,11 @@ ${actualText}`
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)
             } else {
-              pushAssistant(friendlyError(out.message || out.error || 'No reply', activeModelAtSend))
+              pushAssistant(
+                appendSupportDiagnosticsAction(
+                  friendlyError(out.message || out.error || 'No reply', activeModelAtSend),
+                ),
+              )
             }
             succeeded = true
             break
@@ -4884,7 +4930,11 @@ ${actualText}`
         abortControllerRef.current = null
       }
     } catch (e: any) {
-      pushAssistant(friendlyError(e?.message || String(e), activeModelAtSend))
+      pushAssistant(
+        appendSupportDiagnosticsAction(
+          friendlyError(e?.message || String(e), activeModelAtSend),
+        ),
+      )
     } finally {
       // Safety net: always clear thinking state when request ends, even if inner
       // finally was skipped due to an error thrown between setting thinkingMessage

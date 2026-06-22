@@ -1,5 +1,8 @@
 use actix_web::{get, web, HttpResponse, Responder};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use base64::{
+  engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+  Engine,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -31,6 +34,24 @@ pub struct UnreadImportantEmail {
 pub struct UnreadImportantResponse {
   pub success: bool,
   pub emails: Vec<UnreadImportantEmail>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailAttachment {
+  pub filename: String,
+  pub mime_type: String,
+  pub content: String,
+  pub encoding: Option<String>,
+}
+
+fn wrap_base64_lines(encoded: &str) -> String {
+  encoded
+    .as_bytes()
+    .chunks(76)
+    .map(|chunk| String::from_utf8_lossy(chunk).to_string())
+    .collect::<Vec<_>>()
+    .join("\r\n")
 }
 
 /// A lightweight endpoint intended for Clawd integration: provide a bundle of
@@ -87,6 +108,7 @@ pub async fn send_gmail_email(
   subject: &str,
   body: &str,
   thread_id: Option<&str>,
+  attachments: Option<&[EmailAttachment]>,
 ) -> Result<String, String> {
   // 1. Get OAuth access token
   let scope = GOOGLE_GMAIL_SCOPE.to_string();
@@ -105,14 +127,23 @@ pub async fn send_gmail_email(
     format!("{} <{}>", user_name, user_email)
   };
 
-  let mut headers = vec![
-    "MIME-Version: 1.0".to_string(),
-    "Content-Type: text/html; charset=utf-8".to_string(),
+  let has_attachments = attachments.map(|items| !items.is_empty()).unwrap_or(false);
+  let boundary = format!("knapsack-boundary-{}", Uuid::new_v4());
+  let mut headers = vec!["MIME-Version: 1.0".to_string()];
+  if has_attachments {
+    headers.push(format!(
+      "Content-Type: multipart/mixed; boundary=\"{}\"",
+      boundary
+    ));
+  } else {
+    headers.push("Content-Type: text/html; charset=utf-8".to_string());
+  }
+  headers.extend([
     format!("Message-ID: {}", message_id),
     format!("Subject: {}", subject),
     format!("From: {}", full_sender),
     format!("To: {}", to),
-  ];
+  ]);
 
   if let Some(cc_val) = cc {
     if !cc_val.is_empty() {
@@ -122,7 +153,44 @@ pub async fn send_gmail_email(
 
   let html_body = format!("<div dir=\"ltr\">{}</div>", body);
 
-  let raw_message = format!("{}\r\n\r\n{}", headers.join("\r\n"), html_body);
+  let raw_message = if has_attachments {
+    let mut parts = vec![
+      format!("{}\r\n", headers.join("\r\n")),
+      format!("--{}\r\n", boundary),
+      "Content-Type: text/html; charset=utf-8\r\n".to_string(),
+      "Content-Transfer-Encoding: 7bit\r\n\r\n".to_string(),
+      format!("{}\r\n", html_body),
+    ];
+
+    if let Some(items) = attachments {
+      for attachment in items {
+        let bytes = if attachment.encoding.as_deref() == Some("base64") {
+          STANDARD
+            .decode(attachment.content.as_bytes())
+            .map_err(|e| format!("Invalid attachment base64: {}", e))?
+        } else {
+          attachment.content.as_bytes().to_vec()
+        };
+        let encoded_attachment = wrap_base64_lines(&STANDARD.encode(bytes));
+        parts.push(format!("--{}\r\n", boundary));
+        parts.push(format!(
+          "Content-Type: {}; name=\"{}\"\r\n",
+          attachment.mime_type, attachment.filename
+        ));
+        parts.push("Content-Transfer-Encoding: base64\r\n".to_string());
+        parts.push(format!(
+          "Content-Disposition: attachment; filename=\"{}\"\r\n\r\n",
+          attachment.filename
+        ));
+        parts.push(format!("{}\r\n", encoded_attachment));
+      }
+    }
+
+    parts.push(format!("--{}--", boundary));
+    parts.join("")
+  } else {
+    format!("{}\r\n\r\n{}", headers.join("\r\n"), html_body)
+  };
   let encoded = URL_SAFE_NO_PAD.encode(raw_message.as_bytes());
 
   // 3. Send via Gmail API

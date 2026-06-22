@@ -197,12 +197,20 @@ export interface EmailAction {
   rightAction: AutopilotActions
 }
 
+export interface ComposedEmailAttachment {
+  filename: string
+  mimeType: string
+  content: string
+  encoding?: 'utf8' | 'base64'
+}
+
 export interface ComposedEmailDraft {
   to: string
   cc?: string
   subject: string
   body: string
   threadId?: string
+  attachments?: ComposedEmailAttachment[]
 }
 
 export function useFeed(

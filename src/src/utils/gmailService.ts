@@ -208,6 +208,7 @@ export const sendComposedEmail = async ({
   threadId,
   userEmail,
   userName,
+  attachments,
 }: {
   to: string
   cc?: string
@@ -216,6 +217,12 @@ export const sendComposedEmail = async ({
   threadId?: string
   userEmail: string
   userName?: string
+  attachments?: Array<{
+    filename: string
+    mimeType: string
+    content: string
+    encoding?: 'utf8' | 'base64'
+  }>
 }): Promise<void> => {
   try {
     await invoke('kn_send_composed_email', {
@@ -226,6 +233,7 @@ export const sendComposedEmail = async ({
       thread_id: threadId,
       user_email: userEmail,
       user_name: userName,
+      attachments,
     })
   } catch (error) {
     const message =

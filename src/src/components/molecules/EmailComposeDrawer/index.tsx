@@ -23,6 +23,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const attachments = draft.attachments ?? []
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {
@@ -64,6 +65,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         threadId: draft.threadId,
         userEmail,
         userName,
+        attachments,
       })
       setSent(true)
       setTimeout(() => onDismiss(), 1500)
@@ -197,6 +199,33 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
 
       {/* Body — contentEditable for rich-text editing */}
       <div style={{ overflowY: 'auto', flex: 1, padding: '10px 16px' }}>
+        {attachments.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
+              Attachments
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {attachments.map((attachment, index) => (
+                <span
+                  key={`${attachment.filename}-${index}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    color: '#475569',
+                    fontSize: 12,
+                  }}
+                >
+                  📎 {attachment.filename}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div
           ref={bodyRef}
           contentEditable
