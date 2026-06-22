@@ -3547,6 +3547,14 @@ fn runtime_channel_active(runtime: Option<&Value>, summary: Option<&str>) -> boo
   runtime_connected || runtime_running || (runtime_enabled && runtime_configured)
 }
 
+fn effective_runtime_connected(runtime: Option<&Value>, summary: Option<&str>) -> bool {
+  let raw_connected = runtime
+    .and_then(|value| value.get("connected"))
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  raw_connected || runtime_channel_active(runtime, summary)
+}
+
 /// Diagnose channel configuration and auto-repair common issues.
 ///
 /// Checks:
@@ -3930,9 +3938,8 @@ pub async fn channel_diagnostics() -> impl Responder {
         .and_then(|value| value.as_bool())
         .unwrap_or(false);
       let runtime_connected = runtime
-        .and_then(|value| value.get("connected"))
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false);
+        .map(|value| effective_runtime_connected(Some(value), summary.as_deref()))
+        .unwrap_or_else(|| effective_runtime_connected(None, summary.as_deref()));
       let runtime_running = runtime
         .and_then(|value| value.get("running"))
         .and_then(|value| value.as_bool())
@@ -5220,7 +5227,8 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 #[cfg(test)]
 mod reconnect_retry_tests {
   use super::{
-    build_enable_patch, inference_auth_status, is_connection_level_error, runtime_channel_active,
+    build_enable_patch, effective_runtime_connected, inference_auth_status,
+    is_connection_level_error, runtime_channel_active,
   };
 
   #[test]
@@ -5335,6 +5343,18 @@ mod reconnect_retry_tests {
     });
 
     assert!(runtime_channel_active(Some(&runtime), None));
+  }
+
+  #[test]
+  fn effective_runtime_connected_matches_active_runtime_snapshot() {
+    let runtime = serde_json::json!({
+      "enabled": true,
+      "configured": true,
+      "connected": false,
+      "running": true
+    });
+
+    assert!(effective_runtime_connected(Some(&runtime), None));
   }
 
   #[test]
