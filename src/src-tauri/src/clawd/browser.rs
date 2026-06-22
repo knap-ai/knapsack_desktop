@@ -4225,6 +4225,7 @@ pub async fn chat(
           &draft.subject,
           &draft.body_html,
           draft.thread_id.as_deref(),
+          None,
         )
         .await
         {

@@ -175,6 +175,7 @@ async fn kn_send_composed_email(
   thread_id: Option<String>,
   user_email: String,
   user_name: Option<String>,
+  attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
 ) -> Result<String, String> {
   let trimmed_to = to.trim().to_string();
   let trimmed_subject = subject.trim().to_string();
@@ -192,6 +193,7 @@ async fn kn_send_composed_email(
     &trimmed_subject,
     &trimmed_body,
     thread_id.as_deref(),
+    attachments.as_deref(),
   )
   .await
 }
