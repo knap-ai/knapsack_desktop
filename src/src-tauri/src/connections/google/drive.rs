@@ -8,6 +8,7 @@ use actix_web::{error, get, post, web::Json, HttpRequest, HttpResponse, Responde
 use chrono::{Duration, Utc};
 use google_calendar3::hyper;
 use google_calendar3::hyper_rustls;
+use google_drive3::api::Drive as SharedDrive;
 use google_drive3::api::File;
 use google_drive3::DriveHub;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,10 @@ use crate::utils::log::knap_log_error;
 
 use super::auth::refresh_connection_token;
 use super::constants::GOOGLE_DRIVE_SCOPE;
+
+const DRIVE_FILE_FIELDS: &str =
+  "nextPageToken,files(id,name,driveId,md5Checksum,version,createdTime,modifiedTime,size,mimeType,webViewLink)";
+const SHARED_DRIVE_FIELDS: &str = "nextPageToken,drives(id,name)";
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FetchGoogleDriveResponse {
@@ -229,9 +234,7 @@ mod tests {
       Some("1fileIdExample456".to_string())
     );
     assert_eq!(
-      resolve_google_drive_file_id(
-        "https://drive.google.com/open?id=1queryParamId789"
-      ),
+      resolve_google_drive_file_id("https://drive.google.com/open?id=1queryParamId789"),
       Some("1queryParamId789".to_string())
     );
   }
@@ -303,7 +306,12 @@ async fn get_drive_file_content(
     if !DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT.contains(&&mime_type.as_str()) {
       export_mime_type = "text/csv".to_string();
     }
-    let export_result = hub.files().export(&id, &export_mime_type).doit().await;
+    let export_result = hub
+      .files()
+      .export(&id, &export_mime_type)
+      .param("supportsAllDrives", "true")
+      .doit()
+      .await;
     return match export_result {
       Err(e) => {
         println!("Export {id} failed {:?}", e);
@@ -319,7 +327,13 @@ async fn get_drive_file_content(
       }
     };
   }
-  let export_result = hub.files().get(&id).param("alt", "media").doit().await;
+  let export_result = hub
+    .files()
+    .get(&id)
+    .param("alt", "media")
+    .param("supportsAllDrives", "true")
+    .doit()
+    .await;
   match export_result {
     Err(e) => {
       println!("Download {id} failed {:?}", e);
@@ -411,13 +425,141 @@ pub async fn get_or_create_drive_document_from_file(
   drive_document
 }
 
+async fn list_accessible_shared_drives(
+  hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+) -> Vec<SharedDrive> {
+  let mut next_page_token: Option<String> = None;
+  let mut shared_drives = Vec::new();
+
+  loop {
+    let mut request = hub
+      .drives()
+      .list()
+      .param("fields", SHARED_DRIVE_FIELDS)
+      .page_size(100);
+
+    if let Some(token) = next_page_token.as_ref() {
+      request = request.page_token(token);
+    }
+
+    match request.doit().await {
+      Ok((_, response)) => {
+        if let Some(drives) = response.drives {
+          shared_drives.extend(drives);
+        }
+        next_page_token = response.next_page_token;
+        if next_page_token.is_none() {
+          break;
+        }
+      }
+      Err(error) => {
+        log::warn!(
+          "[google-drive] failed to enumerate shared drives: {:?}",
+          error
+        );
+        break;
+      }
+    }
+  }
+
+  shared_drives
+}
+
+async fn fetch_drive_page(
+  hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+  query: &str,
+  page_token: Option<&String>,
+  corpora: &str,
+  drive_id: Option<&str>,
+) -> Result<(Vec<File>, Option<String>), Error> {
+  let mut list_request = hub
+    .files()
+    .list()
+    .order_by("createdTime desc")
+    .q(query)
+    .param("fields", DRIVE_FILE_FIELDS)
+    .param("supportsAllDrives", "true")
+    .param("includeItemsFromAllDrives", "true")
+    .param("corpora", corpora)
+    .page_size(500);
+
+  if let Some(token) = page_token {
+    list_request = list_request.page_token(token);
+  }
+  if let Some(id) = drive_id {
+    list_request = list_request.drive_id(id);
+  }
+
+  let (_, response) = list_request
+    .doit()
+    .await
+    .map_err(|error| Error::KSError(format!("Failed to list Google Drive files: {:?}", error)))?;
+
+  Ok((response.files.unwrap_or_default(), response.next_page_token))
+}
+
+async fn fetch_drive_corpus(
+  hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+  query: &str,
+  corpora: &str,
+  drive_id: Option<&str>,
+  temp_dir: &PathBuf,
+  account_email: &str,
+) -> Result<Vec<DriveDocument>, Error> {
+  let semaphore = Arc::new(Semaphore::new(5));
+  let mut next_page_token: Option<String> = None;
+  let mut all_documents = Vec::new();
+
+  loop {
+    let (files, token) =
+      fetch_drive_page(hub, query, next_page_token.as_ref(), corpora, drive_id).await?;
+    next_page_token = token;
+
+    let drive_documents = Arc::new(Mutex::new(Vec::new()));
+    let mut tasks = Vec::new();
+    for file in files {
+      let semaphore_clone = Arc::clone(&semaphore);
+      let temp_dir_clone = temp_dir.clone();
+      let hub_clone = hub.clone();
+      let drive_documents_clone = drive_documents.clone();
+      let account_email_clone = account_email.to_string();
+      let task = tauri::async_runtime::spawn(async move {
+        let _permit = semaphore_clone.acquire().await.unwrap();
+        let drive_document = get_or_create_drive_document_from_file(
+          &file,
+          &temp_dir_clone,
+          &hub_clone,
+          &account_email_clone,
+        )
+        .await;
+        drive_documents_clone.lock().await.push(drive_document);
+      });
+      tasks.push(task);
+    }
+
+    for task in tasks {
+      if let Err(err) = task.await {
+        log::error!("[google-drive] worker task failed: {}", err);
+      }
+    }
+
+    let mut documents = drive_documents.lock().await;
+    all_documents.append(&mut *documents);
+
+    if next_page_token.is_none() {
+      break;
+    }
+  }
+
+  Ok(all_documents)
+}
+
 pub async fn fetch_drive(
   access_token: String,
   _semantic_service: Arc<Mutex<Option<SemanticService>>>,
   user_connection: UserConnection,
   account_email: String,
 ) -> Result<(), Error> {
-  let mut maybe_next_page_token: Option<String> = None;
   let hub = DriveHub::new(get_https_client(), access_token);
   let days_in_month = 30;
   let limit_date = chrono::Utc::now() - chrono::Duration::days(days_in_month);
@@ -434,75 +576,56 @@ pub async fn fetch_drive(
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");
   fs::create_dir_all(temp_dir.clone()).unwrap();
-  // let attrs = DriveDocument::get_attrs();
-  loop {
-    let mut list_request = hub
-        .files()
-        .list()
-        .order_by("createdTime desc")
-        .q(&query)
-        .param(
-          "fields",
-          "nextPageToken,files(id,name,md5Checksum,version,createdTime,modifiedTime,size,mimeType,webViewLink)",
-        )
-        .page_size(500);
-    if let Some(next_page_token) = maybe_next_page_token {
-      list_request = list_request.page_token(&next_page_token);
-    }
-    let result = list_request.doit().await.unwrap();
-    let file_list = result.1.clone();
-    let mut tasks = vec![];
-    let semaphore = Arc::new(Semaphore::new(5));
-    let drive_documents = Arc::new(Mutex::new(Vec::new()));
-    maybe_next_page_token = file_list.clone().next_page_token;
-    for file in file_list.files.unwrap() {
-      let semaphore_clone = Arc::clone(&semaphore);
-      let temp_dir_clone = temp_dir.clone();
-      let hub_clone = hub.clone();
-      let drive_documents_clone = drive_documents.clone();
-      let account_email_clone = account_email.clone();
-      let task = tauri::async_runtime::spawn(async move {
-        let _permit = semaphore_clone.acquire().await.unwrap();
-        let drive_document = get_or_create_drive_document_from_file(
-          &file,
-          &temp_dir_clone,
-          &hub_clone,
-          &account_email_clone,
-        )
-        .await;
-        drive_documents_clone.lock().await.push(drive_document);
-      });
-      tasks.push(task);
-    }
-    for task in tasks {
-      if let Err(err) = task.await {
-        log::error!("[google-drive] worker task failed: {}", err);
+  let mut all_documents =
+    fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
+  let shared_drives = list_accessible_shared_drives(&hub).await;
+  log::info!(
+    "[google-drive] syncing account={} shared_drive_count={}",
+    account_email,
+    shared_drives.len()
+  );
+  for shared_drive in &shared_drives {
+    if let Some(shared_drive_id) = shared_drive.id.as_deref() {
+      let shared_drive_name = shared_drive
+        .name
+        .clone()
+        .unwrap_or_else(|| shared_drive_id.to_string());
+      match fetch_drive_corpus(
+        &hub,
+        &query,
+        "drive",
+        Some(shared_drive_id),
+        &temp_dir,
+        &account_email,
+      )
+      .await
+      {
+        Ok(mut documents) => {
+          log::info!(
+            "[google-drive] synced shared drive account={} drive_id={} drive_name={} docs={}",
+            account_email,
+            shared_drive_id,
+            shared_drive_name,
+            documents.len()
+          );
+          all_documents.append(&mut documents);
+        }
+        Err(error) => {
+          log::warn!(
+            "[google-drive] failed shared drive sync account={} drive_id={} drive_name={} error={:?}",
+            account_email,
+            shared_drive_id,
+            shared_drive_name,
+            error
+          );
+        }
       }
     }
+  }
 
-    let mut sliced_documents: Vec<HashMap<String, serde_json::Value>> = Vec::new();
-    for document in drive_documents.lock().await.iter() {
-      sliced_documents.append(&mut document.get_documents());
-    }
-
-    // let drive_doc_batches = sliced_documents
-    //   .chunks(EMBEDDING_BATCH_SIZE)
-    //   .map(|chunk| chunk.to_vec())
-    //   .collect::<Vec<_>>();
-
-    // let maybe_locked_semantic_service = semantic_service.lock().await;
-    // let locked_semantic_service = maybe_locked_semantic_service.as_ref().unwrap();
-
-    // for drive_doc_batch in drive_doc_batches {
-    //   locked_semantic_service
-    //     .learn(drive_doc_batch.clone(), attrs.clone(), 1)
-    //     .await;
-    // }
-    // drop(locked_semantic_service);
-    // drop(maybe_locked_semantic_service);
-    if maybe_next_page_token == None {
-      break;
-    }
+  let mut sliced_documents: Vec<HashMap<String, serde_json::Value>> = Vec::new();
+  for document in &all_documents {
+    sliced_documents.append(&mut document.get_documents());
   }
 
   // let maybe_locked_semantic_service = semantic_service.lock().await;
@@ -633,7 +756,12 @@ async fn create_temp_drive_file(
     if !DRIVE_MIME_TYPES_EXPORTABLE_TO_TXT.contains(&&mime_type.as_str()) {
       export_mime_type = "text/csv".to_string();
     }
-    let export_result = hub.files().export(&id, &export_mime_type).doit().await;
+    let export_result = hub
+      .files()
+      .export(&id, &export_mime_type)
+      .param("supportsAllDrives", "true")
+      .doit()
+      .await;
     return match export_result {
       Err(e) => {
         log::error!("Export {id} failed {:?}", e);
@@ -650,7 +778,13 @@ async fn create_temp_drive_file(
       }
     };
   }
-  let export_result = hub.files().get(&id).param("alt", "media").doit().await;
+  let export_result = hub
+    .files()
+    .get(&id)
+    .param("alt", "media")
+    .param("supportsAllDrives", "true")
+    .doit()
+    .await;
   match export_result {
     Err(e) => {
       log::error!("Download {id} failed {:?}", e);
@@ -691,7 +825,13 @@ async fn fetch_google_drive_files(
   // let mut embedding_documents = vec![];
   let mut documents = vec![];
   for file in data.files.iter() {
-    let (_response, file) = hub.files().get(&file.id).doit().await.unwrap();
+    let (_response, file) = hub
+      .files()
+      .get(&file.id)
+      .param("supportsAllDrives", "true")
+      .doit()
+      .await
+      .unwrap();
 
     let drive_document =
       get_or_create_drive_document_from_file(&file, &temp_dir, &hub, &email).await;
@@ -719,9 +859,7 @@ async fn fetch_google_drive_files(
 }
 
 #[get("/api/knapsack/connections/google/drive/file_text")]
-async fn fetch_google_drive_file_text(
-  req: HttpRequest,
-) -> Result<HttpResponse, error::Error> {
+async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, error::Error> {
   let params =
     actix_web::web::Query::<FetchGoogleDriveFileTextParams>::from_query(req.query_string())
       .map_err(|e| error::ErrorBadRequest(e.to_string()))?;
@@ -737,18 +875,24 @@ async fn fetch_google_drive_file_text(
 
   let access_token = refresh_connection_token(params.email.clone(), user_connection.clone())
     .await
-    .map_err(|e| error::ErrorInternalServerError(format!("Failed to refresh Drive token: {:?}", e)))?;
+    .map_err(|e| {
+      error::ErrorInternalServerError(format!("Failed to refresh Drive token: {:?}", e))
+    })?;
 
   let hub = DriveHub::new(get_https_client(), access_token);
   let (_response, file) = hub
     .files()
     .get(&file_id)
     .param("fields", "id,name,mimeType")
+    .param("supportsAllDrives", "true")
     .doit()
     .await
     .map_err(|e| error::ErrorBadRequest(format!("Failed to fetch Drive file metadata: {:?}", e)))?;
 
-  let mime_type = file.mime_type.clone().unwrap_or_else(|| "text/plain".to_string());
+  let mime_type = file
+    .mime_type
+    .clone()
+    .unwrap_or_else(|| "text/plain".to_string());
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");
   fs::create_dir_all(temp_dir.clone())?;
@@ -873,6 +1017,9 @@ async fn fetch_files_id_shared_between_users(
       .list()
       .q(&query)
       .param("fields", "nextPageToken, files(id, name)")
+      .param("supportsAllDrives", "true")
+      .param("includeItemsFromAllDrives", "true")
+      .param("corpora", "allDrives")
       .page_size(100);
 
     if let Some(token) = next_page_token {
