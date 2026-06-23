@@ -485,6 +485,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       onAgentPickerSkip={handleAgentPickerSkip}
       activatedAgents={activatedAgents}
       userSlug={userEmail ? userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 12) : 'user'}
+      accountEmail={userEmail}
       onTelegramAccountsComplete={handleTelegramAccountsComplete}
       onTelegramAccountsSkip={handleTelegramAccountsSkip}
       //onAudioGrantClick={onClickGrantAudioPermission}

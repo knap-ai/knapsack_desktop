@@ -5,10 +5,11 @@ import cn from 'classnames'
 
 import {
   configureAgentBot,
-  configureGenericChannel,
-  disconnectGenericChannel,
+  createHostedSlackInstallSession,
+  disconnectHostedSlackLink,
   getAgentBotStatuses,
-  getGenericChannelStatus,
+  getHostedSlackLinkStatus,
+  redeemHostedSlackInstallSession,
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
@@ -27,16 +28,24 @@ function defaultBotState(): BotState {
   return { phase: 'idle', username: '', errorMessage: '' }
 }
 
-type SlackPhase = 'idle' | 'entering_tokens' | 'connecting' | 'done' | 'skipped' | 'error'
+type SlackPhase = 'idle' | 'starting' | 'waiting' | 'done' | 'skipped' | 'error'
 
 interface SlackState {
   phase: SlackPhase
   workspaceLabel: string
   errorMessage: string
+  sessionId?: string
+  botLabel?: string
 }
 
 function defaultSlackState(): SlackState {
-  return { phase: 'idle', workspaceLabel: '', errorMessage: '' }
+  return {
+    phase: 'idle',
+    workspaceLabel: '',
+    errorMessage: '',
+    sessionId: undefined,
+    botLabel: '',
+  }
 }
 
 export interface AgentTelegramEntry {
@@ -53,6 +62,8 @@ export type TelegramAccountsScreenProps = {
   agents: AgentTelegramEntry[]
   /** Derived from the user's email/profile to generate unique bot usernames. */
   userSlug?: string
+  /** Signed-in account email used for hosted Slack OAuth. */
+  accountEmail?: string | null
   onComplete: (index: number) => void
   onSkip: (index: number) => void
 }
@@ -95,73 +106,108 @@ function CopyButton({ text }: { text: string }) {
 function SlackWorkspaceCard({
   state,
   onChange,
+  accountEmail,
 }: {
   state: SlackState
   onChange: (patch: Partial<SlackState>) => void
+  accountEmail?: string
 }) {
-  const [botTokenInput, setBotTokenInput] = useState('')
-  const [appTokenInput, setAppTokenInput] = useState('')
-
   const handleSetUp = async () => {
-    onChange({ phase: 'entering_tokens', errorMessage: '' })
-    try {
-      await openUrl('https://api.slack.com/apps')
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleConnect = async () => {
-    const botToken = botTokenInput.trim()
-    const appToken = appTokenInput.trim()
-    if (!botToken || !appToken) return
-
-    onChange({ phase: 'connecting', errorMessage: '' })
-    try {
-      const resp = await configureGenericChannel('slack', { botToken, appToken })
-      if (!resp.success) {
-        onChange({
-          phase: 'entering_tokens',
-          errorMessage: resp.message ?? 'Slack connection failed - check both tokens and try again.',
-        })
-        return
-      }
-
-      const status = await getGenericChannelStatus('slack').catch(() => null)
+    if (!accountEmail) {
       onChange({
-        phase: 'done',
-        workspaceLabel: status?.account ?? 'Slack workspace connected',
-        errorMessage: '',
+        phase: 'error',
+        errorMessage: 'Connect Google or Microsoft first so Knapsack can link Slack to your account.',
       })
-      setBotTokenInput('')
-      setAppTokenInput('')
+      return
+    }
+
+    onChange({ phase: 'starting', errorMessage: '', sessionId: undefined })
+    try {
+      const session = await createHostedSlackInstallSession(accountEmail)
+      onChange({
+        phase: 'waiting',
+        errorMessage: '',
+        sessionId: session.session_id,
+      })
+      await openUrl(session.authorize_url)
     } catch {
       onChange({
-        phase: 'entering_tokens',
-        errorMessage: 'Slack connection failed - check both tokens and try again.',
+        phase: 'error',
+        errorMessage: 'Could not start Slack setup right now. Please try again.',
+        sessionId: undefined,
       })
     }
   }
 
   const handleDisconnect = async () => {
+    if (!accountEmail) return
     onChange({ errorMessage: '' })
     try {
-      await disconnectGenericChannel('slack')
-      onChange({ phase: 'idle', workspaceLabel: '', errorMessage: '' })
+      await disconnectHostedSlackLink(accountEmail)
+      onChange({
+        phase: 'idle',
+        workspaceLabel: '',
+        errorMessage: '',
+        sessionId: undefined,
+        botLabel: '',
+      })
     } catch {
       onChange({ errorMessage: 'Could not disconnect Slack right now.' })
     }
   }
 
-  const botTrimmed = botTokenInput.trim()
-  const appTrimmed = appTokenInput.trim()
-  const botValid = !botTrimmed || botTrimmed.startsWith('xoxb-')
-  const appValid = !appTrimmed || appTrimmed.startsWith('xapp-')
-  const canConnect = !!botTrimmed && !!appTrimmed && botValid && appValid
   const isDone = state.phase === 'done'
-  const isEntering = state.phase === 'entering_tokens'
-  const isConnecting = state.phase === 'connecting'
+  const isStarting = state.phase === 'starting'
+  const isWaiting = state.phase === 'waiting'
   const isSkipped = state.phase === 'skipped'
+
+  useEffect(() => {
+    if (!accountEmail || state.phase !== 'waiting' || !state.sessionId) return
+
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const status = await redeemHostedSlackInstallSession(accountEmail, state.sessionId!)
+        if (cancelled) return
+
+        if (status.linked || status.status === 'complete') {
+          onChange({
+            phase: 'done',
+            workspaceLabel: status.slack_team_name ?? 'Slack workspace connected',
+            botLabel: status.slack_bot_name ?? 'Slack bot ready',
+            errorMessage: '',
+            sessionId: undefined,
+          })
+          return
+        }
+
+        if (status.status === 'error') {
+          onChange({
+            phase: 'error',
+            errorMessage: status.error || 'Slack setup did not complete. Please try again.',
+            sessionId: undefined,
+          })
+        }
+      } catch (error: any) {
+        if (cancelled) return
+        const message = String(error?.message || '')
+        if (message.includes('404')) {
+          onChange({
+            phase: 'error',
+            errorMessage: 'This Slack setup link expired. Start again from Knapsack.',
+            sessionId: undefined,
+          })
+        }
+      }
+    }
+
+    poll()
+    const id = setInterval(poll, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [accountEmail, onChange, state.phase, state.sessionId])
 
   return (
     <div
@@ -202,7 +248,7 @@ function SlackWorkspaceCard({
               onClick={handleSetUp}
               className="text-sm text-[#913631] font-medium hover:underline font-InterTight whitespace-nowrap"
             >
-              Set up -&gt;
+              Connect in Slack -&gt;
             </button>
           )}
 
@@ -215,14 +261,10 @@ function SlackWorkspaceCard({
             </button>
           )}
 
-          {(isEntering || isConnecting) && (
+          {(isStarting || isWaiting) && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
-              onClick={() => {
-                setBotTokenInput('')
-                setAppTokenInput('')
-                onChange({ phase: 'skipped', errorMessage: '' })
-              }}
+              onClick={() => onChange({ phase: 'skipped', errorMessage: '', sessionId: undefined })}
             >
               Skip
             </button>
@@ -239,65 +281,47 @@ function SlackWorkspaceCard({
         </div>
       </div>
 
-      {(isEntering || isConnecting) && (
+      {(isStarting || isWaiting) && (
         <div className="mt-3 space-y-3">
           <div className="bg-gray-50 rounded-xl p-3 space-y-2.5">
             <p className="text-xs font-medium text-gray-600 font-InterTight">
-              Create a Slack app at <span className="font-semibold">api.slack.com/apps</span>, then paste:
+              We&apos;ll open Slack in your browser so you can install the workspace app and come
+              right back here when you&apos;re done.
             </p>
             <ul className="list-disc pl-5 text-xs text-gray-500 font-InterTight space-y-1">
-              <li>Bot token from OAuth &amp; Permissions (<span className="font-mono">xoxb-...</span>)</li>
-              <li>App-level token with <span className="font-mono">connections:write</span> (<span className="font-mono">xapp-...</span>)</li>
+              <li>Approve the Slack install in your browser</li>
+              <li>Return to Knapsack Desktop after Slack says the connection is complete</li>
             </ul>
           </div>
 
-          <div>
-            <p className="text-xs text-gray-500 font-InterTight mb-1.5">
-              Paste both Slack tokens:
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2">
+            <p className="text-xs text-gray-500 font-InterTight">
+              {isStarting ? 'Opening Slack install...' : 'Waiting for Slack approval...'}
             </p>
-            {state.errorMessage && (
-              <p className="text-xs text-red-500 font-InterTight mb-1.5">{state.errorMessage}</p>
-            )}
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Bot token (xoxb-...)"
-                value={botTokenInput}
-                onChange={e => setBotTokenInput(e.target.value)}
-                disabled={isConnecting}
-                className={cn(
-                  'w-full text-xs border rounded-lg px-3 py-2 font-mono font-InterTight focus:outline-none focus:border-[#913631] disabled:opacity-50',
-                  botTrimmed && !botValid ? 'border-red-400' : 'border-gray-200',
-                )}
-              />
-              {botTrimmed && !botValid && (
-                <p className="text-xs text-red-500 font-InterTight">Bot token must start with <code>xoxb-</code>.</p>
-              )}
-              <input
-                type="text"
-                placeholder="App token (xapp-...)"
-                value={appTokenInput}
-                onChange={e => setAppTokenInput(e.target.value)}
-                disabled={isConnecting}
-                className={cn(
-                  'w-full text-xs border rounded-lg px-3 py-2 font-mono font-InterTight focus:outline-none focus:border-[#913631] disabled:opacity-50',
-                  appTrimmed && !appValid ? 'border-red-400' : 'border-gray-200',
-                )}
-              />
-              {appTrimmed && !appValid && (
-                <p className="text-xs text-red-500 font-InterTight">App token must start with <code>xapp-</code>.</p>
-              )}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleConnect}
-                  disabled={isConnecting || !canConnect}
-                  className="text-xs font-medium font-InterTight px-3 py-2 rounded-lg bg-[#913631] text-white hover:bg-[#7a2d29] disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {isConnecting ? 'Connecting...' : 'Connect Slack'}
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={handleSetUp}
+              disabled={isStarting}
+              className="text-xs font-medium font-InterTight px-3 py-1.5 rounded-lg bg-[#913631] text-white hover:bg-[#7a2d29] disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              Open Slack
+            </button>
           </div>
+        </div>
+      )}
+
+      {isDone && state.botLabel && (
+        <p className="mt-3 text-xs text-green-700 font-InterTight">{state.botLabel}</p>
+      )}
+
+      {state.phase === 'error' && (
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+          <p className="text-xs text-red-600 font-InterTight">{state.errorMessage}</p>
+          <button
+            onClick={handleSetUp}
+            className="text-xs font-medium font-InterTight text-[#913631] hover:underline whitespace-nowrap"
+          >
+            Try again
+          </button>
         </div>
       )}
     </div>
@@ -480,6 +504,7 @@ export function TelegramAccountsScreen({
   currentSlideOutScreen,
   agents,
   userSlug = 'user',
+  accountEmail,
   onComplete,
   onSkip,
 }: TelegramAccountsScreenProps) {
@@ -507,17 +532,20 @@ export function TelegramAccountsScreen({
   useEffect(() => {
     if (currentSlideInScreen === index && !loaded.current) {
       loaded.current = true
-      getGenericChannelStatus('slack')
-        .then(status => {
-          if (status?.configured) {
-            setSlackState({
-              phase: 'done',
-              workspaceLabel: status.account ?? 'Slack workspace connected',
-              errorMessage: '',
-            })
-          }
-        })
-        .catch(() => {}) // non-fatal
+      if (accountEmail) {
+        getHostedSlackLinkStatus(accountEmail)
+          .then(status => {
+            if (status?.linked) {
+              setSlackState({
+                phase: 'done',
+                workspaceLabel: status.display_label ?? 'Slack workspace connected',
+                errorMessage: '',
+                botLabel: '',
+              })
+            }
+          })
+          .catch(() => {}) // non-fatal
+      }
 
       getAgentBotStatuses()
         .then(statuses => {
@@ -578,6 +606,7 @@ export function TelegramAccountsScreen({
       <div className="w-full space-y-3 max-h-[55vh] overflow-y-auto pr-1">
         <SlackWorkspaceCard
           state={slackState}
+          accountEmail={accountEmail ?? undefined}
           onChange={patch => setSlackState(prev => ({ ...prev, ...patch }))}
         />
 
