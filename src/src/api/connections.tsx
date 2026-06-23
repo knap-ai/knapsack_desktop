@@ -38,6 +38,8 @@ export type Connection = {
   /** Set for google_calendar_read connections — the Google account email whose
    *  calendar this connection syncs.  Empty string for all other types. */
   calendarAccountEmail?: string
+  /** The local Knapsack profile email that owns this connection. */
+  ownerEmail?: string
 }
 
 /** Record key used for a Google Calendar connection given its account email. */
@@ -221,8 +223,16 @@ export function getGoogleConnectionKeysFromScopes(scopes: string[]): ConnectionK
   return keys
 }
 
-export async function getConnections(email: string): Promise<Record<string, Connection>> {
-  const response = await fetch(`${KN_API_CONNECTIONS}?email=${email}`, {
+export async function getConnections(
+  email: string,
+  options?: { includeAllUsers?: boolean },
+): Promise<Record<string, Connection>> {
+  const query = new URLSearchParams({ email })
+  if (options?.includeAllUsers) {
+    query.set('all_users', 'true')
+  }
+
+  const response = await fetch(`${KN_API_CONNECTIONS}?${query.toString()}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -245,10 +255,12 @@ export async function getConnections(email: string): Promise<Record<string, Conn
         lastSynced?: number
         syncedSince?: number
         calendarAccountEmail?: string
+        ownerEmail?: string
       },
     ) => {
       const scope = userConnection.connection.scope
       const calendarAccountEmail = userConnection.calendarAccountEmail || ''
+      const ownerEmail = userConnection.ownerEmail || email
       // Calendar, Drive, and Gmail connections are keyed as "scope|accountEmail"
       // so that multiple linked accounts can coexist in the same record.
       const multiAccountScopes = new Set([
@@ -258,8 +270,10 @@ export async function getConnections(email: string): Promise<Record<string, Conn
       ])
       const recordKey =
         multiAccountScopes.has(scope as ConnectionKeys) && calendarAccountEmail
-          ? `${scope}|${calendarAccountEmail}`
-          : scope
+          ? `${scope}|${calendarAccountEmail}${options?.includeAllUsers ? `|${ownerEmail}` : ''}`
+          : options?.includeAllUsers
+            ? `${scope}|${ownerEmail}`
+            : scope
 
       return {
         ...acc,
@@ -274,6 +288,7 @@ export async function getConnections(email: string): Promise<Record<string, Conn
             ? new Date(userConnection.syncedSince * 1000)
             : null,
           calendarAccountEmail,
+          ownerEmail,
         } as Connection,
       }
     },
