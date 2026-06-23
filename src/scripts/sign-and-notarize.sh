@@ -329,8 +329,8 @@ if [ "$DO_NOTARIZE" = true ]; then
         --team-id "$APPLE_TEAM_ID" \
         --password "$APPLE_APP_PASSWORD" 2>&1)
       attempt_exit=$?
-      echo "[notarize] ${label} submit exit code: ${attempt_exit}"
-      echo "$attempt_output"
+      echo "[notarize] ${label} submit exit code: ${attempt_exit}" >&2
+      echo "$attempt_output" >&2
 
       if [ "$attempt_exit" -eq 0 ]; then
         echo "$attempt_output"
@@ -393,6 +393,7 @@ if [ "$DO_NOTARIZE" = true ]; then
   echo "[notarize] Submitting .app to Apple (upload only — poll separately to survive network blips)..."
   if ! SUBMIT_OUTPUT=$(submit_to_notarytool "$ZIP_PATH" ".app"); then
     echo "[notarize] ERROR: .app submission failed after all retries."
+    echo "$SUBMIT_OUTPUT"
     exit 1
   fi
 
@@ -473,6 +474,7 @@ if [ "$DO_NOTARIZE" = true ]; then
       echo "[notarize] Submitting DMG to Apple (upload only — poll separately to survive network blips)..."
       if ! DMG_SUBMIT_OUTPUT=$(submit_to_notarytool "$DMG_PATH" "DMG"); then
         echo "[notarize] ERROR: DMG submission failed after all retries."
+        echo "$DMG_SUBMIT_OUTPUT"
         exit 1
       fi
       DMG_SUBMISSION_ID=$(extract_notary_submission_id "$DMG_SUBMIT_OUTPUT")
