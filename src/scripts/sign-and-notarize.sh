@@ -311,6 +311,41 @@ if [ "$DO_NOTARIZE" = true ]; then
     printf '%s\n' "$status"
   }
 
+  submit_to_notarytool() {
+    local path="$1"
+    local label="$2"
+    local max_retries="${NOTARY_SUBMIT_RETRIES:-3}"
+    local retry_delay="${NOTARY_SUBMIT_RETRY_SECONDS:-30}"
+    local attempt
+
+    for attempt in $(seq 1 "$max_retries"); do
+      echo "[notarize] ${label} submit attempt ${attempt}/${max_retries}..."
+      local attempt_output
+      local attempt_exit
+
+      # Capture all output even on failure so CI logs tell us exactly why.
+      attempt_output=$(xcrun notarytool submit "$path" \
+        --apple-id "$APPLE_ID" \
+        --team-id "$APPLE_TEAM_ID" \
+        --password "$APPLE_APP_PASSWORD" 2>&1)
+      attempt_exit=$?
+      echo "[notarize] ${label} submit exit code: ${attempt_exit}"
+      echo "$attempt_output"
+
+      if [ "$attempt_exit" -eq 0 ]; then
+        echo "$attempt_output"
+        return 0
+      fi
+
+      echo "[notarize] ${label} submit failed; retrying in ${retry_delay}s..."
+      sleep "$retry_delay"
+    done
+
+    # Preserve the final output for callers (especially when retries are exhausted).
+    echo "$attempt_output"
+    return 1
+  }
+
   # Validate required env vars
   for var in APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
     if [ -z "${!var:-}" ]; then
@@ -327,11 +362,12 @@ if [ "$DO_NOTARIZE" = true ]; then
   ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
   echo "[notarize] Submitting .app to Apple (upload only — poll separately to survive network blips)..."
-  SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
-    --apple-id "$APPLE_ID" \
-    --team-id "$APPLE_TEAM_ID" \
-    --password "$APPLE_APP_PASSWORD" 2>&1)
-  echo "$SUBMIT_OUTPUT"
+  if ! SUBMIT_OUTPUT=$(submit_to_notarytool "$ZIP_PATH" ".app"); then
+    echo "[notarize] ERROR: .app submission failed after all retries."
+    exit 1
+  fi
+
+  # Re-print output here so it stays grouped with the successful flow in CI logs.
   SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
   if [ -z "$SUBMISSION_ID" ]; then
     echo "[notarize] ERROR: No submission ID received; upload failed." >&2
@@ -405,11 +441,10 @@ if [ "$DO_NOTARIZE" = true ]; then
 
       # Notarize the DMG — submit only, then poll with retries
       echo "[notarize] Submitting DMG to Apple (upload only — poll separately to survive network blips)..."
-      DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" 2>&1)
-      echo "$DMG_SUBMIT_OUTPUT"
+      if ! DMG_SUBMIT_OUTPUT=$(submit_to_notarytool "$DMG_PATH" "DMG"); then
+        echo "[notarize] ERROR: DMG submission failed after all retries."
+        exit 1
+      fi
       DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
       if [ -z "$DMG_SUBMISSION_ID" ]; then
         echo "[notarize] ERROR: No DMG submission ID received; upload failed." >&2
