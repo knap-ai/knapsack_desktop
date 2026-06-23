@@ -438,9 +438,8 @@ async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse,
     let client = client.clone();
     async move {
       let response = client
-        .get(format!(
-          "{api_server}/api/authentication/google/signin/app?code={code}"
-        ))
+        .get(format!("{api_server}/api/authentication/google/signin/app"))
+        .query(&[("code", code.as_str())])
         .send()
         .await
         .map_err(FetchError::NetworkError)?;
@@ -450,10 +449,13 @@ async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse,
         StatusCode::UNAUTHORIZED => Err(FetchError::InvalidToken),
         StatusCode::TOO_MANY_REQUESTS => Err(FetchError::RateLimitExceeded),
         status if status.is_server_error() => Err(FetchError::ServerError(status)),
-        _ => Err(FetchError::UnknownError(format!(
-          "Unexpected status code: {:?}",
-          response.status()
-        ))),
+        status => {
+          let body = response.text().await.unwrap_or_default();
+          Err(FetchError::UnknownError(format!(
+            "Unexpected status code {} from google signin exchange: {}",
+            status, body
+          )))
+        }
       }
     }
   })

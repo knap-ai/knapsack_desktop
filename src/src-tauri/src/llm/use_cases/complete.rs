@@ -920,7 +920,7 @@ async fn knapsack_completion(
 ) -> Result<String, LLMError> {
   let email = &provider.api_key;
   let client = reqwest::Client::new();
-  let token = resolve_knapsack_bearer_token(email).await?;
+  let mut token = resolve_knapsack_bearer_token(email).await?;
 
   let conversation: Vec<serde_json::Value> = messages
     .iter()
@@ -939,7 +939,7 @@ async fn knapsack_completion(
     "model": &provider.model,
   });
 
-  let resp = client
+  let mut resp = client
     .post(format!("{}/chat/completions", &provider.base_url))
     .header("Authorization", format!("Bearer {}", token))
     .header("Content-Type", "application/json")
@@ -950,7 +950,29 @@ async fn knapsack_completion(
       LLMError::ChatCompletionFailed(format!("Knapsack inference request failed: {}", e))
     })?;
 
-  let status = resp.status();
+  let mut status = resp.status();
+  if status == reqwest::StatusCode::UNAUTHORIZED {
+    log::warn!(
+      "[notes] Knapsack bearer token was unauthorized; refreshing once before surfacing sign-in failure"
+    );
+    std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
+    token = resolve_knapsack_bearer_token(email).await?;
+    resp = client
+      .post(format!("{}/chat/completions", &provider.base_url))
+      .header("Authorization", format!("Bearer {}", token))
+      .header("Content-Type", "application/json")
+      .json(&body)
+      .send()
+      .await
+      .map_err(|e| {
+        LLMError::ChatCompletionFailed(format!(
+          "Knapsack inference retry after refresh failed: {}",
+          e
+        ))
+      })?;
+    status = resp.status();
+  }
+
   if !status.is_success() {
     let text = resp.text().await.unwrap_or_default();
     if status == reqwest::StatusCode::UNAUTHORIZED {
