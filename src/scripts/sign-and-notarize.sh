@@ -43,6 +43,7 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+NOTARY_LOG_DIR="$PROJECT_DIR/.notarytool-notary-logs"
 
 # ---------------------------------------------------------------------------
 # Source .env.signing if it exists
@@ -122,6 +123,98 @@ if [ "$APP_VERSION" != "$EXPECTED_VERSION" ]; then
   exit 1
 fi
 echo "[sign] Version verified: $APP_VERSION"
+
+mkdir -p "$NOTARY_LOG_DIR"
+echo "[notarize] Writing notarization artifacts to $NOTARY_LOG_DIR"
+NOTARY_SUMMARY_FILE="$NOTARY_LOG_DIR/notary-summary.log"
+{
+  echo "run_started_at=$(date -u +%FT%TZ)"
+  echo "app_version=$APP_VERSION"
+  echo "app_path=$APP_PATH"
+  echo "bundle_dir=$BUNDLE_DIR"
+} > "$NOTARY_SUMMARY_FILE"
+
+append_summary() {
+  local key="$1"
+  local value="${2:-}"
+  printf '%s=%s\n' "$key" "$value" >> "$NOTARY_SUMMARY_FILE"
+}
+
+notary_submit() {
+  local target_path="$1"
+  local label="$2"
+  local submit_output_file="$NOTARY_LOG_DIR/${label}-submission.log"
+  local submission_output
+  local submission_id=""
+
+  if submission_output=$(xcrun notarytool submit "$target_path" \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "$APPLE_APP_PASSWORD" \
+    --output-format json 2>&1); then
+    printf '%s\n' "$submission_output" > "$submit_output_file"
+  else
+    # Older toolchain may not support --output-format json, fallback to plain
+    submission_output=$(xcrun notarytool submit "$target_path" \
+      --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" \
+      --password "$APPLE_APP_PASSWORD" 2>&1 || true)
+    printf '%s\n' "$submission_output" > "$submit_output_file"
+  fi
+
+  echo "[notarize] ${label} submission output:"
+  cat "$submit_output_file"
+
+  submission_id=$(printf '%s\n' "$submission_output" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+  if [ -z "$submission_id" ]; then
+    submission_id=$(printf '%s\n' "$submission_output" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+  fi
+
+  printf '%s' "$submission_id"
+}
+
+notary_info() {
+  local submission_id="$1"
+  local label="$2"
+  local attempt="$3"
+  local status_file="$NOTARY_LOG_DIR/${label}-info-attempt-${attempt}.log"
+  local info_output
+
+  if info_output=$(xcrun notarytool info "$submission_id" \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "$APPLE_APP_PASSWORD" \
+    --output-format json 2>&1); then
+    printf '%s\n' "$info_output" > "$status_file"
+    printf '%s' "$(printf '%s' "$info_output" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    return
+  fi
+
+  # Fallback if tool output format doesn't support json
+  info_output=$(xcrun notarytool info "$submission_id" \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "$APPLE_APP_PASSWORD" 2>&1 || true)
+  printf '%s\n' "$info_output" > "$status_file"
+  printf '%s' "$(printf '%s' "$info_output" | sed -n 's/^[[:space:]]*status:[[:space:]]*//p' | tail -1)"
+}
+
+notary_log() {
+  local submission_id="$1"
+  local label="$2"
+  local log_file="$NOTARY_LOG_DIR/${label}-${submission_id}-log.txt"
+
+  if ! xcrun notarytool log "$submission_id" \
+    --apple-id "$APPLE_ID" \
+    --team-id "$APPLE_TEAM_ID" \
+    --password "$APPLE_APP_PASSWORD" \
+    --output-format json > "$log_file" 2>&1; then
+    xcrun notarytool log "$submission_id" \
+      --apple-id "$APPLE_ID" \
+      --team-id "$APPLE_TEAM_ID" \
+      --password "$APPLE_APP_PASSWORD" > "$log_file" 2>&1 || true
+  fi
+}
 
 # ---------------------------------------------------------------------------
 # Verify entitlements files exist
@@ -289,13 +382,7 @@ if [ "$DO_NOTARIZE" = true ]; then
 
     echo "[notarize] Polling ${label} notarization status (up to ${poll_max} attempts)..." >&2
     for attempt in $(seq 1 "$poll_max"); do
-      local info_output
-      info_output=$(xcrun notarytool info "$submission_id" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" 2>&1) || true
-
-      status=$(echo "$info_output" | sed -n 's/^[[:space:]]*status:[[:space:]]*//p' | tail -1)
+      status=$(notary_info "$submission_id" "$label" "$attempt")
       echo "[notarize] ${label} attempt ${attempt}/${poll_max}: status=${status:-<network error>}" >&2
 
       case "$status" in
@@ -327,31 +414,32 @@ if [ "$DO_NOTARIZE" = true ]; then
   ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
   echo "[notarize] Submitting .app to Apple (upload only — poll separately to survive network blips)..."
-  SUBMIT_OUTPUT=$(xcrun notarytool submit "$ZIP_PATH" \
-    --apple-id "$APPLE_ID" \
-    --team-id "$APPLE_TEAM_ID" \
-    --password "$APPLE_APP_PASSWORD" 2>&1)
-  echo "$SUBMIT_OUTPUT"
-  SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+  SUBMISSION_ID=$(notary_submit "$ZIP_PATH" "app")
+  append_summary "app_submission_id" "$SUBMISSION_ID"
+  append_summary "app_submission_path" "$ZIP_PATH"
   if [ -z "$SUBMISSION_ID" ]; then
     echo "[notarize] ERROR: No submission ID received; upload failed." >&2
+    append_summary "app_submission_status" "failed_no_id"
     exit 1
   fi
   echo "[notarize] Submission ID: $SUBMISSION_ID"
+  append_summary "app_submission_status" "submitted"
 
   NOTARY_STATUS=$(poll_notarization "$SUBMISSION_ID" ".app" | tail -1)
+  append_summary "app_notarization_status" "$NOTARY_STATUS"
 
   if [ "$NOTARY_STATUS" != "Accepted" ]; then
     echo "[notarize] ERROR: Notarization failed with status: $NOTARY_STATUS" >&2
+    notary_log "$SUBMISSION_ID" "app"
+    append_summary "app_notarization_status" "$NOTARY_STATUS"
+    append_summary "app_notarization_log" "$NOTARY_LOG_DIR/app-${SUBMISSION_ID}-log.txt"
     if [ -n "$SUBMISSION_ID" ]; then
       echo "[notarize] Fetching rejection log..." >&2
-      xcrun notarytool log "$SUBMISSION_ID" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" || true
+      echo "[notarize] Rejection log: $NOTARY_LOG_DIR/app-${SUBMISSION_ID}-log.txt"
     fi
     exit 1
   fi
+  append_summary "app_notarization_status" "$NOTARY_STATUS"
 
   echo "[notarize] Stapling notarization ticket to .app..."
   xcrun stapler staple "$APP_PATH"
@@ -405,19 +493,19 @@ if [ "$DO_NOTARIZE" = true ]; then
 
       # Notarize the DMG — submit only, then poll with retries
       echo "[notarize] Submitting DMG to Apple (upload only — poll separately to survive network blips)..."
-      DMG_SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
-        --apple-id "$APPLE_ID" \
-        --team-id "$APPLE_TEAM_ID" \
-        --password "$APPLE_APP_PASSWORD" 2>&1)
-      echo "$DMG_SUBMIT_OUTPUT"
-      DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+      DMG_SUBMISSION_ID=$(notary_submit "$DMG_PATH" "dmg")
+      append_summary "dmg_submission_id" "$DMG_SUBMISSION_ID"
+      append_summary "dmg_submission_path" "$DMG_PATH"
       if [ -z "$DMG_SUBMISSION_ID" ]; then
         echo "[notarize] ERROR: No DMG submission ID received; upload failed." >&2
+        append_summary "dmg_notarization_status" "failed_no_id"
         exit 1
       fi
       echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
+      append_summary "dmg_notarization_status" "submitted"
 
       DMG_STATUS=$(poll_notarization "$DMG_SUBMISSION_ID" "DMG" | tail -1)
+      append_summary "dmg_notarization_status" "$DMG_STATUS"
 
       if [ "$DMG_STATUS" = "Accepted" ]; then
         echo "[notarize] Stapling DMG..."
@@ -436,6 +524,10 @@ if [ "$DO_NOTARIZE" = true ]; then
         echo "[notarize] ERROR: DMG notarization failed with status: $DMG_STATUS" >&2
         echo "[notarize]        An unnotarized DMG will show 'damaged' on user machines." >&2
         echo "[notarize]        Fix the issue and re-run, or users cannot open the app." >&2
+        notary_log "$DMG_SUBMISSION_ID" "dmg"
+        append_summary "dmg_notarization_status" "$DMG_STATUS"
+        append_summary "dmg_notarization_log" "$NOTARY_LOG_DIR/dmg-${DMG_SUBMISSION_ID}-log.txt"
+        echo "[notarize]        DMG rejection log: $NOTARY_LOG_DIR/dmg-${DMG_SUBMISSION_ID}-log.txt"
         exit 1
       fi
     fi
@@ -448,6 +540,9 @@ if [ "$DO_NOTARIZE" = true ]; then
   # fails, which means CI passes but users see "damaged or incomplete".
   spctl --assess --type open --context context:primary-signature --verbose=2 "$APP_PATH"
 
+  append_summary "notarization_completed_at" "$(date -u +%FT%TZ)"
+  append_summary "app_notarization_status" "accepted"
+  append_summary "final_state" "success"
   echo "[notarize] Done! App is signed, notarized, and stapled."
 else
   cat <<EOF

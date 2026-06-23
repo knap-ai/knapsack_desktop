@@ -126,6 +126,70 @@ jobs:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
+      - name: Verify macOS bundle includes bundled UI assets
+        working-directory: src
+        run: |
+          APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: No macOS app bundle found after build."
+            exit 1
+          fi
+
+          RESOURCES="$APP/Contents/Resources"
+          has_main=0
+          has_notification=0
+          has_overlay=0
+          has_recording_indicator=0
+
+          for path in \
+            "index.html" \
+            "dist/index.html"; do
+            if [ -f "$RESOURCES/$path" ]; then
+              has_main=1
+              break
+            fi
+          done
+
+          for path in \
+            "notification.html" \
+            "dist/notification.html"; do
+            if [ -f "$RESOURCES/$path" ]; then
+              has_notification=1
+              break
+            fi
+          done
+
+          for path in \
+            "overlay.html" \
+            "dist/overlay.html"; do
+            if [ -f "$RESOURCES/$path" ]; then
+              has_overlay=1
+              break
+            fi
+          done
+
+          for path in \
+            "recording-indicator.html" \
+            "dist/recording-indicator.html"; do
+            if [ -f "$RESOURCES/$path" ]; then
+              has_recording_indicator=1
+              break
+            fi
+          done
+
+          if [ "$has_main" -ne 1 ] || [ "$has_notification" -ne 1 ] || [ "$has_overlay" -ne 1 ] || [ "$has_recording_indicator" -ne 1 ]; then
+            echo "ERROR: Built app bundle is missing required UI assets in $RESOURCES."
+            echo "Missing assets:"
+            [ "$has_main" -eq 1 ] || echo "  - index.html"
+            [ "$has_notification" -eq 1 ] || echo "  - notification.html"
+            [ "$has_overlay" -eq 1 ] || echo "  - overlay.html"
+            [ "$has_recording_indicator" -eq 1 ] || echo "  - recording-indicator.html"
+            echo "This indicates a packaging regression. Aborting release."
+            exit 1
+          fi
+
+          echo "Validated bundled UI assets are present in $APP."
+
       - name: Import signing certificate
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -161,6 +225,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: bash scripts/sign-and-notarize.sh --notarize
+
+      - name: Upload notarization diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-notarization-diagnostics
+          path: src/.notarytool-notary-logs/
+          if-no-files-found: warn
 
       - name: Verify signed app passes Gatekeeper as a user would see it
         working-directory: src
