@@ -2858,7 +2858,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Check whether the currently selected model supports vision (image attachments)
   const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
-    if (selectedProvider === 'knapsack') {
+    if (confirmedProvider === 'knapsack') {
       const currentId = selectedKnapsackModel || 'auto'
       return {
         supported: true,
@@ -2866,28 +2866,28 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         visionModels: [],
       }
     }
-    const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
-      : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
-      : selectedProvider === 'gemini' ? GEMINI_MODELS
-      : selectedProvider === 'groq' ? GROQ_MODELS
-      : selectedProvider === 'xai' ? XAI_MODELS
-      : selectedProvider === 'openrouter' ? OPENROUTER_MODELS
+    const allModels = confirmedProvider === 'openai' ? OPENAI_MODELS
+      : confirmedProvider === 'anthropic' ? ANTHROPIC_MODELS
+      : confirmedProvider === 'gemini' ? GEMINI_MODELS
+      : confirmedProvider === 'groq' ? GROQ_MODELS
+      : confirmedProvider === 'xai' ? XAI_MODELS
+      : confirmedProvider === 'openrouter' ? OPENROUTER_MODELS
       : []
-    const currentId = selectedProvider === 'openai' ? selectedModel
-      : selectedProvider === 'anthropic' ? selectedAnthropicModel
-      : selectedProvider === 'gemini' ? selectedGeminiModel
-      : selectedProvider === 'groq' ? selectedGroqModel
-      : selectedProvider === 'xai' ? selectedXaiModel
-      : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+    const currentId = confirmedProvider === 'openai' ? selectedModel
+      : confirmedProvider === 'anthropic' ? selectedAnthropicModel
+      : confirmedProvider === 'gemini' ? selectedGeminiModel
+      : confirmedProvider === 'groq' ? selectedGroqModel
+      : confirmedProvider === 'xai' ? selectedXaiModel
+      : confirmedProvider === 'openrouter' ? selectedOpenRouterModel
       : ''
     const current = allModels.find(m => m.id === currentId)
     // Ollama: we don't know model capabilities, assume supported
-    if (selectedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
+    if (confirmedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
     const modelName = current?.name || currentId
     const supported = current?.vision ?? false
     const visionModels = allModels.filter(m => m.vision).map(m => m.name)
     return { supported, modelName, visionModels }
-  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
+  }, [confirmedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
 
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3372,6 +3372,62 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  const syncProviderSelectionFromBackend = useCallback(async () => {
+    try {
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const activeProvider = keyStatus.active_provider as Provider | undefined
+      if (activeProvider) {
+        setSelectedProvider(activeProvider)
+        setConfirmedProvider(activeProvider)
+        localStorage.setItem(ACTIVE_PROVIDER_STORAGE, activeProvider)
+      }
+
+      if (keyStatus.model && activeProvider) {
+        const backendModel = keyStatus.model
+        if (activeProvider === 'openai') {
+          const normalized = normalizeOpenAIModelSelection(backendModel)
+          setSelectedModel(normalized)
+          localStorage.setItem(OPENAI_MODEL_STORAGE, normalized)
+        } else if (activeProvider === 'anthropic') {
+          setSelectedAnthropicModel(backendModel)
+          localStorage.setItem(ANTHROPIC_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'gemini') {
+          setSelectedGeminiModel(backendModel)
+          localStorage.setItem(GEMINI_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'groq') {
+          setSelectedGroqModel(backendModel)
+          localStorage.setItem(GROQ_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'xai') {
+          setSelectedXaiModel(backendModel)
+          localStorage.setItem(XAI_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'openrouter') {
+          setSelectedOpenRouterModel(backendModel)
+          localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'ollama') {
+          setSelectedOllamaModel(backendModel)
+          localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'knapsack') {
+          const normalizedKnapsackModel = KNAPSACK_MODELS.some(model => model.id === backendModel) ? backendModel : 'auto'
+          setSelectedKnapsackModel(normalizedKnapsackModel)
+          localStorage.setItem(KNAPSACK_MODEL_STORAGE, normalizedKnapsackModel)
+        }
+      }
+
+      if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
+        setSelectedOllamaModel(keyStatus.ollama_model)
+        localStorage.setItem(OLLAMA_MODEL_STORAGE, keyStatus.ollama_model)
+      }
+
+      if (keyStatus.knapsack_model) {
+        const normalizedKnapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
+        setSelectedKnapsackModel(normalizedKnapsackModel)
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, normalizedKnapsackModel)
+      }
+    } catch {
+      // Keep the optimistic local selection if backend sync is temporarily unavailable.
+    }
+  }, [])
+
   // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
   const saveOllamaProvider = useCallback(async () => {
     if (!selectedOllamaModel) return
@@ -3382,8 +3438,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: selectedOllamaModel,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setSelectedProvider('ollama')
       setConfirmedProvider('ollama')
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
@@ -3399,7 +3457,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedOllamaModel])
+  }, [selectedOllamaModel, syncProviderSelectionFromBackend])
 
   const saveApiKey = useCallback(async () => {
     if (selectedProvider === 'ollama') { saveOllamaProvider(); return }
@@ -3437,8 +3495,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       } else if (selectedProvider === 'knapsack') {
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
+      setSelectedProvider(selectedProvider)
       setConfirmedProvider(selectedProvider)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       setEditingProviderKey(false)
       setHasCompletedOnboarding(true)
@@ -3479,7 +3539,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3519,7 +3579,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setSelectedProvider(providerId)
+      setConfirmedProvider(providerId)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       try {
         await apiPost('/api/clawd/service/enable', { enabled: true })
@@ -3549,7 +3611,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
     const init = async () => {
@@ -4292,22 +4354,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // Snapshot the active model label from React state at request time so error
     // messages reflect the model that was actually selected when sent, not the
     // model in localStorage (which can lag behind UI state changes).
+    const providerAtSend = confirmedProvider
     const activeModelAtSend = (() => {
-      if (selectedProvider === 'knapsack') return `knapsack/${selectedKnapsackModel}`
-      const m = selectedProvider === 'ollama'
+      if (providerAtSend === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      const m = providerAtSend === 'ollama'
         ? selectedOllamaModel
-        : selectedProvider === 'anthropic'
+        : providerAtSend === 'anthropic'
         ? selectedAnthropicModel
-        : selectedProvider === 'gemini'
+        : providerAtSend === 'gemini'
         ? selectedGeminiModel
-        : selectedProvider === 'groq'
+        : providerAtSend === 'groq'
         ? selectedGroqModel
-        : selectedProvider === 'xai'
+        : providerAtSend === 'xai'
         ? selectedXaiModel
-        : selectedProvider === 'openrouter'
+        : providerAtSend === 'openrouter'
         ? selectedOpenRouterModel
         : selectedModel
-      return m ? `${selectedProvider}/${m}` : selectedProvider
+      return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
     const selectedModelForProvider = activeModelAtSend.includes('/')
       ? activeModelAtSend.split('/').slice(1).join('/')
@@ -4723,7 +4786,7 @@ ${actualText}`
 
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
-          provider: selectedProvider,
+          provider: providerAtSend,
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId: 'ui',
@@ -4772,7 +4835,7 @@ ${actualText}`
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              provider: selectedProvider,
+              provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
               advancedMode,
@@ -7406,6 +7469,7 @@ ${actualText}`
                                 setSelectedProvider('knapsack')
                                 setConfirmedProvider('knapsack')
                                 localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                await syncProviderSelectionFromBackend()
                                 setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
                                 pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
                               } catch {}
@@ -7484,6 +7548,7 @@ ${actualText}`
                                   if (isConfirmedActive) {
                                     try {
                                       await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
+                                      await syncProviderSelectionFromBackend()
                                       const modelName = models.find(m => m.id === newModel)?.name || newModel
                                       pushAssistant(`Switched to ${modelName}.`)
                                     } catch {}
