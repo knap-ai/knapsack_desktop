@@ -29,6 +29,7 @@ pub struct UserConnectionResponse {
   #[serde(flatten)]
   user_connection: UserConnection,
   synced_since: Option<u64>,
+  owner_email: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -41,6 +42,7 @@ pub struct GetConnectionsResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetConnectionsParams {
   email: String,
+  all_users: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -165,11 +167,24 @@ async fn get_connections(req: HttpRequest) -> impl Responder {
     Ok(s) => Some(s),
     Err(_) => None,
   };
-  match UserConnection::find_by_user_email(params.email.clone()) {
-    Ok(connections) => {
-      let connection_responses: Vec<UserConnectionResponse> = connections
-        .into_iter()
-        .map(|connection| {
+  let include_all_users = params.all_users.unwrap_or(false);
+  let owner_emails = if include_all_users {
+    match User::find_all_with_email() {
+      Ok(users) => users.into_iter().map(|user| user.email).collect::<Vec<_>>(),
+      Err(error) => {
+        log::warn!("Failed retrieving local users: {:?}", error);
+        vec![params.email.clone()]
+      }
+    }
+  } else {
+    vec![params.email.clone()]
+  };
+
+  let mut connection_responses = Vec::new();
+  for owner_email in owner_emails {
+    match UserConnection::find_by_user_email(owner_email.clone()) {
+      Ok(connections) => {
+        for connection in connections {
           let mut connection_synced_since = None;
           if let Some(sync_dates) = &synced_since {
             if let Some(conn) = &connection.connection {
@@ -183,28 +198,37 @@ async fn get_connections(req: HttpRequest) -> impl Responder {
             }
           }
 
-          UserConnectionResponse {
+          connection_responses.push(UserConnectionResponse {
             user_connection: connection,
             synced_since: connection_synced_since,
-          }
-        })
-        .collect();
+            owner_email: owner_email.clone(),
+          });
+        }
+      }
+      Err(error) => {
+        log::warn!(
+          "Failed retrieving user connections for {}: {:?}",
+          owner_email,
+          error
+        );
+      }
+    }
+  }
 
-      let response = GetConnectionsResponse {
-        connections: Some(connection_responses),
-        success: true,
-        message: None,
-      };
-      HttpResponse::Ok().json(response)
-    }
-    Err(_) => {
-      log::error!("Failed retrieving user connections");
-      HttpResponse::BadRequest().json(GetConnectionsResponse {
-        success: false,
-        connections: None,
-        message: Some("Failed to retrieve user connections".to_string()),
-      })
-    }
+  if connection_responses.is_empty() {
+    log::error!("Failed retrieving user connections");
+    HttpResponse::BadRequest().json(GetConnectionsResponse {
+      success: false,
+      connections: None,
+      message: Some("Failed to retrieve user connections".to_string()),
+    })
+  } else {
+    let response = GetConnectionsResponse {
+      connections: Some(connection_responses),
+      success: true,
+      message: None,
+    };
+    HttpResponse::Ok().json(response)
   }
 }
 

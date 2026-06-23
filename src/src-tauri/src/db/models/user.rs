@@ -12,6 +12,21 @@ pub struct User {
 }
 
 impl User {
+  pub fn find_all_with_email() -> Result<Vec<User>> {
+    let connection = get_db_conn();
+    let mut stmt =
+      connection.prepare("SELECT id, email, uuid FROM users WHERE email != '' ORDER BY id DESC")?;
+    let rows = stmt.query_map([], |row| {
+      Ok(User {
+        id: row.get(0)?,
+        email: row.get(1)?,
+        uuid: row.get(2)?,
+      })
+    })?;
+
+    rows.collect()
+  }
+
   pub fn find_by_email(email: String) -> Result<User> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare("SELECT id, email, uuid FROM users WHERE email = ?1")?;

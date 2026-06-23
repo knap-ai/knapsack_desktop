@@ -5,6 +5,7 @@ import {
   Connection,
   ConnectionKeys,
   connectionsMap,
+  getConnections,
   getGoogleCalendarConnections,
   getGoogleDriveConnections,
   getGoogleGmailConnections,
@@ -251,6 +252,7 @@ export const SettingsDialog = ({
   profile,
   onProviderSignInClick,
 }: SettingsDialogProps) => {
+  const [settingsConnections, setSettingsConnections] = useState<Record<string, Connection>>(connections)
   const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] = useState<boolean>(false)
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
   const [meetingChatEnabled, setMeetingChatEnabled] = useState<boolean>(true)
@@ -291,14 +293,30 @@ export const SettingsDialog = ({
   const [ollamaBusy, setOllamaBusy] = useState(false)
   const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
   const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
+  const displayConnections =
+    isOpen && Object.keys(settingsConnections).length > 0 ? settingsConnections : connections
   const googlePrimaryEmail =
     email ||
     profile?.email ||
     backendPrimaryEmail ||
-    getGoogleDriveConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
-    getGoogleGmailConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
-    getGoogleCalendarConnections(connections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleDriveConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleGmailConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleCalendarConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
     ''
+
+  const loadSettingsConnections = useCallback(async () => {
+    if (!googlePrimaryEmail) return
+    try {
+      const updatedConnections = await getConnections(googlePrimaryEmail, { includeAllUsers: true })
+      setSettingsConnections(updatedConnections)
+    } catch (error: any) {
+      logError(new Error('Failed to load all settings connections'), {
+        additionalInfo: 'Settings connections aggregate',
+        error: error?.message || String(error),
+      })
+      setSettingsConnections(connections)
+    }
+  }, [connections, googlePrimaryEmail])
 
   const requireGooglePrimaryEmail = useCallback((flow: string) => {
     if (googlePrimaryEmail) return googlePrimaryEmail
@@ -337,6 +355,15 @@ export const SettingsDialog = ({
     [googlePrimaryEmail],
   )
 
+  const getGoogleOwnerSuffix = useCallback((item: Connection) => {
+    if (!item.ownerEmail || item.ownerEmail === item.calendarAccountEmail) return ''
+    return ` via ${item.ownerEmail}`
+  }, [])
+
+  useEffect(() => {
+    setSettingsConnections(connections)
+  }, [connections])
+
   useEffect(() => {
     if (!isOpen || email || profile?.email || backendPrimaryEmail) return
 
@@ -352,6 +379,11 @@ export const SettingsDialog = ({
         })
       })
   }, [backendPrimaryEmail, email, isOpen, profile?.email])
+
+  useEffect(() => {
+    if (!isOpen) return
+    void loadSettingsConnections()
+  }, [isOpen, loadSettingsConnections])
 
   useEffect(() => {
     if(profile && profile.provider){
@@ -460,8 +492,9 @@ export const SettingsDialog = ({
         setIsFilesEnabled(false)
       }
       fetchConnections(email)
+      await loadSettingsConnections()
     },
-    [deleteConnection, email, fetchConnections],
+    [deleteConnection, email, fetchConnections, loadSettingsConnections],
   )
 
   const handleShowNotificationLeadTimeChange = (min: string) => {
@@ -1185,13 +1218,13 @@ export const SettingsDialog = ({
               ))}
 
             {/* Google Drive — one row per linked account */}
-            {getGoogleDriveConnections(connections).map(item => (
+            {getGoogleDriveConnections(displayConnections).map(item => (
               <div
                 className="flex justify-between h-[36px] items-center"
-                key={`drive-${item.id}-${item.calendarAccountEmail}`}
+                key={`drive-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Drive, {getGoogleAccountLabel(item)}
+                  Drive, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1203,13 +1236,13 @@ export const SettingsDialog = ({
             ))}
 
             {/* Google Gmail — one row per linked account */}
-            {getGoogleGmailConnections(connections).map(item => (
+            {getGoogleGmailConnections(displayConnections).map(item => (
               <div
                 className="flex justify-between h-[36px] items-center"
-                key={`gmail-${item.id}-${item.calendarAccountEmail}`}
+                key={`gmail-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Gmail, {getGoogleAccountLabel(item)}
+                  Gmail, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1221,13 +1254,13 @@ export const SettingsDialog = ({
             ))}
 
             {/* Google Calendar — one row per linked account */}
-            {getGoogleCalendarConnections(connections).map(item => (
+            {getGoogleCalendarConnections(displayConnections).map(item => (
               <div
                 className="flex justify-between h-[36px] items-center"
-                key={`cal-${item.id}-${item.calendarAccountEmail}`}
+                key={`cal-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Calendar, {getGoogleAccountLabel(item)}
+                  Calendar, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1288,7 +1321,7 @@ export const SettingsDialog = ({
                   className={`cursor-pointer ${styles.link}`}
                   onClick={handleAddGoogleDrive}
                 >
-                  {getGoogleDriveConnections(connections).length > 0 ? 'Add another' : 'Add'}
+                  {getGoogleDriveConnections(displayConnections).length > 0 ? 'Add another' : 'Add'}
                 </Typography>
               </div>
             )}
@@ -1301,7 +1334,7 @@ export const SettingsDialog = ({
                   className={`cursor-pointer ${styles.link}`}
                   onClick={handleAddGoogleGmail}
                 >
-                  {getGoogleGmailConnections(connections).length > 0 ? 'Add another' : 'Add'}
+                  {getGoogleGmailConnections(displayConnections).length > 0 ? 'Add another' : 'Add'}
                 </Typography>
               </div>
             )}
@@ -1314,7 +1347,7 @@ export const SettingsDialog = ({
                   className={`cursor-pointer ${styles.link}`}
                   onClick={handleAddGoogleCalendar}
                 >
-                  {getGoogleCalendarConnections(connections).length > 0
+                  {getGoogleCalendarConnections(displayConnections).length > 0
                     ? 'Add another'
                     : 'Add'}
                 </Typography>
