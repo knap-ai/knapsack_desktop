@@ -51,7 +51,12 @@ function RecordingIndicator() {
 
   const handleStop = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    emit('stop-recording-from-indicator')
+    invoke('emit_event', {
+      event: 'stop-recording-from-indicator',
+      payload: {},
+    }).catch(() => {
+      emit('stop-recording-from-indicator')
+    })
   }, [])
 
   return (
