@@ -492,8 +492,7 @@ function isSlackUserRecipient(recipient) {
 	return recipient.kind === "user" || /^U[A-Z0-9]+$/i.test(recipient.id);
 }
 function resolveDirectUserPostChannelId(params) {
-	if (!isSlackUserRecipient(params.recipient) || params.hasMedia || params.threadTs) return;
-	return params.recipient.id;
+	return;
 }
 function resolvePostedMessageChannelId(response, fallback) {
 	return (typeof response.channel === "string" ? normalizeOptionalString(response.channel) : null) ?? fallback;
