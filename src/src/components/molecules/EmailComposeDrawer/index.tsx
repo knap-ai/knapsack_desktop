@@ -24,6 +24,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
+  const senderEmail = draft.senderEmail?.trim() || userEmail.trim()
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {
@@ -54,6 +55,10 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   }, [ccInput, ccList, handleAddCc, handleRemoveCc])
 
   const handleSend = useCallback(async () => {
+    if (!senderEmail) {
+      setError('No connected sender email was found for this draft. Reconnect Gmail and try again.')
+      return
+    }
     setSending(true)
     setError('')
     try {
@@ -63,7 +68,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         subject,
         body: bodyRef.current?.innerHTML || draft.body,
         threadId: draft.threadId,
-        userEmail,
+        userEmail: senderEmail,
         userName,
         attachments,
       })
@@ -74,7 +79,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     } finally {
       setSending(false)
     }
-  }, [to, subject, ccList, draft, userEmail, userName, onDismiss])
+  }, [to, subject, ccList, draft, senderEmail, userName, onDismiss])
 
   const fieldRowStyle: React.CSSProperties = {
     display: 'flex',

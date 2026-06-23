@@ -4636,6 +4636,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const isSmartPrompt = text === SMART_PROMPT
         const isBuildWebsitePrompt = text === BUILD_WEBSITE_PROMPT
         let actualText = text
+        let usedNativeEmailCalendarContext = false
 
         // For the build website prompt, inject user info so the AI can auto-populate
         // the website without asking the user a bunch of questions.
@@ -4648,6 +4649,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             const context = await fetchEmailCalendarContext()
             if (context) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
+              usedNativeEmailCalendarContext = true
             } else {
               // No data available — fall back to letting the agent browse
               actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
@@ -4662,6 +4664,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           try {
             const context = await fetchEmailCalendarContext()
             if (context) {
+              usedNativeEmailCalendarContext = true
               actualText = `${text}
 
 Use the native Knapsack email/calendar context below first. Only use browser automation if the native context is missing something required to answer accurately.
@@ -4749,7 +4752,7 @@ ${actualText}`
         // Keep the frontend timeout longer than the backend request budget.
         // If the shared gateway session is slow or poisoned, the backend falls
         // back to direct chat so desktop users still get a timely answer.
-        let useDirectChat = false
+        let useDirectChat = usedNativeEmailCalendarContext
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
