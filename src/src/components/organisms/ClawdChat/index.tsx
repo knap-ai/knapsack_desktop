@@ -6577,7 +6577,7 @@ ${actualText}`
                   </div>
                   {!channelStatus.genericChannels.slack?.configured && (
                     <div className="ClawdChannelGuide">
-                      <div className="ClawdChannelGuideTitle">Connect Slack</div>
+                      <div className="ClawdChannelGuideTitle">Connect Scout on Slack</div>
                       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
@@ -6587,11 +6587,11 @@ ${actualText}`
                           type="button"
                           onClick={() => handleSendWithText(SLACK_GUIDED_SETUP_PROMPT)}
                         >
-                          Set up Slack with Knapsack
+                          Set up Scout with Knapsack
                         </button>
                       </div>
                       <div className="ClawdChannelGuideNote ClawdChannelGuideNote--compact">
-                        Knapsack will open the Slack app setup flow in your browser, apply the required App Home, Messages tab, Socket Mode, and scope settings, and then bring back the tokens you need.
+                        Knapsack will open the Slack app setup flow in your browser, apply the required App Home, Messages tab, Socket Mode, and scope settings, and then bring back the tokens you need. If you later connect Scout to Gmail, Calendar, or Drive, we recommend dedicated Scout accounts instead of your personal accounts.
                       </div>
                       {(() => {
                         const botTrimmed = slackBotToken.trim()

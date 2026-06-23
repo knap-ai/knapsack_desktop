@@ -226,7 +226,7 @@ function SlackWorkspaceCard({
             </svg>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900 font-InterTight">Slack workspace</p>
+            <p className="text-sm font-semibold text-gray-900 font-InterTight">📋 Scout on Slack</p>
             <p className="text-xs text-gray-400 font-InterTight">
               Most teams start here instead of creating individual Telegram bots.
             </p>
@@ -248,7 +248,7 @@ function SlackWorkspaceCard({
               onClick={handleSetUp}
               className="text-sm text-[#913631] font-medium hover:underline font-InterTight whitespace-nowrap"
             >
-              Connect in Slack -&gt;
+              Set up Scout -&gt;
             </button>
           )}
 
@@ -596,10 +596,10 @@ export function TelegramAccountsScreen({
           Give your team a voice
         </h2>
         <p className="mt-3 text-gray-500 text-base font-InterTight leading-relaxed">
-          Most teams choose one place to start. Connect Slack for your workspace,
-          or set up Telegram bots for individual agents. Click{' '}
-          <span className="font-medium text-gray-700">Set up -&gt;</span> and
-          we&apos;ll walk you through whichever path you pick.
+          Most teams choose one place to start. Set up Scout in Slack for your
+          workspace, or set up Telegram bots for individual agents. If you later
+          connect Gmail, Calendar, or Drive for Scout, we recommend using
+          dedicated Scout accounts instead of your personal inbox or calendar.
         </p>
       </div>
 
