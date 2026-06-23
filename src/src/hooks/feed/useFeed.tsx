@@ -210,6 +210,7 @@ export interface ComposedEmailDraft {
   subject: string
   body: string
   threadId?: string
+  senderEmail?: string
   attachments?: ComposedEmailAttachment[]
 }
 

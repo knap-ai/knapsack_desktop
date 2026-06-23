@@ -793,6 +793,30 @@ fn emit_fallback_event(app_handle: &tauri::AppHandle, from: &str, to: &str, reas
   );
 }
 
+fn summarize_provider_error(err: &str) -> String {
+  let flattened = err.split_whitespace().collect::<Vec<_>>().join(" ");
+  let trimmed = flattened.trim();
+  const MAX_LEN: usize = 240;
+  if trimmed.len() <= MAX_LEN {
+    trimmed.to_string()
+  } else {
+    format!("{}...", &trimmed[..MAX_LEN])
+  }
+}
+
+fn fallback_failure_message(
+  configured_fallback_count: usize,
+  attempted_fallback_count: usize,
+) -> String {
+  if configured_fallback_count == 0 {
+    "Your active provider failed and no backup providers are configured in Settings. Please try again in a moment, or add another provider in Settings for automatic failover.".to_string()
+  } else if attempted_fallback_count == 0 {
+    "Your active provider failed and no eligible backup provider could be attempted with your current Settings. Please try again in a moment, or adjust Settings to allow another provider for automatic failover.".to_string()
+  } else {
+    "All AI providers are currently unavailable. Your active provider failed and no fallback provider could handle the request. Please try again in a moment, or add another provider in Settings for automatic failover.".to_string()
+  }
+}
+
 fn parse_retry_after_secs(text: &str, attempt: u32) -> f64 {
   let lower = text.to_lowercase();
   for pattern in ["try again in ", "retry in ", "wait "] {
@@ -4314,6 +4338,7 @@ pub async fn chat(
           "subject": subject,
           "body": body_html,
           "threadId": thread_id,
+          "senderEmail": user_email,
         }),
       );
 
@@ -5699,6 +5724,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             ("ollama", ollama_key),
           ];
           let mut fallback_resp = None;
+          let mut configured_fallbacks: Vec<String> = Vec::new();
+          let mut attempted_fallbacks: Vec<String> = Vec::new();
+          let mut failed_fallbacks: Vec<String> = Vec::new();
           for (fb_provider, fb_key_opt) in &fallbacks {
             if *fb_provider == current_provider.as_str() {
               continue;
@@ -5711,6 +5739,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
               continue;
             }
             if let Some(fb_key) = fb_key_opt {
+              configured_fallbacks.push((*fb_provider).to_string());
               let fb_model = match *fb_provider {
                 "knapsack" => knapsack_model(&app_handle),
                 "anthropic" => super::service::get_anthropic_model(&app_handle),
@@ -5725,6 +5754,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                 "[clawd/chat] Trying fallback provider={} model={}",
                 fb_provider, fb_model
               );
+              attempted_fallbacks.push(format!("{}/{}", fb_provider, fb_model));
               match call_provider(
                 &app_handle,
                 fb_provider,
@@ -5747,6 +5777,12 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                   break;
                 }
                 Err(fb_err) => {
+                  failed_fallbacks.push(format!(
+                    "{}/{}: {}",
+                    fb_provider,
+                    fb_model,
+                    summarize_provider_error(&fb_err.to_string())
+                  ));
                   eprintln!(
                     "[clawd/chat] Fallback {} also failed: {}",
                     fb_provider, fb_err
@@ -5758,9 +5794,61 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           match fallback_resp {
             Some(r) => r,
             None => {
-              return HttpResponse::Ok().json(
-                serde_json::json!({"ok": false, "message": format!("All AI providers are currently unavailable. Your active provider failed and no fallback provider could handle the request. Please try again in a moment, or add another provider in Settings for automatic failover.")}),
+              let failure_message =
+                fallback_failure_message(configured_fallbacks.len(), attempted_fallbacks.len());
+              sentry::with_scope(
+                |scope| {
+                  scope.set_tag("component", "clawd_chat");
+                  scope.set_tag("provider", current_provider.clone());
+                  scope.set_tag("model", current_model.clone());
+                  scope.set_tag("failure_type", "provider_failover_exhausted");
+                  scope.set_extra(
+                    "primary_error",
+                    sentry::protocol::Value::from(summarize_provider_error(&err_str)),
+                  );
+                  scope.set_extra(
+                    "configured_fallbacks",
+                    sentry::protocol::Value::from(
+                      configured_fallbacks
+                        .iter()
+                        .cloned()
+                        .map(sentry::protocol::Value::from)
+                        .collect::<Vec<_>>(),
+                    ),
+                  );
+                  scope.set_extra(
+                    "attempted_fallbacks",
+                    sentry::protocol::Value::from(
+                      attempted_fallbacks
+                        .iter()
+                        .cloned()
+                        .map(sentry::protocol::Value::from)
+                        .collect::<Vec<_>>(),
+                    ),
+                  );
+                  scope.set_extra(
+                    "failed_fallbacks",
+                    sentry::protocol::Value::from(
+                      failed_fallbacks
+                        .iter()
+                        .cloned()
+                        .map(sentry::protocol::Value::from)
+                        .collect::<Vec<_>>(),
+                    ),
+                  );
+                  scope.set_extra(
+                    "paid_fallback_disabled",
+                    sentry::protocol::Value::from(disable_paid),
+                  );
+                  sentry::capture_message(
+                    "[clawd/chat] provider failover exhausted",
+                    sentry::Level::Error,
+                  );
+                },
+                || {},
               );
+              return HttpResponse::Ok()
+                .json(serde_json::json!({"ok": false, "message": failure_message}));
             }
           }
         }
@@ -6538,7 +6626,7 @@ fn strip_html_tags(html: &str) -> String {
 mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
-    compact_messages_for_provider, is_context_window_error,
+    compact_messages_for_provider, fallback_failure_message, is_context_window_error,
     is_transient_or_internal_provider_error, provider_compaction_limits,
     provider_context_recovery_limits, should_attempt_fallback_for_provider_error,
   };
@@ -6725,6 +6813,19 @@ mod tests {
   }
 
   #[test]
+  fn fallback_failure_message_is_specific_when_no_backup_provider_exists() {
+    let message = fallback_failure_message(0, 0);
+    assert!(message.contains("no backup providers are configured"));
+    assert!(!message.contains("All AI providers are currently unavailable"));
+  }
+
+  #[test]
+  fn fallback_failure_message_uses_global_outage_copy_when_backups_were_attempted() {
+    let message = fallback_failure_message(2, 2);
+    assert!(message.contains("All AI providers are currently unavailable"));
+  }
+
+  #[test]
   fn trim_memory_notes_limits_count_and_total_size() {
     let notes = (0..10)
       .map(|idx| format!("note-{idx}: {}", "x".repeat(400)))
@@ -6733,7 +6834,9 @@ mod tests {
     let trimmed = super::trim_memory_notes(&notes);
 
     assert!(trimmed.len() <= 6);
-    assert!(trimmed.iter().all(|note: &String| note.chars().count() <= 240));
+    assert!(trimmed
+      .iter()
+      .all(|note: &String| note.chars().count() <= 240));
     let total_chars: usize = trimmed
       .iter()
       .map(|note: &String| note.chars().count())
