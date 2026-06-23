@@ -2,18 +2,54 @@ import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.js";
 import { a as resolveSlackAccount } from "./accounts-BnLQ3fe2.js";
 import { r as createSlackWebClient } from "./client-BY0ZhGHl.js";
 import { normalizeLowercaseStringOrEmpty, normalizeOptionalLowercaseString, normalizeOptionalString } from "openclaw/plugin-sdk/string-coerce-runtime";
+import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
 //#region extensions/slack/src/directory-live.ts
 var directory_live_exports = /* @__PURE__ */ __exportAll({
 	getSlackDirectorySelfLive: () => getSlackDirectorySelfLive,
 	listSlackDirectoryGroupsLive: () => listSlackDirectoryGroupsLive,
 	listSlackDirectoryPeersLive: () => listSlackDirectoryPeersLive
 });
-function resolveReadToken(params) {
+function resolveReadTokenCandidates(params) {
 	const account = resolveSlackAccount({
 		cfg: params.cfg,
 		accountId: params.accountId
 	});
-	return account.userToken ?? account.botToken?.trim();
+	const candidates = [];
+	const botToken = normalizeOptionalString(account.botToken);
+	if (botToken) candidates.push({
+		source: "bot",
+		token: botToken
+	});
+	const userToken = normalizeOptionalString(account.userToken);
+	if (userToken && userToken !== botToken) candidates.push({
+		source: "user",
+		token: userToken
+	});
+	return {
+		accountId: account.accountId,
+		candidates
+	};
+}
+function readSlackErrorCode(err) {
+	return normalizeOptionalLowercaseString(err?.data?.error) ?? normalizeOptionalLowercaseString(err?.code);
+}
+function isSlackInvalidAuthError(err) {
+	return readSlackErrorCode(err) === "invalid_auth";
+}
+async function withSlackReadClient(params, operation, fn) {
+	const { accountId, candidates } = resolveReadTokenCandidates(params);
+	if (!candidates.length) return null;
+	for (let index = 0; index < candidates.length; index++) {
+		const candidate = candidates[index];
+		try {
+			return await fn(createSlackWebClient(candidate.token));
+		} catch (err) {
+			const canRetry = isSlackInvalidAuthError(err) && index < candidates.length - 1;
+			if (!canRetry) throw err;
+			logVerbose(`slack directory: ${operation} got invalid_auth with ${candidate.source} token for account=${accountId ?? "default"}, retrying with alternate token`);
+		}
+	}
+	return null;
 }
 function normalizeQuery(value) {
 	return normalizeLowercaseStringOrEmpty(value);
@@ -42,90 +78,89 @@ function slackUserToDirectoryEntry(user, fallback) {
 	};
 }
 async function getSlackDirectorySelfLive(params) {
-	const token = resolveReadToken(params);
-	if (!token) return null;
-	const client = createSlackWebClient(token);
-	const auth = await client.auth.test();
-	const userId = normalizeOptionalString(auth.user_id);
-	if (!userId) return null;
-	try {
-		return slackUserToDirectoryEntry((await client.users.info({ user: userId })).user ?? {}, {
-			id: userId,
-			name: auth.user
-		});
-	} catch {
-		return slackUserToDirectoryEntry({
-			id: userId,
-			name: auth.user
-		}, {
-			id: userId,
-			name: auth.user
-		});
-	}
+	return await withSlackReadClient(params, "self", async (client) => {
+		const auth = await client.auth.test();
+		const userId = normalizeOptionalString(auth.user_id);
+		if (!userId) return null;
+		try {
+			return slackUserToDirectoryEntry((await client.users.info({ user: userId })).user ?? {}, {
+				id: userId,
+				name: auth.user
+			});
+		} catch {
+			return slackUserToDirectoryEntry({
+				id: userId,
+				name: auth.user
+			}, {
+				id: userId,
+				name: auth.user
+			});
+		}
+	});
 }
 async function listSlackDirectoryPeersLive(params) {
-	const token = resolveReadToken(params);
-	if (!token) return [];
-	const client = createSlackWebClient(token);
-	const query = normalizeQuery(params.query);
-	const members = [];
-	let cursor;
-	do {
-		const res = await client.users.list({
-			limit: 200,
-			cursor
-		});
-		if (Array.isArray(res.members)) members.push(...res.members);
-		const next = res.response_metadata?.next_cursor?.trim();
-		cursor = next ? next : void 0;
-	} while (cursor);
-	const rows = members.filter((member) => {
-		const candidates = [
-			member.profile?.display_name || member.profile?.real_name || member.real_name,
-			member.name,
-			member.profile?.email
-		].map((item) => normalizeOptionalLowercaseString(item)).filter(Boolean);
-		if (!query) return true;
-		return candidates.some((candidate) => candidate?.includes(query));
-	}).map((member) => slackUserToDirectoryEntry(member)).filter(Boolean);
+	const rows = await withSlackReadClient(params, "listPeersLive", async (client) => {
+		const query = normalizeQuery(params.query);
+		const members = [];
+		let cursor;
+		do {
+			const res = await client.users.list({
+				limit: 200,
+				cursor
+			});
+			if (Array.isArray(res.members)) members.push(...res.members);
+			const next = res.response_metadata?.next_cursor?.trim();
+			cursor = next ? next : void 0;
+		} while (cursor);
+		return members.filter((member) => {
+			const candidates = [
+				member.profile?.display_name || member.profile?.real_name || member.real_name,
+				member.name,
+				member.profile?.email
+			].map((item) => normalizeOptionalLowercaseString(item)).filter(Boolean);
+			if (!query) return true;
+			return candidates.some((candidate) => candidate?.includes(query));
+		}).map((member) => slackUserToDirectoryEntry(member)).filter(Boolean);
+	});
+	if (!rows) return [];
 	if (typeof params.limit === "number" && params.limit > 0) return rows.slice(0, params.limit);
 	return rows;
 }
 async function listSlackDirectoryGroupsLive(params) {
-	const token = resolveReadToken(params);
-	if (!token) return [];
-	const client = createSlackWebClient(token);
-	const query = normalizeQuery(params.query);
-	const channels = [];
-	let cursor;
-	do {
-		const res = await client.conversations.list({
-			types: "public_channel,private_channel",
-			exclude_archived: false,
-			limit: 1e3,
-			cursor
-		});
-		if (Array.isArray(res.channels)) channels.push(...res.channels);
-		const next = res.response_metadata?.next_cursor?.trim();
-		cursor = next ? next : void 0;
-	} while (cursor);
-	const rows = channels.filter((channel) => {
-		const name = normalizeOptionalLowercaseString(channel.name);
-		if (!query) return true;
-		return Boolean(name && name.includes(query));
-	}).map((channel) => {
-		const id = channel.id?.trim();
-		const name = channel.name?.trim();
-		if (!id || !name) return null;
-		return {
-			kind: "group",
-			id: `channel:${id}`,
-			name,
-			handle: `#${name}`,
-			rank: buildChannelRank(channel),
-			raw: channel
-		};
-	}).filter(Boolean);
+	const rows = await withSlackReadClient(params, "listGroupsLive", async (client) => {
+		const query = normalizeQuery(params.query);
+		const channels = [];
+		let cursor;
+		do {
+			const res = await client.conversations.list({
+				types: "public_channel,private_channel",
+				exclude_archived: false,
+				limit: 1e3,
+				cursor
+			});
+			if (Array.isArray(res.channels)) channels.push(...res.channels);
+			const next = res.response_metadata?.next_cursor?.trim();
+			cursor = next ? next : void 0;
+		} while (cursor);
+		return channels.filter((channel) => {
+			const name = normalizeOptionalLowercaseString(channel.name);
+			if (!query) return true;
+			return Boolean(name && name.includes(query));
+		}).map((channel) => {
+			const id = channel.id?.trim();
+			const name = channel.name?.trim();
+			if (!id || !name) return null;
+			return {
+				kind: "group",
+				id: `channel:${id}`,
+				name,
+				handle: `#${name}`,
+				rank: buildChannelRank(channel),
+				raw: channel
+			};
+		}).filter(Boolean);
+	});
+	if (!rows) return [];
 	if (typeof params.limit === "number" && params.limit > 0) return rows.slice(0, params.limit);
 	return rows;
 }
