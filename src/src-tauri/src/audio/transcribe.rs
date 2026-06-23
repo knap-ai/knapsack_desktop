@@ -18,12 +18,28 @@ struct SttProvider {
   model: &'static str,
 }
 
-/// Resolve the best available speech-to-text provider.
-/// Respects the user's active provider when it supports STT, then falls back
-/// through Groq → OpenAI (the two providers with OpenAI-compatible Whisper APIs).
-/// Groq is preferred in the fallback because its Whisper API is free and fast,
-/// while OpenAI's is paid and subject to tighter rate limits.
-fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
+fn push_unique_provider(
+  providers: &mut Vec<SttProvider>,
+  name: &'static str,
+  api_key: String,
+  base_url: &'static str,
+  model: &'static str,
+) {
+  if providers.iter().any(|provider| provider.name == name) {
+    return;
+  }
+  providers.push(SttProvider {
+    name,
+    api_key,
+    base_url,
+    model,
+  });
+}
+
+/// Resolve the ordered list of available speech-to-text providers.
+/// Respects the user's active provider when it supports STT, then appends any
+/// other configured STT providers as fallback candidates.
+fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY")
     .ok()
@@ -31,45 +47,55 @@ fn resolve_stt_provider() -> Result<SttProvider, LLMError> {
   let groq_key = std::env::var("GROQ_API_KEY")
     .ok()
     .filter(|k| !k.trim().is_empty());
+  let mut providers = Vec::new();
 
-  // If the user's active provider supports STT, prefer it
+  // If the user's active provider supports STT, prefer it.
   match active.as_str() {
     "openai" if openai_key.is_some() => {
-      return Ok(SttProvider {
-        name: "openai",
-        api_key: openai_key.unwrap(),
-        base_url: "https://api.openai.com/v1/audio/transcriptions",
-        model: "whisper-1",
-      })
+      push_unique_provider(
+        &mut providers,
+        "openai",
+        openai_key.clone().unwrap(),
+        "https://api.openai.com/v1/audio/transcriptions",
+        "whisper-1",
+      );
     }
     "groq" if groq_key.is_some() => {
-      return Ok(SttProvider {
-        name: "groq",
-        api_key: groq_key.unwrap(),
-        base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
-        model: "whisper-large-v3-turbo",
-      })
+      push_unique_provider(
+        &mut providers,
+        "groq",
+        groq_key.clone().unwrap(),
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        "whisper-large-v3-turbo",
+      );
     }
-    // Anthropic, Gemini, OpenRouter, etc. don't offer STT — fall through
+    // Anthropic, Gemini, OpenRouter, Knapsack, etc. don't offer STT directly.
     _ => {}
   }
 
-  // Fallback: prefer Groq (free, fast Whisper API) over OpenAI (paid, rate-limited)
+  // Fallback order: prefer Groq (free, fast Whisper API) over OpenAI (paid,
+  // tighter rate limits).
   if let Some(key) = groq_key {
-    return Ok(SttProvider {
-      name: "groq",
-      api_key: key,
-      base_url: "https://api.groq.com/openai/v1/audio/transcriptions",
-      model: "whisper-large-v3-turbo",
-    });
+    push_unique_provider(
+      &mut providers,
+      "groq",
+      key,
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      "whisper-large-v3-turbo",
+    );
   }
   if let Some(key) = openai_key {
-    return Ok(SttProvider {
-      name: "openai",
-      api_key: key,
-      base_url: "https://api.openai.com/v1/audio/transcriptions",
-      model: "whisper-1",
-    });
+    push_unique_provider(
+      &mut providers,
+      "openai",
+      key,
+      "https://api.openai.com/v1/audio/transcriptions",
+      "whisper-1",
+    );
+  }
+
+  if !providers.is_empty() {
+    return Ok(providers);
   }
 
   Err(LLMError::ChatCompletionFailed(
@@ -124,6 +150,7 @@ async fn speech_to_text(
 
   let max_retries = 3u32;
   let mut last_status = None;
+  let mut last_error_message: Option<String> = None;
 
   for attempt in 0..=max_retries {
     let file_part = Part::bytes(file_bytes.clone())
@@ -142,13 +169,33 @@ async fn speech_to_text(
       form = form.text("temperature", temp.to_string());
     }
 
-    let response = client
+    let response = match client
       .post(provider.base_url)
       .header("Authorization", format!("Bearer {}", provider.api_key))
       .multipart(form)
       .send()
       .await
-      .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
+    {
+      Ok(response) => response,
+      Err(e) => {
+        let error_message = e.to_string();
+        if (e.is_timeout() || e.is_connect()) && attempt < max_retries {
+          let backoff = Duration::from_secs(2u64.pow(attempt + 1));
+          log::warn!(
+            "[transcribe] {} request error, retrying in {:?} (attempt {}/{}): {}",
+            provider.name,
+            backoff,
+            attempt + 1,
+            max_retries,
+            error_message
+          );
+          tokio::time::sleep(backoff).await;
+          last_error_message = Some(error_message);
+          continue;
+        }
+        return Err(LLMError::ChatCompletionFailed(error_message).into());
+      }
+    };
 
     let status = response.status();
 
@@ -188,30 +235,62 @@ async fn speech_to_text(
       continue;
     }
 
+    if (status.is_server_error() || status == reqwest::StatusCode::REQUEST_TIMEOUT)
+      && attempt < max_retries
+    {
+      let backoff = Duration::from_secs(2u64.pow(attempt + 1));
+      log::warn!(
+        "[transcribe] {} returned {}, retrying in {:?} (attempt {}/{})",
+        provider.name,
+        status,
+        backoff,
+        attempt + 1,
+        max_retries
+      );
+      tokio::time::sleep(backoff).await;
+      continue;
+    }
+
+    last_error_message = Some(status.to_string());
+
     break;
+  }
+
+  if last_status == Some(reqwest::StatusCode::TOO_MANY_REQUESTS) {
+    return Err(
+      LLMError::TooManyRequests(format!("{} transcription rate-limited", provider.name)).into(),
+    );
   }
 
   Err(
     LLMError::ChatCompletionFailed(format!(
       "{} transcription failed with status: {}",
       provider.name,
-      last_status
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+      last_error_message.unwrap_or_else(|| {
+        last_status
+          .map(|s| s.to_string())
+          .unwrap_or_else(|| "unknown".to_string())
+      })
     ))
     .into(),
   )
 }
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
-  let provider = resolve_stt_provider()?;
-  log::info!("[transcribe] Using {} for speech-to-text", provider.name);
+  let providers = resolve_stt_providers()?;
+  log::info!(
+    "[transcribe] STT provider order: {}",
+    providers
+      .iter()
+      .map(|provider| provider.name)
+      .collect::<Vec<_>>()
+      .join(" -> ")
+  );
+  let mut last_error: Option<Error> = None;
 
-  let max_retries = 3;
-  let mut current_retry = 0;
-
-  loop {
-    match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
+  for provider in providers.iter() {
+    log::info!("[transcribe] Using {} for speech-to-text", provider.name);
+    match speech_to_text(provider, audio_file, Some("en"), Some(0.5)).await {
       Ok(transcription) => {
         log::debug!(
           "------------------ {} Transcribed text: {}",
@@ -235,45 +314,37 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
         return Ok(());
       }
       Err(e) => {
-        current_retry += 1;
-        let err_str = format!("{:?}", e);
-
-        if current_retry >= max_retries {
-          knap_log_error(
-            format!("Error transcribing with {}: {}", provider.name, err_str),
-            None,
-            None,
-          );
-          return Err(e);
-        }
-
-        let should_retry = err_str.contains("os error 10054")
-          || err_str.contains("os error 11001")
-          || err_str.contains("dns error")
-          || err_str.contains("forcibly closed")
-          || err_str.contains("connection error")
-          || err_str.contains("104");
-
-        if should_retry || current_retry < 2 {
+        let err_str = e.to_string();
+        log::warn!("[transcribe] {} failed: {}", provider.name, err_str);
+        last_error = Some(e);
+        if provider.name != providers.last().map(|p| p.name).unwrap_or(provider.name) {
           log::warn!(
-            "Transcription failed, retrying ({}/{}). Error: {}",
-            current_retry,
-            max_retries,
-            err_str
+            "[transcribe] Falling back from {} to next configured STT provider",
+            provider.name
           );
-          tokio::time::sleep(tokio::time::Duration::from_secs(1 << current_retry)).await;
-          continue;
         }
-
-        knap_log_error(
-          format!("Error transcribing with {}: {}", provider.name, err_str),
-          None,
-          None,
-        );
-        return Err(e);
       }
     }
   }
+
+  if let Some(error) = last_error {
+    knap_log_error(
+      format!(
+        "Error transcribing audio after trying all configured STT providers: {}",
+        error
+      ),
+      None,
+      None,
+    );
+    return Err(error);
+  }
+
+  Err(
+    LLMError::ChatCompletionFailed(
+      "Speech-to-text failed before any provider attempt completed".to_string(),
+    )
+    .into(),
+  )
 }
 
 pub async fn finalize_chunk(audio_filename: String, transcript_filename: String) {
