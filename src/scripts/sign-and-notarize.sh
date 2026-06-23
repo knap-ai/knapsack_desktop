@@ -346,6 +346,35 @@ if [ "$DO_NOTARIZE" = true ]; then
     return 1
   }
 
+  extract_notary_submission_id() {
+    local raw_output="$1"
+    local submission_id=""
+
+    # Preferred: parse JSON-style id fields when available.
+    if command -v jq >/dev/null 2>&1; then
+      submission_id=$(printf '%s\n' "$raw_output" | jq -r '.id // .submissionId // .submission_id // .requestUUID // .requestId // .request_id // empty' 2>/dev/null | head -n1)
+      if [ -n "$submission_id" ] && [ "$submission_id" != "null" ]; then
+        printf '%s\n' "$submission_id"
+        return 0
+      fi
+    fi
+
+    # Fallback for non-JSON text output (including older notarytool formats).
+    submission_id=$(printf '%s\n' "$raw_output" | grep -Eio '(^|[[:space:]])(id|request[-_ ]?id|request[-_ ]?uuid)\s*[:=]\s*[a-zA-Z0-9-]{10,}' | head -n1 | sed -E 's/.*([a-zA-Z0-9-]{10,})$/\1/' || true)
+    if [ -n "$submission_id" ]; then
+      printf '%s\n' "$submission_id"
+      return 0
+    fi
+
+    submission_id=$(printf '%s\n' "$raw_output" | grep -Eio '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}' | head -n1 || true)
+    if [ -n "$submission_id" ]; then
+      printf '%s\n' "$submission_id"
+      return 0
+    fi
+
+    return 1
+  }
+
   # Validate required env vars
   for var in APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
     if [ -z "${!var:-}" ]; then
@@ -368,9 +397,10 @@ if [ "$DO_NOTARIZE" = true ]; then
   fi
 
   # Re-print output here so it stays grouped with the successful flow in CI logs.
-  SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+  SUBMISSION_ID=$(extract_notary_submission_id "$SUBMIT_OUTPUT")
   if [ -z "$SUBMISSION_ID" ]; then
     echo "[notarize] ERROR: No submission ID received; upload failed." >&2
+    echo "$SUBMIT_OUTPUT"
     exit 1
   fi
   echo "[notarize] Submission ID: $SUBMISSION_ID"
@@ -445,9 +475,10 @@ if [ "$DO_NOTARIZE" = true ]; then
         echo "[notarize] ERROR: DMG submission failed after all retries."
         exit 1
       fi
-      DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUTPUT" | grep -E '^\s*id:' | head -1 | awk '{print $2}')
+      DMG_SUBMISSION_ID=$(extract_notary_submission_id "$DMG_SUBMIT_OUTPUT")
       if [ -z "$DMG_SUBMISSION_ID" ]; then
         echo "[notarize] ERROR: No DMG submission ID received; upload failed." >&2
+        echo "$DMG_SUBMIT_OUTPUT"
         exit 1
       fi
       echo "[notarize] DMG submission ID: $DMG_SUBMISSION_ID"
