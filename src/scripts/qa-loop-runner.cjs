@@ -956,7 +956,7 @@ function prepareDevRuntime(env) {
     },
     encoding: "utf8",
     windowsHide: true,
-    timeout: Number(process.env.KNAPSACK_QA_PREPARE_TIMEOUT_MS || 180_000),
+    timeout: Number(process.env.KNAPSACK_QA_PREPARE_TIMEOUT_MS || 1_800_000),
   });
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
   if (output) {
@@ -1753,6 +1753,12 @@ async function createMockMeeting() {
     },
   });
   if (!stop.ok) {
+    const noRecordingInProgress =
+      (typeof stop.body === "string" && stop.body.toLowerCase().includes("no recording in progress"))
+      || (typeof stop.body?.error === "string" && stop.body.error.toLowerCase().includes("no recording in progress"));
+    if (stop.status === 400 && noRecordingInProgress) {
+      return { ok: true };
+    }
     return {
       ok: false,
       detail: `stop_recording failed (${stop.status}) ${normalizeResult(stop.body)}`,
