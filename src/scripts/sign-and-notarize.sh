@@ -360,7 +360,10 @@ if [ "$DO_NOTARIZE" = true ]; then
     fi
 
     # Fallback for non-JSON text output (including older notarytool formats).
-    submission_id=$(printf '%s\n' "$raw_output" | grep -Eio '(^|[[:space:]])(id|request[-_ ]?id|request[-_ ]?uuid)\s*[:=]\s*[a-zA-Z0-9-]{10,}' | head -n1 | sed -E 's/.*([a-zA-Z0-9-]{10,})$/\1/' || true)
+    # Strip everything up to and including the first : or = so the greedy .* in
+    # sed cannot consume part of the UUID (old bug: s/.*([a-zA-Z0-9-]{10,})$/\1/
+    # captured only the minimum 10 chars, e.g. "00b9e90128" instead of the full UUID).
+    submission_id=$(printf '%s\n' "$raw_output" | grep -Eio '(^|[[:space:]])(id|request[-_ ]?id|request[-_ ]?uuid)\s*[:=]\s*[a-zA-Z0-9-]{10,}' | head -n1 | sed -E 's/^[^:=]*[:=][[:space:]]*//' || true)
     if [ -n "$submission_id" ]; then
       printf '%s\n' "$submission_id"
       return 0
