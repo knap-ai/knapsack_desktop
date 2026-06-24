@@ -691,9 +691,9 @@ fn knapsack_user_email(app_handle: &tauri::AppHandle) -> Option<String> {
 }
 
 fn knapsack_fallback_credential(app_handle: &tauri::AppHandle) -> Option<String> {
-  // Knapsack fallback eligibility should follow the real request path:
-  // a connected account email is enough to attempt auth, and the bearer token
-  // can be acquired or refreshed lazily inside `knapsack_bearer_token`.
+  // The real Knapsack inference path is anchored on the connected account email
+  // and refreshes a bearer token lazily. Reuse that same source of truth for
+  // fallback eligibility instead of requiring a cached access token.
   knapsack_user_email(app_handle)
 }
 
@@ -5417,10 +5417,12 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
             text
           ));
         }
-        let out: chat_agent::OaiChatResp = resp
-          .json()
+        let text = resp
+          .text()
           .await
           .map_err(|e| anyhow::anyhow!("Knapsack response read failed: {}", e))?;
+        let out: chat_agent::OaiChatResp = chat_agent::parse_oai_chat_resp(&text)
+          .map_err(|e| anyhow::anyhow!("Knapsack response parse failed: {}", e))?;
         let has_reply = out
           .choices
           .first()
