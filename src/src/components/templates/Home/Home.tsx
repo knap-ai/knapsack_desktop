@@ -36,7 +36,12 @@ import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
 import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
-import { ConnectionKeys, googleConnections, microsoftConnections } from '../../../api/connections'
+import {
+  ConnectionKeys,
+  getGoogleGmailConnections,
+  googleConnections,
+  microsoftConnections,
+} from '../../../api/connections'
 import { getFeedbacks } from '../../../api/threads'
 import { setHasOnboarded } from '../../../pages/onboarding'
 import { openGoogleAuthScreen } from '../../../utils/permissions/google'
@@ -202,7 +207,13 @@ function Home({
       // When email is not connected the AI falls back to browser automation instead.
       if (!feed.loggedEmailAutopilot) return
       const detail = (e as CustomEvent).detail
-      feed.setComposedEmailDraft(detail)
+      const gmailSenderEmail = getGoogleGmailConnections(connections)
+        .map(connection => connection.calendarAccountEmail?.trim())
+        .find(Boolean)
+      feed.setComposedEmailDraft({
+        ...detail,
+        senderEmail: detail?.senderEmail || gmailSenderEmail || userEmail,
+      })
       setCurrentTab(TabChoices.Openclaw)
     }
     const handleFocusChat = () => setCurrentTab(TabChoices.Openclaw)
@@ -218,7 +229,7 @@ function Home({
       window.removeEventListener('clawd-focus-chat', handleFocusChat)
       window.removeEventListener('clawd-open-meeting', handleOpenMeeting)
     }
-  }, [feed.loggedEmailAutopilot, feed.setComposedEmailDraft])
+  }, [connections, feed.loggedEmailAutopilot, feed.setComposedEmailDraft, userEmail])
 
   useEffect(() => {
     document.documentElement.style.backgroundColor = 'rgba(5, 5, 5, 0.0)'
