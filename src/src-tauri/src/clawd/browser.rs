@@ -2153,6 +2153,45 @@ fn parse_sse_payload_text(raw: &str) -> String {
   parts.join("")
 }
 
+fn is_degraded_gateway_capability_reply(reply: &str) -> bool {
+  let lower = reply.trim().to_lowercase().replace('`', "");
+  if lower.is_empty() {
+    return true;
+  }
+
+  if lower.contains("web_search tool") && lower.contains("disabled") {
+    return true;
+  }
+  if lower.contains("web search tool") && lower.contains("disabled") {
+    return true;
+  }
+  if lower.contains("direct email access") && lower.contains("none of which include") {
+    return true;
+  }
+
+  [
+    "web_search tool is disabled",
+    "web_search tool required",
+    "web search tool is disabled",
+    "web search tool required",
+    "no provider is available",
+    "don't have access to your email client",
+    "do not have access to your email accounts",
+    "do not have access to your email account",
+    "don't have direct access to your email",
+    "none of which include email access",
+    "none of which include direct email access",
+    "based on my memory.md",
+    "i checked my memory.md",
+    "my memory.md file",
+    "browser is currently unavailable",
+    "unable to perform web searches",
+    "no direct email send capability available",
+  ]
+  .iter()
+  .any(|needle| lower.contains(needle))
+}
+
 /// Send a chat message through the gateway's agent pipeline.
 /// Read recent terminal output from the built-in terminal sessions.
 /// Used by the chat agent's `read_terminal` tool so the AI can see what's
@@ -2324,6 +2363,12 @@ pub async fn agent_chat(
             eprintln!(
               "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
               &trimmed[..trimmed.len().min(100)]
+            );
+            None
+          } else if is_degraded_gateway_capability_reply(trimmed) {
+            eprintln!(
+              "[clawd/agent-chat] Gateway returned degraded capability reply: {:?}, falling back to direct chat",
+              &trimmed[..trimmed.len().min(160)]
             );
             None
           } else {
@@ -2891,6 +2936,42 @@ pub async fn chat(
         }),
         Err(e) => anyhow::bail!("{}", e),
       }
+    }
+
+    if name == "web_search" {
+      let query_text = args_map
+        .get("query")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+      if query_text.is_empty() {
+        anyhow::bail!("query is required");
+      }
+      let count = args_map
+        .get("count")
+        .and_then(|v| v.as_u64())
+        .map(|n| n.clamp(1, 10) as usize)
+        .unwrap_or(5);
+      let url = format!(
+        "http://127.0.0.1:8897/api/clawd/browser/search?q={}&count={}&chrome=true",
+        urlencoding::encode(&query_text),
+        count
+      );
+      let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build web_search client: {}", e))?
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("web_search request failed: {}", e))?;
+      let status = response.status();
+      let payload = response.text().await.unwrap_or_default();
+      if !status.is_success() {
+        anyhow::bail!("web_search failed ({}): {}", status, payload);
+      }
+      return Ok(json!({"ok": true, "result": payload}));
     }
 
     if name == "open_url" {
