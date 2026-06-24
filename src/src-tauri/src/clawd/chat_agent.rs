@@ -651,7 +651,7 @@ pub async fn openai_compatible_chat(
     let text = res.text().await.unwrap_or_default();
 
     if status.is_success() {
-      let parsed: OaiChatResp = serde_json::from_str(&text)?;
+      let parsed = parse_oai_chat_resp(&text)?;
       return Ok(fixup_raw_tool_tokens(parsed));
     }
 
@@ -726,7 +726,7 @@ pub async fn openai_compatible_chat(
       let retry_status = retry_res.status();
       let retry_text = retry_res.text().await.unwrap_or_default();
       if retry_status.is_success() {
-        let parsed: OaiChatResp = serde_json::from_str(&retry_text)?;
+        let parsed = parse_oai_chat_resp(&retry_text)?;
         return Ok(fixup_raw_tool_tokens(parsed));
       }
       anyhow::bail!("LLM HTTP {}: {}", retry_status, retry_text);
@@ -761,6 +761,96 @@ fn parse_retry_after(text: &str) -> Option<f64> {
     }
   }
   None
+}
+
+pub fn parse_oai_chat_resp(text: &str) -> anyhow::Result<OaiChatResp> {
+  match serde_json::from_str::<OaiChatResp>(text) {
+    Ok(parsed) => Ok(parsed),
+    Err(original_err) => {
+      let repaired = repair_invalid_json_string_escapes(text);
+      if repaired == text {
+        return Err(original_err.into());
+      }
+      match serde_json::from_str::<OaiChatResp>(&repaired) {
+        Ok(parsed) => {
+          eprintln!(
+            "[chat_agent] repaired malformed JSON escapes in chat completion response: {}",
+            original_err
+          );
+          Ok(parsed)
+        }
+        Err(_) => Err(original_err.into()),
+      }
+    }
+  }
+}
+
+fn repair_invalid_json_string_escapes(text: &str) -> String {
+  fn is_hex(ch: char) -> bool {
+    ch.is_ascii_hexdigit()
+  }
+
+  let chars: Vec<char> = text.chars().collect();
+  let mut repaired = String::with_capacity(text.len());
+  let mut i = 0usize;
+  let mut in_string = false;
+
+  while i < chars.len() {
+    let ch = chars[i];
+    if !in_string {
+      repaired.push(ch);
+      if ch == '"' {
+        in_string = true;
+      }
+      i += 1;
+      continue;
+    }
+
+    match ch {
+      '"' => {
+        repaired.push('"');
+        in_string = false;
+        i += 1;
+      }
+      '\\' => {
+        if i + 1 >= chars.len() {
+          repaired.push('\\');
+          repaired.push('\\');
+          i += 1;
+          continue;
+        }
+
+        let next = chars[i + 1];
+        let simple_escape = matches!(next, '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't');
+        let unicode_escape =
+          next == 'u' && i + 5 < chars.len() && chars[i + 2..=i + 5].iter().all(|ch| is_hex(*ch));
+
+        if simple_escape {
+          repaired.push('\\');
+          repaired.push(next);
+          i += 2;
+        } else if unicode_escape {
+          repaired.push('\\');
+          repaired.push('u');
+          repaired.push(chars[i + 2]);
+          repaired.push(chars[i + 3]);
+          repaired.push(chars[i + 4]);
+          repaired.push(chars[i + 5]);
+          i += 6;
+        } else {
+          repaired.push('\\');
+          repaired.push('\\');
+          i += 1;
+        }
+      }
+      _ => {
+        repaired.push(ch);
+        i += 1;
+      }
+    }
+  }
+
+  repaired
 }
 
 /// Some models (e.g. Groq-hosted Llama) sometimes emit raw tool-call tokens as
@@ -1324,4 +1414,25 @@ pub fn parse_args_map(args: &str) -> HashMap<String, JsonValue> {
     .and_then(|v| v.as_object().cloned())
     .map(|m| m.into_iter().map(|(k, v)| (k, v)).collect())
     .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn repairs_truncated_unicode_escape_in_json_string() {
+    let raw = r#"{"choices":[{"message":{"content":"bad \u12 path","tool_calls":[]}}]}"#;
+    let parsed = parse_oai_chat_resp(raw).expect("response should be repaired");
+    let content = parsed.choices[0].message.content.as_deref().unwrap_or("");
+    assert_eq!(content, r#"bad \u12 path"#);
+  }
+
+  #[test]
+  fn repairs_invalid_backslash_escape_in_json_string() {
+    let raw = r#"{"choices":[{"message":{"content":"draft \q now","tool_calls":[]}}]}"#;
+    let parsed = parse_oai_chat_resp(raw).expect("response should be repaired");
+    let content = parsed.choices[0].message.content.as_deref().unwrap_or("");
+    assert_eq!(content, r#"draft \q now"#);
+  }
 }
