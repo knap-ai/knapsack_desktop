@@ -66,6 +66,7 @@ export const KN_POST_MEETING_FOLLOWUP_ENABLED = 'kn_post_meeting_followup_enable
 export const KN_BACKGROUND_NOTIFICATION_HOURS = 'kn_background_notification_hours'
 export const KN_KEEP_SCREEN_ON_WHILE_CLOSED = 'kn_keep_screen_on_while_closed'
 export const KN_KEEP_AWAKE_CONFIRMED = 'kn_keep_awake_confirmed'
+export const KN_AUTO_INSTALL_APP_UPDATES = 'kn_auto_install_app_updates'
 
 export const getBackgroundNotificationsEnabled = async (): Promise<boolean> => {
   const value = await KNLocalStorage.getItem(KN_BACKGROUND_NOTIFICATIONS_ENABLED)
@@ -118,6 +119,15 @@ export const getKeepAwakeConfirmationAcknowledged = async (): Promise<boolean> =
 
 export const setKeepAwakeConfirmationAcknowledged = async () => {
   await KNLocalStorage.setItem(KN_KEEP_AWAKE_CONFIRMED, true)
+}
+
+export const getAutoInstallAppUpdatesEnabled = async (): Promise<boolean> => {
+  const value = await KNLocalStorage.getItem(KN_AUTO_INSTALL_APP_UPDATES)
+  return value !== false
+}
+
+export const setAutoInstallAppUpdatesEnabled = async (enabled: boolean) => {
+  await KNLocalStorage.setItem(KN_AUTO_INSTALL_APP_UPDATES, enabled)
 }
 
 // Meeting chat notice settings

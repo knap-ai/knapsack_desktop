@@ -4,6 +4,10 @@ import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/upda
 import { relaunch } from '@tauri-apps/api/process'
 
 import KNAnalytics from 'src/utils/KNAnalytics'
+import {
+  getAutoInstallAppUpdatesEnabled,
+  setAutoInstallAppUpdatesEnabled,
+} from 'src/utils/settings'
 
 export type UpdateStatus =
   | { status: 'idle' }
@@ -16,12 +20,17 @@ export type UpdateStatus =
 
 type AppUpdateContextValue = {
   updateState: UpdateStatus
+  autoInstallEnabled: boolean
+  countdownRemainingSec: number | null
   checkForUpdates: () => Promise<void>
   startInstall: () => Promise<void>
   restartApp: () => Promise<void>
+  setAutoInstallEnabled: (enabled: boolean) => Promise<void>
   dismiss: () => void
   dismissed: boolean
 }
+
+const AUTO_INSTALL_COUNTDOWN_SEC = 60
 
 const AppUpdateContext = createContext<AppUpdateContextValue | null>(null)
 
@@ -33,6 +42,8 @@ export function useAppUpdate() {
 
 export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<UpdateStatus>({ status: 'idle' })
+  const [autoInstallEnabled, setAutoInstallEnabledState] = useState(true)
+  const [countdownRemainingSec, setCountdownRemainingSec] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
   // Listen to updater events
@@ -58,6 +69,12 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unlisten?.()
     }
+  }, [])
+
+  useEffect(() => {
+    getAutoInstallAppUpdatesEnabled()
+      .then(setAutoInstallEnabledState)
+      .catch(() => {})
   }, [])
 
   const checkForUpdates = useCallback(async () => {
@@ -115,9 +132,53 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state])
 
+  const setAutoInstallEnabled = useCallback(async (enabled: boolean) => {
+    setAutoInstallEnabledState(enabled)
+    await setAutoInstallAppUpdatesEnabled(enabled)
+  }, [])
+
   const dismiss = useCallback(() => {
     setDismissed(true)
+    setCountdownRemainingSec(null)
   }, [])
+
+  useEffect(() => {
+    if (state.status === 'available') {
+      setDismissed(false)
+      if (autoInstallEnabled) {
+        setCountdownRemainingSec(prev => prev ?? AUTO_INSTALL_COUNTDOWN_SEC)
+      } else {
+        setCountdownRemainingSec(null)
+      }
+      return
+    }
+
+    setCountdownRemainingSec(null)
+  }, [autoInstallEnabled, state.status])
+
+  useEffect(() => {
+    if (
+      !autoInstallEnabled ||
+      dismissed ||
+      state.status !== 'available' ||
+      countdownRemainingSec === null
+    ) {
+      return
+    }
+
+    if (countdownRemainingSec <= 0) {
+      void restartApp()
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setCountdownRemainingSec(prev => (prev === null ? null : prev - 1))
+    }, 1000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [autoInstallEnabled, countdownRemainingSec, dismissed, restartApp, state.status])
 
   // Auto-check on mount — only checks, does NOT install.
   // Installing and relaunching must happen together (see restartApp).
@@ -127,7 +188,17 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppUpdateContext.Provider
-      value={{ updateState: state, checkForUpdates, startInstall, restartApp, dismiss, dismissed }}
+      value={{
+        updateState: state,
+        autoInstallEnabled,
+        countdownRemainingSec,
+        checkForUpdates,
+        startInstall,
+        restartApp,
+        setAutoInstallEnabled,
+        dismiss,
+        dismissed,
+      }}
     >
       {children}
     </AppUpdateContext.Provider>

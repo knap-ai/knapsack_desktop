@@ -1,7 +1,14 @@
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
 
 export function UpdateBanner() {
-  const { updateState: state, restartApp, dismiss, dismissed } = useAppUpdate()
+  const {
+    updateState: state,
+    autoInstallEnabled,
+    countdownRemainingSec,
+    restartApp,
+    dismiss,
+    dismissed,
+  } = useAppUpdate()
 
   // Show when an update is available (to install+restart) or on error.
   // 'downloading' shows a transient "Installing…" state while restartApp runs.
@@ -21,20 +28,22 @@ export function UpdateBanner() {
           <>
             <span>
               {state.status === 'available' && 'version' in state
-                ? `Update available (v${state.version}). Restart to install.`
+                ? autoInstallEnabled && countdownRemainingSec !== null
+                  ? `Update available (v${state.version}). Knapsack will install it automatically in ${countdownRemainingSec}s.`
+                  : `Update available (v${state.version}). Restart to install.`
                 : 'A new version is ready. Restart to apply.'}
             </span>
             <button
               onClick={restartApp}
               className="px-3 py-1 rounded bg-white text-red-600 font-medium hover:bg-red-50 transition-colors"
             >
-              Restart Now
+              Install Now
             </button>
             <button
               onClick={dismiss}
               className="px-3 py-1 rounded border border-white/50 hover:bg-red-500 transition-colors"
             >
-              Later
+              {autoInstallEnabled ? 'Skip This Time' : 'Later'}
             </button>
           </>
         )}
