@@ -84,6 +84,22 @@ function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
+function resolveNpmCli() {
+  const candidates = [];
+  if (process.env.npm_execpath) candidates.push(process.env.npm_execpath);
+  candidates.push(
+    path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    path.join(path.dirname(process.execPath), "..", "node_modules", "npm", "bin", "npm-cli.js"),
+  );
+  if (process.platform === "win32") {
+    const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+    candidates.push(
+      path.join(programFiles, "nodejs", "node_modules", "npm", "bin", "npm-cli.js"),
+    );
+  }
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
+
 function qaEnv(extra = {}) {
   const env = {
     ...process.env,
@@ -136,6 +152,11 @@ function rootNodeModulesReady() {
 function ensureRootNodeModules() {
   if (rootNodeModulesReady()) return;
   console.log("[qa-dev-run] root node_modules missing; running npm install");
+  const npmCli = resolveNpmCli();
+  if (npmCli) {
+    runChecked(process.execPath, [npmCli, "install"], { cwd: projectDir });
+    return;
+  }
   runChecked(npmCommand(), ["install"], { cwd: projectDir });
 }
 
@@ -969,6 +990,11 @@ async function main() {
     });
   }
 
+  if (prepareOnly) {
+    process.exit(0);
+    return;
+  }
+
   const vite = spawnVite();
   let gateway = null;
   let shuttingDown = false;
@@ -1009,7 +1035,10 @@ async function main() {
     });
   };
 
-  await waitForUrl("http://127.0.0.1:1420/");
+  await waitForUrl(
+    "http://127.0.0.1:1420/",
+    Number(process.env.KNAPSACK_QA_VITE_READY_TIMEOUT_MS || 90_000),
+  );
   bootoutLaunchAgent();
   killStaleGateways();
   killStaleOpenClawChrome();
@@ -1042,12 +1071,6 @@ async function main() {
         "[qa-dev-run] Continuing without managed direct gateway start; app bootstrap path was not local",
       );
     }
-  }
-
-  if (prepareOnly) {
-    cleanup();
-    process.exit(0);
-    return;
   }
 
   app.on("exit", (code, signal) => {

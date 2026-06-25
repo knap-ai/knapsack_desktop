@@ -20,7 +20,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 // Source (checked-in) clawdbot dir
 const SOURCE_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources', 'clawdbot');
@@ -28,17 +28,57 @@ const SOURCE_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'resources',
 const TARGET_CLAWDBOT_DIR = path.join(__dirname, '..', 'src-tauri', 'target', 'debug', 'resources', 'clawdbot');
 const FORCE_EXTENSION_LOCAL_DEPS = new Set(['slack', 'telegram', 'whatsapp']);
 
+function resolveNpmCli() {
+  const candidates = [];
+  if (process.env.npm_execpath) candidates.push(process.env.npm_execpath);
+  candidates.push(
+    path.join(path.dirname(process.execPath), '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    path.join(path.dirname(process.execPath), '..', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+  );
+  if (process.platform === 'win32') {
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    candidates.push(
+      path.join(programFiles, 'nodejs', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    );
+  }
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
+
+function runNpm(args, options = {}) {
+  const npmCli = resolveNpmCli();
+  let result;
+  if (npmCli) {
+    result = spawnSync(process.execPath, [npmCli, ...args], {
+      cwd: options.cwd,
+      stdio: 'inherit',
+      windowsHide: true,
+    });
+  } else {
+    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    result = spawnSync(npmCommand, args, {
+      cwd: options.cwd,
+      stdio: 'inherit',
+      windowsHide: true,
+    });
+  }
+  if (result.status !== 0) {
+    throw new Error(`npm ${args.join(' ')} failed with status ${result.status}`);
+  }
+}
+
 function runNpmInstall(cwd, label) {
   // Prefer `npm ci` when a lockfile is present — it does a clean install from the
   // lockfile and catches version mismatches that `npm install` silently ignores.
   // Falls back to `npm install` when no lockfile exists (e.g. target debug dir).
   const hasLockfile = fs.existsSync(path.join(cwd, 'npm-shrinkwrap.json'))
     || fs.existsSync(path.join(cwd, 'package-lock.json'));
-  const cmd = hasLockfile
-    ? 'npm ci --ignore-scripts --no-audit --no-fund'
-    : 'npm install --omit=dev --ignore-scripts --no-audit --no-fund';
   console.log(`[ensure-clawdbot-deps] ${hasLockfile ? 'npm ci' : 'npm install'} in ${label}...`);
-  execSync(cmd, { cwd, stdio: 'inherit' });
+  runNpm(
+    hasLockfile
+      ? ['ci', '--ignore-scripts', '--no-audit', '--no-fund']
+      : ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
+    { cwd },
+  );
 }
 
 function runtimeDependencySpecs(pkg) {
@@ -53,12 +93,12 @@ function runtimeDependencySpecs(pkg) {
 
 function runPluginRuntimeDepsInstall(cwd, label, specs) {
   if (!specs.length) return;
-  const quotedSpecs = specs.map((spec) => JSON.stringify(spec)).join(' ');
   const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'knapsack-plugin-deps-'));
-  const cmd = `npm install ${quotedSpecs} --no-save --omit=dev --ignore-scripts --no-audit --no-fund`;
   console.log(`[ensure-clawdbot-deps] npm install targeted runtime deps for ${label}: ${specs.join(', ')}`);
   try {
-    execSync(cmd, { cwd: stagingDir, stdio: 'inherit' });
+    runNpm(['install', ...specs, '--no-save', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], {
+      cwd: stagingDir,
+    });
     const sourceNm = path.join(stagingDir, 'node_modules');
     const targetNm = path.join(cwd, 'node_modules');
     fs.mkdirSync(targetNm, { recursive: true });
