@@ -785,6 +785,28 @@ pub fn parse_oai_chat_resp(text: &str) -> anyhow::Result<OaiChatResp> {
   }
 }
 
+pub fn parse_json_value_with_escape_repair(text: &str) -> anyhow::Result<JsonValue> {
+  match serde_json::from_str::<JsonValue>(text) {
+    Ok(parsed) => Ok(parsed),
+    Err(original_err) => {
+      let repaired = repair_invalid_json_string_escapes(text);
+      if repaired == text {
+        return Err(original_err.into());
+      }
+      match serde_json::from_str::<JsonValue>(&repaired) {
+        Ok(parsed) => {
+          eprintln!(
+            "[chat_agent] repaired malformed JSON escapes in JSON response: {}",
+            original_err
+          );
+          Ok(parsed)
+        }
+        Err(_) => Err(original_err.into()),
+      }
+    }
+  }
+}
+
 fn repair_invalid_json_string_escapes(text: &str) -> String {
   fn is_hex(ch: char) -> bool {
     ch.is_ascii_hexdigit()
@@ -1057,7 +1079,7 @@ pub async fn anthropic_chat(
 
     if status.is_success() {
       // Parse Anthropic response → OAI format
-      let parsed: JsonValue = serde_json::from_str(&text)?;
+      let parsed = parse_json_value_with_escape_repair(&text)?;
 
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
@@ -1327,7 +1349,7 @@ pub async fn gemini_chat_with_retries(
     let text = res.text().await.unwrap_or_default();
 
     if status.is_success() {
-      let parsed: JsonValue = serde_json::from_str(&text)?;
+      let parsed = parse_json_value_with_escape_repair(&text)?;
 
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
@@ -1434,5 +1456,21 @@ mod tests {
     let parsed = parse_oai_chat_resp(raw).expect("response should be repaired");
     let content = parsed.choices[0].message.content.as_deref().unwrap_or("");
     assert_eq!(content, r#"draft \q now"#);
+  }
+
+  #[test]
+  fn repairs_truncated_unicode_escape_in_generic_json_value() {
+    let raw = r#"{"content":[{"type":"text","text":"bad \u12 path"}]}"#;
+    let parsed = parse_json_value_with_escape_repair(raw).expect("json should be repaired");
+    let text = parsed["content"][0]["text"].as_str().unwrap_or("");
+    assert_eq!(text, r#"bad \u12 path"#);
+  }
+
+  #[test]
+  fn repairs_invalid_backslash_escape_in_generic_json_value() {
+    let raw = r#"{"content":[{"type":"text","text":"draft \q now"}]}"#;
+    let parsed = parse_json_value_with_escape_repair(raw).expect("json should be repaired");
+    let text = parsed["content"][0]["text"].as_str().unwrap_or("");
+    assert_eq!(text, r#"draft \q now"#);
   }
 }
