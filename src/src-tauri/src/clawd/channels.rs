@@ -325,6 +325,13 @@ fn inference_auth_status() -> (bool, Option<String>) {
           .map(|profiles| provider_auth_profile_present(profiles, "openrouter"))
           .unwrap_or(false)
     }
+    "trustedrouter" => {
+      has_non_empty_env_key("TRUSTEDROUTER_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "trustedrouter"))
+          .unwrap_or(false)
+    }
     "gemini" | "google" => {
       has_non_empty_env_key("GEMINI_API_KEY")
         || has_non_empty_env_key("GOOGLE_API_KEY")

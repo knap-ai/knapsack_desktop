@@ -65,7 +65,7 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
-  onProviderSignInClick?: (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter') => void
+  onProviderSignInClick?: (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -267,6 +267,7 @@ export const SettingsDialog = ({
     has_openai_key?: boolean
     has_anthropic_key?: boolean
     has_openrouter_key?: boolean
+    has_trustedrouter_key?: boolean
     has_gemini_cli_key?: boolean
     has_knapsack?: boolean
     knapsack_email?: string
@@ -409,6 +410,7 @@ export const SettingsDialog = ({
           has_openai_key: data.has_openai_key,
           has_anthropic_key: data.has_anthropic_key,
           has_openrouter_key: data.has_openrouter_key,
+          has_trustedrouter_key: data.has_trustedrouter_key,
           has_gemini_cli_key: data.has_gemini_cli_key,
           has_knapsack: data.has_knapsack,
           knapsack_email: data.knapsack_email,
@@ -785,6 +787,27 @@ export const SettingsDialog = ({
                   onClick={() => { handleClose(); onProviderSignInClick?.('openrouter') }}
                 >
                   {providerStatus?.has_openrouter_key ? 'Change' : 'Sign in'}
+                </button>
+              </div>
+            </ProviderAccordion>
+
+            {/* TrustedRouter */}
+            <ProviderAccordion
+              title="TrustedRouter"
+              isActive={providerStatus?.active_provider === 'trustedrouter'}
+              isConnected={!!providerStatus?.has_trustedrouter_key}
+              expanded={expandedProvider === 'trustedrouter'}
+              onToggle={() => toggleProvider('trustedrouter')}
+            >
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {providerStatus?.has_trustedrouter_key ? 'API key configured' : 'No API key set'}
+                </span>
+                <button
+                  className={styles.providerActionLink}
+                  onClick={() => { handleClose(); onProviderSignInClick?.('trustedrouter') }}
+                >
+                  {providerStatus?.has_trustedrouter_key ? 'Change' : 'Sign in'}
                 </button>
               </div>
             </ProviderAccordion>

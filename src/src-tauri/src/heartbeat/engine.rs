@@ -612,6 +612,9 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
   let openrouter_key = std::env::var("OPENROUTER_API_KEY")
     .ok()
     .filter(|k| !k.trim().is_empty());
+  let trustedrouter_key = std::env::var("TRUSTEDROUTER_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
 
   // First: try the user's active provider with its CHEAPEST model
   match active.as_str() {
@@ -660,6 +663,15 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
         is_anthropic: false,
       });
     }
+    "trustedrouter" if trustedrouter_key.is_some() => {
+      return Ok(HeartbeatProvider {
+        name: "trustedrouter".into(),
+        api_key: trustedrouter_key.unwrap(),
+        model: "trustedrouter/fast".into(),
+        base_url: "https://api.trustedrouter.com/v1".into(),
+        is_anthropic: false,
+      });
+    }
     _ => {}
   }
 
@@ -670,7 +682,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
   );
   let active_is_free = matches!(
     active.as_str(),
-    "groq" | "gemini" | "ollama" | "openrouter" | ""
+    "groq" | "gemini" | "ollama" | "openrouter" | "trustedrouter" | ""
   );
 
   if let Some(key) = groq_key {
@@ -697,6 +709,15 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       api_key: key,
       model: "meta-llama/llama-3.3-70b-instruct:free".into(),
       base_url: "https://openrouter.ai/api/v1".into(),
+      is_anthropic: false,
+    });
+  }
+  if let Some(key) = trustedrouter_key {
+    return Ok(HeartbeatProvider {
+      name: "trustedrouter".into(),
+      api_key: key,
+      model: "trustedrouter/fast".into(),
+      base_url: "https://api.trustedrouter.com/v1".into(),
       is_anthropic: false,
     });
   }

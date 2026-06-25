@@ -4,7 +4,7 @@ import './SigninButton.scss'
 type SigninButtonProps = {
   className?: string
   onGoogleSignIn: () => void
-  onProviderSignIn: (provider: 'openai' | 'anthropic' | 'openrouter') => void
+  onProviderSignIn: (provider: 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => void
 }
 
 export const SigninButton: React.FC<SigninButtonProps> = ({
@@ -109,6 +109,19 @@ export const SigninButton: React.FC<SigninButtonProps> = ({
             <div className="signin-dropdown-text">
               <span className="signin-dropdown-name">OpenRouter</span>
               <span className="signin-dropdown-desc">Free &amp; paid models</span>
+            </div>
+          </button>
+
+          <button
+            className="signin-dropdown-item"
+            onClick={() => { setOpen(false); onProviderSignIn('trustedrouter') }}
+          >
+            <div className="signin-dropdown-icon">
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb' }}>TR</span>
+            </div>
+            <div className="signin-dropdown-text">
+              <span className="signin-dropdown-name">TrustedRouter</span>
+              <span className="signin-dropdown-desc">Attested OpenAI-compatible routing</span>
             </div>
           </button>
         </div>

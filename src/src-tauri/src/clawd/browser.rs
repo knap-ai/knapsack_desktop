@@ -105,6 +105,11 @@ struct StoredTokens {
   openrouter_api_key: Option<String>,
   #[serde(default)]
   openrouter_model: Option<String>,
+  // TrustedRouter support
+  #[serde(default)]
+  trustedrouter_api_key: Option<String>,
+  #[serde(default)]
+  trustedrouter_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
   // Ollama (local LLM) support
@@ -193,6 +198,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     xai_model: None,
     openrouter_api_key: None,
     openrouter_model: None,
+    trustedrouter_api_key: None,
+    trustedrouter_model: None,
     active_provider: None,
     ollama_enabled: None,
     ollama_model: None,
@@ -571,6 +578,20 @@ fn openrouter_key(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+fn trustedrouter_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("TRUSTEDROUTER_API_KEY") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
+  }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.trustedrouter_api_key)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
 fn knapsack_access_token(app_handle: &tauri::AppHandle) -> Option<String> {
   if let Ok(k) = std::env::var("KNAPSACK_ACCESS_TOKEN") {
     let k = k.trim().to_string();
@@ -701,6 +722,9 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   let model = model.trim();
   if model.is_empty() {
     return String::new();
+  }
+  if provider.eq_ignore_ascii_case("openrouter") || provider.eq_ignore_ascii_case("trustedrouter") {
+    return model.to_string();
   }
   if let Some((prefix, bare)) = model.split_once('/') {
     if prefix.eq_ignore_ascii_case(provider) {
@@ -2807,7 +2831,15 @@ pub async fn chat(
   if requested_provider.is_some()
     && !matches!(
       provider.as_str(),
-      "openai" | "anthropic" | "gemini" | "groq" | "xai" | "openrouter" | "ollama" | "knapsack"
+      "openai"
+        | "anthropic"
+        | "gemini"
+        | "groq"
+        | "xai"
+        | "openrouter"
+        | "trustedrouter"
+        | "ollama"
+        | "knapsack"
     )
   {
     return HttpResponse::BadRequest().json(serde_json::json!({
@@ -2878,6 +2910,13 @@ pub async fn chat(
           "message": "OpenRouter API key is not set. Add it in Settings and Save, then re-enable."
         }))
       }
+    },
+    "trustedrouter" => match trustedrouter_key(&app_handle) {
+      Some(k) => k,
+      None => return HttpResponse::BadRequest().json(serde_json::json!({
+        "ok": false,
+        "message": "TrustedRouter API key is not set. Add it in Settings and Save, then re-enable."
+      })),
     },
     _ => match openai_key(&app_handle) {
       Some(k) => k,
@@ -5277,6 +5316,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       "xai" => super::service::get_xai_model(&app_handle),
       "ollama" => ollama_model(&app_handle),
       "openrouter" => super::service::get_openrouter_model(&app_handle),
+      "trustedrouter" => super::service::get_trustedrouter_model(&app_handle),
       _ => super::service::get_openai_model(&app_handle),
     },
   };
@@ -5311,6 +5351,16 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       "openrouter" => {
         chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
           .await
+      }
+      "trustedrouter" => {
+        chat_agent::openai_compatible_chat(
+          key,
+          model,
+          "https://api.trustedrouter.com/v1",
+          msgs,
+          tls,
+        )
+        .await
       }
       "knapsack" => {
         let email = knapsack_user_email(app_handle).ok_or_else(|| {
@@ -5779,7 +5829,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         if let Some(r) = recovered_resp {
           r
         } else {
-          // Try fallback providers in order: OpenAI → Anthropic → Gemini → Groq → xAI → OpenRouter → Ollama
+          // Try fallback providers in order: Knapsack → OpenAI → Anthropic → Gemini → Groq → xAI → TrustedRouter → OpenRouter → Ollama
           if disable_fallback {
             return HttpResponse::Ok().json(
               serde_json::json!({"ok": false, "message": format!("{} error: {}", current_provider, err_str)}),
@@ -5796,13 +5846,14 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           } else {
             None
           };
-          let fallbacks: [(&str, Option<String>); 8] = [
+          let fallbacks: [(&str, Option<String>); 9] = [
             ("knapsack", knapsack_fallback_credential(&app_handle)),
             ("openai", openai_key(&app_handle)),
             ("anthropic", anthropic_key(&app_handle)),
             ("gemini", gemini_key(&app_handle)),
             ("groq", groq_key(&app_handle)),
             ("xai", xai_key(&app_handle)),
+            ("trustedrouter", trustedrouter_key(&app_handle)),
             ("openrouter", openrouter_key(&app_handle)),
             ("ollama", ollama_key),
           ];
@@ -5831,6 +5882,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
                 "xai" => super::service::get_xai_model(&app_handle),
                 "ollama" => ollama_model(&app_handle),
                 "openrouter" => super::service::get_openrouter_model(&app_handle),
+                "trustedrouter" => super::service::get_trustedrouter_model(&app_handle),
                 _ => super::service::get_openai_model(&app_handle),
               };
               eprintln!(
