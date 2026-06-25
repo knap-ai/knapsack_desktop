@@ -2586,7 +2586,12 @@ fn default_channel_status_params() -> Value {
 /// Get channel status from the gateway (pooled).
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  call_channel_method("channels.status", Some(default_channel_status_params()), Some(&t)).await
+  call_channel_method(
+    "channels.status",
+    Some(default_channel_status_params()),
+    Some(&t),
+  )
+  .await
 }
 
 /// Call a channel method on the gateway (pooled).
@@ -2880,6 +2885,34 @@ mod tests {
     let cfg = json!({"agents": {"defaults": {}}});
     // Must return "" (empty), NOT "null" or some other non-empty sentinel
     assert_eq!(read_model_from_config(&cfg), "");
+  }
+
+  #[test]
+  fn browser_config_does_not_auto_pin_duckduckgo_provider() {
+    let cfg_json = json!({
+      "tools": {
+        "deny": ["canvas", "nodes", "cron", "gateway"],
+        "allow": ["browser", "web_fetch", "web_search", "group:web"]
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(
+      changed,
+      "baseline browser/tool invariants should still be patched"
+    );
+
+    let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
+    assert_eq!(
+      updated.pointer("/tools/web/search/provider"),
+      None,
+      "search provider should remain unset when no API-backed provider is configured"
+    );
+    assert_eq!(
+      updated.pointer("/plugins/entries/duckduckgo"),
+      None,
+      "DuckDuckGo should not be force-enabled as an implicit default"
+    );
   }
 
   #[test]

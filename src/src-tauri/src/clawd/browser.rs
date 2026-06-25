@@ -6123,10 +6123,11 @@ pub async fn screenshot(
 // results, and return them as structured JSON.
 //
 // Priority order for web search (enforced by channel_diagnostics):
-//   1. Brave API  (BRAVE_API_KEY present)
+//   1. Brave/API-backed provider  (explicitly configured)
 //   2. Browser CDP  (this endpoint, requires browser_ok)
-//   3. DuckDuckGo provider  (key-free HTTP fallback, browser unavailable)
-//   4. API key prompt  (all else failed)
+//   3. Optional DuckDuckGo HTTP fallback  (explicitly tolerated last resort)
+//   4. Google News RSS fallback  (news-oriented fallback)
+//   5. API key prompt / browser guidance  (all else failed)
 
 #[derive(Debug, Deserialize)]
 pub struct BrowserSearchQuery {
@@ -6437,6 +6438,14 @@ fn parse_google_news_rss(xml: &str, max_results: usize) -> Vec<BrowserSearchResu
   results
 }
 
+fn is_ddg_bot_challenge_html(html: &str) -> bool {
+  let lower = html.to_ascii_lowercase();
+  lower.contains("g-recaptcha")
+    || lower.contains("are you a human")
+    || lower.contains("id=\"challenge-form\"")
+    || lower.contains("name=\"challenge\"")
+}
+
 /// Browser-based web search via CDP (DuckDuckGo Lite).
 ///
 /// `GET /api/clawd/browser/search?q=<query>[&count=5][&chrome=true]`
@@ -6585,6 +6594,57 @@ pub async fn browser_search(
   match http_client.get(&ddg_url).send().await {
     Ok(resp) => match resp.text().await {
       Ok(html) => {
+        if is_ddg_bot_challenge_html(&html) {
+          let news_url = format!(
+            "https://news.google.com/rss/search?q={}&hl=en-US&gl=US&ceid=US:en",
+            encoded_q
+          );
+          log::warn!(
+            "[browser_search] DDG HTTP fallback hit a bot challenge; trying Google News RSS fallback"
+          );
+          return match http_client.get(&news_url).send().await {
+            Ok(news_resp) => match news_resp.text().await {
+              Ok(xml) => {
+                let results = parse_google_news_rss(&xml, max_results);
+                HttpResponse::Ok().json(BrowserSearchResponse {
+                  success: !results.is_empty(),
+                  message: if results.is_empty() {
+                    Some(
+                      "DuckDuckGo returned a bot challenge and Google News RSS did not return usable results"
+                        .to_string(),
+                    )
+                  } else {
+                    Some(
+                      "DuckDuckGo returned a bot challenge; using Google News RSS fallback results"
+                        .to_string(),
+                    )
+                  },
+                  results,
+                  provider: "google-news-rss".to_string(),
+                })
+              }
+              Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+                success: false,
+                message: Some(format!(
+                  "DuckDuckGo returned a bot challenge and Google News RSS response could not be read: {}",
+                  e
+                )),
+                results: vec![],
+                provider: "google-news-rss".to_string(),
+              }),
+            },
+            Err(e) => HttpResponse::Ok().json(BrowserSearchResponse {
+              success: false,
+              message: Some(format!(
+                "DuckDuckGo returned a bot challenge and Google News RSS fallback failed: {}",
+                e
+              )),
+              results: vec![],
+              provider: "none".to_string(),
+            }),
+          };
+        }
+
         let mut results = parse_ddg_lite_html(&html, max_results.saturating_add(5));
         if results.is_empty() {
           let plain = strip_html_tags(&html);
@@ -6936,5 +6996,15 @@ mod tests {
     assert!(clamped.contains("Trimmed for test"));
     assert!(clamped.contains("truncated from"));
     assert!(clamped.starts_with("prefix "));
+  }
+
+  #[test]
+  fn detects_ddg_bot_challenge_markup() {
+    assert!(super::is_ddg_bot_challenge_html(
+      r#"<html><form id="challenge-form"><div>Are you a human?</div></form></html>"#
+    ));
+    assert!(!super::is_ddg_bot_challenge_html(
+      "<html><body><a href=\"https://example.com\">Example</a></body></html>"
+    ));
   }
 }
