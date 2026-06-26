@@ -2442,57 +2442,7 @@ pub async fn generic_channel_disconnect(
     });
   }
 
-  // Try channel.logout (best effort — some channels may not support it)
-  let logout_params = serde_json::json!({
-      "channel": channel,
-      "accountId": "default",
-  });
-  if let Err(e) =
-    gateway_client::call_channel_method("channel.logout", Some(logout_params), None).await
-  {
-    log::warn!(
-      "[channels] channel.logout({}) failed (non-fatal): {}",
-      channel,
-      e
-    );
-    // Invalidate pooled connection after failed logout to ensure
-    // config_get uses a fresh connection.
-    gateway_client::invalidate();
-  }
-
-  // Remove from config
-  let config_result = gateway_client::config_get(None).await;
-  match config_result {
-    Ok(config_snapshot) => {
-      let base_hash = extract_base_hash(&config_snapshot);
-      let patch = serde_json::json!({ "channels": { channel.clone(): null } });
-      match gateway_client::config_patch(&serde_json::to_string(&patch).unwrap(), &base_hash, None)
-        .await
-      {
-        Ok(_) => {
-          gateway_client::invalidate();
-          HttpResponse::Ok().json(GenericResponse {
-            success: true,
-            message: Some(format!("{} disconnected", channel)),
-            configured: None,
-            linked: None,
-          })
-        }
-        Err(e) => HttpResponse::Ok().json(GenericResponse {
-          success: false,
-          message: Some(format!("Failed to remove config: {}", e)),
-          configured: None,
-          linked: None,
-        }),
-      }
-    }
-    Err(e) => HttpResponse::Ok().json(GenericResponse {
-      success: false,
-      message: Some(format!("Failed to get config: {}", e)),
-      configured: None,
-      linked: None,
-    }),
-  }
+  disconnect_channel(&channel, "default").await
 }
 
 // ── Signal CLI install endpoints ──────────────────────────────────────────
