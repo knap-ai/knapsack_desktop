@@ -265,12 +265,16 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('failed to start chrome cdp')) {
     return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
   }
+  // Local backend overload / file descriptor exhaustion
+  if (lower.includes('too many open files') || lower.includes('unable to open database file')) {
+    return `🛠️ **Knapsack backend is overloaded** (active: \`${activeModel}\`). The local service ran out of file handles and could not process the request. Quit and reopen Knapsack, then try again. If this keeps happening, share diagnostics with Knapsack Support.`
+  }
   // Network / connection errors
-  // WebKit raises "TypeError: Load failed" when the AI request is blocked
-  // (context window overflow, oversized payload, or DNS/network hang).
-  // The most common cause is a conversation that's grown too long for the model.
+  // WebKit's generic "Load failed" is not specific enough to call a context
+  // overflow. We only show the "Message too large" banner for explicit model
+  // limit signals above; otherwise keep this in the connection/backend bucket.
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return `⚠️ **Message too large** (active: \`${activeModel}\`). The conversation or payload exceeded what this model can handle. Start a new conversation to reduce context size${activeModel ? `, or switch to a larger-context model in Settings → Provider` : ''}.\n\n${switchProviderAction}`
+    return `🌐 **Connection error** (active: \`${activeModel}\`). Knapsack could not reach the local AI service for this request. Try again in a moment, or restart Knapsack if the problem keeps happening.`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
