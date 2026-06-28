@@ -64,6 +64,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "GROQ_API_KEY",
     "XAI_API_KEY",
     "OPENROUTER_API_KEY",
+    "TRUSTEDROUTER_API_KEY",
     "OLLAMA_API_KEY",
     "OLLAMA_HOST",
     "KNAPSACK_ACTIVE_PROVIDER",
@@ -73,6 +74,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "KNAPSACK_GROQ_MODEL",
     "KNAPSACK_XAI_MODEL",
     "KNAPSACK_OPENROUTER_MODEL",
+    "KNAPSACK_TRUSTEDROUTER_MODEL",
     "KNAPSACK_OLLAMA_MODEL",
   ];
 
@@ -3959,8 +3961,13 @@ struct StoredTokens {
   openrouter_api_key: Option<String>,
   #[serde(default)]
   openrouter_model: Option<String>,
+  // TrustedRouter support (OpenAI-compatible attested router)
+  #[serde(default)]
+  trustedrouter_api_key: Option<String>,
+  #[serde(default)]
+  trustedrouter_model: Option<String>,
 
-  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "xai", "openrouter", "ollama"
+  /// Which provider is currently selected: "openai", "anthropic", "gemini", "groq", "xai", "openrouter", "trustedrouter", "ollama"
   #[serde(default)]
   active_provider: Option<String>,
 
@@ -4169,7 +4176,9 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     xai_model: None, // Defaults to grok-code-fast-1
     openrouter_api_key: None,
     openrouter_model: None, // Defaults to meta-llama/llama-3.3-70b-instruct:free
-    active_provider: None,  // Defaults to openai
+    trustedrouter_api_key: None,
+    trustedrouter_model: None, // Defaults to trustedrouter/auto
+    active_provider: None,     // Defaults to openai
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
@@ -4299,6 +4308,24 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
     let m = m.trim();
     if !m.is_empty() {
       std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m);
+    }
+  }
+  if let Some(k) = tokens.trustedrouter_api_key.clone() {
+    let k_trimmed = k.trim().to_string();
+    if !k_trimmed.is_empty() {
+      if validate_api_key_format(&k_trimmed).is_ok() {
+        std::env::set_var("TRUSTEDROUTER_API_KEY", &k_trimmed);
+      } else {
+        eprintln!("[clawd/service] WARNING: stored TRUSTEDROUTER_API_KEY looks malformed (len={}), clearing from storage. Please re-enter your key in Settings.", k_trimmed.len());
+        tokens.trustedrouter_api_key = None;
+        let _ = save_tokens(app_handle, &tokens);
+      }
+    }
+  }
+  if let Some(m) = &tokens.trustedrouter_model {
+    let m = m.trim();
+    if !m.is_empty() {
+      std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", m);
     }
   }
   // Propagate Ollama settings so OpenClaw subprocess picks them up
@@ -4827,6 +4854,14 @@ pub fn get_openrouter_model(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.openrouter_model)
     .unwrap_or_else(|| "meta-llama/llama-3.3-70b-instruct:free".to_string())
+}
+
+/// Get the configured TrustedRouter model (defaults to trustedrouter/auto if not set)
+pub fn get_trustedrouter_model(app_handle: &tauri::AppHandle) -> String {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.trustedrouter_model)
+    .unwrap_or_else(|| "trustedrouter/auto".to_string())
 }
 
 fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
@@ -5725,7 +5760,10 @@ async fn browser_control_status(
         );
         return BrowserControlProbe::Down;
       }
-      eprintln!("[clawd/service] browser control status probe failed: {}", err_text);
+      eprintln!(
+        "[clawd/service] browser control status probe failed: {}",
+        err_text
+      );
       return BrowserControlProbe::Down;
     }
     Err(_) => {
@@ -7153,6 +7191,7 @@ pub struct ApiKeyStatusResponse {
   pub has_groq_key: bool,
   pub has_xai_key: bool,
   pub has_openrouter_key: bool,
+  pub has_trustedrouter_key: bool,
   pub has_gemini_cli_key: bool,
   pub openai_key_hint: Option<String>,
   pub anthropic_key_hint: Option<String>,
@@ -7160,6 +7199,7 @@ pub struct ApiKeyStatusResponse {
   pub groq_key_hint: Option<String>,
   pub xai_key_hint: Option<String>,
   pub openrouter_key_hint: Option<String>,
+  pub trustedrouter_key_hint: Option<String>,
   pub gemini_cli_email: Option<String>,
   // Ollama (local LLM) status
   pub ollama_enabled: bool,
@@ -7202,6 +7242,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         has_groq_key: false,
         has_xai_key: false,
         has_openrouter_key: false,
+        has_trustedrouter_key: false,
         has_gemini_cli_key: false,
         openai_key_hint: None,
         anthropic_key_hint: None,
@@ -7209,6 +7250,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         groq_key_hint: None,
         xai_key_hint: None,
         openrouter_key_hint: None,
+        trustedrouter_key_hint: None,
         gemini_cli_email: None,
         ollama_enabled: false,
         ollama_model: None,
@@ -7252,6 +7294,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .as_ref()
     .map(|k| !k.trim().is_empty())
     .unwrap_or(false);
+  let has_trustedrouter = tokens
+    .trustedrouter_api_key
+    .as_ref()
+    .map(|k| !k.trim().is_empty())
+    .unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
   let has_knapsack = has_knapsack_runtime_auth(&tokens);
@@ -7261,6 +7308,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     || has_groq
     || has_xai
     || has_openrouter
+    || has_trustedrouter
     || ollama_enabled
     || has_gemini_cli
     || has_knapsack;
@@ -7276,6 +7324,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     "groq" => tokens.groq_model.clone(),
     "xai" => tokens.xai_model.clone(),
     "openrouter" => tokens.openrouter_model.clone(),
+    "trustedrouter" => tokens.trustedrouter_model.clone(),
     "ollama" => tokens
       .ollama_model
       .clone()
@@ -7314,6 +7363,11 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .map(|k| mask_key(k));
   let openrouter_hint = tokens
     .openrouter_api_key
+    .as_ref()
+    .filter(|k| !k.trim().is_empty())
+    .map(|k| mask_key(k));
+  let trustedrouter_hint = tokens
+    .trustedrouter_api_key
     .as_ref()
     .filter(|k| !k.trim().is_empty())
     .map(|k| mask_key(k));
@@ -7357,6 +7411,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     has_groq_key: has_groq,
     has_xai_key: has_xai,
     has_openrouter_key: has_openrouter,
+    has_trustedrouter_key: has_trustedrouter,
     has_gemini_cli_key: has_gemini_cli,
     openai_key_hint: openai_hint,
     anthropic_key_hint: anthropic_hint,
@@ -7364,6 +7419,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     groq_key_hint: groq_hint,
     xai_key_hint: xai_hint,
     openrouter_key_hint: openrouter_hint,
+    trustedrouter_key_hint: trustedrouter_hint,
     gemini_cli_email,
     ollama_enabled,
     ollama_model: tokens.ollama_model.clone(),
@@ -7480,6 +7536,14 @@ pub async fn validate_api_key(payload: web::Json<ValidateApiKeyRequest>) -> impl
         .send()
         .await
     }
+    "trustedrouter" => {
+      // TrustedRouter: OpenAI-compatible models endpoint.
+      client
+        .get("https://api.trustedrouter.com/v1/models")
+        .bearer_auth(&key)
+        .send()
+        .await
+    }
     "huggingface" => {
       // Hugging Face: validate with whoami endpoint
       client
@@ -7556,13 +7620,13 @@ fn validate_api_key_format(key: &str) -> Result<(), String> {
   Ok(())
 }
 
-/// Set API key for any provider (OpenAI, Anthropic, Gemini, or extra providers)
+/// Set API key for any provider (OpenAI, Anthropic, Gemini, OpenRouter, TrustedRouter, or extra providers)
 #[derive(Debug, Deserialize)]
 pub struct SetApiKeyRequest {
   #[serde(default)]
   pub key: String,
   pub model: Option<String>,
-  /// "openai" (default), "anthropic", "gemini", "groq", "minimax", "zai", "huggingface"
+  /// "openai" (default), "anthropic", "gemini", "groq", "openrouter", "trustedrouter", "minimax", "zai", "huggingface"
   pub provider: Option<String>,
   /// For extra providers: the environment variable name to store the key under.
   /// e.g. "MINIMAX_API_KEY", "ZAI_API_KEY", "HF_TOKEN"
@@ -7692,6 +7756,10 @@ pub async fn set_api_key(
         .openrouter_api_key
         .as_ref()
         .map_or(false, |k| !k.is_empty()),
+      "trustedrouter" => tokens
+        .trustedrouter_api_key
+        .as_ref()
+        .map_or(false, |k| !k.is_empty()),
       "ollama" => true,
       "knapsack" => tokens
         .knapsack_email
@@ -7727,6 +7795,9 @@ pub async fn set_api_key(
         "openrouter" => {
           tokens.openrouter_model = Some(model.trim().to_string());
         }
+        "trustedrouter" => {
+          tokens.trustedrouter_model = Some(model.trim().to_string());
+        }
         "ollama" => {
           tokens.ollama_model = Some(model.trim().to_string());
         }
@@ -7744,6 +7815,7 @@ pub async fn set_api_key(
       "groq" => "Groq",
       "xai" => "Grok (xAI)",
       "openrouter" => "OpenRouter",
+      "trustedrouter" => "TrustedRouter",
       "ollama" => "Ollama",
       "knapsack" => "Knapsack",
       _ => "OpenAI",
@@ -7780,6 +7852,14 @@ pub async fn set_api_key(
         std::env::set_var("OPENROUTER_API_KEY", k);
       } else if !k.is_empty() {
         eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed, skipping propagation. Please re-enter your key in Settings.");
+      }
+    }
+    if let Some(k) = &tokens.trustedrouter_api_key {
+      let k = k.trim();
+      if !k.is_empty() && validate_api_key_format(k).is_ok() {
+        std::env::set_var("TRUSTEDROUTER_API_KEY", k);
+      } else if !k.is_empty() {
+        eprintln!("[clawd/service] WARNING: stored TRUSTEDROUTER_API_KEY looks malformed, skipping propagation. Please re-enter your key in Settings.");
       }
     }
     // Ollama env vars: only set when Ollama is the active provider.
@@ -7952,6 +8032,14 @@ pub async fn set_api_key(
       }
       "OpenRouter"
     }
+    "trustedrouter" => {
+      tokens.trustedrouter_api_key = Some(key);
+      tokens.active_provider = Some("trustedrouter".to_string());
+      if let Some(model) = &payload.model {
+        tokens.trustedrouter_model = Some(model.trim().to_string());
+      }
+      "TrustedRouter"
+    }
     "ollama" => {
       // Ollama doesn't need a real API key — just enable it and store settings
       tokens.ollama_enabled = Some(true);
@@ -8055,6 +8143,18 @@ pub async fn set_api_key(
       eprintln!("[clawd/service] WARNING: stored OPENROUTER_API_KEY looks malformed (len={}), skipping propagation. Please re-enter your key in Settings.", k.len());
     }
   }
+  if let Some(k) = &tokens.trustedrouter_api_key {
+    let k = k.trim();
+    if !k.is_empty() && validate_api_key_format(k).is_ok() {
+      eprintln!(
+        "[clawd/service] set-api-key: propagating TRUSTEDROUTER_API_KEY len={}",
+        k.len()
+      );
+      std::env::set_var("TRUSTEDROUTER_API_KEY", k);
+    } else if !k.is_empty() {
+      eprintln!("[clawd/service] WARNING: stored TRUSTEDROUTER_API_KEY looks malformed (len={}), skipping propagation. Please re-enter your key in Settings.", k.len());
+    }
+  }
   if let Some(p) = &tokens.active_provider {
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", p);
   }
@@ -8075,6 +8175,9 @@ pub async fn set_api_key(
   }
   if let Some(m) = &tokens.openrouter_model {
     std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m);
+  }
+  if let Some(m) = &tokens.trustedrouter_model {
+    std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", m);
   }
   // Propagate Ollama settings — only when Ollama is the active provider.
   // When switching away, clear the env vars so the gateway won't discover
@@ -8787,6 +8890,7 @@ pub struct GetApiKeyResponse {
   pub groq_model: Option<String>,
   pub xai_model: Option<String>,
   pub openrouter_model: Option<String>,
+  pub trustedrouter_model: Option<String>,
 }
 
 #[get("/api/clawd/service/get-api-key")]
@@ -8809,6 +8913,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
         groq_model: None,
         xai_model: None,
         openrouter_model: None,
+        trustedrouter_model: None,
       })
     }
   };
@@ -8835,6 +8940,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     "groq" => tokens.groq_model.clone(),
     "xai" => tokens.xai_model.clone(),
     "openrouter" => tokens.openrouter_model.clone(),
+    "trustedrouter" => tokens.trustedrouter_model.clone(),
     "ollama" => tokens
       .ollama_model
       .or_else(|| Some("llama3.1:latest".to_string())),
@@ -8857,6 +8963,7 @@ pub async fn get_api_key(app_handle: web::Data<tauri::AppHandle>) -> impl Respon
     groq_model: tokens.groq_model.clone(),
     xai_model: tokens.xai_model.clone(),
     openrouter_model: tokens.openrouter_model.clone(),
+    trustedrouter_model: tokens.trustedrouter_model.clone(),
   })
 }
 
@@ -8936,6 +9043,7 @@ fn any_provider_key_available() -> bool {
     "GROQ_API_KEY",
     "XAI_API_KEY",
     "OPENROUTER_API_KEY",
+    "TRUSTEDROUTER_API_KEY",
     "OLLAMA_API_KEY",
   ];
   VARS.iter().any(|v| {
@@ -8963,6 +9071,7 @@ fn model_ref_has_key(model_ref: &str) -> bool {
     "groq" => has("GROQ_API_KEY"),
     "xai" => has("XAI_API_KEY"),
     "openrouter" => has("OPENROUTER_API_KEY"),
+    "trustedrouter" => has("TRUSTEDROUTER_API_KEY"),
     "ollama" => has("OLLAMA_API_KEY"),
     _ => true,
   }
@@ -10446,6 +10555,14 @@ async fn prepare_gateway_config(
       env.push(("OPENROUTER_API_KEY".to_string(), k));
     }
   }
+  // Propagate TrustedRouter key
+  if let Some(k) = tokens.trustedrouter_api_key.clone() {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      std::env::set_var("TRUSTEDROUTER_API_KEY", &k);
+      env.push(("TRUSTEDROUTER_API_KEY".to_string(), k));
+    }
+  }
 
   // Propagate active provider and model overrides so the gateway uses the
   // correct provider/model the user selected in the UI.
@@ -10473,6 +10590,9 @@ async fn prepare_gateway_config(
   }
   if let Some(m) = tokens.openrouter_model.clone() {
     env.push(("KNAPSACK_OPENROUTER_MODEL".to_string(), m));
+  }
+  if let Some(m) = tokens.trustedrouter_model.clone() {
+    env.push(("KNAPSACK_TRUSTEDROUTER_MODEL".to_string(), m));
   }
 
   if let Some(extra) = &tokens.extra_provider_keys {
@@ -14950,6 +15070,8 @@ mod knapsack_runtime_auth_tests {
       xai_model: None,
       openrouter_api_key: None,
       openrouter_model: None,
+      trustedrouter_api_key: None,
+      trustedrouter_model: None,
       active_provider: None,
       ollama_enabled: None,
       ollama_model: None,

@@ -13,7 +13,7 @@ import styles from './styles.module.scss'
 
 const API_BASE = 'http://127.0.0.1:8897'
 
-type Provider = 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'gemini'
+type Provider = 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter' | 'gemini'
 
 type ProviderConfig = {
   id: Provider
@@ -96,6 +96,22 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     defaultModel: 'qwen/qwen3-coder-480b-a35b-instruct:free',
   },
   {
+    id: 'trustedrouter',
+    name: 'TrustedRouter',
+    description: 'Attested OpenAI-compatible routing through TrustedRouter',
+    keyPrefix: 'sk-tr-',
+    helpUrl: 'https://trustedrouter.com/console/api-keys',
+    helpLabel: 'trustedrouter.com/console/api-keys',
+    models: [
+      { id: 'trustedrouter/auto', name: 'Auto', description: 'TrustedRouter selects the best healthy route for each request' },
+      { id: 'trustedrouter/zdr', name: 'Zero Data Retention', description: 'Routes through zero-retention providers where available' },
+      { id: 'trustedrouter/e2e', name: 'End-to-End Encrypted', description: 'Routes to end-to-end encrypted provider paths where available' },
+      { id: 'trustedrouter/fast', name: 'Fast', description: 'Low-latency route for quick agent loops' },
+      { id: 'trustedrouter/synth', name: 'Synth', description: 'Panel synthesis across multiple open models' },
+    ],
+    defaultModel: 'trustedrouter/auto',
+  },
+  {
     id: 'gemini',
     name: 'Gemini',
     description: 'Gemini 2.5 Pro, 2.5 Flash — sign in with Google',
@@ -163,11 +179,13 @@ type ApiKeyStatusResponse = {
   has_openai_key?: boolean
   has_anthropic_key?: boolean
   has_openrouter_key?: boolean
+  has_trustedrouter_key?: boolean
   has_gemini_key?: boolean
   has_gemini_cli_key?: boolean
   openai_key_hint?: string
   anthropic_key_hint?: string
   openrouter_key_hint?: string
+  trustedrouter_key_hint?: string
   gemini_key_hint?: string
   gemini_cli_email?: string
   extra_providers?: ExtraProviderStatusItem[]
@@ -227,6 +245,7 @@ export const ProviderSignInDialog = ({
     if (provider === 'openai') return keyStatus.openai_key_hint
     if (provider === 'anthropic') return keyStatus.anthropic_key_hint
     if (provider === 'openrouter') return keyStatus.openrouter_key_hint
+    if (provider === 'trustedrouter') return keyStatus.trustedrouter_key_hint
     if (provider === 'gemini') return keyStatus.gemini_key_hint
     return undefined
   }
@@ -335,6 +354,7 @@ export const ProviderSignInDialog = ({
           const statusData: ApiKeyStatusResponse = await statusRes.json()
           const connected =
             provider === 'openrouter' ? statusData.has_openrouter_key :
+            provider === 'trustedrouter' ? statusData.has_trustedrouter_key :
             provider === 'openai' ? statusData.has_openai_key :
             provider === 'anthropic' ? statusData.has_anthropic_key : false
 
@@ -478,7 +498,7 @@ export const ProviderSignInDialog = ({
         setSelectedProvider('knapsack')
         const config = PROVIDER_CONFIGS.find(p => p.id === 'knapsack')!
         setSelectedModel(data.knapsack_model || config.defaultModel)
-      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter' || data.active_provider === 'gemini') {
+      } else if (data.active_provider === 'openai' || data.active_provider === 'anthropic' || data.active_provider === 'openrouter' || data.active_provider === 'trustedrouter' || data.active_provider === 'gemini') {
         setSelectedProvider(data.active_provider as Provider)
         const config = PROVIDER_CONFIGS.find(p => p.id === data.active_provider)!
         setSelectedModel(data.model || config.defaultModel)
@@ -608,6 +628,7 @@ export const ProviderSignInDialog = ({
     if (provider === 'openai') return !!keyStatus.has_openai_key
     if (provider === 'anthropic') return !!keyStatus.has_anthropic_key
     if (provider === 'openrouter') return !!keyStatus.has_openrouter_key
+    if (provider === 'trustedrouter') return !!keyStatus.has_trustedrouter_key
     if (provider === 'gemini') return !!keyStatus.has_gemini_key || !!keyStatus.has_gemini_cli_key
     return false
   }
@@ -763,6 +784,9 @@ export const ProviderSignInDialog = ({
                     <path d="M4 4h6v6H4V4zm10 0h6v6h-6V4zM4 14h6v6H4v-6zm10 0h6v6h-6v-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none"/>
                     <path d="M10 7h4M7 10v4M17 10v4M10 17h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
+                )}
+                {config.id === 'trustedrouter' && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'currentColor' }}>TR</span>
                 )}
                 {config.id === 'gemini' && (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

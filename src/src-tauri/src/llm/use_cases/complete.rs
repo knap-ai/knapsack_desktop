@@ -38,7 +38,7 @@ struct CompletionUsage {
 
 /// Resolved LLM provider info for meeting notes completion.
 struct ResolvedProvider {
-  name: String, // "openai", "anthropic", "gemini", "groq", "openrouter", "knapsack"
+  name: String, // "openai", "anthropic", "gemini", "groq", "openrouter", "trustedrouter", "knapsack"
   api_key: String,
   model: String,
   base_url: String,   // e.g. "https://api.openai.com/v1"
@@ -46,7 +46,7 @@ struct ResolvedProvider {
 }
 
 /// Try to resolve the best available LLM provider from env vars.
-/// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq → OpenRouter → Knapsack
+/// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq → TrustedRouter → OpenRouter → Knapsack
 fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY")
@@ -63,6 +63,9 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     .ok()
     .filter(|k| !k.trim().is_empty());
   let openrouter_key = std::env::var("OPENROUTER_API_KEY")
+    .ok()
+    .filter(|k| !k.trim().is_empty());
+  let trustedrouter_key = std::env::var("TRUSTEDROUTER_API_KEY")
     .ok()
     .filter(|k| !k.trim().is_empty());
   let ollama_key = std::env::var("OLLAMA_API_KEY")
@@ -141,6 +144,18 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
         is_anthropic: false,
       });
     }
+    "trustedrouter" if trustedrouter_key.is_some() => {
+      let trustedrouter_model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
+        .unwrap_or_else(|_| "trustedrouter/auto".to_string());
+      let key = trustedrouter_key.unwrap();
+      return Ok(ResolvedProvider {
+        name: "trustedrouter".into(),
+        api_key: key,
+        model: trustedrouter_model,
+        base_url: "https://api.trustedrouter.com/v1".into(),
+        is_anthropic: false,
+      });
+    }
     "knapsack" => {
       if let Some(email) = &knapsack_email {
         let model = std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
@@ -195,7 +210,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     .unwrap_or(true);
   let active_is_free = matches!(
     active.as_str(),
-    "groq" | "gemini" | "ollama" | "openrouter" | "knapsack"
+    "groq" | "gemini" | "ollama" | "openrouter" | "trustedrouter" | "knapsack"
   );
 
   if !disable_paid || !active_is_free {
@@ -284,6 +299,17 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       is_anthropic: false,
     });
   }
+  if let Some(key) = trustedrouter_key {
+    let trustedrouter_model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
+      .unwrap_or_else(|_| "trustedrouter/auto".to_string());
+    return Ok(ResolvedProvider {
+      name: "trustedrouter".into(),
+      api_key: key,
+      model: trustedrouter_model,
+      base_url: "https://api.trustedrouter.com/v1".into(),
+      is_anthropic: false,
+    });
+  }
   if let Some(key) = openrouter_key {
     let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
@@ -337,6 +363,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
     if provider.name != "openrouter"
       && provider.name != "ollama"
       && provider.name != "groq"
+      && provider.name != "trustedrouter"
       && provider.name != "knapsack"
     {
       let openrouter_key = std::env::var("OPENROUTER_API_KEY")
@@ -374,6 +401,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
       "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
       "groq" => (provider.model.clone(), "Groq"),            // already cheap
       "knapsack" => (provider.model.clone(), "Knapsack"),
+      "trustedrouter" => (provider.model.clone(), "TrustedRouter"),
       "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
       "ollama" => (provider.model.clone(), "Ollama"),         // local, no cost
       _ => (provider.model.clone(), "unchanged"),

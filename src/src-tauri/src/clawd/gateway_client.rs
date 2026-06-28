@@ -970,6 +970,11 @@ pub fn resolve_default_model() -> String {
         .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
       return format!("openrouter/{}", model);
     }
+    "trustedrouter" => {
+      let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
+        .unwrap_or_else(|_| "trustedrouter/auto".to_string());
+      return format!("trustedrouter/{}", model);
+    }
     "ollama" => {
       let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
       return format!("ollama/{}", model);
@@ -1017,7 +1022,7 @@ pub fn resolve_default_model() -> String {
   // so paid fallbacks are not silently selected when the CLI model is unavailable.
   let active_is_free = matches!(
     active.as_str(),
-    "groq" | "xai" | "gemini" | "ollama" | "openrouter" | "google-gemini-cli"
+    "groq" | "xai" | "gemini" | "ollama" | "openrouter" | "trustedrouter" | "google-gemini-cli"
   );
 
   if !disable_paid || !active_is_free {
@@ -1074,6 +1079,11 @@ pub fn resolve_default_model() -> String {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
     return format!("openrouter/{}", model);
+  }
+  if has_key("TRUSTEDROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
+      .unwrap_or_else(|_| "trustedrouter/auto".to_string());
+    return format!("trustedrouter/{}", model);
   }
   if has_key("OLLAMA_API_KEY") {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
@@ -1139,6 +1149,12 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
     fallbacks.push(format!("openrouter/{}", model));
+  }
+
+  if primary_provider != "trustedrouter" && has_key("TRUSTEDROUTER_API_KEY") {
+    let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
+      .unwrap_or_else(|_| "trustedrouter/auto".to_string());
+    fallbacks.push(format!("trustedrouter/{}", model));
   }
 
   fallbacks

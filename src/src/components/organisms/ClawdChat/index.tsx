@@ -180,6 +180,7 @@ function getActiveModelLabel(): string {
     knapsack: KNAPSACK_MODEL_STORAGE,
     groq: 'moltbot_groq_model',
     openrouter: 'moltbot_openrouter_model',
+    trustedrouter: 'moltbot_trustedrouter_model',
     ollama: 'moltbot_ollama_model',
     xai: 'moltbot_xai_model',
   }
@@ -398,6 +399,7 @@ type ApiKeyStatus = {
   has_groq_key?: boolean
   has_xai_key?: boolean
   has_openrouter_key?: boolean
+  has_trustedrouter_key?: boolean
   has_knapsack?: boolean
   knapsack_email?: string
   knapsack_model?: string
@@ -407,6 +409,7 @@ type ApiKeyStatus = {
   groq_key_hint?: string
   xai_key_hint?: string
   openrouter_key_hint?: string
+  trustedrouter_key_hint?: string
   ollama_enabled?: boolean
   ollama_model?: string
   ollama_base_url?: string
@@ -430,7 +433,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'knapsack' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'xai' | 'openrouter' | 'ollama'
+type Provider = 'knapsack' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'xai' | 'openrouter' | 'trustedrouter' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -453,6 +456,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
+  { id: 'trustedrouter', name: 'TrustedRouter', description: 'OpenAI-compatible attested routing through TrustedRouter', keyPrefix: 'sk-tr-', helpUrl: 'https://trustedrouter.com/console/api-keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
@@ -542,6 +546,17 @@ const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'openai/gpt-5.5', name: 'GPT-5.5 (Paid)', description: 'Paid, OpenAI newest frontier via OpenRouter', vision: true },
 ]
 
+const TRUSTEDROUTER_MODELS: OpenRouterModelOption[] = [
+  { id: 'trustedrouter/auto', name: 'Auto', description: 'TrustedRouter selects the best healthy route for each request', vision: true },
+  { id: 'trustedrouter/zdr', name: 'Zero Data Retention', description: 'Routes through providers with zero-retention policies where available', vision: true },
+  { id: 'trustedrouter/e2e', name: 'End-to-End Encrypted', description: 'Routes to end-to-end encrypted provider paths where available', vision: true },
+  { id: 'trustedrouter/fast', name: 'Fast', description: 'Low-latency route for quick agent loops' },
+  { id: 'trustedrouter/synth', name: 'Synth', description: 'Panel synthesis across multiple open models' },
+  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Balanced coding and reasoning via TrustedRouter', vision: true },
+  { id: 'zai/glm-5.2', name: 'GLM 5.2', description: 'Strong open model for coding and agentic work' },
+  { id: 'moonshotai/kimi-k2.7-code', name: 'Kimi K2.7 Code', description: 'Open model optimized for coding workflows' },
+]
+
 // Recommended models to offer for download when Ollama has none installed
 type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
 const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
@@ -625,6 +640,7 @@ const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
 const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
 const XAI_MODEL_STORAGE = 'moltbot_xai_model'
 const OPENROUTER_MODEL_STORAGE = 'moltbot_openrouter_model'
+const TRUSTEDROUTER_MODEL_STORAGE = 'moltbot_trustedrouter_model'
 const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
@@ -1966,6 +1982,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>(() => {
     return localStorage.getItem(OPENROUTER_MODEL_STORAGE) || 'meta-llama/llama-3.3-70b-instruct:free'
   })
+  const [selectedTrustedRouterModel, setSelectedTrustedRouterModel] = useState<string>(() => {
+    return localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || 'trustedrouter/auto'
+  })
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
@@ -2333,6 +2352,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setSelectedOpenRouterModel(backendModel)
               localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
             }
+          } else if (activeProvider === 'trustedrouter') {
+            const localModel = localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedTrustedRouterModel(backendModel)
+              localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, backendModel)
+            }
           } else if (activeProvider === 'ollama') {
             const localModel = localStorage.getItem(OLLAMA_MODEL_STORAGE)
             if (!localModel) {
@@ -2360,6 +2385,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           groq: keyStatus.groq_key_hint,
           xai: keyStatus.xai_key_hint,
           openrouter: keyStatus.openrouter_key_hint,
+          trustedrouter: keyStatus.trustedrouter_key_hint,
         })
         // Track which providers have saved keys
         setSavedProviderKeys({
@@ -2370,6 +2396,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           groq: !!keyStatus.has_groq_key,
           xai: !!keyStatus.has_xai_key,
           openrouter: !!keyStatus.has_openrouter_key,
+          trustedrouter: !!keyStatus.has_trustedrouter_key,
         })
         if (keyStatus.knapsack_email) {
           setKnapsackEmail(keyStatus.knapsack_email)
@@ -2410,6 +2437,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             groq_model?: string
             xai_model?: string
             openrouter_model?: string
+            trustedrouter_model?: string
           }>('/api/clawd/service/get-api-key')
           if (fullKeys.anthropic_model) {
             setSelectedAnthropicModel(fullKeys.anthropic_model)
@@ -2430,6 +2458,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (fullKeys.openrouter_model) {
             setSelectedOpenRouterModel(fullKeys.openrouter_model)
             localStorage.setItem(OPENROUTER_MODEL_STORAGE, fullKeys.openrouter_model)
+          }
+          if (fullKeys.trustedrouter_model) {
+            setSelectedTrustedRouterModel(fullKeys.trustedrouter_model)
+            localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, fullKeys.trustedrouter_model)
           }
         } catch { /* ignore */ }
         // If this version was already onboarded, skip the prompt
@@ -2872,6 +2904,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       : confirmedProvider === 'groq' ? GROQ_MODELS
       : confirmedProvider === 'xai' ? XAI_MODELS
       : confirmedProvider === 'openrouter' ? OPENROUTER_MODELS
+      : confirmedProvider === 'trustedrouter' ? TRUSTEDROUTER_MODELS
       : []
     const currentId = confirmedProvider === 'openai' ? selectedModel
       : confirmedProvider === 'anthropic' ? selectedAnthropicModel
@@ -2879,6 +2912,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       : confirmedProvider === 'groq' ? selectedGroqModel
       : confirmedProvider === 'xai' ? selectedXaiModel
       : confirmedProvider === 'openrouter' ? selectedOpenRouterModel
+      : confirmedProvider === 'trustedrouter' ? selectedTrustedRouterModel
       : ''
     const current = allModels.find(m => m.id === currentId)
     // Ollama: we don't know model capabilities, assume supported
@@ -2887,7 +2921,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     const supported = current?.vision ?? false
     const visionModels = allModels.filter(m => m.vision).map(m => m.name)
     return { supported, modelName, visionModels }
-  }, [confirmedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
+  }, [confirmedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel])
 
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3403,6 +3437,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         } else if (activeProvider === 'openrouter') {
           setSelectedOpenRouterModel(backendModel)
           localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'trustedrouter') {
+          setSelectedTrustedRouterModel(backendModel)
+          localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, backendModel)
         } else if (activeProvider === 'ollama') {
           setSelectedOllamaModel(backendModel)
           localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
@@ -3471,6 +3508,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : selectedProvider === 'groq' ? selectedGroqModel
         : selectedProvider === 'xai' ? selectedXaiModel
         : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedProvider === 'trustedrouter' ? selectedTrustedRouterModel
         : selectedProvider === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
@@ -3492,6 +3530,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (selectedProvider === 'trustedrouter') {
+        localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, selectedTrustedRouterModel)
       } else if (selectedProvider === 'knapsack') {
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
@@ -3523,6 +3563,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           modelName = XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel
         } else if (selectedProvider === 'openrouter') {
           modelName = OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel
+        } else if (selectedProvider === 'trustedrouter') {
+          modelName = TRUSTEDROUTER_MODELS.find(m => m.id === selectedTrustedRouterModel)?.name || selectedTrustedRouterModel
         } else if (selectedProvider === 'knapsack') {
           modelName = KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel
         } else {
@@ -3539,7 +3581,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3556,6 +3598,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'groq' ? selectedGroqModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
+        : providerId === 'trustedrouter' ? selectedTrustedRouterModel
         : providerId === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
@@ -3575,6 +3618,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (providerId === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (providerId === 'trustedrouter') {
+        localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, selectedTrustedRouterModel)
       } else if (providerId === 'knapsack') {
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
@@ -3593,6 +3638,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'gemini' ? GEMINI_MODELS
         : providerId === 'xai' ? XAI_MODELS
         : providerId === 'knapsack' ? KNAPSACK_MODELS
+        : providerId === 'trustedrouter' ? TRUSTEDROUTER_MODELS
         : providerId === 'openrouter' ? OPENROUTER_MODELS
         : GROQ_MODELS
       const mv = providerId === 'openai' ? selectedModel
@@ -3600,6 +3646,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'gemini' ? selectedGeminiModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'knapsack' ? selectedKnapsackModel
+        : providerId === 'trustedrouter' ? selectedTrustedRouterModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
@@ -3611,7 +3658,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
     const init = async () => {
@@ -4369,6 +4416,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ? selectedXaiModel
         : providerAtSend === 'openrouter'
         ? selectedOpenRouterModel
+        : providerAtSend === 'trustedrouter'
+        ? selectedTrustedRouterModel
         : selectedModel
       return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
@@ -5312,6 +5361,7 @@ ${actualText}`
               : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
               : confirmedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
               : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+              : confirmedProvider === 'trustedrouter' ? (TRUSTEDROUTER_MODELS.find(m => m.id === selectedTrustedRouterModel)?.name || selectedTrustedRouterModel || 'TrustedRouter')
               : confirmedProvider === 'knapsack' ? 'Knapsack'
               : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
@@ -7496,18 +7546,21 @@ ${actualText}`
                   : p.id === 'gemini' ? GEMINI_MODELS
                   : p.id === 'xai' ? XAI_MODELS
                   : p.id === 'openrouter' ? OPENROUTER_MODELS
+                  : p.id === 'trustedrouter' ? TRUSTEDROUTER_MODELS
                   : GROQ_MODELS
                 const modelValue = p.id === 'openai' ? selectedModel
                   : p.id === 'anthropic' ? selectedAnthropicModel
                   : p.id === 'gemini' ? selectedGeminiModel
                   : p.id === 'xai' ? selectedXaiModel
                   : p.id === 'openrouter' ? selectedOpenRouterModel
+                  : p.id === 'trustedrouter' ? selectedTrustedRouterModel
                   : selectedGroqModel
                 const setModelValue = p.id === 'openai' ? setSelectedModel
                   : p.id === 'anthropic' ? setSelectedAnthropicModel
                   : p.id === 'gemini' ? setSelectedGeminiModel
                   : p.id === 'xai' ? setSelectedXaiModel
                   : p.id === 'openrouter' ? setSelectedOpenRouterModel
+                  : p.id === 'trustedrouter' ? setSelectedTrustedRouterModel
                   : setSelectedGroqModel
 
                 return (
@@ -7543,6 +7596,7 @@ ${actualText}`
                                     : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
                                     : p.id === 'xai' ? XAI_MODEL_STORAGE
                                     : p.id === 'openrouter' ? OPENROUTER_MODEL_STORAGE
+                                    : p.id === 'trustedrouter' ? TRUSTEDROUTER_MODEL_STORAGE
                                     : GROQ_MODEL_STORAGE
                                   localStorage.setItem(storageKey, newModel)
                                   if (isConfirmedActive) {

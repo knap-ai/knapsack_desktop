@@ -98,7 +98,7 @@ function Home({
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
-  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'knapsack' | 'openai' | 'anthropic' | 'openrouter' | undefined>(undefined)
+  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter' | undefined>(undefined)
   const [openProviderPanelTrigger, setOpenProviderPanelTrigger] = useState(0)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
@@ -331,7 +331,7 @@ function Home({
     }
   }
 
-  const handleOpenProviderSignIn = useCallback((provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter') => {
+  const handleOpenProviderSignIn = useCallback((provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => {
     // Close settings dialog and open the ClawdChat provider sidebar instead
     setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)

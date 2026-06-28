@@ -79,7 +79,7 @@ jobs:
         working-directory: src
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            npm exec -- tauri build --target universal-apple-darwin --bundles app updater --ci
+            npm exec -- tauri build --target universal-apple-darwin --bundles app --ci
           else
             npm exec -- tauri build --target universal-apple-darwin --ci
           fi
