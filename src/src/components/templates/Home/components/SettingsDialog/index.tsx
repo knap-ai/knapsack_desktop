@@ -137,13 +137,24 @@ type OllamaModel = {
 // ── Update section ───────────────────────────────────────────────────────────
 
 const UpdateSection = () => {
-  const { updateState, checkForUpdates, restartApp } = useAppUpdate()
+  const {
+    updateState,
+    autoInstallEnabled,
+    countdownRemainingSec,
+    checkForUpdates,
+    restartApp,
+    setAutoInstallEnabled,
+  } = useAppUpdate()
 
   const statusText = (() => {
     switch (updateState.status) {
       case 'checking': return 'Checking for updates...'
       case 'up-to-date': return 'You\'re up to date'
-      case 'available': return `Version ${'version' in updateState ? updateState.version : ''} available`
+      case 'available':
+        if (autoInstallEnabled && countdownRemainingSec !== null) {
+          return `Version ${'version' in updateState ? updateState.version : ''} available - auto-installing in ${countdownRemainingSec}s`
+        }
+        return `Version ${'version' in updateState ? updateState.version : ''} available`
       case 'downloading': return 'Installing update…'
       case 'ready': return 'Update ready — restart to apply'
       case 'error': return `Error: ${updateState.message}`
@@ -154,6 +165,19 @@ const UpdateSection = () => {
   return (
     <div className="p-6 flex flex-col gap-3">
       <Typography weight={TypographyWeight.medium}>Updates</Typography>
+      <div className="flex flex-col gap-2 rounded border border-zinc-200 bg-zinc-50 px-3 py-2">
+        <InputCheckbox
+          checked={autoInstallEnabled}
+          onClick={() => {
+            void setAutoInstallEnabled(!autoInstallEnabled)
+          }}
+        >
+          Automatically install updates after a 1 minute countdown
+        </InputCheckbox>
+        <Typography className="text-xs text-zinc-500">
+          Best for headless or unattended Macs. When an update is found, Knapsack will warn for 60 seconds, then close and install it automatically.
+        </Typography>
+      </div>
       <div className="flex justify-between items-center h-[36px]">
         <Typography className="text-sm text-gray-600">
           {statusText || 'Check for new versions'}

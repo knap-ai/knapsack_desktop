@@ -16,6 +16,9 @@ import { t as isSelectableCdpBrowserTarget } from "./cdp-target-filter-CaIsrb0G.
 import { createRequire } from "node:module";
 import path from "node:path";
 import crypto from "node:crypto";
+const fs = createRequire(import.meta.url)("node:fs/promises");
+const fsNative = createRequire(import.meta.url)("node:fs");
+const { pipeline } = createRequire(import.meta.url)("node:stream/promises");
 //#region extensions/browser/src/browser/output-atomic.ts
 async function writeViaSiblingTempPath(params) {
 	await ensureOutputDirectory(params.rootDir);
@@ -1247,6 +1250,22 @@ function createPageDownloadWaiter(page, timeoutMs) {
 		}
 	};
 }
+async function resolveDownloadArtifactPath(download) {
+	let lastError = null;
+	for (let attempt = 0; attempt < 5; attempt += 1) {
+		try {
+			const realizedPath = await download.path?.();
+			if (realizedPath) return realizedPath;
+		} catch (err) {
+			lastError = err;
+		}
+		const failure = await download.failure?.().catch(() => null);
+		if (failure) throw new Error(`download failed: ${failure}`);
+		await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+	}
+	if (lastError) throw lastError;
+	return null;
+}
 async function saveDownloadPayload(download, outPath, rootDir) {
 	const suggested = download.suggestedFilename?.() || "download.bin";
 	const requestedPath = outPath?.trim();
@@ -1254,7 +1273,23 @@ async function saveDownloadPayload(download, outPath, rootDir) {
 		rootDir,
 		path: path.resolve(requestedPath || buildTempDownloadPath(suggested)),
 		write: async (tempPath) => {
-			await download.saveAs?.(tempPath);
+			const realizedPath = await resolveDownloadArtifactPath(download).catch(() => null);
+			if (realizedPath) return await fs.copyFile(realizedPath, tempPath);
+			if (typeof download.createReadStream === "function") {
+				const stream = await download.createReadStream();
+				if (stream) {
+					await pipeline(stream, fsNative.createWriteStream(tempPath));
+					return;
+				}
+			}
+			try {
+				await download.saveAs?.(tempPath);
+			} catch (err) {
+				if (!String(err).includes("ENOENT")) throw err;
+				const retriedPath = await resolveDownloadArtifactPath(download);
+				if (!retriedPath) throw err;
+				await fs.copyFile(retriedPath, tempPath);
+			}
 		}
 	});
 	return {

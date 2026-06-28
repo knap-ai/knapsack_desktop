@@ -230,8 +230,12 @@ export const sendComposedEmail = async ({
       cc,
       subject,
       body,
+      // Send both key styles so older and newer native handlers both bind correctly.
+      threadId,
       thread_id: threadId,
+      userEmail,
       user_email: userEmail,
+      userName,
       user_name: userName,
       attachments,
     })
