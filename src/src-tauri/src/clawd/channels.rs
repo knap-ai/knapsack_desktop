@@ -1862,15 +1862,34 @@ pub async fn generic_channel_status(
     });
   }
 
-  return HttpResponse::Ok().json(ChannelStatusResponse {
-    success: true,
-    enabled: false,
-    configured: false,
-    linked: Some(false),
-    provider: None,
-    message: Some(format!("{} is not available in this build.", channel)),
-    account: None,
-  });
+  if configured_channel(&channel).is_none() {
+    return HttpResponse::Ok().json(ChannelStatusResponse {
+      success: true,
+      enabled: false,
+      configured: false,
+      linked: Some(false),
+      provider: None,
+      message: None,
+      account: None,
+    });
+  }
+
+  if let Some(bail) = gateway_or_bail().await {
+    return bail;
+  }
+
+  match channel_runtime_snapshot(Some(&channel)).await {
+    Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
+    Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
+      success: service::gateway_log_has_channel_started(&channel),
+      enabled: false,
+      configured: true,
+      linked: Some(false),
+      provider: None,
+      message: Some(format!("Gateway error: {}", e)),
+      account: None,
+    }),
+  }
 }
 
 /// Request body for generic channel configuration.
@@ -2068,11 +2087,11 @@ pub async fn generic_channel_disconnect(
   let config_result = gateway_client::config_get(None).await;
   match config_result {
     Ok(config_snapshot) => {
-      let base_hash = extract_base_hash(&config_snapshot);
       let patch = serde_json::json!({ "channels": { channel.clone(): null } });
-      match gateway_client::config_patch(&serde_json::to_string(&patch).unwrap(), &base_hash, None)
-        .await
-      {
+      let patch_json = serde_json::to_string(&patch).unwrap();
+      let build_patch = |_snapshot: &serde_json::Value| patch_json.clone();
+
+      match config_patch_with_reconnect(&config_snapshot, build_patch).await {
         Ok(_) => {
           gateway_client::invalidate();
           HttpResponse::Ok().json(GenericResponse {
@@ -2972,9 +2991,10 @@ pub async fn channel_allowlist_update(
           }
       });
 
-      match gateway_client::config_patch(&serde_json::to_string(&patch).unwrap(), &base_hash, None)
-        .await
-      {
+      let patch_json = serde_json::to_string(&patch).unwrap();
+      let build_patch = |_snapshot: &serde_json::Value| patch_json.clone();
+
+      match config_patch_with_reconnect(&config_snapshot, build_patch).await {
         Ok(_) => HttpResponse::Ok().json(GenericResponse {
           success: true,
           message: Some("Allowlist updated".to_string()),
