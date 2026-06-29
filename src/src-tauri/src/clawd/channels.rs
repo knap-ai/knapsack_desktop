@@ -2110,8 +2110,9 @@ async fn disconnect_channel(channel: &str, account_id: &str) -> HttpResponse {
 
     match gateway_client::config_get(None).await {
       Ok(config_snapshot) => {
-        let base_hash = extract_base_hash(&config_snapshot);
-        match gateway_client::config_patch(&patch, &base_hash, None).await {
+        let patch_json = patch.clone();
+        let build_patch = |_snapshot: &serde_json::Value| patch_json.clone();
+        match config_patch_with_reconnect(&config_snapshot, build_patch).await {
           Ok(_) => {
             gateway_client::invalidate();
             return HttpResponse::Ok().json(GenericResponse {
@@ -2217,7 +2218,7 @@ pub async fn generic_channel_status(
       configured: false,
       linked: Some(false),
       provider: None,
-      message: Some("Channel is not configured in this build".to_string()),
+      message: None,
       account: None,
     });
   }
@@ -3286,7 +3287,6 @@ pub async fn channel_allowlist_update(
   let config_result = gateway_client::config_get(None).await;
   match config_result {
     Ok(config_snapshot) => {
-      let base_hash = extract_base_hash(&config_snapshot);
       let uses_nested_dm = matches!(channel.as_str(), "discord" | "slack" | "googlechat");
 
       let mut patch_inner = serde_json::Map::new();
@@ -3348,9 +3348,10 @@ pub async fn channel_allowlist_update(
           }
       });
 
-      match gateway_client::config_patch(&serde_json::to_string(&patch).unwrap(), &base_hash, None)
-        .await
-      {
+      let patch_json = serde_json::to_string(&patch).unwrap();
+      let build_patch = |_snapshot: &serde_json::Value| patch_json.clone();
+
+      match config_patch_with_reconnect(&config_snapshot, build_patch).await {
         Ok(_) => HttpResponse::Ok().json(GenericResponse {
           success: true,
           message: Some("Allowlist updated".to_string()),
