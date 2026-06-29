@@ -24,15 +24,15 @@ const InputCheckbox = React.forwardRef<HTMLInputElement, IInputCheckboxProps>(
   ): JSX.Element => {
     return (
       <div
-        className={cn('flex flex-no-wrap gap-2 text-white items-center w-full cursor-pointer', className)}
+        className={cn('flex gap-2 text-white items-start w-full cursor-pointer', className)}
         onClick={onClick}
       >
         <CheckboxImage
           initialChecked={checked}
           isNewCheckboxUI={isNewCheckboxUI}
         />
-        <label className="cursor-pointer">
-          <span className="text-sm leading-6 text-nowrap text-black">{children}</span>
+        <label className="cursor-pointer min-w-0 flex-1">
+          <span className="text-sm leading-6 text-black break-words whitespace-normal">{children}</span>
         </label>
       </div>
     )

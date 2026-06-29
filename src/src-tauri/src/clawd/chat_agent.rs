@@ -1431,7 +1431,7 @@ pub async fn gemini_chat_with_retries(
 }
 
 pub fn parse_args_map(args: &str) -> HashMap<String, JsonValue> {
-  serde_json::from_str::<JsonValue>(args)
+  parse_json_value_with_escape_repair(args)
     .ok()
     .and_then(|v| v.as_object().cloned())
     .map(|m| m.into_iter().map(|(k, v)| (k, v)).collect())
@@ -1472,5 +1472,18 @@ mod tests {
     let parsed = parse_json_value_with_escape_repair(raw).expect("json should be repaired");
     let text = parsed["content"][0]["text"].as_str().unwrap_or("");
     assert_eq!(text, r#"draft \q now"#);
+  }
+
+  #[test]
+  fn repairs_invalid_tool_argument_escapes() {
+    let parsed = parse_args_map(r#"{"path":"C:\users\amit\u12tmp","note":"draft \q now"}"#);
+    assert_eq!(
+      parsed.get("path").and_then(|v| v.as_str()),
+      Some(r#"C:\users\amit\u12tmp"#)
+    );
+    assert_eq!(
+      parsed.get("note").and_then(|v| v.as_str()),
+      Some(r#"draft \q now"#)
+    );
   }
 }
