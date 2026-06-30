@@ -15578,6 +15578,36 @@ mod crash_classifier_tests {
   }
 
   #[test]
+  fn desktop_plugin_discovery_allowlist_includes_model_providers() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("openclaw.json");
+    fs::write(
+      &config_path,
+      serde_json::to_string_pretty(&serde_json::json!({
+        "channels": {
+          "slack": { "enabled": true },
+          "telegram": { "enabled": true }
+        }
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+
+    let allowlist = configured_desktop_plugin_discovery_allowlist(&config_path);
+    let allow = allowlist.split(',').collect::<Vec<_>>();
+
+    assert!(allow.contains(&"browser"));
+    assert!(allow.contains(&"slack"));
+    assert!(allow.contains(&"telegram"));
+    assert!(allow.contains(&"ollama"));
+    assert!(allow.contains(&"openai"));
+    assert!(allow.contains(&"anthropic"));
+    assert!(allow.contains(&"google"));
+    assert!(allow.contains(&"groq"));
+    assert!(allow.contains(&"openrouter"));
+  }
+
+  #[test]
   fn runtime_deps_staging_is_startup_progress_until_completion() {
     let staging =
       "2026-05-13T10:44:47 [gateway] [plugins] staging bundled runtime deps before gateway startup";
