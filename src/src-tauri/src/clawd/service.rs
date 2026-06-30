@@ -819,10 +819,41 @@ fn remove_stale_plugin_runtime_deps_locks(clawdbot_home: &std::path::Path) {
 }
 
 const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
-  // Core readiness depends on browser control. Provider, document, search,
-  // email, and channel plugins are warmed after the gateway is live, or
-  // explicitly included by targeted QA runs.
+  // Core app activities exercised by the desktop app and QA loop.
   "browser",
+  "telegram",
+  "slack",
+  "whatsapp",
+  "google",
+  "microsoft",
+  "web-readability",
+  "document-extract",
+  // Web/search providers.
+  "brave",
+  "duckduckgo",
+  "exa",
+  "firecrawl",
+  "tavily",
+  // Model providers shown in the desktop model picker or commonly configured
+  // by Knapsack users. Keeping the set explicit prevents every bundled default
+  // plugin from initializing while still allowing selected providers to load.
+  "anthropic",
+  "cerebras",
+  "deepseek",
+  "fireworks",
+  "google",
+  "groq",
+  "huggingface",
+  "litellm",
+  "mistral",
+  "moonshot",
+  "ollama",
+  "openai",
+  "openrouter",
+  "qwen",
+  "together",
+  "venice",
+  "xai",
 ];
 
 const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
@@ -4184,6 +4215,7 @@ fn sanitize_config_file_allowlist(config_path: &Path, bundle_version: Option<&st
   };
   let mut patched = sanitize_channel_allowlist_configs(&mut cfg)
     | sanitize_rejected_legacy_config_keys(&mut cfg)
+    | ensure_knapsack_plugin_allowlist(&mut cfg)
     | sanitize_invalid_default_agent_model_config(&mut cfg);
   if let Some(version) = bundle_version {
     patched = sanitize_config_file_version(&mut cfg, version) || patched;
@@ -15488,6 +15520,61 @@ mod crash_classifier_tests {
     assert!(cfg.pointer("/plugins/entries/browser").is_some());
     assert!(cfg.pointer("/plugins/entries/slack").is_some());
     assert!(cfg.pointer("/tools/web/search/provider").is_none());
+  }
+
+  #[test]
+  fn config_file_sanitize_restores_provider_plugins_for_upgraded_installs() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("openclaw.json");
+    fs::write(
+      &config_path,
+      serde_json::to_string_pretty(&serde_json::json!({
+        "plugins": {
+          "allow": ["browser", "slack", "telegram"],
+          "entries": {
+            "browser": { "enabled": true },
+            "slack": { "enabled": true },
+            "telegram": { "enabled": true }
+          },
+          "slots": { "memory": "none" }
+        },
+        "models": {
+          "providers": {
+            "ollama": {
+              "api": "ollama",
+              "apiKey": "ollama-local",
+              "baseUrl": "http://127.0.0.1:11434"
+            }
+          }
+        }
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+
+    sanitize_config_file_allowlist(&config_path, None);
+
+    let cfg: serde_json::Value =
+      serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+    let allow = cfg
+      .pointer("/plugins/allow")
+      .and_then(|value| value.as_array())
+      .unwrap()
+      .iter()
+      .filter_map(|value| value.as_str())
+      .collect::<Vec<_>>();
+
+    assert!(allow.contains(&"browser"));
+    assert!(allow.contains(&"slack"));
+    assert!(allow.contains(&"telegram"));
+    assert!(
+      allow.contains(&"ollama"),
+      "Ollama provider plugin must be restored so saved Ollama models can run"
+    );
+    assert!(
+      allow.contains(&"openai") && allow.contains(&"anthropic") && allow.contains(&"groq"),
+      "Provider plugins shown in settings must survive startup sanitization"
+    );
   }
 
   #[test]
