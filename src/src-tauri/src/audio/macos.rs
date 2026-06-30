@@ -268,8 +268,10 @@ pub async fn record_speaker_output(
 
     // Configure the tap
     unsafe {
-      // CATapMuteBehaviorUnmuted = 1 — don't mute the audio for the user
-      let _: () = msg_send![&*tap_desc, setMuteBehavior: 1i32];
+      // CATapMuteBehaviorUnmuted = 1. Objective-C expects NSInteger here,
+      // which is 64-bit on modern macOS, so avoid sending an i32.
+      let mute_behavior_unmuted: isize = 1;
+      let _: () = msg_send![&*tap_desc, setMuteBehavior: mute_behavior_unmuted];
       // Make it private so it doesn't show up as an audio device to other apps
       let _: () = msg_send![&*tap_desc, setPrivate: true];
     }
