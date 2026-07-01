@@ -1423,15 +1423,15 @@ async function launchOpenClawChrome(resolved, profile, launchOptions = {}) {
 		proc.stderr?.on("data", onStderr);
 		try {
 			const readyDeadline = Date.now() + (resolved.localLaunchTimeoutMs ?? CHROME_LAUNCH_READY_WINDOW_MS);
-			let launchHttpReachable = false;
+			let launchCdpReady = false;
 			while (Date.now() < readyDeadline) {
-				if (await isChromeReachable(profile.cdpUrl)) {
-					launchHttpReachable = true;
+				if (await isChromeCdpReady(profile.cdpUrl, 500, 800)) {
+					launchCdpReady = true;
 					break;
 				}
 				await new Promise((r) => setTimeout(r, 200));
 			}
-			if (!launchHttpReachable) {
+			if (!launchCdpReady) {
 				let finalDiagnostic = null;
 				let diagnosticErrorText = null;
 				try {
@@ -1439,9 +1439,9 @@ async function launchOpenClawChrome(resolved, profile, launchOptions = {}) {
 				} catch (err) {
 					diagnosticErrorText = `CDP diagnostic failed: ${safeChromeCdpErrorMessage(err)}.`;
 				}
-				if (diagnosticShowsChromeHttpDiscovery(finalDiagnostic)) launchHttpReachable = true;
+				if (finalDiagnostic?.ok) launchCdpReady = true;
 				const diagnosticText = finalDiagnostic ? formatChromeCdpDiagnostic(finalDiagnostic) : diagnosticErrorText ?? "CDP diagnostic failed.";
-				if (launchHttpReachable) log.debug(diagnosticText);
+				if (launchCdpReady) log.debug(diagnosticText);
 				else {
 					const stderrOutput = normalizeOptionalString(Buffer.concat(stderrChunks).toString("utf8")) ?? "";
 					const redactedStderrOutput = redactToolPayloadText(stderrOutput);

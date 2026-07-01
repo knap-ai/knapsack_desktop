@@ -621,7 +621,7 @@ const ONE_DAY: TimeDelta = Duration::days(1);
 const ONE_WEEK: TimeDelta = Duration::days(7);
 const DAYS_TO_SCHEDULE: u32 = 7;
 
-fn parse_automation_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Value {
+fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Value {
   let s = schedule_str.to_lowercase();
 
   if s.contains("every") {
@@ -744,11 +744,11 @@ fn cadence_time_parts(time: Option<&str>) -> (u32, u32) {
   let mut parts = time.split(':');
   let hour = parts
     .next()
-    .and_then(|value| value.parse::<u32>().ok())
+    .and_then(|v| v.parse::<u32>().ok())
     .unwrap_or(9);
   let minute = parts
     .next()
-    .and_then(|value| value.parse::<u32>().ok())
+    .and_then(|v| v.parse::<u32>().ok())
     .unwrap_or(0);
   (hour.min(23), minute.min(59))
 }
@@ -793,7 +793,7 @@ fn schedule_value_for_cadence(cadence: &CadenceTrigger, steps: &[AutomationStep]
       Some(json!({ "kind": "cron", "expr": format!("{} {} * * {}", minute, hour, day) }))
     }
     "other" => extract_other_cadence_description(steps)
-      .map(|description| parse_automation_schedule_to_cron(&description, None)),
+      .map(|description| parse_schedule_to_cron(&description, None)),
     "never" => None,
     _ => None,
   }
@@ -1061,7 +1061,15 @@ fn schedule_cadence_future_run_hourly(
       automation.name.clone(),
       current_date.timestamp_millis(),
     );
-    automation_run.upsert_schedule();
+    if let Err(error) = automation_run.upsert_schedule() {
+      let err_msg = format!(
+        "Failed to upsert hourly automation schedule for {} at {}",
+        automation_uuid,
+        current_date.timestamp_millis()
+      );
+      log::error!("{}: {:?}", err_msg, error);
+      knap_log_error(err_msg, Some(error), None);
+    }
   }
 }
 
@@ -1090,7 +1098,15 @@ fn schedule_cadence_future_run_daily(
         automation.name.clone(),
         current_date.timestamp_millis(),
       );
-      automation_run.upsert_schedule();
+      if let Err(error) = automation_run.upsert_schedule() {
+        let err_msg = format!(
+          "Failed to upsert daily automation schedule for {} at {}",
+          automation_uuid,
+          current_date.timestamp_millis()
+        );
+        log::error!("{}: {:?}", err_msg, error);
+        knap_log_error(err_msg, Some(error), None);
+      }
     }
     current_date = current_date + ONE_DAY;
   }
@@ -1137,7 +1153,15 @@ fn schedule_cadence_future_run_weekly(
       automation.name.clone(),
       current_date.timestamp_millis(),
     );
-    automation_run.upsert_schedule();
+    if let Err(error) = automation_run.upsert_schedule() {
+      let err_msg = format!(
+        "Failed to upsert weekly automation schedule for {} at {}",
+        automation_uuid,
+        current_date.timestamp_millis()
+      );
+      log::error!("{}: {:?}", err_msg, error);
+      knap_log_error(err_msg, Some(error), None);
+    }
   }
 }
 

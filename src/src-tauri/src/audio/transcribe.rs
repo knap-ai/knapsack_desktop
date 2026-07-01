@@ -277,20 +277,14 @@ async fn speech_to_text(
 }
 
 pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<(), Error> {
-  let providers = resolve_stt_providers()?;
-  log::info!(
-    "[transcribe] STT provider order: {}",
-    providers
-      .iter()
-      .map(|provider| provider.name)
-      .collect::<Vec<_>>()
-      .join(" -> ")
-  );
-  let mut last_error: Option<Error> = None;
+  let provider = resolve_stt_provider()?;
+  log::info!("[transcribe] Using {} for speech-to-text", provider.name);
 
-  for provider in providers.iter() {
-    log::info!("[transcribe] Using {} for speech-to-text", provider.name);
-    match speech_to_text(provider, audio_file, Some("en"), Some(0.5)).await {
+  let max_retries = 3;
+  let mut current_retry = 0;
+
+  loop {
+    match speech_to_text(&provider, audio_file, Some("en"), Some(0.5)).await {
       Ok(transcription) => {
         log::debug!(
           "------------------ {} Transcribed text: {}",
@@ -314,37 +308,45 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
         return Ok(());
       }
       Err(e) => {
-        let err_str = e.to_string();
-        log::warn!("[transcribe] {} failed: {}", provider.name, err_str);
-        last_error = Some(e);
-        if provider.name != providers.last().map(|p| p.name).unwrap_or(provider.name) {
-          log::warn!(
-            "[transcribe] Falling back from {} to next configured STT provider",
-            provider.name
+        current_retry += 1;
+        let err_str = format!("{:?}", e);
+
+        if current_retry >= max_retries {
+          knap_log_error(
+            format!("Error transcribing with {}: {}", provider.name, err_str),
+            None,
+            None,
           );
+          return Err(e);
         }
+
+        let should_retry = err_str.contains("os error 10054")
+          || err_str.contains("os error 11001")
+          || err_str.contains("dns error")
+          || err_str.contains("forcibly closed")
+          || err_str.contains("connection error")
+          || err_str.contains("104");
+
+        if should_retry || current_retry < 2 {
+          log::warn!(
+            "Transcription failed, retrying ({}/{}). Error: {}",
+            current_retry,
+            max_retries,
+            err_str
+          );
+          tokio::time::sleep(tokio::time::Duration::from_secs(1 << current_retry)).await;
+          continue;
+        }
+
+        knap_log_error(
+          format!("Error transcribing with {}: {}", provider.name, err_str),
+          None,
+          None,
+        );
+        return Err(e);
       }
     }
   }
-
-  if let Some(error) = last_error {
-    knap_log_error(
-      format!(
-        "Error transcribing audio after trying all configured STT providers: {}",
-        error
-      ),
-      None,
-      None,
-    );
-    return Err(error);
-  }
-
-  Err(
-    LLMError::ChatCompletionFailed(
-      "Speech-to-text failed before any provider attempt completed".to_string(),
-    )
-    .into(),
-  )
 }
 
 pub async fn finalize_chunk(audio_filename: String, transcript_filename: String) {

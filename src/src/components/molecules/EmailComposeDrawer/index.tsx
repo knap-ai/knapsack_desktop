@@ -62,6 +62,12 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     setSending(true)
     setError('')
     try {
+      const senderEmail = userEmail || draft.userEmail || ''
+      const senderName = userName || draft.userName
+      if (!senderEmail) {
+        throw new Error('Missing signed-in email for sending this draft')
+      }
+
       await sendComposedEmail({
         to,
         cc: ccList.length > 0 ? ccList.join(', ') : undefined,
@@ -69,8 +75,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         body: bodyRef.current?.innerHTML || draft.body,
         threadId: draft.threadId,
         userEmail: senderEmail,
-        userName,
-        attachments,
+        userName: senderName,
       })
       setSent(true)
       setTimeout(() => onDismiss(), 1500)

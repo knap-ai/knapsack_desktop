@@ -10,7 +10,9 @@ export interface ChannelStatus {
   success: boolean
   enabled: boolean
   configured: boolean
+  active?: boolean
   linked?: boolean
+  pluginAllowed?: boolean
   provider?: string
   message?: string
   /** Account identifier: phone number (WhatsApp) or email (iMessage) */
