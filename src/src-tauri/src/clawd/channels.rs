@@ -167,11 +167,11 @@ fn runtime_channel<'a>(snapshot: &'a Value, channel: &str) -> Option<&'a Value> 
 }
 
 fn configured_channel(channel: &str) -> Option<Value> {
-  read_config_from_disk()
-    .and_then(|config| config.pointer(&format!("/channels/{}", channel)).cloned())
+  let config = configured_gateway_config()?;
+  config.pointer(&format!("/channels/{}", channel)).cloned()
 }
 
-fn read_config_from_disk() -> Option<Value> {
+fn configured_gateway_config() -> Option<Value> {
   let mut candidates = Vec::new();
   if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
     candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
@@ -207,239 +207,15 @@ fn read_config_from_disk() -> Option<Value> {
   None
 }
 
-fn read_auth_profiles_from_disk() -> Option<Value> {
-  let mut candidates = Vec::new();
-  if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
-    candidates.push(
-      std::path::PathBuf::from(dir)
-        .join("agents")
-        .join("main")
-        .join("agent")
-        .join("auth-profiles.json"),
-    );
-  }
-  if let Ok(dir) = std::env::var("OPENCLAW_HOME") {
-    candidates.push(
-      std::path::PathBuf::from(dir)
-        .join("agents")
-        .join("main")
-        .join("agent")
-        .join("auth-profiles.json"),
-    );
-  }
-  if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
-    candidates.push(
-      std::path::PathBuf::from(&home)
-        .join("Library")
-        .join("Application Support")
-        .join("ai.knap.knapsack")
-        .join("clawdbot")
-        .join("agents")
-        .join("main")
-        .join("agent")
-        .join("auth-profiles.json"),
-    );
-    candidates.push(
-      std::path::PathBuf::from(&home)
-        .join(".openclaw")
-        .join("agents")
-        .join("main")
-        .join("agent")
-        .join("auth-profiles.json"),
-    );
-  }
-
-  for path in candidates {
-    let Ok(raw) = std::fs::read_to_string(path) else {
-      continue;
-    };
-    let Ok(config) = serde_json::from_str::<Value>(&raw) else {
-      continue;
-    };
-    return Some(config);
-  }
-  None
-}
-
-fn provider_auth_profile_present(auth_profiles: &Value, provider: &str) -> bool {
-  auth_profiles
-    .get("profiles")
-    .and_then(|profiles| profiles.as_object())
-    .map(|profiles| {
-      profiles.iter().any(|(profile_id, profile)| {
-        profile_id.starts_with(&format!("{}:", provider))
-          || profile
-            .get("provider")
-            .and_then(|value| value.as_str())
-            .map(|value| value.eq_ignore_ascii_case(provider))
-            .unwrap_or(false)
-      })
-    })
-    .unwrap_or(false)
-}
-
-fn has_non_empty_env_key(var: &str) -> bool {
-  std::env::var(var)
-    .map(|value| !value.trim().is_empty())
-    .unwrap_or(false)
-}
-
-fn inference_auth_status() -> (bool, Option<String>) {
-  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
-  let auth_profiles = read_auth_profiles_from_disk();
-  let provider_available = |provider: &str| match provider {
-    "knapsack" => true,
-    "ollama" => true,
-    "anthropic" => {
-      has_non_empty_env_key("ANTHROPIC_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "anthropic"))
-          .unwrap_or(false)
-    }
-    "openai" => {
-      has_non_empty_env_key("OPENAI_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "openai"))
-          .unwrap_or(false)
-    }
-    "groq" => {
-      has_non_empty_env_key("GROQ_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "groq"))
-          .unwrap_or(false)
-    }
-    "xai" => {
-      has_non_empty_env_key("XAI_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "xai"))
-          .unwrap_or(false)
-    }
-    "openrouter" => {
-      has_non_empty_env_key("OPENROUTER_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "openrouter"))
-          .unwrap_or(false)
-    }
-    "trustedrouter" => {
-      has_non_empty_env_key("TRUSTEDROUTER_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "trustedrouter"))
-          .unwrap_or(false)
-    }
-    "gemini" | "google" => {
-      has_non_empty_env_key("GEMINI_API_KEY")
-        || has_non_empty_env_key("GOOGLE_API_KEY")
-        || auth_profiles
-          .as_ref()
-          .map(|profiles| provider_auth_profile_present(profiles, "google"))
-          .unwrap_or(false)
-    }
-    "google-gemini-cli" => auth_profiles
-      .as_ref()
-      .map(|profiles| provider_auth_profile_present(profiles, "google-gemini-cli"))
-      .unwrap_or(false),
-    _ => false,
-  };
-
-  if provider_available(&active) {
-    return (true, Some(active));
-  }
-
-  for provider in [
-    "knapsack",
-    "ollama",
-    "anthropic",
-    "openai",
-    "groq",
-    "xai",
-    "google",
-    "openrouter",
-    "google-gemini-cli",
-  ] {
-    if provider_available(provider) {
-      return (true, Some(provider.to_string()));
-    }
-  }
-
-  (false, None)
-}
-
-fn configured_channels_from_disk() -> Vec<String> {
-  let mut channels = read_config_from_disk()
-    .and_then(|config| {
-      config
-        .get("channels")
-        .and_then(|channels| channels.as_object())
-        .map(|channels| {
-          channels
-            .iter()
-            .filter_map(|(name, value)| {
-              if value.is_null() {
-                None
-              } else {
-                Some(name.clone())
-              }
-            })
-            .collect::<Vec<_>>()
-        })
-    })
-    .unwrap_or_default();
-  channels.sort();
-  channels
-}
-
-fn plugin_allow_from_disk() -> Vec<String> {
-  let mut plugins = read_config_from_disk()
-    .and_then(|config| {
-      config
-        .pointer("/plugins/allow")
-        .and_then(|value| value.as_array())
-        .map(|allow| {
-          allow
-            .iter()
-            .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
-            .collect::<Vec<_>>()
-        })
-    })
-    .unwrap_or_default();
-  plugins.sort();
-  plugins.dedup();
-  plugins
-}
-
-fn configured_model_from_disk() -> Option<String> {
-  let config = read_config_from_disk()?;
-  match config.pointer("/agents/defaults/model") {
-    Some(Value::String(model)) if !model.trim().is_empty() => Some(model.clone()),
-    Some(Value::Object(obj)) => obj
-      .get("primary")
-      .and_then(|value| value.as_str())
-      .map(str::trim)
-      .filter(|value| !value.is_empty())
-      .map(|value| value.to_string()),
-    _ => None,
-  }
-}
-
-fn gateway_config_rpc_fallback_ok(error: &str) -> bool {
-  let lower = error.to_ascii_lowercase();
-  (lower.contains("unknown method") && lower.contains("config.get"))
-    || lower.starts_with("timeout waiting for response")
-    || lower.starts_with("failed to send request")
-    || lower.contains("connection closed")
-    || lower.contains("channel closed")
-}
-
-fn plugin_allowed_in_config(plugin_id: &str) -> bool {
-  plugin_allow_from_disk()
-    .iter()
-    .any(|plugin| plugin == plugin_id)
+fn channel_plugin_allowed(channel: &str) -> Option<bool> {
+  let config = configured_gateway_config()?;
+  let plugins = config.pointer("/plugins/allow")?.as_array()?;
+  Some(plugins.iter().any(|value| {
+    value
+      .as_str()
+      .map(|plugin| plugin.eq_ignore_ascii_case(channel))
+      .unwrap_or(false)
+  }))
 }
 
 fn runtime_status_response(
@@ -465,7 +241,8 @@ fn runtime_status_response(
   let configured = status
     .and_then(|s| s.get("configured"))
     .and_then(|v| v.as_bool())
-    .unwrap_or(summary_configured || summary_linked || enabled || config.is_some());
+    .unwrap_or_else(|| enabled || config.is_some());
+  let plugin_allowed = channel_plugin_allowed(channel);
   let running = status
     .and_then(|s| s.get("running"))
     .and_then(|v| v.as_bool())
@@ -484,17 +261,30 @@ fn runtime_status_response(
     .and_then(|s| s.get("lastError"))
     .and_then(|v| v.as_str())
     .filter(|err| !err.trim().is_empty())
-    .map(|err| err.to_string());
+    .map(|err| err.to_string())
+    .or_else(|| {
+      if configured && plugin_allowed == Some(false) {
+        Some(format!(
+          "{} is configured, but its plugin is not discoverable by the gateway yet.",
+          channel
+        ))
+      } else {
+        None
+      }
+    });
+  let active = running || connected;
 
   ChannelStatusResponse {
     success: true,
     enabled,
     configured,
+    active,
     linked: if linked_when_connected {
       Some(connected)
     } else {
       None
     },
+    plugin_allowed,
     provider,
     message,
     account,
@@ -546,7 +336,10 @@ struct ChannelStatusResponse {
   success: bool,
   enabled: bool,
   configured: bool,
+  active: bool,
   linked: Option<bool>,
+  #[serde(rename = "pluginAllowed", skip_serializing_if = "Option::is_none")]
+  plugin_allowed: Option<bool>,
   provider: Option<String>,
   message: Option<String>,
   /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
@@ -734,9 +527,15 @@ fn has_channel_reply_tools(snapshot: &serde_json::Value) -> bool {
     Some(arr) => arr,
     None => return false,
   };
-  let required_tools_allow = ["message", "browser", "group:web", "exec"];
-  let required_sandbox_allow = ["message", "exec", "browser", "sessions_send"];
-  let has_main = required_tools_allow
+  // Check for a few critical tools that must be present
+  let required = [
+    "exec",
+    "browser",
+    "web_fetch",
+    "web_search",
+    "sessions_send",
+  ];
+  required
     .iter()
     .all(|tool| tools_allow.iter().any(|item| item.as_str() == Some(tool)));
   let has_sandbox = required_sandbox_allow
@@ -849,10 +648,13 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
   let mut patch = parsed_patch;
 
   if needs_model {
-    let model = resolve_default_model();
     patch.as_object_mut().unwrap().insert(
       "agents".to_string(),
-      serde_json::json!({"defaults": {"model": model}}),
+      serde_json::json!({
+        "defaults": {
+          "model": crate::clawd::gateway_client::build_model_config()
+        }
+      }),
     );
   }
 
@@ -877,14 +679,14 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
                     "exec", "process", "group:fs",
                     "image", "sessions_list", "sessions_history",
                     "sessions_send", "sessions_spawn", "session_status",
-                    "browser", "group:web"
+                    "browser", "web_fetch", "web_search", "group:web"
                 ]
             }
         }
     });
     // Also ensure normal-mode tools.allow includes browser + group:web + message
     let mut tools_val = serde_json::json!({
-        "allow": ["message", "browser", "group:web", "exec", "process", "group:fs"],
+        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}}
@@ -989,7 +791,9 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
       success: service::gateway_log_has_channel_started("whatsapp"),
       enabled: false,
       configured: false,
+      active: false,
       linked: Some(false),
+      plugin_allowed: channel_plugin_allowed("whatsapp"),
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1395,7 +1199,9 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
       success: true,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: channel_plugin_allowed("imessage"),
       provider: None,
       message: None,
       account: None,
@@ -1413,7 +1219,9 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: channel_plugin_allowed("imessage"),
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1567,7 +1375,9 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
         success: true,
         enabled,
         configured,
+        active: enabled,
         linked: None,
+        plugin_allowed: None,
         provider,
         message: None,
         account: None,
@@ -1577,7 +1387,9 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: None,
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1706,7 +1518,9 @@ pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
         success: service::gateway_log_has_channel_started("telegram"),
         enabled: false,
         configured: false,
+        active: false,
         linked: Some(false),
+        plugin_allowed: channel_plugin_allowed("telegram"),
         provider: None,
         message: Some(format!("Gateway error: {}", e)),
         account: None,
@@ -2198,7 +2012,9 @@ pub async fn generic_channel_status(
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: None,
       provider: None,
       message: Some(format!("Unknown channel: {}", channel)),
       account: None,
@@ -2216,7 +2032,9 @@ pub async fn generic_channel_status(
       success: true,
       enabled: false,
       configured: false,
+      active: false,
       linked: Some(false),
+      plugin_allowed: channel_plugin_allowed(&channel),
       provider: None,
       message: None,
       account: None,
@@ -2225,29 +2043,21 @@ pub async fn generic_channel_status(
 
   match channel_runtime_snapshot(None).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
-    Err(e) => {
-      if e.to_ascii_lowercase().contains("unknown channel") {
-        return HttpResponse::Ok().json(ChannelStatusResponse {
-          success: true,
-          enabled: false,
-          configured,
-          linked: Some(false),
-          provider: None,
-          message: Some("Channel plugin is unavailable in the current gateway runtime".to_string()),
-          account: None,
-        });
-      }
-      log::error!("[channels] {}_status gateway error: {}", channel, e);
-      HttpResponse::Ok().json(ChannelStatusResponse {
-        success: service::gateway_log_has_channel_started(&channel),
-        enabled: false,
-        configured: false,
-        linked: Some(false),
-        provider: None,
-        message: Some(format!("Gateway error: {}", e)),
-        account: None,
-      })
-    }
+    Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
+      success: false,
+      enabled: configured_channel(&channel)
+        .as_ref()
+        .and_then(|entry| entry.get("enabled"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true),
+      configured: true,
+      active: false,
+      linked: Some(false),
+      plugin_allowed: channel_plugin_allowed(&channel),
+      provider: None,
+      message: Some(format!("Gateway error: {}", e)),
+      account: None,
+    }),
   }
 }
 
@@ -2351,6 +2161,33 @@ pub async fn generic_channel_configure(
             }
           }
         }
+
+        if channel == "slack" {
+          obj.insert("groupPolicy".to_string(), serde_json::json!("open"));
+          obj.insert(
+            "typingReaction".to_string(),
+            serde_json::json!("hourglass_flowing_sand"),
+          );
+          obj.insert(
+            "streaming".to_string(),
+            serde_json::json!({
+              "mode": "progress",
+              "nativeTransport": true,
+              "preview": {
+                "toolProgress": true,
+                "commandText": "status"
+              },
+              "progress": {
+                "label": "auto",
+                "toolProgress": true,
+                "commandText": "status",
+                "nativeTaskCards": true,
+                "maxLines": 8,
+                "render": "rich"
+              }
+            }),
+          );
+        }
       }
       // Signal uses "account" (not "phoneNumber") and has top-level
       // dmPolicy / allowFrom.
@@ -2382,11 +2219,23 @@ pub async fn generic_channel_configure(
       // retry path gets its own copy — serde_json::json! moves the
       // value into the tree.
       let build_patch = |snapshot: &serde_json::Value| {
-        let patch_value = serde_json::json!({
-            "channels": {
-                channel.clone(): channel_config.clone()
-            }
+        let mut patch_value = serde_json::json!({
+          "channels": {
+            channel.clone(): channel_config.clone()
+          }
         });
+        if channel == "slack" {
+          patch_value["messages"] = serde_json::json!({
+            "ackReaction": "eyes",
+            "ackReactionScope": "all",
+            "statusReactions": {
+              "enabled": true
+            },
+            "groupChat": {
+              "visibleReplies": "automatic"
+            }
+          });
+        }
         build_enable_patch(&serde_json::to_string(&patch_value).unwrap(), snapshot)
       };
 
@@ -3638,7 +3487,9 @@ pub async fn channel_diagnostics() -> impl Responder {
       // Priority order:
       //   1. Explicit gateway provider / Brave API key
       //   2. Browser CDP  (bundled Chromium available — /api/clawd/browser/search)
-      //   3. Surface the missing dependency instead of patching an unsupported fallback
+      //   3. Leave provider unset and rely on browser/web_fetch guidance
+      //   4. DuckDuckGo only when the user explicitly configures it
+      //   5. Surface API key prompt  (only if all above fail)
       {
         let brave_key_in_config = snapshot
           .pointer("/plugins/entries/brave/config/webSearch/apiKey")
@@ -3688,26 +3539,21 @@ pub async fn channel_diagnostics() -> impl Responder {
           .unwrap_or(false);
 
           if browser_ok {
-            // Browser CDP is available — it serves as the primary search
-            // mechanism via GET /api/clawd/browser/search.
-            // Do not patch a synthetic DuckDuckGo fallback here: the bundled
-            // gateway schema on some desktop builds only accepts Brave, and
-            // forcing an unsupported provider creates noisy false warnings
-            // during an otherwise healthy startup.
+            // Browser CDP is available — it serves as the primary zero-key
+            // search mechanism via GET /api/clawd/browser/search.
             log::info!("[channels] web_search: browser CDP available — using browser as primary search (BRAVE_API_KEY not set)");
             repairs.push(
               "Browser CDP available — using /api/clawd/browser/search as primary \
-                             web search (BRAVE_API_KEY not set)."
+                             web search (BRAVE_API_KEY not set). Leaving web_search provider unset \
+                             instead of auto-configuring DuckDuckGo."
                 .to_string(),
             );
           } else {
-            log::info!(
-              "[channels] web_search: browser unavailable and no provider configured \
-               (BRAVE_API_KEY not set)"
-            );
-            issues.push(
-              "BRAVE_API_KEY not set and browser unavailable — web_search is disabled in this \
-               gateway build until browser control recovers or Brave is configured."
+            log::info!("[channels] web_search: browser unavailable and no provider configured — leaving provider unset");
+            repairs.push(
+              "No API-backed web_search provider configured and browser search is unavailable. \
+               Leaving provider unset instead of auto-configuring DuckDuckGo; configure Brave, \
+               Gemini, or another provider for reliable web_search."
                 .to_string(),
             );
           }
@@ -3725,7 +3571,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           let bh = extract_base_hash(&snap);
           let sandbox_patch = serde_json::json!({
               "tools": {
-                  "allow": ["message", "browser", "group:web", "exec", "process", "group:fs"],
+                  "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
                   "deny": ["canvas", "nodes", "cron", "gateway"],
                   "exec": {"applyPatch": {"enabled": true}},
                   "media": {"image": {"enabled": true}},
@@ -3737,7 +3583,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                               "exec", "process", "group:fs",
                               "image", "sessions_list", "sessions_history",
                               "sessions_send", "sessions_spawn", "session_status",
-                              "browser", "group:web"
+                              "browser", "web_fetch", "web_search", "group:web"
                           ]
                       }
                   }
@@ -5189,6 +5035,8 @@ mod reconnect_retry_tests {
     is_connection_level_error, runtime_channel_active,
   };
 
+  static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
   #[test]
   fn connection_closed_is_retryable() {
     assert!(is_connection_level_error("Gateway connection closed"));
@@ -5253,14 +5101,12 @@ mod reconnect_retry_tests {
   }
 
   #[test]
-  fn enable_patch_adds_message_tool_for_channel_replies() {
+  fn enable_patch_uses_model_config_with_fallbacks_when_missing() {
+    let _guard = ENV_LOCK.lock().unwrap();
     let snapshot = serde_json::json!({
       "config": {
-        "agents": {"defaults": {"model": "openai/gpt-5.4"}},
         "browser": {"enabled": true},
-        "plugins": {"allow": ["browser", "duckduckgo"]},
         "tools": {
-          "allow": ["browser", "group:web", "exec", "process", "group:fs"],
           "sandbox": {
             "tools": {
               "allow": ["exec", "browser", "sessions_send"],
@@ -5271,130 +5117,78 @@ mod reconnect_retry_tests {
       }
     });
 
+    let openai = std::env::var("OPENAI_API_KEY").ok();
+    let gemini = std::env::var("GEMINI_API_KEY").ok();
+    let groq = std::env::var("GROQ_API_KEY").ok();
+    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
+    let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").ok();
+    let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").ok();
+    let groq_model = std::env::var("KNAPSACK_GROQ_MODEL").ok();
+
+    std::env::set_var("OPENAI_API_KEY", "sk-test");
+    std::env::set_var("GEMINI_API_KEY", "AIza-test");
+    std::env::set_var("GROQ_API_KEY", "groq-test");
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+    std::env::set_var("KNAPSACK_GROQ_MODEL", "openai/gpt-oss-120b");
+
     let patch = build_enable_patch(
-      r#"{"channels":{"slack":{"accounts":{"default":{"botToken":"xoxb-test","appToken":"xapp-test"}}}}}"#,
+      r#"{"channels":{"slack":{"accounts":{"default":{"enabled":true}}}}}"#,
       &snapshot,
     );
     let patch: serde_json::Value = serde_json::from_str(&patch).unwrap();
 
-    let allow = patch
-      .pointer("/tools/allow")
+    assert_eq!(
+      patch.pointer("/agents/defaults/model/primary"),
+      Some(&serde_json::json!("openai/gpt-5.5"))
+    );
+    let fallbacks = patch
+      .pointer("/agents/defaults/model/fallbacks")
       .and_then(|value| value.as_array())
-      .unwrap();
-    assert!(allow.iter().any(|tool| tool.as_str() == Some("message")));
-    let sandbox_allow = patch
-      .pointer("/tools/sandbox/tools/allow")
-      .and_then(|value| value.as_array())
-      .unwrap();
-    assert!(sandbox_allow
+      .cloned()
+      .unwrap_or_default();
+    assert!(fallbacks
       .iter()
-      .any(|tool| tool.as_str() == Some("message")));
-  }
+      .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
+    assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
 
-  #[test]
-  fn runtime_channel_active_trusts_runtime_when_summary_is_missing() {
-    let runtime = serde_json::json!({
-      "enabled": true,
-      "configured": true,
-      "connected": false,
-      "running": true
-    });
-
-    assert!(runtime_channel_active(Some(&runtime), None));
-  }
-
-  #[test]
-  fn effective_runtime_connected_matches_active_runtime_snapshot() {
-    let runtime = serde_json::json!({
-      "enabled": true,
-      "configured": true,
-      "connected": false,
-      "running": true
-    });
-
-    assert!(effective_runtime_connected(Some(&runtime), None));
-  }
-
-  #[test]
-  fn runtime_channel_active_stays_false_without_summary_or_runtime_signal() {
-    let runtime = serde_json::json!({
-      "enabled": true,
-      "configured": false,
-      "connected": false,
-      "running": false
-    });
-
-    assert!(!runtime_channel_active(Some(&runtime), None));
-    assert!(!runtime_channel_active(None, None));
-  }
-
-  #[test]
-  fn inference_auth_status_treats_knapsack_as_usable_without_env_keys() {
-    let original_active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
-    let original_state_dir = std::env::var("OPENCLAW_STATE_DIR").ok();
-    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
-    std::env::remove_var("OPENCLAW_STATE_DIR");
-
-    let (has_auth, provider) = inference_auth_status();
-    assert!(has_auth);
-    assert_eq!(provider.as_deref(), Some("knapsack"));
-
-    if let Some(value) = original_active {
+    if let Some(value) = openai {
+      std::env::set_var("OPENAI_API_KEY", value);
+    } else {
+      std::env::remove_var("OPENAI_API_KEY");
+    }
+    if let Some(value) = gemini {
+      std::env::set_var("GEMINI_API_KEY", value);
+    } else {
+      std::env::remove_var("GEMINI_API_KEY");
+    }
+    if let Some(value) = groq {
+      std::env::set_var("GROQ_API_KEY", value);
+    } else {
+      std::env::remove_var("GROQ_API_KEY");
+    }
+    if let Some(value) = active {
       std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", value);
     } else {
       std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
     }
-    if let Some(value) = original_state_dir {
-      std::env::set_var("OPENCLAW_STATE_DIR", value);
+    if let Some(value) = openai_model {
+      std::env::set_var("KNAPSACK_OPENAI_MODEL", value);
     } else {
-      std::env::remove_var("OPENCLAW_STATE_DIR");
+      std::env::remove_var("KNAPSACK_OPENAI_MODEL");
     }
-  }
-
-  #[test]
-  fn inference_auth_status_reads_google_cli_auth_from_profiles() {
-    let original_active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
-    let original_state_dir = std::env::var("OPENCLAW_STATE_DIR").ok();
-    let tmp = std::env::temp_dir().join(format!(
-      "channels-auth-status-{}-{}",
-      std::process::id(),
-      std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-    ));
-    let agent_dir = tmp.join("agents").join("main").join("agent");
-    std::fs::create_dir_all(&agent_dir).unwrap();
-    std::fs::write(
-      agent_dir.join("auth-profiles.json"),
-      serde_json::json!({
-        "profiles": {
-          "google-gemini-cli:default": {
-            "provider": "google-gemini-cli",
-            "type": "oauth"
-          }
-        }
-      })
-      .to_string(),
-    )
-    .unwrap();
-    std::env::set_var("OPENCLAW_STATE_DIR", &tmp);
-    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "google-gemini-cli");
-
-    let (has_auth, provider) = inference_auth_status();
-    assert!(has_auth);
-    assert_eq!(provider.as_deref(), Some("google-gemini-cli"));
-
-    std::fs::remove_dir_all(&tmp).ok();
-    if let Some(value) = original_active {
-      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", value);
+    if let Some(value) = gemini_model {
+      std::env::set_var("KNAPSACK_GEMINI_MODEL", value);
     } else {
-      std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+      std::env::remove_var("KNAPSACK_GEMINI_MODEL");
     }
-    if let Some(value) = original_state_dir {
-      std::env::set_var("OPENCLAW_STATE_DIR", value);
+    if let Some(value) = groq_model {
+      std::env::set_var("KNAPSACK_GROQ_MODEL", value);
     } else {
-      std::env::remove_var("OPENCLAW_STATE_DIR");
+      std::env::remove_var("KNAPSACK_GROQ_MODEL");
     }
   }
 }

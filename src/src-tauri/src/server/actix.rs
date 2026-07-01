@@ -86,7 +86,7 @@ pub async fn start_server<'a>(
       base_url: std::env::var("OPENCLAW_BASE_URL")
         .ok()
         .map(|s| s.trim_end_matches('/').to_string())
-        .or_else(|| Some("http://127.0.0.1:18791".to_string())),
+        .or_else(|| Some("http://127.0.0.1:18789".to_string())),
     }));
 
   // Pre-check: detect and attempt to kill zombie processes on this port
@@ -247,6 +247,7 @@ pub async fn start_server<'a>(
       .service(search::get_recent_emails)
       .service(search::get_recent_calendar_events)
       .service(search::filter_emails_by_addresses)
+      .service(search::filter_emails_by_addresses_get)
       .service(search::list_emails_within_timestamps)
       .service(search::get_calendar_event_by_id)
       .service(search::list_sent_emails_within_timestamps)
@@ -290,6 +291,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::act)
       .service(clawd::browser::screenshot)
       .service(clawd::browser::browser_search)
+      .service(clawd::browser::knapsack_chat_completions_proxy)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
       .service(clawd::browser::agent_run)

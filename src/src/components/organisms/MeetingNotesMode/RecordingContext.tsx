@@ -145,8 +145,6 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           throw new Error(message)
         }
 
-        // Only microphone is required. System audio is optional — without it the
-        // app records mic only (still useful for meeting notes in most setups).
         if (!permissions.microphone) {
           const message = 'Recording requires Microphone permission. Please grant access in System Settings > Privacy & Security, then try again.'
 
@@ -156,6 +154,20 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
 
           logError(
             new Error('Missing microphone permission'),
+            {
+              additionalInfo: message,
+              error: `microphone=${permissions.microphone} system_audio=${permissions.screen_recording}`,
+            },
+            true,
+          )
+          throw new Error(message)
+        }
+
+        if (eventId && !permissions.screen_recording) {
+          const message = "Meeting recording needs System Audio Recording permission to capture other participants. Knapsack only has microphone access right now, so starting this recording would miss the call audio. Enable System Audio Recording in System Settings > Privacy & Security, then try again."
+
+          logError(
+            new Error('Missing system audio permission for meeting recording'),
             {
               additionalInfo: message,
               error: `microphone=${permissions.microphone} system_audio=${permissions.screen_recording}`,

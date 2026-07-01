@@ -342,6 +342,22 @@ pub async fn start_recording(
     data.save_transcript
   );
 
+  let is_meeting_recording = data.event_id != 0;
+  let has_system_audio_permission = crate::audio::permission::has_system_audio_permission();
+  if is_meeting_recording && !has_system_audio_permission {
+    let message = "Meeting recording needs System Audio Recording permission to capture other participants. Knapsack only has microphone access right now, so starting this recording would miss the call audio. Enable System Audio Recording in System Settings > Privacy & Security, then try again.";
+    log::warn!(
+      "[recording] refusing meeting recording without system audio permission: thread_id={} event_id={}",
+      data.thread_id,
+      data.event_id
+    );
+    return Ok(HttpResponse::BadRequest().json(json!({
+      "error": message,
+      "code": "system_audio_required",
+      "status": "error"
+    })));
+  }
+
   if recording_state.is_recording.load(Ordering::Relaxed) {
     if recording_state.is_paused.load(Ordering::Relaxed) {
       log::info!(
@@ -436,7 +452,7 @@ pub async fn start_recording(
   // granted System Audio Recording permission. On macOS 15 (Sequoia) many users
   // have microphone but not system audio permission; we record mic-only in that
   // case rather than blocking recording entirely.
-  if crate::audio::permission::has_system_audio_permission() {
+  if has_system_audio_permission {
     let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
     let output_thread = handle.spawn_blocking(move || {
       if let Err(e) = tokio::runtime::Runtime::new()

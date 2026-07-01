@@ -1,14 +1,14 @@
 {
   "name": "knapsack",
   "private": true,
-  "version": "2.7.2",
+  "version": "2.4.4",
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
     "fix-rollup-native": "node scripts/fix-rollup-native.cjs",
     "dev": "node scripts/ensure-clawdbot-deps.cjs && vite",
     "prebuild": "node scripts/fix-rollup-native.cjs && node scripts/sync-version.cjs && node scripts/prepare-node.cjs && node scripts/ensure-clawdbot-deps.cjs && node scripts/prune-clawdbot.cjs && node scripts/verify-clawdbot-bundle.cjs",
-    "predev": "node scripts/fix-rollup-native.cjs",
+    "predev": "node scripts/fix-rollup-native.cjs && node scripts/sync-version.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "clawdbot:duplicates": "node scripts/report-clawdbot-duplicates.cjs",

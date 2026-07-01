@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
+import { invoke } from '@tauri-apps/api'
+import { platform } from '@tauri-apps/api/os'
 import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
 import { relaunch } from '@tauri-apps/api/process'
 
@@ -33,6 +35,13 @@ type AppUpdateContextValue = {
 const AUTO_INSTALL_COUNTDOWN_SEC = 60
 
 const AppUpdateContext = createContext<AppUpdateContextValue | null>(null)
+
+async function prepareNativeUpdateInstall() {
+  if ((await platform()) !== 'darwin') {
+    return
+  }
+  await invoke('kn_prepare_updater_temp_dir')
+}
 
 export function useAppUpdate() {
   const ctx = useContext(AppUpdateContext)
@@ -105,6 +114,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const startInstall = useCallback(async () => {
     setState({ status: 'downloading' })
     try {
+      await prepareNativeUpdateInstall()
       await installUpdate()
       setState({ status: 'ready' })
     } catch (err) {
@@ -125,6 +135,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     })
     setState({ status: 'downloading' })
     try {
+      await prepareNativeUpdateInstall()
       await installUpdate()
       await relaunch()
     } catch (err) {
