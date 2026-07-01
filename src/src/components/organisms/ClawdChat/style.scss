@@ -533,12 +533,6 @@
   flex: 1;
 }
 
-.ClawdQueuedAttachmentSummary {
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.58);
-}
-
 .ClawdQueuedActions {
   display: flex;
   gap: 4px;
@@ -3242,36 +3236,6 @@
   line-height: 1.5;
   padding-top: 10px;
   border-top: 1px solid #e2e8f0;
-}
-
-.ClawdChannelGuideNote--compact {
-  margin-top: 10px;
-  margin-bottom: 12px;
-  padding-top: 8px;
-}
-
-.ClawdChannelGuideActions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 10px 0 0;
-}
-
-.ClawdChannelGuidePrimaryBtn {
-  padding: 8px 12px;
-  border: 1px solid rgba(59, 130, 246, 0.28);
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-
-  &:hover {
-    background: #dbeafe;
-    border-color: rgba(59, 130, 246, 0.38);
-  }
 }
 
 .ClawdChannelsPanelError {

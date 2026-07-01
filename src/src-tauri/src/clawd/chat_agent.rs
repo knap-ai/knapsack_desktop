@@ -111,6 +111,22 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
+        name: "web_search".to_string(),
+        description: "Search the web and return structured search results. Use this first for current events, weather, news, or other live internet lookups before falling back to manual browser navigation.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "Search query" },
+            "count": { "type": "integer", "description": "Optional max results (default: 5, max: 10)" }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        }),
+      },
+    },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
         name: "open_url".to_string(),
         description: "Open a URL in a NEW browser tab. Use navigate() to reuse existing tab.".to_string(),
         parameters: json!({
@@ -553,13 +569,12 @@ pub async fn openai_compatible_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
-  // Newer OpenAI reasoning / GPT-5 family models reject custom temperature on
-  // this direct chat-completions path, so let the provider use its default.
-  let normalized_model = model.trim().to_lowercase();
-  let is_reasoning_model = normalized_model.starts_with("o1")
-    || normalized_model.starts_with("o3")
-    || normalized_model.starts_with("o4")
-    || normalized_model.starts_with("gpt-5");
+  // OpenAI reasoning models (o1, o3, o4-mini, gpt-5.2-pro) only support temperature=1 (default).
+  // Ollama models also often reject non-default temperatures for reasoning variants.
+  let is_reasoning_model = model.starts_with("o1")
+    || model.starts_with("o3")
+    || model.starts_with("o4")
+    || model == "gpt-5.2-pro";
   let temperature = if is_reasoning_model { None } else { Some(0.2) };
 
   // Build messages JSON manually to support multi-part content (text + images) for vision
@@ -1079,7 +1094,7 @@ pub async fn anthropic_chat(
 
     if status.is_success() {
       // Parse Anthropic response → OAI format
-      let parsed = parse_json_value_with_escape_repair(&text)?;
+      let parsed: JsonValue = serde_json::from_str(&text)?;
 
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
@@ -1349,7 +1364,7 @@ pub async fn gemini_chat_with_retries(
     let text = res.text().await.unwrap_or_default();
 
     if status.is_success() {
-      let parsed = parse_json_value_with_escape_repair(&text)?;
+      let parsed: JsonValue = serde_json::from_str(&text)?;
 
       let mut reply_text = String::new();
       let mut tool_calls: Vec<OaiToolCall> = Vec::new();
@@ -1456,22 +1471,6 @@ mod tests {
     let parsed = parse_oai_chat_resp(raw).expect("response should be repaired");
     let content = parsed.choices[0].message.content.as_deref().unwrap_or("");
     assert_eq!(content, r#"draft \q now"#);
-  }
-
-  #[test]
-  fn repairs_truncated_unicode_escape_in_generic_json_value() {
-    let raw = r#"{"content":[{"type":"text","text":"bad \u12 path"}]}"#;
-    let parsed = parse_json_value_with_escape_repair(raw).expect("json should be repaired");
-    let text = parsed["content"][0]["text"].as_str().unwrap_or("");
-    assert_eq!(text, r#"bad \u12 path"#);
-  }
-
-  #[test]
-  fn repairs_invalid_backslash_escape_in_generic_json_value() {
-    let raw = r#"{"content":[{"type":"text","text":"draft \q now"}]}"#;
-    let parsed = parse_json_value_with_escape_repair(raw).expect("json should be repaired");
-    let text = parsed["content"][0]["text"].as_str().unwrap_or("");
-    assert_eq!(text, r#"draft \q now"#);
   }
 
   #[test]

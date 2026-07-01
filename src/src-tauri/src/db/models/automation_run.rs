@@ -48,6 +48,32 @@ impl AutomationRun {
       .map_err(|e| Error::KSError(e.to_string()))
   }
 
+  pub fn find_run_by_schedule_timestamp(
+    timestamp: i64,
+    automation_uuid: &str,
+    user_id: u64,
+  ) -> Result<Option<Self>, Error> {
+    let conn = get_db_conn();
+    let mut stmt = conn
+      .prepare(
+        "SELECT id, automation_uuid, user_id, thread_id,
+        schedule_timestamp, execution_timestamp, run_params, feed_item_id
+        FROM automation_runs
+        WHERE automation_uuid = ?1
+        AND user_id = ?2
+        AND json_extract(run_params, '$.event_id') IS NULL
+        AND json_extract(run_params, '$.timestamp') = ?3",
+      )
+      .map_err(|e| Error::KSError(e.to_string()))?;
+
+    stmt
+      .query_row(params![automation_uuid, user_id, timestamp], |row| {
+        Self::build_struct_from_row(row)
+      })
+      .optional()
+      .map_err(|e| Error::KSError(e.to_string()))
+  }
+
   pub fn find_by_id(id: u64) -> Result<Option<AutomationRun>> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
@@ -143,13 +169,9 @@ impl AutomationRun {
           let event_id = json.get("event_id").and_then(|v| v.as_u64());
           let timestamp = json.get("timestamp").and_then(|v| v.as_i64());
 
-          match (event_id, timestamp) {
-            (Some(e), Some(t)) => (e, t),
-            _ => {
-              return Err(Error::KSError(
-                "Missing event_id or timestamp in run_params".into(),
-              ))
-            }
+          match timestamp {
+            Some(t) => (event_id, t),
+            None => return Err(Error::KSError("Missing timestamp in run_params".into())),
           }
         } else {
           return Err(Error::KSError("Invalid JSON in run_params".into()));
@@ -158,12 +180,19 @@ impl AutomationRun {
       None => return Err(Error::KSError("Missing run_params".into())),
     };
 
-    let maybe_instance = AutomationRun::find_run_by_calendar_event(
-      event_id,
-      timestamp,
-      &self.automation_uuid,
-      self.user_id,
-    )?;
+    let maybe_instance = match event_id {
+      Some(event_id) => AutomationRun::find_run_by_calendar_event(
+        event_id,
+        timestamp,
+        &self.automation_uuid,
+        self.user_id,
+      )?,
+      None => AutomationRun::find_run_by_schedule_timestamp(
+        timestamp,
+        &self.automation_uuid,
+        self.user_id,
+      )?,
+    };
 
     match maybe_instance {
       Some(instance) => {

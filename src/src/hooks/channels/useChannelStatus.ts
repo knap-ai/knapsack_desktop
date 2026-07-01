@@ -64,6 +64,11 @@ function isChannelConfigured(status: ChannelStatus | null): boolean {
   return !!(status.linked || status.configured || status.enabled)
 }
 
+function isChannelActive(status: ChannelStatus | null): boolean {
+  if (!status) return false
+  return !!(status.active || status.linked)
+}
+
 async function fetchGatewayHealthWithTimeout(): Promise<Response> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), GATEWAY_HEALTH_POLL_TIMEOUT_MS)
@@ -137,11 +142,6 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   // We do this once per session so we can restore the bot username
   // and verify the saved token is still valid on app relaunch.
   const tgValidatedRef = useRef(false)
-  // Prevent overlapping poll cycles from piling up local HTTP requests when
-  // the backend is slow or timing out. Coalesce extra refresh requests into a
-  // single follow-up pass instead of running them concurrently.
-  const refreshInFlightRef = useRef(false)
-  const refreshQueuedRef = useRef(false)
 
   // Use refs to track current channel states for smart-polling decisions.
   // This avoids putting state variables in `refresh`'s dependency array,
@@ -156,7 +156,7 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
   const genericChannelsRef = useRef(genericChannels)
   genericChannelsRef.current = genericChannels
 
-  const runRefreshCycle = useCallback(async () => {
+  const refresh = useCallback(async () => {
     // Only show loading indicator on the very first fetch, not background polls.
     // Toggling loading on every poll caused 2 extra parent re-renders per cycle.
     const isFirstLoad = prevJsonRef.current._initialized !== 'true'
@@ -346,9 +346,12 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
       // reset, which is the most common cause of "channel shows connected
       // but AI doesn't respond".
       if (!diagRanRef.current) {
-        const anyLinked = !!(wa?.linked || im?.linked || im?.configured ||
-          tg?.linked || tg?.configured ||
-          genericResults.some(g => g?.linked || g?.configured))
+        const anyLinked = !!(
+          isChannelActive(wa) ||
+          isChannelActive(im) ||
+          isChannelActive(tg) ||
+          genericResults.some(g => isChannelActive(g))
+        )
         if (anyLinked) {
           diagRanRef.current = true
           // Fire-and-forget — don't block the poll cycle
@@ -384,23 +387,6 @@ export function useChannelStatus(enabled = true, intervalMs = 15_000) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const refresh = useCallback(async () => {
-    if (refreshInFlightRef.current) {
-      refreshQueuedRef.current = true
-      return
-    }
-
-    refreshInFlightRef.current = true
-    try {
-      do {
-        refreshQueuedRef.current = false
-        await runRefreshCycle()
-      } while (refreshQueuedRef.current)
-    } finally {
-      refreshInFlightRef.current = false
-    }
-  }, [runRefreshCycle])
 
   // Always do a single initial fetch so hasAnyChannel / showChannelBanner
   // are populated on mount even when polling is disabled.

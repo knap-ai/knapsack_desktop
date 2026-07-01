@@ -54,7 +54,7 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tauri::async_runtime::TokioJoinHandle;
 use tauri::{
-  AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
+  App, AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
   SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
@@ -73,6 +73,7 @@ use crate::utils::log::setup_logger;
 
 use serde_json::json;
 use serde_json::Value;
+use std::process;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "profiling")]
@@ -121,12 +122,53 @@ const NOTIF_END_X_OFFSET: i32 = 20;
 const NOTIF_ANIMATION_DURATION: u32 = 90;
 const NOTIF_FRAME_TIME: u64 = 8;
 
-fn validate_bundled_ui_asset(app: &tauri::App, page: &str, label: &str) -> Option<String> {
-  let candidate_paths = vec![
-    page.to_string(),
-    format!("dist/{page}"),
-    format!("_up_/dist/{page}"),
-  ];
+#[cfg(target_os = "macos")]
+fn updater_temp_root_from_executable(executable_path: &std::path::Path) -> Option<PathBuf> {
+  let executable_dir = executable_path.parent()?;
+  let app_root = if executable_dir.to_string_lossy().contains("Contents/MacOS") {
+    executable_dir.parent()?.parent()?.to_path_buf()
+  } else {
+    executable_dir.to_path_buf()
+  };
+  let install_root = app_root.parent()?.to_path_buf();
+  Some(install_root.join(".knapsack-updater-tmp"))
+}
+
+#[tauri::command]
+fn kn_prepare_updater_temp_dir() -> Result<Option<String>, String> {
+  #[cfg(target_os = "macos")]
+  {
+    let current_exe = std::env::current_exe()
+      .map_err(|err| format!("Unable to locate current executable for updater prep: {err}"))?;
+    let temp_root = updater_temp_root_from_executable(&current_exe).ok_or_else(|| {
+      "Unable to derive updater temp directory from current executable".to_string()
+    })?;
+    create_dir_all(&temp_root).map_err(|err| {
+      format!(
+        "Unable to create updater temp directory at {:?}: {err}",
+        temp_root
+      )
+    })?;
+
+    std::env::set_var("TMPDIR", &temp_root);
+    std::env::set_var("TMP", &temp_root);
+    std::env::set_var("TEMP", &temp_root);
+
+    log::info!(
+      "Prepared macOS updater temp directory on app volume: {:?}",
+      temp_root
+    );
+    return Ok(Some(temp_root.to_string_lossy().into_owned()));
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+    Ok(None)
+  }
+}
+
+fn validate_bundled_ui_asset(app: &App, page: &str, label: &str) -> Option<String> {
+  let candidate_paths = vec![page.to_string(), format!("dist/{page}")];
   let found = candidate_paths.iter().find_map(|candidate| {
     app.path_resolver().resolve_resource(candidate).map(|path| {
       log::info!("Resolved {label} UI asset: {:?}", path);
@@ -134,9 +176,9 @@ fn validate_bundled_ui_asset(app: &tauri::App, page: &str, label: &str) -> Optio
     })
   });
 
-  if let Some(path) = &found {
+  if let Some(path) = found {
     log::info!("Using {label} UI asset at {path}");
-    return Some(path.to_string());
+    return Some(path);
   }
 
   let tried = candidate_paths.join(", ");
@@ -160,43 +202,34 @@ pub fn release_type() -> Release {
   }
 }
 
+#[cfg(all(test, target_os = "macos"))]
+mod updater_temp_dir_tests {
+  use super::updater_temp_root_from_executable;
+  use std::path::Path;
+
+  #[test]
+  fn derives_temp_root_next_to_app_bundle_on_macos_layout() {
+    let exe = Path::new("/Applications/Knapsack.app/Contents/MacOS/Knapsack");
+    let temp_root = updater_temp_root_from_executable(exe).unwrap();
+    assert_eq!(temp_root, Path::new("/Applications/.knapsack-updater-tmp"));
+  }
+
+  #[test]
+  fn derives_temp_root_next_to_binary_for_non_bundle_layout() {
+    let exe = Path::new("/tmp/knapsack-dev/target/debug/knapsack");
+    let temp_root = updater_temp_root_from_executable(exe).unwrap();
+    assert_eq!(
+      temp_root,
+      Path::new("/tmp/knapsack-dev/target/debug/.knapsack-updater-tmp")
+    );
+  }
+}
+
 #[cfg(target_os = "macos")]
 static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> =
   Lazy::new(|| StdMutex::new(None));
 #[cfg(target_os = "windows")]
 static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
-
-#[tauri::command]
-async fn kn_send_composed_email(
-  to: String,
-  cc: Option<String>,
-  subject: String,
-  body: String,
-  thread_id: Option<String>,
-  user_email: String,
-  user_name: Option<String>,
-  attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
-) -> Result<String, String> {
-  let trimmed_to = to.trim().to_string();
-  let trimmed_subject = subject.trim().to_string();
-  let trimmed_body = body.trim().to_string();
-
-  if trimmed_to.is_empty() || trimmed_subject.is_empty() || trimmed_body.is_empty() {
-    return Err("To, subject, and body are required".to_string());
-  }
-
-  crate::clawd::gmail::send_gmail_email(
-    &user_email,
-    user_name.as_deref().unwrap_or(""),
-    &trimmed_to,
-    cc.as_deref(),
-    &trimmed_subject,
-    &trimmed_body,
-    thread_id.as_deref(),
-    attachments.as_deref(),
-  )
-  .await
-}
 
 #[tauri::command]
 fn kn_set_keep_awake(enabled: bool) -> Result<(), String> {
@@ -1455,9 +1488,6 @@ fn create_data_dir() {
 
 // make the db path OS agnostic
 fn create_db_env_variable() {
-  if env::var_os("DATABASE_URL").is_some() {
-    return;
-  }
   let home_dir = dirs::home_dir().expect("Could not determine the home directory");
   let db_dir = home_dir.join(KNAPSACK_DB_FILENAME);
   let db_path = db_dir.as_path();
@@ -1671,7 +1701,7 @@ async fn main() {
     .setup(move |app| {
       #[cfg(not(debug_assertions))]
       {
-        let mut missing = Vec::new();
+        let mut missing = vec![];
         let mut assert_asset = |page, label| {
           if validate_bundled_ui_asset(app, page, label).is_none() {
             missing.push(format!("{page} ({label})"));
@@ -1983,7 +2013,7 @@ async fn main() {
       kn_get_log_path,
       kn_get_openclaw_version,
       kn_set_keep_awake,
-      kn_send_composed_email,
+      kn_prepare_updater_temp_dir,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
@@ -2066,5 +2096,10 @@ async fn main() {
 
   let run_result = builder.run(context);
   clawd::service::cleanup_gateway_on_exit();
-  run_result.expect("error while running tauri application");
+  if let Err(err) = run_result {
+    log::error!("Knapsack failed to start: {err}");
+    eprintln!("Startup failed. This is usually a packaging issue with the desktop bundle.");
+    eprintln!("Please reinstall the app from the latest official release.");
+    process::exit(1);
+  }
 }

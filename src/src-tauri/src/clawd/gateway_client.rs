@@ -10,7 +10,7 @@
 //! - a simple circuit breaker (avoid thrash when gateway is down)
 
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -36,20 +36,8 @@ const BREAKER_TRIP_AFTER: u32 = 3;
 const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
-static LAST_BROWSER_RPC_SUCCESS_MS: AtomicU64 = AtomicU64::new(0);
 fn next_request_id() -> String {
   REQUEST_ID.fetch_add(1, Ordering::SeqCst).to_string()
-}
-
-fn now_epoch_ms() -> u64 {
-  std::time::SystemTime::now()
-    .duration_since(std::time::UNIX_EPOCH)
-    .map(|d| d.as_millis().min(u128::from(u64::MAX)) as u64)
-    .unwrap_or(0)
-}
-
-pub fn last_browser_rpc_success_ms() -> u64 {
-  LAST_BROWSER_RPC_SUCCESS_MS.load(Ordering::Relaxed)
 }
 
 #[derive(Serialize)]
@@ -99,6 +87,81 @@ struct EventFrame {
   event: String,
   #[serde(default)]
   payload: Option<Value>,
+}
+
+fn escape_json_hex_sequences(raw: &str) -> Option<String> {
+  let bytes = raw.as_bytes();
+  let mut out = String::with_capacity(raw.len());
+  let mut changed = false;
+  let mut in_string = false;
+  let mut escaped = false;
+  let mut i = 0usize;
+
+  while i < bytes.len() {
+    let ch = bytes[i] as char;
+
+    if !in_string {
+      out.push(ch);
+      if ch == '"' {
+        in_string = true;
+      }
+      i += 1;
+      continue;
+    }
+
+    if escaped {
+      if ch == 'x' {
+        out.push('\\');
+        out.push('\\');
+        out.push('x');
+        changed = true;
+        escaped = false;
+        i += 1;
+        continue;
+      }
+
+      out.push('\\');
+      out.push(ch);
+      escaped = false;
+      i += 1;
+      continue;
+    }
+
+    match ch {
+      '\\' => {
+        escaped = true;
+      }
+      '"' => {
+        in_string = false;
+        out.push('"');
+      }
+      _ => out.push(ch),
+    }
+    i += 1;
+  }
+
+  if escaped {
+    out.push('\\');
+  }
+
+  changed.then_some(out)
+}
+
+fn parse_gateway_json<T>(raw: &str) -> Result<T, serde_json::Error>
+where
+  T: DeserializeOwned,
+{
+  match serde_json::from_str(raw) {
+    Ok(value) => Ok(value),
+    Err(err) if err.to_string().contains("hex escape") => {
+      if let Some(escaped) = escape_json_hex_sequences(raw) {
+        serde_json::from_str(&escaped)
+      } else {
+        Err(err)
+      }
+    }
+    Err(err) => Err(err),
+  }
 }
 
 #[derive(Serialize)]
@@ -534,41 +597,90 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // Ensure "browser" and "group:web" are in tools.allow.
+  // Ensure browser + explicit web tools are in tools.allow.
   // The gateway's DEFAULT_TOOL_ALLOW does NOT include "browser" or web tools.
   // Even with the "full" profile, the deny list takes precedence — so we must
   // also add browser to the allow list to be safe.
-  let browser_tool_allowed = cfg
+  let allow_arr = cfg
     .pointer("/tools/allow")
     .and_then(|v| v.as_array())
-    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-    .unwrap_or(false);
-  if !browser_tool_allowed {
+    .cloned();
+  let mut missing_web_allow = Vec::new();
+  if let Some(allow) = allow_arr.as_ref() {
+    for tool in ["browser", "web_fetch", "web_search", "group:web"] {
+      if !allow.iter().any(|item| item.as_str() == Some(tool)) {
+        missing_web_allow.push(tool);
+      }
+    }
+  } else {
+    missing_web_allow.extend(["browser", "web_fetch", "web_search", "group:web"]);
+  }
+  if !missing_web_allow.is_empty() {
     let tools = cfg.pointer_mut("/tools").unwrap().as_object_mut().unwrap();
     if let Some(allow) = tools.get_mut("allow").and_then(|v| v.as_array_mut()) {
-      allow.push(serde_json::json!("browser"));
+      for tool in &missing_web_allow {
+        allow.push(serde_json::json!(tool));
+      }
     } else {
-      tools.insert("allow".into(), serde_json::json!(["browser"]));
+      tools.insert(
+        "allow".into(),
+        serde_json::json!(["browser", "web_fetch", "web_search", "group:web"]),
+      );
     }
-    eprintln!("[gateway_client] Added browser to tools.allow");
+    eprintln!(
+      "[gateway_client] Added {:?} to tools.allow",
+      missing_web_allow
+    );
     patched = true;
   }
 
-  // Ensure "group:web" is in tools.allow (includes web_fetch + web_search)
-  let group_web_allowed = cfg
-    .pointer("/tools/allow")
-    .and_then(|v| v.as_array())
-    .map(|arr| arr.iter().any(|item| item.as_str() == Some("group:web")))
+  // Do not auto-pin a key-free web_search provider when no API-backed provider
+  // is configured. DuckDuckGo is available upstream as an explicit opt-in, but
+  // forcing it here makes fresh installs silently depend on a brittle HTML
+  // scraper that can degrade into CAPTCHA/bot-challenge failures. In zero-key
+  // setups, prefer browser-based search guidance over mutating provider config.
+  let search_provider = cfg
+    .pointer("/tools/web/search/provider")
+    .and_then(|v| v.as_str())
+    .unwrap_or("")
+    .trim()
+    .to_string();
+  let search_api_key_present = cfg
+    .pointer("/tools/web/search/apiKey")
+    .and_then(|v| v.as_str())
+    .map(|s| !s.trim().is_empty())
     .unwrap_or(false);
-  if !group_web_allowed {
-    if let Some(allow) = cfg
-      .pointer_mut("/tools/allow")
-      .and_then(|v| v.as_array_mut())
-    {
-      allow.push(serde_json::json!("group:web"));
+  let brave_plugin_key_present = cfg
+    .pointer("/plugins/entries/brave/config/webSearch/apiKey")
+    .and_then(|v| v.as_str())
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  let brave_env_present = std::env::var("BRAVE_API_KEY")
+    .map(|s| !s.trim().is_empty())
+    .unwrap_or(false);
+  let has_api_search_provider =
+    search_api_key_present || brave_plugin_key_present || brave_env_present;
+
+  if search_provider.is_empty() && !has_api_search_provider {
+    if cfg.pointer("/tools/web").is_none() {
+      cfg
+        .pointer_mut("/tools")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("web".into(), serde_json::json!({}));
     }
-    eprintln!("[gateway_client] Added group:web to tools.allow");
-    patched = true;
+    if cfg.pointer("/tools/web/search").is_none() {
+      cfg
+        .pointer_mut("/tools/web")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("search".into(), serde_json::json!({}));
+    }
+    eprintln!(
+      "[gateway_client] No API-backed web_search provider configured; leaving provider unset and relying on browser fallback"
+    );
   }
 
   // ── Ensure exec/process/file tools are allowed in NORMAL mode ──────────
@@ -710,18 +822,28 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
   }
 
   // sandbox allow list
-  let sandbox_allow_has_browser = cfg
+  let sandbox_allow = cfg
     .pointer("/tools/sandbox/tools/allow")
     .and_then(|v| v.as_array())
-    .map(|arr| arr.iter().any(|item| item.as_str() == Some("browser")))
-    .unwrap_or(false);
-  if !sandbox_allow_has_browser {
+    .cloned();
+  let mut missing_sandbox_allow = Vec::new();
+  if let Some(allow) = sandbox_allow.as_ref() {
+    for tool in ["browser", "web_fetch", "web_search", "group:web"] {
+      if !allow.iter().any(|item| item.as_str() == Some(tool)) {
+        missing_sandbox_allow.push(tool);
+      }
+    }
+  } else {
+    missing_sandbox_allow.extend(["browser", "web_fetch", "web_search", "group:web"]);
+  }
+  if !missing_sandbox_allow.is_empty() {
     if let Some(arr) = cfg
       .pointer_mut("/tools/sandbox/tools/allow")
       .and_then(|v| v.as_array_mut())
     {
-      arr.push(serde_json::json!("browser"));
-      arr.push(serde_json::json!("group:web"));
+      for tool in &missing_sandbox_allow {
+        arr.push(serde_json::json!(tool));
+      }
     } else {
       cfg
         .pointer_mut("/tools/sandbox/tools")
@@ -741,11 +863,16 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
             "sessions_spawn",
             "session_status",
             "browser",
+            "web_fetch",
+            "web_search",
             "group:web"
           ]),
         );
     }
-    eprintln!("[gateway_client] Added browser + group:web to tools.sandbox.tools.allow");
+    eprintln!(
+      "[gateway_client] Added {:?} to tools.sandbox.tools.allow",
+      missing_sandbox_allow
+    );
     patched = true;
   }
 
@@ -926,13 +1053,126 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
 /// so we don't repeatedly trigger restarts.
 static BROWSER_CONFIG_APPLIED: std::sync::atomic::AtomicBool =
   std::sync::atomic::AtomicBool::new(false);
-static BROWSER_CONFIG_RPC_UNSUPPORTED: std::sync::atomic::AtomicBool =
-  std::sync::atomic::AtomicBool::new(false);
 
 /// Push browser config to a running gateway via a **temporary** WebSocket
 /// Pick the best default LLM model based on which API key is available.
 /// Public so service.rs can call the same model resolution logic when
 /// updating the config file on provider change.
+fn normalize_provider_model(provider: &str, model: &str) -> String {
+  let model = model.trim();
+  if model.is_empty() {
+    return String::new();
+  }
+  if let Some((prefix, bare)) = model.split_once('/') {
+    let canonical_provider = match provider {
+      "gemini" => "google",
+      "google" => "google",
+      p => p,
+    };
+    if prefix.eq_ignore_ascii_case(canonical_provider) {
+      let bare = bare.trim();
+      if provider == "openrouter" && bare.eq_ignore_ascii_case("free") {
+        return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+      }
+      return bare.to_string();
+    }
+  }
+  if provider == "openrouter" && model.eq_ignore_ascii_case("free") {
+    return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+  }
+  model.to_string()
+}
+
+fn has_gemini_cli_auth_profile() -> bool {
+  let mut candidates = Vec::new();
+
+  if let Ok(dir) = std::env::var("OPENCLAW_HOME") {
+    let trimmed = dir.trim();
+    if !trimmed.is_empty() {
+      candidates.push(
+        std::path::PathBuf::from(trimmed)
+          .join("agents")
+          .join("main")
+          .join("agent")
+          .join("auth-profiles.json"),
+      );
+    }
+  }
+
+  if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
+    let trimmed = dir.trim();
+    if !trimmed.is_empty() {
+      candidates.push(
+        std::path::PathBuf::from(trimmed)
+          .join("agents")
+          .join("main")
+          .join("agent")
+          .join("auth-profiles.json"),
+      );
+    }
+  }
+
+  if let Some(home) = dirs::home_dir() {
+    candidates.push(
+      home
+        .join("Library")
+        .join("Application Support")
+        .join("ai.knap.knapsack")
+        .join("clawdbot")
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+
+  for path in candidates {
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+      continue;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) else {
+      continue;
+    };
+    let Some(profiles) = json.get("profiles").and_then(|v| v.as_object()) else {
+      continue;
+    };
+    if profiles
+      .keys()
+      .any(|key| key.starts_with("google-gemini-cli:"))
+    {
+      return true;
+    }
+  }
+
+  false
+}
+
+fn gateway_model_ref_usable(model_ref: &str) -> bool {
+  let provider = model_ref.split('/').next().unwrap_or("").to_lowercase();
+  let has = |var: &str| {
+    std::env::var(var)
+      .map(|k| !k.trim().is_empty())
+      .unwrap_or(false)
+  };
+  let has_knapsack_auth =
+    || has("KNAPSACK_ACCESS_TOKEN") || has("KNAPSACK_REFRESH_TOKEN") || has("KNAPSACK_USER_EMAIL");
+  match provider.as_str() {
+    "openai" | "openai-codex" => has("OPENAI_API_KEY"),
+    "anthropic" => has("ANTHROPIC_API_KEY"),
+    "google" | "gemini" | "vertex" => has("GEMINI_API_KEY") || has("GOOGLE_API_KEY"),
+    "google-gemini-cli" => has_gemini_cli_auth_profile(),
+    "groq" => has("GROQ_API_KEY"),
+    "xai" => has("XAI_API_KEY"),
+    "openrouter" => has("OPENROUTER_API_KEY"),
+    "ollama" => has("OLLAMA_API_KEY"),
+    // Desktop-only Knapsack cloud model aliases (for example `knapsack/auto`)
+    // are not valid gateway model refs. The gateway must use the local bridge.
+    "knapsack" => false,
+    "knapsack-local" => has_knapsack_auth(),
+    _ => true,
+  }
+}
+
 pub fn resolve_default_model() -> String {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let has_key = |var: &str| {
@@ -941,74 +1181,91 @@ pub fn resolve_default_model() -> String {
       .unwrap_or(false)
   };
   let has_gemini_key = || has_key("GEMINI_API_KEY") || has_key("GOOGLE_API_KEY");
+  let has_knapsack_auth = || {
+    has_key("KNAPSACK_ACCESS_TOKEN")
+      || has_key("KNAPSACK_REFRESH_TOKEN")
+      || has_key("KNAPSACK_USER_EMAIL")
+  };
 
   // Respect the user's active provider selection and configured model
   match active.as_str() {
-    // Knapsack cloud inference: keep the provider prefix explicit.
-    // Bare `auto` gets interpreted inconsistently by some gateway paths,
-    // whereas `knapsack/auto` is unambiguous and matches the desktop UI.
+    // Knapsack cloud inference can use a bare "auto" model in the desktop app,
+    // but the gateway needs a provider-qualified model for channels/browser work.
+    // If the Knapsack model is provider-less, prefer Gemini CLI auth when it is
+    // available, otherwise fall through to the normal gateway-capable fallback
+    // chain below.
     "knapsack" => {
       let model = std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
-      let model = model.trim();
-      let bare = if let Some((provider, bare)) = model.split_once('/') {
-        if provider.eq_ignore_ascii_case("knapsack") {
-          bare
-        } else {
+      let model = normalize_provider_model("knapsack", &model);
+      if model.contains('/') && gateway_model_ref_usable(&model) {
+        return model;
+      }
+      if has_knapsack_auth() {
+        return "knapsack-local/default".to_string();
+      }
+      if has_gemini_cli_auth_profile() {
+        let model =
+          std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+        return format!(
+          "google-gemini-cli/{}",
+          normalize_provider_model("google-gemini-cli", &model)
+        );
+      }
+      if !model.is_empty() && !model.eq_ignore_ascii_case("auto") {
+        log::info!(
+          "[resolve_default_model] Ignoring provider-less Knapsack model '{}' for gateway default resolution",
           model
-        }
-      } else {
-        model
-      };
-      return if bare.is_empty() {
-        "knapsack/auto".to_string()
-      } else {
-        format!("knapsack/{}", bare)
-      };
+        );
+      }
     }
     "openrouter" => {
       let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
         .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
-      return format!("openrouter/{}", model);
-    }
-    "trustedrouter" => {
-      let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
-        .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-      return format!("trustedrouter/{}", model);
+      return format!(
+        "openrouter/{}",
+        normalize_provider_model("openrouter", &model)
+      );
     }
     "ollama" => {
       let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
-      return format!("ollama/{}", model);
+      return format!("ollama/{}", normalize_provider_model("ollama", &model));
     }
     "anthropic" if has_key("ANTHROPIC_API_KEY") => {
       let model =
         std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
-      return format!("anthropic/{}", model);
+      return format!(
+        "anthropic/{}",
+        normalize_provider_model("anthropic", &model)
+      );
     }
     "openai" if has_key("OPENAI_API_KEY") => {
       let model =
         std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
-      return format!("openai/{}", model);
+      return format!("openai/{}", normalize_provider_model("openai", &model));
     }
     "groq" if has_key("GROQ_API_KEY") => {
       let model = std::env::var("KNAPSACK_GROQ_MODEL")
         .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
-      return format!("groq/{}", model);
+      return format!("groq/{}", normalize_provider_model("groq", &model));
     }
     "xai" if has_key("XAI_API_KEY") => {
       let model =
         std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
-      return format!("xai/{}", model);
+      return format!("xai/{}", normalize_provider_model("xai", &model));
     }
     "gemini" if has_gemini_key() => {
       let model =
         std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
-      return format!("google/{}", model);
+      return format!("google/{}", normalize_provider_model("google", &model));
     }
     // Google OAuth CLI auth (no API key env var — credentials stored in auth-profiles.json).
     "google-gemini-cli" => {
       let model =
         std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
-      return format!("google-gemini-cli/{}", model);
+      return format!(
+        "google-gemini-cli/{}",
+        normalize_provider_model("google-gemini-cli", &model)
+      );
     }
     _ => {}
   }
@@ -1022,7 +1279,7 @@ pub fn resolve_default_model() -> String {
   // so paid fallbacks are not silently selected when the CLI model is unavailable.
   let active_is_free = matches!(
     active.as_str(),
-    "groq" | "xai" | "gemini" | "ollama" | "openrouter" | "trustedrouter" | "google-gemini-cli"
+    "groq" | "xai" | "gemini" | "ollama" | "openrouter" | "google-gemini-cli"
   );
 
   if !disable_paid || !active_is_free {
@@ -1034,7 +1291,10 @@ pub fn resolve_default_model() -> String {
         model,
         active
       );
-      return format!("anthropic/{}", model);
+      return format!(
+        "anthropic/{}",
+        normalize_provider_model("anthropic", &model)
+      );
     }
     if has_key("OPENAI_API_KEY") {
       let model =
@@ -1044,7 +1304,7 @@ pub fn resolve_default_model() -> String {
         model,
         active
       );
-      return format!("openai/{}", model);
+      return format!("openai/{}", normalize_provider_model("openai", &model));
     }
   } else {
     if has_key("ANTHROPIC_API_KEY") {
@@ -1063,31 +1323,29 @@ pub fn resolve_default_model() -> String {
   if has_key("GROQ_API_KEY") {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
       .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
-    return format!("groq/{}", model);
+    return format!("groq/{}", normalize_provider_model("groq", &model));
   }
   if has_key("XAI_API_KEY") {
     let model =
       std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
-    return format!("xai/{}", model);
+    return format!("xai/{}", normalize_provider_model("xai", &model));
   }
   if has_gemini_key() {
     let model =
       std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
-    return format!("google/{}", model);
+    return format!("google/{}", normalize_provider_model("google", &model));
   }
   if has_key("OPENROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
-    return format!("openrouter/{}", model);
-  }
-  if has_key("TRUSTEDROUTER_API_KEY") {
-    let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
-      .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    return format!("trustedrouter/{}", model);
+    return format!(
+      "openrouter/{}",
+      normalize_provider_model("openrouter", &model)
+    );
   }
   if has_key("OLLAMA_API_KEY") {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
-    return format!("ollama/{}", model);
+    return format!("ollama/{}", normalize_provider_model("ollama", &model));
   }
   // Final fallback: use Groq free model instead of expensive Anthropic Opus
   log::warn!(
@@ -1111,27 +1369,17 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   let primary_provider = primary.split('/').next().unwrap_or("").to_lowercase();
   let mut fallbacks = Vec::new();
 
-  // Anthropic first among paid fallbacks: in practice this is the most common
-  // "already configured and actually working" escape hatch on desktop builds.
-  // Without it, an OpenAI quota error can bounce through Groq/Google/OpenRouter
-  // auth failures even though a healthy Anthropic key is available.
-  if primary_provider != "anthropic" && has_key("ANTHROPIC_API_KEY") {
-    let model =
-      std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
-    fallbacks.push(format!("anthropic/{}", model));
-  }
-
   // Groq first: free, fast, and a good rate-limit escape hatch.
   if primary_provider != "groq" && has_key("GROQ_API_KEY") {
     let model = std::env::var("KNAPSACK_GROQ_MODEL")
       .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
-    fallbacks.push(format!("groq/{}", model));
+    fallbacks.push(format!("groq/{}", normalize_provider_model("groq", &model)));
   }
 
   if primary_provider != "xai" && has_key("XAI_API_KEY") {
     let model =
       std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
-    fallbacks.push(format!("xai/{}", model));
+    fallbacks.push(format!("xai/{}", normalize_provider_model("xai", &model)));
   }
 
   // Google/Gemini as fallback when the primary is not already a Google provider.
@@ -1142,19 +1390,19 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   if !is_google_primary && has_gemini_key() {
     let model =
       std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
-    fallbacks.push(format!("google/{}", model));
+    fallbacks.push(format!(
+      "google/{}",
+      normalize_provider_model("google", &model)
+    ));
   }
 
   if primary_provider != "openrouter" && has_key("OPENROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
       .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
-    fallbacks.push(format!("openrouter/{}", model));
-  }
-
-  if primary_provider != "trustedrouter" && has_key("TRUSTEDROUTER_API_KEY") {
-    let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
-      .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    fallbacks.push(format!("trustedrouter/{}", model));
+    fallbacks.push(format!(
+      "openrouter/{}",
+      normalize_provider_model("openrouter", &model)
+    ));
   }
 
   fallbacks
@@ -1187,14 +1435,7 @@ pub fn build_model_config() -> serde_json::Value {
 
 /// connection.  config.patch triggers a SIGUSR1 restart on the gateway, so
 /// we use a throwaway connection and wait for the gateway to come back.
-async fn apply_runtime_browser_config(token: &str) -> bool {
-  if BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed) {
-    eprintln!(
-      "[gateway_client] Skipping runtime config.patch because this gateway build does not expose config.get"
-    );
-    return false;
-  }
-
+async fn apply_runtime_browser_config(token: &str) {
   // Open a temporary WebSocket just for the config.patch exchange.
   let tmp_req = {
     let mut r = GATEWAY_WS_URL.into_client_request().expect("valid URL");
@@ -1206,7 +1447,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     Ok(Ok((ws, _))) => ws,
     _ => {
       eprintln!("[gateway_client] Could not open temporary WS for config.patch");
-      return false;
+      return;
     }
   };
 
@@ -1227,16 +1468,16 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     Ok(Ok(t)) => t,
     _ => {
       eprintln!("[gateway_client] Timeout/error waiting for challenge on tmp WS");
-      return false;
+      return;
     }
   };
 
   let event: EventFrame = match serde_json::from_str(&challenge_text) {
     Ok(e) => e,
-    Err(_) => return false,
+    Err(_) => return,
   };
   if event.event != "connect.challenge" {
-    return false;
+    return;
   }
 
   let connect_params = ConnectParams {
@@ -1270,7 +1511,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     .await
     .is_err()
   {
-    return false;
+    return;
   }
 
   // Wait for connect response.
@@ -1293,107 +1534,54 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     Err(_) => false,
   };
 
-  // Send config.get to get the baseHash. During early gateway startup the
-  // control-plane registry can still be warming up, so retry a few times
-  // instead of treating a temporary unknown-method/timeout as a stable state.
-  let mut cfg_val: Option<Value> = None;
-  for (attempt_idx, wait_ms) in [0_u64, 250, 500, 1_000].into_iter().enumerate() {
-    let config_get_id = next_request_id();
-    let config_get_frame = RequestFrame {
-      frame_type: "req",
-      method: "config.get".to_string(),
-      id: config_get_id.clone(),
-      params: None,
-    };
-    if tmp_write
-      .send(Message::Text(
-        serde_json::to_string(&config_get_frame).unwrap(),
-      ))
-      .await
-      .is_err()
-    {
-      eprintln!("[gateway_client] Failed to send config.get on tmp WS");
-      return false;
-    }
-
-    let attempt_result = tokio::time::timeout(Duration::from_secs(5), async {
-      loop {
-        match tmp_read.next().await {
-          Some(Ok(Message::Text(t))) => {
-            if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
-              if resp.id == config_get_id && resp.ok {
-                break Ok(
-                  resp
-                    .result
-                    .or(resp.data)
-                    .or(resp.payload)
-                    .unwrap_or(Value::Null),
-                );
-              } else if resp.id == config_get_id {
-                let error_text = resp
-                  .error
-                  .as_ref()
-                  .map(|value| value.to_string())
-                  .unwrap_or_else(|| "config.get failed".to_string());
-                break Err(error_text);
-              }
-            }
-          }
-          Some(Ok(Message::Close(_))) | None => break Err("connection closed".to_string()),
-          _ => continue,
-        }
-      }
-    })
-    .await;
-
-    match attempt_result {
-      Ok(Ok(value)) => {
-        cfg_val = Some(value);
-        break;
-      }
-      Ok(Err(error)) => {
-        let unknown_method = should_retry_unknown_method(&error, "config.get");
-        if unknown_method && attempt_idx + 1 >= 4 {
-          BROWSER_CONFIG_RPC_UNSUPPORTED.store(true, Ordering::Relaxed);
-        }
-        if unknown_method && attempt_idx + 1 < 4 {
-          eprintln!(
-            "[gateway_client] config.get unavailable during startup on tmp WS; retrying in {}ms (attempt {}/{})",
-            wait_ms,
-            attempt_idx + 1,
-            4
-          );
-          tokio::time::sleep(Duration::from_millis(wait_ms)).await;
-          continue;
-        }
-        eprintln!(
-          "[gateway_client] config.get failed on tmp WS, skipping runtime patch: {}",
-          error
-        );
-        return false;
-      }
-      Err(_) => {
-        if attempt_idx + 1 < 4 {
-          eprintln!(
-            "[gateway_client] config.get timed out on tmp WS; retrying in {}ms (attempt {}/{})",
-            wait_ms,
-            attempt_idx + 1,
-            4
-          );
-          tokio::time::sleep(Duration::from_millis(wait_ms)).await;
-          continue;
-        }
-        eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
-        return false;
-      }
-    }
+  // Send config.get to get the baseHash.
+  let config_get_id = next_request_id();
+  let config_get_frame = RequestFrame {
+    frame_type: "req",
+    method: "config.get".to_string(),
+    id: config_get_id.clone(),
+    params: None,
+  };
+  if tmp_write
+    .send(Message::Text(
+      serde_json::to_string(&config_get_frame).unwrap(),
+    ))
+    .await
+    .is_err()
+  {
+    return;
   }
 
-  let cfg_val = match cfg_val {
-    Some(value) => value,
-    None => {
-      eprintln!("[gateway_client] config.get never succeeded on tmp WS, skipping patch");
-      return false;
+  // Read config.get response.
+  let cfg_val: Value = match tokio::time::timeout(Duration::from_secs(5), async {
+    loop {
+      match tmp_read.next().await {
+        Some(Ok(Message::Text(t))) => {
+          if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&t) {
+            if resp.id == config_get_id && resp.ok {
+              break Ok(
+                resp
+                  .result
+                  .or(resp.data)
+                  .or(resp.payload)
+                  .unwrap_or(Value::Null),
+              );
+            } else if resp.id == config_get_id {
+              break Err("config.get failed");
+            }
+          }
+        }
+        Some(Ok(Message::Close(_))) | None => break Err("connection closed"),
+        _ => continue,
+      }
+    }
+  })
+  .await
+  {
+    Ok(Ok(v)) => v,
+    _ => {
+      eprintln!("[gateway_client] config.get failed or timed out on tmp WS, skipping patch");
+      return;
     }
   };
 
@@ -1405,7 +1593,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
 
   if base_hash.is_empty() {
     eprintln!("[gateway_client] config.get returned no hash, skipping runtime patch");
-    return false;
+    return;
   }
 
   // Send config.patch with browser + tools settings.
@@ -1425,7 +1613,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
-      "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+      "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
       "exec": {
         "applyPatch": { "enabled": true }
       },
@@ -1436,7 +1624,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
             "exec", "process", "group:fs",
             "image", "sessions_list", "sessions_history",
             "sessions_send", "sessions_spawn", "session_status",
-            "browser", "group:web"
+            "browser", "web_fetch", "web_search", "group:web"
           ]
         }
       }
@@ -1518,7 +1706,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     .is_err()
   {
     eprintln!("[gateway_client] Failed to send config.patch — connection closed");
-    return false;
+    return;
   }
 
   // Read the config.patch response to detect rate-limiting or other rejection.
@@ -1581,7 +1769,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
   if !patch_accepted {
     // Patch was rejected — gateway is NOT restarting.  No further action needed;
     // the already-correct disk config will be picked up on the next gateway restart.
-    return false;
+    return;
   }
 
   // Wait for the gateway to restart.  Poll until the port is listening again
@@ -1593,12 +1781,11 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
       eprintln!("[gateway_client] Gateway is back up after config.patch");
       // Give it a moment to fully initialize.
       tokio::time::sleep(Duration::from_millis(500)).await;
-      return true;
+      return;
     }
     tokio::time::sleep(Duration::from_millis(wait_ms)).await;
   }
   eprintln!("[gateway_client] Gateway did not come back after config.patch within timeout");
-  false
 }
 
 async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String> {
@@ -1630,10 +1817,10 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   // BROWSER_CONFIG_APPLIED prevents firing on every reconnect after a transient
   // WS drop.
   let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
-    && !BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed)
     && (gateway_already_running || disk_config_changed);
 
   if need_runtime_patch {
+    BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
     // Wait briefly for the gateway to be reachable if we just wrote the disk config.
     if disk_config_changed && !gateway_already_running {
       eprintln!(
@@ -1642,13 +1829,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     } else {
       eprintln!("[gateway_client] Applying config.patch RPC (gateway running, skipped disk write)");
     }
-    if apply_runtime_browser_config(token).await {
-      BROWSER_CONFIG_APPLIED.store(true, Ordering::Relaxed);
-    } else {
-      eprintln!(
-        "[gateway_client] Runtime config.patch did not complete; leaving patch flag unset for retry"
-      );
-    }
+    apply_runtime_browser_config(token).await;
   }
 
   ensure_gateway_best_effort(token).await;
@@ -2199,23 +2380,15 @@ pub async fn ensure_gateway_and_wait() {
   }
 }
 
-fn should_retry_unknown_method(error: &str, method: &str) -> bool {
-  let needle = format!("unknown method: {}", method);
-  error
-    .to_ascii_lowercase()
-    .contains(&needle.to_ascii_lowercase())
-}
-
-fn is_unknown_requested_method(error: &str, method: &str) -> bool {
-  should_retry_unknown_method(error, method)
-}
-
-async fn gateway_request_pooled_inner(
+/// Make a request using a persistent gateway connection.
+///
+/// Adds:
+/// - bounded in-flight requests (backpressure)
+/// - circuit breaker to avoid thrashing when gateway is down
+pub async fn gateway_request_pooled(
   method: &str,
   params: Option<Value>,
   token: &str,
-  allow_unknown_method_retry: bool,
-  allow_connection_retry: bool,
 ) -> Result<Value, String> {
   let client = get_or_connect(token).await?;
 
@@ -2238,7 +2411,6 @@ async fn gateway_request_pooled_inner(
     .map_err(|_| "Gateway request queue closed".to_string())?;
 
   let id = next_request_id();
-  let retry_params = params.clone();
   let frame = RequestFrame {
     frame_type: "req",
     method: method.to_string(),
@@ -2310,80 +2482,6 @@ async fn gateway_request_pooled_inner(
   }
 
   drop(permit);
-  if is_connection_error && allow_connection_retry {
-    let gateway_still_healthy = gateway_ws_handshake_open(token, Duration::from_millis(1500)).await
-      || is_gateway_port_open().await;
-    if gateway_still_healthy {
-      eprintln!(
-        "[gateway_client] {} hit a stale pooled connection while gateway stayed healthy; reconnecting and retrying once",
-        method
-      );
-      invalidate_client();
-      return Box::pin(gateway_request_pooled_inner(
-        method,
-        retry_params.clone(),
-        token,
-        allow_unknown_method_retry,
-        false,
-      ))
-      .await;
-    }
-  }
-  if allow_unknown_method_retry {
-    if let Err(ref error) = out {
-      if should_retry_unknown_method(error, method) {
-        eprintln!(
-          "[gateway_client] {} returned stale unknown-method response; reconnecting and retrying once",
-          method
-        );
-        invalidate_client();
-        return Box::pin(gateway_request_pooled_inner(
-          method,
-          retry_params,
-          token,
-          false,
-          false,
-        ))
-        .await;
-      }
-    }
-  }
-  out
-}
-
-/// Make a request using a persistent gateway connection.
-///
-/// Adds:
-/// - bounded in-flight requests (backpressure)
-/// - circuit breaker to avoid thrashing when gateway is down
-pub async fn gateway_request_pooled(
-  method: &str,
-  params: Option<Value>,
-  token: &str,
-) -> Result<Value, String> {
-  gateway_request_pooled_inner(method, params, token, true, true).await
-}
-
-/// Make an optional request using the persistent gateway connection.
-///
-/// Some gateway builds legitimately do not expose newer RPC methods yet.
-/// Callers that can safely fall back locally should use this helper so an
-/// unsupported optional method does not trigger a noisy reconnect/retry cycle
-/// that looks like a stale connection or startup regression.
-pub async fn gateway_request_pooled_optional(
-  method: &str,
-  params: Option<Value>,
-  token: &str,
-) -> Result<Value, String> {
-  let out = gateway_request_pooled_inner(method, params, token, false, true).await;
-  if let Err(ref error) = out {
-    if is_unknown_requested_method(error, method) {
-      eprintln!(
-        "[gateway_client] {} is unsupported by the active gateway build; using caller fallback",
-        method
-      );
-    }
-  }
   out
 }
 
@@ -2592,22 +2690,10 @@ fn resolve_token(token: Option<&str>) -> Result<String, String> {
   })
 }
 
-fn default_channel_status_params() -> Value {
-  serde_json::json!({
-    "probe": false,
-    "timeoutMs": 2500
-  })
-}
-
 /// Get channel status from the gateway (pooled).
 pub async fn get_channel_status(token: Option<&str>) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  call_channel_method(
-    "channels.status",
-    Some(default_channel_status_params()),
-    Some(&t),
-  )
-  .await
+  gateway_request_pooled("status", None, &t).await
 }
 
 /// Call a channel method on the gateway (pooled).
@@ -2641,6 +2727,20 @@ fn is_transient_browser_error(err: &str) -> bool {
     || err.contains("CDP") && err.contains("not")
 }
 
+fn browser_request_can_retry(http_method: &str, path: &str) -> bool {
+  let method = http_method.trim().to_ascii_uppercase();
+  if method == "GET" {
+    return true;
+  }
+
+  // Retrying browser mutations can duplicate visible side effects when the
+  // gateway eventually succeeds after our client-side timeout. In production
+  // that showed up as the same Drive URL opening in multiple tabs at once.
+  // Keep automatic retry limited to startup-ish operations that are safe to
+  // repeat.
+  method == "POST" && matches!(path, "/start")
+}
+
 /// Send a browser control request through the gateway's `browser.request`
 /// RPC method.  The gateway dispatches to its in-process browser control
 /// service (same routes as the legacy HTTP bridge that used to run on
@@ -2658,6 +2758,7 @@ pub async fn browser_request(
   token: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
+  let allow_retry = browser_request_can_retry(http_method, path);
 
   // Keep browser RPCs bounded. Browser tools often run inside chat requests,
   // so a stuck CDP call must fail quickly enough for the agent to recover.
@@ -2689,13 +2790,10 @@ pub async fn browser_request(
     )
     .await
     {
-      Ok(Ok(result)) => {
-        LAST_BROWSER_RPC_SUCCESS_MS.store(now_epoch_ms(), Ordering::Relaxed);
-        return Ok(result);
-      }
+      Ok(Ok(result)) => return Ok(result),
       Ok(Err(e)) => {
         last_err = e;
-        if attempt < backoffs.len() && is_transient_browser_error(&last_err) {
+        if allow_retry && attempt < backoffs.len() && is_transient_browser_error(&last_err) {
           let delay = backoffs[attempt];
           eprintln!(
             "[gateway_client] browser_request transient error (attempt {}/{}), retrying in {}ms: {}",
@@ -2711,7 +2809,7 @@ pub async fn browser_request(
           "Timed out waiting for browser response after {}ms",
           attempt_timeout.as_millis()
         );
-        if attempt < backoffs.len() {
+        if allow_retry && attempt < backoffs.len() {
           let delay = backoffs[attempt];
           eprintln!(
             "[gateway_client] browser_request timeout (attempt {}/{}), retrying in {}ms",
@@ -2779,6 +2877,7 @@ pub async fn agent_chat(
   message: &str,
   attachments: &[serde_json::Value],
   token: Option<&str>,
+  conversation_scope: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
   let idem = format!(
@@ -2788,6 +2887,10 @@ pub async fn agent_chat(
       .unwrap_or_default()
       .as_millis()
   );
+  let scope = conversation_scope
+    .unwrap_or("dm")
+    .trim()
+    .to_ascii_lowercase();
   let mut params = serde_json::json!({
     "message": message,
     "idempotencyKey": idem,
@@ -2795,6 +2898,9 @@ pub async fn agent_chat(
     "channel": "webchat",
     "agentId": "main",
   });
+  if !scope.is_empty() {
+    params["conversationScope"] = serde_json::json!(scope);
+  }
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
   }
@@ -2834,7 +2940,8 @@ pub async fn agent_run(
 
 /// Get current config from gateway (pooled).
 pub async fn config_get(token: Option<&str>) -> Result<Value, String> {
-  crate::clawd::gateway_ws::config_get(token).await
+  let t = resolve_token(token)?;
+  gateway_request_pooled("config.get", None, &t).await
 }
 
 /// Patch config on gateway (pooled) - requires baseHash from config.get.
@@ -2904,72 +3011,21 @@ mod tests {
   }
 
   #[test]
-  fn browser_config_does_not_auto_pin_duckduckgo_provider() {
-    let cfg_json = json!({
-      "tools": {
-        "deny": ["canvas", "nodes", "cron", "gateway"],
-        "allow": ["browser", "web_fetch", "web_search", "group:web"]
-      }
-    });
-    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
-    let changed = ensure_browser_config_at(f.path());
-    assert!(
-      changed,
-      "baseline browser/tool invariants should still be patched"
-    );
-
-    let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
-    assert_eq!(
-      updated.pointer("/tools/web/search/provider"),
-      None,
-      "search provider should remain unset when no API-backed provider is configured"
-    );
-    assert_eq!(
-      updated.pointer("/plugins/entries/duckduckgo"),
-      None,
-      "DuckDuckGo should not be force-enabled as an implicit default"
-    );
-  }
-
-  #[test]
-  fn channel_status_request_uses_channels_status_rpc_defaults() {
-    assert_eq!(
-      default_channel_status_params(),
-      json!({
-        "probe": false,
-        "timeoutMs": 2500
-      })
-    );
-  }
-
-  #[test]
-  fn knapsack_default_model_keeps_provider_prefix() {
+  fn resolve_default_model_rewrites_knapsack_auto_for_gateway_use() {
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "auto");
-    assert_eq!(resolve_default_model(), "knapsack/auto");
-    std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "knapsack/gemini-2.5-flash");
-    assert_eq!(resolve_default_model(), "knapsack/gemini-2.5-flash");
-    std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
+    std::env::set_var("KNAPSACK_ACCESS_TOKEN", "token");
+    std::env::set_var("KNAPSACK_REFRESH_TOKEN", "refresh");
+    std::env::set_var("KNAPSACK_USER_EMAIL", "mark@knap.ai");
+
+    let model = resolve_default_model();
+    assert_eq!(model, "knapsack-local/default");
+
     std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
-  }
-
-  #[test]
-  fn fallback_models_include_anthropic_when_available() {
-    std::env::set_var("ANTHROPIC_API_KEY", "test-anthropic");
-    std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", "claude-sonnet-4-5");
-    std::env::remove_var("GROQ_API_KEY");
-    std::env::remove_var("GEMINI_API_KEY");
-    std::env::remove_var("GOOGLE_API_KEY");
-    std::env::remove_var("OPENROUTER_API_KEY");
-
-    let fallbacks = collect_fallback_models("openai/gpt-5.5");
-    assert_eq!(
-      fallbacks.first().map(String::as_str),
-      Some("anthropic/claude-sonnet-4-5")
-    );
-
-    std::env::remove_var("ANTHROPIC_API_KEY");
-    std::env::remove_var("KNAPSACK_ANTHROPIC_MODEL");
+    std::env::remove_var("KNAPSACK_KNAPSACK_MODEL");
+    std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
+    std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
+    std::env::remove_var("KNAPSACK_USER_EMAIL");
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───
@@ -2996,7 +3052,7 @@ mod tests {
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],
-        "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "exec": { "applyPatch": { "enabled": true } },
         "media": { "image": { "enabled": true } },
         "sandbox": {
@@ -3006,7 +3062,7 @@ mod tests {
               "exec", "process", "group:fs", "image",
               "sessions_list", "sessions_history",
               "sessions_send", "sessions_spawn", "session_status",
-              "browser", "group:web"
+              "browser", "web_fetch", "web_search", "group:web"
             ]
           }
         }
@@ -3041,6 +3097,34 @@ mod tests {
 
     let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
     assert_eq!(updated.pointer("/browser/headless"), Some(&json!(false)));
+  }
+
+  #[test]
+  fn browser_config_does_not_auto_pin_duckduckgo_provider() {
+    let cfg_json = json!({
+      "tools": {
+        "deny": ["canvas", "nodes", "cron", "gateway"],
+        "allow": ["browser", "web_fetch", "web_search", "group:web"]
+      }
+    });
+    let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
+    let changed = ensure_browser_config_at(f.path());
+    assert!(
+      changed,
+      "baseline browser/tool invariants should still be patched"
+    );
+
+    let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
+    assert_eq!(
+      updated.pointer("/tools/web/search/provider"),
+      None,
+      "search provider should remain unset when no API-backed provider is configured"
+    );
+    assert_eq!(
+      updated.pointer("/plugins/entries/duckduckgo"),
+      None,
+      "DuckDuckGo should not be force-enabled as an implicit default"
+    );
   }
 
   // ── gateway WS scope completeness ──────────────────────────────────────
@@ -3099,7 +3183,7 @@ mod tests {
         "auth": { "token": "test-token", "mode": "tailscale" }
       },
       "browser": { "enabled": true, "headless": false, "defaultProfile": "openclaw" },
-      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","group:web","exec","process","group:fs"] }
+      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
     });
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     ensure_browser_config_at(f.path());
@@ -3169,7 +3253,7 @@ mod tests {
         "tailscale": tailscale_val.clone()
       },
       "browser": { "enabled": true, "headless": false, "defaultProfile": "openclaw" },
-      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","group:web","exec","process","group:fs"] }
+      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
     });
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     ensure_browser_config_at(f.path());
@@ -3179,25 +3263,5 @@ mod tests {
       Some(&tailscale_val),
       "gateway.tailscale must be preserved unchanged through any patch"
     );
-  }
-
-  #[test]
-  fn retries_only_when_gateway_reports_unknown_requested_method() {
-    assert!(should_retry_unknown_method(
-      "Request failed: Object {\"code\":\"INVALID_REQUEST\",\"message\":\"unknown method: config.get\"}",
-      "config.get"
-    ));
-    assert!(!should_retry_unknown_method(
-      "Request failed: Object {\"code\":\"INVALID_REQUEST\",\"message\":\"unknown method: status\"}",
-      "config.get"
-    ));
-  }
-
-  #[test]
-  fn detects_unknown_requested_method_case_insensitively() {
-    assert!(is_unknown_requested_method(
-      "request failed: object {\"message\":\"Unknown Method: skills.status\"}",
-      "skills.status"
-    ));
   }
 }
