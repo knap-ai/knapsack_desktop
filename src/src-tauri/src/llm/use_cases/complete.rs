@@ -143,8 +143,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     }
     "knapsack" => {
       if let Some(email) = &knapsack_email {
-        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
-          .unwrap_or_else(|_| "auto".to_string());
+        let model = std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
         let model = {
           let model = model.trim();
           if let Some((provider, bare)) = model.split_once('/') {
@@ -335,7 +334,11 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
   if complexity == "haiku" {
     // Cross-provider routing: if OpenRouter is available and the current provider
     // is a paid one, route simple tasks to OpenRouter's free model instead.
-    if provider.name != "openrouter" && provider.name != "ollama" && provider.name != "groq" && provider.name != "knapsack" {
+    if provider.name != "openrouter"
+      && provider.name != "ollama"
+      && provider.name != "groq"
+      && provider.name != "knapsack"
+    {
       let openrouter_key = std::env::var("OPENROUTER_API_KEY")
         .ok()
         .filter(|k| !k.trim().is_empty());
@@ -372,7 +375,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
       "groq" => (provider.model.clone(), "Groq"),            // already cheap
       "knapsack" => (provider.model.clone(), "Knapsack"),
       "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
-      "ollama" => (provider.model.clone(), "Ollama"),        // local, no cost
+      "ollama" => (provider.model.clone(), "Ollama"),         // local, no cost
       _ => (provider.model.clone(), "unchanged"),
     };
 
@@ -551,7 +554,10 @@ async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> 
       }
     }
     Err(err) => {
-      log::warn!("[knapsack_token] /refresh_token_api request failed: {}", err);
+      log::warn!(
+        "[knapsack_token] /refresh_token_api request failed: {}",
+        err
+      );
     }
   }
 
@@ -1069,8 +1075,8 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
         .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
       let fb_gemini_model =
         std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
-      let fb_knapsack_model = std::env::var("KNAPSACK_KNAPSACK_MODEL")
-        .unwrap_or_else(|_| "auto".to_string());
+      let fb_knapsack_model =
+        std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
       let fb_knapsack_model = {
         let model = fb_knapsack_model.trim();
         if let Some((provider, bare)) = model.split_once('/') {
@@ -1096,8 +1102,7 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
           } else {
             fb_knapsack_model.clone()
           },
-          option_env!("VITE_KN_API_SERVER")
-            .unwrap_or("https://api.knapsack.ai"),
+          option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai"),
           false,
         ),
         (

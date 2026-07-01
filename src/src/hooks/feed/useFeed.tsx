@@ -69,7 +69,6 @@ const reply_actions = [
 ]
 
 const MAX_RETRIES = 5
-const STARTUP_EMAIL_AUTOPILOT_DELAY_MS = 5 * 60_000
 export const STATIONARY_ITEMS = 'stationary'
 export interface IFeed {
   updateFeedItemTitle?: (key: string, itemId: number, newTitle: string) => void
@@ -199,6 +198,8 @@ export interface ComposedEmailDraft {
   subject: string
   body: string
   threadId?: string
+  userEmail?: string
+  userName?: string
 }
 
 export function useFeed(
@@ -391,30 +392,6 @@ export function useFeed(
   }
 
   const lastEmailId = useRef<number | undefined>(undefined)
-  const feedMountedAt = useRef(Date.now())
-  const startupEmailAutopilotTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const runEmailAutopilotAfterStartup = () => {
-    const elapsed = Date.now() - feedMountedAt.current
-    const remaining = STARTUP_EMAIL_AUTOPILOT_DELAY_MS - elapsed
-    if (remaining <= 0) {
-      runEmailAutopilot()
-      return
-    }
-    if (startupEmailAutopilotTimer.current) return
-    startupEmailAutopilotTimer.current = setTimeout(() => {
-      startupEmailAutopilotTimer.current = null
-      runEmailAutopilot()
-    }, remaining)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (startupEmailAutopilotTimer.current) {
-        clearTimeout(startupEmailAutopilotTimer.current)
-      }
-    }
-  }, [])
 
   const selectEmailCategory = useCallback(() => {
     const getTabCount = (category: EmailImportance): number => {
@@ -484,7 +461,9 @@ export function useFeed(
         loggedEmailAutopilot &&
         getTotalClassifiedEmailsCount() <= 0
       ) {
-        runEmailAutopilotAfterStartup()
+        // When the user explicitly opens Email Autopilot, refresh immediately
+        // instead of waiting for the background startup delay.
+        runEmailAutopilot()
       }
     } catch (error) {
       console.error(error)
@@ -751,11 +730,6 @@ export function useFeed(
       // Fetch 7 days so starred / unread emails older than 24h are still
       // picked up.  The unread+starred filter below keeps the set manageable.
       let allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
-
-      if (allMessages.length === emailAutopilotStatus.progress?.total) {
-        setEmailAutopilotStatus({ status: 'complete' })
-        return
-      }
 
       if (allMessages.length === 0) {
         setEmailAutopilotStatus({ status: 'complete' })

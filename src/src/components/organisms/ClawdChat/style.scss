@@ -295,6 +295,68 @@
   }
 }
 
+.ClawdChatFindBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+
+    &:focus {
+      border-color: rgba(59, 130, 246, 0.45);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+  }
+
+  button {
+    flex-shrink: 0;
+    padding: 7px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 12px;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.ClawdChatFindBar__count {
+  flex-shrink: 0;
+  min-width: 68px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  text-align: right;
+}
+
+.ClawdChatMatch {
+  border-radius: 12px;
+}
+
+.ClawdChatMatch--active {
+  outline: 2px solid rgba(59, 130, 246, 0.28);
+  outline-offset: 4px;
+}
+
 .ClawdScrollToBottom {
   position: absolute;
   bottom: 80px;
@@ -1002,6 +1064,7 @@
 // Input wrapper for voice toggle inside input
 .ClawdInputWrapper {
   flex: 1;
+  min-width: 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -1070,7 +1133,9 @@
 
 .ClawdChatInput textarea {
   flex: 1;
-  padding: 8px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 44px 8px 12px;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.12);
   font-size: 13px;
@@ -1079,7 +1144,7 @@
   resize: none;
   overflow-y: auto;
   max-height: 160px;
-  line-height: 1.4;
+  line-height: 1.45;
   min-height: 36px;
 
   &:focus {
@@ -3577,10 +3642,12 @@
   &__text {
     font-size: 12px;
     color: rgba(0, 0, 0, 0.55);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
     line-height: 1.4;
+    word-break: break-word;
   }
 }
 
@@ -3608,7 +3675,7 @@
 // Reply preview bar — shown above the input area when composing a reply
 .ClawdReplyPreview {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 0;
   margin: 0 0 2px;
   border-radius: 8px 8px 0 0;
@@ -3652,14 +3719,17 @@
   &__text {
     font-size: 12px;
     color: rgba(0, 0, 0, 0.5);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.4;
+    word-break: break-word;
   }
 
   &__cancel {
-    align-self: center;
-    margin-right: 8px;
+    align-self: flex-start;
+    margin: 6px 8px 0 0;
     flex-shrink: 0;
     width: 24px;
     height: 24px;

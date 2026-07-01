@@ -34,6 +34,10 @@ const launchAgentPlist = path.join(
   "ai.knap.knapsack.clawdbot.plist",
 );
 const qaStateDir = path.join(projectDir, ".qa-dev-openclaw-state");
+const qaLaunchAgentBackupPath = path.join(
+  qaStateDir,
+  "launch-agent-backup.plist",
+);
 
 function qaEnv(extra = {}) {
   const env = {
@@ -188,6 +192,28 @@ function readLaunchAgentPlist() {
   return JSON.parse(result.stdout);
 }
 
+function launchAgentTargetsThisCheckout(plist) {
+  const entry = plist?.ProgramArguments?.[1] || "";
+  return entry.startsWith(
+    path.join(projectDir, "src-tauri", "resources", "clawdbot"),
+  );
+}
+
+function backupExistingLaunchAgentIfNeeded() {
+  if (process.platform !== "darwin") return;
+  try {
+    if (!fs.existsSync(launchAgentPlist)) return;
+    const plist = readLaunchAgentPlist();
+    if (launchAgentTargetsThisCheckout(plist)) return;
+    fs.mkdirSync(path.dirname(qaLaunchAgentBackupPath), { recursive: true });
+    fs.copyFileSync(launchAgentPlist, qaLaunchAgentBackupPath);
+  } catch (error) {
+    console.warn(
+      `[qa-dev-run] Could not back up existing LaunchAgent plist: ${error.message}`,
+    );
+  }
+}
+
 function bootoutLaunchAgent() {
   if (process.platform !== "darwin") return;
   const uid = process.getuid?.();
@@ -198,6 +224,34 @@ function bootoutLaunchAgent() {
   spawnSync("launchctl", ["bootout", domain, launchAgentPlist], {
     stdio: "ignore",
   });
+}
+
+function removeQaLaunchAgentIfPresent() {
+  if (process.platform !== "darwin") return;
+  try {
+    if (!fs.existsSync(launchAgentPlist)) return;
+    const plist = readLaunchAgentPlist();
+    if (!launchAgentTargetsThisCheckout(plist)) return;
+    fs.rmSync(launchAgentPlist, { force: true });
+  } catch (error) {
+    console.warn(
+      `[qa-dev-run] Could not remove QA LaunchAgent plist: ${error.message}`,
+    );
+  }
+}
+
+function restoreLaunchAgentBackupIfPresent() {
+  if (process.platform !== "darwin") return;
+  try {
+    if (!fs.existsSync(qaLaunchAgentBackupPath)) return;
+    fs.mkdirSync(path.dirname(launchAgentPlist), { recursive: true });
+    fs.copyFileSync(qaLaunchAgentBackupPath, launchAgentPlist);
+    fs.rmSync(qaLaunchAgentBackupPath, { force: true });
+  } catch (error) {
+    console.warn(
+      `[qa-dev-run] Could not restore original LaunchAgent plist: ${error.message}`,
+    );
+  }
 }
 
 function killStaleGateways() {
@@ -480,6 +534,7 @@ function binaryNeedsRebuild() {
 }
 
 async function main() {
+  backupExistingLaunchAgentIfNeeded();
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
@@ -517,8 +572,11 @@ async function main() {
     if (!vite.killed) vite.kill("SIGTERM");
     if (gateway && !gateway.killed) gateway.kill("SIGTERM");
     if (app && !app.killed) app.kill("SIGTERM");
+    bootoutLaunchAgent();
     killStaleGateways();
     killStaleOpenClawChrome();
+    removeQaLaunchAgentIfPresent();
+    restoreLaunchAgentBackupIfPresent();
   };
   process.on("SIGINT", () => {
     cleanup();

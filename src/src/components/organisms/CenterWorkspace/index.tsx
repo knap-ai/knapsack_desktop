@@ -34,6 +34,7 @@ import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import { logError } from 'src/utils/errorHandling'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
+import { ScoutWatchlist, ScoutWatchlistItem } from 'src/components/organisms/ScoutWatchlist'
 
 const STARTUP_EMAIL_AUTOPILOT_AUTO_OPEN_DELAY_MS = 5 * 60_000
 
@@ -124,6 +125,52 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   );
 
   const onSynthesisFinish = () => setSynthesisState(prev => !prev)
+
+  const scoutWatchlistItems: ScoutWatchlistItem[] = useMemo(() => {
+    const now = Date.now() / 1000
+    const next48Hours = now + 48 * 60 * 60
+
+    const meetingItems: ScoutWatchlistItem[] = Object.values(feed.meetings || {})
+      .filter(meeting => meeting.start > now && meeting.start <= next48Hours && !meeting.hasEnded)
+      .map(meeting => ({
+        id: `meeting-${meeting.id}`,
+        title: `Prep for ${meeting.title || 'upcoming meeting'}`,
+        summary:
+          meeting.participants && meeting.participants.length > 0
+            ? `Participants: ${meeting.participants.map(p => p.email).join(', ')}`
+            : 'No participant list available',
+        dueAt: new Date(meeting.start * 1000),
+        source: 'meeting',
+        confidence: 'high',
+      }))
+
+    const emailItems: ScoutWatchlistItem[] = Object.entries(feed.classifiedEmails || {})
+      .flatMap(([classification, emails]) => {
+        const importance = classification as EmailImportance
+        if (!emails || emails.length === 0) {
+          return []
+        }
+        if (importance === EmailImportance.UNCLASSIFIED) {
+          return []
+        }
+
+        return emails
+          .filter(email => !email.wasIgnored && !email.wasReplySent)
+          .slice(0, 2)
+          .map<ScoutWatchlistItem>(email => ({
+            id: `email-${classification}-${email.message.emailUid}`,
+            title: `Follow-up needed: ${email.message.subject || 'Unknown subject'}`,
+            summary: `From: ${email.message.sender || 'Unknown sender'} — thread needs your input.`,
+            dueAt: new Date(email.message.date * 1000),
+            source: 'email',
+            confidence: importance === EmailImportance.IMPORTANT ? 'high' : 'medium',
+          }))
+      })
+
+    return [...meetingItems, ...emailItems]
+      .sort((a, b) => (a.dueAt?.getTime() || 0) - (b.dueAt?.getTime() || 0))
+      .slice(0, 10)
+  }, [feed.classifiedEmails, feed.meetings])
 
   useEffect(() => {
     if (feed.loggedEmailAutopilot && feed.subTab === SubTabChoices.Welcome) {
@@ -550,7 +597,10 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
           (feed.currentFeedItem() !== null &&
             feed.currentFeedItem()?.title !== 'Email Autopilot')) &&
           feed.subTab === SubTabChoices.Workspace && (
-            <div className="flex-grow my-10">{renderThreads(feed.currentFeedItem())}</div>
+            <div className="flex-grow my-10 flex flex-col gap-3">
+              <ScoutWatchlist items={scoutWatchlistItems} />
+              {renderThreads(feed.currentFeedItem())}
+            </div>
           )}
 
         {(feed.loggedEmailAutopilot || !showEmailAutopilotPrompt) &&

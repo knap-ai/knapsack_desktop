@@ -539,7 +539,6 @@ export const SettingsDialog = ({
         setProviderStatus(prev => prev ? {
           ...prev,
           ollama_enabled: enable,
-          active_provider: enable ? 'ollama' : prev.active_provider === 'ollama' ? undefined : prev.active_provider,
         } : prev)
       }
     } catch {

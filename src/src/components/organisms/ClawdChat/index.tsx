@@ -241,6 +241,9 @@ function friendlyError(raw: string, activeModel?: string): string {
     return `⚠️ **Context overflow** (active: \`${activeModel}\`). The conversation is too long for this model. Start a new conversation to reduce context size, or switch to a model with a larger context window in Settings → Provider.\n\n${switchProviderAction}`
   }
   // Browser automation errors
+  if (lower.includes('tool call validation failed') && lower.includes('parameters for tool browser did not match schema')) {
+    return '🌐 **Browser action mismatch.** The AI asked the browser tool for an action shape this build rejected before execution. This is an internal browser-tool contract bug, not a browser/gateway outage. Retry once after updating to the latest build.'
+  }
   if (lower.includes('browser control server') || lower.includes('browser not running') || lower.includes('clawdbot base_url is not configured')) {
     return '🌐 **Browser not available.** The browser assistant is not running. Go to Settings and enable Clawd, then try again.'
   }
@@ -318,6 +321,33 @@ function friendlyError(raw: string, activeModel?: string): string {
     return `⚠️ ${cleaned.slice(0, 180)}… (active: \`${activeModel}\`)`
   }
   return `⚠️ ${cleaned} (active: \`${activeModel}\`)`
+}
+
+function isBrokenAgentCapabilityReply(reply: string): boolean {
+  const text = String(reply || '').trim().toLowerCase().replace(/`/g, '')
+  if (!text) return true
+  if (text.includes('web_search tool') && text.includes('disabled')) return true
+  if (text.includes('web search tool') && text.includes('disabled')) return true
+  if (text.includes('direct email access') && text.includes('none of which include')) return true
+  return [
+    'web_search tool is disabled',
+    'web_search tool required',
+    'web search tool is disabled',
+    'web search tool required',
+    'no provider is available',
+    "don't have access to your email client",
+    'do not have access to your email accounts',
+    'do not have access to your email account',
+    "don't have direct access to your email",
+    'none of which include email access',
+    'none of which include direct email access',
+    'no direct email send capability available',
+    'based on my memory.md',
+    'i checked my memory.md',
+    'my memory.md file',
+    'browser is currently unavailable',
+    'unable to perform web searches',
+  ].some(fragment => text.includes(fragment))
 }
 
 type Role = 'system' | 'user' | 'assistant'
@@ -1533,6 +1563,14 @@ const DM_POLICIES = [
   { id: 'disabled', label: 'Disabled', description: 'Block all inbound DMs' },
 ]
 
+function isChannelRuntimeConnected(status: ChannelStatus | null | undefined): boolean {
+  return !!(status?.active || status?.linked)
+}
+
+function hasChannelSavedConfig(status: ChannelStatus | null | undefined): boolean {
+  return !!(status?.configured || status?.enabled || status?.linked)
+}
+
 function ChannelAllowlistSection({ channel, isConnected }: { channel: string; isConnected: boolean }) {
   const [dmPolicy, setDmPolicy] = useState('allowlist')
   const [allowFrom, setAllowFrom] = useState<string[]>([])
@@ -1590,10 +1628,13 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 
   if (!isConnected || !loaded) return null
 
+  const title = channel === 'slack' ? 'Who can message in Slack DMs' : 'Who can message'
   const allowlistCopy = channel === 'whatsapp'
     ? 'Only these contacts can reach the AI. Your linked WhatsApp number is added automatically after connection:'
     : channel === 'imessage'
       ? 'Only these contacts can reach the AI. Your Knapsack email is added when available; add the phone number or Apple ID email you will message from:'
+      : channel === 'slack'
+        ? 'Only these Slack users can reach the AI in direct messages:'
       : 'Only these contacts can reach the AI:'
   const pairingCopy = channel === 'imessage'
     ? 'Pairing sends approval codes into real iMessage conversations. Use allowlist mode unless you are deliberately approving a new sender.'
@@ -1610,7 +1651,7 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 
   return (
     <div className="ClawdChannelGuide" style={{ borderTop: '1px solid #e2e8f0', marginTop: 8 }}>
-      <div className="ClawdChannelGuideTitle">Who can message</div>
+      <div className="ClawdChannelGuideTitle">{title}</div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {DM_POLICIES.map(p => (
           <button
@@ -1686,6 +1727,12 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
       {error && (
         <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{error}</div>
       )}
+
+      {channel === 'slack' && (
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+          This only controls Slack direct messages. Shared channel access and replies are governed separately by Slack channel policy in the gateway.
+        </div>
+      )}
     </div>
   )
 }
@@ -1726,6 +1773,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
     return []
   })
+  const [chatFindOpen, setChatFindOpen] = useState(false)
+  const [chatFindQuery, setChatFindQuery] = useState('')
+  const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
@@ -1946,6 +1996,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Message threading (reply-to) state
   const [replyToMsg, setReplyToMsg] = useState<Msg | null>(null)
+  const chatFindInputRef = useRef<HTMLInputElement | null>(null)
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
@@ -1968,13 +2019,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
-  const hasAnyChannel = !!(channelStatus.whatsapp?.linked || channelStatus.imessage?.configured || channelStatus.telegram?.configured)
+  const hasAnyChannel = !!(
+    isChannelRuntimeConnected(channelStatus.whatsapp) ||
+    isChannelRuntimeConnected(channelStatus.imessage) ||
+    isChannelRuntimeConnected(channelStatus.telegram)
+  )
   const hasAnyGenericChannel = !!(
-    channelStatus.genericChannels.slack?.configured ||
-    channelStatus.genericChannels.discord?.configured ||
-    channelStatus.genericChannels.signal?.configured ||
-    channelStatus.genericChannels.irc?.configured ||
-    channelStatus.genericChannels.googlechat?.configured
+    isChannelRuntimeConnected(channelStatus.genericChannels.slack) ||
+    isChannelRuntimeConnected(channelStatus.genericChannels.discord) ||
+    isChannelRuntimeConnected(channelStatus.genericChannels.signal) ||
+    isChannelRuntimeConnected(channelStatus.genericChannels.irc) ||
+    isChannelRuntimeConnected(channelStatus.genericChannels.googlechat)
   )
   const showChannelBanner = hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
 
@@ -1993,26 +2048,29 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     // Per-channel status
-    const addChannel = (name: string, status: ChannelStatus | null, errorKey: string, connectedKey: 'linked' | 'configured') => {
+    const addChannel = (name: string, status: ChannelStatus | null, errorKey: string) => {
       if (!status) return
       const err = channelStatus.channelErrors[errorKey]
-      if (status[connectedKey]) {
+      if (isChannelRuntimeConnected(status)) {
         lines.push(`${name}: connected`)
         hasConnected = true
+        if (err) { lines.push(`  ⚠ ${err}`); hasError = true }
+      } else if (hasChannelSavedConfig(status)) {
+        lines.push(`${name}: configured — gateway not ready`)
         if (err) { lines.push(`  ⚠ ${err}`); hasError = true }
       } else if (status.enabled) {
         lines.push(`${name}: enabled — not linked`)
       }
     }
 
-    addChannel('WhatsApp', channelStatus.whatsapp, 'whatsapp', 'linked')
-    addChannel('iMessage', channelStatus.imessage, 'imessage', 'configured')
-    addChannel('Telegram', channelStatus.telegram, 'telegram', 'configured')
+    addChannel('WhatsApp', channelStatus.whatsapp, 'whatsapp')
+    addChannel('iMessage', channelStatus.imessage, 'imessage')
+    addChannel('Telegram', channelStatus.telegram, 'telegram')
 
     const genericNames: Record<string, string> = { slack: 'Slack', discord: 'Discord', signal: 'Signal', irc: 'IRC', googlechat: 'Google Chat' }
     for (const [key, label] of Object.entries(genericNames)) {
       const gs = channelStatus.genericChannels[key as keyof typeof channelStatus.genericChannels]
-      addChannel(label, gs, key, 'configured')
+      addChannel(label, gs, key)
     }
 
     if (!hasConnected && !hasError && channelStatus.gatewayHealthy !== false) {
@@ -4529,8 +4587,12 @@ ${actualText}`
               // No length cap — verbose gateway errors (>250 chars) must also be caught.
               const rawReply = agentOut.reply.trim()
               const httpErrorMatch = /^([345]\d{2}) /.test(rawReply)
-              if (agentOut.gateway && httpErrorMatch) {
-                console.warn('[chat] Gateway returned HTTP error reply, falling back to direct chat:', rawReply.slice(0, 100))
+              const degradedCapabilityReply = isBrokenAgentCapabilityReply(rawReply)
+              if (agentOut.gateway && (httpErrorMatch || degradedCapabilityReply)) {
+                console.warn(
+                  '[chat] Gateway returned degraded reply, falling back to direct chat:',
+                  rawReply.slice(0, 140),
+                )
                 useDirectChat = true
               } else {
                 console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
@@ -4711,24 +4773,39 @@ ${actualText}`
   // Keyboard shortcuts
   const clearHistoryRef = useRef(clearHistory)
   clearHistoryRef.current = clearHistory
+  const openChatFindRef = useRef<() => void>(() => {})
+  const closeChatFindRef = useRef<() => void>(() => {})
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') stopGenerationRef.current()
       const mod = e.metaKey || e.ctrlKey
+      if (e.key === 'Escape') {
+        const activeEl = document.activeElement
+        if (chatFindOpen && activeEl === chatFindInputRef.current) {
+          e.preventDefault()
+          closeChatFindRef.current()
+          return
+        }
+        stopGenerationRef.current()
+      }
       // Cmd/Ctrl+Shift+Backspace — clear chat history
       if (mod && e.shiftKey && e.key === 'Backspace') {
         e.preventDefault()
         clearHistoryRef.current()
       }
+      // Cmd/Ctrl+F — search chat history
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        openChatFindRef.current()
+      }
       // Cmd/Ctrl+L — focus chat input
-      if (mod && !e.shiftKey && e.key === 'l') {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
         document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [chatFindOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
@@ -4837,6 +4914,56 @@ ${actualText}`
     }),
     [msgs],
   )
+
+  const chatFindMatches = useMemo(() => {
+    const query = chatFindQuery.trim().toLowerCase()
+    if (!query) return [] as Array<{ id: string; role: Msg['role'] }>
+    return parsedMsgs
+      .filter(({ msg, cleaned }) => `${cleaned}\n${msg.text}`.toLowerCase().includes(query))
+      .map(({ msg }) => ({ id: msg.id, role: msg.role }))
+  }, [parsedMsgs, chatFindQuery])
+
+  useEffect(() => {
+    if (chatFindMatches.length === 0) {
+      setChatFindActiveIndex(0)
+      return
+    }
+    setChatFindActiveIndex(prev => Math.min(prev, chatFindMatches.length - 1))
+  }, [chatFindMatches])
+
+  const openChatFind = useCallback(() => {
+    setChatFindOpen(true)
+    requestAnimationFrame(() => {
+      chatFindInputRef.current?.focus()
+      chatFindInputRef.current?.select()
+    })
+  }, [])
+
+  const closeChatFind = useCallback(() => {
+    setChatFindOpen(false)
+    setChatFindQuery('')
+    setChatFindActiveIndex(0)
+  }, [])
+
+  openChatFindRef.current = openChatFind
+  closeChatFindRef.current = closeChatFind
+
+  const goToChatFindMatch = useCallback((direction: 1 | -1) => {
+    if (chatFindMatches.length === 0) return
+    setChatFindActiveIndex(prev => {
+      const next = (prev + direction + chatFindMatches.length) % chatFindMatches.length
+      return next
+    })
+  }, [chatFindMatches])
+
+  const activeChatFindMatchId = chatFindMatches[chatFindActiveIndex]?.id ?? null
+
+  useEffect(() => {
+    if (!activeChatFindMatchId) return
+    const el = msgRefsMap.current.get(activeChatFindMatchId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [activeChatFindMatchId])
 
   // Fast id→Msg lookup for reply-to resolution
   const msgsById = useMemo(() => {
@@ -5095,9 +5222,58 @@ ${actualText}`
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+        {chatFindOpen && (
+          <div className="ClawdChatFindBar" role="search" aria-label="Search chat history">
+            <input
+              ref={chatFindInputRef}
+              type="text"
+              value={chatFindQuery}
+              onChange={e => setChatFindQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  goToChatFindMatch(e.shiftKey ? -1 : 1)
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  closeChatFind()
+                }
+              }}
+              placeholder="Search this conversation"
+              aria-label="Search this conversation"
+            />
+            <div className="ClawdChatFindBar__count">
+              {chatFindQuery.trim()
+                ? (chatFindMatches.length > 0 ? `${chatFindActiveIndex + 1}/${chatFindMatches.length}` : '0 results')
+                : 'Type to search'}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(-1)}
+              disabled={chatFindMatches.length === 0}
+              title="Previous match"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => goToChatFindMatch(1)}
+              disabled={chatFindMatches.length === 0}
+              title="Next match"
+            >
+              ↓
+            </button>
+            <button type="button" onClick={closeChatFind} title="Close search">
+              Close
+            </button>
+          </div>
+        )}
         {parsedMsgs.map(({ msg: m, cleaned, actions }) => (
           <div
             key={m.id}
+            className={[
+              chatFindMatches.some(match => match.id === m.id) ? 'ClawdChatMatch' : '',
+              activeChatFindMatchId === m.id ? 'ClawdChatMatch--active' : '',
+            ].filter(Boolean).join(' ')}
             ref={el => {
               if (el) msgRefsMap.current.set(m.id, el)
               else msgRefsMap.current.delete(m.id)
@@ -5990,13 +6166,13 @@ ${actualText}`
               </div>
 
               {/* ── Telegram ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'telegram' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.telegram?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'telegram' ? 'ClawdAccordionItem--open' : ''} ${isChannelRuntimeConnected(channelStatus.telegram) ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'telegram' ? null : 'telegram')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--telegram">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Telegram</div>
-                  {channelStatus.telegram?.configured && (
+                  {isChannelRuntimeConnected(channelStatus.telegram) && (
                     <span className="ClawdAccordionCheck">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
@@ -6007,19 +6183,21 @@ ${actualText}`
                   <div className="ClawdAccordionActions">
                     {channelStatus.channelErrors?.telegram ? (
                       <div className="ClawdChannelCardStatus ClawdChannelCardStatus--error" title={channelStatus.channelErrors.telegram}>Gateway error — try restarting the service</div>
-                    ) : channelStatus.telegram?.configured ? (
+                    ) : isChannelRuntimeConnected(channelStatus.telegram) ? (
                       <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : hasChannelSavedConfig(channelStatus.telegram) ? (
+                      <div className="ClawdChannelCardStatus">Configured — waiting for gateway</div>
                     ) : channelStatus.telegram?.enabled ? (
                       <div className="ClawdChannelCardStatus">Enabled — needs bot token</div>
                     ) : (
                       <div className="ClawdChannelCardStatus">Not connected</div>
                     )}
                     <button
-                      className={`ClawdChannelCardAction ${channelStatus.telegram?.configured ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
+                      className={`ClawdChannelCardAction ${hasChannelSavedConfig(channelStatus.telegram) ? 'ClawdChannelCardAction--disconnect' : 'ClawdChannelCardAction--connect'}`}
                       disabled={channelBusy === 'telegram'}
                       onClick={async () => {
                         if (channelBusy) return
-                        if (channelStatus.telegram?.configured) {
+                        if (hasChannelSavedConfig(channelStatus.telegram)) {
                           setChannelBusy('telegram')
                           setChannelError(null)
                           try {
@@ -6036,14 +6214,14 @@ ${actualText}`
                     >
                       {channelBusy === 'telegram'
                         ? 'Working...'
-                        : channelStatus.telegram?.configured
+                        : hasChannelSavedConfig(channelStatus.telegram)
                           ? 'Disconnect'
                           : showTelegramInput
                             ? 'Cancel'
                             : 'Connect'}
                     </button>
                   </div>
-                  {channelStatus.telegram?.configured ? (
+                  {hasChannelSavedConfig(channelStatus.telegram) ? (
                     <>
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">How to use Telegram</div>
@@ -6135,13 +6313,13 @@ ${actualText}`
               </div>
 
               {/* ── Slack ── */}
-              <div className={`ClawdAccordionItem ${expandedChannel === 'slack' ? 'ClawdAccordionItem--open' : ''} ${channelStatus.genericChannels.slack?.configured ? 'ClawdAccordionItem--connected' : ''}`}>
+              <div className={`ClawdAccordionItem ${expandedChannel === 'slack' ? 'ClawdAccordionItem--open' : ''} ${isChannelRuntimeConnected(channelStatus.genericChannels.slack) ? 'ClawdAccordionItem--connected' : ''}`}>
                 <button className="ClawdAccordionHeader" onClick={() => setExpandedChannel(expandedChannel === 'slack' ? null : 'slack')}>
                   <div className="ClawdChannelCardIcon ClawdChannelCardIcon--slack">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
                   </div>
                   <div className="ClawdAccordionTitle">Slack</div>
-                  {channelStatus.genericChannels.slack?.configured && (
+                  {isChannelRuntimeConnected(channelStatus.genericChannels.slack) && (
                     <span className="ClawdAccordionCheck">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </span>
@@ -6150,12 +6328,14 @@ ${actualText}`
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdAccordionActions">
-                    {channelStatus.genericChannels.slack?.configured ? (
+                    {isChannelRuntimeConnected(channelStatus.genericChannels.slack) ? (
                       <div className="ClawdChannelCardStatus ClawdChannelCardStatus--ok">Connected</div>
+                    ) : hasChannelSavedConfig(channelStatus.genericChannels.slack) ? (
+                      <div className="ClawdChannelCardStatus">Configured — waiting for gateway</div>
                     ) : (
                       <div className="ClawdChannelCardStatus">Not connected</div>
                     )}
-                    {channelStatus.genericChannels.slack?.configured && (
+                    {hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
                       <button
                         className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
                         disabled={channelBusy === 'slack'}
@@ -6171,11 +6351,11 @@ ${actualText}`
                       </button>
                     )}
                   </div>
-                  {!channelStatus.genericChannels.slack?.configured && (
+                  {!hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
                     <div className="ClawdChannelGuide">
                       <div className="ClawdChannelGuideTitle">Connect Slack</div>
                       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-                        Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
+                        Use Slack when you want one shared <strong>Scout</strong> workspace assistant. Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
                       {(() => {
                         const botTrimmed = slackBotToken.trim()
@@ -6219,12 +6399,17 @@ ${actualText}`
                         )
                       })()}
                       <div className="ClawdChannelGuideNote">
-                        Create a Slack App at <strong>api.slack.com/apps</strong>. Under <em>OAuth &amp; Permissions</em>, add bot scopes and install to get the Bot Token (<code style={{ fontSize: 11 }}>xoxb-</code>). Under <em>Basic Information &gt; App-Level Tokens</em>, create a token with <code style={{ fontSize: 11 }}>connections:write</code> scope to get the App Token (<code style={{ fontSize: 11 }}>xapp-</code>).
+                        Create a Slack App at <strong>api.slack.com/apps</strong>. Under <em>OAuth &amp; Permissions</em>, add bot scopes and install to get the Bot Token (<code style={{ fontSize: 11 }}>xoxb-</code>). Under <em>Basic Information &gt; App-Level Tokens</em>, create a token with <code style={{ fontSize: 11 }}>connections:write</code> scope to get the App Token (<code style={{ fontSize: 11 }}>xapp-</code>). Treat Scout like a new employee: connecting Gmail, Calendar, or Drive for Scout is optional, and if you do it later, prefer dedicated accounts like <code style={{ fontSize: 11 }}>scout@company.com</code> instead of a personal inbox or calendar whenever possible.
                       </div>
                     </div>
                   )}
-                  {channelStatus.genericChannels.slack?.configured && (
+                  {hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
+                    <>
+                    <div className="ClawdChannelGuideNote" style={{ marginTop: 8 }}>
+                      Slack shared-channel access is separate from direct-message access. Knapsack now defaults Slack channel policy to open and enables progress-style updates while Felix works.
+                    </div>
                     <ChannelAllowlistSection channel="slack" isConnected={true} />
+                    </>
                   )}
                 </div>
               </div>

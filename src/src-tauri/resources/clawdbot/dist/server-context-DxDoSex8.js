@@ -129,7 +129,7 @@ function launchOptionsForEnsure(options) {
 	return typeof options?.headless === "boolean" ? { headlessOverride: options.headless } : void 0;
 }
 function ensureOptionsKey(options) {
-	return typeof options?.headless === "boolean" ? `headless:${options.headless}` : "default";
+	return "default";
 }
 function formatLocalPortOwnershipHint(profile) {
 	const resetHint = `If OpenClaw should own this local profile, run action=reset-profile profile=${profile.name} to stop the conflicting process.`;
@@ -638,124 +638,131 @@ function createProfileTabOps({ profile, state, getProfileState }) {
 		enforceManagedTabLimit(keepTargetId).catch(() => {});
 	};
 	const openTab = async (url, opts) => {
-		const ssrfPolicyOpts = getNavigationPolicy();
-		if (capabilities.usesChromeMcp) {
+		const profileState = getProfileState();
+		const inflightByKey = profileState.openTabInflight ??= {};
+		const inflightKey = `${opts?.label ?? ""}\n${url}`;
+		const currentInflight = inflightByKey[inflightKey];
+		if (currentInflight) return await currentInflight;
+		const openPromise = (async () => {
+			const ssrfPolicyOpts = getNavigationPolicy();
+			if (capabilities.usesChromeMcp) {
+				await assertBrowserNavigationAllowed({
+					url,
+					...ssrfPolicyOpts
+				});
+				const { openChromeMcpTab } = await getChromeMcpModule();
+				const page = await openChromeMcpTab(profile.name, url, profile);
+				profileState.lastTargetId = page.targetId;
+				await assertBrowserNavigationResultAllowed({
+					url: page.url,
+					...ssrfPolicyOpts
+				});
+				return assignTabAlias({
+					profileState,
+					tab: page,
+					label: opts?.label
+				});
+			}
+			if (capabilities.usesPersistentPlaywright) {
+				const createPageViaPlaywright = (await getPwAiModule({ mode: "strict" }))?.createPageViaPlaywright;
+				if (typeof createPageViaPlaywright === "function") {
+					const page = await createPageViaPlaywright({
+						cdpUrl: profile.cdpUrl,
+						url,
+						...ssrfPolicyOpts
+					});
+					profileState.lastTargetId = page.targetId;
+					triggerManagedTabLimit(page.targetId);
+					return assignTabAlias({
+						profileState,
+						label: opts?.label,
+						tab: {
+							targetId: page.targetId,
+							title: page.title,
+							url: page.url,
+							type: page.type
+						}
+					});
+				}
+			}
+			if (requiresInspectableBrowserNavigationRedirectsForUrl(url, state().resolved.ssrfPolicy)) throw new InvalidBrowserNavigationUrlError("Navigation blocked: strict browser SSRF policy requires Playwright-backed redirect-hop inspection");
 			await assertBrowserNavigationAllowed({
 				url,
 				...ssrfPolicyOpts
 			});
-			const { openChromeMcpTab } = await getChromeMcpModule();
-			const page = await openChromeMcpTab(profile.name, url, profile);
-			const profileState = getProfileState();
-			profileState.lastTargetId = page.targetId;
-			await assertBrowserNavigationResultAllowed({
-				url: page.url,
-				...ssrfPolicyOpts
-			});
-			return assignTabAlias({
-				profileState,
-				tab: page,
-				label: opts?.label
-			});
-		}
-		if (capabilities.usesPersistentPlaywright) {
-			const createPageViaPlaywright = (await getPwAiModule({ mode: "strict" }))?.createPageViaPlaywright;
-			if (typeof createPageViaPlaywright === "function") {
-				const page = await createPageViaPlaywright({
-					cdpUrl: profile.cdpUrl,
-					url,
-					...ssrfPolicyOpts
-				});
-				const profileState = getProfileState();
-				profileState.lastTargetId = page.targetId;
-				triggerManagedTabLimit(page.targetId);
+			const cdpActionTimeouts = getRemoteCdpActionTimeouts();
+			const createTargetOpts = {
+				cdpUrl: profile.cdpUrl,
+				url,
+				ssrfPolicy: getCdpControlPolicy()
+			};
+			if (cdpActionTimeouts) createTargetOpts.timeouts = cdpActionTimeouts;
+			const createdViaCdp = await createTargetViaCdp(createTargetOpts).then((r) => r.targetId).catch(() => null);
+			if (createdViaCdp) {
+				profileState.lastTargetId = createdViaCdp;
+				const deadline = Date.now() + OPEN_TAB_DISCOVERY_WINDOW_MS;
+				while (Date.now() < deadline) {
+					const found = (await listTabs().catch(() => [])).find((t) => t.targetId === createdViaCdp);
+					if (found) {
+						await assertBrowserNavigationResultAllowed({
+							url: found.url,
+							...ssrfPolicyOpts
+						});
+						triggerManagedTabLimit(found.targetId);
+						return assignTabAlias({
+							profileState,
+							tab: found,
+							label: opts?.label
+						});
+					}
+					await new Promise((r) => setTimeout(r, 100));
+				}
+				triggerManagedTabLimit(createdViaCdp);
 				return assignTabAlias({
 					profileState,
-					label: opts?.label,
 					tab: {
-						targetId: page.targetId,
-						title: page.title,
-						url: page.url,
-						type: page.type
-					}
+						targetId: createdViaCdp,
+						title: "",
+						url,
+						type: "page"
+					},
+					label: opts?.label
 				});
 			}
-		}
-		if (requiresInspectableBrowserNavigationRedirectsForUrl(url, state().resolved.ssrfPolicy)) throw new InvalidBrowserNavigationUrlError("Navigation blocked: strict browser SSRF policy requires Playwright-backed redirect-hop inspection");
-		await assertBrowserNavigationAllowed({
-			url,
-			...ssrfPolicyOpts
-		});
-		const cdpActionTimeouts = getRemoteCdpActionTimeouts();
-		const createTargetOpts = {
-			cdpUrl: profile.cdpUrl,
-			url,
-			ssrfPolicy: getCdpControlPolicy()
-		};
-		if (cdpActionTimeouts) createTargetOpts.timeouts = cdpActionTimeouts;
-		const createdViaCdp = await createTargetViaCdp(createTargetOpts).then((r) => r.targetId).catch(() => null);
-		if (createdViaCdp) {
-			const profileState = getProfileState();
-			profileState.lastTargetId = createdViaCdp;
-			const deadline = Date.now() + OPEN_TAB_DISCOVERY_WINDOW_MS;
-			while (Date.now() < deadline) {
-				const found = (await listTabs().catch(() => [])).find((t) => t.targetId === createdViaCdp);
-				if (found) {
-					await assertBrowserNavigationResultAllowed({
-						url: found.url,
-						...ssrfPolicyOpts
-					});
-					triggerManagedTabLimit(found.targetId);
-					return assignTabAlias({
-						profileState,
-						tab: found,
-						label: opts?.label
-					});
-				}
-				await new Promise((r) => setTimeout(r, 100));
-			}
-			triggerManagedTabLimit(createdViaCdp);
+			const encoded = encodeURIComponent(url);
+			const endpointUrl = new URL(appendCdpPath(cdpHttpBase, "/json/new"));
+			const endpoint = endpointUrl.search ? (() => {
+				endpointUrl.searchParams.set("url", url);
+				return endpointUrl.toString();
+			})() : `${endpointUrl.toString()}?${encoded}`;
+			const created = await fetchJson(endpoint, cdpActionTimeouts?.httpTimeoutMs ?? 1500, { method: "PUT" }, getCdpControlPolicy()).catch(async (err) => {
+				if (String(err).includes("HTTP 405")) return await fetchJson(endpoint, cdpActionTimeouts?.httpTimeoutMs ?? 1500, void 0, getCdpControlPolicy());
+				throw err;
+			});
+			if (!created.id) throw new Error("Failed to open tab (missing id)");
+			profileState.lastTargetId = created.id;
+			const resolvedUrl = created.url ?? url;
+			await assertBrowserNavigationResultAllowed({
+				url: resolvedUrl,
+				...ssrfPolicyOpts
+			});
+			triggerManagedTabLimit(created.id);
 			return assignTabAlias({
 				profileState,
+				label: opts?.label,
 				tab: {
-					targetId: createdViaCdp,
-					title: "",
-					url,
-					type: "page"
-				},
-				label: opts?.label
+					targetId: created.id,
+					title: created.title ?? "",
+					url: resolvedUrl,
+					wsUrl: normalizeWsUrl(created.webSocketDebuggerUrl, profile.cdpUrl),
+					type: created.type
+				}
 			});
-		}
-		const encoded = encodeURIComponent(url);
-		const endpointUrl = new URL(appendCdpPath(cdpHttpBase, "/json/new"));
-		const endpoint = endpointUrl.search ? (() => {
-			endpointUrl.searchParams.set("url", url);
-			return endpointUrl.toString();
-		})() : `${endpointUrl.toString()}?${encoded}`;
-		const created = await fetchJson(endpoint, cdpActionTimeouts?.httpTimeoutMs ?? 1500, { method: "PUT" }, getCdpControlPolicy()).catch(async (err) => {
-			if (String(err).includes("HTTP 405")) return await fetchJson(endpoint, cdpActionTimeouts?.httpTimeoutMs ?? 1500, void 0, getCdpControlPolicy());
-			throw err;
+		})().finally(() => {
+			if (inflightByKey[inflightKey] === openPromise) delete inflightByKey[inflightKey];
 		});
-		if (!created.id) throw new Error("Failed to open tab (missing id)");
-		const profileState = getProfileState();
-		profileState.lastTargetId = created.id;
-		const resolvedUrl = created.url ?? url;
-		await assertBrowserNavigationResultAllowed({
-			url: resolvedUrl,
-			...ssrfPolicyOpts
-		});
-		triggerManagedTabLimit(created.id);
-		return assignTabAlias({
-			profileState,
-			label: opts?.label,
-			tab: {
-				targetId: created.id,
-				title: created.title ?? "",
-				url: resolvedUrl,
-				wsUrl: normalizeWsUrl(created.webSocketDebuggerUrl, profile.cdpUrl),
-				type: created.type
-			}
-		});
+		inflightByKey[inflightKey] = openPromise;
+		return await openPromise;
 	};
 	const labelTab = async (targetId, label) => {
 		const normalizedLabel = normalizeTabLabel(label);

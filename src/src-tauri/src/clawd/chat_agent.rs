@@ -111,6 +111,22 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
+        name: "web_search".to_string(),
+        description: "Search the web and return structured search results. Use this first for current events, weather, news, or other live internet lookups before falling back to manual browser navigation.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "Search query" },
+            "count": { "type": "integer", "description": "Optional max results (default: 5, max: 10)" }
+          },
+          "required": ["query"],
+          "additionalProperties": false
+        }),
+      },
+    },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
         name: "open_url".to_string(),
         description: "Open a URL in a NEW browser tab. Use navigate() to reuse existing tab.".to_string(),
         parameters: json!({

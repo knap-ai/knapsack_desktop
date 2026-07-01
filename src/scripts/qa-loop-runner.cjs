@@ -9,6 +9,30 @@ const process = require("node:process");
 const API_BASE = "http://127.0.0.1:8897";
 const UI_BASE = "http://127.0.0.1:1420";
 
+function desktopClawdbotDir() {
+  if (process.platform === "darwin") {
+    if (!process.env.HOME) return null;
+    return path.join(
+      process.env.HOME,
+      "Library",
+      "Application Support",
+      "ai.knap.knapsack",
+      "clawdbot",
+    );
+  }
+  if (process.platform === "win32") {
+    if (!process.env.APPDATA) return null;
+    return path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot");
+  }
+  if (process.env.XDG_CONFIG_HOME) {
+    return path.join(process.env.XDG_CONFIG_HOME, "ai.knap.knapsack", "clawdbot");
+  }
+  if (process.env.HOME) {
+    return path.join(process.env.HOME, ".config", "ai.knap.knapsack", "clawdbot");
+  }
+  return null;
+}
+
 const MODELS_BY_PROVIDER = {
   ollama: ["markheynen/knapsack-7b-chat-metal:latest"],
   knapsack: ["auto"],
@@ -55,8 +79,8 @@ const MODELS_BY_PROVIDER = {
     "grok-4",
   ],
   openrouter: [
-    "openrouter/free",
     "openrouter/auto",
+    "openrouter/free",
     "qwen/qwen3-coder-480b-a35b-instruct:free",
     "deepseek/deepseek-r1:free",
     "meta-llama/llama-3.3-70b-instruct:free",
@@ -93,8 +117,9 @@ function configuredChannelPluginIdsForQa() {
   if (String(process.env.KNAPSACK_QA_INCLUDE_CHANNEL_PLUGINS || "0").trim() === "0") {
     return [];
   }
-  if (!process.env.APPDATA) return [];
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const clawdbotDir = desktopClawdbotDir();
+  if (!clawdbotDir) return [];
+  const configPath = path.join(clawdbotDir, "openclaw.json");
   if (!existsSync(configPath)) return [];
   try {
     const config = JSON.parse(fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
@@ -157,8 +182,9 @@ function patchOpenClawConfigForQa({ pluginAllowlist, provider }) {
   }
 
   const startupModel = qaStartupModelForProvider(provider);
-  if ((!pluginAllowlist && !startupModel) || !process.env.APPDATA) return null;
-  const configPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "openclaw.json");
+  const clawdbotDir = desktopClawdbotDir();
+  if ((!pluginAllowlist && !startupModel) || !clawdbotDir) return null;
+  const configPath = path.join(clawdbotDir, "openclaw.json");
   if (!existsSync(configPath)) return null;
 
   const original = fs.readFileSync(configPath, "utf8");
@@ -240,9 +266,10 @@ function qaDesktopTokenModelForProvider(provider) {
 function patchDesktopTokensForQa(provider) {
   const normalized = String(provider || "").trim().toLowerCase();
   const model = qaDesktopTokenModelForProvider(normalized);
-  if (!normalized || !model || !process.env.APPDATA) return null;
+  const clawdbotDir = desktopClawdbotDir();
+  if (!normalized || !model || !clawdbotDir) return null;
 
-  const tokensPath = path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot", "tokens.json");
+  const tokensPath = path.join(clawdbotDir, "tokens.json");
   if (!existsSync(tokensPath)) return null;
 
   const original = fs.readFileSync(tokensPath, "utf8");
@@ -1284,6 +1311,7 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
+  const requestTimeoutMs = Number(process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS || 30_000);
   const req = await fetchWithTimeout(`${API_BASE}/api/clawd/service/set-api-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1292,7 +1320,7 @@ async function setProviderAndModel(provider, model) {
       model,
       key: "",
     }),
-  }, 12_000);
+  }, requestTimeoutMs);
   return {
     ok: Boolean(req.ok),
     payload: req.body,
@@ -1468,6 +1496,94 @@ async function runChatSmoke(provider, model, options = {}) {
       detail: `chat request failed: ${message || "network error"}`,
     };
   }
+}
+
+function extractAgentReply(body) {
+  if (!body || typeof body !== "object") return "";
+  if (typeof body.reply === "string") return body.reply;
+  if (typeof body.response === "string") return body.response;
+  if (typeof body.summary === "string") return body.summary;
+  if (body.message && typeof body.message === "object") {
+    return body.message.text || body.message.content || body.message.message || "";
+  }
+  return "";
+}
+
+function hasBrokenAgentCapabilityReply(reply) {
+  const text = String(reply || "");
+  if (!text) return true;
+  const patterns = [
+    /web_search tool .*disabled/i,
+    /web search tool .*disabled/i,
+    /no provider is available/i,
+    /don't have access to your email client/i,
+    /don't have direct access to your email/i,
+    /none of which include email access/i,
+    /no direct email send capability available/i,
+    /based on my memory\.md/i,
+    /i checked my memory\.md/i,
+    /my memory\.md file/i,
+    /browser .* currently unavailable/i,
+    /unable to perform web searches/i,
+  ];
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
+  const startedAt = Date.now();
+  let res;
+  try {
+    res = await fetchWithTimeout(`${API_BASE}/api/clawd/agent-chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: prompt,
+        sessionId: `qa-agent-${label}`.replace(/[^A-Za-z0-9._-]/g, "-"),
+        disableFallback: true,
+      }),
+    }, timeoutMs);
+  } catch (error) {
+    return {
+      label,
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `agent-chat request failed: ${normalizeResult(error?.message || error)}`,
+    };
+  }
+
+  if (!res.ok) {
+    return {
+      label,
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `agent-chat failed (${res.status}) ${normalizeResult(res.body)}`,
+    };
+  }
+
+  const reply = extractAgentReply(res.body).trim();
+  if (!reply) {
+    return {
+      label,
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `agent-chat returned no reply: ${normalizeResult(res.body)}`,
+    };
+  }
+
+  if (hasBrokenAgentCapabilityReply(reply)) {
+    return {
+      label,
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `agent-chat returned degraded capability reply: ${reply.slice(0, 240)}`,
+    };
+  }
+
+  return {
+    label,
+    ok: true,
+    latencyMs: Date.now() - startedAt,
+  };
 }
 
 async function createMockMeeting() {
@@ -1878,7 +1994,9 @@ async function runMode(mode, opts = {}) {
     };
   }
 
-  const functionalTimeoutMs = Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
+  const functionalTimeoutMs = Number.isFinite(opts.functionalTimeoutMs)
+    ? opts.functionalTimeoutMs
+    : Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
   const readinessHealthTimeoutMs = Number(
     process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000,
   );
@@ -1943,6 +2061,52 @@ async function runMode(mode, opts = {}) {
           ok: false,
           phase: "readiness-chat",
           message: `readiness chat check failed: ${chatFailures.join(" | ")}`,
+          chatChecks,
+        };
+      }
+
+      functionalProgress.step = "agent capability checks";
+      const primaryAgentCheck = chatChecks.find((check) => check && check.ok && !check.skipped);
+      if (primaryAgentCheck) {
+        const restoreAgentProvider = await setProviderAndModel(
+          primaryAgentCheck.provider,
+          primaryAgentCheck.model,
+        );
+        if (!restoreAgentProvider.ok) {
+          return {
+            ok: false,
+            phase: "agent-capabilities",
+            message: `could not restore provider for agent capability checks: ${normalizeResult(restoreAgentProvider.payload?.message || restoreAgentProvider.payload)}`,
+            chatChecks,
+          };
+        }
+      }
+      const agentCapabilityChecks = [
+        {
+          label: "weather-search",
+          prompt: "Check the current weather in Tokyo and answer in one sentence.",
+        },
+        {
+          label: "recent-emails",
+          prompt: "Summarize my recent emails in 3 bullets using connected Knapsack email data if available.",
+        },
+        {
+          label: "calendar-tomorrow",
+          prompt: "What is on my calendar tomorrow? Use connected Knapsack calendar data first.",
+        },
+      ];
+      const agentFailures = [];
+      for (const capability of agentCapabilityChecks) {
+        const check = await runAgentCapabilitySmoke(capability);
+        if (!check.ok) {
+          agentFailures.push(`${capability.label}: ${check.detail}`);
+        }
+      }
+      if (agentFailures.length > 0) {
+        return {
+          ok: false,
+          phase: "agent-capabilities",
+          message: `agent capability check failed: ${agentFailures.join(" | ")}`,
           chatChecks,
         };
       }

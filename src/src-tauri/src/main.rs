@@ -54,7 +54,7 @@ use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tauri::async_runtime::TokioJoinHandle;
 use tauri::{
-  AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
+  App, AppHandle, CustomMenuItem, FileDropEvent, Manager, State, SystemTray, SystemTrayEvent,
   SystemTrayMenu, SystemTrayMenuItem, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
@@ -73,6 +73,7 @@ use crate::utils::log::setup_logger;
 
 use serde_json::json;
 use serde_json::Value;
+use std::process;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "profiling")]
@@ -121,6 +122,72 @@ const NOTIF_END_X_OFFSET: i32 = 20;
 const NOTIF_ANIMATION_DURATION: u32 = 90;
 const NOTIF_FRAME_TIME: u64 = 8;
 
+#[cfg(target_os = "macos")]
+fn updater_temp_root_from_executable(executable_path: &std::path::Path) -> Option<PathBuf> {
+  let executable_dir = executable_path.parent()?;
+  let app_root = if executable_dir.to_string_lossy().contains("Contents/MacOS") {
+    executable_dir.parent()?.parent()?.to_path_buf()
+  } else {
+    executable_dir.to_path_buf()
+  };
+  let install_root = app_root.parent()?.to_path_buf();
+  Some(install_root.join(".knapsack-updater-tmp"))
+}
+
+#[tauri::command]
+fn kn_prepare_updater_temp_dir() -> Result<Option<String>, String> {
+  #[cfg(target_os = "macos")]
+  {
+    let current_exe = std::env::current_exe()
+      .map_err(|err| format!("Unable to locate current executable for updater prep: {err}"))?;
+    let temp_root = updater_temp_root_from_executable(&current_exe).ok_or_else(|| {
+      "Unable to derive updater temp directory from current executable".to_string()
+    })?;
+    create_dir_all(&temp_root).map_err(|err| {
+      format!(
+        "Unable to create updater temp directory at {:?}: {err}",
+        temp_root
+      )
+    })?;
+
+    std::env::set_var("TMPDIR", &temp_root);
+    std::env::set_var("TMP", &temp_root);
+    std::env::set_var("TEMP", &temp_root);
+
+    log::info!(
+      "Prepared macOS updater temp directory on app volume: {:?}",
+      temp_root
+    );
+    return Ok(Some(temp_root.to_string_lossy().into_owned()));
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+    Ok(None)
+  }
+}
+
+fn validate_bundled_ui_asset(app: &App, page: &str, label: &str) -> Option<String> {
+  let candidate_paths = vec![page.to_string(), format!("dist/{page}")];
+  let found = candidate_paths.iter().find_map(|candidate| {
+    app.path_resolver().resolve_resource(candidate).map(|path| {
+      log::info!("Resolved {label} UI asset: {:?}", path);
+      candidate.clone()
+    })
+  });
+
+  if let Some(path) = found {
+    log::info!("Using {label} UI asset at {path}");
+    return Some(path);
+  }
+
+  let tried = candidate_paths.join(", ");
+  log::error!(
+    "Missing required bundled UI asset for {label}. Tried: {tried}. This is usually a packaging issue; please reinstall the app from the latest release."
+  );
+  None
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum Release {
@@ -135,10 +202,32 @@ pub fn release_type() -> Release {
   }
 }
 
+#[cfg(all(test, target_os = "macos"))]
+mod updater_temp_dir_tests {
+  use super::updater_temp_root_from_executable;
+  use std::path::Path;
+
+  #[test]
+  fn derives_temp_root_next_to_app_bundle_on_macos_layout() {
+    let exe = Path::new("/Applications/Knapsack.app/Contents/MacOS/Knapsack");
+    let temp_root = updater_temp_root_from_executable(exe).unwrap();
+    assert_eq!(temp_root, Path::new("/Applications/.knapsack-updater-tmp"));
+  }
+
+  #[test]
+  fn derives_temp_root_next_to_binary_for_non_bundle_layout() {
+    let exe = Path::new("/tmp/knapsack-dev/target/debug/knapsack");
+    let temp_root = updater_temp_root_from_executable(exe).unwrap();
+    assert_eq!(
+      temp_root,
+      Path::new("/tmp/knapsack-dev/target/debug/.knapsack-updater-tmp")
+    );
+  }
+}
+
 #[cfg(target_os = "macos")]
-static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> = Lazy::new(|| {
-  StdMutex::new(None)
-});
+static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> =
+  Lazy::new(|| StdMutex::new(None));
 #[cfg(target_os = "windows")]
 static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
 
@@ -207,8 +296,8 @@ mod keep_awake_macos {
 
 #[cfg(target_os = "windows")]
 mod keep_awake_windows {
-  use super::KN_KEEP_AWAKE_PROCESS;
   use super::StdMutex;
+  use super::KN_KEEP_AWAKE_PROCESS;
 
   const ES_CONTINUOUS: u32 = 0x80000000;
   const ES_SYSTEM_REQUIRED: u32 = 0x00000001;
@@ -1409,15 +1498,11 @@ fn create_db_env_variable() {
 
 // ── System tray menu bar ──
 
-fn build_default_tray_menu() -> SystemTrayMenu {
+fn build_default_tray_menu(app_version: &str) -> SystemTrayMenu {
   let open_knapsack = CustomMenuItem::new("open_knapsack", "Open Knapsack");
   let quick_note = CustomMenuItem::new("quick_note", "Quick Note");
   let settings = CustomMenuItem::new("settings", "Settings");
-  let version = CustomMenuItem::new(
-    "version",
-    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
-  )
-  .disabled();
+  let version = CustomMenuItem::new("version", format!("Knapsack v{}", app_version)).disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
   let quit = CustomMenuItem::new("quit", "Quit");
 
@@ -1516,7 +1601,7 @@ fn update_tray_menu(app: AppHandle, groups: Vec<TrayMeetingGroup>) {
   let settings = CustomMenuItem::new("settings", "Settings");
   let version = CustomMenuItem::new(
     "version",
-    format!("Knapsack v{}", env!("CARGO_PKG_VERSION")),
+    format!("Knapsack v{}", app.package_info().version),
   )
   .disabled();
   let check_updates = CustomMenuItem::new("check_updates", "Check for updates");
@@ -1614,6 +1699,27 @@ async fn main() {
     .manage(semantic_service.clone())
     .manage(recording_state)
     .setup(move |app| {
+      #[cfg(not(debug_assertions))]
+      {
+        let mut missing = vec![];
+        let mut assert_asset = |page, label| {
+          if validate_bundled_ui_asset(app, page, label).is_none() {
+            missing.push(format!("{page} ({label})"));
+          }
+        };
+        assert_asset("index.html", "main window");
+        assert_asset("notification.html", "notification window");
+        assert_asset("overlay.html", "overlay window");
+        assert_asset("recording-indicator.html", "recording indicator window");
+
+        if !missing.is_empty() {
+          return Err(Box::new(tauri::Error::AssetNotFound(format!(
+            "Bundled UI assets missing (packaging issue): {}. Reinstall from the latest release and report this crash report.",
+            missing.join(", ")
+          ))));
+        }
+      }
+
       // Create window with specified logical size
       let mut window_builder = WindowBuilder::new(
         app,
@@ -1844,11 +1950,6 @@ async fn main() {
           .unwrap();
       }
 
-      let llm_path = app
-        .path_resolver()
-        .resolve_resource("resources/llm.gguf")
-        .expect("failed to resolve resource");
-
       // EMBEDDER_PATH.set(
       //   app
       //     .path_resolver()
@@ -1912,6 +2013,7 @@ async fn main() {
       kn_get_log_path,
       kn_get_openclaw_version,
       kn_set_keep_awake,
+      kn_prepare_updater_temp_dir,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,
@@ -1969,7 +2071,7 @@ async fn main() {
 
   // System tray with meetings menu (all platforms)
   {
-    let tray_menu = build_default_tray_menu();
+    let tray_menu = build_default_tray_menu(&context.package_info().version.to_string());
     let system_tray = SystemTray::new().with_menu(tray_menu);
 
     builder = builder
@@ -1994,5 +2096,10 @@ async fn main() {
 
   let run_result = builder.run(context);
   clawd::service::cleanup_gateway_on_exit();
-  run_result.expect("error while running tauri application");
+  if let Err(err) = run_result {
+    log::error!("Knapsack failed to start: {err}");
+    eprintln!("Startup failed. This is usually a packaging issue with the desktop bundle.");
+    eprintln!("Please reinstall the app from the latest official release.");
+    process::exit(1);
+  }
 }

@@ -130,6 +130,12 @@ struct GetEmailThreadRequest {
   document_id: u64,
 }
 
+#[derive(Deserialize)]
+struct FilterEmailsByAddressesQuery {
+  addresses: String,
+  top: Option<usize>,
+}
+
 #[derive(Serialize, Clone)]
 struct StandardResponse {
   success: bool,
@@ -237,11 +243,10 @@ async fn get_calendar_event_by_id(path: web::Path<u64>) -> impl Responder {
   }
 }
 
-#[post("/api/knapsack/search_emails_by_addresses")]
-pub async fn filter_emails_by_addresses(
-  payload: Json<FilterEmailsRequest>,
+async fn build_filter_emails_by_addresses_response(
+  payload: FilterEmailsRequest,
   user_info: Data<Arc<RwLock<UserInfo>>>,
-) -> impl Responder {
+) -> HttpResponse {
   let mut display_docs = Vec::new();
   let ten_days_ago_timestamp = (chrono::Utc::now() - chrono::Duration::days(10)).timestamp();
   let mut maybe_email_addresses: Option<Vec<String>> = None;
@@ -276,7 +281,33 @@ pub async fn filter_emails_by_addresses(
     display_docs,
     error: None,
   };
-  return actix_web::HttpResponse::Ok().json(response);
+  actix_web::HttpResponse::Ok().json(response)
+}
+
+#[post("/api/knapsack/search_emails_by_addresses")]
+pub async fn filter_emails_by_addresses(
+  payload: Json<FilterEmailsRequest>,
+  user_info: Data<Arc<RwLock<UserInfo>>>,
+) -> impl Responder {
+  build_filter_emails_by_addresses_response(payload.into_inner(), user_info).await
+}
+
+#[get("/api/knapsack/search_emails_by_addresses")]
+pub async fn filter_emails_by_addresses_get(
+  query: web::Query<FilterEmailsByAddressesQuery>,
+  user_info: Data<Arc<RwLock<UserInfo>>>,
+) -> impl Responder {
+  let addresses = query
+    .addresses
+    .split(',')
+    .map(|value| value.trim().to_string())
+    .filter(|value| !value.is_empty())
+    .collect::<Vec<_>>();
+  let payload = FilterEmailsRequest {
+    addresses,
+    top: query.top.unwrap_or(10).max(1),
+  };
+  build_filter_emails_by_addresses_response(payload, user_info).await
 }
 
 #[post("/api/knapsack/list_emails_within_timestamps")]

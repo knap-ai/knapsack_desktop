@@ -6,13 +6,14 @@ use actix_web::{
 use chrono::{DateTime, Datelike, Duration, Local, TimeDelta, Timelike, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::sync::Arc;
 use std::{fs, path::Path};
 use tokio::sync::Mutex;
 
 use crate::audio::audio::generate_filename;
 use crate::{
+  clawd::gateway_ws,
   db::models::{
     automation::Automation,
     automation_run::AutomationRun,
@@ -217,6 +218,24 @@ struct MessageFeedbacksServer {
   feedback: i32,
 }
 
+const AUTOMATION_CRON_JOB_PREFIX: &str = "knapsack-automation:";
+
+#[derive(Clone, Debug)]
+struct DesiredAutomationCronJob {
+  name: String,
+  schedule: Value,
+  payload: Value,
+}
+
+#[derive(Clone, Debug)]
+struct ExistingAutomationCronJob {
+  id: String,
+  name: String,
+  schedule: Option<Value>,
+  payload: Option<Value>,
+  enabled: bool,
+}
+
 #[derive(Deserialize, Clone, Debug)]
 struct CreateSystemMessageRequest {
   thread_id: u64,
@@ -341,6 +360,12 @@ async fn create_automation(
     icon: String::new(),
   };
   automation.create();
+  if let Err(error) = sync_gateway_automation_jobs().await {
+    log::warn!(
+      "Failed to sync automation cron jobs after create: {}",
+      error
+    );
+  }
   response.success = true;
   Ok(HttpResponse::Ok().json(response))
 }
@@ -424,6 +449,12 @@ async fn delete_automation(path: web::Path<String>) -> Result<HttpResponse, Acti
       match automation_opt {
         Some(mut automation) => {
           automation.delete();
+          if let Err(error) = sync_gateway_automation_jobs().await {
+            log::warn!(
+              "Failed to sync automation cron jobs after delete: {}",
+              error
+            );
+          }
         }
         None => {
           response.error = Some("Automation not found".to_string());
@@ -452,55 +483,57 @@ async fn update_automation(
     success: false,
     error: None,
   };
+  let cadences: Vec<CadenceTrigger> = data
+    .cadences
+    .clone()
+    .into_iter()
+    .map(|data_cadence| CadenceTrigger {
+      id: None,
+      automation_uuid: existing_automation.uuid.clone(),
+      cadence_type: data_cadence.cadence_type,
+      day_of_week: data_cadence.day_of_week,
+      time: data_cadence.time,
+    })
+    .collect();
 
-  // let mut cadences: Vec<CadenceTrigger> = vec![];
-  // for data_cadence in data.cadences.clone() {
-  //   let cadence = CadenceTrigger {
-  //     id: None,
-  //     automation_uuid: existing_automation.uuid.clone(),
-  //     cadence_type: data_cadence.cadence_type,
-  //     day_of_week: data_cadence.day_of_week,
-  //     time: data_cadence.time,
-  //   };
-  //   cadences.push(cadence);
-  // }
+  let steps: Vec<AutomationStep> = data
+    .steps
+    .iter()
+    .enumerate()
+    .map(|(i, data_step)| AutomationStep {
+      id: None,
+      automation_uuid: existing_automation.uuid.clone(),
+      name: data_step.name.clone(),
+      ordering: i as u64,
+      args_json: data_step.args_json.clone(),
+    })
+    .collect();
 
-  // let mut steps: Vec<AutomationStep> = vec![];
-  // for (i, data_step) in data.steps.iter().enumerate() {
-  //   let step = AutomationStep {
-  //     id: None,
-  //     automation_uuid: existing_automation.uuid.clone(),
-  //     name: data_step.name.clone(),
-  //     ordering: i as u64,
-  //     args_json: data_step.args_json.clone(),
-  //   };
-  //   steps.push(step);
-  // }
+  let mut automation = Automation {
+    id: existing_automation.id,
+    uuid: existing_automation.uuid.clone(),
+    name: data.name.clone(),
+    description: data.description.clone(),
+    is_active: data.is_active.unwrap_or(existing_automation.is_active),
+    is_beta: data.is_beta.unwrap_or(existing_automation.is_beta),
+    runs: None,
+    trigger_cadences: Some(cadences),
+    trigger_data_sources: existing_automation.trigger_data_sources.clone(),
+    steps: Some(steps),
+    show_library: existing_automation.show_library,
+    icon: existing_automation.icon.clone(),
+  };
 
-  // let is_active = match data.is_active {
-  //   Some(ia) => ia,
-  //   None => existing_automation.is_active.clone(),
-  // };
-  // let is_beta = match data.is_beta {
-  //   Some(ia) => ia,
-  //   None => existing_automation.is_beta.clone(),
-  // };
-  // let mut automation = Automation {
-  //   id: existing_automation.id.clone(),
-  //   uuid: existing_automation.uuid.clone(),
-  //   name: data.name.clone(),
-  //   description: data.description.clone(),
-  //   is_active,
-  //   is_beta,
-  //   runs: None,
-  //   trigger_cadences: Some(cadences),
-  //   trigger_data_sources: None,
-  //   steps: Some(steps),
-  //   // feedbacks: None,
-  // };
-
-  // automation.update();
-  // response.success = true;
+  automation.update().map_err(|error| {
+    actix_web::error::ErrorInternalServerError(format!("Failed to update automation: {:?}", error))
+  })?;
+  if let Err(error) = sync_gateway_automation_jobs().await {
+    log::warn!(
+      "Failed to sync automation cron jobs after update: {}",
+      error
+    );
+  }
+  response.success = true;
   Ok(HttpResponse::Ok().json(response))
 }
 
@@ -588,6 +621,398 @@ const ONE_DAY: TimeDelta = Duration::days(1);
 const ONE_WEEK: TimeDelta = Duration::days(7);
 const DAYS_TO_SCHEDULE: u32 = 7;
 
+fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Value {
+  let s = schedule_str.to_lowercase();
+
+  if s.contains("every") {
+    if let Some(caps) = regex::Regex::new(r"every\s+(\d+)\s*(minute|min|hour|hr|day)s?")
+      .ok()
+      .and_then(|re| re.captures(&s))
+    {
+      let num: u64 = caps
+        .get(1)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(1);
+      let unit = caps.get(2).map(|m| m.as_str()).unwrap_or("hour");
+      let ms = match unit {
+        "minute" | "min" => num * 60 * 1000,
+        "hour" | "hr" => num * 60 * 60 * 1000,
+        "day" => num * 24 * 60 * 60 * 1000,
+        _ => num * 60 * 60 * 1000,
+      };
+      return json!({ "kind": "every", "everyMs": ms });
+    }
+
+    if s.contains("hour") && !s.contains("at") {
+      return json!({ "kind": "every", "everyMs": 3_600_000 });
+    }
+
+    if let Some(caps) = regex::Regex::new(r"every\s+day\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?")
+      .ok()
+      .and_then(|re| re.captures(&s))
+    {
+      let mut hour: u32 = caps
+        .get(1)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(9);
+      let minute: u32 = caps
+        .get(2)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(0);
+      let ampm = caps.get(3).map(|m| m.as_str());
+      if ampm == Some("pm") && hour < 12 {
+        hour += 12;
+      }
+      if ampm == Some("am") && hour == 12 {
+        hour = 0;
+      }
+      let cron_expr = format!("{} {} * * *", minute, hour);
+      let mut result = json!({ "kind": "cron", "expr": cron_expr });
+      if let Some(tz) = timezone {
+        result["tz"] = json!(tz);
+      }
+      return result;
+    }
+
+    let days = [
+      ("sunday", "0"),
+      ("monday", "1"),
+      ("tuesday", "2"),
+      ("wednesday", "3"),
+      ("thursday", "4"),
+      ("friday", "5"),
+      ("saturday", "6"),
+      ("sun", "0"),
+      ("mon", "1"),
+      ("tue", "2"),
+      ("wed", "3"),
+      ("thu", "4"),
+      ("fri", "5"),
+      ("sat", "6"),
+    ];
+    for (day_name, day_num) in days {
+      if s.contains(day_name) {
+        let hour_minute = regex::Regex::new(r"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?")
+          .ok()
+          .and_then(|re| re.captures(&s));
+        let (hour, minute) = if let Some(caps) = hour_minute {
+          let mut h: u32 = caps
+            .get(1)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(9);
+          let m: u32 = caps
+            .get(2)
+            .and_then(|m| m.as_str().parse().ok())
+            .unwrap_or(0);
+          let ampm = caps.get(3).map(|m| m.as_str());
+          if ampm == Some("pm") && h < 12 {
+            h += 12;
+          }
+          if ampm == Some("am") && h == 12 {
+            h = 0;
+          }
+          (h, m)
+        } else {
+          (9, 0)
+        };
+        let cron_expr = format!("{} {} * * {}", minute, hour, day_num);
+        let mut result = json!({ "kind": "cron", "expr": cron_expr });
+        if let Some(tz) = timezone {
+          result["tz"] = json!(tz);
+        }
+        return result;
+      }
+    }
+  }
+
+  let parts: Vec<&str> = schedule_str.split_whitespace().collect();
+  if parts.len() >= 5 && parts.len() <= 6 {
+    let mut result = json!({ "kind": "cron", "expr": schedule_str });
+    if let Some(tz) = timezone {
+      result["tz"] = json!(tz);
+    }
+    return result;
+  }
+
+  json!({ "kind": "every", "everyMs": 3_600_000 })
+}
+
+fn cadence_time_parts(time: Option<&str>) -> (u32, u32) {
+  let Some(time) = time else {
+    return (9, 0);
+  };
+  let mut parts = time.split(':');
+  let hour = parts
+    .next()
+    .and_then(|v| v.parse::<u32>().ok())
+    .unwrap_or(9);
+  let minute = parts
+    .next()
+    .and_then(|v| v.parse::<u32>().ok())
+    .unwrap_or(0);
+  (hour.min(23), minute.min(59))
+}
+
+fn weekday_to_cron(day_of_week: Option<&str>) -> &'static str {
+  match day_of_week.unwrap_or("Monday") {
+    "Sunday" => "0",
+    "Monday" => "1",
+    "Tuesday" => "2",
+    "Wednesday" => "3",
+    "Thursday" => "4",
+    "Friday" => "5",
+    "Saturday" => "6",
+    _ => "1",
+  }
+}
+
+fn extract_other_cadence_description(steps: &[AutomationStep]) -> Option<String> {
+  steps.iter().find_map(|step| {
+    let args = step.args_json.as_ref()?;
+    let parsed = serde_json::from_str::<Value>(args).ok()?;
+    parsed
+      .get("descriptionOtherCadence")
+      .and_then(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(ToString::to_string)
+  })
+}
+
+fn schedule_value_for_cadence(cadence: &CadenceTrigger, steps: &[AutomationStep]) -> Option<Value> {
+  match cadence.cadence_type.as_str() {
+    "every_minute" => Some(json!({ "kind": "every", "everyMs": 60_000 })),
+    "hourly" => Some(json!({ "kind": "every", "everyMs": 3_600_000 })),
+    "daily" => {
+      let (hour, minute) = cadence_time_parts(cadence.time.as_deref());
+      Some(json!({ "kind": "cron", "expr": format!("{} {} * * *", minute, hour) }))
+    }
+    "weekly" => {
+      let (hour, minute) = cadence_time_parts(cadence.time.as_deref());
+      let day = weekday_to_cron(cadence.day_of_week.as_deref());
+      Some(json!({ "kind": "cron", "expr": format!("{} {} * * {}", minute, hour, day) }))
+    }
+    "other" => extract_other_cadence_description(steps)
+      .map(|description| parse_schedule_to_cron(&description, None)),
+    "never" => None,
+    _ => None,
+  }
+}
+
+fn parsed_step_args(step: &AutomationStep) -> Option<Value> {
+  step
+    .args_json
+    .as_ref()
+    .and_then(|args| serde_json::from_str::<Value>(args).ok())
+}
+
+fn automation_sources(steps: &[AutomationStep]) -> Vec<String> {
+  let mut sources = Vec::new();
+  for step in steps {
+    let Some(parsed) = parsed_step_args(step) else {
+      continue;
+    };
+    if let Some(values) = parsed.get("sources").and_then(|value| value.as_array()) {
+      for value in values {
+        if let Some(source) = value.as_str() {
+          if !sources.iter().any(|existing| existing == source) {
+            sources.push(source.to_string());
+          }
+        }
+      }
+    }
+  }
+  sources
+}
+
+fn automation_primary_prompt(steps: &[AutomationStep]) -> Option<String> {
+  for step in steps {
+    let Some(parsed) = parsed_step_args(step) else {
+      continue;
+    };
+    if let Some(prompt) = parsed
+      .get("userPrompt")
+      .and_then(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+    {
+      return Some(prompt.to_string());
+    }
+  }
+  None
+}
+
+fn build_automation_agent_message(automation: &Automation) -> String {
+  let steps = automation.steps.clone().unwrap_or_default();
+  let sources = automation_sources(&steps);
+  let primary_prompt = automation_primary_prompt(&steps);
+  let mut lines = vec![
+    format!(
+      "Run the recurring Knapsack automation \"{}\".",
+      automation.name.trim()
+    ),
+    "This is an unattended scheduled execution. Complete the task now and deliver the result clearly.".to_string(),
+  ];
+
+  if !automation.description.trim().is_empty() {
+    lines.push(format!(
+      "Automation description: {}",
+      automation.description.trim()
+    ));
+  }
+
+  if let Some(prompt) = primary_prompt {
+    lines.push(format!("Primary task: {}", prompt));
+  }
+
+  if !sources.is_empty() {
+    lines.push(format!(
+      "Preferred sources and tools: {}.",
+      sources.join(", ")
+    ));
+  }
+
+  for step in &steps {
+    if step.name == "browser_workflow" {
+      if let Some(workflow_uuid) = parsed_step_args(step)
+        .and_then(|value| value.get("workflowUuid").cloned())
+        .and_then(|value| value.as_str().map(ToString::to_string))
+      {
+        lines.push(format!(
+          "A browser workflow is configured for this automation. Run workflow UUID {} if needed to complete the task.",
+          workflow_uuid
+        ));
+      }
+    }
+  }
+
+  lines.push(
+    "If the task cannot be completed, explain the blocker instead of failing silently.".to_string(),
+  );
+  lines.join("\n")
+}
+
+fn desired_automation_cron_jobs(automation: &Automation) -> Vec<DesiredAutomationCronJob> {
+  let cadences = automation.trigger_cadences.clone().unwrap_or_default();
+  cadences
+    .iter()
+    .enumerate()
+    .filter_map(|(index, cadence)| {
+      if !automation.is_active {
+        return None;
+      }
+      let steps = automation.steps.clone().unwrap_or_default();
+      let schedule = schedule_value_for_cadence(cadence, &steps)?;
+      let payload = json!({
+        "kind": "agentTurn",
+        "message": build_automation_agent_message(automation),
+        "lightContext": true,
+      });
+      Some(DesiredAutomationCronJob {
+        name: format!(
+          "{}{automation_uuid}:{index}",
+          AUTOMATION_CRON_JOB_PREFIX,
+          automation_uuid = automation.uuid
+        ),
+        schedule,
+        payload,
+      })
+    })
+    .collect()
+}
+
+fn extract_existing_automation_jobs(value: &Value) -> Vec<ExistingAutomationCronJob> {
+  let job_values: Vec<&Value> = if let Some(array) = value.as_array() {
+    array.iter().collect()
+  } else if let Some(array) = value.get("jobs").and_then(|jobs| jobs.as_array()) {
+    array.iter().collect()
+  } else if let Some(array) = value
+    .get("result")
+    .and_then(|result| result.get("jobs"))
+    .and_then(|jobs| jobs.as_array())
+  {
+    array.iter().collect()
+  } else {
+    Vec::new()
+  };
+
+  job_values
+    .into_iter()
+    .filter_map(|job| {
+      let name = job.get("name").and_then(|value| value.as_str())?;
+      if !name.starts_with(AUTOMATION_CRON_JOB_PREFIX) {
+        return None;
+      }
+      let id = job
+        .get("id")
+        .or_else(|| job.get("jobId"))
+        .and_then(|value| value.as_str())?
+        .to_string();
+      Some(ExistingAutomationCronJob {
+        id,
+        name: name.to_string(),
+        schedule: job.get("schedule").cloned(),
+        payload: job.get("payload").cloned(),
+        enabled: job
+          .get("enabled")
+          .and_then(|value| value.as_bool())
+          .unwrap_or(true),
+      })
+    })
+    .collect()
+}
+
+async fn sync_gateway_automation_jobs() -> Result<(), String> {
+  let automations = Automation::find_all();
+  let desired_jobs: Vec<DesiredAutomationCronJob> = automations
+    .iter()
+    .flat_map(desired_automation_cron_jobs)
+    .collect();
+
+  let existing_jobs_value = gateway_ws::cron_list(None).await?;
+  let existing_jobs = extract_existing_automation_jobs(&existing_jobs_value);
+
+  let existing_by_name: std::collections::HashMap<String, ExistingAutomationCronJob> =
+    existing_jobs
+      .iter()
+      .cloned()
+      .map(|job| (job.name.clone(), job))
+      .collect();
+  let desired_names: std::collections::HashSet<String> =
+    desired_jobs.iter().map(|job| job.name.clone()).collect();
+
+  for desired in desired_jobs {
+    if let Some(existing) = existing_by_name.get(&desired.name) {
+      let needs_update = existing.schedule.as_ref() != Some(&desired.schedule)
+        || existing.payload.as_ref() != Some(&desired.payload)
+        || !existing.enabled;
+      if needs_update {
+        gateway_ws::cron_update(
+          &existing.id,
+          json!({
+            "name": desired.name,
+            "schedule": desired.schedule,
+            "payload": desired.payload,
+            "enabled": true,
+          }),
+          None,
+        )
+        .await?;
+      }
+    } else {
+      gateway_ws::cron_add(&desired.name, desired.schedule, desired.payload, None).await?;
+    }
+  }
+
+  for existing in existing_jobs {
+    if !desired_names.contains(&existing.name) {
+      gateway_ws::cron_remove(&existing.id, None).await?;
+    }
+  }
+
+  Ok(())
+}
+
 fn create_feed_item_to_schedule_run(
   mut automation_run: AutomationRun,
   title: String,
@@ -636,7 +1061,15 @@ fn schedule_cadence_future_run_hourly(
       automation.name.clone(),
       current_date.timestamp_millis(),
     );
-    automation_run.upsert_schedule();
+    if let Err(error) = automation_run.upsert_schedule() {
+      let err_msg = format!(
+        "Failed to upsert hourly automation schedule for {} at {}",
+        automation_uuid,
+        current_date.timestamp_millis()
+      );
+      log::error!("{}: {:?}", err_msg, error);
+      knap_log_error(err_msg, Some(error), None);
+    }
   }
 }
 
@@ -665,7 +1098,15 @@ fn schedule_cadence_future_run_daily(
         automation.name.clone(),
         current_date.timestamp_millis(),
       );
-      automation_run.upsert_schedule();
+      if let Err(error) = automation_run.upsert_schedule() {
+        let err_msg = format!(
+          "Failed to upsert daily automation schedule for {} at {}",
+          automation_uuid,
+          current_date.timestamp_millis()
+        );
+        log::error!("{}: {:?}", err_msg, error);
+        knap_log_error(err_msg, Some(error), None);
+      }
     }
     current_date = current_date + ONE_DAY;
   }
@@ -712,7 +1153,15 @@ fn schedule_cadence_future_run_weekly(
       automation.name.clone(),
       current_date.timestamp_millis(),
     );
-    automation_run.upsert_schedule();
+    if let Err(error) = automation_run.upsert_schedule() {
+      let err_msg = format!(
+        "Failed to upsert weekly automation schedule for {} at {}",
+        automation_uuid,
+        current_date.timestamp_millis()
+      );
+      log::error!("{}: {:?}", err_msg, error);
+      knap_log_error(err_msg, Some(error), None);
+    }
   }
 }
 
@@ -906,6 +1355,13 @@ async fn schedule_automation_runs(
         knap_log_error(err_msg, Some(e), None);
       }
     }
+  }
+
+  if let Err(error) = sync_gateway_automation_jobs().await {
+    log::warn!(
+      "Failed to sync gateway automation jobs during schedule pass: {}",
+      error
+    );
   }
 
   Ok(HttpResponse::Ok().json(ScheduleAutomationRunsResponse {
@@ -1282,6 +1738,46 @@ async fn get_feed_items() -> Result<HttpResponse, ActixError> {
         message: Some(error_message),
       }))
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn cadence(cadence_type: &str, day_of_week: Option<&str>, time: Option<&str>) -> CadenceTrigger {
+    CadenceTrigger {
+      id: None,
+      automation_uuid: "auto-1".to_string(),
+      cadence_type: cadence_type.to_string(),
+      day_of_week: day_of_week.map(ToString::to_string),
+      time: time.map(ToString::to_string),
+    }
+  }
+
+  fn step_with_other_description(description: &str) -> AutomationStep {
+    AutomationStep {
+      id: None,
+      automation_uuid: "auto-1".to_string(),
+      name: "semantic-search".to_string(),
+      ordering: 0,
+      args_json: Some(json!({ "descriptionOtherCadence": description }).to_string()),
+    }
+  }
+
+  #[test]
+  fn schedule_value_for_daily_cadence_uses_cron_time() {
+    let cadence = cadence("daily", None, Some("08:30"));
+    let schedule = schedule_value_for_cadence(&cadence, &[]).expect("daily schedule");
+    assert_eq!(schedule, json!({ "kind": "cron", "expr": "30 8 * * *" }));
+  }
+
+  #[test]
+  fn schedule_value_for_other_cadence_uses_step_description() {
+    let cadence = cadence("other", None, None);
+    let steps = vec![step_with_other_description("every 10 minutes")];
+    let schedule = schedule_value_for_cadence(&cadence, &steps).expect("other schedule");
+    assert_eq!(schedule, json!({ "kind": "every", "everyMs": 600000 }));
   }
 }
 

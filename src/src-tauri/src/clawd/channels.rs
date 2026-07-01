@@ -100,6 +100,11 @@ fn runtime_channel<'a>(snapshot: &'a Value, channel: &str) -> Option<&'a Value> 
 }
 
 fn configured_channel(channel: &str) -> Option<Value> {
+  let config = configured_gateway_config()?;
+  config.pointer(&format!("/channels/{}", channel)).cloned()
+}
+
+fn configured_gateway_config() -> Option<Value> {
   let mut candidates = Vec::new();
   if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
     candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
@@ -130,11 +135,20 @@ fn configured_channel(channel: &str) -> Option<Value> {
     let Ok(config) = serde_json::from_str::<Value>(&raw) else {
       continue;
     };
-    if let Some(entry) = config.pointer(&format!("/channels/{}", channel)) {
-      return Some(entry.clone());
-    }
+    return Some(config);
   }
   None
+}
+
+fn channel_plugin_allowed(channel: &str) -> Option<bool> {
+  let config = configured_gateway_config()?;
+  let plugins = config.pointer("/plugins/allow")?.as_array()?;
+  Some(plugins.iter().any(|value| {
+    value
+      .as_str()
+      .map(|plugin| plugin.eq_ignore_ascii_case(channel))
+      .unwrap_or(false)
+  }))
 }
 
 fn runtime_status_response(
@@ -159,6 +173,7 @@ fn runtime_status_response(
     .and_then(|s| s.get("configured"))
     .and_then(|v| v.as_bool())
     .unwrap_or_else(|| enabled || config.is_some());
+  let plugin_allowed = channel_plugin_allowed(channel);
   let running = status
     .and_then(|s| s.get("running"))
     .and_then(|v| v.as_bool())
@@ -176,17 +191,30 @@ fn runtime_status_response(
     .and_then(|s| s.get("lastError"))
     .and_then(|v| v.as_str())
     .filter(|err| !err.trim().is_empty())
-    .map(|err| err.to_string());
+    .map(|err| err.to_string())
+    .or_else(|| {
+      if configured && plugin_allowed == Some(false) {
+        Some(format!(
+          "{} is configured, but its plugin is not discoverable by the gateway yet.",
+          channel
+        ))
+      } else {
+        None
+      }
+    });
+  let active = running || connected;
 
   ChannelStatusResponse {
     success: true,
     enabled,
     configured,
+    active,
     linked: if linked_when_connected {
       Some(connected)
     } else {
       None
     },
+    plugin_allowed,
     provider,
     message,
     account,
@@ -235,7 +263,10 @@ struct ChannelStatusResponse {
   success: bool,
   enabled: bool,
   configured: bool,
+  active: bool,
   linked: Option<bool>,
+  #[serde(rename = "pluginAllowed", skip_serializing_if = "Option::is_none")]
+  plugin_allowed: Option<bool>,
   provider: Option<String>,
   message: Option<String>,
   /// The account identifier (e.g. phone number for WhatsApp, email for iMessage)
@@ -418,7 +449,13 @@ fn has_sandbox_tools(snapshot: &serde_json::Value) -> bool {
     None => return false,
   };
   // Check for a few critical tools that must be present
-  let required = ["exec", "browser", "sessions_send"];
+  let required = [
+    "exec",
+    "browser",
+    "web_fetch",
+    "web_search",
+    "sessions_send",
+  ];
   required
     .iter()
     .all(|tool| allow.iter().any(|item| item.as_str() == Some(tool)))
@@ -528,10 +565,13 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
   let mut patch = parsed_patch;
 
   if needs_model {
-    let model = resolve_default_model();
     patch.as_object_mut().unwrap().insert(
       "agents".to_string(),
-      serde_json::json!({"defaults": {"model": model}}),
+      serde_json::json!({
+        "defaults": {
+          "model": crate::clawd::gateway_client::build_model_config()
+        }
+      }),
     );
   }
 
@@ -555,14 +595,14 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
                     "exec", "process", "group:fs",
                     "image", "sessions_list", "sessions_history",
                     "sessions_send", "sessions_spawn", "session_status",
-                    "browser", "group:web"
+                    "browser", "web_fetch", "web_search", "group:web"
                 ]
             }
         }
     });
     // Also ensure normal-mode tools.allow includes browser + group:web
     let mut tools_val = serde_json::json!({
-        "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}}
@@ -667,7 +707,9 @@ pub async fn whatsapp_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
       success: service::gateway_log_has_channel_started("whatsapp"),
       enabled: false,
       configured: false,
+      active: false,
       linked: Some(false),
+      plugin_allowed: channel_plugin_allowed("whatsapp"),
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1068,6 +1110,20 @@ pub async fn whatsapp_login_phone(
 /// Get iMessage channel status
 #[get("/api/clawd/channels/imessage/status")]
 pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  if configured_channel("imessage").is_none() {
+    return HttpResponse::Ok().json(ChannelStatusResponse {
+      success: true,
+      enabled: false,
+      configured: false,
+      active: false,
+      linked: None,
+      plugin_allowed: channel_plugin_allowed("imessage"),
+      provider: None,
+      message: None,
+      account: None,
+    });
+  }
+
   if let Some(bail) = gateway_or_bail().await {
     return bail;
   }
@@ -1079,7 +1135,9 @@ pub async fn imessage_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: channel_plugin_allowed("imessage"),
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1233,7 +1291,9 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
         success: true,
         enabled,
         configured,
+        active: enabled,
         linked: None,
+        plugin_allowed: None,
         provider,
         message: None,
         account: None,
@@ -1243,7 +1303,9 @@ pub async fn voice_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Respond
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: None,
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1364,7 +1426,9 @@ pub async fn telegram_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Resp
         success: service::gateway_log_has_channel_started("telegram"),
         enabled: false,
         configured: false,
+        active: false,
         linked: Some(false),
+        plugin_allowed: channel_plugin_allowed("telegram"),
         provider: None,
         message: Some(format!("Gateway error: {}", e)),
         account: None,
@@ -1855,7 +1919,9 @@ pub async fn generic_channel_status(
       success: false,
       enabled: false,
       configured: false,
+      active: false,
       linked: None,
+      plugin_allowed: None,
       provider: None,
       message: Some(format!("Unknown channel: {}", channel)),
       account: None,
@@ -1867,7 +1933,9 @@ pub async fn generic_channel_status(
       success: true,
       enabled: false,
       configured: false,
+      active: false,
       linked: Some(false),
+      plugin_allowed: channel_plugin_allowed(&channel),
       provider: None,
       message: None,
       account: None,
@@ -1881,10 +1949,16 @@ pub async fn generic_channel_status(
   match channel_runtime_snapshot(Some(&channel)).await {
     Ok(status) => HttpResponse::Ok().json(runtime_status_response(&status, &channel, true, None)),
     Err(e) => HttpResponse::Ok().json(ChannelStatusResponse {
-      success: service::gateway_log_has_channel_started(&channel),
-      enabled: false,
+      success: false,
+      enabled: configured_channel(&channel)
+        .as_ref()
+        .and_then(|entry| entry.get("enabled"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true),
       configured: true,
+      active: false,
       linked: Some(false),
+      plugin_allowed: channel_plugin_allowed(&channel),
       provider: None,
       message: Some(format!("Gateway error: {}", e)),
       account: None,
@@ -1935,6 +2009,29 @@ pub async fn generic_channel_configure(
   // Merge the user-provided config with standard channel defaults.
   // Discord, Slack, and GoogleChat use nested dm: { policy, allowFrom };
   // Telegram and Signal use top-level dmPolicy / allowFrom.
+  fn propagate_telegram_allow_from_to_accounts(
+    obj: &mut serde_json::Map<String, serde_json::Value>,
+  ) {
+    let Some(allow_from) = obj.get("allowFrom").and_then(|v| v.as_array()).cloned() else {
+      return;
+    };
+    let Some(accounts) = obj.get_mut("accounts").and_then(|v| v.as_object_mut()) else {
+      return;
+    };
+
+    for account in accounts.values_mut() {
+      let Some(account_obj) = account.as_object_mut() else {
+        continue;
+      };
+      if account_obj.get("allowFrom").is_none() {
+        account_obj.insert(
+          "allowFrom".to_string(),
+          serde_json::Value::Array(allow_from.clone()),
+        );
+      }
+    }
+  }
+
   // All schemas are .strict() so unrecognized keys cause validation errors.
   let mut channel_config = body.config.clone();
   if let Some(obj) = channel_config.as_object_mut() {
@@ -1969,6 +2066,33 @@ pub async fn generic_channel_configure(
             }
           }
         }
+
+        if channel == "slack" {
+          obj.insert("groupPolicy".to_string(), serde_json::json!("open"));
+          obj.insert(
+            "typingReaction".to_string(),
+            serde_json::json!("hourglass_flowing_sand"),
+          );
+          obj.insert(
+            "streaming".to_string(),
+            serde_json::json!({
+              "mode": "progress",
+              "nativeTransport": true,
+              "preview": {
+                "toolProgress": true,
+                "commandText": "status"
+              },
+              "progress": {
+                "label": "auto",
+                "toolProgress": true,
+                "commandText": "status",
+                "nativeTaskCards": true,
+                "maxLines": 8,
+                "render": "rich"
+              }
+            }),
+          );
+        }
       }
       // Signal uses "account" (not "phoneNumber") and has top-level
       // dmPolicy / allowFrom.
@@ -1986,6 +2110,9 @@ pub async fn generic_channel_configure(
         if !obj.contains_key("dmPolicy") {
           obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
         }
+        if channel == "telegram" {
+          propagate_telegram_allow_from_to_accounts(obj);
+        }
       }
     }
   }
@@ -1997,11 +2124,23 @@ pub async fn generic_channel_configure(
       // retry path gets its own copy — serde_json::json! moves the
       // value into the tree.
       let build_patch = |snapshot: &serde_json::Value| {
-        let patch_value = serde_json::json!({
-            "channels": {
-                channel.clone(): channel_config.clone()
-            }
+        let mut patch_value = serde_json::json!({
+          "channels": {
+            channel.clone(): channel_config.clone()
+          }
         });
+        if channel == "slack" {
+          patch_value["messages"] = serde_json::json!({
+            "ackReaction": "eyes",
+            "ackReactionScope": "all",
+            "statusReactions": {
+              "enabled": true
+            },
+            "groupChat": {
+              "visibleReplies": "automatic"
+            }
+          });
+        }
         build_enable_patch(&serde_json::to_string(&patch_value).unwrap(), snapshot)
       };
 
@@ -2982,6 +3121,29 @@ pub async fn channel_allowlist_update(
             allow.clone()
           };
           patch_inner.insert("allowFrom".to_string(), serde_json::json!(allow));
+          if channel == "telegram" {
+            if let Some(accounts) =
+              config_snapshot["config"]["channels"]["telegram"]["accounts"].as_object()
+            {
+              let mut accounts_patch = serde_json::Map::new();
+              for (account_id, account) in accounts {
+                if account.get("allowFrom").is_none() {
+                  accounts_patch.insert(
+                    account_id.clone(),
+                    serde_json::json!({
+                      "allowFrom": allow,
+                    }),
+                  );
+                }
+              }
+              if !accounts_patch.is_empty() {
+                patch_inner.insert(
+                  "accounts".to_string(),
+                  serde_json::Value::Object(accounts_patch),
+                );
+              }
+            }
+          }
         }
       }
 
@@ -3253,8 +3415,9 @@ pub async fn channel_diagnostics() -> impl Responder {
       // Priority order:
       //   1. Brave API  (BRAVE_API_KEY present — explicit config or env var)
       //   2. Browser CDP  (bundled Chromium available — /api/clawd/browser/search)
-      //   3. DuckDuckGo  (key-free HTTP fallback, browser unavailable)
-      //   4. Surface API key prompt  (only if all above fail)
+      //   3. Leave provider unset and rely on browser/web_fetch guidance
+      //   4. DuckDuckGo only when the user explicitly configures it
+      //   5. Surface API key prompt  (only if all above fail)
       {
         let brave_key_in_config = snapshot
           .pointer("/plugins/entries/brave/config/webSearch/apiKey")
@@ -3304,59 +3467,23 @@ pub async fn channel_diagnostics() -> impl Responder {
           .unwrap_or(false);
 
           if browser_ok {
-            // Browser CDP is available — it serves as the primary search
-            // mechanism via GET /api/clawd/browser/search.
-            // Ensure the gateway web_search tool also has a key-free provider
-            // (DDG) so the AI can use web_search as a secondary path, but
-            // log clearly that browser is the primary.
+            // Browser CDP is available — it serves as the primary zero-key
+            // search mechanism via GET /api/clawd/browser/search.
             log::info!("[channels] web_search: browser CDP available — using browser as primary search (BRAVE_API_KEY not set)");
             repairs.push(
-                            "Browser CDP available — using /api/clawd/browser/search as primary \
-                             web search (BRAVE_API_KEY not set). DuckDuckGo configured as secondary."
-                                .to_string(),
-                        );
-            // Also wire up DDG as secondary so web_search tool itself works
-            let re_snapshot = gateway_client::config_get(None).await;
-            if let Ok(snap) = re_snapshot {
-              let bh = extract_base_hash(&snap);
-              let ddg_patch = serde_json::json!({
-                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-              })
-              .to_string();
-              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
-                Ok(_) => log::info!("[channels] web_search: DDG configured as secondary provider"),
-                Err(e) => log::warn!("[channels] web_search DDG secondary patch failed: {}", e),
-              }
-            }
+              "Browser CDP available — using /api/clawd/browser/search as primary \
+                             web search (BRAVE_API_KEY not set). Leaving web_search provider unset \
+                             instead of auto-configuring DuckDuckGo."
+                .to_string(),
+            );
           } else {
-            // Browser not available — configure DDG as the sole fallback.
-            log::info!("[channels] web_search: browser unavailable — configuring DuckDuckGo (BRAVE_API_KEY not set)");
-            let re_snapshot = gateway_client::config_get(None).await;
-            if let Ok(snap) = re_snapshot {
-              let bh = extract_base_hash(&snap);
-              let ddg_patch = serde_json::json!({
-                  "tools": { "web": { "search": { "provider": "duckduckgo" } } }
-              })
-              .to_string();
-              match gateway_client::config_patch(&ddg_patch, &bh, None).await {
-                Ok(_) => {
-                  repairs.push(
-                    "Configured DuckDuckGo as web_search provider \
-                                         (BRAVE_API_KEY not set, browser unavailable)."
-                      .to_string(),
-                  );
-                }
-                Err(e) => {
-                  log::warn!("[channels] web_search DDG patch failed: {}", e);
-                  // Both browser and DDG unavailable → surface the API key prompt
-                  issues.push(format!(
-                                        "BRAVE_API_KEY not set, browser unavailable, and DuckDuckGo \
-                                         fallback patch failed: {}. Set BRAVE_API_KEY to enable web search.",
-                                        e
-                                    ));
-                }
-              }
-            }
+            log::info!("[channels] web_search: browser unavailable and no provider configured — leaving provider unset");
+            repairs.push(
+              "No API-backed web_search provider configured and browser search is unavailable. \
+               Leaving provider unset instead of auto-configuring DuckDuckGo; configure Brave, \
+               Gemini, or another provider for reliable web_search."
+                .to_string(),
+            );
           }
         }
       }
@@ -3375,7 +3502,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           let bh = extract_base_hash(&snap);
           let sandbox_patch = serde_json::json!({
               "tools": {
-                  "allow": ["browser", "group:web", "exec", "process", "group:fs"],
+                  "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
                   "deny": ["canvas", "nodes", "cron", "gateway"],
                   "exec": {"applyPatch": {"enabled": true}},
                   "media": {"image": {"enabled": true}},
@@ -3386,7 +3513,7 @@ pub async fn channel_diagnostics() -> impl Responder {
                               "exec", "process", "group:fs",
                               "image", "sessions_list", "sessions_history",
                               "sessions_send", "sessions_spawn", "session_status",
-                              "browser", "group:web"
+                              "browser", "web_fetch", "web_search", "group:web"
                           ]
                       }
                   }
@@ -4758,6 +4885,8 @@ pub async fn telegram_get_agent_bot_statuses() -> impl Responder {
 mod reconnect_retry_tests {
   use super::{build_enable_patch, is_connection_level_error};
 
+  static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
   #[test]
   fn connection_closed_is_retryable() {
     assert!(is_connection_level_error("Gateway connection closed"));
@@ -4818,5 +4947,97 @@ mod reconnect_retry_tests {
       patch.pointer("/plugins/entries/whatsapp/enabled"),
       Some(&serde_json::json!(true))
     );
+  }
+
+  #[test]
+  fn enable_patch_uses_model_config_with_fallbacks_when_missing() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let snapshot = serde_json::json!({
+      "config": {
+        "browser": {"enabled": true},
+        "tools": {
+          "sandbox": {
+            "tools": {
+              "allow": ["exec", "browser", "sessions_send"],
+              "deny": []
+            }
+          }
+        }
+      }
+    });
+
+    let openai = std::env::var("OPENAI_API_KEY").ok();
+    let gemini = std::env::var("GEMINI_API_KEY").ok();
+    let groq = std::env::var("GROQ_API_KEY").ok();
+    let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").ok();
+    let openai_model = std::env::var("KNAPSACK_OPENAI_MODEL").ok();
+    let gemini_model = std::env::var("KNAPSACK_GEMINI_MODEL").ok();
+    let groq_model = std::env::var("KNAPSACK_GROQ_MODEL").ok();
+
+    std::env::set_var("OPENAI_API_KEY", "sk-test");
+    std::env::set_var("GEMINI_API_KEY", "AIza-test");
+    std::env::set_var("GROQ_API_KEY", "groq-test");
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+    std::env::set_var("KNAPSACK_GROQ_MODEL", "openai/gpt-oss-120b");
+
+    let patch = build_enable_patch(
+      r#"{"channels":{"slack":{"accounts":{"default":{"enabled":true}}}}}"#,
+      &snapshot,
+    );
+    let patch: serde_json::Value = serde_json::from_str(&patch).unwrap();
+
+    assert_eq!(
+      patch.pointer("/agents/defaults/model/primary"),
+      Some(&serde_json::json!("openai/gpt-5.5"))
+    );
+    let fallbacks = patch
+      .pointer("/agents/defaults/model/fallbacks")
+      .and_then(|value| value.as_array())
+      .cloned()
+      .unwrap_or_default();
+    assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
+    assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
+
+    if let Some(value) = openai {
+      std::env::set_var("OPENAI_API_KEY", value);
+    } else {
+      std::env::remove_var("OPENAI_API_KEY");
+    }
+    if let Some(value) = gemini {
+      std::env::set_var("GEMINI_API_KEY", value);
+    } else {
+      std::env::remove_var("GEMINI_API_KEY");
+    }
+    if let Some(value) = groq {
+      std::env::set_var("GROQ_API_KEY", value);
+    } else {
+      std::env::remove_var("GROQ_API_KEY");
+    }
+    if let Some(value) = active {
+      std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", value);
+    } else {
+      std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    }
+    if let Some(value) = openai_model {
+      std::env::set_var("KNAPSACK_OPENAI_MODEL", value);
+    } else {
+      std::env::remove_var("KNAPSACK_OPENAI_MODEL");
+    }
+    if let Some(value) = gemini_model {
+      std::env::set_var("KNAPSACK_GEMINI_MODEL", value);
+    } else {
+      std::env::remove_var("KNAPSACK_GEMINI_MODEL");
+    }
+    if let Some(value) = groq_model {
+      std::env::set_var("KNAPSACK_GROQ_MODEL", value);
+    } else {
+      std::env::remove_var("KNAPSACK_GROQ_MODEL");
+    }
   }
 }

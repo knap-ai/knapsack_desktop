@@ -113,39 +113,60 @@ function createBrowserRouteDispatcher(ctx) {
 //#endregion
 //#region extensions/browser/src/control-service.ts
 const logService = createSubsystemLogger("browser").child("service");
+async function releaseDesktopManagedBrowserControlPlaceholder() {
+	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1") return;
+	const placeholder = globalThis.__openclawDesktopBrowserControlPlaceholder;
+	if (!placeholder?.close) return;
+	try {
+		await placeholder.close();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	} catch (err) {
+		logService.warn(`failed to close desktop browser-control placeholder: ${String(err)}`);
+	}
+}
 async function startBrowserControlServiceFromConfig() {
 	const current = getBrowserControlState();
 	if (current) return current;
-	const cfg = getRuntimeConfig();
-	const browserCfg = loadBrowserConfigForRuntimeRefresh();
-	if (!isDefaultBrowserPluginEnabled(browserCfg)) return null;
-	const resolved = resolveBrowserConfig(browserCfg.browser, browserCfg);
-	if (!resolved.enabled) return null;
-	let browserAuth = {};
+	if (globalThis.__openclawBrowserControlServiceStartPromise) return await globalThis.__openclawBrowserControlServiceStartPromise;
+	const startPromise = (async () => {
+		const cfg = getRuntimeConfig();
+		const browserCfg = loadBrowserConfigForRuntimeRefresh();
+		if (!isDefaultBrowserPluginEnabled(browserCfg)) return null;
+		const resolved = resolveBrowserConfig(browserCfg.browser, browserCfg);
+		if (!resolved.enabled) return null;
+		let browserAuth = {};
+		try {
+			const authResult = await ensureBrowserControlAuth({ cfg });
+			browserAuth = authResult.auth ?? {};
+			if (authResult.generatedToken) logService.info("No browser auth configured; generated gateway.auth.token automatically.");
+		} catch (err) {
+			logService.warn(`failed to auto-configure browser auth: ${String(err)}`);
+		}
+		await releaseDesktopManagedBrowserControlPlaceholder();
+		const bridge = await startBrowserBridgeServer({
+			host: "127.0.0.1",
+			port: resolved.controlPort,
+			resolved,
+			authToken: browserAuth.token,
+			authPassword: browserAuth.password
+		});
+		await new Promise((resolve$1) => setTimeout(resolve$1, 0));
+		const state = await ensureBrowserControlRuntime({
+			server: bridge.server,
+			port: bridge.port,
+			resolved: bridge.state.resolved,
+			owner: "service",
+			onWarn: (message) => logService.warn(message)
+		});
+		logService.info(`Browser control service ready (profiles=${Object.keys(resolved.profiles).length})`);
+		return state;
+	})();
+	globalThis.__openclawBrowserControlServiceStartPromise = startPromise;
 	try {
-		const authResult = await ensureBrowserControlAuth({ cfg });
-		browserAuth = authResult.auth ?? {};
-		if (authResult.generatedToken) logService.info("No browser auth configured; generated gateway.auth.token automatically.");
-	} catch (err) {
-		logService.warn(`failed to auto-configure browser auth: ${String(err)}`);
+		return await startPromise;
+	} finally {
+		if (globalThis.__openclawBrowserControlServiceStartPromise === startPromise) delete globalThis.__openclawBrowserControlServiceStartPromise;
 	}
-	const bridge = await startBrowserBridgeServer({
-		host: "127.0.0.1",
-		port: resolved.controlPort,
-		resolved,
-		authToken: browserAuth.token,
-		authPassword: browserAuth.password
-	});
-	await new Promise((resolve$1) => setTimeout(resolve$1, 0));
-	const state = await ensureBrowserControlRuntime({
-		server: bridge.server,
-		port: bridge.port,
-		resolved: bridge.state.resolved,
-		owner: "service",
-		onWarn: (message) => logService.warn(message)
-	});
-	logService.info(`Browser control service ready (profiles=${Object.keys(resolved.profiles).length})`);
-	return state;
 }
 async function stopBrowserControlService() {
 	await stopBrowserControlRuntime({
