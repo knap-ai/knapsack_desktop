@@ -48,11 +48,11 @@ jobs:
             git commit -m "release: $TAG"
           fi
           git rebase origin/main
-          git push origin HEAD:main
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
             echo "ERROR: tag $TAG already exists on origin; refusing to reuse it for a new release commit."
             exit 1
           fi
+          git push origin HEAD:main
           git tag "$TAG"
           git push origin "refs/tags/$TAG"
 
