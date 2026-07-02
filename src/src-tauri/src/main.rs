@@ -232,38 +232,6 @@ static KN_KEEP_AWAKE_PROCESS: Lazy<StdMutex<Option<std::process::Child>>> =
 static KN_KEEP_AWAKE_PROCESS: StdMutex<bool> = StdMutex::new(false);
 
 #[tauri::command]
-async fn kn_send_composed_email(
-  to: String,
-  cc: Option<String>,
-  subject: String,
-  body: String,
-  thread_id: Option<String>,
-  user_email: String,
-  user_name: Option<String>,
-  attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
-) -> Result<String, String> {
-  let trimmed_to = to.trim().to_string();
-  let trimmed_subject = subject.trim().to_string();
-  let trimmed_body = body.trim().to_string();
-
-  if trimmed_to.is_empty() || trimmed_subject.is_empty() || trimmed_body.is_empty() {
-    return Err("To, subject, and body are required".to_string());
-  }
-
-  crate::clawd::gmail::send_gmail_email(
-    &user_email,
-    user_name.as_deref().unwrap_or(""),
-    &trimmed_to,
-    cc.as_deref(),
-    &trimmed_subject,
-    &trimmed_body,
-    thread_id.as_deref(),
-    attachments.as_deref(),
-  )
-  .await
-}
-
-#[tauri::command]
 fn kn_set_keep_awake(enabled: bool) -> Result<(), String> {
   #[cfg(target_os = "macos")]
   {
@@ -1520,9 +1488,6 @@ fn create_data_dir() {
 
 // make the db path OS agnostic
 fn create_db_env_variable() {
-  if env::var_os("DATABASE_URL").is_some() {
-    return;
-  }
   let home_dir = dirs::home_dir().expect("Could not determine the home directory");
   let db_dir = home_dir.join(KNAPSACK_DB_FILENAME);
   let db_path = db_dir.as_path();

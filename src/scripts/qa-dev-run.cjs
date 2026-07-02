@@ -130,6 +130,43 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function removeUnsupportedSlackStreamingKeys(config) {
+  if (!config || typeof config !== "object") return false;
+  let changed = false;
+  const slack = config.channels && typeof config.channels === "object"
+    ? config.channels.slack
+    : null;
+  if (!slack || typeof slack !== "object") return false;
+
+  const scrubProgress = (progress) => {
+    if (!progress || typeof progress !== "object") return;
+    for (const key of [
+      "nativeTaskCards",
+      "label",
+      "labels",
+      "maxLines",
+      "maxLineChars",
+      "render",
+    ]) {
+      if (Object.prototype.hasOwnProperty.call(progress, key)) {
+        delete progress[key];
+        changed = true;
+      }
+    }
+  };
+
+  scrubProgress(slack.streaming && slack.streaming.progress);
+  const accounts = slack.accounts;
+  if (accounts && typeof accounts === "object") {
+    for (const account of Object.values(accounts)) {
+      if (!account || typeof account !== "object") continue;
+      scrubProgress(account.streaming && account.streaming.progress);
+    }
+  }
+
+  return changed;
+}
+
 function seedQaProviderTokensFromProd() {
   const prodTokens = readJsonFile(prodTokensPath);
   if (!prodTokens || typeof prodTokens !== "object") return;
@@ -250,6 +287,12 @@ function seedQaConfigFromProd() {
     next.agents.defaults.model.primary === "auto"
   ) {
     next.agents.defaults.model.primary = "knapsack/auto";
+  }
+
+  if (removeUnsupportedSlackStreamingKeys(next)) {
+    console.log(
+      "[qa-dev-run] removed unsupported slack streaming keys from isolated QA config",
+    );
   }
 
   if (JSON.stringify(next) !== JSON.stringify(qaConfig)) {

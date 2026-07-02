@@ -53,7 +53,6 @@ export type TelegramAccountsScreenProps = {
   agents: AgentTelegramEntry[]
   /** Derived from the user's email/profile to generate unique bot usernames. */
   userSlug?: string
-  /** Signed-in account email used for hosted Slack OAuth. */
   accountEmail?: string | null
   onComplete: (index: number) => void
   onSkip: (index: number) => void
@@ -487,7 +486,6 @@ export function TelegramAccountsScreen({
   currentSlideOutScreen,
   agents,
   userSlug = 'user',
-  accountEmail,
   onComplete,
   onSkip,
 }: TelegramAccountsScreenProps) {

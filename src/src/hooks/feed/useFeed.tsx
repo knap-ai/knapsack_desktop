@@ -211,7 +211,9 @@ export interface ComposedEmailDraft {
   body: string
   threadId?: string
   userEmail?: string
+  senderEmail?: string
   userName?: string
+  attachments?: ComposedEmailAttachment[]
 }
 
 export function useFeed(

@@ -426,6 +426,7 @@ function parseArgs() {
     modelOverride: null,
   };
   let mode = "both";
+  let sawExplicitAttempts = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--dev" || arg === "--qa-dev" || arg === "--both") {
@@ -459,6 +460,7 @@ function parseArgs() {
       const next = args[i + 1];
       if (next && Number.isFinite(Number(next))) {
         opts.attemptsPerMode = Number.parseInt(next, 10);
+        sawExplicitAttempts = true;
         i += 1;
       }
       continue;
@@ -469,7 +471,10 @@ function parseArgs() {
       arg.startsWith("--attempts-per-mode=")
     ) {
       const v = Number.parseInt(arg.split("=")[1], 10);
-      if (Number.isFinite(v)) opts.attemptsPerMode = v;
+      if (Number.isFinite(v)) {
+        opts.attemptsPerMode = v;
+        sawExplicitAttempts = true;
+      }
       continue;
     }
     if (arg === "--strict-readiness" || arg === "--strict-chat" || arg === "--no-fallback") {
@@ -635,7 +640,7 @@ function parseArgs() {
     if (arg.startsWith("--")) {
       continue;
     }
-    if (/^\d+$/.test(arg)) {
+    if (!sawExplicitAttempts && args.length === 1 && /^\d+$/.test(arg)) {
       const v = Number.parseInt(arg, 10);
       if (Number.isFinite(v)) {
         opts.attemptsPerMode = v;

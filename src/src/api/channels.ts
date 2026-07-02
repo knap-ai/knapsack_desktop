@@ -1,9 +1,6 @@
-import { getApiToken } from 'src/api/connections'
-
 /** API helpers for messaging channel endpoints (WhatsApp, iMessage). */
 
 const API_BASE = 'http://127.0.0.1:8897'
-const REMOTE_API_BASE = import.meta.env.VITE_KN_API_SERVER || 'https://api.knapsack.ai'
 const WHATSAPP_BUNDLED = false
 
 export interface ChannelStatus {
@@ -62,31 +59,6 @@ async function post<T>(path: string, body?: unknown, timeoutMs = 30_000): Promis
   } finally {
     clearTimeout(timer)
   }
-}
-
-async function remoteRequest<T>(
-  userEmail: string,
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const token = await getApiToken(userEmail)
-  const headers = new Headers(init?.headers || {})
-  if (!headers.has('Content-Type') && init?.body !== undefined) {
-    headers.set('Content-Type', 'application/json')
-  }
-  headers.set('Authorization', `Bearer ${token}`)
-
-  const res = await fetch(`${REMOTE_API_BASE}${path}`, {
-    ...init,
-    headers,
-  })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || `HTTP ${res.status}`)
-  }
-
-  return (await res.json()) as T
 }
 
 // ── WhatsApp ─────────────────────────────────────────────────
@@ -287,58 +259,6 @@ export interface SendMessageResponse {
 /** Send a message to a user through a connected channel (WhatsApp, iMessage, or Telegram). */
 export const sendChannelMessage = (channel: string, to: string, message: string) =>
   post<SendMessageResponse>('/api/clawd/channels/send', { channel, to, message })
-
-// ── Hosted Slack OAuth (web backend) ───────────────────────
-
-export interface HostedSlackInstallSessionResponse {
-  session_id: string
-  authorize_url: string
-  expires_in: number
-  onboarding_recommended_default_employees?: Array<Record<string, string>>
-}
-
-export interface HostedSlackInstallRedeemResponse {
-  status: string
-  linked: boolean
-  slack_team_id?: string | null
-  slack_team_name?: string | null
-  slack_user_id?: string | null
-  slack_dm_channel_id?: string | null
-  slack_bot_name?: string | null
-  granted_scopes?: string[]
-  onboarding_recommended_default_employees?: Array<Record<string, string>>
-  error?: string | null
-}
-
-export interface HostedLinkStatusResponse {
-  linked: boolean
-  display_label?: string | null
-  external_chat_id?: string | null
-}
-
-export const createHostedSlackInstallSession = (userEmail: string) =>
-  remoteRequest<HostedSlackInstallSessionResponse>(
-    userEmail,
-    '/api/messaging/channels/slack/install-sessions',
-    { method: 'POST', body: JSON.stringify({}) },
-  )
-
-export const redeemHostedSlackInstallSession = (userEmail: string, sessionId: string) =>
-  remoteRequest<HostedSlackInstallRedeemResponse>(
-    userEmail,
-    `/api/messaging/channels/slack/install-sessions/${encodeURIComponent(sessionId)}`,
-    { method: 'GET' },
-  )
-
-export const getHostedSlackLinkStatus = (userEmail: string) =>
-  remoteRequest<HostedLinkStatusResponse>(userEmail, '/api/messaging/channels/slack/link/status', {
-    method: 'GET',
-  })
-
-export const disconnectHostedSlackLink = (userEmail: string) =>
-  remoteRequest<{ ok?: boolean }>(userEmail, '/api/messaging/channels/slack/link', {
-    method: 'DELETE',
-  })
 
 // ── Allowlist Management ─────────────────────────────────────
 
