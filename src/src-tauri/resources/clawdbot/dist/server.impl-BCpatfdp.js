@@ -92,6 +92,15 @@ function startDesktopBrowserControlPlaceholder(log) {
 	});
 	server.listen(18791, "127.0.0.1");
 }
+function startDesktopManagedBrowserControlService(log) {
+	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1" || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
+	if (globalThis.__openclawDesktopManagedBrowserControlStartPromise) return;
+	globalThis.__openclawDesktopManagedBrowserControlStartPromise = import("./control-service-QFP_AmWr.js").then(({ t: startBrowserControlServiceFromConfig }) => startBrowserControlServiceFromConfig()).catch((err) => {
+		log?.warn?.(`desktop-managed browser-control eager start failed: ${String(err)}`);
+	}).finally(() => {
+		delete globalThis.__openclawDesktopManagedBrowserControlStartPromise;
+	});
+}
 function addNormalizedTarget(targets, value) {
 	const normalized = normalizeOptionalString(value);
 	if (normalized) targets.add(normalized);
@@ -2555,8 +2564,17 @@ async function startGatewayServer(port = 18789, opts = {}) {
 			if (!desktopManagedEarlyBound) log.info(`http server listening (desktop-managed fast-bind; 0 plugins; ${elapsedSeconds}s)`);
 			startDesktopBrowserControlPlaceholder(log);
 			setTimeout(() => {
-				activateDesktopCoreMethods("listen timeout");
-			}, 45e3).unref?.();
+				startDesktopManagedBrowserControlService(log);
+			}, 0).unref?.();
+			setTimeout(() => {
+				loadCoreMethodsModule().then(({ coreGatewayHandlers: loadedCoreGatewayHandlers }) => {
+					coreGatewayHandlers = loadedCoreGatewayHandlers;
+					attachedGatewayMethodRegistry = buildAttachedGatewayMethodRegistry(pluginRegistry);
+					runtimeState.gatewayMethods.splice(0, runtimeState.gatewayMethods.length, ...listAttachedGatewayMethods());
+				}).catch((err) => {
+					log.warn(`desktop-managed core gateway methods failed to load after listen: ${String(err)}`);
+				});
+			}, 1e4).unref?.();
 		}
 		const sessionDeliveryRecoveryMaxEnqueuedAt = Date.now();
 		let postAttachRuntimeReturned = false;

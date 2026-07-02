@@ -20,6 +20,7 @@ import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
 import { detectBuildIntent, extractProjectDescription } from 'src/utils/devIntentDetector'
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
+import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -29,6 +30,14 @@ import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 // Instead we parse with balanced-parenthesis counting.
 
 type PromptAction = { label: string; prompt: string }
+
+const SHARE_SUPPORT_DIAGNOSTICS_ACTION =
+  '[Share diagnostics with Knapsack Support](knapsack://prompt/__share_support_diagnostics__)'
+
+function appendSupportDiagnosticsAction(message: string): string {
+  if (message.includes('__share_support_diagnostics__')) return message
+  return `${message}\n\n${SHARE_SUPPORT_DIAGNOSTICS_ACTION}`
+}
 
 // All recognized prompt link prefixes — the AI may use any of these forms
 const PROMPT_MARKERS = ['knapsack://prompt/', 'knapsack://prompt=', 'knapsack://prompt(']
@@ -171,6 +180,7 @@ function getActiveModelLabel(): string {
     knapsack: KNAPSACK_MODEL_STORAGE,
     groq: 'moltbot_groq_model',
     openrouter: 'moltbot_openrouter_model',
+    trustedrouter: 'moltbot_trustedrouter_model',
     ollama: 'moltbot_ollama_model',
     xai: 'moltbot_xai_model',
   }
@@ -190,6 +200,9 @@ function friendlyError(raw: string, activeModel?: string): string {
   // All providers failed (fallback exhausted)
   if (lower.includes('all fallback providers also failed')) {
     return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your primary provider hit its credit/rate limit and no fallback provider could handle the request. Add additional API keys in Settings for automatic failover.\n\n${addApiKeyAction}`
+  }
+  if (lower.includes('all ai providers are currently unavailable')) {
+    return `⚠️ **All AI providers are unavailable** (active: \`${activeModel}\`). Your active provider failed and no backup provider could handle the request. Please try again in a moment, or add another provider in Settings for automatic failover.\n\n${addApiKeyAction}`
   }
   // OpenAI quota / billing errors
   if (lower.includes('insufficient_quota') || lower.includes('exceeded your current quota')) {
@@ -256,12 +269,16 @@ function friendlyError(raw: string, activeModel?: string): string {
   if (lower.includes('failed to start chrome cdp')) {
     return '🌐 **Browser failed to start.** Chrome could not launch. Check the logs for details or try restarting.'
   }
+  // Local backend overload / file descriptor exhaustion
+  if (lower.includes('too many open files') || lower.includes('unable to open database file')) {
+    return `🛠️ **Knapsack backend is overloaded** (active: \`${activeModel}\`). The local service ran out of file handles and could not process the request. Quit and reopen Knapsack, then try again. If this keeps happening, share diagnostics with Knapsack Support.`
+  }
   // Network / connection errors
-  // WebKit raises "TypeError: Load failed" when the AI request is blocked
-  // (context window overflow, oversized payload, or DNS/network hang).
-  // The most common cause is a conversation that's grown too long for the model.
+  // WebKit's generic "Load failed" is not specific enough to call a context
+  // overflow. We only show the "Message too large" banner for explicit model
+  // limit signals above; otherwise keep this in the connection/backend bucket.
   if (lower.includes('load failed') && !lower.includes('model')) {
-    return `⚠️ **Message too large** (active: \`${activeModel}\`). The conversation or payload exceeded what this model can handle. Start a new conversation to reduce context size${activeModel ? `, or switch to a larger-context model in Settings → Provider` : ''}.\n\n${switchProviderAction}`
+    return `🌐 **Connection error** (active: \`${activeModel}\`). Knapsack could not reach the local AI service for this request. Try again in a moment, or restart Knapsack if the problem keeps happening.`
   }
   if (lower.includes('network') || lower.includes('econnrefused') || lower.includes('fetch failed')) {
     return `🌐 **Connection error** (active: \`${activeModel}\`). Unable to reach the AI service. Check your internet connection and try again.`
@@ -285,6 +302,9 @@ function friendlyError(raw: string, activeModel?: string): string {
   // Unsupported parameter value (e.g. temperature on reasoning models)
   if (lower.includes('unsupported value') && lower.includes('temperature')) {
     return `⚠️ **Parameter not supported by \`${activeModel}\`.** This is a reasoning model that doesn't allow custom temperature. This has been fixed — please try again.`
+  }
+  if (lower.includes('knapsack inference error') || lower.includes('exceptions must derive from baseexception') || (lower.includes('internal server error') && lower.includes('knapsack'))) {
+    return `⚠️ **Knapsack is temporarily unavailable** (active: \`${activeModel}\`). The request hit a server-side issue. Please try again in a moment, or switch to a backup model in Settings → Provider.\n\n${switchProviderAction}`
   }
   // If it looks like raw JSON, extract the meaningful part
   if (raw.includes('"message"') && raw.includes('"error"')) {
@@ -351,6 +371,8 @@ function isBrokenAgentCapabilityReply(reply: string): boolean {
 }
 
 type Role = 'system' | 'user' | 'assistant'
+type Attachment = { name: string; type: string; content: string; preview?: string }
+type QueuedDraft = { text: string; attachments: Attachment[] }
 
 type Msg = {
   id: string
@@ -411,6 +433,7 @@ type ApiKeyStatus = {
   has_groq_key?: boolean
   has_xai_key?: boolean
   has_openrouter_key?: boolean
+  has_trustedrouter_key?: boolean
   has_knapsack?: boolean
   knapsack_email?: string
   knapsack_model?: string
@@ -420,6 +443,7 @@ type ApiKeyStatus = {
   groq_key_hint?: string
   xai_key_hint?: string
   openrouter_key_hint?: string
+  trustedrouter_key_hint?: string
   ollama_enabled?: boolean
   ollama_model?: string
   ollama_base_url?: string
@@ -443,7 +467,7 @@ type SkillInfo = {
   homepage?: string // URL for skill detail page (from gateway)
 }
 
-type Provider = 'knapsack' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'xai' | 'openrouter' | 'ollama'
+type Provider = 'knapsack' | 'openai' | 'anthropic' | 'gemini' | 'groq' | 'xai' | 'openrouter' | 'trustedrouter' | 'ollama'
 
 type ProviderOption = {
   id: Provider
@@ -466,6 +490,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
+  { id: 'trustedrouter', name: 'TrustedRouter', description: 'OpenAI-compatible attested routing through TrustedRouter', keyPrefix: 'sk-tr-', helpUrl: 'https://trustedrouter.com/console/api-keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
 ]
 
@@ -555,6 +580,17 @@ const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'openai/gpt-5.5', name: 'GPT-5.5 (Paid)', description: 'Paid, OpenAI newest frontier via OpenRouter', vision: true },
 ]
 
+const TRUSTEDROUTER_MODELS: OpenRouterModelOption[] = [
+  { id: 'trustedrouter/auto', name: 'Auto', description: 'TrustedRouter selects the best healthy route for each request', vision: true },
+  { id: 'trustedrouter/zdr', name: 'Zero Data Retention', description: 'Routes through providers with zero-retention policies where available', vision: true },
+  { id: 'trustedrouter/e2e', name: 'End-to-End Encrypted', description: 'Routes to end-to-end encrypted provider paths where available', vision: true },
+  { id: 'trustedrouter/fast', name: 'Fast', description: 'Low-latency route for quick agent loops' },
+  { id: 'trustedrouter/synth', name: 'Synth', description: 'Panel synthesis across multiple open models' },
+  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Balanced coding and reasoning via TrustedRouter', vision: true },
+  { id: 'zai/glm-5.2', name: 'GLM 5.2', description: 'Strong open model for coding and agentic work' },
+  { id: 'moonshotai/kimi-k2.7-code', name: 'Kimi K2.7 Code', description: 'Open model optimized for coding workflows' },
+]
+
 // Recommended models to offer for download when Ollama has none installed
 type OllamaModelSuggestion = { id: string; name: string; description: string; size: string }
 const OLLAMA_SUGGESTED_MODELS: OllamaModelSuggestion[] = [
@@ -575,6 +611,16 @@ const API_BASE = 'http://127.0.0.1:8897'
 // API key is now stored server-side in tokens.json (not localStorage) for security.
 // This in-memory cache avoids repeated backend calls during a single session.
 let _cachedApiKey: string | null = null
+let _cachedSpeechToTextAuth: { provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null = null
+
+type GetApiKeyPayload = {
+  success: boolean
+  key?: string
+  model?: string
+  active_provider?: string
+  openai_key?: string
+  groq_key?: string
+}
 
 async function getOpenAIKey(): Promise<string | null> {
   if (_cachedApiKey) return _cachedApiKey
@@ -587,10 +633,36 @@ async function getOpenAIKey(): Promise<string | null> {
     localStorage.removeItem('moltbot_openai_key')
   }
   try {
-    const resp = await apiGet<{ success: boolean; key?: string; model?: string }>('/api/clawd/service/get-api-key')
-    if (resp.key) {
-      _cachedApiKey = resp.key
-      return resp.key
+    const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    if (resp.openai_key) {
+      _cachedApiKey = resp.openai_key
+      return resp.openai_key
+    }
+  } catch { /* backend not reachable */ }
+  return null
+}
+
+async function getSpeechToTextAuth(): Promise<{ provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null> {
+  if (_cachedSpeechToTextAuth) return _cachedSpeechToTextAuth
+  try {
+    const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    if (resp.openai_key) {
+      _cachedSpeechToTextAuth = {
+        provider: 'openai',
+        apiKey: resp.openai_key,
+        model: 'whisper-1',
+        endpoint: 'https://api.openai.com/v1/audio/transcriptions',
+      }
+      return _cachedSpeechToTextAuth
+    }
+    if (resp.groq_key) {
+      _cachedSpeechToTextAuth = {
+        provider: 'groq',
+        apiKey: resp.groq_key,
+        model: 'whisper-large-v3-turbo',
+        endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
+      }
+      return _cachedSpeechToTextAuth
     }
   } catch { /* backend not reachable */ }
   return null
@@ -602,9 +674,13 @@ const GEMINI_MODEL_STORAGE = 'moltbot_gemini_model'
 const GROQ_MODEL_STORAGE = 'moltbot_groq_model'
 const XAI_MODEL_STORAGE = 'moltbot_xai_model'
 const OPENROUTER_MODEL_STORAGE = 'moltbot_openrouter_model'
+const TRUSTEDROUTER_MODEL_STORAGE = 'moltbot_trustedrouter_model'
 const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
+const MIN_VOICE_RECORDING_MS = 900
+const MIN_VOICE_BLOB_BYTES = 4096
+const MIN_VOICE_CHUNK_COUNT = 2
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
 const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
 const PROACTIVE_MODE_STORAGE = 'moltbot_proactive_mode'
@@ -625,6 +701,15 @@ type OpenAIModelOption = {
   vision?: boolean
 }
 
+function normalizeOpenAIModelSelection(model: string | null | undefined): string {
+  const trimmed = model?.trim()
+  if (!trimmed) return 'gpt-5.5'
+  if (trimmed === 'gpt-5.4-pro' || trimmed === 'gpt-5.5-pro') {
+    return 'gpt-5.5'
+  }
+  return trimmed
+}
+
 const OPENAI_MODELS: OpenAIModelOption[] = [
   {
     id: 'gpt-5.5',
@@ -633,21 +718,9 @@ const OPENAI_MODELS: OpenAIModelOption[] = [
     vision: true,
   },
   {
-    id: 'gpt-5.5-pro',
-    name: 'GPT-5.5 Pro',
-    description: 'Extended thinking for the hardest problems',
-    vision: true,
-  },
-  {
     id: 'gpt-5.4',
     name: 'GPT-5.4',
     description: 'Highly capable, great balance of performance and cost',
-    vision: true,
-  },
-  {
-    id: 'gpt-5.4-pro',
-    name: 'GPT-5.4 Pro',
-    description: 'GPT-5.4 with extended thinking',
     vision: true,
   },
   {
@@ -799,6 +872,122 @@ function formatMaybeJson(text: string, maxChars = 8000): string {
 const SMART_PROMPT = 'Check my email and calendar and tell me what I should focus on today'
 const NO_AUTH_PROMPT = 'Search the web for the latest AI news and give me a summary'
 const BUILD_WEBSITE_PROMPT = `Build a personal website about me`
+const MAX_NATIVE_PREFETCH_CONTEXT_CHARS = 6000
+const MAX_TERMINAL_CONTEXT_CHARS = 1800
+const MAX_TERMINAL_CONTEXT_LINES = 12
+const MAX_MEMORY_NOTE_ENTRIES = 6
+const MAX_MEMORY_NOTE_CHARS = 240
+const MAX_MEMORY_NOTE_TOTAL_CHARS = 1800
+const MAX_INLINE_CHAT_CONTEXT_CHARS = 12000
+
+function truncateWithNotice(text: string, maxChars: number, notice: string): string {
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}\n\n[${notice}; truncated from ${text.length} chars]`
+}
+
+function trimMemoryNotes(entries: Array<{ timestamp: string; summary: string }>): Array<{ timestamp: string; summary: string }> {
+  const trimmed = entries
+    .slice(-MAX_MEMORY_NOTE_ENTRIES)
+    .map(entry => ({
+      timestamp: entry.timestamp,
+      summary: (entry.summary || '').trim().slice(0, MAX_MEMORY_NOTE_CHARS),
+    }))
+    .filter(entry => entry.summary.length > 0)
+
+  const kept: Array<{ timestamp: string; summary: string }> = []
+  let totalChars = 0
+  for (const entry of trimmed.reverse()) {
+    const nextChars = entry.summary.length
+    if (kept.length > 0 && totalChars + nextChars > MAX_MEMORY_NOTE_TOTAL_CHARS) continue
+    kept.push(entry)
+    totalChars += nextChars
+  }
+  return kept.reverse()
+}
+
+function shouldIncludeTerminalContext(text: string, advancedMode: boolean, developerMode: boolean): boolean {
+  if (developerMode) return true
+  if (!advancedMode) return false
+  const lower = text.toLowerCase()
+  return [
+    'terminal',
+    'command',
+    'shell',
+    'log',
+    'error',
+    'stack trace',
+    'build',
+    'compile',
+    'test',
+    'debug',
+    'bug',
+    'npm',
+    'node',
+    'python',
+    'rust',
+    'cargo',
+    'git',
+    'repo',
+    'repository',
+    'code',
+  ].some(keyword => lower.includes(keyword))
+}
+
+function capInlineChatContext(text: string): string {
+  return truncateWithNotice(
+    text,
+    MAX_INLINE_CHAT_CONTEXT_CHARS,
+    'Additional inline context omitted to keep the request within the model budget',
+  )
+}
+const SLACK_GUIDED_SETUP_PROMPT = `Please set up the Slack integration for Knapsack for me using the browser.
+
+Goals:
+1. Open the Slack app configuration flow and reuse the existing Knapsack/OpenClaw/Vera app if one already exists. Only create a new app if there is no suitable existing one.
+2. Make sure the app is configured for internal workspace use like Merlin.
+3. Add every required setting so the Slack integration works without extra manual guesswork.
+
+Required Slack settings:
+- App Home:
+  - home_tab_enabled = true
+  - messages_tab_enabled = true
+  - messages_tab_read_only_enabled = false
+- Assistant threads enabled
+- Socket Mode enabled
+- App-level token with scope: connections:write
+- Bot token scopes:
+  - app_mentions:read
+  - assistant:write
+  - channels:history
+  - channels:read
+  - chat:write
+  - commands
+  - emoji:read
+  - files:read
+  - files:write
+  - groups:history
+  - groups:read
+  - im:history
+  - im:read
+  - im:write
+  - mpim:history
+  - mpim:read
+  - mpim:write
+  - pins:read
+  - pins:write
+  - reactions:read
+  - reactions:write
+  - usergroups:read
+  - users:read
+- Optional if available: chat:write.customize
+
+When finished:
+1. Reinstall the Slack app to the workspace if Slack requires it.
+2. Confirm that the app can receive direct messages and that sending messages to the app is not turned off.
+3. Give me the exact xoxb bot token and xapp app-level token I should save in Knapsack, or paste them into the Slack token fields if you can interact with them directly.
+4. If any step requires a human admin click or approval, stop and give me one crisp instruction at a time.
+
+Please drive this in the browser and keep going until Slack is fully configured or you hit a real human-only blocker.`
 
 // Check for freshly onboarded agents and build a personalized intro prompt
 function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
@@ -983,7 +1172,30 @@ async function fetchEmailCalendarContext(): Promise<string> {
     console.warn('[ClawdChat] Failed to pre-fetch upcoming meetings:', err)
   }
 
-  return contextParts.join('\n')
+  return truncateWithNotice(
+    contextParts.join('\n'),
+    MAX_NATIVE_PREFETCH_CONTEXT_CHARS,
+    'Native email/calendar context trimmed for foreground chat',
+  )
+}
+
+function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
+  const lowerText = text.toLowerCase()
+  const mentionsEmail =
+    lowerText.includes('email') || lowerText.includes('gmail') || lowerText.includes('inbox')
+  const mentionsCalendar =
+    lowerText.includes('calendar') || lowerText.includes('schedule') || lowerText.includes('meeting')
+  const browserSpecific =
+    lowerText.includes('browser')
+    || lowerText.includes('tab')
+    || lowerText.includes('website')
+    || lowerText.includes('gmail.com')
+    || lowerText.includes('calendar.google.com')
+    || lowerText.includes('open ')
+    || lowerText.includes('click ')
+    || lowerText.includes('navigate')
+
+  return (mentionsEmail || mentionsCalendar) && !browserSpecific
 }
 
 // Maps skill names to keywords that indicate the skill would be useful.
@@ -1140,9 +1352,9 @@ type ChatInputBarProps = {
   isRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
-  attachedFiles: Array<{ name: string; type: string; content: string; preview?: string }>
+  attachedFiles: Attachment[]
   onSend: (text: string) => void
-  onQueue: (text: string) => void
+  onQueue: (text: string, attachments?: Attachment[]) => void
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
@@ -1241,15 +1453,15 @@ const ChatMessage = memo(function ChatMessage({
             </div>
           </div>
         )}
-        {m.isClickable ? (
+        {staleGatewayDiagnostic ? (
+          <p>
+            Live status is healthy now. This earlier diagnostic is stale, so its old
+            recovery steps have been hidden.
+          </p>
+        ) : m.isClickable ? (
           <p>{m.text}</p>
         ) : (
           <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{cleaned}</ReactMarkdown>
-        )}
-        {staleGatewayDiagnostic && (
-          <div className="ClawdStaleDiagnosticNote">
-            Live status is healthy now. This older diagnostic may be stale, so its recovery actions are hidden.
-          </div>
         )}
         {visibleActions.length > 0 && (
           <div className="ClawdPromptActions">
@@ -1469,7 +1681,6 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         <button
           className="ClawdFileBtn"
           onClick={() => fileInputRef.current?.click()}
-          disabled={busy}
           title="Attach files or images"
         >
           📎
@@ -1493,8 +1704,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 e.preventDefault()
                 if (busy) {
                   // Queue the message to send after current request completes
-                  if (input.trim()) {
-                    onQueue(input.trim())
+                  if (input.trim() || attachedFiles.length > 0) {
+                    onQueue(input.trim(), attachedFiles)
                     setInput('')
                     autoResize()
                   }
@@ -1531,10 +1742,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               ⏹️ Stop
             </button>
             <button
-              disabled={!input.trim()}
+              disabled={!input.trim() && attachedFiles.length === 0}
               onClick={() => {
-                if (input.trim()) {
-                  onQueue(input.trim())
+                if (input.trim() || attachedFiles.length > 0) {
+                  onQueue(input.trim(), attachedFiles)
                   setInput('')
                   autoResize()
                 }
@@ -1781,9 +1992,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
-  const queuedMessagesRef = useRef<string[]>([])
+  const queuedMessagesRef = useRef<QueuedDraft[]>([])
   const [hasQueuedMessage, setHasQueuedMessage] = useState(false)
-  const [queuedMessageTexts, setQueuedMessageTexts] = useState<string[]>([])
+  const [queuedMessages, setQueuedMessages] = useState<QueuedDraft[]>([])
   const [editingQueuedIndex, setEditingQueuedIndex] = useState<number | null>(null)
   const [editingQueuedText, setEditingQueuedText] = useState('')
 
@@ -1801,7 +2012,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem(OPENAI_MODEL_STORAGE) || 'gpt-5-mini'
+    return normalizeOpenAIModelSelection(localStorage.getItem(OPENAI_MODEL_STORAGE))
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
     return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
@@ -1817,6 +2028,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>(() => {
     return localStorage.getItem(OPENROUTER_MODEL_STORAGE) || 'meta-llama/llama-3.3-70b-instruct:free'
+  })
+  const [selectedTrustedRouterModel, setSelectedTrustedRouterModel] = useState<string>(() => {
+    return localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || 'trustedrouter/auto'
   })
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
@@ -1979,13 +2193,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   })
   const audioChunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const recordingStartedAtRef = useRef<number>(0)
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
   const [selectedInputDevice, _setSelectedInputDevice] = useState<string>('')
   const [selectedOutputDevice, _setSelectedOutputDevice] = useState<string>('')
 
   // File upload state
-  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; type: string; content: string; preview?: string }>>([])
+  const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounter = useRef(0)
 
@@ -2005,7 +2220,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
-  const doSendRef = useRef<((text: string) => Promise<void>) | null>(null)
+  const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
   const pushAssistantRef = useRef<((text: string) => void) | null>(null)
   const handleSendWithTextRef = useRef<((text: string) => Promise<void>) | null>(null)
 
@@ -2157,8 +2372,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (activeProvider === 'openai') {
             const localModel = localStorage.getItem(OPENAI_MODEL_STORAGE)
             if (!localModel) {
-              setSelectedModel(backendModel)
-              localStorage.setItem(OPENAI_MODEL_STORAGE, backendModel)
+              const normalizedModel = normalizeOpenAIModelSelection(backendModel)
+              setSelectedModel(normalizedModel)
+              localStorage.setItem(OPENAI_MODEL_STORAGE, normalizedModel)
             }
           } else if (activeProvider === 'anthropic') {
             const localModel = localStorage.getItem(ANTHROPIC_MODEL_STORAGE)
@@ -2190,6 +2406,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setSelectedOpenRouterModel(backendModel)
               localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
             }
+          } else if (activeProvider === 'trustedrouter') {
+            const localModel = localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE)
+            if (!localModel) {
+              setSelectedTrustedRouterModel(backendModel)
+              localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, backendModel)
+            }
           } else if (activeProvider === 'ollama') {
             const localModel = localStorage.getItem(OLLAMA_MODEL_STORAGE)
             if (!localModel) {
@@ -2217,6 +2439,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           groq: keyStatus.groq_key_hint,
           xai: keyStatus.xai_key_hint,
           openrouter: keyStatus.openrouter_key_hint,
+          trustedrouter: keyStatus.trustedrouter_key_hint,
         })
         // Track which providers have saved keys
         setSavedProviderKeys({
@@ -2227,6 +2450,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           groq: !!keyStatus.has_groq_key,
           xai: !!keyStatus.has_xai_key,
           openrouter: !!keyStatus.has_openrouter_key,
+          trustedrouter: !!keyStatus.has_trustedrouter_key,
         })
         if (keyStatus.knapsack_email) {
           setKnapsackEmail(keyStatus.knapsack_email)
@@ -2267,6 +2491,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             groq_model?: string
             xai_model?: string
             openrouter_model?: string
+            trustedrouter_model?: string
           }>('/api/clawd/service/get-api-key')
           if (fullKeys.anthropic_model) {
             setSelectedAnthropicModel(fullKeys.anthropic_model)
@@ -2287,6 +2512,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           if (fullKeys.openrouter_model) {
             setSelectedOpenRouterModel(fullKeys.openrouter_model)
             localStorage.setItem(OPENROUTER_MODEL_STORAGE, fullKeys.openrouter_model)
+          }
+          if (fullKeys.trustedrouter_model) {
+            setSelectedTrustedRouterModel(fullKeys.trustedrouter_model)
+            localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, fullKeys.trustedrouter_model)
           }
         } catch { /* ignore */ }
         // If this version was already onboarded, skip the prompt
@@ -2543,6 +2772,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
       audioChunksRef.current = []
+      recordingStartedAtRef.current = Date.now()
 
       // Set up Web Audio API for silence detection
       const audioContext = new AudioContext()
@@ -2618,7 +2848,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Use the extension we determined at recording start
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
+        const elapsedMs = Date.now() - recordingStartedAtRef.current
+        const chunkCount = audioChunksRef.current.length
         const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
+        console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
+
+        if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size < MIN_VOICE_BLOB_BYTES || elapsedMs < MIN_VOICE_RECORDING_MS) {
+          audioChunksRef.current = []
+          pushAssistantRef.current?.('🎤 I didn’t catch enough audio. Please try again and speak for a second or two after the mic turns on.')
+          return
+        }
+
         await transcribeAudio(audioBlob, recordingExtension)
       }
 
@@ -2646,6 +2886,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     analyserRef.current = null
 
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      const elapsedMs = Date.now() - recordingStartedAtRef.current
+      if (elapsedMs < MIN_VOICE_RECORDING_MS) return
       mediaRecorder.stop()
       setIsRecording(false)
     }
@@ -2654,25 +2896,23 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
     setIsTranscribing(true)
     try {
-      // Get the API key from backend
-      const storedKey = await getOpenAIKey()
-      if (!storedKey) {
-        pushAssistantRef.current?.('🎤 Please set your OpenAI API key first to use voice input.')
+      const speechAuth = await getSpeechToTextAuth()
+      if (!speechAuth) {
+        pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
         setShowKeyPrompt(true)
         return
       }
 
-      console.log('[Voice] Sending transcription request, format:', extension, 'size:', audioBlob.size)
+      console.log('[Voice] Sending transcription request via', speechAuth.provider, 'format:', extension, 'size:', audioBlob.size)
 
-      // Send to OpenAI Whisper API
       const formData = new FormData()
       formData.append('file', audioBlob, `recording.${extension}`)
-      formData.append('model', 'whisper-1')
+      formData.append('model', speechAuth.model)
 
-      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      const res = await fetch(speechAuth.endpoint, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${storedKey}`,
+          'Authorization': `Bearer ${speechAuth.apiKey}`,
         },
         body: formData,
       })
@@ -2686,9 +2926,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
         handleSendWithTextRef.current?.(data.text)
+      } else {
+        pushAssistantRef.current?.('🎤 I didn’t catch any speech. Try again and start speaking after the mic turns on.')
       }
     } catch (e: any) {
-      pushAssistantRef.current?.(`🎤 Transcription failed: ${e?.message || String(e)}`)
+      const raw = e?.message || String(e)
+      const lower = raw.toLowerCase()
+      if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
+        pushAssistantRef.current?.('🎤 I couldn’t hear usable audio in that recording. Please try again and speak for a second or two after the mic turns on.')
+      } else {
+        pushAssistantRef.current?.(`🎤 Transcription failed: ${raw}`)
+      }
     } finally {
       setIsTranscribing(false)
     }
@@ -2696,7 +2944,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Check whether the currently selected model supports vision (image attachments)
   const currentModelSupportsVision = useCallback((): { supported: boolean; modelName: string; visionModels: string[] } => {
-    if (selectedProvider === 'knapsack') {
+    if (confirmedProvider === 'knapsack') {
       const currentId = selectedKnapsackModel || 'auto'
       return {
         supported: true,
@@ -2704,28 +2952,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         visionModels: [],
       }
     }
-    const allModels = selectedProvider === 'openai' ? OPENAI_MODELS
-      : selectedProvider === 'anthropic' ? ANTHROPIC_MODELS
-      : selectedProvider === 'gemini' ? GEMINI_MODELS
-      : selectedProvider === 'groq' ? GROQ_MODELS
-      : selectedProvider === 'xai' ? XAI_MODELS
-      : selectedProvider === 'openrouter' ? OPENROUTER_MODELS
+    const allModels = confirmedProvider === 'openai' ? OPENAI_MODELS
+      : confirmedProvider === 'anthropic' ? ANTHROPIC_MODELS
+      : confirmedProvider === 'gemini' ? GEMINI_MODELS
+      : confirmedProvider === 'groq' ? GROQ_MODELS
+      : confirmedProvider === 'xai' ? XAI_MODELS
+      : confirmedProvider === 'openrouter' ? OPENROUTER_MODELS
+      : confirmedProvider === 'trustedrouter' ? TRUSTEDROUTER_MODELS
       : []
-    const currentId = selectedProvider === 'openai' ? selectedModel
-      : selectedProvider === 'anthropic' ? selectedAnthropicModel
-      : selectedProvider === 'gemini' ? selectedGeminiModel
-      : selectedProvider === 'groq' ? selectedGroqModel
-      : selectedProvider === 'xai' ? selectedXaiModel
-      : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+    const currentId = confirmedProvider === 'openai' ? selectedModel
+      : confirmedProvider === 'anthropic' ? selectedAnthropicModel
+      : confirmedProvider === 'gemini' ? selectedGeminiModel
+      : confirmedProvider === 'groq' ? selectedGroqModel
+      : confirmedProvider === 'xai' ? selectedXaiModel
+      : confirmedProvider === 'openrouter' ? selectedOpenRouterModel
+      : confirmedProvider === 'trustedrouter' ? selectedTrustedRouterModel
       : ''
     const current = allModels.find(m => m.id === currentId)
     // Ollama: we don't know model capabilities, assume supported
-    if (selectedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
+    if (confirmedProvider === 'ollama') return { supported: true, modelName: '', visionModels: [] }
     const modelName = current?.name || currentId
     const supported = current?.vision ?? false
     const visionModels = allModels.filter(m => m.vision).map(m => m.name)
     return { supported, modelName, visionModels }
-  }, [selectedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
+  }, [confirmedProvider, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel])
 
   // File upload handlers
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3210,6 +3460,65 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  const syncProviderSelectionFromBackend = useCallback(async () => {
+    try {
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const activeProvider = keyStatus.active_provider as Provider | undefined
+      if (activeProvider) {
+        setSelectedProvider(activeProvider)
+        setConfirmedProvider(activeProvider)
+        localStorage.setItem(ACTIVE_PROVIDER_STORAGE, activeProvider)
+      }
+
+      if (keyStatus.model && activeProvider) {
+        const backendModel = keyStatus.model
+        if (activeProvider === 'openai') {
+          const normalized = normalizeOpenAIModelSelection(backendModel)
+          setSelectedModel(normalized)
+          localStorage.setItem(OPENAI_MODEL_STORAGE, normalized)
+        } else if (activeProvider === 'anthropic') {
+          setSelectedAnthropicModel(backendModel)
+          localStorage.setItem(ANTHROPIC_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'gemini') {
+          setSelectedGeminiModel(backendModel)
+          localStorage.setItem(GEMINI_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'groq') {
+          setSelectedGroqModel(backendModel)
+          localStorage.setItem(GROQ_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'xai') {
+          setSelectedXaiModel(backendModel)
+          localStorage.setItem(XAI_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'openrouter') {
+          setSelectedOpenRouterModel(backendModel)
+          localStorage.setItem(OPENROUTER_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'trustedrouter') {
+          setSelectedTrustedRouterModel(backendModel)
+          localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'ollama') {
+          setSelectedOllamaModel(backendModel)
+          localStorage.setItem(OLLAMA_MODEL_STORAGE, backendModel)
+        } else if (activeProvider === 'knapsack') {
+          const normalizedKnapsackModel = KNAPSACK_MODELS.some(model => model.id === backendModel) ? backendModel : 'auto'
+          setSelectedKnapsackModel(normalizedKnapsackModel)
+          localStorage.setItem(KNAPSACK_MODEL_STORAGE, normalizedKnapsackModel)
+        }
+      }
+
+      if (keyStatus.ollama_enabled && keyStatus.ollama_model) {
+        setSelectedOllamaModel(keyStatus.ollama_model)
+        localStorage.setItem(OLLAMA_MODEL_STORAGE, keyStatus.ollama_model)
+      }
+
+      if (keyStatus.knapsack_model) {
+        const normalizedKnapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
+        setSelectedKnapsackModel(normalizedKnapsackModel)
+        localStorage.setItem(KNAPSACK_MODEL_STORAGE, normalizedKnapsackModel)
+      }
+    } catch {
+      // Keep the optimistic local selection if backend sync is temporarily unavailable.
+    }
+  }, [])
+
   // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
   const saveOllamaProvider = useCallback(async () => {
     if (!selectedOllamaModel) return
@@ -3220,8 +3529,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: selectedOllamaModel,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setSelectedProvider('ollama')
       setConfirmedProvider('ollama')
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       setHasCompletedOnboarding(true)
       localStorage.setItem(ONBOARDING_VERSION_STORAGE, APP_VERSION)
@@ -3237,7 +3548,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedOllamaModel])
+  }, [selectedOllamaModel, syncProviderSelectionFromBackend])
 
   const saveApiKey = useCallback(async () => {
     if (selectedProvider === 'ollama') { saveOllamaProvider(); return }
@@ -3251,6 +3562,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : selectedProvider === 'groq' ? selectedGroqModel
         : selectedProvider === 'xai' ? selectedXaiModel
         : selectedProvider === 'openrouter' ? selectedOpenRouterModel
+        : selectedProvider === 'trustedrouter' ? selectedTrustedRouterModel
         : selectedProvider === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
@@ -3258,6 +3570,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         model: modelForProvider,
         provider: selectedProvider,
       })
+      _cachedSpeechToTextAuth = null
       if (selectedProvider === 'openai') {
         _cachedApiKey = apiKey.trim() // Update in-memory cache for voice/TTS
         localStorage.setItem(OPENAI_MODEL_STORAGE, selectedModel)
@@ -3271,11 +3584,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (selectedProvider === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (selectedProvider === 'trustedrouter') {
+        localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, selectedTrustedRouterModel)
       } else if (selectedProvider === 'knapsack') {
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
+      setSelectedProvider(selectedProvider)
       setConfirmedProvider(selectedProvider)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, selectedProvider)
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       setEditingProviderKey(false)
       setHasCompletedOnboarding(true)
@@ -3300,6 +3617,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           modelName = XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel
         } else if (selectedProvider === 'openrouter') {
           modelName = OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel
+        } else if (selectedProvider === 'trustedrouter') {
+          modelName = TRUSTEDROUTER_MODELS.find(m => m.id === selectedTrustedRouterModel)?.name || selectedTrustedRouterModel
         } else if (selectedProvider === 'knapsack') {
           modelName = KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel
         } else {
@@ -3316,7 +3635,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider])
+  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3333,6 +3652,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'groq' ? selectedGroqModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
+        : providerId === 'trustedrouter' ? selectedTrustedRouterModel
         : providerId === 'knapsack' ? selectedKnapsackModel
         : undefined
       await apiPost('/api/clawd/service/set-api-key', {
@@ -3352,11 +3672,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         localStorage.setItem(XAI_MODEL_STORAGE, selectedXaiModel)
       } else if (providerId === 'openrouter') {
         localStorage.setItem(OPENROUTER_MODEL_STORAGE, selectedOpenRouterModel)
+      } else if (providerId === 'trustedrouter') {
+        localStorage.setItem(TRUSTEDROUTER_MODEL_STORAGE, selectedTrustedRouterModel)
       } else if (providerId === 'knapsack') {
         localStorage.setItem(KNAPSACK_MODEL_STORAGE, selectedKnapsackModel)
       }
       setSelectedProvider(providerId)
+      setConfirmedProvider(providerId)
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, providerId)
+      await syncProviderSelectionFromBackend()
       setShowKeyPrompt(false)
       try {
         await apiPost('/api/clawd/service/enable', { enabled: true })
@@ -3368,6 +3692,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'gemini' ? GEMINI_MODELS
         : providerId === 'xai' ? XAI_MODELS
         : providerId === 'knapsack' ? KNAPSACK_MODELS
+        : providerId === 'trustedrouter' ? TRUSTEDROUTER_MODELS
         : providerId === 'openrouter' ? OPENROUTER_MODELS
         : GROQ_MODELS
       const mv = providerId === 'openai' ? selectedModel
@@ -3375,6 +3700,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         : providerId === 'gemini' ? selectedGeminiModel
         : providerId === 'xai' ? selectedXaiModel
         : providerId === 'knapsack' ? selectedKnapsackModel
+        : providerId === 'trustedrouter' ? selectedTrustedRouterModel
         : providerId === 'openrouter' ? selectedOpenRouterModel
         : selectedGroqModel
       const modelName = models.find(m => m.id === mv)?.name || mv
@@ -3386,7 +3712,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedKnapsackModel])
+  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
     const init = async () => {
@@ -3608,7 +3934,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         setShowScrollButton(true)
       }
     }
-  }, [msgs, thinkingMessage, queuedMessageTexts])
+  }, [msgs, thinkingMessage, queuedMessages])
 
   const scrollToBottom = useCallback(() => {
     if (chatBodyRef.current) {
@@ -3732,7 +4058,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // handleSendWithText queues automatically if the chat is busy mid-inference.
   const busyRef = useRef(false)
   busyRef.current = busy
-  const queueMessageRef = useRef<(text: string) => void>(() => {})
+  const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
@@ -3862,6 +4188,33 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       setShowKeyPrompt(true)
       setShowChannelsPanel(false)
       setShowSkillsPanel(false)
+      return
+    }
+
+    if (text === '__share_support_diagnostics__') {
+      const sourceMsg = srcMsgId ? msgsRef.current.find(m => m.id === srcMsgId) : null
+      const issueSummary = sourceMsg?.text || 'Knapsack surfaced an error in chat.'
+      try {
+        const draft = await buildSupportDiagnosticsDraft({
+          issueSummary,
+          activeModel: getActiveModelLabel(),
+        })
+        if (srcMsgId) {
+          setMsgs(prev => prev.map(m =>
+            m.id === srcMsgId
+              ? { ...m, confirmedActionPrompts: [...(m.confirmedActionPrompts ?? []), text] }
+              : m
+          ))
+        }
+        window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: draft }))
+        pushAssistantRef.current?.(
+          'I drafted a support email with a sanitized diagnostics attachment addressed to **support@knap.ai**.',
+        )
+      } catch (error: any) {
+        pushAssistantRef.current?.(
+          `I couldn't prepare the diagnostics bundle: ${error?.message || String(error)}`,
+        )
+      }
       return
     }
 
@@ -4028,7 +4381,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     localStorage.setItem(VOICE_MODE_STORAGE, String(newValue))
   }, [voiceEnabled, stopCurrentAudio])
 
-  const doSend = async (text: string) => {
+  const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
 
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
@@ -4066,8 +4419,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     setReplyToMsg(null)
 
     // Capture current attachments and clear them
-    const currentAttachments = [...attachedFiles]
-    setAttachedFiles([])
+    const currentAttachments = attachmentOverride ? [...attachmentOverride] : [...attachedFiles]
+    if (!attachmentOverride) setAttachedFiles([])
 
     // Show user message with attachment indicators
     const attachmentSummary = currentAttachments.length > 0
@@ -4102,22 +4455,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // Snapshot the active model label from React state at request time so error
     // messages reflect the model that was actually selected when sent, not the
     // model in localStorage (which can lag behind UI state changes).
+    const providerAtSend = confirmedProvider
     const activeModelAtSend = (() => {
-      if (selectedProvider === 'knapsack') return `knapsack/${selectedKnapsackModel}`
-      const m = selectedProvider === 'ollama'
+      if (providerAtSend === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      const m = providerAtSend === 'ollama'
         ? selectedOllamaModel
-        : selectedProvider === 'anthropic'
+        : providerAtSend === 'anthropic'
         ? selectedAnthropicModel
-        : selectedProvider === 'gemini'
+        : providerAtSend === 'gemini'
         ? selectedGeminiModel
-        : selectedProvider === 'groq'
+        : providerAtSend === 'groq'
         ? selectedGroqModel
-        : selectedProvider === 'xai'
+        : providerAtSend === 'xai'
         ? selectedXaiModel
-        : selectedProvider === 'openrouter'
+        : providerAtSend === 'openrouter'
         ? selectedOpenRouterModel
+        : providerAtSend === 'trustedrouter'
+        ? selectedTrustedRouterModel
         : selectedModel
-      return m ? `${selectedProvider}/${m}` : selectedProvider
+      return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
     const selectedModelForProvider = activeModelAtSend.includes('/')
       ? activeModelAtSend.split('/').slice(1).join('/')
@@ -4446,6 +4802,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const isSmartPrompt = text === SMART_PROMPT
         const isBuildWebsitePrompt = text === BUILD_WEBSITE_PROMPT
         let actualText = text
+        let usedNativeEmailCalendarContext = false
 
         // For the build website prompt, inject user info so the AI can auto-populate
         // the website without asking the user a bunch of questions.
@@ -4458,6 +4815,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             const context = await fetchEmailCalendarContext()
             if (context) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
+              usedNativeEmailCalendarContext = true
             } else {
               // No data available — fall back to letting the agent browse
               actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
@@ -4465,6 +4823,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           } catch {
             // If pre-fetch fails, fall back to original behavior
             actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
+          }
+        }
+
+        if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(text)) {
+          try {
+            const context = await fetchEmailCalendarContext()
+            if (context) {
+              usedNativeEmailCalendarContext = true
+              actualText = `${text}
+
+Use the native Knapsack email/calendar context below first. Only use browser automation if the native context is missing something required to answer accurately.
+
+${context}`
+            }
+          } catch (err) {
+            console.warn('[ClawdChat] Failed to pre-fetch native email/calendar context:', err)
           }
         }
 
@@ -4478,7 +4852,7 @@ ${actualText}`
 
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
-        if (!isSmartPrompt) {
+        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedMode, developerMode)) {
           try {
             const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
             if (termRes.ok) {
@@ -4488,10 +4862,15 @@ ${actualText}`
                 if (entries.length > 0) {
                   let termContext = '\n\n---\n[Terminal context — recent output from built-in terminal]\n'
                   for (const [sid, lines] of entries) {
-                    termContext += `[Session: ${sid}]\n${lines.join('\n')}\n`
+                    const recentLines = lines.slice(-MAX_TERMINAL_CONTEXT_LINES)
+                    termContext += `[Session: ${sid}]\n${recentLines.join('\n')}\n`
                   }
                   termContext += '---'
-                  actualText += termContext
+                  actualText += truncateWithNotice(
+                    termContext,
+                    MAX_TERMINAL_CONTEXT_CHARS,
+                    'Terminal context trimmed for foreground chat',
+                  )
                 }
               }
             }
@@ -4506,9 +4885,11 @@ ${actualText}`
           actualText = `> ${quotedText}\n\n${actualText}`
         }
 
+        actualText = capInlineChatContext(actualText)
+
         // Build request with optional attachments
         const requestBody: Record<string, any> = {
-          provider: selectedProvider,
+          provider: providerAtSend,
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId: 'ui',
@@ -4520,7 +4901,7 @@ ${actualText}`
           developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
-          memoryNotes: getAgentMemory('knapsack-chat'), // Persistent cross-session context
+          memoryNotes: trimMemoryNotes(getAgentMemory('knapsack-chat')), // Persistent cross-session context
         }
 
         // Add attachments if present
@@ -4537,7 +4918,7 @@ ${actualText}`
         // Keep the frontend timeout longer than the backend request budget.
         // If the shared gateway session is slow or poisoned, the backend falls
         // back to direct chat so desktop users still get a timely answer.
-        let useDirectChat = false
+        let useDirectChat = usedNativeEmailCalendarContext
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
@@ -4557,7 +4938,7 @@ ${actualText}`
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              provider: selectedProvider,
+              provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
               advancedMode,
@@ -4603,7 +4984,9 @@ ${actualText}`
                   if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') ||
                       lowerReply.includes('spending cap') || lowerReply.includes('no api key found') ||
                       lowerReply.includes('configure auth for this agent')) {
-                    displayText = friendlyError(displayText, getActiveModelLabel())
+                    displayText = appendSupportDiagnosticsAction(
+                      friendlyError(displayText, getActiveModelLabel()),
+                    )
                   }
                 }
                 setMsgs(prev => [
@@ -4679,7 +5062,11 @@ ${actualText}`
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)
             } else {
-              pushAssistant(friendlyError(out.message || out.error || 'No reply', activeModelAtSend))
+              pushAssistant(
+                appendSupportDiagnosticsAction(
+                  friendlyError(out.message || out.error || 'No reply', activeModelAtSend),
+                ),
+              )
             }
             succeeded = true
             break
@@ -4716,7 +5103,11 @@ ${actualText}`
         abortControllerRef.current = null
       }
     } catch (e: any) {
-      pushAssistant(friendlyError(e?.message || String(e), activeModelAtSend))
+      pushAssistant(
+        appendSupportDiagnosticsAction(
+          friendlyError(e?.message || String(e), activeModelAtSend),
+        ),
+      )
     } finally {
       // Safety net: always clear thinking state when request ends, even if inner
       // finally was skipped due to an error thrown between setting thinkingMessage
@@ -4747,10 +5138,16 @@ ${actualText}`
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
 
   // Queue a message to send after the current request completes
-  const stableQueueMessage = useCallback((text: string) => {
-    queuedMessagesRef.current = [...queuedMessagesRef.current, text]
+  const stableQueueMessage = useCallback((text: string, attachments: Attachment[] = []) => {
+    const nextDraft: QueuedDraft = { text, attachments: [...attachments] }
+    queuedMessagesRef.current = [...queuedMessagesRef.current, nextDraft]
     setHasQueuedMessage(true)
-    setQueuedMessageTexts(prev => [...prev, text])
+    setQueuedMessages(prev => [...prev, nextDraft])
+    if (attachments.length > 0) {
+      setAttachedFiles(prev =>
+        prev.filter(file => !attachments.some(att => att.name === file.name && att.content === file.content))
+      )
+    }
   }, [])
   // Keep queueMessageRef updated so handleSendWithText can queue mid-inference
   queueMessageRef.current = stableQueueMessage
@@ -4761,10 +5158,10 @@ ${actualText}`
     if (prevBusyRef.current && !busy && queuedMessagesRef.current.length > 0) {
       const [next, ...rest] = queuedMessagesRef.current
       queuedMessagesRef.current = rest
-      setQueuedMessageTexts(rest)
+      setQueuedMessages(rest)
       setHasQueuedMessage(rest.length > 0)
       // Short delay to let UI settle before sending next message
-      const timer = setTimeout(() => doSendRef.current?.(next), 150)
+      const timer = setTimeout(() => doSendRef.current?.(next.text, next.attachments), 150)
       return () => clearTimeout(timer)
     }
     prevBusyRef.current = busy
@@ -5025,6 +5422,7 @@ ${actualText}`
               : confirmedProvider === 'xai' ? (XAI_MODELS.find(m => m.id === selectedXaiModel)?.name || selectedXaiModel || 'Grok')
               : confirmedProvider === 'ollama' ? (selectedOllamaModel || 'Ollama')
               : confirmedProvider === 'openrouter' ? (OPENROUTER_MODELS.find(m => m.id === selectedOpenRouterModel)?.name || selectedOpenRouterModel || 'OpenRouter')
+              : confirmedProvider === 'trustedrouter' ? (TRUSTEDROUTER_MODELS.find(m => m.id === selectedTrustedRouterModel)?.name || selectedTrustedRouterModel || 'TrustedRouter')
               : confirmedProvider === 'knapsack' ? 'Knapsack'
               : (OPENAI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel || 'OpenAI')}
           </button>
@@ -5456,7 +5854,7 @@ ${actualText}`
             </div>
           </div>
         )}
-        {queuedMessageTexts.map((qText, i) => (
+        {queuedMessages.map((queued, i) => (
           <div key={`queued-${i}`} className="ClawdMsg ClawdMsg-user ClawdMsg-queued">
             {editingQueuedIndex === i ? (
               <div className="ClawdQueuedEdit">
@@ -5470,9 +5868,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     } else if (e.key === 'Escape') {
@@ -5488,9 +5886,9 @@ ${actualText}`
                       const trimmed = editingQueuedText.trim()
                       if (trimmed) {
                         const updated = [...queuedMessagesRef.current]
-                        updated[i] = trimmed
+                        updated[i] = { ...updated[i], text: trimmed }
                         queuedMessagesRef.current = updated
-                        setQueuedMessageTexts(updated)
+                        setQueuedMessages(updated)
                       }
                       setEditingQueuedIndex(null)
                     }}
@@ -5507,18 +5905,25 @@ ${actualText}`
               </div>
             ) : (
               <div className="ClawdBubble">
-                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>{qText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={mdPlugins} components={mdComponents}>
+                  {queued.text || (queued.attachments.length > 0 ? 'Please analyze the attached files.' : '')}
+                </ReactMarkdown>
+                {queued.attachments.length > 0 && (
+                  <div className="ClawdQueuedAttachmentSummary">
+                    Attached: {queued.attachments.map(file => file.name).join(', ')}
+                  </div>
+                )}
               </div>
             )}
             <div className="ClawdQueuedFooter">
-              <span className="ClawdQueuedLabel">Queued{queuedMessageTexts.length > 1 ? ` (${i + 1} of ${queuedMessageTexts.length})` : ''}</span>
+              <span className="ClawdQueuedLabel">Queued{queuedMessages.length > 1 ? ` (${i + 1} of ${queuedMessages.length})` : ''}</span>
               {editingQueuedIndex !== i && (
                 <div className="ClawdQueuedActions">
                   <button
                     className="ClawdQueuedActions__btn"
                     title="Edit queued message"
                     onClick={() => {
-                      setEditingQueuedText(qText)
+                      setEditingQueuedText(queued.text)
                       setEditingQueuedIndex(i)
                     }}
                   >
@@ -5530,7 +5935,7 @@ ${actualText}`
                     onClick={() => {
                       const updated = queuedMessagesRef.current.filter((_, idx) => idx !== i)
                       queuedMessagesRef.current = updated
-                      setQueuedMessageTexts(updated)
+                      setQueuedMessages(updated)
                       setHasQueuedMessage(updated.length > 0)
                     }}
                   >
@@ -6353,9 +6758,21 @@ ${actualText}`
                   </div>
                   {!hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
                     <div className="ClawdChannelGuide">
-                      <div className="ClawdChannelGuideTitle">Connect Slack</div>
+                      <div className="ClawdChannelGuideTitle">Connect Scout on Slack</div>
                       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Use Slack when you want one shared <strong>Scout</strong> workspace assistant. Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
+                      </div>
+                      <div className="ClawdChannelGuideActions">
+                        <button
+                          className="ClawdChannelGuidePrimaryBtn"
+                          type="button"
+                          onClick={() => handleSendWithText(SLACK_GUIDED_SETUP_PROMPT)}
+                        >
+                          Set up Scout with Knapsack
+                        </button>
+                      </div>
+                      <div className="ClawdChannelGuideNote ClawdChannelGuideNote--compact">
+                        Knapsack will open the Slack app setup flow in your browser, apply the required App Home, Messages tab, Socket Mode, and scope settings, and then bring back the tokens you need. If you later connect Scout to Gmail, Calendar, or Drive, we recommend dedicated Scout accounts instead of your personal accounts.
                       </div>
                       {(() => {
                         const botTrimmed = slackBotToken.trim()
@@ -6365,6 +6782,7 @@ ${actualText}`
                         const canSave = botTrimmed && appTrimmed && botValid && appValid
                         return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Or enter the tokens manually:</div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Bot Token</label>
                           <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
@@ -7171,6 +7589,7 @@ ${actualText}`
                                 setSelectedProvider('knapsack')
                                 setConfirmedProvider('knapsack')
                                 localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
+                                await syncProviderSelectionFromBackend()
                                 setSavedProviderKeys(prev => ({ ...prev, knapsack: true }))
                                 pushAssistant(`Switched to Knapsack (${KNAPSACK_MODELS.find(m => m.id === selectedKnapsackModel)?.name || selectedKnapsackModel}).`)
                               } catch {}
@@ -7197,18 +7616,21 @@ ${actualText}`
                   : p.id === 'gemini' ? GEMINI_MODELS
                   : p.id === 'xai' ? XAI_MODELS
                   : p.id === 'openrouter' ? OPENROUTER_MODELS
+                  : p.id === 'trustedrouter' ? TRUSTEDROUTER_MODELS
                   : GROQ_MODELS
                 const modelValue = p.id === 'openai' ? selectedModel
                   : p.id === 'anthropic' ? selectedAnthropicModel
                   : p.id === 'gemini' ? selectedGeminiModel
                   : p.id === 'xai' ? selectedXaiModel
                   : p.id === 'openrouter' ? selectedOpenRouterModel
+                  : p.id === 'trustedrouter' ? selectedTrustedRouterModel
                   : selectedGroqModel
                 const setModelValue = p.id === 'openai' ? setSelectedModel
                   : p.id === 'anthropic' ? setSelectedAnthropicModel
                   : p.id === 'gemini' ? setSelectedGeminiModel
                   : p.id === 'xai' ? setSelectedXaiModel
                   : p.id === 'openrouter' ? setSelectedOpenRouterModel
+                  : p.id === 'trustedrouter' ? setSelectedTrustedRouterModel
                   : setSelectedGroqModel
 
                 return (
@@ -7244,11 +7666,13 @@ ${actualText}`
                                     : p.id === 'gemini' ? GEMINI_MODEL_STORAGE
                                     : p.id === 'xai' ? XAI_MODEL_STORAGE
                                     : p.id === 'openrouter' ? OPENROUTER_MODEL_STORAGE
+                                    : p.id === 'trustedrouter' ? TRUSTEDROUTER_MODEL_STORAGE
                                     : GROQ_MODEL_STORAGE
                                   localStorage.setItem(storageKey, newModel)
                                   if (isConfirmedActive) {
                                     try {
                                       await apiPost('/api/clawd/service/set-api-key', { provider: p.id, model: newModel })
+                                      await syncProviderSelectionFromBackend()
                                       const modelName = models.find(m => m.id === newModel)?.name || newModel
                                       pushAssistant(`Switched to ${modelName}.`)
                                     } catch {}

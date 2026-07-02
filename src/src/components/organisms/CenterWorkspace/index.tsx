@@ -148,7 +148,10 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
     const emailItems: ScoutWatchlistItem[] = Object.entries(feed.classifiedEmails || {})
       .flatMap(([classification, emails]) => {
         const importance = classification as EmailImportance
-        if (!emails || emails.length === 0 || importance === EmailImportance.UNCLASSIFIED) {
+        if (!emails || emails.length === 0) {
+          return []
+        }
+        if (importance === EmailImportance.UNCLASSIFIED) {
           return []
         }
 
@@ -158,7 +161,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
           .map<ScoutWatchlistItem>(email => ({
             id: `email-${classification}-${email.message.emailUid}`,
             title: `Follow-up needed: ${email.message.subject || 'Unknown subject'}`,
-            summary: `From: ${email.message.sender || 'Unknown sender'} - thread needs your input.`,
+            summary: `From: ${email.message.sender || 'Unknown sender'} — thread needs your input.`,
             dueAt: new Date(email.message.date * 1000),
             source: 'email',
             confidence: importance === EmailImportance.IMPORTANT ? 'high' : 'medium',

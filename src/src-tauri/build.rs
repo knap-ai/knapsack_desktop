@@ -48,6 +48,23 @@ fn main() {
   let node_modules = Path::new("resources/clawdbot/node_modules");
   let openclaw_self_link = node_modules.join("openclaw");
 
+  let dist_dir = Path::new("../dist");
+  let dist_pages = [
+    "index.html",
+    "notification.html",
+    "overlay.html",
+    "recording-indicator.html",
+  ];
+
+  for page in dist_pages {
+    let candidate = dist_dir.join(page);
+    if !candidate.exists() {
+      panic!(
+        "Missing packaged UI asset: {candidate:?}. This indicates the frontend build did not finish before the Rust build step.",
+      );
+    }
+  }
+
   // These cleanup steps are only needed for release bundles — they're slow
   // (can take minutes on large node_modules trees) and unnecessary for dev.
   if is_release {

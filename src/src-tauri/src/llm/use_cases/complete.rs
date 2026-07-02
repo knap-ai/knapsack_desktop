@@ -363,7 +363,6 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
     if provider.name != "openrouter"
       && provider.name != "ollama"
       && provider.name != "groq"
-      && provider.name != "trustedrouter"
       && provider.name != "knapsack"
     {
       let openrouter_key = std::env::var("OPENROUTER_API_KEY")
