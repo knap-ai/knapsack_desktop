@@ -4192,7 +4192,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     if (text === '__share_support_diagnostics__') {
-      const sourceMsg = srcMsgId ? msgsRef.current.find(m => m.id === srcMsgId) : null
+      const sourceMsg = srcMsgId ? msgs.find(m => m.id === srcMsgId) : null
       const issueSummary = sourceMsg?.text || 'Knapsack surfaced an error in chat.'
       try {
         const draft = await buildSupportDiagnosticsDraft({

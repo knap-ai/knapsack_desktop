@@ -422,19 +422,6 @@ fn gateway_launch_grace_active() -> Option<u64> {
   }
 }
 
-fn browser_start_grace_active() -> Option<u64> {
-  let started = BROWSER_LAST_NUDGE_MS.load(Ordering::Relaxed);
-  if started == 0 {
-    return None;
-  }
-  let elapsed = now_epoch_ms().saturating_sub(started);
-  if elapsed < BROWSER_STARTUP_GRACE_MS {
-    Some(elapsed)
-  } else {
-    None
-  }
-}
-
 #[cfg(target_os = "macos")]
 fn qa_direct_gateway_process_active() -> bool {
   if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() != Some("1") {
@@ -1740,6 +1727,75 @@ fn configured_desktop_plugin_discovery_allowlist(config_path: &Path) -> String {
   ids.sort();
   ids.dedup();
   ids.join(",")
+}
+
+fn configured_channel_plugin_filter(config_path: &Path) -> Option<HashSet<String>> {
+  let ids = configured_channel_plugin_ids(config_path);
+  if ids.is_empty() {
+    None
+  } else {
+    Some(ids.into_iter().collect())
+  }
+}
+
+fn plugin_runtime_deps_staging_dir(plugin_name: &str) -> PathBuf {
+  let safe_plugin_name = plugin_name
+    .chars()
+    .map(|ch| {
+      if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+        ch
+      } else {
+        '-'
+      }
+    })
+    .collect::<String>();
+  let unique = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_nanos())
+    .unwrap_or_default();
+  std::env::temp_dir().join(format!(
+    "knapsack-plugin-deps-{}-{}-{}",
+    safe_plugin_name,
+    std::process::id(),
+    unique
+  ))
+}
+
+fn copy_plugin_node_modules_entries(source_nm: &Path, target_nm: &Path) -> std::io::Result<()> {
+  fs::create_dir_all(target_nm)?;
+  for entry in fs::read_dir(source_nm)? {
+    let entry = entry?;
+    let source_path = entry.path();
+    let target_path = target_nm.join(entry.file_name());
+    let file_type = entry.file_type()?;
+    if file_type.is_dir() {
+      if target_path.exists() {
+        fs::remove_dir_all(&target_path)?;
+      }
+      copy_plugin_node_modules_entries(&source_path, &target_path)?;
+    } else if file_type.is_symlink() {
+      if target_path.exists() {
+        let _ = fs::remove_file(&target_path).or_else(|_| fs::remove_dir_all(&target_path));
+      }
+      let target = fs::read_link(&source_path)?;
+      #[cfg(unix)]
+      std::os::unix::fs::symlink(target, &target_path)?;
+      #[cfg(windows)]
+      {
+        if source_path.is_dir() {
+          std::os::windows::fs::symlink_dir(target, &target_path)?;
+        } else {
+          std::os::windows::fs::symlink_file(target, &target_path)?;
+        }
+      }
+    } else {
+      if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent)?;
+      }
+      fs::copy(&source_path, &target_path)?;
+    }
+  }
+  Ok(())
 }
 
 fn configured_plugin_discovery_allowlist(config_path: &Path) -> String {
@@ -6009,16 +6065,6 @@ fn gateway_ready_since_last_start_from_log(content: &str) -> bool {
   loading.unwrap_or(0) < ready_idx && terminated.unwrap_or(0) < ready_idx
 }
 
-fn gateway_recently_healthy(now_ms: u64, gateway_listening: bool) -> bool {
-  if !gateway_listening {
-    return false;
-  }
-
-  let last_healthy_ms = GATEWAY_LAST_HEALTHY_MS.load(Ordering::Relaxed);
-  last_healthy_ms != 0
-    && now_ms.saturating_sub(last_healthy_ms) < GATEWAY_TRANSIENT_FAILURE_GRACE_MS
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BrowserControlProbe {
   Ready,
@@ -6054,55 +6100,6 @@ fn parse_browser_control_status_body(body: &str) -> BrowserControlProbe {
     Err(e) => {
       eprintln!(
         "[clawd/service] browser control status probe returned invalid response: {}",
-        e
-      );
-      BrowserControlProbe::Down
-    }
-  }
-}
-
-async fn browser_control_status(
-  gateway_token: &str,
-  timeout: std::time::Duration,
-) -> BrowserControlProbe {
-  let client = match reqwest::Client::builder().timeout(timeout).build() {
-    Ok(c) => c,
-    Err(_) => return BrowserControlProbe::Down,
-  };
-
-  let fut = client
-    .get("http://127.0.0.1:18791/")
-    .bearer_auth(gateway_token)
-    .send();
-
-  let resp = match tokio::time::timeout(timeout, fut).await {
-    Ok(Ok(resp)) => resp,
-    Ok(Err(e)) => {
-      eprintln!("[clawd/service] browser control status probe failed: {}", e);
-      return BrowserControlProbe::Down;
-    }
-    Err(_) => {
-      eprintln!(
-        "[clawd/service] browser control status probe timed out ({}ms)",
-        timeout.as_millis()
-      );
-      return BrowserControlProbe::Down;
-    }
-  };
-
-  if !resp.status().is_success() {
-    eprintln!(
-      "[clawd/service] browser control status probe returned {}",
-      resp.status()
-    );
-    return BrowserControlProbe::Down;
-  }
-
-  match resp.text().await {
-    Ok(body) => parse_browser_control_status_body(&body),
-    Err(e) => {
-      eprintln!(
-        "[clawd/service] browser control status probe failed to read response body: {}",
         e
       );
       BrowserControlProbe::Down
@@ -6536,6 +6533,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
     let qa_direct_waiting_for_process =
       !gateway_ok && qa_direct_runtime && !qa_direct_gateway_process_active();
+    let gateway_live_for_desktop = gateway_ok
+      || (gateway_listening
+        && (post_bind_startup || runtime_deps_startup || launch_grace_elapsed_ms.is_some()));
     #[cfg(target_os = "macos")]
     let launch_agent_loaded_during_grace = if !gateway_ok && !qa_direct_runtime {
       let uid = unsafe { libc::getuid() };
@@ -6681,8 +6681,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     #[cfg(not(target_os = "windows"))]
     let browser_probe_timeout = std::time::Duration::from_millis(900);
 
-    let mut browser_probe = if gateway_ok {
-      if BROWSER_STATUS_PROBE_IN_PROGRESS
+    let mut browser_probe = if gateway_live_for_desktop {
+      if browser_cdp_port_open(std::time::Duration::from_millis(100)).await {
+        BrowserControlProbe::Ready
+      } else if BROWSER_STATUS_PROBE_IN_PROGRESS
         .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
         .is_ok()
       {
@@ -6697,17 +6699,17 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     };
     if gateway_transient_stall {
       browser_probe = BrowserControlProbe::Starting;
-    } else if gateway_ok
+    } else if gateway_live_for_desktop
       && browser_probe == BrowserControlProbe::Down
       && browser_cdp_port_open(std::time::Duration::from_millis(250)).await
     {
       browser_probe = BrowserControlProbe::Starting;
-    } else if gateway_ok
+    } else if gateway_live_for_desktop
       && browser_probe == BrowserControlProbe::Down
       && (browser_start_grace_active().is_some() || launch_grace_elapsed_ms.is_some())
     {
       browser_probe = BrowserControlProbe::Starting;
-    } else if gateway_ok && browser_probe == BrowserControlProbe::Down {
+    } else if gateway_live_for_desktop && browser_probe == BrowserControlProbe::Down {
       let last_healthy_ms = BROWSER_LAST_HEALTHY_MS.load(Ordering::Relaxed);
       if last_healthy_ms != 0
         && now_ms.saturating_sub(last_healthy_ms) < BROWSER_TRANSIENT_FAILURE_GRACE_MS
@@ -7832,16 +7834,6 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     knapsack_email: tokens.knapsack_email.clone(),
     knapsack_model: tokens.knapsack_model.clone(),
   })
-}
-
-fn has_nonempty(value: Option<&String>) -> bool {
-  value.map(|s| !s.trim().is_empty()).unwrap_or(false)
-}
-
-fn has_knapsack_runtime_auth(tokens: &StoredTokens) -> bool {
-  has_nonempty(tokens.knapsack_email.as_ref())
-    && (has_nonempty(tokens.knapsack_access_token.as_ref())
-      || has_nonempty(tokens.knapsack_refresh_token.as_ref()))
 }
 
 /// Validate an API key by making a lightweight test request to the provider.
@@ -15766,58 +15758,6 @@ mod provider_key_tests {
 }
 
 #[cfg(test)]
-mod service_status_message_tests {
-  use super::{mac_service_status_summary, parse_browser_control_status_body, BrowserControlProbe};
-  use std::sync::atomic::Ordering;
-
-  #[test]
-  fn qa_direct_startup_is_not_reported_as_not_running() {
-    let (running, message) =
-      mac_service_status_summary(true, false, false, true, None, Some(123_u64), true);
-
-    assert!(running);
-    assert_eq!(message, "Clawdbot gateway is starting (123ms)");
-  }
-
-  #[test]
-  fn plain_ok_browser_sidecar_response_is_starting() {
-    assert_eq!(
-      parse_browser_control_status_body("OK"),
-      BrowserControlProbe::Starting
-    );
-  }
-
-  #[test]
-  fn browser_sidecar_json_distinguishes_starting_from_ready() {
-    assert_eq!(
-      parse_browser_control_status_body(r#"{"running":true,"cdpReady":false}"#),
-      BrowserControlProbe::Starting
-    );
-    assert_eq!(
-      parse_browser_control_status_body(r#"{"running":true,"cdpReady":true}"#),
-      BrowserControlProbe::Ready
-    );
-  }
-
-  #[test]
-  fn gateway_recently_healthy_requires_live_listener_and_fresh_timestamp() {
-    let now = 1_000_000;
-    super::GATEWAY_LAST_HEALTHY_MS.store(
-      now - (super::GATEWAY_TRANSIENT_FAILURE_GRACE_MS - 1),
-      Ordering::Relaxed,
-    );
-    assert!(super::gateway_recently_healthy(now, true));
-    assert!(!super::gateway_recently_healthy(now, false));
-
-    super::GATEWAY_LAST_HEALTHY_MS.store(
-      now - super::GATEWAY_TRANSIENT_FAILURE_GRACE_MS,
-      Ordering::Relaxed,
-    );
-    assert!(!super::gateway_recently_healthy(now, true));
-  }
-}
-
-#[cfg(test)]
 mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
@@ -15841,6 +15781,8 @@ mod knapsack_runtime_auth_tests {
       xai_model: None,
       openrouter_api_key: None,
       openrouter_model: None,
+      trustedrouter_api_key: None,
+      trustedrouter_model: None,
       active_provider: None,
       ollama_enabled: None,
       ollama_model: None,
@@ -16124,71 +16066,5 @@ mod service_status_message_tests {
     ));
     assert!(is_noisy_browser_probe_error("deadline has elapsed"));
     assert!(!is_noisy_browser_probe_error("connection refused"));
-  }
-}
-
-#[cfg(test)]
-mod knapsack_runtime_auth_tests {
-  use super::{has_knapsack_runtime_auth, StoredTokens};
-
-  fn empty_tokens() -> StoredTokens {
-    StoredTokens {
-      gateway_token: String::new(),
-      browser_control_token: String::new(),
-      groq_api_key: None,
-      openai_api_key: None,
-      openai_model: None,
-      anthropic_api_key: None,
-      anthropic_model: None,
-      gemini_api_key: None,
-      gemini_model: None,
-      groq_model: None,
-      xai_api_key: None,
-      xai_model: None,
-      openrouter_api_key: None,
-      openrouter_model: None,
-      trustedrouter_api_key: None,
-      trustedrouter_model: None,
-      active_provider: None,
-      ollama_enabled: None,
-      ollama_model: None,
-      ollama_base_url: None,
-      extra_provider_keys: None,
-      preferred_coding_agent: None,
-      knapsack_email: None,
-      knapsack_model: None,
-      knapsack_access_token: None,
-      knapsack_refresh_token: None,
-    }
-  }
-
-  #[test]
-  fn knapsack_auth_requires_email_and_token_material() {
-    let mut tokens = empty_tokens();
-    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
-    assert!(
-      !has_knapsack_runtime_auth(&tokens),
-      "email alone should not be reported as usable Knapsack auth"
-    );
-
-    tokens.knapsack_access_token = Some("access-token".to_string());
-    assert!(has_knapsack_runtime_auth(&tokens));
-
-    tokens.knapsack_access_token = None;
-    tokens.knapsack_refresh_token = Some("refresh-token".to_string());
-    assert!(has_knapsack_runtime_auth(&tokens));
-  }
-
-  #[test]
-  fn knapsack_auth_rejects_blank_fields() {
-    let mut tokens = empty_tokens();
-    tokens.knapsack_email = Some("   ".to_string());
-    tokens.knapsack_access_token = Some("access-token".to_string());
-    assert!(!has_knapsack_runtime_auth(&tokens));
-
-    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
-    tokens.knapsack_access_token = Some("   ".to_string());
-    tokens.knapsack_refresh_token = Some("   ".to_string());
-    assert!(!has_knapsack_runtime_auth(&tokens));
   }
 }

@@ -207,6 +207,170 @@ fn configured_gateway_config() -> Option<Value> {
   None
 }
 
+fn read_auth_profiles_from_disk() -> Option<Value> {
+  let mut candidates = Vec::new();
+  if let Ok(dir) = std::env::var("OPENCLAW_STATE_DIR") {
+    candidates.push(
+      std::path::PathBuf::from(dir)
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+  if let Ok(dir) = std::env::var("OPENCLAW_HOME") {
+    candidates.push(
+      std::path::PathBuf::from(dir)
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+  if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join("Library")
+        .join("Application Support")
+        .join("ai.knap.knapsack")
+        .join("clawdbot")
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+    candidates.push(
+      std::path::PathBuf::from(&home)
+        .join(".openclaw")
+        .join("agents")
+        .join("main")
+        .join("agent")
+        .join("auth-profiles.json"),
+    );
+  }
+
+  for path in candidates {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+      continue;
+    };
+    let Ok(config) = serde_json::from_str::<Value>(&raw) else {
+      continue;
+    };
+    return Some(config);
+  }
+  None
+}
+
+fn provider_auth_profile_present(auth_profiles: &Value, provider: &str) -> bool {
+  auth_profiles
+    .get("profiles")
+    .and_then(|profiles| profiles.as_object())
+    .map(|profiles| {
+      profiles.iter().any(|(profile_id, profile)| {
+        profile_id.starts_with(&format!("{}:", provider))
+          || profile
+            .get("provider")
+            .and_then(|value| value.as_str())
+            .map(|value| value.eq_ignore_ascii_case(provider))
+            .unwrap_or(false)
+      })
+    })
+    .unwrap_or(false)
+}
+
+fn has_non_empty_env_key(var: &str) -> bool {
+  std::env::var(var)
+    .map(|value| !value.trim().is_empty())
+    .unwrap_or(false)
+}
+
+fn inference_auth_status() -> (bool, Option<String>) {
+  let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  let auth_profiles = read_auth_profiles_from_disk();
+  let provider_available = |provider: &str| match provider {
+    "knapsack" => true,
+    "ollama" => true,
+    "anthropic" => {
+      has_non_empty_env_key("ANTHROPIC_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "anthropic"))
+          .unwrap_or(false)
+    }
+    "openai" => {
+      has_non_empty_env_key("OPENAI_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "openai"))
+          .unwrap_or(false)
+    }
+    "groq" => {
+      has_non_empty_env_key("GROQ_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "groq"))
+          .unwrap_or(false)
+    }
+    "xai" => {
+      has_non_empty_env_key("XAI_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "xai"))
+          .unwrap_or(false)
+    }
+    "openrouter" => {
+      has_non_empty_env_key("OPENROUTER_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "openrouter"))
+          .unwrap_or(false)
+    }
+    "trustedrouter" => {
+      has_non_empty_env_key("TRUSTEDROUTER_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "trustedrouter"))
+          .unwrap_or(false)
+    }
+    "gemini" | "google" => {
+      has_non_empty_env_key("GEMINI_API_KEY")
+        || has_non_empty_env_key("GOOGLE_API_KEY")
+        || auth_profiles
+          .as_ref()
+          .map(|profiles| provider_auth_profile_present(profiles, "google"))
+          .unwrap_or(false)
+    }
+    "google-gemini-cli" => auth_profiles
+      .as_ref()
+      .map(|profiles| provider_auth_profile_present(profiles, "google-gemini-cli"))
+      .unwrap_or(false),
+    _ => false,
+  };
+
+  if provider_available(&active) {
+    return (true, Some(active));
+  }
+
+  for provider in [
+    "knapsack",
+    "ollama",
+    "anthropic",
+    "openai",
+    "groq",
+    "xai",
+    "google",
+    "openrouter",
+    "trustedrouter",
+    "google-gemini-cli",
+  ] {
+    if provider_available(provider) {
+      return (true, Some(provider.to_string()));
+    }
+  }
+
+  (false, None)
+}
+
 fn channel_plugin_allowed(channel: &str) -> Option<bool> {
   let config = configured_gateway_config()?;
   let plugins = config.pointer("/plugins/allow")?.as_array()?;
@@ -534,14 +698,81 @@ fn has_channel_reply_tools(snapshot: &serde_json::Value) -> bool {
     "web_fetch",
     "web_search",
     "sessions_send",
+    "message",
   ];
-  required
+  let has_main = required
     .iter()
     .all(|tool| tools_allow.iter().any(|item| item.as_str() == Some(tool)));
-  let has_sandbox = required_sandbox_allow
+  let has_sandbox = required
     .iter()
     .all(|tool| sandbox_allow.iter().any(|item| item.as_str() == Some(tool)));
   has_main && has_sandbox
+}
+
+fn configured_channels_from_disk() -> Vec<String> {
+  let mut channels = configured_gateway_config()
+    .and_then(|config| {
+      config
+        .get("channels")
+        .and_then(|channels| channels.as_object())
+        .map(|channels| {
+          channels
+            .iter()
+            .filter_map(|(name, value)| if value.is_null() { None } else { Some(name.clone()) })
+            .collect::<Vec<_>>()
+        })
+    })
+    .unwrap_or_default();
+  channels.sort();
+  channels
+}
+
+fn plugin_allow_from_disk() -> Vec<String> {
+  let mut plugins = configured_gateway_config()
+    .and_then(|config| {
+      config
+        .pointer("/plugins/allow")
+        .and_then(|value| value.as_array())
+        .map(|allow| {
+          allow
+            .iter()
+            .filter_map(|value| value.as_str().map(|plugin| plugin.to_string()))
+            .collect::<Vec<_>>()
+        })
+    })
+    .unwrap_or_default();
+  plugins.sort();
+  plugins.dedup();
+  plugins
+}
+
+fn configured_model_from_disk() -> Option<String> {
+  let config = configured_gateway_config()?;
+  match config.pointer("/agents/defaults/model") {
+    Some(Value::String(model)) if !model.trim().is_empty() => Some(model.clone()),
+    Some(Value::Object(obj)) => obj
+      .get("primary")
+      .and_then(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(|value| value.to_string()),
+    _ => None,
+  }
+}
+
+fn gateway_config_rpc_fallback_ok(error: &str) -> bool {
+  let lower = error.to_ascii_lowercase();
+  (lower.contains("unknown method") && lower.contains("config.get"))
+    || lower.starts_with("timeout waiting for response")
+    || lower.starts_with("failed to send request")
+    || lower.contains("connection closed")
+    || lower.contains("channel closed")
+}
+
+fn plugin_allowed_in_config(plugin_id: &str) -> bool {
+  plugin_allow_from_disk()
+    .iter()
+    .any(|plugin| plugin == plugin_id)
 }
 
 fn channel_plugin_requested_by_patch(patch: &serde_json::Value) -> Option<String> {
