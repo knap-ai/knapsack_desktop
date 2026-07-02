@@ -5635,7 +5635,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           "{}/chat/completions",
           knapsack_base_url().trim_end_matches('/')
         );
-        let resp = client
+        let mut resp = client
           .post(format!("{}", request_url))
           .header("Authorization", format!("Bearer {}", jwt))
           .header("Content-Type", "application/json")
@@ -6094,7 +6094,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           } else {
             None
           };
-          let fallbacks: [(&str, Option<String>); 8] = [
+          let fallbacks: [(&str, Option<String>); 9] = [
             ("knapsack", knapsack_fallback_credential(&app_handle)),
             ("openai", openai_key(&app_handle)),
             ("anthropic", anthropic_key(&app_handle)),
