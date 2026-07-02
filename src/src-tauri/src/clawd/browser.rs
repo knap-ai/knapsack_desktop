@@ -2358,7 +2358,7 @@ pub async fn agent_chat(
 
     match tokio::time::timeout(
       AGENT_CHAT_GATEWAY_TIMEOUT,
-      gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None),
+      gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None, None),
     )
     .await
     {

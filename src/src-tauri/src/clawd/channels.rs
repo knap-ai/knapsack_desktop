@@ -2083,12 +2083,8 @@ pub async fn generic_channel_configure(
                 "commandText": "status"
               },
               "progress": {
-                "label": "auto",
                 "toolProgress": true,
-                "commandText": "status",
-                "nativeTaskCards": true,
-                "maxLines": 8,
-                "render": "rich"
+                "commandText": "status"
               }
             }),
           );

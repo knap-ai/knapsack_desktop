@@ -1016,12 +1016,8 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
         "commandText": "status"
       },
       "progress": {
-        "label": "auto",
         "toolProgress": true,
-        "commandText": "status",
-        "nativeTaskCards": true,
-        "maxLines": 8,
-        "render": "rich"
+        "commandText": "status"
       }
     });
     if slack.get("streaming") != Some(&desired_streaming) {
@@ -3549,6 +3545,52 @@ fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
     }
   }
 
+  fn scrub_slack_progress(progress: &mut serde_json::Map<String, serde_json::Value>, path: &str) -> bool {
+    let mut changed = false;
+    let unsupported_keys = [
+      "nativeTaskCards",
+      "label",
+      "labels",
+      "maxLines",
+      "maxLineChars",
+      "render",
+    ];
+    for key in unsupported_keys {
+      if progress.remove(key).is_some() {
+        eprintln!(
+          "[clawd/service] Removed unsupported OpenClaw config key: {}.{}",
+          path, key
+        );
+        changed = true;
+      }
+    }
+    changed
+  }
+
+  if let Some(progress) = cfg
+    .pointer_mut("/channels/slack/streaming/progress")
+    .and_then(|v| v.as_object_mut())
+  {
+    patched |= scrub_slack_progress(progress, "channels.slack.streaming.progress");
+  }
+
+  if let Some(accounts) = cfg
+    .pointer_mut("/channels/slack/accounts")
+    .and_then(|v| v.as_object_mut())
+  {
+    for (account_id, account_cfg) in accounts.iter_mut() {
+      if let Some(progress) = account_cfg
+        .pointer_mut("/streaming/progress")
+        .and_then(|v| v.as_object_mut())
+      {
+        patched |= scrub_slack_progress(
+          progress,
+          &format!("channels.slack.accounts.{}.streaming.progress", account_id),
+        );
+      }
+    }
+  }
+
   fn remove_redaction_sentinels(value: &mut serde_json::Value, path: &str) -> bool {
     match value {
       serde_json::Value::Object(obj) => {
@@ -4321,6 +4363,14 @@ pub fn get_openrouter_model(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.openrouter_model)
     .unwrap_or_else(|| "meta-llama/llama-3.3-70b-instruct:free".to_string())
+}
+
+/// Get the configured TrustedRouter model.
+///
+/// Desktop does not currently persist a dedicated TrustedRouter model in
+/// `StoredTokens`, so we return the provider's canonical auto selector.
+pub fn get_trustedrouter_model(_app_handle: &tauri::AppHandle) -> String {
+  "trustedrouter/auto".to_string()
 }
 
 fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
@@ -13772,7 +13822,7 @@ mod crash_classifier_tests {
       },
       "agents": { "defaults": { "model": { "primary": "groq/test" }, "llm": { "timeoutSeconds": 120 } } }
     });
-    assert!(sanitize_rejected_legacy_config_keys(&mut cfg));
+    assert!(super::sanitize_rejected_legacy_config_keys(&mut cfg));
     assert!(cfg.pointer("/skills/config").is_none());
     assert!(cfg.pointer("/agents/defaults/llm").is_none());
     assert!(cfg.pointer("/skills/entries/gh-issues/apiKey").is_none());
@@ -14502,9 +14552,53 @@ mod knapsack_runtime_auth_tests {
     );
     assert_eq!(
       cfg
+        .pointer("/channels/slack/streaming/progress/commandText")
+        .and_then(|value| value.as_str()),
+      Some("status")
+    );
+    assert!(
+      cfg
         .pointer("/channels/slack/streaming/progress/nativeTaskCards")
-        .and_then(|value| value.as_bool()),
-      Some(true)
+        .is_none()
+    );
+  }
+
+  #[test]
+  fn rejected_legacy_config_keys_strip_slack_native_task_cards() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "streaming": {
+            "mode": "progress",
+            "progress": {
+              "toolProgress": true,
+              "commandText": "status",
+              "nativeTaskCards": true
+            }
+          },
+          "accounts": {
+            "default": {
+              "streaming": {
+                "progress": {
+                  "nativeTaskCards": true
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    assert!(super::sanitize_rejected_legacy_config_keys(&mut cfg));
+    assert!(
+      cfg
+        .pointer("/channels/slack/streaming/progress/nativeTaskCards")
+        .is_none()
+    );
+    assert!(
+      cfg
+        .pointer("/channels/slack/accounts/default/streaming/progress/nativeTaskCards")
+        .is_none()
     );
   }
 
