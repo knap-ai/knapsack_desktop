@@ -38,6 +38,82 @@ const qaLaunchAgentBackupPath = path.join(
   qaStateDir,
   "launch-agent-backup.plist",
 );
+const prodStateDir = path.join(
+  process.env.HOME || "",
+  "Library",
+  "Application Support",
+  "ai.knap.knapsack",
+  "clawdbot",
+);
+const prodConfigPath = path.join(prodStateDir, "openclaw.json");
+const qaConfigPath = path.join(qaStateDir, "openclaw.json");
+const sourceClawdbotDir = path.join(tauriDir, "resources", "clawdbot");
+const targetClawdbotDir = path.join(tauriDir, "target", "debug", "resources", "clawdbot");
+const qaTokensPath = path.join(qaStateDir, "tokens.json");
+const prodTokensPath = path.join(prodStateDir, "tokens.json");
+const prodDbPath = path.join(process.env.HOME || "", ".knapsack.db");
+const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
+const qaSeededTokenKeys = [
+  "gateway_token",
+  "browser_control_token",
+  "active_provider",
+  "groq_api_key",
+  "groq_model",
+  "openai_api_key",
+  "openai_model",
+  "anthropic_api_key",
+  "anthropic_model",
+  "gemini_api_key",
+  "gemini_model",
+  "xai_api_key",
+  "xai_model",
+  "openrouter_api_key",
+  "openrouter_model",
+  "ollama_enabled",
+  "ollama_model",
+  "ollama_base_url",
+  "extra_provider_keys",
+  "preferred_coding_agent",
+  "knapsack_email",
+  "knapsack_model",
+  "knapsack_access_token",
+  "knapsack_refresh_token",
+];
+
+function npmCommand() {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
+}
+
+function resolveNpmCli() {
+  const candidates = [];
+  if (process.env.npm_execpath) candidates.push(process.env.npm_execpath);
+  candidates.push(
+    path.join(
+      path.dirname(process.execPath),
+      "..",
+      "lib",
+      "node_modules",
+      "npm",
+      "bin",
+      "npm-cli.js",
+    ),
+    path.join(
+      path.dirname(process.execPath),
+      "..",
+      "node_modules",
+      "npm",
+      "bin",
+      "npm-cli.js",
+    ),
+  );
+  if (process.platform === "win32") {
+    const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+    candidates.push(
+      path.join(programFiles, "nodejs", "node_modules", "npm", "bin", "npm-cli.js"),
+    );
+  }
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
 
 function qaEnv(extra = {}) {
   const env = {
@@ -428,6 +504,55 @@ function backupExistingLaunchAgentIfNeeded() {
     console.warn(
       `[qa-dev-run] Could not back up existing LaunchAgent plist: ${error.message}`,
     );
+  }
+}
+
+function defaultLiveGatewayStateDir() {
+  return path.join(
+    process.env.HOME || "",
+    "Library",
+    "Application Support",
+    "ai.knap.knapsack",
+    "clawdbot",
+  );
+}
+
+function syncQaGatewayState() {
+  let sourceStateDir = null;
+  try {
+    if (fs.existsSync(launchAgentPlist)) {
+      const plist = readLaunchAgentPlist();
+      sourceStateDir =
+        plist.EnvironmentVariables?.OPENCLAW_STATE_DIR ||
+        plist.EnvironmentVariables?.OPENCLAW_HOME ||
+        null;
+    }
+  } catch {
+    // Fall back to the standard live state directory below.
+  }
+  sourceStateDir = sourceStateDir || defaultLiveGatewayStateDir();
+  if (!sourceStateDir || sourceStateDir === qaStateDir || !fs.existsSync(sourceStateDir)) {
+    return;
+  }
+
+  fs.mkdirSync(qaStateDir, { recursive: true });
+  for (const fileName of ["openclaw.json", "tokens.json", "clawdbot.json", "paired.json"]) {
+    const sourcePath = path.join(sourceStateDir, fileName);
+    if (!fs.existsSync(sourcePath)) continue;
+    fs.copyFileSync(sourcePath, path.join(qaStateDir, fileName));
+  }
+
+  const sourceDevicesDir = path.join(sourceStateDir, "devices");
+  const targetDevicesDir = path.join(qaStateDir, "devices");
+  if (fs.existsSync(sourceDevicesDir)) {
+    fs.mkdirSync(targetDevicesDir, { recursive: true });
+    for (const entry of fs.readdirSync(sourceDevicesDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      fs.copyFileSync(
+        path.join(sourceDevicesDir, entry.name),
+        path.join(targetDevicesDir, entry.name),
+      );
+    }
   }
 }
 
@@ -889,6 +1014,7 @@ function syncDevClawdbotResources() {
 
 async function main() {
   backupExistingLaunchAgentIfNeeded();
+  ensureRootNodeModules();
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
   runChecked(process.execPath, [
     path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
