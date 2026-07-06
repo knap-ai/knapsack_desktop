@@ -21,6 +21,7 @@ import { detectBuildIntent, extractProjectDescription } from 'src/utils/devInten
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
+import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -485,30 +486,13 @@ const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
 const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', description: 'Claude Fable 5, Opus 4.7, Sonnet 4.6, Haiku 4.5', keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'anthropic', name: 'Anthropic', description: ANTHROPIC_PROVIDER_DESCRIPTION, keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
   { id: 'trustedrouter', name: 'TrustedRouter', description: 'OpenAI-compatible attested routing through TrustedRouter', keyPrefix: 'sk-tr-', helpUrl: 'https://trustedrouter.com/console/api-keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
-]
-
-type AnthropicModelOption = {
-  id: string
-  name: string
-  description: string
-  vision?: boolean
-}
-
-const ANTHROPIC_MODELS: AnthropicModelOption[] = [
-  { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Latest Anthropic flagship, upgraded reasoning and coding', vision: true },
-  { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision (May 2026)', vision: true },
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for agents and coding', vision: true },
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Best balance of speed and intelligence', vision: true },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest, near-frontier at low cost', vision: true },
-  { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Previous Sonnet, still excellent', vision: true },
-  { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Older flagship, excellent for long tasks', vision: true },
 ]
 
 type GeminiModelOption = {

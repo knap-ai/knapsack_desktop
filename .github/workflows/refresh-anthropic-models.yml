@@ -1,0 +1,37 @@
+name: Refresh Anthropic Models
+
+on:
+  schedule:
+    - cron: '17 15 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-anthropic-models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Refresh Anthropic model catalog
+        working-directory: src
+        run: npm run models:refresh:anthropic
+
+      - name: Create pull request if catalog changed
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'Refresh Anthropic model catalog'
+          title: 'Refresh Anthropic model catalog'
+          body: |
+            Weekly refresh of the shared Anthropic model catalog from Anthropic public docs.
+
+            This updates the model choices shown in Knapsack provider settings and chat model pickers.
+          branch: codex/refresh-anthropic-model-catalog
+          delete-branch: true

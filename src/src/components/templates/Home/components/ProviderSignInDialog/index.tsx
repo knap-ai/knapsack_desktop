@@ -7,6 +7,13 @@ import {
   TypographyWeight,
 } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
+import {
+  ANTHROPIC_MODELS,
+  ANTHROPIC_PROVIDER_DESCRIPTION,
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_KNAPSACK_ANTHROPIC_MODEL,
+  KNAPSACK_ANTHROPIC_TIER_MODELS,
+} from 'src/utils/anthropicModels'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
@@ -40,12 +47,8 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     keyPrefix: '',
     helpUrl: 'https://www.knapsack.ai',
     helpLabel: 'knapsack.ai',
-    models: [
-      { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-      { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
-      { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
-    ],
-    defaultModel: 'anthropic/claude-haiku-4-5',
+    models: KNAPSACK_ANTHROPIC_TIER_MODELS,
+    defaultModel: DEFAULT_KNAPSACK_ANTHROPIC_MODEL,
   },
   {
     id: 'openai',
@@ -65,18 +68,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Fable 5, Opus 4.7, Sonnet 4.6, Haiku 4.5',
+    description: ANTHROPIC_PROVIDER_DESCRIPTION,
     keyPrefix: 'sk-ant-',
     helpUrl: 'https://console.anthropic.com/settings/keys',
     helpLabel: 'console.anthropic.com/settings/keys',
-    models: [
-      { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Latest flagship, best coding and vision' },
-      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision' },
-      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for complex tasks' },
-      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Fast and capable, good balance' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
-    ],
-    defaultModel: 'claude-opus-4-7',
+    models: ANTHROPIC_MODELS,
+    defaultModel: DEFAULT_ANTHROPIC_MODEL,
   },
   {
     id: 'openrouter',
