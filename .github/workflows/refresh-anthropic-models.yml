@@ -1,4 +1,4 @@
-name: Refresh Anthropic Models
+name: Refresh Public Provider Models
 
 on:
   schedule:
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  refresh-anthropic-models:
+  refresh-public-provider-models:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -20,18 +20,18 @@ jobs:
         with:
           node-version: 22
 
-      - name: Refresh Anthropic model catalog
+      - name: Refresh public provider model catalogs
         working-directory: src
-        run: npm run models:refresh:anthropic
+        run: npm run models:refresh:public
 
       - name: Create pull request if catalog changed
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: 'Refresh Anthropic model catalog'
-          title: 'Refresh Anthropic model catalog'
+          commit-message: 'Refresh public provider model catalogs'
+          title: 'Refresh public provider model catalogs'
           body: |
-            Weekly refresh of the shared Anthropic model catalog from Anthropic public docs.
+            Weekly refresh of shared public-provider model catalogs from official public docs and APIs.
 
             This updates the model choices shown in Knapsack provider settings and chat model pickers.
-          branch: codex/refresh-anthropic-model-catalog
+          branch: codex/refresh-public-provider-model-catalogs
           delete-branch: true

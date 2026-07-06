@@ -14,6 +14,7 @@ import {
   DEFAULT_KNAPSACK_ANTHROPIC_MODEL,
   KNAPSACK_ANTHROPIC_TIER_MODELS,
 } from 'src/utils/anthropicModels'
+import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
@@ -82,15 +83,8 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     keyPrefix: 'sk-or-',
     helpUrl: 'https://openrouter.ai/keys',
     helpLabel: 'openrouter.ai/keys',
-    models: [
-      { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request' },
-      { id: 'qwen/qwen3-coder-480b-a35b-instruct:free', name: 'Qwen3 Coder 480B (Free)', description: 'Free, best open-source coding model' },
-      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
-      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, rivals GPT-5.5 at 10x lower cost' },
-      { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
-    ],
-    defaultModel: 'qwen/qwen3-coder-480b-a35b-instruct:free',
+    models: OPENROUTER_MODELS,
+    defaultModel: DEFAULT_OPENROUTER_MODEL,
   },
   {
     id: 'trustedrouter',
