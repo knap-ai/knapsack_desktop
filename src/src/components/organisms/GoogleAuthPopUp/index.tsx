@@ -10,6 +10,16 @@ const googlePermissions: Record<string, boolean> = {
   [ConnectionKeys.GOOGLE_PROFILE]: true,
 };
 
+const ensureGoogleTokens = async (userEmail: string, requiredConnectionKeys: ConnectionKeys[]) => {
+  const accessTokens = await Promise.all(
+    requiredConnectionKeys.map(key => getAccessToken(userEmail, key)),
+  );
+
+  if (accessTokens.some(token => !token)) {
+    throw new Error('Missing Google access token')
+  }
+}
+
 interface GoogleAuthPopupProps {
   onClose: () => void;
   onAuth: () => Promise<void>;
@@ -32,7 +42,7 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
         if (!isActive) return;
 
         try {
-          await Promise.all(requiredConnectionKeys.map(key => getAccessToken(userEmail, key)));
+          await ensureGoogleTokens(userEmail, requiredConnectionKeys);
           if (isActive) {
             await onAuth();
             onClose();
@@ -55,8 +65,8 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
   const handleAuth = async () => {
     setAuthError(null);
     try {
-      await Promise.all(requiredConnectionKeys.map(key => getAccessToken(userEmail, key)));
-      onAuth();
+      await ensureGoogleTokens(userEmail, requiredConnectionKeys);
+      await onAuth();
       onClose();
     } catch {
       const scopedKeys = requiredConnectionKeys.length > 0 ? requiredConnectionKeys : [ConnectionKeys.GOOGLE_PROFILE]
