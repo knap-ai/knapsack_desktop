@@ -4281,6 +4281,50 @@ fn sanitize_invalid_default_agent_model_config(cfg: &mut serde_json::Value) -> b
   false
 }
 
+fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
+  if !any_provider_key_available() {
+    return false;
+  }
+
+  let Some(current) = cfg.pointer("/agents/defaults/model").cloned() else {
+    return false;
+  };
+
+  let expected = crate::clawd::gateway_client::build_model_config();
+  if current == expected {
+    return false;
+  }
+
+  let current_primary = match &current {
+    serde_json::Value::String(model) => Some(model.as_str()),
+    serde_json::Value::Object(map) => map.get("primary").and_then(|value| value.as_str()),
+    _ => None,
+  };
+  let expected_primary = match &expected {
+    serde_json::Value::String(model) => Some(model.as_str()),
+    serde_json::Value::Object(map) => map.get("primary").and_then(|value| value.as_str()),
+    _ => None,
+  };
+
+  if current_primary != expected_primary {
+    return false;
+  }
+
+  if let Some(defaults) = cfg
+    .pointer_mut("/agents/defaults")
+    .and_then(|value| value.as_object_mut())
+  {
+    defaults.insert("model".to_string(), expected.clone());
+    eprintln!(
+      "[clawd/service] Refreshed stale agents.defaults.model {:?} -> {:?}",
+      current, expected
+    );
+    return true;
+  }
+
+  false
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct StoredTokens {
   gateway_token: String,
@@ -10094,6 +10138,9 @@ async fn prepare_gateway_config(
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
           patched = true;
         }
+        if reconcile_default_agent_model_config(&mut cfg_val) {
+          patched = true;
+        }
         if tokens.active_provider.as_deref() == Some("knapsack")
           && upsert_knapsack_local_provider_config(&mut cfg_val, Some("default"))
         {
@@ -15752,6 +15799,45 @@ mod provider_key_tests {
       .iter()
       .filter_map(|value| value.as_str())
       .any(|value| value.eq_ignore_ascii_case("openrouter/auto")));
+
+    clear_all();
+  }
+
+  #[test]
+  fn reconcile_default_agent_model_config_refreshes_stale_fallbacks() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
+    std::env::set_var("OPENAI_API_KEY", "sk-test");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
+    std::env::set_var("GROQ_API_KEY", "groq-test");
+    std::env::set_var("KNAPSACK_GROQ_MODEL", "openai/gpt-oss-120b");
+    std::env::set_var("GEMINI_API_KEY", "AIza-test");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+
+    let mut cfg = serde_json::json!({
+      "agents": {
+        "defaults": {
+          "model": {
+            "primary": "openai/gpt-5.5",
+            "fallbacks": ["groq/openai/gpt-oss-120b"]
+          }
+        }
+      }
+    });
+
+    assert!(reconcile_default_agent_model_config(&mut cfg));
+    let fallbacks = cfg
+      .pointer("/agents/defaults/model/fallbacks")
+      .and_then(|value| value.as_array())
+      .cloned()
+      .unwrap_or_default();
+    assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
+    assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
 
     clear_all();
   }

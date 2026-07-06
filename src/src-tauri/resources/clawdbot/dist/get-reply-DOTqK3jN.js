@@ -1112,14 +1112,14 @@ async function resolveReplyDirectives(params) {
 		agentId,
 		sessionEntry: directives.clearFastMode ? void 0 : targetSessionEntry
 	}).enabled;
-	const resolvedVerboseLevel = directives.verboseLevel ?? targetSessionEntry?.verboseLevel ?? agentCfg?.verboseDefault;
+	const resolvedVerboseLevel = directives.verboseLevel ?? (suppressSlackChannelReasoningAndVerbose ? void 0 : targetSessionEntry?.verboseLevel) ?? (suppressSlackChannelReasoningAndVerbose ? "off" : agentCfg?.verboseDefault);
 	const configuredReasoningDefault = agentEntry?.reasoningDefault ?? agentCfg?.reasoningDefault;
 	const canUseReasoningState = command.isAuthorizedSender || command.senderIsOwner || Array.isArray(ctx.GatewayClientScopes) && ctx.GatewayClientScopes.includes("operator.admin");
 	const rawSessionReasoningLevel = targetSessionEntry?.reasoningLevel;
-	const sessionReasoningLevel = canUseReasoningState ? rawSessionReasoningLevel : void 0;
+	const sessionReasoningLevel = canUseReasoningState && !suppressSlackChannelReasoningAndVerbose ? rawSessionReasoningLevel : void 0;
 	const blockedSessionReasoningLevel = rawSessionReasoningLevel !== void 0 && rawSessionReasoningLevel !== null && !canUseReasoningState;
-	const reasoningUsesConfiguredDefault = directives.reasoningLevel === void 0 && sessionReasoningLevel == null && configuredReasoningDefault != null;
-	let resolvedReasoningLevel = directives.reasoningLevel ?? sessionReasoningLevel ?? configuredReasoningDefault ?? "off";
+	const reasoningUsesConfiguredDefault = directives.reasoningLevel === void 0 && sessionReasoningLevel == null && configuredReasoningDefault != null && !suppressSlackChannelReasoningAndVerbose;
+	let resolvedReasoningLevel = directives.reasoningLevel ?? sessionReasoningLevel ?? (suppressSlackChannelReasoningAndVerbose ? "off" : configuredReasoningDefault ?? "off");
 	if (reasoningUsesConfiguredDefault && !canUseReasoningState) resolvedReasoningLevel = "off";
 	const resolvedElevatedLevel = elevatedAllowed ? directives.elevatedLevel ?? targetSessionEntry?.elevatedLevel ?? agentCfg?.elevatedDefault ?? "on" : "off";
 	const resolvedBlockStreaming = opts?.disableBlockStreaming === true ? "off" : opts?.disableBlockStreaming === false ? "on" : agentCfg?.blockStreamingDefault === "on" ? "on" : "off";
@@ -1164,7 +1164,7 @@ async function resolveReplyDirectives(params) {
 	const resolvedThinkLevelWithDefault = resolvedThinkLevel ?? await modelState.resolveDefaultThinkingLevel() ?? agentCfg?.thinkingDefault;
 	const thinkingExplicitlySet = directives.thinkLevel !== void 0 || sessionThinkLevel !== void 0 || agentCfg?.thinkingDefault !== void 0;
 	const hasAgentReasoningDefault = agentEntry?.reasoningDefault !== void 0 && agentEntry?.reasoningDefault !== null || agentCfg?.reasoningDefault !== void 0 && agentCfg?.reasoningDefault !== null;
-	if (!(directives.reasoningLevel !== void 0 || unauthorizedReasoningDirectiveAttempt || blockedSessionReasoningLevel || sessionReasoningLevel !== void 0 && sessionReasoningLevel !== null || hasAgentReasoningDefault) && resolvedReasoningLevel === "off" && !(resolvedThinkLevelWithDefault !== "off") && !thinkingExplicitlySet) resolvedReasoningLevel = await modelState.resolveDefaultReasoningLevel();
+	if (!suppressSlackChannelReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || unauthorizedReasoningDirectiveAttempt || blockedSessionReasoningLevel || sessionReasoningLevel !== void 0 && sessionReasoningLevel !== null || hasAgentReasoningDefault) && resolvedReasoningLevel === "off" && !(resolvedThinkLevelWithDefault !== "off") && !thinkingExplicitlySet) resolvedReasoningLevel = await modelState.resolveDefaultReasoningLevel();
 	let contextTokens = useFastReplyRuntime ? agentCfg?.contextTokens ?? 2e5 : resolveContextTokens({
 		cfg,
 		agentCfg,
@@ -3440,6 +3440,8 @@ async function initSessionState(params) {
 	let persistedSubagentControlScope;
 	let persistedDisplayName;
 	const normalizedChatType = normalizeChatType(ctx.ChatType);
+	const normalizedIngressChannel = normalizeMessageChannel(ctx.OriginatingChannel) ?? normalizeMessageChannel(ctx.Provider) ?? normalizeAnyChannelId(ctx.OriginatingChannel) ?? normalizeAnyChannelId(ctx.Provider) ?? normalizeOptionalLowercaseString(ctx.OriginatingChannel) ?? normalizeOptionalLowercaseString(ctx.Provider);
+	const suppressSlackChannelReasoningAndVerbose = normalizedIngressChannel === "slack" && normalizedChatType != null && normalizedChatType !== "direct";
 	const isGroup = normalizedChatType != null && normalizedChatType !== "direct" ? true : Boolean(groupResolution);
 	const commandSource = ctx.BodyForCommands ?? ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "";
 	const triggerBodyNormalized = stripStructuralPrefixes(commandSource).trim();
@@ -4601,7 +4603,7 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		const agentEntry = resolveAgentConfig(cfg, agentId);
 		const rawSessionReasoningLevel = sessionEntry.reasoningLevel;
 		const canUseReasoningState = command.isAuthorizedSender || command.senderIsOwner || Array.isArray(ctx.GatewayClientScopes) && ctx.GatewayClientScopes.includes("operator.admin");
-		if (!(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
+		if (!suppressSlackChannelReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
 	}
 	if (!useFastTestBootstrap) {
 		const { getGlobalHookRunner } = await loadHookRunnerGlobal();

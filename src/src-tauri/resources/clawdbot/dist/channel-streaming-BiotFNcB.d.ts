@@ -10,7 +10,7 @@ type StreamingCompatEntry = {
   blockStreamingCoalesce?: unknown;
   nativeStreaming?: unknown;
 };
-declare const DEFAULT_PROGRESS_DRAFT_LABELS: readonly ["Working", "Shelling", "Scuttling", "Clawing", "Pinching", "Molting", "Bubbling", "Tiding", "Reefing", "Cracking", "Sifting", "Brining", "Nautiling", "Krilling", "Barnacling", "Lobstering", "Tidepooling", "Pearling", "Snapping", "Surfacing"];
+declare const DEFAULT_PROGRESS_DRAFT_LABELS: readonly ["Exploring", "Trailblazing", "Scouting", "Mapping", "Surveying", "Navigating", "Trekking", "Ranging", "Foraging", "Climbing", "Campfinding", "Ridgelining", "Waypointing", "Switchbacking", "Packing", "Bushwhacking", "Crossing", "Summiting", "Frontiering", "Outfitting"];
 declare const DEFAULT_PROGRESS_DRAFT_INITIAL_DELAY_MS = 5000;
 declare function isChannelProgressDraftWorkToolName(name: string | null | undefined): boolean;
 declare function isPotentialTruncatedFinal(finalText: string): boolean;

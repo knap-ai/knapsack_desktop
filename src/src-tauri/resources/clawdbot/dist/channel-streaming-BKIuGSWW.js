@@ -140,26 +140,26 @@ function asCommandTextMode(value) {
 	return value === "raw" || value === "status" ? value : void 0;
 }
 const DEFAULT_PROGRESS_DRAFT_LABELS = [
-	"Working",
-	"Shelling",
-	"Scuttling",
-	"Clawing",
-	"Pinching",
-	"Molting",
-	"Bubbling",
-	"Tiding",
-	"Reefing",
-	"Cracking",
-	"Sifting",
-	"Brining",
-	"Nautiling",
-	"Krilling",
-	"Barnacling",
-	"Lobstering",
-	"Tidepooling",
-	"Pearling",
-	"Snapping",
-	"Surfacing"
+	"Exploring",
+	"Trailblazing",
+	"Scouting",
+	"Mapping",
+	"Surveying",
+	"Navigating",
+	"Trekking",
+	"Ranging",
+	"Foraging",
+	"Climbing",
+	"Campfinding",
+	"Ridgelining",
+	"Waypointing",
+	"Switchbacking",
+	"Packing",
+	"Bushwhacking",
+	"Crossing",
+	"Summiting",
+	"Frontiering",
+	"Outfitting"
 ];
 const DEFAULT_PROGRESS_DRAFT_INITIAL_DELAY_MS = 5e3;
 const DEFAULT_PROGRESS_DRAFT_MAX_LINE_CHARS = 120;

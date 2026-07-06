@@ -10,7 +10,7 @@ function normalizeReplyToModeChatType(chatType) {
 }
 function resolveConfiguredReplyToMode(cfg, channel, chatType) {
 	const provider = normalizeAnyChannelId(channel) ?? normalizeOptionalLowercaseString(channel);
-	if (!provider) return "all";
+	if (!provider) return "off";
 	const channelConfig = cfg.channels?.[provider];
 	const normalizedChatType = normalizeReplyToModeChatType(chatType);
 	if (normalizedChatType) {
@@ -21,7 +21,7 @@ function resolveConfiguredReplyToMode(cfg, channel, chatType) {
 		const legacyDirectMode = channelConfig?.dm?.replyToMode;
 		if (legacyDirectMode !== void 0) return legacyDirectMode;
 	}
-	return channelConfig?.replyToMode ?? "all";
+	return channelConfig?.replyToMode ?? "off";
 }
 function resolveReplyToModeWithThreading(cfg, threading, params = {}) {
 	return threading?.resolveReplyToMode?.({
