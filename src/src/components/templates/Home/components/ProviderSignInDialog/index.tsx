@@ -7,6 +7,14 @@ import {
   TypographyWeight,
 } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
+import {
+  ANTHROPIC_MODELS,
+  ANTHROPIC_PROVIDER_DESCRIPTION,
+  DEFAULT_ANTHROPIC_MODEL,
+  DEFAULT_KNAPSACK_ANTHROPIC_MODEL,
+  KNAPSACK_ANTHROPIC_TIER_MODELS,
+} from 'src/utils/anthropicModels'
+import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
@@ -40,12 +48,8 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     keyPrefix: '',
     helpUrl: 'https://www.knapsack.ai',
     helpLabel: 'knapsack.ai',
-    models: [
-      { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
-      { id: 'anthropic/claude-sonnet-4-5', name: 'Plus', description: 'Balanced performance and capability' },
-      { id: 'anthropic/claude-opus-4-7', name: 'Premium', description: 'Most powerful — best for complex work' },
-    ],
-    defaultModel: 'anthropic/claude-haiku-4-5',
+    models: KNAPSACK_ANTHROPIC_TIER_MODELS,
+    defaultModel: DEFAULT_KNAPSACK_ANTHROPIC_MODEL,
   },
   {
     id: 'openai',
@@ -65,18 +69,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    description: 'Claude Fable 5, Opus 4.7, Sonnet 4.6, Haiku 4.5',
+    description: ANTHROPIC_PROVIDER_DESCRIPTION,
     keyPrefix: 'sk-ant-',
     helpUrl: 'https://console.anthropic.com/settings/keys',
     helpLabel: 'console.anthropic.com/settings/keys',
-    models: [
-      { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Latest flagship, best coding and vision' },
-      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Latest flagship, best coding and vision' },
-      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Previous flagship, excellent for complex tasks' },
-      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Fast and capable, good balance' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable' },
-    ],
-    defaultModel: 'claude-opus-4-7',
+    models: ANTHROPIC_MODELS,
+    defaultModel: DEFAULT_ANTHROPIC_MODEL,
   },
   {
     id: 'openrouter',
@@ -85,15 +83,8 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     keyPrefix: 'sk-or-',
     helpUrl: 'https://openrouter.ai/keys',
     helpLabel: 'openrouter.ai/keys',
-    models: [
-      { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request' },
-      { id: 'qwen/qwen3-coder-480b-a35b-instruct:free', name: 'Qwen3 Coder 480B (Free)', description: 'Free, best open-source coding model' },
-      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', description: 'Free, top open-source reasoning model' },
-      { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, great for everyday questions' },
-      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, SOTA open-source, rivals GPT-5.5 at 10x lower cost' },
-      { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, 1M context, fast MoE, excellent for agentic loops' },
-    ],
-    defaultModel: 'qwen/qwen3-coder-480b-a35b-instruct:free',
+    models: OPENROUTER_MODELS,
+    defaultModel: DEFAULT_OPENROUTER_MODEL,
   },
   {
     id: 'trustedrouter',

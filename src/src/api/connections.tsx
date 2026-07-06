@@ -140,6 +140,10 @@ export const ONBOARDING_GOOGLE_PERMISSIONS: Record<string, ConnectionObject> = {
       'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
     ],
   },
+  [ConnectionKeys.GOOGLE_DRIVE]: {
+    label: 'Drive',
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  },
   [ConnectionKeys.GOOGLE_CALENDAR]: {
     label: 'Calendar',
     scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
@@ -210,7 +214,7 @@ export const connectionsMap: Record<string, ConnectionObject> = {
 export function getGoogleConnectionKeysFromScopes(scopes: string[]): ConnectionKeys[] {
   const keys: ConnectionKeys[] = []
 
-  Object.entries(ONBOARDING_GOOGLE_PERMISSIONS).forEach(([key, connectionObj]) => {
+  Object.entries(googleConnections).forEach(([key, connectionObj]) => {
     const hasMatchingScope = connectionObj.scopes.some(scope =>
       scopes.some(providedScope => scope.includes(providedScope)),
     )
