@@ -952,7 +952,7 @@ function resolveDirectiveCommandText(params) {
 	};
 }
 async function resolveReplyDirectives(params) {
-	const { ctx, cfg, agentId, agentCfg, agentDir, workspaceDir, sessionCtx, sessionEntry, sessionStore, sessionKey, storePath, sessionScope, groupResolution, isGroup, triggerBodyNormalized, resetTriggered, commandAuthorized, defaultProvider, defaultModel, primaryProvider, primaryModel, provider: initialProvider, model: initialModel, hasOneTurnModelOverride, skipStoredModelOverride, hasResolvedHeartbeatModelOverride, typing, opts, skillFilter } = params;
+	const { ctx, cfg, agentId, agentCfg, agentDir, workspaceDir, sessionCtx, sessionEntry, sessionStore, sessionKey, storePath, sessionScope, groupResolution, isGroup, triggerBodyNormalized, resetTriggered, commandAuthorized, defaultProvider, defaultModel, primaryProvider, primaryModel, provider: initialProvider, model: initialModel, hasOneTurnModelOverride, skipStoredModelOverride, hasResolvedHeartbeatModelOverride, typing, opts, skillFilter, suppressSlackChannelReasoningAndVerbose = false } = params;
 	const agentEntry = listAgentEntries(cfg).find((entry) => normalizeAgentId(entry.id) === normalizeAgentId(agentId));
 	const targetSessionEntry = sessionStore[sessionKey] ?? sessionEntry;
 	let provider = initialProvider;
@@ -1741,6 +1741,7 @@ async function maybeResolveNativeSlashCommandFastReply(params) {
 		provider: params.provider,
 		model: params.model,
 		hasResolvedHeartbeatModelOverride: false,
+		suppressSlackChannelReasoningAndVerbose: false,
 		typing: params.typing,
 		opts: params.opts,
 		skillFilter: params.skillFilter
@@ -4269,6 +4270,10 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		cfg,
 		commandAuthorized
 	}));
+	const suppressSlackChannelReasoningAndVerbose = (normalizeMessageChannel(finalized.OriginatingChannel) ?? normalizeMessageChannel(finalized.Provider) ?? normalizeAnyChannelId(finalized.OriginatingChannel) ?? normalizeAnyChannelId(finalized.Provider) ?? normalizeOptionalLowercaseString(finalized.OriginatingChannel) ?? normalizeOptionalLowercaseString(finalized.Provider)) === "slack" && (() => {
+		const chatType = normalizeChatType(finalized.ChatType ?? sessionCtx?.ChatType);
+		return chatType != null && chatType !== "direct";
+	})();
 	if (sessionEntry?.pendingFinalDelivery && sessionEntry.pendingFinalDeliveryText) {
 		const text = sanitizePendingFinalDeliveryText(sessionEntry.pendingFinalDeliveryText);
 		if (opts?.isHeartbeat) {
@@ -4501,6 +4506,7 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		model,
 		hasOneTurnModelOverride: hasAppliedImageModelOverride,
 		hasResolvedHeartbeatModelOverride,
+		suppressSlackChannelReasoningAndVerbose,
 		typing,
 		opts: resolvedOpts,
 		skillFilter: mergedSkillFilter
@@ -4603,7 +4609,11 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		const agentEntry = resolveAgentConfig(cfg, agentId);
 		const rawSessionReasoningLevel = sessionEntry.reasoningLevel;
 		const canUseReasoningState = command.isAuthorizedSender || command.senderIsOwner || Array.isArray(ctx.GatewayClientScopes) && ctx.GatewayClientScopes.includes("operator.admin");
-		if (!suppressSlackChannelReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
+		const suppressAutoFallbackSlackReasoningAndVerbose = (normalizeMessageChannel(ctx.OriginatingChannel) ?? normalizeMessageChannel(ctx.Provider) ?? normalizeAnyChannelId(ctx.OriginatingChannel) ?? normalizeAnyChannelId(ctx.Provider) ?? normalizeOptionalLowercaseString(ctx.OriginatingChannel) ?? normalizeOptionalLowercaseString(ctx.Provider)) === "slack" && (() => {
+			const chatType = normalizeChatType(ctx.ChatType);
+			return chatType != null && chatType !== "direct";
+		})();
+		if (!suppressAutoFallbackSlackReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
 	}
 	if (!useFastTestBootstrap) {
 		const { getGlobalHookRunner } = await loadHookRunnerGlobal();
