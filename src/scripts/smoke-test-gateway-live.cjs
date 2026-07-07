@@ -14,6 +14,11 @@ const CLAWDBOT_DIR = path.join(PROJECT_DIR, 'src-tauri', 'resources', 'clawdbot'
 const ENTRY = path.join(CLAWDBOT_DIR, 'dist', 'entry.js');
 const TIMEOUT_MS = Number(process.env.KNAPSACK_GATEWAY_LIVE_TIMEOUT_MS || 15000);
 const TOKEN = `knapsack-gateway-live-${process.pid}`;
+const LIVE_MARKERS = [
+  'http server listening (',
+  'ready (',
+  '[health-monitor] started',
+];
 
 if (!fs.existsSync(ENTRY)) {
   console.error(`[gateway-live] Missing ${ENTRY}`);
@@ -76,7 +81,7 @@ let timeout;
 function onData(chunk) {
   output += chunk.toString();
   if (output.length > 200000) output = output.slice(-200000);
-  if (output.includes('http server listening (') || output.includes('ready (')) {
+  if (LIVE_MARKERS.some((marker) => output.includes(marker))) {
     clearTimeout(timeout);
     const elapsed = Date.now() - startedAt;
     finish(
