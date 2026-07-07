@@ -952,7 +952,7 @@ function resolveDirectiveCommandText(params) {
 	};
 }
 async function resolveReplyDirectives(params) {
-	const { ctx, cfg, agentId, agentCfg, agentDir, workspaceDir, sessionCtx, sessionEntry, sessionStore, sessionKey, storePath, sessionScope, groupResolution, isGroup, triggerBodyNormalized, resetTriggered, commandAuthorized, defaultProvider, defaultModel, primaryProvider, primaryModel, provider: initialProvider, model: initialModel, hasOneTurnModelOverride, skipStoredModelOverride, hasResolvedHeartbeatModelOverride, typing, opts, skillFilter } = params;
+	const { ctx, cfg, agentId, agentCfg, agentDir, workspaceDir, sessionCtx, sessionEntry, sessionStore, sessionKey, storePath, sessionScope, groupResolution, isGroup, triggerBodyNormalized, resetTriggered, commandAuthorized, defaultProvider, defaultModel, primaryProvider, primaryModel, provider: initialProvider, model: initialModel, hasOneTurnModelOverride, skipStoredModelOverride, hasResolvedHeartbeatModelOverride, typing, opts, skillFilter, suppressSlackChannelReasoningAndVerbose = false } = params;
 	const agentEntry = listAgentEntries(cfg).find((entry) => normalizeAgentId(entry.id) === normalizeAgentId(agentId));
 	const targetSessionEntry = sessionStore[sessionKey] ?? sessionEntry;
 	let provider = initialProvider;
@@ -1741,6 +1741,7 @@ async function maybeResolveNativeSlashCommandFastReply(params) {
 		provider: params.provider,
 		model: params.model,
 		hasResolvedHeartbeatModelOverride: false,
+		suppressSlackChannelReasoningAndVerbose: false,
 		typing: params.typing,
 		opts: params.opts,
 		skillFilter: params.skillFilter
@@ -4501,6 +4502,7 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		model,
 		hasOneTurnModelOverride: hasAppliedImageModelOverride,
 		hasResolvedHeartbeatModelOverride,
+		suppressSlackChannelReasoningAndVerbose,
 		typing,
 		opts: resolvedOpts,
 		skillFilter: mergedSkillFilter

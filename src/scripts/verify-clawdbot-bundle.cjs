@@ -165,6 +165,7 @@ function extensionDependencyExists(extensionDir, dependencyName) {
 }
 
 const distDir = path.join(CLAWDBOT_DIR, 'dist');
+const getReplyChunkPath = path.join(distDir, 'get-reply-DOTqK3jN.js');
 const relativeImportRegexes = [
   /(?:^|[;\n]\s*)import\s+(?:[^"';]+?\s+from\s+)?["'](\.{1,2}\/[^"']+)["']/g,
   /(?:^|[;\n]\s*)export\s+[^"';]+?\s+from\s+["'](\.{1,2}\/[^"']+)["']/g,
@@ -195,6 +196,26 @@ for (const jsFile of walkFiles(distDir)) {
     }
   }
 }
+
+function verifyScopedReplyRuntimeFlags() {
+  if (!fs.existsSync(getReplyChunkPath)) return;
+  const content = fs.readFileSync(getReplyChunkPath, 'utf8');
+  if (!content.includes('suppressSlackChannelReasoningAndVerbose')) return;
+
+  const resolverWiresFlag = /resolveReplyDirectives\(params\)\s*\{\s*const\s*\{[\s\S]*?suppressSlackChannelReasoningAndVerbose\s*=\s*false/m.test(content);
+  if (!resolverWiresFlag) {
+    console.error('[verify-clawdbot] CRITICAL: get-reply chunk references suppressSlackChannelReasoningAndVerbose without wiring it into resolveReplyDirectives(params)');
+    errors++;
+  }
+
+  const mainReplyFlowPassesFlag = /resolveReplyDirectives\(\{[\s\S]*?hasResolvedHeartbeatModelOverride,\s*suppressSlackChannelReasoningAndVerbose,\s*typing/m.test(content);
+  if (!mainReplyFlowPassesFlag) {
+    console.error('[verify-clawdbot] CRITICAL: get-reply chunk does not pass suppressSlackChannelReasoningAndVerbose into the main resolveReplyDirectives() call');
+    errors++;
+  }
+}
+
+verifyScopedReplyRuntimeFlags();
 
 // Verify bundled extensions have required plugin metadata
 const extensionsDir = path.join(CLAWDBOT_DIR, 'dist', 'extensions');
