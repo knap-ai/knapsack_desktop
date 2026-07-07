@@ -90,6 +90,7 @@ export declare function resolveReplyDirectives(params: {
     hasOneTurnModelOverride?: boolean;
     skipStoredModelOverride?: boolean;
     hasResolvedHeartbeatModelOverride: boolean;
+    suppressSlackChannelReasoningAndVerbose?: boolean;
     typing: TypingController;
     opts?: GetReplyOptions;
     skillFilter?: string[];
