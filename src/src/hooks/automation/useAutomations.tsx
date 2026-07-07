@@ -90,7 +90,7 @@ const checkAutomationAuth = async (
       return { needsAuth: true, requiredGoogleKeys }
     }
 
-    return { needsAuth: true, requiredGoogleKeys }
+    continue
   }
 
   return { needsAuth: false, requiredGoogleKeys }
