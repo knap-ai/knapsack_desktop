@@ -77,13 +77,20 @@ const checkAutomationAuth = async (
   const requiredGoogleKeys = getAutomationGoogleConnectionKeys(automation)
 
   for (const key of requiredGoogleKeys) {
+    try {
+      const accessToken = await getAccessToken(userEmail, key)
+      if (accessToken) {
+        continue
+      }
+    } catch {
+      // Fall through to the local connection snapshot check below.
+    }
+
     if (!hasRequiredConnection(connections, key)) {
       return { needsAuth: true, requiredGoogleKeys }
     }
-  }
 
-  for (const key of requiredGoogleKeys) {
-    await getAccessToken(userEmail, key)
+    return { needsAuth: true, requiredGoogleKeys }
   }
 
   return { needsAuth: false, requiredGoogleKeys }
