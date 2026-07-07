@@ -4270,6 +4270,10 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		cfg,
 		commandAuthorized
 	}));
+	const suppressSlackChannelReasoningAndVerbose = (normalizeMessageChannel(finalized.OriginatingChannel) ?? normalizeMessageChannel(finalized.Provider) ?? normalizeAnyChannelId(finalized.OriginatingChannel) ?? normalizeAnyChannelId(finalized.Provider) ?? normalizeOptionalLowercaseString(finalized.OriginatingChannel) ?? normalizeOptionalLowercaseString(finalized.Provider)) === "slack" && (() => {
+		const chatType = normalizeChatType(finalized.ChatType ?? sessionCtx?.ChatType);
+		return chatType != null && chatType !== "direct";
+	})();
 	if (sessionEntry?.pendingFinalDelivery && sessionEntry.pendingFinalDeliveryText) {
 		const text = sanitizePendingFinalDeliveryText(sessionEntry.pendingFinalDeliveryText);
 		if (opts?.isHeartbeat) {
@@ -4605,7 +4609,11 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		const agentEntry = resolveAgentConfig(cfg, agentId);
 		const rawSessionReasoningLevel = sessionEntry.reasoningLevel;
 		const canUseReasoningState = command.isAuthorizedSender || command.senderIsOwner || Array.isArray(ctx.GatewayClientScopes) && ctx.GatewayClientScopes.includes("operator.admin");
-		if (!suppressSlackChannelReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
+		const suppressAutoFallbackSlackReasoningAndVerbose = (normalizeMessageChannel(ctx.OriginatingChannel) ?? normalizeMessageChannel(ctx.Provider) ?? normalizeAnyChannelId(ctx.OriginatingChannel) ?? normalizeAnyChannelId(ctx.Provider) ?? normalizeOptionalLowercaseString(ctx.OriginatingChannel) ?? normalizeOptionalLowercaseString(ctx.Provider)) === "slack" && (() => {
+			const chatType = normalizeChatType(ctx.ChatType);
+			return chatType != null && chatType !== "direct";
+		})();
+		if (!suppressAutoFallbackSlackReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
 	}
 	if (!useFastTestBootstrap) {
 		const { getGlobalHookRunner } = await loadHookRunnerGlobal();
