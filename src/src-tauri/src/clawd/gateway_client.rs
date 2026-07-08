@@ -1243,7 +1243,10 @@ pub fn resolve_default_model() -> String {
     "trustedrouter" => {
       let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
         .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-      return format!("trustedrouter/{}", model);
+      return format!(
+        "trustedrouter/{}",
+        normalize_provider_model("trustedrouter", &model)
+      );
     }
     "ollama" => {
       let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
@@ -1365,7 +1368,10 @@ pub fn resolve_default_model() -> String {
   if has_key("TRUSTEDROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
       .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    return format!("trustedrouter/{}", model);
+    return format!(
+      "trustedrouter/{}",
+      normalize_provider_model("trustedrouter", &model)
+    );
   }
   if has_key("OLLAMA_API_KEY") {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
@@ -1442,7 +1448,10 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   if primary_provider != "trustedrouter" && has_key("TRUSTEDROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
       .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    fallbacks.push(format!("trustedrouter/{}", model));
+    fallbacks.push(format!(
+      "trustedrouter/{}",
+      normalize_provider_model("trustedrouter", &model)
+    ));
   }
 
   fallbacks
@@ -3230,6 +3239,20 @@ mod tests {
     std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
     std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
     std::env::remove_var("KNAPSACK_USER_EMAIL");
+  }
+
+  #[test]
+  fn resolve_default_model_normalizes_trustedrouter_prefix_once() {
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "trustedrouter");
+    std::env::set_var("TRUSTEDROUTER_API_KEY", "sk-tr-test");
+    std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", "trustedrouter/auto");
+
+    let model = resolve_default_model();
+    assert_eq!(model, "trustedrouter/auto");
+
+    std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    std::env::remove_var("TRUSTEDROUTER_API_KEY");
+    std::env::remove_var("KNAPSACK_TRUSTEDROUTER_MODEL");
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───

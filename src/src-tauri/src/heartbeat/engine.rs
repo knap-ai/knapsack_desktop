@@ -451,10 +451,14 @@ Respond with ONLY valid JSON, no markdown, no explanation:
 async fn call_llm_for_decision(prompt: &str) -> Result<LlmDecision, String> {
   let provider = resolve_heartbeat_provider()?;
 
-  let client = reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(30))
-    .build()
-    .map_err(|e| format!("HTTP client error: {}", e))?;
+  let client = if provider.is_anthropic {
+    reqwest::Client::builder()
+      .timeout(std::time::Duration::from_secs(30))
+      .build()
+      .map_err(|e| format!("HTTP client error: {}", e))?
+  } else {
+    openai_compatible_client(&provider.base_url).map_err(|e| format!("HTTP client error: {}", e))?
+  };
 
   let response_text = if provider.is_anthropic {
     // Anthropic Messages API
@@ -575,6 +579,16 @@ struct HeartbeatProvider {
   model: String,
   base_url: String,
   is_anthropic: bool,
+}
+
+fn openai_compatible_client(base_url: &str) -> Result<reqwest::Client, reqwest::Error> {
+  let mut builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30));
+  if base_url.contains("trustedrouter.com") {
+    // TrustedRouter has been intermittently failing ALPN negotiation on some
+    // macOS builds with reqwest's default transport. Force HTTP/1.1 there.
+    builder = builder.http1_only();
+  }
+  builder.build()
 }
 
 /// Resolve the cheapest available model for the user's active provider.

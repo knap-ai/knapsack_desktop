@@ -7943,10 +7943,11 @@ pub async fn validate_api_key(payload: web::Json<ValidateApiKeyRequest>) -> impl
     .as_deref()
     .unwrap_or("openai")
     .to_lowercase();
-  let client = reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(10))
-    .build()
-    .unwrap_or_default();
+  let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10));
+  if provider == "trustedrouter" {
+    client_builder = client_builder.http1_only();
+  }
+  let client = client_builder.build().unwrap_or_default();
 
   let result = match provider.as_str() {
     "anthropic" => {

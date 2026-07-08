@@ -45,6 +45,19 @@ struct ResolvedProvider {
   is_anthropic: bool, // Anthropic uses a different API format
 }
 
+fn openai_compatible_client(
+  provider_name: &str,
+  base_url: &str,
+) -> Result<reqwest::Client, reqwest::Error> {
+  let mut builder = reqwest::Client::builder();
+  if provider_name == "trustedrouter" || base_url.contains("trustedrouter.com") {
+    // TrustedRouter has been intermittently failing ALPN negotiation on some
+    // macOS builds with reqwest's default transport. Force HTTP/1.1 there.
+    builder = builder.http1_only();
+  }
+  builder.build()
+}
+
 /// Try to resolve the best available LLM provider from env vars.
 /// Priority: active_provider setting → OpenAI → Anthropic → Gemini → Groq → TrustedRouter → OpenRouter → Knapsack
 fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
@@ -604,7 +617,12 @@ async fn openai_compatible_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
-  let client = reqwest::Client::new();
+  let client = openai_compatible_client(&provider.name, &provider.base_url).map_err(|e| {
+    LLMError::ChatCompletionFailed(format!(
+      "{} client initialization failed: {}",
+      provider.name, e
+    ))
+  })?;
   let msgs: Vec<serde_json::Value> = messages
     .iter()
     .map(|m| {
