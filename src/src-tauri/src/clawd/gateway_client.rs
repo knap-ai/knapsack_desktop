@@ -1788,6 +1788,62 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     }
   }
 
+  let slack_exists = config_inner.pointer("/channels/slack").is_some();
+  if slack_exists {
+    let current_group_reply_mode = config_inner
+      .pointer("/channels/slack/replyToModeByChatType/group")
+      .and_then(|v| v.as_str());
+    let current_channel_reply_mode = config_inner
+      .pointer("/channels/slack/replyToModeByChatType/channel")
+      .and_then(|v| v.as_str());
+    let current_preview_tool_progress = config_inner
+      .pointer("/channels/slack/streaming/preview/toolProgress")
+      .and_then(|v| v.as_bool());
+    let current_progress_tool_progress = config_inner
+      .pointer("/channels/slack/streaming/progress/toolProgress")
+      .and_then(|v| v.as_bool());
+    let current_progress_command_text = config_inner
+      .pointer("/channels/slack/streaming/progress/commandText")
+      .and_then(|v| v.as_str());
+
+    let needs_slack_patch = current_group_reply_mode != Some("all")
+      || current_channel_reply_mode != Some("all")
+      || current_preview_tool_progress != Some(false)
+      || current_progress_tool_progress != Some(false)
+      || current_progress_command_text != Some("status");
+
+    if needs_slack_patch {
+      let root = patch_obj
+        .as_object_mut()
+        .expect("runtime patch object should be writable");
+      let channels = root
+        .entry("channels".to_string())
+        .or_insert_with(|| serde_json::json!({}));
+      if let Some(channels_obj) = channels.as_object_mut() {
+        channels_obj.insert(
+          "slack".to_string(),
+          serde_json::json!({
+            "replyToModeByChatType": {
+              "group": "all",
+              "channel": "all"
+            },
+            "streaming": {
+              "preview": {
+                "toolProgress": false
+              },
+              "progress": {
+                "toolProgress": false,
+                "commandText": "status"
+              }
+            }
+          }),
+        );
+      }
+
+      eprintln!("[gateway_client] Enforcing Slack quiet/threaded defaults for shared chats");
+    }
+  }
+
   let raw_patch = patch_obj.to_string();
 
   let patch_id = next_request_id();

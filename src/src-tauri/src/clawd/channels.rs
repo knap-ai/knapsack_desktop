@@ -718,7 +718,13 @@ fn configured_channels_from_disk() -> Vec<String> {
         .map(|channels| {
           channels
             .iter()
-            .filter_map(|(name, value)| if value.is_null() { None } else { Some(name.clone()) })
+            .filter_map(|(name, value)| {
+              if value.is_null() {
+                None
+              } else {
+                Some(name.clone())
+              }
+            })
             .collect::<Vec<_>>()
         })
     })
@@ -2399,17 +2405,26 @@ pub async fn generic_channel_configure(
             "typingReaction".to_string(),
             serde_json::json!("hourglass_flowing_sand"),
           );
+          if !obj.contains_key("replyToModeByChatType") {
+            obj.insert(
+              "replyToModeByChatType".to_string(),
+              serde_json::json!({
+                "group": "all",
+                "channel": "all"
+              }),
+            );
+          }
           obj.insert(
             "streaming".to_string(),
             serde_json::json!({
               "mode": "progress",
               "nativeTransport": true,
               "preview": {
-                "toolProgress": true,
+                "toolProgress": false,
                 "commandText": "status"
               },
               "progress": {
-                "toolProgress": true,
+                "toolProgress": false,
                 "commandText": "status"
               }
             }),

@@ -1012,6 +1012,15 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
     .pointer_mut("/channels/slack")
     .and_then(|value| value.as_object_mut())
   {
+    let desired_reply_modes = serde_json::json!({
+      "group": "all",
+      "channel": "all"
+    });
+    if slack.get("replyToModeByChatType") != Some(&desired_reply_modes) {
+      slack.insert("replyToModeByChatType".to_string(), desired_reply_modes);
+      patched = true;
+    }
+
     if slack.get("groupPolicy").and_then(|value| value.as_str()) != Some("open") {
       slack.insert("groupPolicy".to_string(), serde_json::json!("open"));
       patched = true;
@@ -1031,11 +1040,11 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
       "mode": "progress",
       "nativeTransport": true,
       "preview": {
-        "toolProgress": true,
+        "toolProgress": false,
         "commandText": "status"
       },
       "progress": {
-        "toolProgress": true,
+        "toolProgress": false,
         "commandText": "status"
       }
     });
@@ -4011,7 +4020,10 @@ fn sanitize_rejected_legacy_config_keys(cfg: &mut serde_json::Value) -> bool {
     }
   }
 
-  fn scrub_slack_progress(progress: &mut serde_json::Map<String, serde_json::Value>, path: &str) -> bool {
+  fn scrub_slack_progress(
+    progress: &mut serde_json::Map<String, serde_json::Value>,
+    path: &str,
+  ) -> bool {
     let mut changed = false;
     let unsupported_keys = [
       "nativeTaskCards",
@@ -16059,7 +16071,7 @@ mod knapsack_runtime_auth_tests {
   }
 
   #[test]
-  fn knapsack_channel_runtime_defaults_enable_slack_progress() {
+  fn knapsack_channel_runtime_defaults_quiet_slack_shared_chats() {
     let mut cfg = serde_json::json!({
       "channels": {
         "slack": {
@@ -16108,9 +16120,33 @@ mod knapsack_runtime_auth_tests {
     );
     assert_eq!(
       cfg
+        .pointer("/channels/slack/replyToModeByChatType/group")
+        .and_then(|value| value.as_str()),
+      Some("all")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/replyToModeByChatType/channel")
+        .and_then(|value| value.as_str()),
+      Some("all")
+    );
+    assert_eq!(
+      cfg
         .pointer("/channels/slack/streaming/mode")
         .and_then(|value| value.as_str()),
       Some("progress")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/streaming/preview/toolProgress")
+        .and_then(|value| value.as_bool()),
+      Some(false)
+    );
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/streaming/progress/toolProgress")
+        .and_then(|value| value.as_bool()),
+      Some(false)
     );
     assert_eq!(
       cfg
@@ -16118,11 +16154,9 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("status")
     );
-    assert!(
-      cfg
-        .pointer("/channels/slack/streaming/progress/nativeTaskCards")
-        .is_none()
-    );
+    assert!(cfg
+      .pointer("/channels/slack/streaming/progress/nativeTaskCards")
+      .is_none());
   }
 
   #[test]
@@ -16152,16 +16186,12 @@ mod knapsack_runtime_auth_tests {
     });
 
     assert!(super::sanitize_rejected_legacy_config_keys(&mut cfg));
-    assert!(
-      cfg
-        .pointer("/channels/slack/streaming/progress/nativeTaskCards")
-        .is_none()
-    );
-    assert!(
-      cfg
-        .pointer("/channels/slack/accounts/default/streaming/progress/nativeTaskCards")
-        .is_none()
-    );
+    assert!(cfg
+      .pointer("/channels/slack/streaming/progress/nativeTaskCards")
+      .is_none());
+    assert!(cfg
+      .pointer("/channels/slack/accounts/default/streaming/progress/nativeTaskCards")
+      .is_none());
   }
 
   #[test]

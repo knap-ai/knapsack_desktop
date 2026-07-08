@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import { invoke } from '@tauri-apps/api'
 import { platform } from '@tauri-apps/api/os'
@@ -6,6 +6,7 @@ import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/upda
 import { relaunch } from '@tauri-apps/api/process'
 
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { getAppVersion } from 'src/utils/app'
 import {
   getAutoInstallAppUpdatesEnabled,
   setAutoInstallAppUpdatesEnabled,
@@ -33,6 +34,9 @@ type AppUpdateContextValue = {
 }
 
 const AUTO_INSTALL_COUNTDOWN_SEC = 60
+const INSTALL_TIMEOUT_MS = 90_000
+const AUTO_INSTALL_RETRY_COOLDOWN_MS = 30 * 60 * 1000
+const AUTO_INSTALL_SNOOZE_KEY = 'kn_auto_install_update_snooze'
 
 const AppUpdateContext = createContext<AppUpdateContextValue | null>(null)
 
@@ -41,6 +45,77 @@ async function prepareNativeUpdateInstall() {
     return
   }
   await invoke('kn_prepare_updater_temp_dir')
+}
+
+function normalizeVersion(version: string | undefined | null): string {
+  return String(version ?? '')
+    .trim()
+    .replace(/^v/i, '')
+    .split('+')[0]
+}
+
+function readAutoInstallSnooze(): { version: string; until: number } | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AUTO_INSTALL_SNOOZE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (
+      typeof parsed?.version === 'string' &&
+      parsed.version &&
+      typeof parsed?.until === 'number'
+    ) {
+      return parsed
+    }
+  } catch {
+    // Ignore malformed persisted state.
+  }
+
+  return null
+}
+
+function writeAutoInstallSnooze(version: string, until = Date.now() + AUTO_INSTALL_RETRY_COOLDOWN_MS) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(
+      AUTO_INSTALL_SNOOZE_KEY,
+      JSON.stringify({ version: normalizeVersion(version), until }),
+    )
+  } catch {
+    // Ignore storage failures; updater flow still works without persistence.
+  }
+}
+
+function clearAutoInstallSnooze() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(AUTO_INSTALL_SNOOZE_KEY)
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function isAutoInstallSnoozed(version: string): boolean {
+  const snooze = readAutoInstallSnooze()
+  if (!snooze) {
+    return false
+  }
+
+  if (snooze.until <= Date.now()) {
+    clearAutoInstallSnooze()
+    return false
+  }
+
+  return normalizeVersion(snooze.version) === normalizeVersion(version)
 }
 
 export function useAppUpdate() {
@@ -54,6 +129,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const [autoInstallEnabled, setAutoInstallEnabledState] = useState(true)
   const [countdownRemainingSec, setCountdownRemainingSec] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const installInFlightRef = useRef(false)
 
   // Listen to updater events
   useEffect(() => {
@@ -90,8 +166,10 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     setState({ status: 'checking' })
     setDismissed(false)
     try {
+      const currentVersion = normalizeVersion(await getAppVersion())
       const { shouldUpdate, manifest } = await checkUpdate()
-      if (shouldUpdate && manifest) {
+      const targetVersion = normalizeVersion(manifest?.version)
+      if (shouldUpdate && manifest && targetVersion && targetVersion !== currentVersion) {
         KNAnalytics.trackEvent('update_available', {
           from_version: KNAnalytics.APP_VERSION,
           to_version: manifest.version,
@@ -99,6 +177,7 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
         })
         setState({ status: 'available', version: manifest.version })
       } else {
+        clearAutoInstallSnooze()
         setState({ status: 'up-to-date' })
       }
     } catch (err) {
@@ -110,17 +189,45 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // startInstall is kept for explicit user-initiated installs (without relaunch)
-  const startInstall = useCallback(async () => {
+  const runInstallWithTimeout = useCallback(async (targetVersion?: string) => {
+    if (installInFlightRef.current) {
+      return
+    }
+
+    installInFlightRef.current = true
     setState({ status: 'downloading' })
+
     try {
       await prepareNativeUpdateInstall()
-      await installUpdate()
+      await Promise.race([
+        installUpdate(),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error('Update install timed out. Knapsack will pause auto-install for this version; please try again from Settings when your connection is stable.'))
+          }, INSTALL_TIMEOUT_MS)
+        }),
+      ])
+    } catch (err) {
+      if (targetVersion) {
+        writeAutoInstallSnooze(targetVersion)
+      }
+      throw err
+    } finally {
+      installInFlightRef.current = false
+    }
+  }, [])
+
+  // startInstall is kept for explicit user-initiated installs (without relaunch)
+  const startInstall = useCallback(async () => {
+    try {
+      const targetVersion = state.status === 'available' ? state.version : undefined
+      await runInstallWithTimeout(targetVersion)
+      clearAutoInstallSnooze()
       setState({ status: 'ready' })
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
-  }, [])
+  }, [runInstallWithTimeout, state])
 
   // restartApp installs (if not already done) and immediately relaunches.
   // installUpdate() replaces the binary on disk — calling relaunch() after any
@@ -133,15 +240,14 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       to_version: targetVersion,
       timestamp: new Date().toISOString(),
     })
-    setState({ status: 'downloading' })
     try {
-      await prepareNativeUpdateInstall()
-      await installUpdate()
+      await runInstallWithTimeout(targetVersion)
+      clearAutoInstallSnooze()
       await relaunch()
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
-  }, [state])
+  }, [runInstallWithTimeout, state])
 
   const setAutoInstallEnabled = useCallback(async (enabled: boolean) => {
     setAutoInstallEnabledState(enabled)
@@ -149,14 +255,17 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const dismiss = useCallback(() => {
+    if (autoInstallEnabled && state.status === 'available') {
+      writeAutoInstallSnooze(state.version)
+    }
     setDismissed(true)
     setCountdownRemainingSec(null)
-  }, [])
+  }, [autoInstallEnabled, state])
 
   useEffect(() => {
     if (state.status === 'available') {
       setDismissed(false)
-      if (autoInstallEnabled) {
+      if (autoInstallEnabled && !isAutoInstallSnoozed(state.version)) {
         setCountdownRemainingSec(prev => prev ?? AUTO_INSTALL_COUNTDOWN_SEC)
       } else {
         setCountdownRemainingSec(null)
