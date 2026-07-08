@@ -3442,7 +3442,7 @@ async function initSessionState(params) {
 	let persistedDisplayName;
 	const normalizedChatType = normalizeChatType(ctx.ChatType);
 	const normalizedIngressChannel = normalizeMessageChannel(ctx.OriginatingChannel) ?? normalizeMessageChannel(ctx.Provider) ?? normalizeAnyChannelId(ctx.OriginatingChannel) ?? normalizeAnyChannelId(ctx.Provider) ?? normalizeOptionalLowercaseString(ctx.OriginatingChannel) ?? normalizeOptionalLowercaseString(ctx.Provider);
-	const suppressSlackChannelReasoningAndVerbose = normalizedIngressChannel === "slack" && normalizedChatType != null && normalizedChatType !== "direct";
+	const suppressSlackChannelReasoningAndVerbose = normalizedIngressChannel === "slack" && (normalizedChatType == null ? ctx.MessageThreadId != null || ctx.TransportThreadId != null : normalizedChatType !== "direct");
 	const isGroup = normalizedChatType != null && normalizedChatType !== "direct" ? true : Boolean(groupResolution);
 	const commandSource = ctx.BodyForCommands ?? ctx.CommandBody ?? ctx.RawBody ?? ctx.Body ?? "";
 	const triggerBodyNormalized = stripStructuralPrefixes(commandSource).trim();
@@ -4272,7 +4272,7 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 	}));
 	const suppressSlackChannelReasoningAndVerbose = (normalizeMessageChannel(finalized.OriginatingChannel) ?? normalizeMessageChannel(finalized.Provider) ?? normalizeAnyChannelId(finalized.OriginatingChannel) ?? normalizeAnyChannelId(finalized.Provider) ?? normalizeOptionalLowercaseString(finalized.OriginatingChannel) ?? normalizeOptionalLowercaseString(finalized.Provider)) === "slack" && (() => {
 		const chatType = normalizeChatType(finalized.ChatType ?? sessionCtx?.ChatType);
-		return chatType != null && chatType !== "direct";
+		return chatType == null ? finalized.MessageThreadId != null || finalized.TransportThreadId != null || sessionEntry?.lastThreadId != null : chatType !== "direct";
 	})();
 	if (sessionEntry?.pendingFinalDelivery && sessionEntry.pendingFinalDeliveryText) {
 		const text = sanitizePendingFinalDeliveryText(sessionEntry.pendingFinalDeliveryText);
@@ -4611,7 +4611,7 @@ async function getReplyFromConfig(ctx, opts, configOverride) {
 		const canUseReasoningState = command.isAuthorizedSender || command.senderIsOwner || Array.isArray(ctx.GatewayClientScopes) && ctx.GatewayClientScopes.includes("operator.admin");
 		const suppressAutoFallbackSlackReasoningAndVerbose = (normalizeMessageChannel(ctx.OriginatingChannel) ?? normalizeMessageChannel(ctx.Provider) ?? normalizeAnyChannelId(ctx.OriginatingChannel) ?? normalizeAnyChannelId(ctx.Provider) ?? normalizeOptionalLowercaseString(ctx.OriginatingChannel) ?? normalizeOptionalLowercaseString(ctx.Provider)) === "slack" && (() => {
 			const chatType = normalizeChatType(ctx.ChatType);
-			return chatType != null && chatType !== "direct";
+			return chatType == null ? ctx.MessageThreadId != null || ctx.TransportThreadId != null : chatType !== "direct";
 		})();
 		if (!suppressAutoFallbackSlackReasoningAndVerbose && !(directives.reasoningLevel !== void 0 || rawSessionReasoningLevel != null && canUseReasoningState || rawSessionReasoningLevel != null && !canUseReasoningState || agentEntry?.reasoningDefault != null || agentCfg?.reasoningDefault != null) && resolvedThinkLevel === "off") resolvedReasoningLevel = await runModelState.resolveDefaultReasoningLevel();
 	}
