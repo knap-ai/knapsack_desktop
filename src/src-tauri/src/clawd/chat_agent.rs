@@ -565,9 +565,13 @@ pub async fn openai_compatible_chat(
   // Use a longer timeout for local providers (Ollama) which may need more time
   let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
   let timeout_secs = if is_local { 300 } else { 60 };
-  let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(timeout_secs))
-    .build()?;
+  let mut client_builder = reqwest::Client::builder().timeout(Duration::from_secs(timeout_secs));
+  if base_url.contains("trustedrouter.com") {
+    // TrustedRouter has been intermittently failing ALPN negotiation on some
+    // macOS builds with reqwest's default transport. Force HTTP/1.1 there.
+    client_builder = client_builder.http1_only();
+  }
+  let client = client_builder.build()?;
 
   // OpenAI reasoning models (o1, o3, o4-mini, gpt-5.2-pro) only support temperature=1 (default).
   // Ollama models also often reject non-default temperatures for reasoning variants.
