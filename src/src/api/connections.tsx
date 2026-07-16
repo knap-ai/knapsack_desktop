@@ -57,19 +57,14 @@ export const gmailConnectionKey = (accountEmail: string): string =>
 /** All Google Calendar connections in the connections map. */
 export const getGoogleCalendarConnections = (
   connections: Record<string, Connection>,
-): Connection[] =>
-  Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_CALENDAR)
+): Connection[] => Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_CALENDAR)
 
 /** All Google Drive connections in the connections map. */
-export const getGoogleDriveConnections = (
-  connections: Record<string, Connection>,
-): Connection[] =>
+export const getGoogleDriveConnections = (connections: Record<string, Connection>): Connection[] =>
   Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_DRIVE)
 
 /** All Google Gmail connections in the connections map. */
-export const getGoogleGmailConnections = (
-  connections: Record<string, Connection>,
-): Connection[] =>
+export const getGoogleGmailConnections = (connections: Record<string, Connection>): Connection[] =>
   Object.values(connections).filter(c => c.key === ConnectionKeys.GOOGLE_GMAIL)
 
 /** True if at least one Google Calendar account is connected. */
@@ -190,14 +185,14 @@ export const microsoftConnections: Record<string, ConnectionObject> = {
       'https://graph.microsoft.com/Mail.ReadWrite',
       'https://graph.microsoft.com/Mail.Send',
       'https://graph.microsoft.com/MailboxSettings.Read',
-      'https://graph.microsoft.com/Contacts.ReadWrite'
+      'https://graph.microsoft.com/Contacts.ReadWrite',
     ],
   },
   [ConnectionKeys.MICROSOFT_CALENDAR]: {
     label: 'Calendar',
     scopes: [
       'https://graph.microsoft.com/Calendars.ReadWrite',
-      'https://graph.microsoft.com/Contacts.ReadWrite'
+      'https://graph.microsoft.com/Contacts.ReadWrite',
     ],
   },
 }
@@ -285,9 +280,7 @@ export async function getConnections(
           id: userConnection.id,
           key: scope,
           state: ConnectionStates.IDLE,
-          lastSynced: userConnection.lastSynced
-            ? new Date(userConnection.lastSynced * 1000)
-            : null,
+          lastSynced: userConnection.lastSynced ? new Date(userConnection.lastSynced * 1000) : null,
           syncedSince: userConnection.syncedSince
             ? new Date(userConnection.syncedSince * 1000)
             : null,
@@ -338,9 +331,7 @@ export async function getGoogleProfile(email: string) {
 }
 
 export async function syncGoogleDriveAPI(email: string, accountEmail?: string) {
-  const accountParam = accountEmail
-    ? `&account_email=${encodeURIComponent(accountEmail)}`
-    : ''
+  const accountParam = accountEmail ? `&account_email=${encodeURIComponent(accountEmail)}` : ''
   const response = await fetch(`${KN_API_GOOGLE_DRIVE}?email=${email}${accountParam}`, {
     method: 'GET',
     headers: {
@@ -355,9 +346,7 @@ export async function syncGoogleDriveAPI(email: string, accountEmail?: string) {
 }
 
 export async function syncGoogleGmailAPI(email: string, accountEmail?: string) {
-  const accountParam = accountEmail
-    ? `&account_email=${encodeURIComponent(accountEmail)}`
-    : ''
+  const accountParam = accountEmail ? `&account_email=${encodeURIComponent(accountEmail)}` : ''
   const response = await fetch(`${KN_API_GOOGLE_GMAIL}?email=${email}${accountParam}`, {
     method: 'GET',
     headers: {
@@ -584,23 +573,20 @@ export async function getAccessToken(userEmail: string, scope: string) {
   return data.access_token
 }
 
-export async function getCompleteGoogleSignIn(
-  code: string,
-  scope: string,
-  primaryEmail?: string,
-) {
-  const primaryParam = primaryEmail
-    ? `&primary_email=${encodeURIComponent(primaryEmail)}`
-    : ''
-  const response = await fetch(
-    `${KN_API_COMPLETE_GOOGLE_SIGN_IN}?code=${code}&scope=${scope}${primaryParam}`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+export async function getCompleteGoogleSignIn(code: string, scope: string, primaryEmail?: string) {
+  const query = new URLSearchParams({
+    code,
+    scope,
+  })
+  if (primaryEmail) {
+    query.set('primary_email', primaryEmail)
+  }
+  const response = await fetch(`${KN_API_COMPLETE_GOOGLE_SIGN_IN}?${query.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
     },
-  )
+  })
 
   const data = await response.json()
   if (!response.ok) {

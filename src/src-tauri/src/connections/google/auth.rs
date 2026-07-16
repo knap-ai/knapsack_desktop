@@ -130,7 +130,7 @@ pub fn get_action_message(error_code: &str) -> &str {
 /// Refresh access token locally using Google's token endpoint.
 async fn refresh_token_locally(
   refresh_token: String,
-  client_secret: &str,
+  client_secret: Option<&str>,
 ) -> Result<String, Error> {
   let client_id: &'static str = env!(
     "VITE_GOOGLE_CLIENT_ID",
@@ -138,12 +138,14 @@ async fn refresh_token_locally(
   );
   let client = reqwest::Client::new();
 
-  let params = [
-    ("refresh_token", refresh_token.as_str()),
-    ("client_id", client_id),
-    ("client_secret", client_secret),
-    ("grant_type", "refresh_token"),
+  let mut params = vec![
+    ("refresh_token".to_string(), refresh_token),
+    ("client_id".to_string(), client_id.to_string()),
+    ("grant_type".to_string(), "refresh_token".to_string()),
   ];
+  if let Some(client_secret) = client_secret.filter(|secret| !secret.is_empty()) {
+    params.push(("client_secret".to_string(), client_secret.to_string()));
+  }
 
   let response = client
     .post("https://oauth2.googleapis.com/token")
@@ -227,14 +229,23 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
 }
 
 pub async fn google_refresh_token(email: String, refresh_token: String) -> Result<String, Error> {
-  // Check for GOOGLE_CLIENT_SECRET at runtime for self-hosted builds
-  if let Ok(client_secret) = std::env::var("GOOGLE_CLIENT_SECRET") {
-    if !client_secret.is_empty() {
-      return refresh_token_locally(refresh_token, &client_secret).await;
+  let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
+    .ok()
+    .filter(|secret| !secret.is_empty());
+
+  match refresh_token_locally(refresh_token.clone(), client_secret.as_deref()).await {
+    Ok(access_token) => return Ok(access_token),
+    Err(Error::KSError(message)) if message == "Invalid refresh token" => {
+      return Err(Error::KSError(message));
+    }
+    Err(error) => {
+      log::warn!(
+        "Local Google token refresh failed, falling back to knap.ai backend: {:?}",
+        error
+      );
     }
   }
 
-  // Fall back to knap.ai backend
   refresh_token_via_backend(email, refresh_token).await
 }
 
@@ -374,7 +385,7 @@ fn create_additional_connections(
 /// This is used when GOOGLE_CLIENT_SECRET is configured for self-hosted builds.
 async fn exchange_code_locally(
   code: String,
-  client_secret: &str,
+  client_secret: Option<&str>,
 ) -> Result<GoogleSigninResponse, FetchError> {
   let client_id: &'static str = env!(
     "VITE_GOOGLE_CLIENT_ID",
@@ -383,13 +394,15 @@ async fn exchange_code_locally(
   let redirect_uri = "http://localhost:8897/api/knapsack/google/signin";
   let client = reqwest::Client::new();
 
-  let params = [
-    ("code", code.as_str()),
-    ("client_id", client_id),
-    ("client_secret", client_secret),
-    ("redirect_uri", redirect_uri),
-    ("grant_type", "authorization_code"),
+  let mut params = vec![
+    ("code".to_string(), code),
+    ("client_id".to_string(), client_id.to_string()),
+    ("redirect_uri".to_string(), redirect_uri.to_string()),
+    ("grant_type".to_string(), "authorization_code".to_string()),
   ];
+  if let Some(client_secret) = client_secret.filter(|secret| !secret.is_empty()) {
+    params.push(("client_secret".to_string(), client_secret.to_string()));
+  }
 
   let response = client
     .post("https://oauth2.googleapis.com/token")
@@ -465,15 +478,30 @@ async fn exchange_code_via_backend(code: String) -> Result<GoogleSigninResponse,
 }
 
 async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
-  // Check for GOOGLE_CLIENT_SECRET at runtime for self-hosted builds
-  if let Ok(client_secret) = std::env::var("GOOGLE_CLIENT_SECRET") {
-    if !client_secret.is_empty() {
-      log::info!("Using local Google OAuth token exchange (self-hosted mode)");
-      return exchange_code_locally(code, &client_secret).await;
+  let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
+    .ok()
+    .filter(|secret| !secret.is_empty());
+
+  match exchange_code_locally(code.clone(), client_secret.as_deref()).await {
+    Ok(response) => {
+      log::info!("Using local Google OAuth token exchange");
+      return Ok(response);
+    }
+    Err(FetchError::UnknownError(message))
+      if message.contains("invalid_grant")
+        || message.contains("invalid_client")
+        || message.contains("unauthorized_client") =>
+    {
+      return Err(FetchError::UnknownError(message));
+    }
+    Err(error) => {
+      log::warn!(
+        "Local Google OAuth token exchange failed, falling back to knap.ai backend: {:?}",
+        error
+      );
     }
   }
 
-  // Fall back to knap.ai backend for DMG/default builds
   log::info!("Using knap.ai backend for Google OAuth token exchange");
   exchange_code_via_backend(code).await
 }

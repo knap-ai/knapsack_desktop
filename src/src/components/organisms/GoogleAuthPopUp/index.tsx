@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'
 
-import { ConnectionKeys, getAccessToken, googleConnections } from 'src/api/connections';
-import { GoogleAuthError, openGoogleAuthScreen } from 'src/utils/permissions/google';
+import { ConnectionKeys, getAccessToken, googleConnections } from 'src/api/connections'
+import { GoogleAuthError, openGoogleAuthScreen } from 'src/utils/permissions/google'
 
 const googlePermissions: Record<string, boolean> = {
   [ConnectionKeys.GOOGLE_CALENDAR]: true,
   [ConnectionKeys.GOOGLE_DRIVE]: true,
   [ConnectionKeys.GOOGLE_GMAIL]: true,
   [ConnectionKeys.GOOGLE_PROFILE]: true,
-};
+}
 
 const ensureGoogleTokens = async (userEmail: string, requiredConnectionKeys: ConnectionKeys[]) => {
   const accessTokens = await Promise.all(
     requiredConnectionKeys.map(key => getAccessToken(userEmail, key)),
-  );
+  )
 
   if (accessTokens.some(token => !token)) {
     throw new Error('Missing Google access token')
@@ -21,87 +21,88 @@ const ensureGoogleTokens = async (userEmail: string, requiredConnectionKeys: Con
 }
 
 interface GoogleAuthPopupProps {
-  onClose: () => void;
-  onAuth: () => Promise<void>;
-  requiredConnectionKeys?: ConnectionKeys[];
-  userEmail: string;
+  onClose: () => void
+  onAuth: () => Promise<void>
+  requiredConnectionKeys?: ConnectionKeys[]
+  userEmail: string
 }
 
 const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
-    onClose,
-    onAuth,
-    requiredConnectionKeys = [ConnectionKeys.GOOGLE_PROFILE],
-    userEmail,
-  }) => {
-    const [authError, setAuthError] = useState<string | null>(null);
+  onClose,
+  onAuth,
+  requiredConnectionKeys = [ConnectionKeys.GOOGLE_PROFILE],
+  userEmail,
+}) => {
+  const [authError, setAuthError] = useState<string | null>(null)
 
-    useEffect(() => {
-      let isActive = true;
+  useEffect(() => {
+    let isActive = true
 
-      const checkAuth = async () => {
-        if (!isActive) return;
+    const checkAuth = async () => {
+      if (!isActive) return
 
-        try {
-          await ensureGoogleTokens(userEmail, requiredConnectionKeys);
-          if (isActive) {
-            await onAuth();
-            onClose();
-          }
-        } catch (error) {
-          if (isActive) console.log("popup auth check failed");
+      try {
+        await ensureGoogleTokens(userEmail, requiredConnectionKeys)
+        if (isActive) {
+          await onAuth()
+          onClose()
         }
-      };
+      } catch (error) {
+        if (isActive) console.log('popup auth check failed')
+      }
+    }
 
-      const interval = setInterval(checkAuth, 500);
+    const interval = setInterval(checkAuth, 500)
 
-      checkAuth();
+    checkAuth()
 
-      return () => {
-        isActive = false;
-        clearInterval(interval);
-      };
-    }, [requiredConnectionKeys, userEmail, onAuth, onClose]);
+    return () => {
+      isActive = false
+      clearInterval(interval)
+    }
+  }, [requiredConnectionKeys, userEmail, onAuth, onClose])
 
   const handleAuth = async () => {
-    setAuthError(null);
+    setAuthError(null)
     try {
-      await ensureGoogleTokens(userEmail, requiredConnectionKeys);
-      await onAuth();
-      onClose();
+      await ensureGoogleTokens(userEmail, requiredConnectionKeys)
+      await onAuth()
+      onClose()
     } catch {
-      const scopedKeys = requiredConnectionKeys.length > 0 ? requiredConnectionKeys : [ConnectionKeys.GOOGLE_PROFILE]
+      const scopedKeys =
+        requiredConnectionKeys.length > 0 ? requiredConnectionKeys : [ConnectionKeys.GOOGLE_PROFILE]
       let scopes: string[] = []
       for (const key of scopedKeys) {
         if (googlePermissions[key]) {
           scopes = [...scopes, ...googleConnections[key].scopes]
         }
       }
+      scopes = [...scopes, ...googleConnections[ConnectionKeys.GOOGLE_PROFILE].scopes]
       try {
-        openGoogleAuthScreen([...new Set(scopes)].join(' '));
+        openGoogleAuthScreen([...new Set(scopes)].join(' '))
       } catch (error) {
         if (error instanceof GoogleAuthError) {
-          setAuthError(error.message);
+          setAuthError(error.message)
         } else {
-          setAuthError('Failed to open Google sign-in. Please try again.');
+          setAuthError('Failed to open Google sign-in. Please try again.')
         }
       }
     }
-  };
+  }
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      onClose()
     }
-  };
+  }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-[99998]"
-      onClick={handleOverlayClick}
-    >
+    <div className="fixed inset-0 bg-black/50 z-[99998]" onClick={handleOverlayClick}>
       <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-lg z-[99999] TightShadow">
         <span className="text-left block mb-4">
-          This automation needs access to your Google account to<br />run properly
+          This automation needs access to your Google account to
+          <br />
+          run properly
         </span>
         {authError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
@@ -116,7 +117,7 @@ const GoogleAuthPopup: React.FC<GoogleAuthPopupProps> = ({
         </button>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default GoogleAuthPopup;
+export default GoogleAuthPopup
