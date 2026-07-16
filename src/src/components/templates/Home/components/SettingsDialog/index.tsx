@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react'
-import { invoke } from '@tauri-apps/api/tauri'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   Connection,
@@ -10,49 +9,48 @@ import {
   getGoogleDriveConnections,
   getGoogleGmailConnections,
 } from 'src/api/connections'
+import { Profile } from 'src/hooks/auth/useAuth'
+import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
+import { useAppUpdate } from 'src/hooks/useAppUpdate'
+import { KN_API_GET_USER_EMAIL } from 'src/utils/constants'
+import { logError } from 'src/utils/errorHandling'
+import { BaseException } from 'src/utils/exceptions/base'
+import KNAnalytics from 'src/utils/KNAnalytics'
+import { setIsFilesEnabled } from 'src/utils/permissions/files'
 import {
   openAddGoogleCalendarScreen,
   openAddGoogleDriveScreen,
   openAddGoogleGmailScreen,
 } from 'src/utils/permissions/google'
-import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
-import KNAnalytics from 'src/utils/KNAnalytics'
-import { logError } from 'src/utils/errorHandling'
-import { BaseException } from 'src/utils/exceptions/base'
-import { KN_API_GET_USER_EMAIL } from 'src/utils/constants'
-import { setIsFilesEnabled } from 'src/utils/permissions/files'
 import {
   arePushNotificationsOSEnabledAndWantedByUser,
   requestNotificationOSPermissions,
   setUserWantsNotifications,
 } from 'src/utils/permissions/notification'
 import {
+  getKeepAwakeConfirmationAcknowledged,
+  getKeepAwakeOnLidCloseEnabled,
+  getMeetingChatAutoSend,
+  getMeetingChatEnabled,
   getNotificationLeadTimeMin,
+  setKeepAwakeConfirmationAcknowledged,
+  setKeepAwakeOnLidCloseEnabled,
+  setMeetingChatAutoSend as setMeetingChatAutoSendSetting,
+  setMeetingChatEnabled as setMeetingChatEnabledSetting,
   setNotificationLeadTimeMin,
   setSaveTranscriptStore,
   shouldSaveTranscript,
-  getMeetingChatEnabled,
-  setMeetingChatEnabled as setMeetingChatEnabledSetting,
-  getMeetingChatAutoSend,
-  setMeetingChatAutoSend as setMeetingChatAutoSendSetting,
-  getKeepAwakeOnLidCloseEnabled,
-  getKeepAwakeConfirmationAcknowledged,
-  setKeepAwakeOnLidCloseEnabled,
-  setKeepAwakeConfirmationAcknowledged,
 } from 'src/utils/settings'
 
 import { InputCheckbox } from 'src/components/atoms/input-checkbox'
-import {
-  Typography,
-  TypographyWeight,
-} from 'src/components/atoms/typography'
+import InputSelect from 'src/components/atoms/input-select'
+import { Typography, TypographyWeight } from 'src/components/atoms/typography'
 import { Dialog } from 'src/components/molecules/Dialog'
 import HeartbeatSettings from 'src/components/organisms/HeartbeatSettings'
-import { useAppUpdate } from 'src/hooks/useAppUpdate'
+
+import { invoke } from '@tauri-apps/api/tauri'
 
 import styles from './styles.module.scss'
-import { Profile } from 'src/hooks/auth/useAuth'
-import InputSelect from 'src/components/atoms/input-select'
 
 type SettingsDialogProps = {
   handlePrivacyLinkClick: () => void
@@ -65,7 +63,9 @@ type SettingsDialogProps = {
   fetchConnections: (email: string) => void
   deleteConnection: (id: number) => void
   profile: Profile | undefined
-  onProviderSignInClick?: (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => void
+  onProviderSignInClick?: (
+    provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter',
+  ) => void
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -92,7 +92,11 @@ const PERMISSION_NAME_LIST = {
   [ConnectionKeys.MICROSOFT_OUTLOOK]: 'Outlook',
 }
 
-const NOTIFICATION_LEAD_TIME = [{label: '1 minute before', value: '1'}, {label: '2 minutes before', value: '2'}, {label: '3 minutes before', value: '3'}]
+const NOTIFICATION_LEAD_TIME = [
+  { label: '1 minute before', value: '1' },
+  { label: '2 minutes before', value: '2' },
+  { label: '3 minutes before', value: '3' },
+]
 
 // ── Accordion primitive (mirrors ClawdChat channel accordion) ────────────────
 
@@ -105,23 +109,51 @@ type ProviderAccordionProps = {
   children: React.ReactNode
 }
 
-const ProviderAccordion = ({ title, isActive, isConnected, expanded, onToggle, children }: ProviderAccordionProps) => (
-  <div className={`${styles.providerItem} ${expanded ? styles.providerItemOpen : ''} ${isConnected ? styles.providerItemConnected : ''}`}>
+const ProviderAccordion = ({
+  title,
+  isActive,
+  isConnected,
+  expanded,
+  onToggle,
+  children,
+}: ProviderAccordionProps) => (
+  <div
+    className={`${styles.providerItem} ${expanded ? styles.providerItemOpen : ''} ${isConnected ? styles.providerItemConnected : ''}`}
+  >
     <button className={styles.providerHeader} onClick={onToggle}>
       <div className={styles.providerTitle}>{title}</div>
       {isConnected && (
         <span className={styles.providerCheck}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
         </span>
       )}
-      {isActive && (
-        <span className={styles.providerBadgeActive}>Active</span>
-      )}
-      <svg className={styles.providerChevron} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      {isActive && <span className={styles.providerBadgeActive}>Active</span>}
+      <svg
+        className={styles.providerChevron}
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
     </button>
-    <div className={styles.providerBody}>
-      {children}
-    </div>
+    <div className={styles.providerBody}>{children}</div>
   </div>
 )
 
@@ -148,17 +180,23 @@ const UpdateSection = () => {
 
   const statusText = (() => {
     switch (updateState.status) {
-      case 'checking': return 'Checking for updates...'
-      case 'up-to-date': return 'You\'re up to date'
+      case 'checking':
+        return 'Checking for updates...'
+      case 'up-to-date':
+        return "You're up to date"
       case 'available':
         if (autoInstallEnabled && countdownRemainingSec !== null) {
           return `Version ${'version' in updateState ? updateState.version : ''} available - auto-installing in ${countdownRemainingSec}s`
         }
         return `Version ${'version' in updateState ? updateState.version : ''} available`
-      case 'downloading': return 'Installing update…'
-      case 'ready': return 'Update ready — restart to apply'
-      case 'error': return `Error: ${updateState.message}`
-      default: return null
+      case 'downloading':
+        return 'Installing update…'
+      case 'ready':
+        return 'Update ready — restart to apply'
+      case 'error':
+        return `Error: ${updateState.message}`
+      default:
+        return null
     }
   })()
 
@@ -175,14 +213,17 @@ const UpdateSection = () => {
           Automatically install updates after a 1 minute countdown
         </InputCheckbox>
         <Typography className="text-xs text-zinc-500">
-          Best for headless or unattended Macs. When an update is found, Knapsack will warn for 60 seconds, then close and install it automatically.
+          Best for headless or unattended Macs. When an update is found, Knapsack will warn for 60
+          seconds, then close and install it automatically.
         </Typography>
       </div>
       <div className="flex justify-between items-center h-[36px]">
         <Typography className="text-sm text-gray-600">
           {statusText || 'Check for new versions'}
         </Typography>
-        {(updateState.status === 'idle' || updateState.status === 'up-to-date' || updateState.status === 'error') && (
+        {(updateState.status === 'idle' ||
+          updateState.status === 'up-to-date' ||
+          updateState.status === 'error') && (
           <button
             onClick={checkForUpdates}
             className="text-sm text-red-600 hover:text-red-700 font-medium"
@@ -216,7 +257,9 @@ function SupportSection() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    invoke<string>('kn_get_log_path').then(setLogPath).catch(() => {})
+    invoke<string>('kn_get_log_path')
+      .then(setLogPath)
+      .catch(() => {})
   }, [])
 
   const handleOpenLogsFolder = useCallback(async () => {
@@ -276,14 +319,17 @@ export const SettingsDialog = ({
   profile,
   onProviderSignInClick,
 }: SettingsDialogProps) => {
-  const [settingsConnections, setSettingsConnections] = useState<Record<string, Connection>>(connections)
-  const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] = useState<boolean>(false)
+  const [settingsConnections, setSettingsConnections] =
+    useState<Record<string, Connection>>(connections)
+  const [sendPushNotificationsIsChecked, setSendPushNotificationsIsChecked] =
+    useState<boolean>(false)
   const [saveTranscripts, setSaveTranscripts] = useState<boolean>(true)
   const [meetingChatEnabled, setMeetingChatEnabled] = useState<boolean>(true)
   const [meetingChatAutoSend, setMeetingChatAutoSend] = useState<boolean>(false)
   const [keepAwakeOnLidCloseEnabled, setKeepAwakeOnLidCloseEnabledState] = useState<boolean>(false)
   const [showKeepAwakeEnableModal, setShowKeepAwakeEnableModal] = useState<boolean>(false)
-  const [hasAcknowledgedKeepAwakeWarning, setHasAcknowledgedKeepAwakeWarning] = useState<boolean>(false)
+  const [hasAcknowledgedKeepAwakeWarning, setHasAcknowledgedKeepAwakeWarning] =
+    useState<boolean>(false)
   const [connectionsKey, setConnectionsKey] = useState<ConnectionKeys[]>([])
   const [showNotificationLeadTime, setShowNotificationLeadTime] = useState<number>(1)
   const [providerStatus, setProviderStatus] = useState<{
@@ -324,9 +370,12 @@ export const SettingsDialog = ({
     email ||
     profile?.email ||
     backendPrimaryEmail ||
-    getGoogleDriveConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
-    getGoogleGmailConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
-    getGoogleCalendarConnections(displayConnections).find(item => item.calendarAccountEmail)?.calendarAccountEmail ||
+    getGoogleDriveConnections(displayConnections).find(item => item.calendarAccountEmail)
+      ?.calendarAccountEmail ||
+    getGoogleGmailConnections(displayConnections).find(item => item.calendarAccountEmail)
+      ?.calendarAccountEmail ||
+    getGoogleCalendarConnections(displayConnections).find(item => item.calendarAccountEmail)
+      ?.calendarAccountEmail ||
     ''
 
   const loadSettingsConnections = useCallback(async () => {
@@ -343,17 +392,20 @@ export const SettingsDialog = ({
     }
   }, [connections, googlePrimaryEmail])
 
-  const requireGooglePrimaryEmail = useCallback((flow: string) => {
-    if (googlePrimaryEmail) return googlePrimaryEmail
+  const requireGooglePrimaryEmail = useCallback(
+    (flow: string) => {
+      if (googlePrimaryEmail) return googlePrimaryEmail
 
-    const error = new Error('Missing primary Google email for add-account flow')
-    logError(error, {
-      additionalInfo: flow,
-      error: error.message,
-    })
-    console.error(error.message, flow)
-    return null
-  }, [googlePrimaryEmail])
+      const error = new Error('Missing primary Google email for add-account flow')
+      logError(error, {
+        additionalInfo: flow,
+        error: error.message,
+      })
+      console.error(error.message, flow)
+      return null
+    },
+    [googlePrimaryEmail],
+  )
 
   const handleAddGoogleDrive = useCallback(() => {
     const primaryEmail = requireGooglePrimaryEmail('drive')
@@ -368,10 +420,7 @@ export const SettingsDialog = ({
   const handleAddGoogleCalendar = useCallback(() => {
     const primaryEmail = requireGooglePrimaryEmail('calendar')
     if (primaryEmail) {
-      openAddGoogleCalendarScreen(
-        primaryEmail,
-        'https://www.googleapis.com/auth/calendar.readonly',
-      )
+      openAddGoogleCalendarScreen(primaryEmail, 'https://www.googleapis.com/auth/calendar.readonly')
     }
   }, [requireGooglePrimaryEmail])
 
@@ -411,14 +460,14 @@ export const SettingsDialog = ({
   }, [isOpen, loadSettingsConnections])
 
   useEffect(() => {
-    if(profile && profile.provider){
-      if(profile.provider === ConnectionKeys.MICROSOFT_PROFILE){
-        setConnectionsKey([ ...PERMISSION_LIST_MICROSOFT_CONNECTIONS ])
+    if (profile && profile.provider) {
+      if (profile.provider === ConnectionKeys.MICROSOFT_PROFILE) {
+        setConnectionsKey([...PERMISSION_LIST_MICROSOFT_CONNECTIONS])
       } else {
-        setConnectionsKey([ ...PERMISSION_LIST_GOOGLE_CONNECTIONS ])
+        setConnectionsKey([...PERMISSION_LIST_GOOGLE_CONNECTIONS])
       }
     }
-  }, [profile]);
+  }, [profile])
 
   useEffect(() => {
     getNotificationLeadTimeMin().then(value => setShowNotificationLeadTime(value))
@@ -484,10 +533,10 @@ export const SettingsDialog = ({
 
   const handleNotificationEnabledChange = useCallback(async () => {
     let userWantsNotfications = !sendPushNotificationsIsChecked
-    console.log("USER WANTS NOTFICATIONS: ", userWantsNotfications)
+    console.log('USER WANTS NOTFICATIONS: ', userWantsNotfications)
     if (userWantsNotfications) {
       const permission = await requestNotificationOSPermissions()
-      console.log("PERMISSIONS: ", permission)
+      console.log('PERMISSIONS: ', permission)
       if (!permission) {
         console.log("USER DIDN'T GIVE OS PERMISSION FOR NOTIFICATIONS: aborting")
         return
@@ -505,19 +554,18 @@ export const SettingsDialog = ({
         })
         return
       }
-      if (connectionsKey.includes(connection.key as ConnectionKeys)) {
-        if (!connection.id) {
-          logError(new BaseException('This connection is missing the ID property'), {
-            additionalInfo: connection.key,
-          })
-          return
-        }
+      if (connection.id) {
         await deleteConnection(connection.id)
+      } else if (connection.key !== ConnectionKeys.LOCAL_FILES) {
+        logError(new BaseException('This connection is missing the ID property'), {
+          additionalInfo: connection.key,
+        })
+        return
       }
       if (connection.key === ConnectionKeys.LOCAL_FILES) {
         setIsFilesEnabled(false)
       }
-      fetchConnections(email)
+      await fetchConnections(email)
       await loadSettingsConnections()
     },
     [deleteConnection, email, fetchConnections, loadSettingsConnections],
@@ -525,8 +573,8 @@ export const SettingsDialog = ({
 
   const handleShowNotificationLeadTimeChange = (min: string) => {
     const minNumber = parseInt(min)
-    setNotificationLeadTimeMin(minNumber);
-    setShowNotificationLeadTime(minNumber);
+    setNotificationLeadTimeMin(minNumber)
+    setShowNotificationLeadTime(minNumber)
   }
 
   const handleFlipSaveTranscript = () => {
@@ -574,11 +622,7 @@ export const SettingsDialog = ({
       return
     }
     setShowKeepAwakeEnableModal(true)
-  }, [
-    applyKeepAwakeOnLidCloseSetting,
-    hasAcknowledgedKeepAwakeWarning,
-    keepAwakeOnLidCloseEnabled,
-  ])
+  }, [applyKeepAwakeOnLidCloseSetting, hasAcknowledgedKeepAwakeWarning, keepAwakeOnLidCloseEnabled])
 
   // ── Ollama enable/disable ────────────────────────────────────────────────
 
@@ -595,10 +639,14 @@ export const SettingsDialog = ({
       })
       const data = await resp.json()
       if (data.success) {
-        setProviderStatus(prev => prev ? {
-          ...prev,
-          ollama_enabled: enable,
-        } : prev)
+        setProviderStatus(prev =>
+          prev
+            ? {
+                ...prev,
+                ollama_enabled: enable,
+              }
+            : prev,
+        )
       }
     } catch {
       // silently fail
@@ -628,7 +676,12 @@ export const SettingsDialog = ({
   }
 
   const handleOllamaDeleteModel = async (model: string) => {
-    if (!confirm(`Delete "${model}"? This will free disk space but you'll need to re-download it to use it again.`)) return
+    if (
+      !confirm(
+        `Delete "${model}"? This will free disk space but you'll need to re-download it to use it again.`,
+      )
+    )
+      return
     setDeletingOllamaModel(model)
     try {
       const resp = await fetch('http://127.0.0.1:8897/api/knapsack/ollama/delete', {
@@ -659,7 +712,7 @@ export const SettingsDialog = ({
   // ── Accordion toggle ─────────────────────────────────────────────────────
 
   const toggleProvider = (id: string) => {
-    setExpandedProvider(prev => prev === id ? null : id)
+    setExpandedProvider(prev => (prev === id ? null : id))
   }
 
   useEffect(() => {
@@ -691,7 +744,6 @@ export const SettingsDialog = ({
         ref={settingsContainerRef}
         className="SettingsContainer relative flex flex-col w-[420px] rounded-lg border border-solid border-zinc-200 bg-white flex-col max-h-[calc(100vh-166px)] overflow-auto"
       >
-
         <div className="NotificationContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Notifications</Typography>
           <div className="NotificationContent flex flex-col gap-6">
@@ -704,7 +756,7 @@ export const SettingsDialog = ({
           </div>
           <div className="DocumentsContainer py-3 flex flex-col gap-4">
             <div className="flex justify-between h-[36px] items-center">
-              <Typography > Show a notification </Typography>
+              <Typography> Show a notification </Typography>
               <InputSelect
                 options={NOTIFICATION_LEAD_TIME}
                 value={showNotificationLeadTime.toString()}
@@ -736,7 +788,10 @@ export const SettingsDialog = ({
                 </span>
                 <button
                   className={styles.providerActionLink}
-                  onClick={() => { handleClose(); onProviderSignInClick?.('knapsack') }}
+                  onClick={() => {
+                    handleClose()
+                    onProviderSignInClick?.('knapsack')
+                  }}
                 >
                   {providerStatus?.has_knapsack ? 'Change model' : 'Connect'}
                 </button>
@@ -744,7 +799,12 @@ export const SettingsDialog = ({
               {!providerStatus?.has_knapsack && (
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
                   Need an account?{' '}
-                  <a href="https://studio.knapsack.ai" target="_blank" rel="noopener noreferrer" style={{ color: '#c54841' }}>
+                  <a
+                    href="https://studio.knapsack.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#c54841' }}
+                  >
                     Sign up at studio.knapsack.ai
                   </a>
                 </p>
@@ -765,7 +825,10 @@ export const SettingsDialog = ({
                 </span>
                 <button
                   className={styles.providerActionLink}
-                  onClick={() => { handleClose(); onProviderSignInClick?.('openai') }}
+                  onClick={() => {
+                    handleClose()
+                    onProviderSignInClick?.('openai')
+                  }}
                 >
                   {providerStatus?.has_openai_key ? 'Change' : 'Sign in'}
                 </button>
@@ -786,7 +849,10 @@ export const SettingsDialog = ({
                 </span>
                 <button
                   className={styles.providerActionLink}
-                  onClick={() => { handleClose(); onProviderSignInClick?.('anthropic') }}
+                  onClick={() => {
+                    handleClose()
+                    onProviderSignInClick?.('anthropic')
+                  }}
                 >
                   {providerStatus?.has_anthropic_key ? 'Change' : 'Sign in'}
                 </button>
@@ -807,7 +873,10 @@ export const SettingsDialog = ({
                 </span>
                 <button
                   className={styles.providerActionLink}
-                  onClick={() => { handleClose(); onProviderSignInClick?.('openrouter') }}
+                  onClick={() => {
+                    handleClose()
+                    onProviderSignInClick?.('openrouter')
+                  }}
                 >
                   {providerStatus?.has_openrouter_key ? 'Change' : 'Sign in'}
                 </button>
@@ -828,7 +897,10 @@ export const SettingsDialog = ({
                 </span>
                 <button
                   className={styles.providerActionLink}
-                  onClick={() => { handleClose(); onProviderSignInClick?.('trustedrouter') }}
+                  onClick={() => {
+                    handleClose()
+                    onProviderSignInClick?.('trustedrouter')
+                  }}
                 >
                   {providerStatus?.has_trustedrouter_key ? 'Change' : 'Sign in'}
                 </button>
@@ -856,11 +928,18 @@ export const SettingsDialog = ({
                 >
                   <div className={styles.providerActions}>
                     <span className={styles.providerStatus}>
-                      {isConnected ? (isGeminiViaCli && !status?.has_key ? 'Gemini CLI auth configured' : 'API key configured') : 'No API key set'}
+                      {isConnected
+                        ? isGeminiViaCli && !status?.has_key
+                          ? 'Gemini CLI auth configured'
+                          : 'API key configured'
+                        : 'No API key set'}
                     </span>
                     <button
                       className={styles.providerActionLink}
-                      onClick={() => { handleClose(); onProviderSignInClick?.() }}
+                      onClick={() => {
+                        handleClose()
+                        onProviderSignInClick?.()
+                      }}
                     >
                       {isConnected ? 'Change' : 'Add key'}
                     </button>
@@ -904,8 +983,8 @@ export const SettingsDialog = ({
                     className={styles.ollamaHintLink}
                   >
                     ollama.com
-                  </a>
-                  {' '}and start it to use local models.
+                  </a>{' '}
+                  and start it to use local models.
                 </div>
               )}
 
@@ -921,7 +1000,9 @@ export const SettingsDialog = ({
                     value={selectedOllamaModel || ollamaModels[0]?.name || ''}
                     onChange={handleOllamaModelChange}
                   />
-                  <div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>Installed Models</div>
+                  <div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>
+                    Installed Models
+                  </div>
                   <div className={styles.ollamaModelList}>
                     {ollamaModels.map(m => {
                       const sizeGB = m.size ? (m.size / 1_073_741_824).toFixed(1) : null
@@ -932,7 +1013,9 @@ export const SettingsDialog = ({
                           <div className={styles.ollamaModelInfo}>
                             <span className={styles.ollamaModelName}>
                               {m.name}
-                              {isSelected && <span className={styles.ollamaModelActive}>active</span>}
+                              {isSelected && (
+                                <span className={styles.ollamaModelActive}>active</span>
+                              )}
                             </span>
                             <span className={styles.ollamaModelMeta}>
                               {m.parameter_size && <span>{m.parameter_size}</span>}
@@ -957,7 +1040,9 @@ export const SettingsDialog = ({
 
               {ollamaRunning && ollamaModels.length === 0 && (
                 <div className={styles.ollamaNoModels}>
-                  No models found. Run <code className={styles.ollamaNoModelsCode}>ollama pull llama3.1</code> to download a model.
+                  No models found. Run{' '}
+                  <code className={styles.ollamaNoModelsCode}>ollama pull llama3.1</code> to
+                  download a model.
                 </div>
               )}
 
@@ -968,19 +1053,25 @@ export const SettingsDialog = ({
                     {providerStatus?.ollama_enabled ? 'Ollama is enabled' : 'Use Ollama for AI'}
                   </span>
                   <button
-                    className={providerStatus?.ollama_enabled ? styles.ollamaToggleBtnDisable : styles.ollamaToggleBtnEnable}
+                    className={
+                      providerStatus?.ollama_enabled
+                        ? styles.ollamaToggleBtnDisable
+                        : styles.ollamaToggleBtnEnable
+                    }
                     disabled={ollamaBusy}
                     onClick={() => handleOllamaToggle(!providerStatus?.ollama_enabled)}
                   >
-                    {ollamaBusy ? 'Saving...' : providerStatus?.ollama_enabled ? 'Disable' : 'Enable'}
+                    {ollamaBusy
+                      ? 'Saving...'
+                      : providerStatus?.ollama_enabled
+                        ? 'Disable'
+                        : 'Enable'}
                   </button>
                 </div>
               )}
 
               {providerStatus?.ollama_enabled && (
-                <div className={styles.ollamaFreeHint}>
-                  Free local execution — no API costs
-                </div>
+                <div className={styles.ollamaFreeHint}>Free local execution — no API costs</div>
               )}
             </ProviderAccordion>
           </div>
@@ -1000,7 +1091,10 @@ export const SettingsDialog = ({
                   Gateway OK
                 </span>
               ) : channels.gatewayHealthy === false ? (
-                <span className="text-[10px] text-red-500 flex items-center gap-1 cursor-pointer" onClick={() => channels.checkHealth()}>
+                <span
+                  className="text-[10px] text-red-500 flex items-center gap-1 cursor-pointer"
+                  onClick={() => channels.checkHealth()}
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
                   Gateway down — retry
                 </span>
@@ -1025,11 +1119,15 @@ export const SettingsDialog = ({
                     Connected
                   </span>
                 )}
-                {channels.whatsapp && channels.whatsapp.enabled && !channels.whatsapp.linked && !channels.whatsappLinking && !channels.whatsappQrUrl && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
-                    Not linked
-                  </span>
-                )}
+                {channels.whatsapp &&
+                  channels.whatsapp.enabled &&
+                  !channels.whatsapp.linked &&
+                  !channels.whatsappLinking &&
+                  !channels.whatsappQrUrl && (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                      Not linked
+                    </span>
+                  )}
                 {channels.whatsappLinking && (
                   <span className="text-xs text-gray-400 animate-pulse">Generating QR...</span>
                 )}
@@ -1040,12 +1138,23 @@ export const SettingsDialog = ({
                   if (channelBusy) return
                   setChannelBusy('whatsapp')
                   try {
-                    if (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl)) {
+                    if (
+                      channels.whatsapp?.linked ||
+                      (channels.whatsapp?.enabled &&
+                        !channels.whatsappLinking &&
+                        !channels.whatsappQrUrl)
+                    ) {
                       await channels.disconnectWhatsApp()
-                      KNAnalytics.trackEvent('channel_disconnected', { channel: 'whatsapp', app_version: KNAnalytics.APP_VERSION })
+                      KNAnalytics.trackEvent('channel_disconnected', {
+                        channel: 'whatsapp',
+                        app_version: KNAnalytics.APP_VERSION,
+                      })
                     } else {
                       await channels.connectWhatsApp()
-                      KNAnalytics.trackEvent('channel_connected', { channel: 'whatsapp', app_version: KNAnalytics.APP_VERSION })
+                      KNAnalytics.trackEvent('channel_connected', {
+                        channel: 'whatsapp',
+                        app_version: KNAnalytics.APP_VERSION,
+                      })
                     }
                   } finally {
                     setChannelBusy(null)
@@ -1054,20 +1163,33 @@ export const SettingsDialog = ({
               >
                 {channelBusy === 'whatsapp'
                   ? 'Working...'
-                  : (channels.whatsapp?.linked || (channels.whatsapp?.enabled && !channels.whatsappLinking && !channels.whatsappQrUrl))
+                  : channels.whatsapp?.linked ||
+                      (channels.whatsapp?.enabled &&
+                        !channels.whatsappLinking &&
+                        !channels.whatsappQrUrl)
                     ? 'Disconnect'
                     : 'Connect'}
               </Typography>
             </div>
             {channels.channelErrors?.whatsapp && (
-              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.whatsapp}</Typography>
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">
+                {channels.channelErrors.whatsapp}
+              </Typography>
             )}
             {/* WhatsApp QR code */}
             {channels.whatsappQrUrl && (
               <div className="flex flex-col items-center gap-2 py-2">
-                <img src={channels.whatsappQrUrl} alt="WhatsApp QR" className="w-[180px] h-[180px] rounded" />
-                <Typography className="text-xs text-gray-500">Scan with WhatsApp on your phone</Typography>
-                <Typography className="text-[10px] text-gray-400 animate-pulse">Waiting for scan...</Typography>
+                <img
+                  src={channels.whatsappQrUrl}
+                  alt="WhatsApp QR"
+                  className="w-[180px] h-[180px] rounded"
+                />
+                <Typography className="text-xs text-gray-500">
+                  Scan with WhatsApp on your phone
+                </Typography>
+                <Typography className="text-[10px] text-gray-400 animate-pulse">
+                  Waiting for scan...
+                </Typography>
               </div>
             )}
 
@@ -1080,11 +1202,13 @@ export const SettingsDialog = ({
                     Connected
                   </span>
                 )}
-                {channels.imessage && channels.imessage.enabled && !channels.imessage.configured && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
-                    Needs setup
-                  </span>
-                )}
+                {channels.imessage &&
+                  channels.imessage.enabled &&
+                  !channels.imessage.configured && (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                      Needs setup
+                    </span>
+                  )}
               </div>
               <Typography
                 className={`cursor-pointer ${styles.link} ${channelBusy === 'imessage' ? 'opacity-50 pointer-events-none' : ''}`}
@@ -1094,10 +1218,16 @@ export const SettingsDialog = ({
                   try {
                     if (channels.imessage?.configured) {
                       await channels.disconnectIMessage()
-                      KNAnalytics.trackEvent('channel_disconnected', { channel: 'imessage', app_version: KNAnalytics.APP_VERSION })
+                      KNAnalytics.trackEvent('channel_disconnected', {
+                        channel: 'imessage',
+                        app_version: KNAnalytics.APP_VERSION,
+                      })
                     } else {
                       await channels.connectIMessage()
-                      KNAnalytics.trackEvent('channel_connected', { channel: 'imessage', app_version: KNAnalytics.APP_VERSION })
+                      KNAnalytics.trackEvent('channel_connected', {
+                        channel: 'imessage',
+                        app_version: KNAnalytics.APP_VERSION,
+                      })
                     }
                   } finally {
                     setChannelBusy(null)
@@ -1112,7 +1242,9 @@ export const SettingsDialog = ({
               </Typography>
             </div>
             {channels.channelErrors?.imessage && (
-              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.imessage}</Typography>
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">
+                {channels.channelErrors.imessage}
+              </Typography>
             )}
 
             {/* Telegram */}
@@ -1156,7 +1288,10 @@ export const SettingsDialog = ({
                       setChannelBusy('telegram')
                       try {
                         await channels.disconnectTelegram()
-                        KNAnalytics.trackEvent('channel_disconnected', { channel: 'telegram', app_version: KNAnalytics.APP_VERSION })
+                        KNAnalytics.trackEvent('channel_disconnected', {
+                          channel: 'telegram',
+                          app_version: KNAnalytics.APP_VERSION,
+                        })
                       } finally {
                         setChannelBusy(null)
                       }
@@ -1168,7 +1303,9 @@ export const SettingsDialog = ({
                   {channelBusy === 'telegram'
                     ? 'Working...'
                     : channels.telegram?.configured
-                      ? (showTelegramInput ? 'Cancel' : 'Disconnect')
+                      ? showTelegramInput
+                        ? 'Cancel'
+                        : 'Disconnect'
                       : showTelegramInput
                         ? 'Cancel'
                         : 'Connect'}
@@ -1176,7 +1313,9 @@ export const SettingsDialog = ({
               </div>
             </div>
             {channels.channelErrors?.telegram && (
-              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">{channels.channelErrors.telegram}</Typography>
+              <Typography className="text-[11px] text-red-500 -mt-1 ml-0.5">
+                {channels.channelErrors.telegram}
+              </Typography>
             )}
             {/* Telegram bot token input — shown on Connect or Re-link */}
             {showTelegramInput && (
@@ -1201,7 +1340,10 @@ export const SettingsDialog = ({
                       setChannelBusy('telegram')
                       try {
                         await channels.connectTelegram(telegramBotToken.trim())
-                        KNAnalytics.trackEvent('channel_connected', { channel: 'telegram', app_version: KNAnalytics.APP_VERSION })
+                        KNAnalytics.trackEvent('channel_connected', {
+                          channel: 'telegram',
+                          app_version: KNAnalytics.APP_VERSION,
+                        })
                         setShowTelegramInput(false)
                         setTelegramBotToken('')
                       } catch {
@@ -1220,11 +1362,11 @@ export const SettingsDialog = ({
           {/* More channels hint */}
           <div className="flex justify-between h-[36px] items-center">
             <div className="flex items-center gap-2">
-              <Typography className="text-gray-500">More (Slack, Discord, IRC, Signal, ...)</Typography>
+              <Typography className="text-gray-500">
+                More (Slack, Discord, IRC, Signal, ...)
+              </Typography>
             </div>
-            <Typography className={`text-xs text-gray-400`}>
-              Use Channels panel in chat
-            </Typography>
+            <Typography className={`text-xs text-gray-400`}>Use Channels panel in chat</Typography>
           </div>
 
           {channels.error && (
@@ -1270,7 +1412,8 @@ export const SettingsDialog = ({
                 key={`drive-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Drive, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
+                  Drive, {getGoogleAccountLabel(item)}
+                  {getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1288,7 +1431,8 @@ export const SettingsDialog = ({
                 key={`gmail-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Gmail, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
+                  Gmail, {getGoogleAccountLabel(item)}
+                  {getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1306,7 +1450,8 @@ export const SettingsDialog = ({
                 key={`cal-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
               >
                 <Typography>
-                  Calendar, {getGoogleAccountLabel(item)}{getGoogleOwnerSuffix(item)}
+                  Calendar, {getGoogleAccountLabel(item)}
+                  {getGoogleOwnerSuffix(item)}
                 </Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
@@ -1323,7 +1468,9 @@ export const SettingsDialog = ({
                 <Typography>Outlook Calendar, {email}</Typography>
                 <Typography
                   className={`cursor-pointer ${styles.link}`}
-                  onClick={() => handleDeleteConnection(connections[ConnectionKeys.MICROSOFT_CALENDAR])}
+                  onClick={() =>
+                    handleDeleteConnection(connections[ConnectionKeys.MICROSOFT_CALENDAR])
+                  }
                 >
                   Remove
                 </Typography>
@@ -1347,9 +1494,7 @@ export const SettingsDialog = ({
               )
               .map((connectionKey: ConnectionKeys) => (
                 <div key={connectionKey} className="flex justify-between h-[36px] items-center">
-                  <Typography>
-                    {PERMISSION_NAME_LIST[connectionKey] ?? ''}
-                  </Typography>
+                  <Typography>{PERMISSION_NAME_LIST[connectionKey] ?? ''}</Typography>
                   <Typography
                     className={`cursor-pointer ${styles.link}`}
                     onClick={() => onConnectAccountClick([connectionKey])}
@@ -1404,10 +1549,7 @@ export const SettingsDialog = ({
         <hr className="border-zinc-200" />
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Transcripts</Typography>
-          <InputCheckbox
-            checked={saveTranscripts}
-            onClick={handleFlipSaveTranscript}
-          >
+          <InputCheckbox checked={saveTranscripts} onClick={handleFlipSaveTranscript}>
             <Typography className="text-black">Save Transcripts</Typography>
           </InputCheckbox>
         </div>
@@ -1429,8 +1571,7 @@ export const SettingsDialog = ({
             <Typography className="text-xs text-zinc-500 leading-5">
               {isMacPlatform
                 ? 'Opt-in behavior while the app is running. Enable only for remote/off-screen workflows; this can increase battery use and heat.'
-                : 'Windows keeps the system from entering idle sleep while Knapsack is running. It cannot always override lid-close power settings on every machine.'
-              }
+                : 'Windows keeps the system from entering idle sleep while Knapsack is running. It cannot always override lid-close power settings on every machine.'}
             </Typography>
           </div>
         )}
@@ -1438,16 +1579,10 @@ export const SettingsDialog = ({
         <hr className="border-zinc-200" />
         <div className="DocumentsContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Meeting Chat Notice</Typography>
-          <InputCheckbox
-            checked={meetingChatEnabled}
-            onClick={handleFlipMeetingChatEnabled}
-          >
+          <InputCheckbox checked={meetingChatEnabled} onClick={handleFlipMeetingChatEnabled}>
             <Typography className="text-black">Show chat notice when recording</Typography>
           </InputCheckbox>
-          <InputCheckbox
-            checked={meetingChatAutoSend}
-            onClick={handleFlipMeetingChatAutoSend}
-          >
+          <InputCheckbox checked={meetingChatAutoSend} onClick={handleFlipMeetingChatAutoSend}>
             <Typography className="text-black">Auto-send notice to meeting chat (macOS)</Typography>
           </InputCheckbox>
         </div>
@@ -1484,19 +1619,19 @@ export const SettingsDialog = ({
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-5 w-[430px] shadow-xl">
               <Typography weight={TypographyWeight.medium} className="text-lg">
-                {isMacPlatform ? 'Keep Mac awake when lid/screen closes?' : 'Keep computer awake while Knapsack runs?'}
+                {isMacPlatform
+                  ? 'Keep Mac awake when lid/screen closes?'
+                  : 'Keep computer awake while Knapsack runs?'}
               </Typography>
               <p className="mt-2 text-sm text-zinc-600">
                 {isMacPlatform
                   ? 'This enables a system wake assertion while Knapsack is running so your Mac stays awake with the lid closed.'
-                  : 'This requests that Windows keep the system from sleeping during use while Knapsack is running.'
-                }
+                  : 'This requests that Windows keep the system from sleeping during use while Knapsack is running.'}
               </p>
               <p className="mt-3 text-sm text-zinc-600">
                 {isMacPlatform
                   ? 'Knapsack does not uninstall or modify any installed software. Turn it on only when needed for remote recording, remote troubleshooting, or other unattended workflows. It may increase battery use and heat.'
-                  : 'Knapsack does not uninstall or modify any installed software. Turn it on only when needed for remote/off-screen workflows. It may increase battery use and heat.'
-                }
+                  : 'Knapsack does not uninstall or modify any installed software. Turn it on only when needed for remote/off-screen workflows. It may increase battery use and heat.'}
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button
