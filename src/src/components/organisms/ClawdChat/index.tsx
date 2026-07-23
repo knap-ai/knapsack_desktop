@@ -3477,6 +3477,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  const recoverProviderSwitchFromBackend = useCallback(async (expectedProvider: Provider) => {
+    try {
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', { timeoutMs: 4000 })
+      const activeProvider = keyStatus.active_provider as Provider | undefined
+      await syncProviderSelectionFromBackend()
+      if (activeProvider === expectedProvider) {
+        return keyStatus
+      }
+    } catch {
+      // If the direct re-sync probe fails too, fall back to the original error path.
+    }
+    return null
+  }, [syncProviderSelectionFromBackend])
+
   // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
   const saveOllamaProvider = useCallback(async () => {
     if (!selectedOllamaModel) return
@@ -3589,11 +3603,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         )
       }
     } catch (e: any) {
-      pushAssistant(`Failed to save API key: ${e?.message || String(e)}. Please try again.`)
+      const recovered = await recoverProviderSwitchFromBackend(selectedProvider)
+      if (recovered) {
+        const backendModel = recovered.model
+        pushAssistant(
+          `API key saved for ${selectedProvider}. The gateway is still warming up, so channels may take a moment to reconnect${backendModel ? ` while ${backendModel} comes online` : ''}.`,
+        )
+      } else {
+        pushAssistant(`Failed to save API key: ${e?.message || String(e)}. Please try again.`)
+      }
     } finally {
       setSavingKey(false)
     }
-  }, [apiKey, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
+  }, [apiKey, recoverProviderSwitchFromBackend, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, selectedOllamaModel, selectedProvider, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   // Switch to a provider that already has a saved key (no new key needed)
   const switchProviderModel = useCallback(async (providerId: Provider, alreadyActive = false) => {
@@ -3666,11 +3688,33 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         pushAssistant(`Switched to ${providerInfo?.name || providerId} (${modelName}).`)
       }
     } catch (e: any) {
-      pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
+      const recovered = await recoverProviderSwitchFromBackend(providerId)
+      if (recovered) {
+        const backendModel = recovered.model
+        const providerInfo = PROVIDERS.find(p => p.id === providerId)
+        const models = providerId === 'openai' ? OPENAI_MODELS
+          : providerId === 'anthropic' ? ANTHROPIC_MODELS
+          : providerId === 'gemini' ? GEMINI_MODELS
+          : providerId === 'xai' ? XAI_MODELS
+          : providerId === 'knapsack' ? KNAPSACK_MODELS
+          : providerId === 'trustedrouter' ? TRUSTEDROUTER_MODELS
+          : providerId === 'openrouter' ? OPENROUTER_MODELS
+          : GROQ_MODELS
+        const resolvedModelName = backendModel
+          ? (models.find(m => m.id === backendModel)?.name || backendModel)
+          : undefined
+        if (!alreadyActive) {
+          pushAssistant(
+            `Switched to ${providerInfo?.name || providerId}${resolvedModelName ? ` (${resolvedModelName})` : ''}. Gateway warmup is still in progress, so channels may take a moment to reconnect.`,
+          )
+        }
+      } else {
+        pushAssistant(`Failed to switch provider: ${e?.message || String(e)}`)
+      }
     } finally {
       setSavingKey(false)
     }
-  }, [selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
+  }, [recoverProviderSwitchFromBackend, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
     const init = async () => {

@@ -5300,6 +5300,31 @@ async fn wait_for_gateway_and_channels_ready(
   (true, false)
 }
 
+async fn gateway_ready_with_fallback(
+  token: &str,
+  gateway_wait_ms: u64,
+  channel_wait_ms: u64,
+) -> (bool, bool, bool) {
+  let (gateway_ready, channel_ready) =
+    wait_for_gateway_and_channels_ready(token, gateway_wait_ms, channel_wait_ms).await;
+  if gateway_ready {
+    return (true, channel_ready, false);
+  }
+
+  let fallback_ready = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await
+    || crate::clawd::gateway_client::is_gateway_port_open().await
+    || crate::clawd::gateway_supervisor::is_gateway_healthy(token).await;
+
+  if fallback_ready {
+    eprintln!(
+      "[clawd/service] gateway missed readiness deadline but direct probe shows it is reachable; treating provider change as successful warmup"
+    );
+    return (true, false, true);
+  }
+
+  (false, false, false)
+}
+
 /// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
@@ -8470,8 +8495,8 @@ pub async fn set_api_key(
         launchctl_kickstart_with_timeout(&service, "provider switch kickstart");
       }
     }
-    let (gateway_ready, channel_ready) =
-      wait_for_gateway_and_channels_ready(&tokens.gateway_token, 45_000, 120_000).await;
+    let (gateway_ready, channel_ready, fallback_ready) =
+      gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
     if !gateway_ready {
       return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
         success: false,
@@ -8483,6 +8508,15 @@ pub async fn set_api_key(
         "[clawd/service] Provider switch to '{}' completed, but channels were not confirmed ready within 120s",
         provider
       );
+      if fallback_ready {
+        return HttpResponse::Ok().json(SetApiKeyResponse {
+          success: true,
+          message: format!(
+            "Switched to {}. Gateway is still warming up and channels may take a moment to reconnect.",
+            provider_name
+          ),
+        });
+      }
     }
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
@@ -8787,8 +8821,8 @@ pub async fn set_api_key(
     }
   }
 
-  let (gateway_ready, channel_ready) =
-    wait_for_gateway_and_channels_ready(&tokens.gateway_token, 45_000, 120_000).await;
+  let (gateway_ready, channel_ready, fallback_ready) =
+    gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
   if !gateway_ready {
     return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
       success: false,
@@ -8800,6 +8834,15 @@ pub async fn set_api_key(
       "[clawd/service] API key saved for '{}' but channels were not confirmed ready within 120s",
       provider
     );
+    if fallback_ready {
+      return HttpResponse::Ok().json(SetApiKeyResponse {
+        success: true,
+        message: format!(
+          "{} API key saved. Gateway is still warming up and channels may take a moment to reconnect.",
+          provider_name
+        ),
+      });
+    }
   }
 
   HttpResponse::Ok().json(SetApiKeyResponse {
