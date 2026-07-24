@@ -927,6 +927,222 @@ fn effective_plugin_discovery_allowlist_from_config(json: &serde_json::Value) ->
   allowlist
 }
 
+const KNAPSACK_OPENCLAW_SANDBOX_IMAGE: &str = "openclaw-sandbox:bookworm-slim";
+
+/// Docker isolation is an optional hardening layer. A missing CLI, stopped
+/// daemon, or missing sandbox image must never prevent Knapsack Desktop from
+/// starting or shared-channel agents from replying.
+fn docker_session_sandbox_available() -> Result<(), String> {
+  let mut candidates = vec![PathBuf::from("docker")];
+  #[cfg(target_os = "macos")]
+  candidates.extend([
+    PathBuf::from("/usr/local/bin/docker"),
+    PathBuf::from("/opt/homebrew/bin/docker"),
+    PathBuf::from("/Applications/Docker.app/Contents/Resources/bin/docker"),
+  ]);
+
+  for candidate in candidates {
+    let output = match std::process::Command::new(&candidate)
+      .args(["image", "inspect", KNAPSACK_OPENCLAW_SANDBOX_IMAGE])
+      .env("DOCKER_CLIENT_TIMEOUT", "3")
+      .stdin(Stdio::null())
+      .output()
+    {
+      Ok(output) => output,
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+      Err(error) => {
+        return Err(format!(
+          "could not run Docker CLI at {}: {}",
+          candidate.display(),
+          error
+        ))
+      }
+    };
+
+    if output.status.success() {
+      return Ok(());
+    }
+
+    let detail = String::from_utf8_lossy(&output.stderr)
+      .lines()
+      .next()
+      .unwrap_or("Docker daemon or sandbox image is unavailable")
+      .trim()
+      .to_string();
+    return Err(detail);
+  }
+
+  Err("Docker CLI was not found".to_string())
+}
+
+/// Enforce safe session boundaries when one gateway is reachable by multiple
+/// people over Slack, email, or another shared channel.
+///
+/// OpenClaw defaults direct messages to `dmScope = "main"`, which maps every
+/// sender to the same transcript and model context. Keep the account, channel,
+/// and peer in the key and prevent session tools from targeting another
+/// person's session. When Docker is ready, also sandbox non-main channel
+/// sessions into separate containers. Otherwise retain the previous host-tool
+/// behavior so the desktop and channel agents remain usable.
+fn ensure_knapsack_session_isolation(
+  cfg: &mut serde_json::Value,
+  docker_sandbox_available: bool,
+) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  if cfg
+    .get("session")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("session".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(session) = cfg
+    .pointer_mut("/session")
+    .and_then(|value| value.as_object_mut())
+  {
+    if session.get("scope").and_then(|value| value.as_str()) != Some("per-sender") {
+      session.insert("scope".to_string(), serde_json::json!("per-sender"));
+      patched = true;
+    }
+    if session.get("dmScope").and_then(|value| value.as_str()) != Some("per-account-channel-peer") {
+      session.insert(
+        "dmScope".to_string(),
+        serde_json::json!("per-account-channel-peer"),
+      );
+      patched = true;
+    }
+  }
+
+  if cfg
+    .get("agents")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("agents".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/agents/defaults")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/agents")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("defaults".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/agents/defaults/sandbox")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/agents/defaults")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(sandbox) = cfg
+    .pointer_mut("/agents/defaults/sandbox")
+    .and_then(|value| value.as_object_mut())
+  {
+    let expected_mode = if docker_sandbox_available {
+      "non-main"
+    } else {
+      "off"
+    };
+    if sandbox.get("mode").and_then(|value| value.as_str()) != Some(expected_mode) {
+      sandbox.insert("mode".to_string(), serde_json::json!(expected_mode));
+      patched = true;
+    }
+    for (key, expected) in [
+      ("backend", "docker"),
+      ("scope", "session"),
+      ("workspaceAccess", "none"),
+    ] {
+      if sandbox.get(key).and_then(|value| value.as_str()) != Some(expected) {
+        sandbox.insert(key.to_string(), serde_json::json!(expected));
+        patched = true;
+      }
+    }
+  }
+
+  if cfg
+    .get("tools")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/tools/sessions")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sessions".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(sessions) = cfg
+    .pointer_mut("/tools/sessions")
+    .and_then(|value| value.as_object_mut())
+  {
+    if sessions.get("visibility").and_then(|value| value.as_str()) != Some("self") {
+      sessions.insert("visibility".to_string(), serde_json::json!("self"));
+      patched = true;
+    }
+  }
+  if cfg
+    .pointer("/tools/elevated")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("elevated".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(elevated) = cfg
+    .pointer_mut("/tools/elevated")
+    .and_then(|value| value.as_object_mut())
+  {
+    if elevated.get("enabled").and_then(|value| value.as_bool()) != Some(false) {
+      elevated.insert("enabled".to_string(), serde_json::json!(false));
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -9995,6 +10211,23 @@ async fn prepare_gateway_config(
   let config_path = clawdbot_home.join("openclaw.json");
   let legacy_config_path = clawdbot_home.join("clawdbot.json");
   let workspace_path_default = knapsack_openclaw_workspace_path(&clawdbot_home);
+  let docker_sandbox_status = docker_session_sandbox_available();
+  let docker_sandbox_available = docker_sandbox_status.is_ok();
+  match &docker_sandbox_status {
+    Ok(()) => eprintln!(
+      "[clawd/service] Docker session sandbox available ({})",
+      KNAPSACK_OPENCLAW_SANDBOX_IMAGE
+    ),
+    Err(reason) => eprintln!(
+      "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
+      reason
+    ),
+  }
+  let session_sandbox_mode = if docker_sandbox_available {
+    "non-main"
+  } else {
+    "off"
+  };
   let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
   sanitize_known_gateway_configs(&app_handle, Some(bundle_version.trim()));
   if legacy_config_path.exists() && !config_path.exists() {
@@ -10026,8 +10259,18 @@ async fn prepare_gateway_config(
       "agents": {
         "defaults": {
           "workspace": workspace_path_default,
-          "skipBootstrap": true
+          "skipBootstrap": true,
+          "sandbox": {
+            "mode": session_sandbox_mode,
+            "backend": "docker",
+            "scope": "session",
+            "workspaceAccess": "none"
+          }
         }
+      },
+      "session": {
+        "scope": "per-sender",
+        "dmScope": "per-account-channel-peer"
       },
       "gateway": {
         "mode": "local",
@@ -10062,6 +10305,8 @@ async fn prepare_gateway_config(
       "tools": {
         "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
+        "sessions": {"visibility": "self"},
+        "elevated": {"enabled": false},
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}},
         "sandbox": {
@@ -10218,6 +10463,13 @@ async fn prepare_gateway_config(
         }
 
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available) {
+          eprintln!(
+            "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
+            docker_sandbox_available
+          );
           patched = true;
         }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
@@ -12294,6 +12546,21 @@ pub async fn set_service_enabled(
             }
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
+              patched = true;
+            }
+            let docker_sandbox_status = docker_session_sandbox_available();
+            let docker_sandbox_available = docker_sandbox_status.is_ok();
+            if let Err(reason) = &docker_sandbox_status {
+              eprintln!(
+                "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
+                reason
+              );
+            }
+            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available) {
+              eprintln!(
+                "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
+                docker_sandbox_available
+              );
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
@@ -16020,8 +16287,9 @@ mod provider_key_tests {
 mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
-    ensure_knapsack_channel_runtime_defaults, has_knapsack_runtime_auth,
-    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    ensure_knapsack_channel_runtime_defaults, ensure_knapsack_session_isolation,
+    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
+    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
   };
 
   fn empty_tokens() -> StoredTokens {
@@ -16112,6 +16380,130 @@ mod knapsack_runtime_auth_tests {
     sync_active_provider_for_ollama_toggle(&mut tokens, false);
 
     assert_eq!(tokens.active_provider, None);
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_migrates_unsafe_defaults() {
+    let mut cfg = serde_json::json!({
+      "session": {
+        "scope": "global",
+        "dmScope": "main"
+      },
+      "tools": {
+        "sessions": {
+          "visibility": "all"
+        }
+      },
+      "channels": {
+        "slack": {
+          "enabled": true
+        }
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
+    assert_eq!(
+      cfg
+        .pointer("/session/scope")
+        .and_then(|value| value.as_str()),
+      Some("per-sender")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/session/dmScope")
+        .and_then(|value| value.as_str()),
+      Some("per-account-channel-peer")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/sessions/visibility")
+        .and_then(|value| value.as_str()),
+      Some("self")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("non-main")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/backend")
+        .and_then(|value| value.as_str()),
+      Some("docker")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/scope")
+        .and_then(|value| value.as_str()),
+      Some("session")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/workspaceAccess")
+        .and_then(|value| value.as_str()),
+      Some("none")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/elevated/enabled")
+        .and_then(|value| value.as_bool()),
+      Some(false)
+    );
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_repairs_nulls_and_is_idempotent() {
+    let mut cfg = serde_json::json!({
+      "session": null,
+      "tools": {
+        "sessions": null
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, true));
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_falls_back_when_docker_is_unavailable() {
+    let mut cfg = serde_json::json!({
+      "agents": {
+        "defaults": {
+          "sandbox": {
+            "mode": "non-main",
+            "backend": "docker",
+            "scope": "session",
+            "workspaceAccess": "none"
+          }
+        }
+      },
+      "session": {
+        "scope": "global",
+        "dmScope": "main"
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg, false));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("off")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/session/dmScope")
+        .and_then(|value| value.as_str()),
+      Some("per-account-channel-peer")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/sessions/visibility")
+        .and_then(|value| value.as_str()),
+      Some("self")
+    );
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, false));
   }
 
   #[test]
