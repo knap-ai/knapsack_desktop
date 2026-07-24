@@ -29,6 +29,7 @@ mod llm;
 mod local_fs;
 mod mcp;
 mod memory;
+mod privileged_worker;
 mod pty;
 mod search;
 mod server;
@@ -2023,6 +2024,7 @@ async fn main() {
       pty::kn_pty_resize,
       pty::kn_pty_kill,
       pty::kn_pty_read_output,
+      privileged_worker::kn_execute_privileged_job,
       clawd::gbrain::kn_brain_list,
       clawd::gbrain::kn_brain_read_page,
       clawd::gbrain::kn_brain_write_page,
