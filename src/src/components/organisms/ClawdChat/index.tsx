@@ -17,6 +17,7 @@ import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
 import { TokenCostsView } from 'src/components/organisms/ActivityPanel'
+import ManagedAgentsPanel from 'src/components/organisms/ClawdChat/ManagedAgentsPanel'
 import { detectBuildIntent, extractProjectDescription } from 'src/utils/devIntentDetector'
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
@@ -6291,13 +6292,15 @@ ${actualText}`
       {showChannelsPanel && (
         <div className="ClawdChannelsPanel">
           <div className="ClawdChannelsPanelHeader">
-            <h3>Messaging Channels</h3>
+            <h3>Channels & Agents</h3>
             <button onClick={() => setShowChannelsPanel(false)}>×</button>
           </div>
           <div className="ClawdChannelsPanelBody">
             <p className="ClawdChannelsPanelIntro">
-              Connect a messaging app so your AI assistant can send and receive messages on your behalf.
+              Connect messaging apps, inspect managed agents, and preview how Knapsack routes work between cloud and desktop.
             </p>
+
+            <ManagedAgentsPanel enabled={showChannelsPanel} userId={userEmail || knapsackEmail} />
 
             <div className="ClawdChannelAccordion">
               {/* ── WhatsApp ── */}
