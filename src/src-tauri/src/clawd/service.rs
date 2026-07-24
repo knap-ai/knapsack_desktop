@@ -1252,20 +1252,25 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
       patched = true;
     }
 
-    let desired_streaming = serde_json::json!({
-      "mode": "progress",
-      "nativeTransport": true,
-      "preview": {
-        "toolProgress": false,
-        "commandText": "status"
-      },
-      "progress": {
-        "toolProgress": false,
-        "commandText": "status"
-      }
-    });
-    if slack.get("streaming") != Some(&desired_streaming) {
-      slack.insert("streaming".to_string(), desired_streaming);
+    // Only apply Knapsack's recommended Slack streaming defaults when the key
+    // is absent. Preserving an existing user value avoids re-enabling verbose
+    // progress output on restart or app update.
+    if slack.get("streaming").is_none() {
+      slack.insert(
+        "streaming".to_string(),
+        serde_json::json!({
+          "mode": "progress",
+          "nativeTransport": true,
+          "preview": {
+            "toolProgress": false,
+            "commandText": "status"
+          },
+          "progress": {
+            "toolProgress": false,
+            "commandText": "status"
+          }
+        }),
+      );
       patched = true;
     }
   }
@@ -16593,6 +16598,29 @@ mod knapsack_runtime_auth_tests {
     assert!(cfg
       .pointer("/channels/slack/streaming/progress/nativeTaskCards")
       .is_none());
+  }
+
+  #[test]
+  fn streaming_defaults_not_applied_when_user_has_customized_streaming() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "botToken": "xoxb-test",
+          "appToken": "xapp-test",
+          "streaming": {
+            "mode": "off"
+          }
+        }
+      }
+    });
+
+    assert!(ensure_knapsack_channel_runtime_defaults(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/streaming/mode")
+        .and_then(|value| value.as_str()),
+      Some("off")
+    );
   }
 
   #[test]
