@@ -932,8 +932,9 @@ fn effective_plugin_discovery_allowlist_from_config(json: &serde_json::Value) ->
 ///
 /// OpenClaw defaults direct messages to `dmScope = "main"`, which maps every
 /// sender to the same transcript and model context. Keep the account, channel,
-/// and peer in the key, and prevent session tools from targeting another
-/// person's session.
+/// and peer in the key, prevent session tools from targeting another person's
+/// session, and sandbox non-main channel sessions into separate containers so
+/// tool state, workspaces, processes, and temporary files cannot cross.
 fn ensure_knapsack_session_isolation(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -970,6 +971,60 @@ fn ensure_knapsack_session_isolation(cfg: &mut serde_json::Value) -> bool {
   }
 
   if cfg
+    .get("agents")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("agents".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/agents/defaults")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/agents")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("defaults".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/agents/defaults/sandbox")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/agents/defaults")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(sandbox) = cfg
+    .pointer_mut("/agents/defaults/sandbox")
+    .and_then(|value| value.as_object_mut())
+  {
+    for (key, expected) in [
+      ("mode", "non-main"),
+      ("backend", "docker"),
+      ("scope", "session"),
+      ("workspaceAccess", "none"),
+    ] {
+      if sandbox.get(key).and_then(|value| value.as_str()) != Some(expected) {
+        sandbox.insert(key.to_string(), serde_json::json!(expected));
+        patched = true;
+      }
+    }
+  }
+
+  if cfg
     .get("tools")
     .and_then(|value| value.as_object())
     .is_none()
@@ -999,6 +1054,28 @@ fn ensure_knapsack_session_isolation(cfg: &mut serde_json::Value) -> bool {
   {
     if sessions.get("visibility").and_then(|value| value.as_str()) != Some("self") {
       sessions.insert("visibility".to_string(), serde_json::json!("self"));
+      patched = true;
+    }
+  }
+  if cfg
+    .pointer("/tools/elevated")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("elevated".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(elevated) = cfg
+    .pointer_mut("/tools/elevated")
+    .and_then(|value| value.as_object_mut())
+  {
+    if elevated.get("enabled").and_then(|value| value.as_bool()) != Some(false) {
+      elevated.insert("enabled".to_string(), serde_json::json!(false));
       patched = true;
     }
   }
@@ -10062,7 +10139,13 @@ async fn prepare_gateway_config(
       "agents": {
         "defaults": {
           "workspace": workspace_path_default,
-          "skipBootstrap": true
+          "skipBootstrap": true,
+          "sandbox": {
+            "mode": "non-main",
+            "backend": "docker",
+            "scope": "session",
+            "workspaceAccess": "none"
+          }
         }
       },
       "session": {
@@ -10103,6 +10186,7 @@ async fn prepare_gateway_config(
         "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "sessions": {"visibility": "self"},
+        "elevated": {"enabled": false},
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}},
         "sandbox": {
@@ -10263,7 +10347,7 @@ async fn prepare_gateway_config(
         }
         if ensure_knapsack_session_isolation(&mut cfg_val) {
           eprintln!(
-            "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+            "[clawd/service] Patched shared-channel isolation (per-peer sessions + per-session sandbox)"
           );
           patched = true;
         }
@@ -12345,7 +12429,7 @@ pub async fn set_service_enabled(
             }
             if ensure_knapsack_session_isolation(&mut cfg) {
               eprintln!(
-                "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+                "[clawd/service] Patched shared-channel isolation (per-peer sessions + per-session sandbox)"
               );
               patched = true;
             }
@@ -16205,6 +16289,36 @@ mod knapsack_runtime_auth_tests {
         .pointer("/tools/sessions/visibility")
         .and_then(|value| value.as_str()),
       Some("self")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("non-main")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/backend")
+        .and_then(|value| value.as_str()),
+      Some("docker")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/scope")
+        .and_then(|value| value.as_str()),
+      Some("session")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/workspaceAccess")
+        .and_then(|value| value.as_str()),
+      Some("none")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/elevated/enabled")
+        .and_then(|value| value.as_bool()),
+      Some(false)
     );
   }
 
