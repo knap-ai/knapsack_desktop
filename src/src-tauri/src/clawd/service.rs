@@ -927,6 +927,85 @@ fn effective_plugin_discovery_allowlist_from_config(json: &serde_json::Value) ->
   allowlist
 }
 
+/// Enforce safe session boundaries when one gateway is reachable by multiple
+/// people over Slack, email, or another shared channel.
+///
+/// OpenClaw defaults direct messages to `dmScope = "main"`, which maps every
+/// sender to the same transcript and model context. Keep the account, channel,
+/// and peer in the key, and prevent session tools from targeting another
+/// person's session.
+fn ensure_knapsack_session_isolation(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  if cfg
+    .get("session")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("session".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(session) = cfg
+    .pointer_mut("/session")
+    .and_then(|value| value.as_object_mut())
+  {
+    if session.get("scope").and_then(|value| value.as_str()) != Some("per-sender") {
+      session.insert("scope".to_string(), serde_json::json!("per-sender"));
+      patched = true;
+    }
+    if session.get("dmScope").and_then(|value| value.as_str()) != Some("per-account-channel-peer") {
+      session.insert(
+        "dmScope".to_string(),
+        serde_json::json!("per-account-channel-peer"),
+      );
+      patched = true;
+    }
+  }
+
+  if cfg
+    .get("tools")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/tools/sessions")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sessions".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(sessions) = cfg
+    .pointer_mut("/tools/sessions")
+    .and_then(|value| value.as_object_mut())
+  {
+    if sessions.get("visibility").and_then(|value| value.as_str()) != Some("self") {
+      sessions.insert("visibility".to_string(), serde_json::json!("self"));
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -9986,6 +10065,10 @@ async fn prepare_gateway_config(
           "skipBootstrap": true
         }
       },
+      "session": {
+        "scope": "per-sender",
+        "dmScope": "per-account-channel-peer"
+      },
       "gateway": {
         "mode": "local",
         "auth": {
@@ -10019,6 +10102,7 @@ async fn prepare_gateway_config(
       "tools": {
         "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
+        "sessions": {"visibility": "self"},
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}},
         "sandbox": {
@@ -10175,6 +10259,12 @@ async fn prepare_gateway_config(
         }
 
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_session_isolation(&mut cfg_val) {
+          eprintln!(
+            "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+          );
           patched = true;
         }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
@@ -12251,6 +12341,12 @@ pub async fn set_service_enabled(
             }
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
+              patched = true;
+            }
+            if ensure_knapsack_session_isolation(&mut cfg) {
+              eprintln!(
+                "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+              );
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
@@ -15977,8 +16073,9 @@ mod provider_key_tests {
 mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
-    ensure_knapsack_channel_runtime_defaults, has_knapsack_runtime_auth,
-    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    ensure_knapsack_channel_runtime_defaults, ensure_knapsack_session_isolation,
+    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
+    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
   };
 
   fn empty_tokens() -> StoredTokens {
@@ -16069,6 +16166,59 @@ mod knapsack_runtime_auth_tests {
     sync_active_provider_for_ollama_toggle(&mut tokens, false);
 
     assert_eq!(tokens.active_provider, None);
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_migrates_unsafe_defaults() {
+    let mut cfg = serde_json::json!({
+      "session": {
+        "scope": "global",
+        "dmScope": "main"
+      },
+      "tools": {
+        "sessions": {
+          "visibility": "all"
+        }
+      },
+      "channels": {
+        "slack": {
+          "enabled": true
+        }
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/session/scope")
+        .and_then(|value| value.as_str()),
+      Some("per-sender")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/session/dmScope")
+        .and_then(|value| value.as_str()),
+      Some("per-account-channel-peer")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/sessions/visibility")
+        .and_then(|value| value.as_str()),
+      Some("self")
+    );
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_repairs_nulls_and_is_idempotent() {
+    let mut cfg = serde_json::json!({
+      "session": null,
+      "tools": {
+        "sessions": null
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg));
   }
 
   #[test]
