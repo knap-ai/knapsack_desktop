@@ -413,6 +413,8 @@ pub async fn start_server<'a>(
       .service(mcp_api::disable_server)
       .service(mcp_api::update_server_config)
       .service(mcp_api::add_custom_server)
+      .service(clawd::channels::agent_pause)
+      .service(clawd::channels::agent_pause_status)
       // Developer Mode: Business Context Aggregator
       .service(clawd::context_aggregator::aggregate_context)
       // Developer Mode: Agent Team orchestration

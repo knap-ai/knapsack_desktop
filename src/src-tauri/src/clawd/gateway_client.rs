@@ -1354,7 +1354,7 @@ pub fn resolve_default_model() -> String {
   }
   if has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
     return format!("google/{}", normalize_provider_model("google", &model));
   }
   if has_key("OPENROUTER_API_KEY") {
@@ -1423,13 +1423,15 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   }
 
   // Google/Gemini as fallback when the primary is not already a Google provider.
+  // Use 2.5 Pro as the quality floor when no explicit Gemini model is set so
+  // quota fallbacks do not silently degrade into a materially weaker default.
   let is_google_primary = matches!(
     primary_provider.as_str(),
     "google" | "gemini" | "google-gemini-cli"
   );
   if !is_google_primary && has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
     fallbacks.push(format!(
       "google/{}",
       normalize_provider_model("google", &model)
@@ -3309,6 +3311,22 @@ mod tests {
     std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
     std::env::remove_var("TRUSTEDROUTER_API_KEY");
     std::env::remove_var("KNAPSACK_TRUSTEDROUTER_MODEL");
+  }
+
+  #[test]
+  fn collect_fallback_models_uses_gemini_pro_quality_floor() {
+    std::env::remove_var("KNAPSACK_GEMINI_MODEL");
+    std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
+
+    let fallbacks = collect_fallback_models("openai/gpt-5-mini");
+    assert!(
+      fallbacks
+        .iter()
+        .any(|model| model == "google/gemini-2.5-pro"),
+      "expected Gemini fallback quality floor to default to 2.5 Pro"
+    );
+
+    std::env::remove_var("GOOGLE_API_KEY");
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───
