@@ -526,6 +526,18 @@ struct GenericResponse {
   linked: Option<bool>,
 }
 
+#[derive(Deserialize)]
+pub struct AgentPauseRequest {
+  pub paused: bool,
+}
+
+#[derive(Serialize)]
+struct AgentPauseResponse {
+  success: bool,
+  paused: bool,
+  message: Option<String>,
+}
+
 /// Translate gateway config validation errors into user-friendly messages.
 fn humanize_config_error(channel: &str, raw_error: &str) -> String {
   let lower = raw_error.to_lowercase();
@@ -562,6 +574,81 @@ fn humanize_config_error(channel: &str, raw_error: &str) -> String {
 
   // Fallback: include the raw error but with a friendlier prefix
   format!("Failed to configure {}: {}", channel, raw_error)
+}
+
+#[post("/api/clawd/agent/pause")]
+pub async fn agent_pause(
+  _cfg: web::Data<SharedClawdbotConfig>,
+  body: web::Json<AgentPauseRequest>,
+) -> impl Responder {
+  let paused = body.paused;
+
+  match gateway_client::config_get(None).await {
+    Ok(snapshot) => {
+      let base_hash = extract_base_hash(&snapshot);
+      let patch = serde_json::to_string(&serde_json::json!({
+        "agent": { "paused": paused }
+      }))
+      .unwrap();
+
+      match gateway_client::config_patch(&patch, &base_hash, None).await {
+        Ok(_) => {
+          log::info!(
+            "[channels] agent_pause: paused={} written to gateway config",
+            paused
+          );
+          HttpResponse::Ok().json(AgentPauseResponse {
+            success: true,
+            paused,
+            message: Some(if paused {
+              "Agent paused — all tool executions will be blocked until resumed.".to_string()
+            } else {
+              "Agent resumed.".to_string()
+            }),
+          })
+        }
+        Err(error) => {
+          log::error!("[channels] agent_pause: config.patch failed: {}", error);
+          HttpResponse::Ok().json(AgentPauseResponse {
+            success: false,
+            paused: !paused,
+            message: Some(format!("Failed to update gateway config: {}", error)),
+          })
+        }
+      }
+    }
+    Err(error) => HttpResponse::Ok().json(AgentPauseResponse {
+      success: false,
+      paused: !paused,
+      message: Some(format!(
+        "Gateway unreachable — could not apply pause: {}",
+        error
+      )),
+    }),
+  }
+}
+
+#[get("/api/clawd/agent/pause")]
+pub async fn agent_pause_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  match gateway_client::config_get(None).await {
+    Ok(snapshot) => {
+      let config = snapshot.get("config").unwrap_or(&snapshot);
+      let paused = config
+        .pointer("/agent/paused")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+      HttpResponse::Ok().json(AgentPauseResponse {
+        success: true,
+        paused,
+        message: None,
+      })
+    }
+    Err(error) => HttpResponse::Ok().json(AgentPauseResponse {
+      success: false,
+      paused: false,
+      message: Some(format!("Gateway unreachable: {}", error)),
+    }),
+  }
 }
 
 /// Extract baseHash from a config.get snapshot response.
