@@ -718,7 +718,13 @@ fn configured_channels_from_disk() -> Vec<String> {
         .map(|channels| {
           channels
             .iter()
-            .filter_map(|(name, value)| if value.is_null() { None } else { Some(name.clone()) })
+            .filter_map(|(name, value)| {
+              if value.is_null() {
+                None
+              } else {
+                Some(name.clone())
+              }
+            })
             .collect::<Vec<_>>()
         })
     })
@@ -5417,5 +5423,106 @@ mod reconnect_retry_tests {
     } else {
       std::env::remove_var("KNAPSACK_GROQ_MODEL");
     }
+  }
+}
+
+// ── Agent pause / resume ────────────────────────────────────────────────────
+
+/// Request body for agent pause / resume.
+#[derive(Deserialize)]
+struct AgentPauseRequest {
+  paused: bool,
+}
+
+/// Response for agent pause / resume.
+#[derive(Serialize)]
+struct AgentPauseResponse {
+  success: bool,
+  paused: bool,
+  message: Option<String>,
+}
+
+/// Set or clear the agent-paused flag in the gateway config.
+///
+/// When `paused: true` the gateway will reject all tool executions at the
+/// gate layer (browser, exec, file write, cron trigger).  This flag is
+/// written via config.patch — the same path as all other control-surface
+/// settings — so it cannot be overridden by the agent editing its own
+/// memory files.
+///
+/// Enforcement of the flag lives in the OpenClaw gateway; this endpoint
+/// provides the human-facing control surface (desktop UI, Slack `/pause`
+/// command forwarding).
+#[post("/api/clawd/agent/pause")]
+pub async fn agent_pause(
+  _cfg: web::Data<SharedClawdbotConfig>,
+  body: web::Json<AgentPauseRequest>,
+) -> impl Responder {
+  let paused = body.paused;
+
+  let config_result = gateway_client::config_get(None).await;
+  match config_result {
+    Ok(snapshot) => {
+      let base_hash = extract_base_hash(&snapshot);
+      let patch = serde_json::to_string(&serde_json::json!({
+        "agent": { "paused": paused }
+      }))
+      .unwrap();
+
+      match gateway_client::config_patch(&patch, &base_hash, None).await {
+        Ok(_) => {
+          log::info!(
+            "[channels] agent_pause: paused={} written to gateway config",
+            paused
+          );
+          HttpResponse::Ok().json(AgentPauseResponse {
+            success: true,
+            paused,
+            message: Some(if paused {
+              "Agent paused — all tool executions will be blocked until resumed.".to_string()
+            } else {
+              "Agent resumed.".to_string()
+            }),
+          })
+        }
+        Err(e) => {
+          log::error!("[channels] agent_pause: config.patch failed: {}", e);
+          HttpResponse::Ok().json(AgentPauseResponse {
+            success: false,
+            paused: !paused,
+            message: Some(format!("Failed to update gateway config: {}", e)),
+          })
+        }
+      }
+    }
+    Err(e) => HttpResponse::Ok().json(AgentPauseResponse {
+      success: false,
+      paused: !paused,
+      message: Some(format!("Gateway unreachable — could not apply pause: {}", e)),
+    }),
+  }
+}
+
+/// Get the current agent-paused state from the gateway config.
+#[get("/api/clawd/agent/pause")]
+pub async fn agent_pause_status(_cfg: web::Data<SharedClawdbotConfig>) -> impl Responder {
+  match gateway_client::config_get(None).await {
+    Ok(snapshot) => {
+      let config = snapshot.get("config").unwrap_or(&snapshot);
+      let paused = config
+        .pointer("/agent/paused")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+      HttpResponse::Ok().json(AgentPauseResponse {
+        success: true,
+        paused,
+        message: None,
+      })
+    }
+    Err(e) => HttpResponse::Ok().json(AgentPauseResponse {
+      success: false,
+      paused: false,
+      message: Some(format!("Gateway unreachable: {}", e)),
+    }),
   }
 }

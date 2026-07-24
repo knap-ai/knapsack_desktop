@@ -896,6 +896,78 @@ fn effective_plugin_discovery_allowlist_from_config(json: &serde_json::Value) ->
   allowlist
 }
 
+/// Enforce the state boundaries required when one gateway is reachable by
+/// multiple people over Slack, email, or another shared channel.
+///
+/// OpenClaw's upstream default is `session.dmScope = "main"`, which intentionally
+/// maps every direct-message sender to the same transcript/model context. That
+/// is convenient for a single-user desktop assistant but unsafe for a team
+/// inbox. Keep the transport account and channel in the key as well as the peer
+/// so the same identifier on two providers cannot collide.
+fn ensure_knapsack_session_isolation(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  if cfg.get("session").and_then(|value| value.as_object()).is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("session".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(session) = cfg
+    .pointer_mut("/session")
+    .and_then(|value| value.as_object_mut())
+  {
+    if session.get("scope").and_then(|value| value.as_str()) != Some("per-sender") {
+      session.insert("scope".to_string(), serde_json::json!("per-sender"));
+      patched = true;
+    }
+    if session.get("dmScope").and_then(|value| value.as_str()) != Some("per-account-channel-peer") {
+      session.insert(
+        "dmScope".to_string(),
+        serde_json::json!("per-account-channel-peer"),
+      );
+      patched = true;
+    }
+  }
+
+  if cfg.get("tools").and_then(|value| value.as_object()).is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/tools/sessions")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sessions".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(sessions) = cfg
+    .pointer_mut("/tools/sessions")
+    .and_then(|value| value.as_object_mut())
+  {
+    if sessions.get("visibility").and_then(|value| value.as_str()) != Some("self") {
+      sessions.insert("visibility".to_string(), serde_json::json!("self"));
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -996,20 +1068,26 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
       patched = true;
     }
 
-    let desired_streaming = serde_json::json!({
-      "mode": "progress",
-      "nativeTransport": true,
-      "preview": {
-        "toolProgress": true,
-        "commandText": "status"
-      },
-      "progress": {
-        "toolProgress": true,
-        "commandText": "status"
-      }
-    });
-    if slack.get("streaming") != Some(&desired_streaming) {
-      slack.insert("streaming".to_string(), desired_streaming);
+    // Only write streaming defaults when the key is entirely absent.
+    // If the user has customized streaming settings, preserve them across
+    // app updates — overwriting on every restart was the root cause of the
+    // recurring "progress spam" regressions (reThought incident, Task 5).
+    if slack.get("streaming").is_none() {
+      slack.insert(
+        "streaming".to_string(),
+        serde_json::json!({
+          "mode": "progress",
+          "nativeTransport": true,
+          "preview": {
+            "toolProgress": true,
+            "commandText": "status"
+          },
+          "progress": {
+            "toolProgress": true,
+            "commandText": "status"
+          }
+        }),
+      );
       patched = true;
     }
   }
@@ -5256,6 +5334,24 @@ async fn wait_for_gateway_and_channels_ready(
   (true, false)
 }
 
+async fn gateway_ready_with_fallback(token: &str, gateway_wait_ms: u64, channel_wait_ms: u64) -> (bool, bool, bool) {
+  let (gateway_ready, channel_ready) =
+    wait_for_gateway_and_channels_ready(token, gateway_wait_ms, channel_wait_ms).await;
+  if gateway_ready {
+    return (true, channel_ready, false);
+  }
+
+  // Provider switches can succeed while launchd/browser/channel probes are
+  // still catching up. If the local gateway is already reachable on a final
+  // direct probe, treat the switch as successful and surface a warmup message
+  // instead of a false failure banner.
+  let fallback_ready = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await
+    || crate::clawd::gateway_client::is_gateway_port_open().await
+    || crate::clawd::gateway_supervisor::is_gateway_healthy(token).await;
+
+  (fallback_ready, false, fallback_ready)
+}
+
 /// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
@@ -7911,10 +8007,11 @@ pub async fn validate_api_key(payload: web::Json<ValidateApiKeyRequest>) -> impl
     .as_deref()
     .unwrap_or("openai")
     .to_lowercase();
-  let client = reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(10))
-    .build()
-    .unwrap_or_default();
+  let mut client_builder = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10));
+  if provider == "trustedrouter" {
+    client_builder = client_builder.http1_only();
+  }
+  let client = client_builder.build().unwrap_or_default();
 
   let result = match provider.as_str() {
     "anthropic" => {
@@ -8425,13 +8522,19 @@ pub async fn set_api_key(
         launchctl_kickstart_with_timeout(&service, "provider switch kickstart");
       }
     }
-    let (gateway_ready, channel_ready) =
-      wait_for_gateway_and_channels_ready(&tokens.gateway_token, 45_000, 120_000).await;
-    if !gateway_ready {
+    let (gateway_ready, channel_ready, fallback_ready) =
+      gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
+    if !gateway_ready && !fallback_ready {
       return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
         success: false,
         message: "Provider switched, but gateway did not become ready within 45s".to_string(),
       });
+    }
+    if fallback_ready && !channel_ready {
+      eprintln!(
+        "[clawd/service] Provider switch to '{}' reached fallback-ready state after the initial timeout window",
+        provider
+      );
     }
     if !channel_ready {
       eprintln!(
@@ -8439,9 +8542,17 @@ pub async fn set_api_key(
         provider
       );
     }
+    let message = if fallback_ready && !channel_ready {
+      format!(
+        "Switched to {}. Gateway is still warming up and channels may take a moment to reconnect.",
+        provider_name
+      )
+    } else {
+      format!("Switched to {}", provider_name)
+    };
     return HttpResponse::Ok().json(SetApiKeyResponse {
       success: true,
-      message: format!("Switched to {}", provider_name),
+      message,
     });
   }
 
@@ -8742,13 +8853,19 @@ pub async fn set_api_key(
     }
   }
 
-  let (gateway_ready, channel_ready) =
-    wait_for_gateway_and_channels_ready(&tokens.gateway_token, 45_000, 120_000).await;
-  if !gateway_ready {
+  let (gateway_ready, channel_ready, fallback_ready) =
+    gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
+  if !gateway_ready && !fallback_ready {
     return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
       success: false,
       message: "API key saved, but gateway did not become ready within 45s".to_string(),
     });
+  }
+  if fallback_ready && !channel_ready {
+    eprintln!(
+      "[clawd/service] API key saved for '{}' reached fallback-ready state after the initial timeout window",
+      provider
+    );
   }
   if !channel_ready {
     eprintln!(
@@ -8756,11 +8873,16 @@ pub async fn set_api_key(
       provider
     );
   }
+  let message = if fallback_ready && !channel_ready {
+    format!(
+      "{} API key saved. Gateway is still warming up and channels may take a moment to reconnect.",
+      provider_name
+    )
+  } else {
+    format!("{} API key saved successfully", provider_name)
+  };
 
-  HttpResponse::Ok().json(SetApiKeyResponse {
-    success: true,
-    message: format!("{} API key saved successfully", provider_name),
-  })
+  HttpResponse::Ok().json(SetApiKeyResponse { success: true, message })
 }
 
 /// Remove an extra provider key.
@@ -9941,6 +10063,10 @@ async fn prepare_gateway_config(
           "skipBootstrap": true
         }
       },
+      "session": {
+        "scope": "per-sender",
+        "dmScope": "per-account-channel-peer"
+      },
       "gateway": {
         "mode": "local",
         "auth": {
@@ -9974,6 +10100,7 @@ async fn prepare_gateway_config(
       "tools": {
         "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
+        "sessions": {"visibility": "self"},
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}},
         "sandbox": {
@@ -10130,6 +10257,12 @@ async fn prepare_gateway_config(
         }
 
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_session_isolation(&mut cfg_val) {
+          eprintln!(
+            "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+          );
           patched = true;
         }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
@@ -12206,6 +12339,12 @@ pub async fn set_service_enabled(
             }
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
+              patched = true;
+            }
+            if ensure_knapsack_session_isolation(&mut cfg) {
+              eprintln!(
+                "[clawd/service] Patched shared-channel session isolation (per account/channel/peer)"
+              );
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
@@ -15847,8 +15986,9 @@ mod provider_key_tests {
 mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
-    ensure_knapsack_channel_runtime_defaults, has_knapsack_runtime_auth,
-    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    ensure_knapsack_channel_runtime_defaults, ensure_knapsack_session_isolation,
+    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
+    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
   };
 
   fn empty_tokens() -> StoredTokens {
@@ -15942,6 +16082,59 @@ mod knapsack_runtime_auth_tests {
   }
 
   #[test]
+  fn shared_channel_session_isolation_migrates_unsafe_defaults() {
+    let mut cfg = serde_json::json!({
+      "session": {
+        "scope": "global",
+        "dmScope": "main"
+      },
+      "tools": {
+        "sessions": {
+          "visibility": "all"
+        }
+      },
+      "channels": {
+        "slack": {
+          "enabled": true
+        }
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/session/scope")
+        .and_then(|value| value.as_str()),
+      Some("per-sender")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/session/dmScope")
+        .and_then(|value| value.as_str()),
+      Some("per-account-channel-peer")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/tools/sessions/visibility")
+        .and_then(|value| value.as_str()),
+      Some("self")
+    );
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_is_idempotent() {
+    let mut cfg = serde_json::json!({
+      "session": null,
+      "tools": {
+        "sessions": null
+      }
+    });
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg));
+  }
+
+  #[test]
   fn knapsack_channel_runtime_defaults_enable_slack_progress() {
     let mut cfg = serde_json::json!({
       "channels": {
@@ -16005,6 +16198,34 @@ mod knapsack_runtime_auth_tests {
       cfg
         .pointer("/channels/slack/streaming/progress/nativeTaskCards")
         .is_none()
+    );
+  }
+
+  #[test]
+  fn streaming_defaults_not_applied_when_user_has_customized_streaming() {
+    // Regression: streaming config must NOT be overwritten on app update if the
+    // user has already set any value (reThought incident — Task 5 fix).
+    let custom_mode = "off";
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "botToken": "xoxb-test",
+          "appToken": "xapp-test",
+          "streaming": {
+            "mode": custom_mode
+          }
+        }
+      }
+    });
+
+    ensure_knapsack_channel_runtime_defaults(&mut cfg);
+
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/streaming/mode")
+        .and_then(|v| v.as_str()),
+      Some(custom_mode),
+      "user-set streaming.mode must survive an app update / config defaults pass"
     );
   }
 

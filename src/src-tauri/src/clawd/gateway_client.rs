@@ -1243,7 +1243,10 @@ pub fn resolve_default_model() -> String {
     "trustedrouter" => {
       let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
         .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-      return format!("trustedrouter/{}", model);
+      return format!(
+        "trustedrouter/{}",
+        normalize_provider_model("trustedrouter", &model)
+      );
     }
     "ollama" => {
       let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
@@ -1351,7 +1354,7 @@ pub fn resolve_default_model() -> String {
   }
   if has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
     return format!("google/{}", normalize_provider_model("google", &model));
   }
   if has_key("OPENROUTER_API_KEY") {
@@ -1365,7 +1368,10 @@ pub fn resolve_default_model() -> String {
   if has_key("TRUSTEDROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
       .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    return format!("trustedrouter/{}", model);
+    return format!(
+      "trustedrouter/{}",
+      normalize_provider_model("trustedrouter", &model)
+    );
   }
   if has_key("OLLAMA_API_KEY") {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
@@ -1417,13 +1423,16 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   }
 
   // Google/Gemini as fallback when the primary is not already a Google provider.
+  // Default to gemini-2.5-pro (not flash) to maintain comparable capability; silently
+  // falling back to a materially weaker model was a root-cause factor in the reThought
+  // incident (degraded/hallucinated output on quota exhaustion — Task 6 fix).
   let is_google_primary = matches!(
     primary_provider.as_str(),
     "google" | "gemini" | "google-gemini-cli"
   );
   if !is_google_primary && has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
     fallbacks.push(format!(
       "google/{}",
       normalize_provider_model("google", &model)
@@ -1442,7 +1451,10 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   if primary_provider != "trustedrouter" && has_key("TRUSTEDROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_TRUSTEDROUTER_MODEL")
       .unwrap_or_else(|_| "trustedrouter/auto".to_string());
-    fallbacks.push(format!("trustedrouter/{}", model));
+    fallbacks.push(format!(
+      "trustedrouter/{}",
+      normalize_provider_model("trustedrouter", &model)
+    ));
   }
 
   fallbacks
@@ -3230,6 +3242,20 @@ mod tests {
     std::env::remove_var("KNAPSACK_ACCESS_TOKEN");
     std::env::remove_var("KNAPSACK_REFRESH_TOKEN");
     std::env::remove_var("KNAPSACK_USER_EMAIL");
+  }
+
+  #[test]
+  fn resolve_default_model_normalizes_trustedrouter_prefix_once() {
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "trustedrouter");
+    std::env::set_var("TRUSTEDROUTER_API_KEY", "sk-tr-test");
+    std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", "trustedrouter/auto");
+
+    let model = resolve_default_model();
+    assert_eq!(model, "trustedrouter/auto");
+
+    std::env::remove_var("KNAPSACK_ACTIVE_PROVIDER");
+    std::env::remove_var("TRUSTEDROUTER_API_KEY");
+    std::env::remove_var("KNAPSACK_TRUSTEDROUTER_MODEL");
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───
