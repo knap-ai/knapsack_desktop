@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::clawd::gateway_client;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionMode {
@@ -56,6 +58,16 @@ pub enum RouteTarget {
 pub enum RuntimeKind {
   Cloud,
   Desktop,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionSessionStatus {
+  Planned,
+  Running,
+  Succeeded,
+  Failed,
+  Blocked,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,13 +150,51 @@ pub struct SharedContextRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ManagedAgentExecutionSession {
+  pub session_id: String,
+  pub agent_id: String,
+  pub tenant_id: String,
+  pub user_id: String,
+  pub channel: ChannelKind,
+  pub channel_conversation_id: Option<String>,
+  pub channel_thread_id: Option<String>,
+  pub channel_message_id: Option<String>,
+  pub gateway_agent_id: String,
+  pub control_plane: String,
+  pub context_key: String,
+  pub task_summary: String,
+  pub required_capabilities: Vec<CapabilityKind>,
+  pub desktop_session_requirement: DesktopSessionRequirement,
+  pub route_target: RouteTarget,
+  pub selected_runtime: Option<RuntimeKind>,
+  pub fallback_runtime: Option<RuntimeKind>,
+  pub policy_pack_id: String,
+  pub status: ExecutionSessionStatus,
+  pub message_count: u32,
+  pub last_inbound_message: Option<String>,
+  pub last_reply_summary: Option<String>,
+  pub last_error: Option<String>,
+  pub created_at: String,
+  pub updated_at: String,
+  pub last_completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ManagedAgentStore {
   pub version: u32,
+  #[serde(default = "default_templates")]
   pub templates: Vec<ManagedAgentTemplate>,
+  #[serde(default = "default_policy_packs")]
   pub policy_packs: Vec<PolicyPack>,
+  #[serde(default = "default_agents")]
   pub agents: Vec<ManagedAgent>,
+  #[serde(default)]
   pub desktop_presence: Vec<DesktopPresenceRecord>,
+  #[serde(default)]
   pub shared_context: Vec<SharedContextRecord>,
+  #[serde(default)]
+  pub execution_sessions: Vec<ManagedAgentExecutionSession>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,6 +225,24 @@ pub struct RoutePreviewRequest {
   pub context_key: Option<String>,
   pub required_capabilities: Vec<CapabilityKind>,
   pub desktop_session_requirement: DesktopSessionRequirement,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedAgentChannelRunRequest {
+  pub agent_id: String,
+  pub user_id: String,
+  pub channel: ChannelKind,
+  pub message: String,
+  pub task_summary: Option<String>,
+  pub context_key: Option<String>,
+  pub channel_conversation_id: Option<String>,
+  pub channel_thread_id: Option<String>,
+  pub channel_message_id: Option<String>,
+  #[serde(default)]
+  pub required_capabilities: Vec<CapabilityKind>,
+  pub desktop_session_requirement: Option<DesktopSessionRequirement>,
+  pub gateway_agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -227,12 +295,30 @@ pub struct ManagedAgentsIndexResponse {
   pub templates: Vec<ManagedAgentTemplate>,
   pub policy_packs: Vec<PolicyPack>,
   pub agents: Vec<ManagedAgent>,
+  pub execution_sessions: Vec<ManagedAgentExecutionSession>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimpleSuccessResponse {
   pub success: bool,
+  pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedAgentExecutionSessionsResponse {
+  pub success: bool,
+  pub sessions: Vec<ManagedAgentExecutionSession>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedAgentChannelRunResponse {
+  pub success: bool,
+  pub session: ManagedAgentExecutionSession,
+  pub route_preview: RoutePreviewResponse,
+  pub reply: Option<String>,
   pub message: String,
 }
 
@@ -393,12 +479,13 @@ fn default_agents() -> Vec<ManagedAgent> {
 
 fn default_store() -> ManagedAgentStore {
   ManagedAgentStore {
-    version: 1,
+    version: 2,
     templates: default_templates(),
     policy_packs: default_policy_packs(),
     agents: default_agents(),
     desktop_presence: Vec::new(),
     shared_context: Vec::new(),
+    execution_sessions: Vec::new(),
   }
 }
 
@@ -537,6 +624,174 @@ fn prefers_desktop(required: &[CapabilityKind]) -> bool {
   })
 }
 
+fn title_case_channel(channel: &ChannelKind) -> &'static str {
+  match channel {
+    ChannelKind::Slack => "slack",
+    ChannelKind::StudioChat => "studio_chat",
+    ChannelKind::DesktopChat => "desktop_chat",
+  }
+}
+
+fn gateway_agent_id_for(agent: &ManagedAgent, override_id: Option<&str>) -> String {
+  override_id
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+    .map(|value| value.to_string())
+    .unwrap_or_else(|| match agent.agent_id.as_str() {
+      "scout_general" => "main".to_string(),
+      "vera_compliance_manager" => "main".to_string(),
+      "felix_operations_assistant" => "main".to_string(),
+      _ => "main".to_string(),
+    })
+}
+
+fn default_capabilities_for_agent(agent: &ManagedAgent) -> Vec<CapabilityKind> {
+  if agent.agent_id == "scout_general" {
+    vec![CapabilityKind::CloudChat, CapabilityKind::SharedTaskContext]
+  } else {
+    vec![
+      CapabilityKind::BrowserAutomation,
+      CapabilityKind::SharedTaskContext,
+    ]
+  }
+}
+
+fn default_requirement_for_agent(agent: &ManagedAgent) -> DesktopSessionRequirement {
+  if agent.agent_id == "scout_general" {
+    DesktopSessionRequirement::None
+  } else {
+    DesktopSessionRequirement::Preferred
+  }
+}
+
+fn summarize_text(text: &str, max_chars: usize) -> String {
+  let trimmed = text.trim();
+  if trimmed.is_empty() {
+    return String::new();
+  }
+  if trimmed.chars().count() <= max_chars {
+    return trimmed.to_string();
+  }
+  trimmed.chars().take(max_chars).collect::<String>() + "..."
+}
+
+fn next_session_id() -> String {
+  format!(
+    "mas-{}-{}",
+    Utc::now().timestamp_millis(),
+    rand::random::<u32>()
+  )
+}
+
+fn context_key_for_run(
+  agent: &ManagedAgent,
+  request: &ManagedAgentChannelRunRequest,
+) -> String {
+  if let Some(context_key) = request
+    .context_key
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    return context_key.to_string();
+  }
+
+  let mut key = format!("{}:{}:{}", agent.agent_id, request.user_id, title_case_channel(&request.channel));
+  if let Some(conversation_id) = request
+    .channel_conversation_id
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    key.push(':');
+    key.push_str(conversation_id);
+  }
+  if let Some(thread_id) = request
+    .channel_thread_id
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    key.push(':');
+    key.push_str(thread_id);
+  }
+  key
+}
+
+fn gateway_reply_from_result(result: &serde_json::Value) -> String {
+  result
+    .pointer("/result/payloads")
+    .and_then(|payloads| payloads.as_array())
+    .map(|payloads| {
+      payloads
+        .iter()
+        .filter_map(|payload| payload.get("text").and_then(|value| value.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+    })
+    .filter(|reply| !reply.trim().is_empty())
+    .unwrap_or_else(|| {
+      result
+        .get("summary")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .to_string()
+    })
+}
+
+fn upsert_shared_context(
+  store: &mut ManagedAgentStore,
+  agent: &ManagedAgent,
+  user_id: &str,
+  context_key: &str,
+  runtime: Option<RuntimeKind>,
+  handoff_summary: Option<String>,
+  last_user_intent: String,
+  note: Option<String>,
+) {
+  let next_runtime = runtime.unwrap_or(RuntimeKind::Cloud);
+  if let Some(existing) = store
+    .shared_context
+    .iter_mut()
+    .find(|entry| entry.agent_id == agent.agent_id && entry.context_key == context_key)
+  {
+    existing.user_id = user_id.to_string();
+    existing.tenant_id = agent.tenant_id.clone();
+    existing.current_runtime = next_runtime;
+    existing.last_user_intent = last_user_intent;
+    existing.updated_at = now_iso();
+    if let Some(summary) = handoff_summary.filter(|value| !value.trim().is_empty()) {
+      existing.handoff_summary = summary;
+    }
+    if let Some(next_note) = note.filter(|value| !value.trim().is_empty()) {
+      existing.notes.push(next_note);
+      if existing.notes.len() > 8 {
+        let drain_to = existing.notes.len() - 8;
+        existing.notes.drain(0..drain_to);
+      }
+    }
+    return;
+  }
+
+  let mut notes = Vec::new();
+  if let Some(next_note) = note.filter(|value| !value.trim().is_empty()) {
+    notes.push(next_note);
+  }
+
+  store.shared_context.push(SharedContextRecord {
+    agent_id: agent.agent_id.clone(),
+    context_key: context_key.to_string(),
+    tenant_id: agent.tenant_id.clone(),
+    user_id: user_id.to_string(),
+    thread_id: None,
+    current_runtime: next_runtime,
+    handoff_summary: handoff_summary.unwrap_or_default(),
+    last_user_intent,
+    notes,
+    updated_at: now_iso(),
+  });
+}
+
 fn route_request(
   request: &RoutePreviewRequest,
   agent: &ManagedAgent,
@@ -673,7 +928,51 @@ pub async fn managed_agents_index(app: web::Data<tauri::AppHandle>) -> impl Resp
       templates: store.templates,
       policy_packs: store.policy_packs,
       agents: store.agents,
+      execution_sessions: store.execution_sessions,
     }),
+    Err(error) => HttpResponse::InternalServerError().json(SimpleSuccessResponse {
+      success: false,
+      message: error,
+    }),
+  }
+}
+
+#[get("/api/clawd/managed-agents/sessions")]
+pub async fn managed_agent_sessions(
+  app: web::Data<tauri::AppHandle>,
+  query: web::Query<BTreeMap<String, String>>,
+) -> impl Responder {
+  match load_store(app.get_ref()) {
+    Ok(store) => {
+      let agent_filter = query
+        .get("agentId")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+      let user_filter = query
+        .get("userId")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+      let mut sessions = store
+        .execution_sessions
+        .into_iter()
+        .filter(|session| {
+          agent_filter
+            .as_ref()
+            .map(|agent_id| session.agent_id == *agent_id)
+            .unwrap_or(true)
+            && user_filter
+              .as_ref()
+              .map(|user_id| session.user_id == *user_id)
+              .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+      sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+      HttpResponse::Ok().json(ManagedAgentExecutionSessionsResponse {
+        success: true,
+        sessions,
+      })
+    }
     Err(error) => HttpResponse::InternalServerError().json(SimpleSuccessResponse {
       success: false,
       message: error,
@@ -895,6 +1194,260 @@ pub async fn managed_agent_route_preview(
       let response = route_request(&request, agent, presence.as_ref(), context.as_ref());
       HttpResponse::Ok().json(response)
     }
+    Err(error) => HttpResponse::InternalServerError().json(SimpleSuccessResponse {
+      success: false,
+      message: error,
+    }),
+  }
+}
+
+#[post("/api/clawd/managed-agents/channel-run")]
+pub async fn managed_agent_channel_run(
+  app: web::Data<tauri::AppHandle>,
+  body: web::Json<ManagedAgentChannelRunRequest>,
+) -> impl Responder {
+  let request = body.into_inner();
+  let message = request.message.trim().to_string();
+  if message.is_empty() {
+    return HttpResponse::BadRequest().json(SimpleSuccessResponse {
+      success: false,
+      message: "message is required".to_string(),
+    });
+  }
+
+  let mut store = match load_store(app.get_ref()) {
+    Ok(store) => store,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(SimpleSuccessResponse {
+        success: false,
+        message: error,
+      });
+    }
+  };
+
+  let Some(agent) = store
+    .agents
+    .iter()
+    .find(|candidate| candidate.agent_id == request.agent_id)
+    .cloned()
+  else {
+    return HttpResponse::NotFound().json(SimpleSuccessResponse {
+      success: false,
+      message: format!("Managed agent '{}' was not found", request.agent_id),
+    });
+  };
+
+  let context_key = context_key_for_run(&agent, &request);
+  let required_capabilities = if request.required_capabilities.is_empty() {
+    default_capabilities_for_agent(&agent)
+  } else {
+    request.required_capabilities.clone()
+  };
+  let desktop_requirement = request
+    .desktop_session_requirement
+    .clone()
+    .unwrap_or_else(|| default_requirement_for_agent(&agent));
+
+  let preview_request = RoutePreviewRequest {
+    agent_id: agent.agent_id.clone(),
+    user_id: request.user_id.clone(),
+    channel: request.channel.clone(),
+    task_summary: request
+      .task_summary
+      .clone()
+      .unwrap_or_else(|| summarize_text(&message, 140)),
+    context_key: Some(context_key.clone()),
+    required_capabilities: required_capabilities.clone(),
+    desktop_session_requirement: desktop_requirement.clone(),
+  };
+
+  let presence = store
+    .desktop_presence
+    .iter()
+    .filter(|entry| entry.user_id == request.user_id)
+    .max_by_key(|entry| parse_timestamp(&entry.last_heartbeat_at))
+    .cloned();
+  let context = store
+    .shared_context
+    .iter()
+    .find(|entry| entry.agent_id == agent.agent_id && entry.context_key == context_key)
+    .cloned();
+
+  let route_preview = route_request(&preview_request, &agent, presence.as_ref(), context.as_ref());
+  let session_id = next_session_id();
+  let started_at = now_iso();
+  let gateway_agent_id = gateway_agent_id_for(&agent, request.gateway_agent_id.as_deref());
+  let mut session = ManagedAgentExecutionSession {
+    session_id: session_id.clone(),
+    agent_id: agent.agent_id.clone(),
+    tenant_id: agent.tenant_id.clone(),
+    user_id: request.user_id.clone(),
+    channel: request.channel.clone(),
+    channel_conversation_id: request.channel_conversation_id.clone(),
+    channel_thread_id: request.channel_thread_id.clone(),
+    channel_message_id: request.channel_message_id.clone(),
+    gateway_agent_id: gateway_agent_id.clone(),
+    control_plane: "desktop_managed_agents_v1".to_string(),
+    context_key: context_key.clone(),
+    task_summary: preview_request.task_summary.clone(),
+    required_capabilities: required_capabilities.clone(),
+    desktop_session_requirement: desktop_requirement.clone(),
+    route_target: route_preview.route_target.clone(),
+    selected_runtime: route_preview.selected_runtime.clone(),
+    fallback_runtime: route_preview.fallback_runtime.clone(),
+    policy_pack_id: route_preview.policy_pack_id.clone(),
+    status: if route_preview.success {
+      ExecutionSessionStatus::Running
+    } else {
+      ExecutionSessionStatus::Blocked
+    },
+    message_count: 1,
+    last_inbound_message: Some(summarize_text(&message, 500)),
+    last_reply_summary: None,
+    last_error: if route_preview.success {
+      None
+    } else {
+      Some(route_preview.reasons.join(" "))
+    },
+    created_at: started_at.clone(),
+    updated_at: started_at,
+    last_completed_at: None,
+  };
+
+  upsert_shared_context(
+    &mut store,
+    &agent,
+    &request.user_id,
+    &context_key,
+    route_preview.selected_runtime.clone(),
+    context.as_ref().map(|entry| entry.handoff_summary.clone()),
+    summarize_text(&message, 300),
+    Some(format!(
+      "Started {} run via {}",
+      agent.display_name,
+      title_case_channel(&request.channel)
+    )),
+  );
+  store.execution_sessions.push(session.clone());
+
+  if let Err(error) = save_store(app.get_ref(), &store) {
+    return HttpResponse::InternalServerError().json(SimpleSuccessResponse {
+      success: false,
+      message: error,
+    });
+  }
+
+  if !route_preview.success {
+    return HttpResponse::Ok().json(ManagedAgentChannelRunResponse {
+      success: false,
+      session,
+      route_preview,
+      reply: None,
+      message: "Managed agent run was blocked by routing policy".to_string(),
+    });
+  }
+
+  let gateway_channel = title_case_channel(&request.channel).replace('_', "-");
+  let gateway_result = gateway_client::agent_run(
+    &message,
+    Some(gateway_agent_id.as_str()),
+    Some(gateway_channel.as_str()),
+    None,
+  )
+  .await;
+
+  let mut store = match load_store(app.get_ref()) {
+    Ok(store) => store,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(SimpleSuccessResponse {
+        success: false,
+        message: error,
+      });
+    }
+  };
+
+  let run_response = match gateway_result {
+    Ok(result) => {
+      let reply = gateway_reply_from_result(&result);
+      let reply_summary = summarize_text(&reply, 400);
+      session.status = if reply.trim().is_empty() {
+        ExecutionSessionStatus::Failed
+      } else {
+        ExecutionSessionStatus::Succeeded
+      };
+      session.last_reply_summary = if reply_summary.is_empty() {
+        None
+      } else {
+        Some(reply_summary.clone())
+      };
+      session.last_error = if reply.trim().is_empty() {
+        Some("Gateway returned an empty reply".to_string())
+      } else {
+        None
+      };
+      session.updated_at = now_iso();
+      session.last_completed_at = Some(session.updated_at.clone());
+
+      upsert_shared_context(
+        &mut store,
+        &agent,
+        &request.user_id,
+        &context_key,
+        session.selected_runtime.clone(),
+        Some(reply_summary),
+        summarize_text(&message, 300),
+        Some(format!("Completed {} run", agent.display_name)),
+      );
+
+      ManagedAgentChannelRunResponse {
+        success: !reply.trim().is_empty(),
+        session: session.clone(),
+        route_preview: route_preview.clone(),
+        reply: if reply.trim().is_empty() { None } else { Some(reply) },
+        message: if session.status == ExecutionSessionStatus::Succeeded {
+          "Managed agent run completed".to_string()
+        } else {
+          "Managed agent run finished without a reply".to_string()
+        },
+      }
+    }
+    Err(error) => {
+      session.status = ExecutionSessionStatus::Failed;
+      session.last_error = Some(error.clone());
+      session.updated_at = now_iso();
+      session.last_completed_at = Some(session.updated_at.clone());
+      upsert_shared_context(
+        &mut store,
+        &agent,
+        &request.user_id,
+        &context_key,
+        session.selected_runtime.clone(),
+        context.as_ref().map(|entry| entry.handoff_summary.clone()),
+        summarize_text(&message, 300),
+        Some(format!("Failed {} run: {}", agent.display_name, summarize_text(&error, 120))),
+      );
+      ManagedAgentChannelRunResponse {
+        success: false,
+        session: session.clone(),
+        route_preview: route_preview.clone(),
+        reply: None,
+        message: format!("Managed agent run failed: {}", error),
+      }
+    }
+  };
+
+  if let Some(existing) = store
+    .execution_sessions
+    .iter_mut()
+    .find(|entry| entry.session_id == session_id)
+  {
+    *existing = session.clone();
+  } else {
+    store.execution_sessions.push(session.clone());
+  }
+
+  match save_store(app.get_ref(), &store) {
+    Ok(()) => HttpResponse::Ok().json(run_response),
     Err(error) => HttpResponse::InternalServerError().json(SimpleSuccessResponse {
       success: false,
       message: error,

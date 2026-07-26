@@ -3165,6 +3165,46 @@
   line-height: 1.5;
 }
 
+.ClawdManagedAgentRunMessage {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ClawdManagedAgentSessionsList {
+  display: grid;
+  gap: 8px;
+}
+
+.ClawdManagedAgentSessionCard {
+  padding: 10px;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid #e2e8f0;
+}
+
+.ClawdManagedAgentSessionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+
+  strong {
+    font-size: 12px;
+    color: #1e293b;
+  }
+
+  span {
+    font-size: 11px;
+    color: #64748b;
+  }
+}
+
 // ── Accordion layout for channels ──
 .ClawdChannelAccordion {
   display: flex;

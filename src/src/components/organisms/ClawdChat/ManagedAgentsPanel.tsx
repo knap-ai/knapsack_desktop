@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   ManagedAgent,
+  ManagedAgentExecutionSession,
   ManagedAgentPolicyPack,
   ManagedAgentRoutePreviewResponse,
   ManagedAgentTemplate,
@@ -59,11 +60,39 @@ function policyForAgent(policyPacks: ManagedAgentPolicyPack[], agent: ManagedAge
   return policyPacks.find(policy => policy.policyPackId === agent.policyPackId)
 }
 
+function statusLabel(session: ManagedAgentExecutionSession) {
+  switch (session.status) {
+    case 'running':
+      return 'Running'
+    case 'succeeded':
+      return 'Succeeded'
+    case 'failed':
+      return 'Failed'
+    case 'blocked':
+      return 'Blocked'
+    default:
+      return titleCase(session.status)
+  }
+}
+
 export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPanelProps) {
   const [expandedAgentId, setExpandedAgentId] = useState<string | null>('scout_general')
   const [refreshingAgentId, setRefreshingAgentId] = useState<string | null>(null)
-  const { agents, templates, policyPacks, presence, routePreviews, loading, error, refresh, refreshRoutePreview } =
-    useManagedAgents(enabled, userId)
+  const [runningAgentId, setRunningAgentId] = useState<string | null>(null)
+  const [runMessage, setRunMessage] = useState<string | null>(null)
+  const {
+    agents,
+    templates,
+    policyPacks,
+    presence,
+    sessions,
+    routePreviews,
+    loading,
+    error,
+    refresh,
+    refreshRoutePreview,
+    runChannelProbe,
+  } = useManagedAgents(enabled, userId)
 
   const latestPresence = useMemo(
     () =>
@@ -74,6 +103,9 @@ export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPan
       })[0],
     [presence],
   )
+
+  const runningCount = sessions.filter(session => session.status === 'running').length
+  const recentSuccessCount = sessions.filter(session => session.status === 'succeeded').length
 
   return (
     <section className="ClawdManagedAgentsSection">
@@ -106,9 +138,15 @@ export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPan
           <strong>Shared context</strong>
           <span>Studio and desktop can hand off when safe.</span>
         </div>
+        <div className="ClawdManagedAgentsStripCard">
+          <span className="ClawdManagedAgentsStripLabel">Execution sessions</span>
+          <strong>{sessions.length}</strong>
+          <span>{runningCount} running · {recentSuccessCount} completed</span>
+        </div>
       </div>
 
       {error && <div className="ClawdChannelsPanelError">{error}</div>}
+      {runMessage && <div className="ClawdManagedAgentRunMessage">{runMessage}</div>}
 
       <div className="ClawdChannelAccordion">
         {agents.map(agent => {
@@ -116,6 +154,7 @@ export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPan
           const policy = policyForAgent(policyPacks, agent)
           const preview = routePreviews[agent.agentId]
           const isOpen = expandedAgentId === agent.agentId
+          const agentSessions = sessions.filter(session => session.agentId === agent.agentId).slice(0, 3)
 
           return (
             <div
@@ -225,7 +264,7 @@ export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPan
 
                   <button
                     className="ClawdChannelCardAction ClawdChannelCardAction--secondary"
-                    disabled={refreshingAgentId === agent.agentId}
+                    disabled={refreshingAgentId === agent.agentId || runningAgentId === agent.agentId}
                     onClick={async () => {
                       setRefreshingAgentId(agent.agentId)
                       try {
@@ -237,6 +276,71 @@ export default function ManagedAgentsPanel({ enabled, userId }: ManagedAgentsPan
                   >
                     {refreshingAgentId === agent.agentId ? 'Previewing...' : 'Refresh route preview'}
                   </button>
+
+                  <button
+                    className="ClawdChannelCardAction"
+                    disabled={runningAgentId === agent.agentId || refreshingAgentId === agent.agentId}
+                    onClick={async () => {
+                      setRunningAgentId(agent.agentId)
+                      setRunMessage(null)
+                      try {
+                        const response = await runChannelProbe(agent)
+                        setRunMessage(
+                          response.success
+                            ? `${agent.displayName} Slack control-plane probe completed.`
+                            : `${agent.displayName} probe finished with an issue: ${response.message}`,
+                        )
+                      } catch (runError: any) {
+                        setRunMessage(`${agent.displayName} probe failed: ${runError?.message || 'Unknown error'}`)
+                      } finally {
+                        setRunningAgentId(null)
+                      }
+                    }}
+                  >
+                    {runningAgentId === agent.agentId ? 'Running probe...' : 'Run Slack control-plane probe'}
+                  </button>
+                </div>
+
+                <div className="ClawdManagedAgentContextBox">
+                  <div className="ClawdChannelGuideTitle">Recent execution sessions</div>
+                  {agentSessions.length ? (
+                    <div className="ClawdManagedAgentSessionsList">
+                      {agentSessions.map(session => (
+                        <div key={session.sessionId} className="ClawdManagedAgentSessionCard">
+                          <div className="ClawdManagedAgentSessionHeader">
+                            <strong>{statusLabel(session)}</strong>
+                            <span>{new Date(session.updatedAt).toLocaleString()}</span>
+                          </div>
+                          <div className="ClawdManagedAgentBodyText">
+                            {session.taskSummary}
+                          </div>
+                          <div className="ClawdManagedAgentRouteSummary">
+                            <span>
+                              Route: <strong>{titleCase(session.routeTarget)}</strong>
+                            </span>
+                            <span>
+                              Runtime: <strong>{session.selectedRuntime ? titleCase(session.selectedRuntime) : 'None'}</strong>
+                            </span>
+                          </div>
+                          <div className="ClawdManagedAgentPresenceNote">
+                            Context: {session.contextKey}
+                          </div>
+                          {session.lastReplySummary && (
+                            <div className="ClawdManagedAgentBodyText">
+                              Reply: {session.lastReplySummary}
+                            </div>
+                          )}
+                          {session.lastError && (
+                            <div className="ClawdChannelsPanelError">{session.lastError}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="ClawdManagedAgentBodyText">
+                      No persisted execution sessions yet for this agent.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

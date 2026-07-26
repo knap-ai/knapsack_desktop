@@ -97,6 +97,7 @@ export interface ManagedAgentsIndexResponse {
   templates: ManagedAgentTemplate[]
   policyPacks: ManagedAgentPolicyPack[]
   agents: ManagedAgent[]
+  executionSessions: ManagedAgentExecutionSession[]
 }
 
 export interface DesktopPresenceRecord {
@@ -159,6 +160,70 @@ export interface ManagedAgentRoutePreviewRequest {
   desktopSessionRequirement: ManagedAgentDesktopSessionRequirement
 }
 
+export type ManagedAgentExecutionSessionStatus =
+  | 'planned'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'blocked'
+
+export interface ManagedAgentExecutionSession {
+  sessionId: string
+  agentId: string
+  tenantId: string
+  userId: string
+  channel: ManagedAgentChannelKind
+  channelConversationId?: string | null
+  channelThreadId?: string | null
+  channelMessageId?: string | null
+  gatewayAgentId: string
+  controlPlane: string
+  contextKey: string
+  taskSummary: string
+  requiredCapabilities: ManagedAgentCapabilityKind[]
+  desktopSessionRequirement: ManagedAgentDesktopSessionRequirement
+  routeTarget: ManagedAgentRouteTarget
+  selectedRuntime?: ManagedAgentRuntimeKind | null
+  fallbackRuntime?: ManagedAgentRuntimeKind | null
+  policyPackId: string
+  status: ManagedAgentExecutionSessionStatus
+  messageCount: number
+  lastInboundMessage?: string | null
+  lastReplySummary?: string | null
+  lastError?: string | null
+  createdAt: string
+  updatedAt: string
+  lastCompletedAt?: string | null
+}
+
+export interface ManagedAgentExecutionSessionsResponse {
+  success: boolean
+  sessions: ManagedAgentExecutionSession[]
+}
+
+export interface ManagedAgentChannelRunRequest {
+  agentId: string
+  userId: string
+  channel: ManagedAgentChannelKind
+  message: string
+  taskSummary?: string
+  contextKey?: string
+  channelConversationId?: string
+  channelThreadId?: string
+  channelMessageId?: string
+  requiredCapabilities?: ManagedAgentCapabilityKind[]
+  desktopSessionRequirement?: ManagedAgentDesktopSessionRequirement
+  gatewayAgentId?: string
+}
+
+export interface ManagedAgentChannelRunResponse {
+  success: boolean
+  session: ManagedAgentExecutionSession
+  routePreview: ManagedAgentRoutePreviewResponse
+  reply?: string | null
+  message: string
+}
+
 export const getManagedAgentsIndex = () =>
   get<ManagedAgentsIndexResponse>('/api/clawd/managed-agents')
 
@@ -167,3 +232,14 @@ export const getManagedAgentPresenceForUser = (userId: string) =>
 
 export const previewManagedAgentRoute = (body: ManagedAgentRoutePreviewRequest) =>
   post<ManagedAgentRoutePreviewResponse>('/api/clawd/managed-agents/route-preview', body)
+
+export const getManagedAgentExecutionSessions = (params?: { agentId?: string; userId?: string }) => {
+  const search = new URLSearchParams()
+  if (params?.agentId) search.set('agentId', params.agentId)
+  if (params?.userId) search.set('userId', params.userId)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return get<ManagedAgentExecutionSessionsResponse>(`/api/clawd/managed-agents/sessions${suffix}`)
+}
+
+export const runManagedAgentChannel = (body: ManagedAgentChannelRunRequest) =>
+  post<ManagedAgentChannelRunResponse>('/api/clawd/managed-agents/channel-run', body, 300_000)
