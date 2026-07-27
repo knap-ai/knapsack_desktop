@@ -29,7 +29,7 @@ struct AllNotesResponse {
   notes: Vec<NoteItem>,
 }
 
-fn save_notes_to_file(thread_id: u64, notes_content: &str) -> Result<(), Error> {
+pub(crate) fn save_notes_to_file(thread_id: u64, notes_content: &str) -> Result<(), Error> {
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
   let notes_dir = knapsack_data_dir.join("notes");
