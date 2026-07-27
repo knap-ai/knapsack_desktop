@@ -1,0 +1,79 @@
+name: KnapsackMobile
+options:
+  bundleIdPrefix: ai.knapsack
+  deploymentTarget:
+    iOS: "17.0"
+    watchOS: "10.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  KnapsackMobileApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: KnapsackMobileApp
+      - path: Shared
+      - path: Branding
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile
+        INFOPLIST_FILE: KnapsackMobileApp/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Knapsack
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KnapsackMobileApp/KnapsackMobileApp.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: KnapsackWatchApp
+    scheme:
+      testTargets:
+        - KnapsackMobileTests
+  KnapsackMobileTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: KnapsackMobileTests
+    dependencies:
+      - target: KnapsackMobileApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.tests
+        GENERATE_INFOPLIST_FILE: YES
+  KnapsackWatchApp:
+    type: application.watchapp2
+    platform: watchOS
+    sources:
+      - path: KnapsackWatchApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.watchkitapp
+        INFOPLIST_FILE: KnapsackWatchApp/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Knapsack
+        INFOPLIST_KEY_CFBundleIconFiles: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: KnapsackWatchExtension
+  KnapsackWatchExtension:
+    type: watchkit2-extension
+    platform: watchOS
+    sources:
+      - path: KnapsackWatchExtension
+      - path: Shared
+        excludes:
+          - MobileAPI.swift
+          - MobileModels.swift
+      - path: Branding
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.watchkitapp.extension
+        INFOPLIST_FILE: KnapsackWatchExtension/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Knapsack
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KnapsackWatchExtension/KnapsackWatchExtension.entitlements

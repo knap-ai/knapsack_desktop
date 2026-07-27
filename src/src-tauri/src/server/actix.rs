@@ -40,6 +40,8 @@ use crate::user::UserInfo;
 use crate::workspaces::api as workspace_api;
 use crate::ConnectionsData;
 use crate::RecordingState;
+use crate::server::mobile_discovery;
+use sysinfo::System;
 
 #[get("/")]
 async fn ping() -> impl Responder {
@@ -47,6 +49,20 @@ async fn ping() -> impl Responder {
 }
 
 pub type InferenceThreads = Arc<Mutex<Vec<Arc<InferenceThreadRequest>>>>;
+const MOBILE_LAN_PORT: u16 = 18_898;
+
+fn mobile_lan_port(port: u16) -> u16 {
+  if port == crate::server::qdrant::QDRANT_PORT {
+    MOBILE_LAN_PORT.saturating_add(1)
+  } else {
+    MOBILE_LAN_PORT
+  }
+}
+
+fn desktop_discovery_label() -> String {
+  let host_name = System::host_name().unwrap_or_else(|| "This Mac".to_string());
+  format!("Knapsack on {host_name}")
+}
 
 #[tokio::main]
 pub async fn start_server<'a>(
@@ -176,6 +192,47 @@ pub async fn start_server<'a>(
   let dev_qa_state = Data::new(crate::automations::qa_suite::new_shared_qa_state());
   let dev_qa_scenarios = Data::new(crate::automations::qa_suite::new_shared_scenarios());
   let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
+  let mobile_port = mobile_lan_port(port);
+  let mobile_server = HttpServer::new(move || {
+    let cors = Cors::permissive();
+    App::new()
+      .wrap(cors)
+      .wrap(Logger::default())
+      .service(ping)
+      .service(api::mobile::create_mobile_meeting)
+      .service(api::mobile::list_mobile_meetings)
+      .service(api::mobile::get_mobile_meeting)
+      .service(api::mobile::get_mobile_session)
+      .service(api::mobile::list_mobile_calendar_events)
+      .service(api::mobile::list_mobile_chats)
+      .service(api::mobile::get_mobile_chat)
+      .service(api::mobile::create_mobile_chat)
+      .service(api::mobile::send_mobile_chat_message)
+      .service(api::mobile::save_mobile_notes)
+      .service(api::mobile::update_mobile_meeting_status)
+      .service(api::mobile::upload_mobile_recording)
+  });
+
+  let mobile_server_handle = match mobile_server.bind(("0.0.0.0", mobile_port)) {
+    Ok(server) => {
+      log::info!("Starting mobile LAN server on 0.0.0.0:{mobile_port}");
+      let server = server.run();
+      let handle = server.handle();
+      tokio::spawn(async move {
+        if let Err(err) = server.await {
+          log::error!("Knapsack mobile LAN server exited with error: {err}");
+        }
+      });
+      Some(handle)
+    }
+    Err(err) => {
+      log::warn!("Unable to bind Knapsack mobile LAN server on port {mobile_port}: {err}");
+      None
+    }
+  };
+  let _mobile_discovery = mobile_server_handle
+    .as_ref()
+    .and_then(|_| mobile_discovery::start_mobile_discovery_service(mobile_port, &desktop_discovery_label()));
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
@@ -240,6 +297,18 @@ pub async fn start_server<'a>(
       .service(audio::audio::list_all_transcripts)
       .service(audio::audio::get_meeting_insights)
       .service(api::document::get_document_infos)
+      .service(api::mobile::create_mobile_meeting)
+      .service(api::mobile::list_mobile_meetings)
+      .service(api::mobile::get_mobile_meeting)
+      .service(api::mobile::get_mobile_session)
+      .service(api::mobile::list_mobile_calendar_events)
+      .service(api::mobile::list_mobile_chats)
+      .service(api::mobile::get_mobile_chat)
+      .service(api::mobile::create_mobile_chat)
+      .service(api::mobile::send_mobile_chat_message)
+      .service(api::mobile::save_mobile_notes)
+      .service(api::mobile::update_mobile_meeting_status)
+      .service(api::mobile::upload_mobile_recording)
       .service(api::notes::list_all_notes)
       .service(api::notes::get_notes)
       .service(api::notes::save_notes)
@@ -426,6 +495,7 @@ pub async fn start_server<'a>(
       .service(mcp_api::disable_server)
       .service(mcp_api::update_server_config)
       .service(mcp_api::add_custom_server)
+      // Agent pause / resume control surface
       .service(clawd::channels::agent_pause)
       .service(clawd::channels::agent_pause_status)
       // Developer Mode: Business Context Aggregator
@@ -460,11 +530,15 @@ pub async fn start_server<'a>(
 
   // Set up graceful shutdown handler
   let server_handle = server.handle();
+  let mobile_shutdown_handle = mobile_server_handle.clone();
 
   // Spawn a task to listen for shutdown signals
   tokio::spawn(async move {
     tokio::signal::ctrl_c().await.ok();
     eprintln!("Received shutdown signal, stopping actix server gracefully...");
+    if let Some(handle) = mobile_shutdown_handle {
+      handle.stop(true).await;
+    }
     server_handle.stop(true).await;
   });
 
