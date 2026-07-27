@@ -1,8 +1,9 @@
 use crate::api::notes::save_notes_to_file;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::connection::Connection;
+use crate::db::models::feed_item::FeedItem;
 use crate::db::models::message::Message;
-use crate::db::models::thread::{Thread, ThreadType};
+use crate::db::models::thread::{Thread, ThreadType, ThreadWithMessages};
 use crate::db::models::user::User;
 use crate::error::Error;
 use actix_multipart::Multipart;
@@ -393,6 +394,118 @@ fn mobile_chat_detail_from_thread(thread: Thread, messages: Vec<Message>) -> Mob
   }
 }
 
+fn thread_message_preview(message: &Message) -> Option<String> {
+  message
+    .content_facade
+    .clone()
+    .filter(|value| !value.trim().is_empty())
+    .or_else(|| {
+      let trimmed = message.content.trim();
+      if trimmed.is_empty() {
+        None
+      } else {
+        Some(trimmed.to_string())
+      }
+    })
+}
+
+fn mobile_chat_summary_from_thread_messages(
+  thread: Thread,
+  messages: Vec<Message>,
+) -> MobileChatSummary {
+  let preview = messages.last().and_then(thread_message_preview);
+  let updated_at = messages
+    .last()
+    .map(|message| message.timestamp)
+    .or(thread.timestamp)
+    .unwrap_or_else(|| chrono::Utc::now().timestamp());
+
+  MobileChatSummary {
+    thread,
+    preview,
+    updated_at,
+    message_count: messages.len(),
+  }
+}
+
+fn mobile_chat_summary_from_thread_with_messages(
+  thread_with_messages: ThreadWithMessages,
+) -> MobileChatSummary {
+  mobile_chat_summary_from_thread_messages(
+    thread_with_messages.thread,
+    thread_with_messages.messages,
+  )
+}
+
+fn feed_backed_mobile_chats() -> Result<Vec<MobileChatSummary>, Error> {
+  let mut chats = Vec::new();
+
+  for feed_item in FeedItem::find_all_complete()? {
+    for thread_with_messages in feed_item.threads.unwrap_or_default() {
+      if matches!(thread_with_messages.thread.thread_type, ThreadType::Chat) {
+        chats.push(mobile_chat_summary_from_thread_with_messages(thread_with_messages));
+      }
+    }
+  }
+
+  Ok(chats)
+}
+
+fn merged_mobile_chats() -> Result<Vec<MobileChatSummary>, Error> {
+  let mut merged = std::collections::BTreeMap::<u64, MobileChatSummary>::new();
+
+  for chat in feed_backed_mobile_chats()? {
+    if let Some(thread_id) = chat.thread.id {
+      merged.insert(thread_id, chat);
+    }
+  }
+
+  for thread in Thread::find_all()? {
+    if !matches!(thread.thread_type, ThreadType::Chat) {
+      continue;
+    }
+
+    let thread_id = match thread.id {
+      Some(thread_id) => thread_id,
+      None => continue,
+    };
+
+    let messages = Message::find_by_thread_id(thread_id)?;
+    let candidate = mobile_chat_summary_from_thread_messages(thread, messages);
+    match merged.get(&thread_id) {
+      Some(existing)
+        if existing.message_count > candidate.message_count
+          || (existing.message_count == candidate.message_count
+            && existing.updated_at >= candidate.updated_at) => {}
+      _ => {
+        merged.insert(thread_id, candidate);
+      }
+    }
+  }
+
+  let mut chats = merged.into_values().collect::<Vec<_>>();
+  chats.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+  chats.truncate(30);
+  Ok(chats)
+}
+
+fn feed_backed_mobile_chat_detail(thread_id: u64) -> Result<Option<MobileChatDetail>, Error> {
+  for feed_item in FeedItem::find_all_complete()? {
+    for thread_with_messages in feed_item.threads.unwrap_or_default() {
+      if thread_with_messages.thread.id == Some(thread_id)
+        && matches!(thread_with_messages.thread.thread_type, ThreadType::Chat)
+      {
+        return Ok(Some(mobile_chat_detail_from_thread(
+          thread_with_messages.thread,
+          thread_with_messages.messages,
+        )));
+      }
+    }
+  }
+
+  Ok(None)
+}
+
 fn mobile_user_id() -> Option<u64> {
   let profile = infer_linked_profile()?;
   User::find_by_email(profile.email)
@@ -419,8 +532,8 @@ pub async fn list_mobile_calendar_events() -> impl Responder {
 
 #[get("/api/knapsack/mobile/chats")]
 pub async fn list_mobile_chats() -> impl Responder {
-  let threads = match Thread::find_all() {
-    Ok(threads) => threads,
+  let chats = match merged_mobile_chats() {
+    Ok(chats) => chats,
     Err(err) => {
       log::error!("Failed to list threads for mobile chats: {:?}", err);
       return HttpResponse::InternalServerError().json(json!({
@@ -429,39 +542,6 @@ pub async fn list_mobile_chats() -> impl Responder {
       }));
     }
   };
-
-  let chats: Vec<MobileChatSummary> = threads
-    .into_iter()
-    .filter(|thread| matches!(thread.thread_type, ThreadType::Chat))
-    .take(30)
-    .map(|thread| {
-      let messages = thread
-        .id
-        .and_then(|thread_id| Message::find_by_thread_id(thread_id).ok())
-        .unwrap_or_default();
-      let preview = messages
-        .last()
-        .map(|message| {
-          message
-            .content_facade
-            .clone()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| message.content.clone())
-        });
-      let updated_at = messages
-        .last()
-        .map(|message| message.timestamp)
-        .or(thread.timestamp)
-        .unwrap_or_else(|| chrono::Utc::now().timestamp());
-
-      MobileChatSummary {
-        thread,
-        preview,
-        updated_at,
-        message_count: messages.len(),
-      }
-    })
-    .collect();
 
   HttpResponse::Ok().json(json!({
     "success": true,
@@ -472,14 +552,58 @@ pub async fn list_mobile_chats() -> impl Responder {
 #[get("/api/knapsack/mobile/chats/{thread_id}")]
 pub async fn get_mobile_chat(path: web::Path<u64>) -> impl Responder {
   let thread_id = path.into_inner();
-  let thread = match Thread::find_by_id(thread_id) {
-    Ok(Some(thread)) => thread,
-    Ok(None) => {
-      return HttpResponse::NotFound().json(json!({
-        "success": false,
-        "error": "Chat not found"
-      }))
+  let detail = match Thread::find_by_id(thread_id) {
+    Ok(Some(thread)) => {
+      if !matches!(thread.thread_type, ThreadType::Chat) {
+        return HttpResponse::BadRequest().json(json!({
+          "success": false,
+          "error": "Requested thread is not a chat"
+        }));
+      }
+
+      let messages = match Message::find_by_thread_id(thread_id) {
+        Ok(messages) => messages,
+        Err(err) => {
+          log::error!("Failed to load messages for mobile chat {}: {:?}", thread_id, err);
+          return HttpResponse::InternalServerError().json(json!({
+            "success": false,
+            "error": "Failed to load chat messages"
+          }));
+        }
+      };
+
+      if messages.is_empty() {
+        match feed_backed_mobile_chat_detail(thread_id) {
+          Ok(Some(detail)) => detail,
+          Ok(None) => mobile_chat_detail_from_thread(thread, messages),
+          Err(err) => {
+            log::error!("Failed to load feed-backed mobile chat {}: {:?}", thread_id, err);
+            return HttpResponse::InternalServerError().json(json!({
+              "success": false,
+              "error": "Failed to load mobile chat"
+            }));
+          }
+        }
+      } else {
+        mobile_chat_detail_from_thread(thread, messages)
+      }
     }
+    Ok(None) => match feed_backed_mobile_chat_detail(thread_id) {
+      Ok(Some(detail)) => detail,
+      Ok(None) => {
+        return HttpResponse::NotFound().json(json!({
+          "success": false,
+          "error": "Chat not found"
+        }))
+      }
+      Err(err) => {
+        log::error!("Failed to get feed-backed mobile chat thread: {:?}", err);
+        return HttpResponse::InternalServerError().json(json!({
+          "success": false,
+          "error": "Failed to load mobile chat"
+        }));
+      }
+    },
     Err(err) => {
       log::error!("Failed to get mobile chat thread: {:?}", err);
       return HttpResponse::InternalServerError().json(json!({
@@ -488,26 +612,6 @@ pub async fn get_mobile_chat(path: web::Path<u64>) -> impl Responder {
       }));
     }
   };
-
-  if !matches!(thread.thread_type, ThreadType::Chat) {
-    return HttpResponse::BadRequest().json(json!({
-      "success": false,
-      "error": "Requested thread is not a chat"
-    }));
-  }
-
-  let messages = match Message::find_by_thread_id(thread_id) {
-    Ok(messages) => messages,
-    Err(err) => {
-      log::error!("Failed to load messages for mobile chat {}: {:?}", thread_id, err);
-      return HttpResponse::InternalServerError().json(json!({
-        "success": false,
-        "error": "Failed to load chat messages"
-      }));
-    }
-  };
-
-  let detail = mobile_chat_detail_from_thread(thread, messages);
 
   HttpResponse::Ok().json(json!({
     "success": true,
@@ -612,7 +716,7 @@ pub async fn send_mobile_chat_message(
   let profile = infer_linked_profile();
   let mut payload = json!({
     "text": text,
-    "sessionId": thread_id.to_string(),
+    "sessionId": format!("mobile-thread-{thread_id}"),
     "autonomyMode": "assist",
   });
 
@@ -638,7 +742,7 @@ pub async fn send_mobile_chat_message(
   };
 
   let response = match client
-    .post("http://127.0.0.1:8897/api/clawd/agent-chat")
+    .post("http://127.0.0.1:8897/api/clawd/chat")
     .json(&payload)
     .send()
     .await

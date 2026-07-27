@@ -35,10 +35,12 @@ struct WatchContentView: View {
           if recorder.isRecording {
             recorder.stop()
           } else {
-            do {
-              try recorder.start()
-            } catch {
-              recorder.statusText = error.localizedDescription
+            Task {
+              do {
+                try await recorder.start()
+              } catch {
+                recorder.statusText = error.localizedDescription
+              }
             }
           }
         } label: {
