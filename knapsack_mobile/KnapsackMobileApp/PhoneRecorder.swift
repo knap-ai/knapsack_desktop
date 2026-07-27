@@ -1,6 +1,20 @@
 import AVFoundation
 import Foundation
 
+enum RecorderStartError: LocalizedError {
+  case microphonePermissionDenied
+  case recorderFailedToStart
+
+  var errorDescription: String? {
+    switch self {
+    case .microphonePermissionDenied:
+      return "Microphone access is required to record notes."
+    case .recorderFailedToStart:
+      return "Knapsack could not start recording. Please try again."
+    }
+  }
+}
+
 @MainActor
 final class PhoneRecorder: NSObject, ObservableObject {
   @Published var isRecording = false
@@ -10,7 +24,11 @@ final class PhoneRecorder: NSObject, ObservableObject {
   private(set) var recordingStartedAt: Date?
   private(set) var recordingEndedAt: Date?
 
-  func start() throws {
+  func start() async throws {
+    guard try await ensureMicrophonePermission() else {
+      throw RecorderStartError.microphonePermissionDenied
+    }
+
     let session = AVAudioSession.sharedInstance()
     try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
     try session.setActive(true)
@@ -26,7 +44,10 @@ final class PhoneRecorder: NSObject, ObservableObject {
     ]
 
     recorder = try AVAudioRecorder(url: url, settings: settings)
-    recorder?.record()
+    recorder?.prepareToRecord()
+    guard recorder?.record() == true else {
+      throw RecorderStartError.recorderFailedToStart
+    }
     currentFileURL = url
     recordingStartedAt = Date()
     recordingEndedAt = nil
@@ -37,5 +58,23 @@ final class PhoneRecorder: NSObject, ObservableObject {
     recorder?.stop()
     recordingEndedAt = Date()
     isRecording = false
+  }
+
+  private func ensureMicrophonePermission() async throws -> Bool {
+    let session = AVAudioSession.sharedInstance()
+    switch session.recordPermission {
+    case .granted:
+      return true
+    case .denied:
+      return false
+    case .undetermined:
+      return await withCheckedContinuation { continuation in
+        session.requestRecordPermission { granted in
+          continuation.resume(returning: granted)
+        }
+      }
+    @unknown default:
+      return false
+    }
   }
 }

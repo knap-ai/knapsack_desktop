@@ -1,6 +1,20 @@
 import AVFoundation
 import Foundation
 
+enum WatchRecorderStartError: LocalizedError {
+  case microphonePermissionDenied
+  case recorderFailedToStart
+
+  var errorDescription: String? {
+    switch self {
+    case .microphonePermissionDenied:
+      return "Microphone access is required to record notes."
+    case .recorderFailedToStart:
+      return "Knapsack could not start recording. Please try again."
+    }
+  }
+}
+
 @MainActor
 final class WatchRecorder: NSObject, ObservableObject {
   @Published var isRecording = false
@@ -11,7 +25,11 @@ final class WatchRecorder: NSObject, ObservableObject {
   private(set) var startedAt: Date?
   private(set) var endedAt: Date?
 
-  func start() throws {
+  func start() async throws {
+    guard try await ensureMicrophonePermission() else {
+      throw WatchRecorderStartError.microphonePermissionDenied
+    }
+
     let session = AVAudioSession.sharedInstance()
     try session.setCategory(.record, mode: .default)
     try session.setActive(true)
@@ -26,7 +44,10 @@ final class WatchRecorder: NSObject, ObservableObject {
       AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
     ]
     recorder = try AVAudioRecorder(url: url, settings: settings)
-    recorder?.record()
+    recorder?.prepareToRecord()
+    guard recorder?.record() == true else {
+      throw WatchRecorderStartError.recorderFailedToStart
+    }
     lastFileURL = url
     startedAt = Date()
     endedAt = nil
@@ -42,5 +63,23 @@ final class WatchRecorder: NSObject, ObservableObject {
     statusText = "Saved on watch"
     KnapsackComplicationStore.shared.setRecording(false)
     KnapsackComplicationStore.shared.setSyncStatus(statusText)
+  }
+
+  private func ensureMicrophonePermission() async throws -> Bool {
+    let session = AVAudioSession.sharedInstance()
+    switch session.recordPermission {
+    case .granted:
+      return true
+    case .denied:
+      return false
+    case .undetermined:
+      return await withCheckedContinuation { continuation in
+        session.requestRecordPermission { granted in
+          continuation.resume(returning: granted)
+        }
+      }
+    @unknown default:
+      return false
+    }
   }
 }
