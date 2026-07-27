@@ -96,7 +96,7 @@ impl Thread {
       title: row.get(2)?,
       subtitle: row.get(3)?,
       hide_follow_up: Some(row.get(4)?),
-      feed_item_id: Some(row.get(5)?),
+      feed_item_id: row.get(5)?,
       thread_type,
       recorded: row.get(7)?,
       saved_transcript: row.get(8)?,
