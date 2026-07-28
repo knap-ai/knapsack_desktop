@@ -168,6 +168,38 @@ fn kn_prepare_updater_temp_dir() -> Result<Option<String>, String> {
   }
 }
 
+#[tauri::command]
+async fn kn_send_composed_email(
+  to: String,
+  cc: Option<String>,
+  subject: String,
+  body: String,
+  thread_id: Option<String>,
+  user_email: String,
+  user_name: Option<String>,
+  attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
+) -> Result<String, String> {
+  let trimmed_to = to.trim().to_string();
+  let trimmed_subject = subject.trim().to_string();
+  let trimmed_body = body.trim().to_string();
+
+  if trimmed_to.is_empty() || trimmed_subject.is_empty() || trimmed_body.is_empty() {
+    return Err("To, subject, and body are required".to_string());
+  }
+
+  crate::clawd::gmail::send_gmail_email(
+    &user_email,
+    user_name.as_deref().unwrap_or(""),
+    &trimmed_to,
+    cc.as_deref(),
+    &trimmed_subject,
+    &trimmed_body,
+    thread_id.as_deref(),
+    attachments.as_deref(),
+  )
+  .await
+}
+
 fn validate_bundled_ui_asset(app: &App, page: &str, label: &str) -> Option<String> {
   let candidate_paths = vec![page.to_string(), format!("dist/{page}")];
   let found = candidate_paths.iter().find_map(|candidate| {
@@ -2015,6 +2047,7 @@ async fn main() {
       kn_get_openclaw_version,
       kn_set_keep_awake,
       kn_prepare_updater_temp_dir,
+      kn_send_composed_email,
       kn_execute_command,
       kn_openclaw_configure_channels_cmd,
       kn_spawn_streaming_command,

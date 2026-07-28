@@ -24,7 +24,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
-  const senderEmail = draft.senderEmail?.trim() || userEmail.trim()
+  const senderEmail = draft.senderEmail?.trim() || draft.userEmail?.trim() || userEmail.trim()
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {
@@ -62,11 +62,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     setSending(true)
     setError('')
     try {
-      const senderEmail = userEmail || draft.userEmail || ''
       const senderName = userName || draft.userName
-      if (!senderEmail) {
-        throw new Error('Missing signed-in email for sending this draft')
-      }
 
       await sendComposedEmail({
         to,
@@ -76,6 +72,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         threadId: draft.threadId,
         userEmail: senderEmail,
         userName: senderName,
+        attachments: draft.attachments,
       })
       setSent(true)
       setTimeout(() => onDismiss(), 1500)
