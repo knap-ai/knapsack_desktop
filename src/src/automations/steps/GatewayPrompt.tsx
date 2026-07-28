@@ -46,7 +46,7 @@ export default class GatewayPrompt extends BaseStep {
     const res = await fetch(`${KN_SERVER_HOST}/api/clawd/agent-run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: fullMessage, channel: 'automation' }),
+      body: JSON.stringify({ text: fullMessage, channel: 'webchat' }),
     })
     const data = await res.json()
 

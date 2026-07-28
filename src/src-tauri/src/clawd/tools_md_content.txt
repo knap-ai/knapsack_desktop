@@ -102,7 +102,11 @@ You have full browser control on the user's desktop. Use it proactively for any 
 
 When the user asks about **their calendar, meeting prep, connected emails, meeting notes, or recent Knapsack-recorded meetings**, prefer Knapsack's local HTTP APIs before opening Gmail or Google Calendar in the browser.
 
-Use **web_fetch** on these localhost endpoints:
+<!-- LOCAL_API_VIA_EXEC -->
+Use the **exec** tool with `curl --max-time 15` on these localhost endpoints.
+Never use `web_fetch` for loopback URLs: its security policy intentionally
+blocks private and localhost addresses. If the local API fails, retry once
+with `curl`, then fall back to the managed browser.
 - `http://127.0.0.1:8897/api/knapsack/calendar/get_events?start_timestamp=<unix>&end_timestamp=<unix>`
 - `http://127.0.0.1:8897/api/knapsack/calendar_event/<id>`
 - `http://127.0.0.1:8897/api/knapsack/search_emails_by_addresses?addresses=email1,email2&top=10`
@@ -110,7 +114,7 @@ Use **web_fetch** on these localhost endpoints:
 - `http://127.0.0.1:8897/api/knapsack/meeting_insights/<thread_id>`
 
 **Preferred order for Knapsack-specific questions:**
-1. Local Knapsack API via `web_fetch`
+1. Local Knapsack API via `exec` and `curl`
 2. Browser using the managed `openclaw` profile
 3. Existing-session Chrome only if the task truly depends on the user's current signed-in browser state
 
@@ -128,7 +132,7 @@ When the user asks you to check email, check calendar, book flights, research pr
 
 **Examples of what to do:**
 - "Check my email" → First use the local Knapsack email APIs when the question is about already-synced mail; use the browser only if the needed message is not in local results
-- "What's on my calendar?" → First use `web_fetch` on the local Knapsack calendar API, then summarize the upcoming events
+- "What's on my calendar?" → First use `exec` with `curl` on the local Knapsack calendar API, then summarize the upcoming events
 - "Look up the latest news on X" → Use `web_search` to find articles, then `web_fetch` to read them, then summarize the key points
 - "Any important emails?" → Use browser to navigate to Gmail, snapshot, scan for urgent items and summarize
 - "Prepare me for my Caitlin meeting" → Use the local Knapsack calendar API to find the event, then use the local email API with Caitlin's address to gather context before falling back to the browser

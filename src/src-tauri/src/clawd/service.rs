@@ -10308,7 +10308,7 @@ async fn prepare_gateway_config(
         }
       },
       "tools": {
-        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "sessions": {"visibility": "self"},
         "elevated": {"enabled": false},
@@ -10318,7 +10318,7 @@ async fn prepare_gateway_config(
           "tools": {
             "deny": ["canvas", "nodes", "cron", "gateway"],
             "allow": [
-              "exec", "process", "group:fs",
+              "message", "exec", "process", "group:fs",
               "image", "sessions_list", "sessions_history",
               "sessions_send", "sessions_spawn", "session_status",
               "browser", "web_fetch", "web_search", "group:web"
@@ -11296,7 +11296,7 @@ async fn prepare_gateway_config(
   let tools_md_path = workspace_path.join("TOOLS.md");
   let should_write_tools_md = if tools_md_path.exists() {
     fs::read_to_string(&tools_md_path)
-      .map(|content| !content.contains("SELF-REVIEW"))
+      .map(|content| !content.contains("SELF-REVIEW") || !content.contains("LOCAL_API_VIA_EXEC"))
       .unwrap_or(true)
   } else {
     true
@@ -12350,7 +12350,7 @@ pub async fn set_service_enabled(
             }
           },
           "tools": {
-            "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+            "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
             "deny": ["canvas", "nodes", "cron", "gateway"],
             "exec": {"applyPatch": {"enabled": true}},
             "media": {"image": {"enabled": true}},
@@ -12358,7 +12358,7 @@ pub async fn set_service_enabled(
               "tools": {
                 "deny": ["canvas", "nodes", "cron", "gateway"],
                 "allow": [
-                  "exec", "process", "group:fs",
+                  "message", "exec", "process", "group:fs",
                   "image", "sessions_list", "sessions_history",
                   "sessions_send", "sessions_spawn", "session_status",
                   "browser", "web_fetch", "web_search", "group:web"
@@ -13173,7 +13173,9 @@ pub async fn set_service_enabled(
       // Write TOOLS.md if it doesn't exist or if it's missing key sections.
       let should_write_tools_md = if tools_md_path.exists() {
         fs::read_to_string(&tools_md_path)
-          .map(|content| !content.contains("SELF-REVIEW"))
+          .map(|content| {
+            !content.contains("SELF-REVIEW") || !content.contains("LOCAL_API_VIA_EXEC")
+          })
           .unwrap_or(true)
       } else {
         true
