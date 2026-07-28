@@ -371,7 +371,7 @@ fn ensure_tools_md(config_path: &std::path::Path) {
 
   let should_write = if tools_md_path.exists() {
     std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("SELF-REVIEW"))
+      .map(|c| !c.contains("SELF-REVIEW") || !c.contains("LOCAL_API_VIA_EXEC"))
       .unwrap_or(true)
   } else {
     true
@@ -1724,7 +1724,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
-      "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+      "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
       "exec": {
         "applyPatch": { "enabled": true }
       },
@@ -1732,7 +1732,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
         "tools": {
           "deny": ["canvas", "nodes", "cron", "gateway"],
           "allow": [
-            "exec", "process", "group:fs",
+            "message", "exec", "process", "group:fs",
             "image", "sessions_list", "sessions_history",
             "sessions_send", "sessions_spawn", "session_status",
             "browser", "web_fetch", "web_search", "group:web"
@@ -3183,8 +3183,18 @@ pub async fn agent_chat(
 /// Send an automation agent run through the gateway's `agent` RPC method.
 ///
 /// Unlike `agent_chat`, this is used for scheduled/triggered automation runs
-/// (not interactive chat).  It uses the "automation" channel by default and
-/// accepts an optional custom `agent_id` and `channel`.
+/// (not interactive chat). OpenClaw only accepts registered delivery channels;
+/// internal automation work therefore uses webchat unless the caller supplies
+/// a real channel such as Slack or Telegram.
+fn normalize_agent_run_channel(channel: Option<&str>) -> &str {
+  let requested = channel.unwrap_or("webchat").trim();
+  if requested.is_empty() || requested == "automation" {
+    "webchat"
+  } else {
+    requested
+  }
+}
+
 pub async fn agent_run(
   message: &str,
   agent_id: Option<&str>,
@@ -3199,11 +3209,12 @@ pub async fn agent_run(
       .unwrap_or_default()
       .as_millis()
   );
+  let runtime_channel = normalize_agent_run_channel(channel);
   let params = serde_json::json!({
     "message": message,
     "idempotencyKey": idem,
     "deliver": false,
-    "channel": channel.unwrap_or("automation"),
+    "channel": runtime_channel,
     "agentId": agent_id.unwrap_or("main"),
   });
   // 5 minute timeout — LLM tool loops can take a while
@@ -3282,6 +3293,14 @@ mod tests {
   }
 
   #[test]
+  fn automation_channel_is_normalized_to_registered_webchat_channel() {
+    assert_eq!(normalize_agent_run_channel(None), "webchat");
+    assert_eq!(normalize_agent_run_channel(Some("")), "webchat");
+    assert_eq!(normalize_agent_run_channel(Some("automation")), "webchat");
+    assert_eq!(normalize_agent_run_channel(Some("telegram")), "telegram");
+  }
+
+  #[test]
   fn resolve_default_model_rewrites_knapsack_auto_for_gateway_use() {
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "auto");
@@ -3353,14 +3372,14 @@ mod tests {
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],
-        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "exec": { "applyPatch": { "enabled": true } },
         "media": { "image": { "enabled": true } },
         "sandbox": {
           "tools": {
             "deny": ["canvas", "nodes", "cron", "gateway"],
             "allow": [
-              "exec", "process", "group:fs", "image",
+              "message", "exec", "process", "group:fs", "image",
               "sessions_list", "sessions_history",
               "sessions_send", "sessions_spawn", "session_status",
               "browser", "web_fetch", "web_search", "group:web"
@@ -3484,7 +3503,7 @@ mod tests {
         "auth": { "token": "test-token", "mode": "tailscale" }
       },
       "browser": { "enabled": true, "headless": false, "defaultProfile": "openclaw" },
-      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
+      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["message","sessions_send","browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
     });
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     ensure_browser_config_at(f.path());
@@ -3554,7 +3573,7 @@ mod tests {
         "tailscale": tailscale_val.clone()
       },
       "browser": { "enabled": true, "headless": false, "defaultProfile": "openclaw" },
-      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
+      "tools": { "deny": ["canvas","nodes","cron","gateway"], "allow": ["message","sessions_send","browser","web_fetch","web_search","group:web","exec","process","group:fs"] }
     });
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     ensure_browser_config_at(f.path());

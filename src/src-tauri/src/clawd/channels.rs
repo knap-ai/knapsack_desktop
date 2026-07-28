@@ -19,6 +19,7 @@ use crate::clawd::sidecar::SharedClawdbotConfig;
 static ANSI_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\x1b\[[0-9;]*m").unwrap());
 static CHANNEL_STATUS_CACHE: Lazy<Mutex<HashMap<String, ChannelStatusCacheEntry>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
+static CHANNEL_STATUS_REFRESH_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Default)]
 struct ChannelStatusCacheEntry {
@@ -38,6 +39,31 @@ async fn gateway_reachable() -> bool {
 
 async fn channel_runtime_snapshot(channel: Option<&str>) -> Result<Value, String> {
   let cache_key = channel.unwrap_or("*").to_string();
+  {
+    let cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
+      .await
+      .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
+    if let Some(entry) = cache.get(&cache_key) {
+      if let (Some(fetched_at), Some(value)) = (entry.fetched_at, entry.value.as_ref()) {
+        if fetched_at.elapsed() < Duration::from_secs(2) {
+          return Ok(value.clone());
+        }
+      }
+      if let (Some(error_at), Some(error)) = (entry.error_at, entry.error.as_ref()) {
+        if error_at.elapsed() < Duration::from_secs(2) {
+          return Err(error.clone());
+        }
+      }
+    }
+  }
+
+  // Coalesce concurrent status requests. The chat and settings surfaces can
+  // poll Telegram and Slack at the same instant; without a single-flight lock,
+  // both requests miss the cache and independently invoke channels.status.
+  let _refresh_guard =
+    tokio::time::timeout(Duration::from_secs(12), CHANNEL_STATUS_REFRESH_LOCK.lock())
+      .await
+      .map_err(|_| "Timed out waiting for channel status refresh".to_string())?;
   {
     let cache = tokio::time::timeout(Duration::from_millis(250), CHANNEL_STATUS_CACHE.lock())
       .await
@@ -1010,7 +1036,7 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
     });
     // Also ensure normal-mode tools.allow includes browser + group:web + message
     let mut tools_val = serde_json::json!({
-        "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}}
@@ -3900,7 +3926,7 @@ pub async fn channel_diagnostics() -> impl Responder {
           let bh = extract_base_hash(&snap);
           let sandbox_patch = serde_json::json!({
               "tools": {
-                  "allow": ["browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+                  "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
                   "deny": ["canvas", "nodes", "cron", "gateway"],
                   "exec": {"applyPatch": {"enabled": true}},
                   "media": {"image": {"enabled": true}},
@@ -5427,6 +5453,16 @@ mod reconnect_retry_tests {
       patch.pointer("/plugins/entries/whatsapp/enabled"),
       Some(&serde_json::json!(true))
     );
+    let tools_allow = patch
+      .pointer("/tools/allow")
+      .and_then(|value| value.as_array())
+      .unwrap();
+    assert!(tools_allow
+      .iter()
+      .any(|tool| tool.as_str() == Some("message")));
+    assert!(tools_allow
+      .iter()
+      .any(|tool| tool.as_str() == Some("sessions_send")));
   }
 
   #[test]
