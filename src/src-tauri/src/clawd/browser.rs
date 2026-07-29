@@ -1197,6 +1197,45 @@ fn load_history_from_transcript(
   messages
 }
 
+fn load_seed_history_from_request(
+  body: &JsonValue,
+  max_messages: usize,
+) -> Vec<chat_agent::OaiMessage> {
+  let mut messages = body
+    .get("seedHistory")
+    .and_then(|value| value.as_array())
+    .into_iter()
+    .flatten()
+    .filter_map(|entry| {
+      let role = entry.get("role").and_then(|value| value.as_str())?.trim();
+      let content = entry
+        .get("content")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?
+        .to_string();
+
+      match role {
+        "user" => Some(chat_agent::OaiMessage::User {
+          content,
+          images: Vec::new(),
+        }),
+        "assistant" => Some(chat_agent::OaiMessage::Assistant {
+          content: Some(content),
+          tool_calls: None,
+        }),
+        _ => None,
+      }
+    })
+    .collect::<Vec<_>>();
+
+  if messages.len() > max_messages {
+    messages.drain(0..messages.len() - max_messages);
+  }
+
+  messages
+}
+
 fn take_prefix_chars(value: &str, max_chars: usize) -> String {
   let mut chars = value.chars();
   let head: String = chars.by_ref().take(max_chars).collect();
@@ -4688,14 +4727,25 @@ pub async fn chat(
   // Load history — seed from gateway JSONL transcript if in-memory is empty.
   // QA smoke probes intentionally avoid transcript/context work so the
   // readiness gate measures provider reachability instead of full agent setup.
+  let seed_history = if qa_smoke {
+    Vec::new()
+  } else {
+    load_seed_history_from_request(&body, 12)
+  };
   let mut history_guard = CHAT_HISTORY.lock().unwrap();
   let mut smoke_history: Vec<chat_agent::OaiMessage> = Vec::new();
   let history = if qa_smoke {
     &mut smoke_history
   } else {
-    history_guard
-      .entry(session_id.clone())
-      .or_insert_with(|| load_history_from_transcript(&session_id, 20))
+    history_guard.entry(session_id.clone()).or_insert_with(|| {
+      let transcript_history = load_history_from_transcript(&session_id, 20);
+      if transcript_history.is_empty() && !seed_history.is_empty() {
+        append_to_transcript(&session_id, &seed_history);
+        seed_history.clone()
+      } else {
+        transcript_history
+      }
+    })
   };
 
   // Memory section — inject persistent notes from previous sessions.
@@ -7085,10 +7135,12 @@ mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
     compact_messages_for_provider, fallback_failure_message, is_context_window_error,
-    is_transient_or_internal_provider_error, provider_compaction_limits,
-    provider_context_recovery_limits, should_attempt_fallback_for_provider_error,
+    is_transient_or_internal_provider_error, load_seed_history_from_request,
+    provider_compaction_limits, provider_context_recovery_limits,
+    should_attempt_fallback_for_provider_error,
   };
   use crate::clawd::chat_agent::OaiMessage;
+  use serde_json::json;
 
   fn system_message() -> OaiMessage {
     OaiMessage::System {
@@ -7180,6 +7232,32 @@ mod tests {
     let standard_chars: usize = standard.iter().map(super::estimate_message_chars).sum();
     let aggressive_chars: usize = aggressive.iter().map(super::estimate_message_chars).sum();
     assert!(aggressive_chars < standard_chars);
+  }
+
+  #[test]
+  fn seed_history_request_keeps_recent_user_and_assistant_messages_only() {
+    let seed = load_seed_history_from_request(
+      &json!({
+        "seedHistory": [
+          { "role": "system", "content": "ignore me" },
+          { "role": "user", "content": "first" },
+          { "role": "assistant", "content": "second" },
+          { "role": "tool", "content": "ignore me too" },
+          { "role": "user", "content": "third" }
+        ]
+      }),
+      2,
+    );
+
+    assert_eq!(seed.len(), 2);
+    assert!(matches!(
+      seed.first(),
+      Some(OaiMessage::Assistant { content: Some(content), .. }) if content == "second"
+    ));
+    assert!(matches!(
+      seed.last(),
+      Some(OaiMessage::User { content, .. }) if content == "third"
+    ));
   }
 
   #[test]

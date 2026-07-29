@@ -428,6 +428,19 @@ def chat_detail(thread_id: int) -> dict[str, Any] | None:
     }
 
 
+def seed_history_entries(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
+    seed_history: list[dict[str, str]] = []
+    for message in messages:
+        role = str(message.get("role") or "").strip()
+        if role not in {"user", "assistant"}:
+            continue
+        content = str(message.get("content") or "").strip()
+        if not content:
+            continue
+        seed_history.append({"role": role, "content": content})
+    return seed_history
+
+
 def create_chat(title: str | None) -> dict[str, Any]:
     thread_id = execute(
         """
@@ -469,7 +482,7 @@ def insert_message(thread_id: int, text: str, user_id: int | None) -> None:
     )
 
 
-def forward_chat(thread_id: int, text: str) -> str:
+def forward_chat(thread_id: int, text: str, seed_history: list[dict[str, str]] | None = None) -> str:
     session = mobile_session()
     payload: dict[str, Any] = {
         "text": text,
@@ -478,6 +491,7 @@ def forward_chat(thread_id: int, text: str) -> str:
         # differently internally.
         "sessionId": f"mobile-thread-{thread_id}",
         "autonomyMode": "assist",
+        "seedHistory": seed_history or [],
     }
     profile = session.get("profile")
     if profile and profile.get("email"):
@@ -707,12 +721,14 @@ class MobileBridgeHandler(BaseHTTPRequestHandler):
         if not text:
             self.respond_json(*json_error("Message text is required", 400))
             return
-        if not chat_detail(thread_id):
+        detail = chat_detail(thread_id)
+        if not detail:
             self.respond_json(*json_error("Chat not found", 404))
             return
+        seed_history = seed_history_entries(list(detail.get("messages") or []))
         insert_message(thread_id, text, user_id_for_messages())
         try:
-            reply = forward_chat(thread_id, text)
+            reply = forward_chat(thread_id, text, seed_history)
         except RuntimeError as exc:
             self.respond_json(*json_error(str(exc), 502))
             return
