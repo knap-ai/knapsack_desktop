@@ -2060,6 +2060,7 @@ async fn main() {
       privileged_worker::kn_execute_privileged_job,
       clawd::gbrain::kn_brain_list,
       clawd::gbrain::kn_brain_read_page,
+      clawd::gbrain::kn_brain_search,
       clawd::gbrain::kn_brain_write_page,
       clawd::gbrain::kn_brain_default_root
     ])

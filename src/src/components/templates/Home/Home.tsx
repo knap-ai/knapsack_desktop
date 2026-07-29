@@ -55,8 +55,8 @@ import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
 import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
+import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
-import GBrain from 'src/components/organisms/GBrain'
 import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
 import { buildFollowUpEmailBody } from 'src/utils/emails'
@@ -764,22 +764,7 @@ function Home({
                       onBack={() => setSelectedWorkspace(null)}
                     />
                   ) : (
-                    <GBrain
-                      feed={feed}
-                      onOpenWorkspace={(ws) => setSelectedWorkspace(ws)}
-                      onOpenFeedItem={async (item, key) => {
-                        try {
-                          if (item.id) {
-                            await feed.selectFeedItem(key, item.id)
-                          } else if (item.calendarEvent) {
-                            await feed.openCalendarEvent(item.calendarEvent)
-                          }
-                          setCurrentTab(TabChoices.Work)
-                        } catch (err) {
-                          console.error('Failed to open GBrain feed item:', err)
-                        }
-                      }}
-                    />
+                    <WorkspacesList onWorkspaceOpen={(ws) => setSelectedWorkspace(ws)} />
                   )}
                 </div>
               )}
