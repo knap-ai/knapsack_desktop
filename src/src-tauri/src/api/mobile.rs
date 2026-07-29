@@ -112,6 +112,13 @@ pub struct MobileChatDetail {
   pub updated_at: i64,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MobileSeedHistoryEntry {
+  role: String,
+  content: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMobileChatRequest {
@@ -162,7 +169,8 @@ pub struct MobileCalendarEventSummary {
 }
 
 fn knapsack_data_dir() -> Result<PathBuf, Error> {
-  let home_dir = dirs::home_dir().ok_or_else(|| Error::KSError("Could not resolve home dir".into()))?;
+  let home_dir =
+    dirs::home_dir().ok_or_else(|| Error::KSError("Could not resolve home dir".into()))?;
   let dir = home_dir.join(".knapsack");
   create_dir_all(&dir)?;
   Ok(dir)
@@ -204,7 +212,10 @@ fn save_mobile_metadata(metadata: &MobileMeetingMetadata) -> Result<(), Error> {
 }
 
 fn load_notes(thread_id: u64) -> Option<String> {
-  let notes_path = dirs::home_dir()?.join(".knapsack").join("notes").join(thread_id.to_string());
+  let notes_path = dirs::home_dir()?
+    .join(".knapsack")
+    .join("notes")
+    .join(thread_id.to_string());
   read_to_string(notes_path).ok()
 }
 
@@ -253,7 +264,11 @@ fn infer_linked_profile() -> Option<MobileLinkedProfile> {
 
   let uuid = kn_profile
     .and_then(|profile| profile_string(profile, "uuid"))
-    .or_else(|| User::find_by_email(email.clone()).ok().and_then(|user| user.uuid));
+    .or_else(|| {
+      User::find_by_email(email.clone())
+        .ok()
+        .and_then(|user| user.uuid)
+    });
 
   Some(MobileLinkedProfile {
     email,
@@ -276,7 +291,10 @@ fn infer_connection_scopes(email: &str) -> Vec<String> {
 
   if scopes.is_empty() {
     if let Some(root) = load_profile_dat() {
-      if let Some(values) = root.get("KN_CONNECTIONS").and_then(|value| value.as_array()) {
+      if let Some(values) = root
+        .get("KN_CONNECTIONS")
+        .and_then(|value| value.as_array())
+      {
         scopes = values
           .iter()
           .filter_map(|value| value.as_str().map(|scope| scope.to_string()))
@@ -345,7 +363,10 @@ fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary>
     .collect()
 }
 
-fn mobile_meeting_detail(thread: Thread, metadata: Option<MobileMeetingMetadata>) -> MobileMeetingDetail {
+fn mobile_meeting_detail(
+  thread: Thread,
+  metadata: Option<MobileMeetingMetadata>,
+) -> MobileMeetingDetail {
   let notes = thread.id.and_then(load_notes);
   let mut merged = metadata.unwrap_or_else(|| {
     build_default_metadata(thread.id.unwrap_or_default(), Some("iphone".to_string()))
@@ -391,6 +412,73 @@ fn mobile_chat_detail_from_thread(thread: Thread, messages: Vec<Message>) -> Mob
     thread,
     messages: messages.into_iter().map(mobile_chat_message).collect(),
     updated_at,
+  }
+}
+
+fn mobile_seed_history_from_messages(
+  messages: &[MobileChatMessage],
+) -> Vec<MobileSeedHistoryEntry> {
+  messages
+    .iter()
+    .filter_map(|message| {
+      let role = match message.role.as_str() {
+        "user" => "user",
+        "assistant" => "assistant",
+        _ => return None,
+      };
+
+      let content = message.content.trim();
+      if content.is_empty() {
+        return None;
+      }
+
+      Some(MobileSeedHistoryEntry {
+        role: role.to_string(),
+        content: content.to_string(),
+      })
+    })
+    .collect()
+}
+
+fn load_mobile_chat_seed_history(thread_id: u64) -> Vec<MobileSeedHistoryEntry> {
+  match Thread::find_by_id(thread_id) {
+    Ok(Some(thread)) if matches!(thread.thread_type, ThreadType::Chat) => {
+      match Message::find_by_thread_id(thread_id) {
+        Ok(messages) if !messages.is_empty() => {
+          let detail = mobile_chat_detail_from_thread(thread, messages);
+          return mobile_seed_history_from_messages(&detail.messages);
+        }
+        Ok(_) => {}
+        Err(err) => {
+          log::warn!(
+            "Failed to load local messages for mobile chat seed history {}: {:?}",
+            thread_id,
+            err
+          );
+        }
+      }
+    }
+    Ok(Some(_)) | Ok(None) => {}
+    Err(err) => {
+      log::warn!(
+        "Failed to load local thread for mobile chat seed history {}: {:?}",
+        thread_id,
+        err
+      );
+    }
+  }
+
+  match feed_backed_mobile_chat_detail(thread_id) {
+    Ok(Some(detail)) => mobile_seed_history_from_messages(&detail.messages),
+    Ok(None) => Vec::new(),
+    Err(err) => {
+      log::warn!(
+        "Failed to load feed-backed seed history for mobile chat {}: {:?}",
+        thread_id,
+        err
+      );
+      Vec::new()
+    }
   }
 }
 
@@ -443,7 +531,9 @@ fn feed_backed_mobile_chats() -> Result<Vec<MobileChatSummary>, Error> {
   for feed_item in FeedItem::find_all_complete()? {
     for thread_with_messages in feed_item.threads.unwrap_or_default() {
       if matches!(thread_with_messages.thread.thread_type, ThreadType::Chat) {
-        chats.push(mobile_chat_summary_from_thread_with_messages(thread_with_messages));
+        chats.push(mobile_chat_summary_from_thread_with_messages(
+          thread_with_messages,
+        ));
       }
     }
   }
@@ -564,7 +654,11 @@ pub async fn get_mobile_chat(path: web::Path<u64>) -> impl Responder {
       let messages = match Message::find_by_thread_id(thread_id) {
         Ok(messages) => messages,
         Err(err) => {
-          log::error!("Failed to load messages for mobile chat {}: {:?}", thread_id, err);
+          log::error!(
+            "Failed to load messages for mobile chat {}: {:?}",
+            thread_id,
+            err
+          );
           return HttpResponse::InternalServerError().json(json!({
             "success": false,
             "error": "Failed to load chat messages"
@@ -577,7 +671,11 @@ pub async fn get_mobile_chat(path: web::Path<u64>) -> impl Responder {
           Ok(Some(detail)) => detail,
           Ok(None) => mobile_chat_detail_from_thread(thread, messages),
           Err(err) => {
-            log::error!("Failed to load feed-backed mobile chat {}: {:?}", thread_id, err);
+            log::error!(
+              "Failed to load feed-backed mobile chat {}: {:?}",
+              thread_id,
+              err
+            );
             return HttpResponse::InternalServerError().json(json!({
               "success": false,
               "error": "Failed to load mobile chat"
@@ -626,10 +724,7 @@ pub async fn create_mobile_chat(data: Json<CreateMobileChatRequest>) -> impl Res
     timestamp: Some(chrono::Utc::now().timestamp()),
     hide_follow_up: Some(false),
     feed_item_id: None,
-    title: data
-      .title
-      .clone()
-      .or_else(|| Some("New chat".to_string())),
+    title: data.title.clone().or_else(|| Some("New chat".to_string())),
     subtitle: Some("Started from iPhone".to_string()),
     thread_type: ThreadType::Chat,
     recorded: Some(false),
@@ -662,6 +757,7 @@ pub async fn send_mobile_chat_message(
 ) -> impl Responder {
   let thread_id = path.into_inner();
   let text = data.text.trim().to_string();
+  let seed_history = load_mobile_chat_seed_history(thread_id);
 
   if text.is_empty() {
     return HttpResponse::BadRequest().json(json!({
@@ -718,6 +814,7 @@ pub async fn send_mobile_chat_message(
     "text": text,
     "sessionId": format!("mobile-thread-{thread_id}"),
     "autonomyMode": "assist",
+    "seedHistory": seed_history,
   });
 
   if let Some(profile) = profile.clone() {
@@ -851,7 +948,10 @@ pub async fn create_mobile_meeting(data: Json<CreateMobileMeetingRequest>) -> im
 
   let metadata = build_default_metadata(
     thread.id.unwrap_or_default(),
-    data.source_device.clone().or_else(|| Some("iphone".to_string())),
+    data
+      .source_device
+      .clone()
+      .or_else(|| Some("iphone".to_string())),
   );
   if let Err(err) = save_mobile_metadata(&metadata) {
     log::error!("Failed to save mobile metadata: {:?}", err);
@@ -1115,4 +1215,52 @@ pub async fn upload_mobile_recording(
     "success": true,
     "data": metadata
   }))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{mobile_seed_history_from_messages, MobileChatMessage};
+
+  #[test]
+  fn mobile_seed_history_filters_blank_and_non_chat_roles() {
+    let seed_history = mobile_seed_history_from_messages(&[
+      MobileChatMessage {
+        id: Some(1),
+        timestamp: 1,
+        role: "user".to_string(),
+        content: "  First question  ".to_string(),
+      },
+      MobileChatMessage {
+        id: Some(2),
+        timestamp: 2,
+        role: "assistant".to_string(),
+        content: "Answer".to_string(),
+      },
+      MobileChatMessage {
+        id: Some(3),
+        timestamp: 3,
+        role: "tool".to_string(),
+        content: "ignored".to_string(),
+      },
+      MobileChatMessage {
+        id: Some(4),
+        timestamp: 4,
+        role: "user".to_string(),
+        content: "   ".to_string(),
+      },
+    ]);
+
+    let rendered = seed_history
+      .into_iter()
+      .map(|entry| (entry.role, entry.content))
+      .collect::<Vec<_>>();
+
+    assert_eq!(
+      rendered,
+      vec![
+        ("user".to_string(), "First question".to_string()),
+        ("assistant".to_string(), "Answer".to_string()),
+      ]
+    );
+  }
 }
