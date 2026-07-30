@@ -1,0 +1,231 @@
+.EmbeddedBrowserSidebar {
+  min-width: 420px;
+  width: clamp(440px, 48%, 760px);
+  height: 100%;
+  flex: 0 0 clamp(440px, 48%, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #f7f7f5;
+  border-left: 1px solid rgba(24, 24, 27, 0.1);
+}
+
+.EmbeddedBrowserToolbar {
+  height: 48px;
+  flex: 0 0 48px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  background: rgba(250, 250, 249, 0.98);
+  border-bottom: 1px solid rgba(24, 24, 27, 0.09);
+
+  button {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    border: 0;
+    border-radius: 8px;
+    color: #52525b;
+    background: transparent;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+
+    &:hover {
+      color: #18181b;
+      background: rgba(24, 24, 27, 0.07);
+    }
+
+    svg {
+      width: 17px;
+      height: 17px;
+    }
+  }
+}
+
+.EmbeddedBrowserNav {
+  display: flex;
+  gap: 1px;
+}
+
+.EmbeddedBrowserAddress {
+  height: 32px;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(24, 24, 27, 0.09);
+  border-radius: 9px;
+  background: #fff;
+
+  &:focus-within {
+    border-color: rgba(100, 116, 172, 0.55);
+    box-shadow: 0 0 0 2px rgba(100, 116, 172, 0.12);
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+    color: #a1a1aa;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    padding: 0;
+    color: #27272a;
+    background: transparent;
+    font:
+      500 12px/1.2 Inter,
+      sans-serif;
+  }
+}
+
+.EmbeddedBrowserExternal {
+  margin-left: 1px;
+}
+
+.EmbeddedBrowserClose {
+  margin-left: -3px;
+}
+
+.EmbeddedBrowserViewport {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, rgba(100, 116, 172, 0.08), transparent 34%), #fff;
+  outline: none;
+
+  &:focus-visible {
+    box-shadow: inset 0 0 0 2px rgba(100, 116, 172, 0.5);
+  }
+
+  > img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    user-select: none;
+    cursor: default;
+  }
+}
+
+.EmbeddedBrowserSharedState {
+  height: 25px;
+  flex: 0 0 25px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 11px;
+  color: #71717a;
+  background: #fafaf9;
+  border-bottom: 1px solid rgba(24, 24, 27, 0.07);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.EmbeddedBrowserSharedDot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
+}
+
+.EmbeddedBrowserPageTitle {
+  min-width: 0;
+  overflow: hidden;
+  color: #a1a1aa;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.EmbeddedBrowserLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #71717a;
+  font-size: 12px;
+  font-weight: 600;
+
+  svg {
+    width: 17px;
+    height: 17px;
+  }
+}
+
+.EmbeddedBrowserError {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #52525b;
+  background: #fafaf9;
+
+  > svg {
+    width: 28px;
+    height: 28px;
+    margin-bottom: 4px;
+    color: #71717a;
+  }
+
+  strong {
+    color: #27272a;
+    font-size: 14px;
+  }
+
+  span {
+    max-width: 360px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  button {
+    margin-top: 6px;
+    padding: 7px 12px;
+    border: 1px solid rgba(24, 24, 27, 0.12);
+    border-radius: 8px;
+    color: #27272a;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+.is-spinning {
+  animation: embedded-browser-spin 900ms linear infinite;
+}
+
+@keyframes embedded-browser-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1050px) {
+  .EmbeddedBrowserSidebar {
+    min-width: 380px;
+    width: 50%;
+    flex-basis: 50%;
+  }
+}

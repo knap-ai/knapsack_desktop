@@ -332,6 +332,11 @@ export const SettingsDialog = ({
     useState<boolean>(false)
   const [connectionsKey, setConnectionsKey] = useState<ConnectionKeys[]>([])
   const [showNotificationLeadTime, setShowNotificationLeadTime] = useState<number>(1)
+  const [embeddedBrowserEnabled, setEmbeddedBrowserEnabled] = useState(
+    () => localStorage.getItem('knapsack.browser.embedded.enabled') === 'true',
+  )
+  const [browserPresentationBusy, setBrowserPresentationBusy] = useState(false)
+  const [browserPresentationMessage, setBrowserPresentationMessage] = useState('')
   const [providerStatus, setProviderStatus] = useState<{
     active_provider?: string
     has_openai_key?: boolean
@@ -475,6 +480,18 @@ export const SettingsDialog = ({
 
   useEffect(() => {
     if (!isOpen) return
+    fetch('http://127.0.0.1:8897/api/clawd/browser/presentation')
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (typeof data?.embedded === 'boolean') {
+          setEmbeddedBrowserEnabled(data.embedded)
+        }
+      })
+      .catch(() => {})
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
     fetch('http://127.0.0.1:8897/api/clawd/service/api-key-status')
       .then(r => r.json())
       .then(data => {
@@ -498,6 +515,41 @@ export const SettingsDialog = ({
       })
       .catch(() => {})
   }, [isOpen])
+
+  const handleEmbeddedBrowserToggle = useCallback(async () => {
+    if (browserPresentationBusy) return
+    const nextEnabled = !embeddedBrowserEnabled
+    setBrowserPresentationBusy(true)
+    setBrowserPresentationMessage('Switching browser mode…')
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/clawd/browser/presentation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embedded: nextEnabled }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Could not change browser mode')
+      }
+      setEmbeddedBrowserEnabled(result.embedded)
+      setBrowserPresentationMessage(result.message)
+      localStorage.setItem(
+        'knapsack.browser.embedded.enabled',
+        String(result.embedded),
+      )
+      window.dispatchEvent(
+        new CustomEvent('knapsack:browser-mode-changed', {
+          detail: { enabled: result.embedded },
+        }),
+      )
+    } catch (error) {
+      setBrowserPresentationMessage(
+        error instanceof Error ? error.message : String(error),
+      )
+    } finally {
+      setBrowserPresentationBusy(false)
+    }
+  }, [browserPresentationBusy, embeddedBrowserEnabled])
 
   // Check Ollama status + fetch models when the Ollama accordion is expanded
   useEffect(() => {
@@ -764,6 +816,38 @@ export const SettingsDialog = ({
               />
             </div>
           </div>
+        </div>
+        <hr className="border-zinc-200" />
+
+        <div className="p-6 flex flex-col gap-3">
+          <Typography weight={TypographyWeight.medium}>Browser</Typography>
+          <InputCheckbox
+            checked={embeddedBrowserEnabled}
+            onClick={handleEmbeddedBrowserToggle}
+          >
+            <Typography className="text-black">
+              Use embedded browser
+            </Typography>
+          </InputCheckbox>
+          <Typography className="text-xs text-zinc-500 leading-5">
+            Off keeps the existing managed Chrome window. On shows that same
+            browser profile beside chat and prevents separate browser popups.
+            Saved logins remain in the profile in either mode. Changing this
+            setting briefly restarts the browser.
+          </Typography>
+          {browserPresentationMessage && (
+            <Typography
+              className={`text-xs ${
+                browserPresentationMessage.toLowerCase().includes('could not')
+                  ? 'text-red-500'
+                  : 'text-zinc-500'
+              }`}
+            >
+              {browserPresentationBusy
+                ? 'Switching browser mode…'
+                : browserPresentationMessage}
+            </Typography>
+          )}
         </div>
         <hr className="border-zinc-200" />
 

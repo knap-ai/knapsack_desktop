@@ -4,11 +4,17 @@ import { invoke } from '@tauri-apps/api/tauri'
 const BACKEND = 'http://127.0.0.1:8897'
 
 /**
- * Opens a URL in the gateway-managed openclaw browser profile, then repositions
- * the browser window beside the Knapsack app. Falls back to the system default
- * browser only if the backend is completely unreachable.
+ * Lets the opted-in embedded browser handle URLs in place. When it is disabled
+ * or unavailable, keep the existing managed-Chrome/system fallback.
  */
 export async function openBesideApp(url: string) {
+  const embeddedEvent = new CustomEvent('knapsack:open-browser', {
+    detail: { url },
+    cancelable: true,
+  })
+  const handledInApp = !window.dispatchEvent(embeddedEvent)
+  if (handledInApp) return
+
   try {
     const res = await fetch(
       `${BACKEND}/api/clawd/browser/open?${new URLSearchParams({ url }).toString()}`,
@@ -16,10 +22,10 @@ export async function openBesideApp(url: string) {
     if (!res.ok) {
       await open(url)
     }
-  } catch (_e) {
+  } catch {
     await open(url)
   }
   setTimeout(() => {
-    invoke('position_browser_beside_app').catch(() => {})
+    invoke('position_browser_beside_app').catch(() => undefined)
   }, 800)
 }

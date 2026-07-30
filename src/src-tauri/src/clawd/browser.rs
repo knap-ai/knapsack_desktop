@@ -1837,6 +1837,10 @@ pub struct OpenBrowserParams {
 
   /// If true, use the `chrome` profile (Chrome extension relay).
   pub chrome: Option<bool>,
+
+  /// When true, fail closed instead of launching a visible fallback browser.
+  /// The embedded browser surface uses this to guarantee popup-free behavior.
+  pub embedded: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1917,7 +1921,16 @@ pub async fn open_browser(
     }
   }
 
-  // Fallback path: open in Chrome first, then system default.
+  if query.embedded.unwrap_or(false) {
+    return HttpResponse::BadGateway().json(OpenBrowserResponse {
+      success: false,
+      message: "The embedded browser is still starting. Please try again in a moment.".to_string(),
+      target_id: None,
+      used_clawdbot: false,
+    });
+  }
+
+  // Legacy fallback path for callers that do not host the embedded browser.
   match fallback_open_url(&app_handle, &url) {
     Ok(_) => HttpResponse::Ok().json(OpenBrowserResponse {
       success: true,
@@ -1935,6 +1948,219 @@ pub async fn open_browser(
 }
 
 // --- new browser automation endpoints (proxy to control server) ---
+
+#[derive(Debug, Deserialize)]
+pub struct NavigateBrowserRequest {
+  pub url: String,
+
+  #[serde(rename = "targetId")]
+  pub target_id: Option<String>,
+}
+
+#[post("/api/clawd/browser/navigate")]
+pub async fn navigate_browser(payload: web::Json<NavigateBrowserRequest>) -> impl Responder {
+  let mut url = payload.url.trim().to_string();
+  if !url.starts_with("http://") && !url.starts_with("https://") {
+    url = format!("https://{}", url);
+  }
+  if url::Url::parse(&url)
+    .ok()
+    .filter(|parsed| matches!(parsed.scheme(), "http" | "https"))
+    .is_none()
+  {
+    return HttpResponse::BadRequest().json(
+      serde_json::json!({"success": false, "message": "A valid http or https URL is required"}),
+    );
+  }
+
+  let mut body = serde_json::json!({"url": url});
+  if let Some(target_id) = payload
+    .target_id
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    body["targetId"] = serde_json::json!(target_id);
+  }
+
+  match gateway_client::browser_request(
+    "POST",
+    "/navigate",
+    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(body),
+    None,
+  )
+  .await
+  {
+    Ok(result) => HttpResponse::Ok().json(serde_json::json!({
+      "success": true,
+      "data": result,
+    })),
+    Err(error) => HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": error,
+    })),
+  }
+}
+
+#[derive(Debug, Serialize)]
+pub struct BrowserPresentationResponse {
+  pub success: bool,
+  pub embedded: bool,
+  pub changed: bool,
+  pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowserPresentationRequest {
+  pub embedded: bool,
+}
+
+fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
+  let home = app_clawdbot_home(app_handle);
+  let current = home.join("openclaw.json");
+  let legacy = home.join("clawdbot.json");
+  if current.exists() || !legacy.exists() {
+    current
+  } else {
+    legacy
+  }
+}
+
+fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
+  fs::read_to_string(browser_config_path(app_handle))
+    .ok()
+    .and_then(|raw| serde_json::from_str::<JsonValue>(&raw).ok())
+    .and_then(|config| {
+      config
+        .pointer("/browser/headless")
+        .and_then(|value| value.as_bool())
+    })
+    .unwrap_or(false)
+}
+
+#[get("/api/clawd/browser/presentation")]
+pub async fn get_browser_presentation(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  HttpResponse::Ok().json(BrowserPresentationResponse {
+    success: true,
+    embedded: read_embedded_browser_preference(&app_handle),
+    changed: false,
+    message: "Browser presentation preference loaded".to_string(),
+  })
+}
+
+#[post("/api/clawd/browser/presentation")]
+pub async fn set_browser_presentation(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<BrowserPresentationRequest>,
+) -> impl Responder {
+  let path = browser_config_path(&app_handle);
+  if let Some(parent) = path.parent() {
+    if let Err(error) = ensure_dir(parent) {
+      return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+        success: false,
+        embedded: payload.embedded,
+        changed: false,
+        message: error,
+      });
+    }
+  }
+  let mut config = if path.exists() {
+    let raw = match fs::read_to_string(&path) {
+      Ok(raw) => raw,
+      Err(error) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: read_embedded_browser_preference(&app_handle),
+          changed: false,
+          message: format!("Failed to read browser configuration: {}", error),
+        })
+      }
+    };
+    match serde_json::from_str::<JsonValue>(&raw) {
+      Ok(value) if value.is_object() => value,
+      Ok(_) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: false,
+          changed: false,
+          message: "Browser configuration must contain a JSON object".to_string(),
+        })
+      }
+      Err(error) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: false,
+          changed: false,
+          message: format!("Failed to parse browser configuration: {}", error),
+        })
+      }
+    }
+  } else {
+    serde_json::json!({})
+  };
+  if config
+    .get("browser")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    config
+      .as_object_mut()
+      .unwrap()
+      .insert("browser".to_string(), serde_json::json!({}));
+  }
+  let previous = config
+    .pointer("/browser/headless")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  if previous == payload.embedded {
+    return HttpResponse::Ok().json(BrowserPresentationResponse {
+      success: true,
+      embedded: payload.embedded,
+      changed: false,
+      message: "Browser presentation preference is already active".to_string(),
+    });
+  }
+  config
+    .pointer_mut("/browser")
+    .unwrap()
+    .as_object_mut()
+    .unwrap()
+    .insert("headless".to_string(), serde_json::json!(payload.embedded));
+  let encoded = match serde_json::to_string_pretty(&config) {
+    Ok(encoded) => encoded,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+        success: false,
+        embedded: previous,
+        changed: false,
+        message: format!("Failed to encode browser preference: {}", error),
+      })
+    }
+  };
+  if let Err(error) = fs::write(&path, encoded) {
+    return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+      success: false,
+      embedded: previous,
+      changed: false,
+      message: format!("Failed to save browser preference: {}", error),
+    });
+  }
+  harden_file_permissions(&path);
+
+  crate::clawd::service::cycle_service(&app_handle).await;
+
+  HttpResponse::Ok().json(BrowserPresentationResponse {
+    success: true,
+    embedded: payload.embedded,
+    changed: true,
+    message: if payload.embedded {
+      "Embedded browser enabled. The shared browser is restarting.".to_string()
+    } else {
+      "Managed browser window enabled. The shared browser is restarting.".to_string()
+    },
+  })
+}
 
 #[derive(Debug, Deserialize)]
 pub struct BrowserProfileQuery {
@@ -6463,6 +6689,125 @@ pub async fn screenshot(
     }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BrowserViewQuery {
+  #[serde(rename = "targetId")]
+  pub target_id: Option<String>,
+}
+
+fn screenshot_path_from_result(result: &JsonValue) -> Option<PathBuf> {
+  result
+    .get("path")
+    .or_else(|| result.pointer("/result/path"))
+    .and_then(|value| value.as_str())
+    .map(PathBuf::from)
+}
+
+/// Return a fresh screenshot of the controlled browser tab as image bytes.
+///
+/// The RPC-created file path is never accepted from the caller. This keeps the
+/// endpoint from becoming an arbitrary local-file reader while allowing the
+/// React browser pane to render the exact tab OpenClaw is operating.
+#[get("/api/clawd/browser/view")]
+pub async fn browser_view(query: web::Query<BrowserViewQuery>) -> impl Responder {
+  let mut body = serde_json::json!({"type": "jpeg", "timeoutMs": 8000});
+  if let Some(target_id) = query
+    .target_id
+    .as_ref()
+    .map(|value| value.trim())
+    .filter(|value| !value.is_empty())
+  {
+    body["targetId"] = serde_json::json!(target_id);
+  }
+
+  let result = match gateway_client::browser_request(
+    "POST",
+    "/screenshot",
+    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(body),
+    None,
+  )
+  .await
+  {
+    Ok(result) => result,
+    Err(error) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": error,
+      }))
+    }
+  };
+
+  let Some(path) = screenshot_path_from_result(&result) else {
+    return HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": "Browser screenshot did not include an image path",
+    }));
+  };
+  let canonical = match path.canonicalize() {
+    Ok(path) => path,
+    Err(error) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Browser screenshot is unavailable: {}", error),
+      }))
+    }
+  };
+  let extension = canonical
+    .extension()
+    .and_then(|value| value.to_str())
+    .unwrap_or("")
+    .to_ascii_lowercase();
+  let is_media_path = canonical
+    .components()
+    .any(|component| component.as_os_str() == "media");
+  if !is_media_path || !matches!(extension.as_str(), "jpg" | "jpeg" | "png") {
+    return HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": "Browser returned an invalid screenshot path",
+    }));
+  }
+  let metadata = match fs::metadata(&canonical) {
+    Ok(metadata) if metadata.is_file() && metadata.len() <= 12 * 1024 * 1024 => metadata,
+    Ok(_) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": "Browser screenshot exceeded the size limit",
+      }))
+    }
+    Err(error) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Browser screenshot metadata is unavailable: {}", error),
+      }))
+    }
+  };
+  let bytes = match fs::read(&canonical) {
+    Ok(bytes) if bytes.len() as u64 == metadata.len() => bytes,
+    Ok(bytes) => bytes,
+    Err(error) => {
+      return HttpResponse::BadGateway().json(serde_json::json!({
+        "success": false,
+        "message": format!("Browser screenshot could not be read: {}", error),
+      }))
+    }
+  };
+  // This endpoint creates a new browser media file on every refresh. Remove
+  // the one-shot file after reading it so an open sidebar cannot grow the
+  // user's media directory indefinitely.
+  let _ = fs::remove_file(&canonical);
+  let content_type = if extension == "png" {
+    "image/png"
+  } else {
+    "image/jpeg"
+  };
+
+  HttpResponse::Ok()
+    .insert_header(("Cache-Control", "no-store, max-age=0"))
+    .content_type(content_type)
+    .body(bytes)
 }
 
 // ── Browser-based web search ──────────────────────────────────────────────

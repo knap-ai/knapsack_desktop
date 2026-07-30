@@ -506,17 +506,18 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
-  // browser.headless = false  (user needs visible Chrome for logins)
-  // Always set explicitly — if absent, the gateway may default to headless=true.
+  // Preserve an explicit presentation choice. Existing users default to the
+  // visible managed Chrome window; the Settings toggle writes true when they
+  // opt into rendering this same browser inside Knapsack.
   let headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool());
-  if headless != Some(false) {
+  if headless.is_none() {
     cfg
       .pointer_mut("/browser")
       .unwrap()
       .as_object_mut()
       .unwrap()
       .insert("headless".into(), serde_json::json!(false));
-    eprintln!("[gateway_client] Patched browser.headless to false");
+    eprintln!("[gateway_client] Defaulted browser.headless to false");
     patched = true;
   }
 
@@ -3403,20 +3404,15 @@ mod tests {
   }
 
   #[test]
-  fn browser_config_patched_when_headless_is_true() {
-    let cfg_json = json!({
-      "browser": {
-        "enabled": true,
-        "headless": true,
-        "defaultProfile": "openclaw"
-      }
-    });
+  fn browser_config_preserves_explicit_headless_choice() {
+    let mut cfg_json = fully_correct_config();
+    cfg_json["browser"]["headless"] = json!(true);
     let f = write_config(&serde_json::to_string(&cfg_json).unwrap());
     let changed = ensure_browser_config_at(f.path());
-    assert!(changed, "headless=true should be patched to false");
+    assert!(!changed, "an explicit headless choice should be preserved");
 
     let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
-    assert_eq!(updated.pointer("/browser/headless"), Some(&json!(false)));
+    assert_eq!(updated.pointer("/browser/headless"), Some(&json!(true)));
   }
 
   #[test]
