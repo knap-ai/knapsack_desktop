@@ -84,6 +84,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
   const knownTargetIdsRef = useRef<Set<string>>(new Set())
   const screenshotPendingRef = useRef(false)
   const navigationPendingRef = useRef(false)
+  const addressEditingRef = useRef(false)
   const resizeTimerRef = useRef<number>()
   const wheelPendingRef = useRef(false)
   const [address, setAddress] = useState(requestedUrl || DEFAULT_BROWSER_URL)
@@ -130,7 +131,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
     selectTarget(selected.targetId)
     if (selected.url) {
       setCurrentUrl(selected.url)
-      setAddress(selected.url)
+      if (!addressEditingRef.current) setAddress(selected.url)
     }
     setCurrentTitle(selected.title || '')
     return tabs
@@ -208,17 +209,42 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
   )
 
   useEffect(() => {
-    navigate(requestedUrl || DEFAULT_BROWSER_URL)
-  }, [navigate, requestedUrl])
+    let cancelled = false
+    const initializeBrowser = async () => {
+      try {
+        const tabs = await refreshTabs()
+        if (cancelled) return
+        if (requestedUrl) {
+          await navigate(requestedUrl)
+        } else if (!tabs.length) {
+          await navigate(DEFAULT_BROWSER_URL)
+        } else {
+          await refreshScreenshot()
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err))
+        }
+      }
+    }
+    initializeBrowser()
+    return () => {
+      cancelled = true
+    }
+  }, [navigate, refreshScreenshot, refreshTabs, requestedUrl])
 
   useEffect(() => {
     const retryTimer = window.setInterval(() => {
       if (!currentTargetIdRef.current) {
-        navigate(requestedUrl || address)
+        refreshTabs()
+          .then(tabs => {
+            if (!tabs.length) navigate(requestedUrl || DEFAULT_BROWSER_URL)
+          })
+          .catch(err => setError(err instanceof Error ? err.message : String(err)))
       }
     }, 2000)
     return () => window.clearInterval(retryTimer)
-  }, [address, navigate, requestedUrl])
+  }, [navigate, refreshTabs, requestedUrl])
 
   useEffect(() => {
     const tabsTimer = window.setInterval(() => {
@@ -262,6 +288,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
 
   const submitAddress = (event: FormEvent) => {
     event.preventDefault()
+    addressEditingRef.current = false
     navigate(address)
   }
 
@@ -410,8 +437,18 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
           <input
             aria-label="Web address or search"
             value={address}
-            onChange={event => setAddress(event.target.value)}
-            onFocus={event => event.currentTarget.select()}
+            onChange={event => {
+              addressEditingRef.current = true
+              setAddress(event.target.value)
+            }}
+            onFocus={event => {
+              addressEditingRef.current = true
+              event.currentTarget.select()
+            }}
+            onBlur={() => {
+              addressEditingRef.current = false
+              setAddress(currentUrl)
+            }}
             spellCheck={false}
           />
         </form>

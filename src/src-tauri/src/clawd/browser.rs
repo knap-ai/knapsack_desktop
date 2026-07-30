@@ -2065,11 +2065,40 @@ pub async fn set_browser_presentation(
       });
     }
   }
-  let mut config = fs::read_to_string(&path)
-    .ok()
-    .and_then(|raw| serde_json::from_str::<JsonValue>(&raw).ok())
-    .filter(|value| value.is_object())
-    .unwrap_or_else(|| serde_json::json!({}));
+  let mut config = if path.exists() {
+    let raw = match fs::read_to_string(&path) {
+      Ok(raw) => raw,
+      Err(error) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: read_embedded_browser_preference(&app_handle),
+          changed: false,
+          message: format!("Failed to read browser configuration: {}", error),
+        })
+      }
+    };
+    match serde_json::from_str::<JsonValue>(&raw) {
+      Ok(value) if value.is_object() => value,
+      Ok(_) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: false,
+          changed: false,
+          message: "Browser configuration must contain a JSON object".to_string(),
+        })
+      }
+      Err(error) => {
+        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+          success: false,
+          embedded: false,
+          changed: false,
+          message: format!("Failed to parse browser configuration: {}", error),
+        })
+      }
+    }
+  } else {
+    serde_json::json!({})
+  };
   if config
     .get("browser")
     .and_then(|value| value.as_object())

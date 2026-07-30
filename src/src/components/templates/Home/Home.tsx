@@ -114,7 +114,7 @@ function Home({
       localStorage.getItem('knapsack.browser.sidebar.open') !== 'false'
     )
   })
-  const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('https://www.google.com')
+  const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('')
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
@@ -703,6 +703,7 @@ function Home({
                       requestedUrl={embeddedBrowserUrl}
                       onClose={() => {
                         setShowEmbeddedBrowser(false)
+                        setEmbeddedBrowserUrl('')
                         localStorage.setItem('knapsack.browser.sidebar.open', 'false')
                       }}
                     />
