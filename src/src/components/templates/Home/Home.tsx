@@ -54,6 +54,7 @@ import ClawdChat from 'src/components/organisms/ClawdChat'
 import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
 import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
+import EmbeddedBrowserSidebar from 'src/components/organisms/EmbeddedBrowserSidebar'
 import WorkspaceView from 'src/components/organisms/WorkspaceView'
 import WorkspacesList from 'src/components/organisms/WorkspacesList'
 import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
@@ -104,6 +105,16 @@ function Home({
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
   const [showActivityPanel, setShowActivityPanel] = useState(false)
   const [activityPanelWidth, setActivityPanelWidth] = useState(420)
+  const [embeddedBrowserEnabled, setEmbeddedBrowserEnabled] = useState(() => {
+    return localStorage.getItem('knapsack.browser.embedded.enabled') === 'true'
+  })
+  const [showEmbeddedBrowser, setShowEmbeddedBrowser] = useState(() => {
+    return (
+      localStorage.getItem('knapsack.browser.embedded.enabled') === 'true' &&
+      localStorage.getItem('knapsack.browser.sidebar.open') !== 'false'
+    )
+  })
+  const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('https://www.google.com')
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
@@ -164,6 +175,59 @@ function Home({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  useEffect(() => {
+    const syncBrowserPresentation = () => {
+      fetch('http://127.0.0.1:8897/api/clawd/browser/presentation')
+        .then(response => (response.ok ? response.json() : null))
+        .then(data => {
+          if (typeof data?.embedded !== 'boolean') return
+          const enabled = data.embedded
+          setEmbeddedBrowserEnabled(enabled)
+          localStorage.setItem('knapsack.browser.embedded.enabled', String(enabled))
+          setShowEmbeddedBrowser(
+            enabled &&
+              localStorage.getItem('knapsack.browser.sidebar.open') !== 'false',
+          )
+        })
+        .catch(() => {
+          // Keep the cached choice while the local service is starting.
+        })
+    }
+    syncBrowserPresentation()
+    const timer = window.setInterval(syncBrowserPresentation, 5000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const handleOpenInBrowser = (event: Event) => {
+      const browserEvent = event as CustomEvent<{ url?: string }>
+      const url = browserEvent.detail?.url?.trim()
+      if (!url || !embeddedBrowserEnabled) return
+      browserEvent.preventDefault()
+      setEmbeddedBrowserUrl(url)
+      setShowActivityPanel(false)
+      setShowEmbeddedBrowser(true)
+      setCurrentTab(TabChoices.Openclaw)
+      localStorage.setItem('knapsack.browser.sidebar.open', 'true')
+    }
+
+    const handleBrowserModeChanged = (event: Event) => {
+      const modeEvent = event as CustomEvent<{ enabled?: boolean }>
+      const enabled = modeEvent.detail?.enabled === true
+      setEmbeddedBrowserEnabled(enabled)
+      setShowEmbeddedBrowser(enabled)
+      localStorage.setItem('knapsack.browser.embedded.enabled', String(enabled))
+      localStorage.setItem('knapsack.browser.sidebar.open', String(enabled))
+    }
+
+    window.addEventListener('knapsack:open-browser', handleOpenInBrowser)
+    window.addEventListener('knapsack:browser-mode-changed', handleBrowserModeChanged)
+    return () => {
+      window.removeEventListener('knapsack:open-browser', handleOpenInBrowser)
+      window.removeEventListener('knapsack:browser-mode-changed', handleBrowserModeChanged)
+    }
+  }, [embeddedBrowserEnabled])
 
   // Listen for /autopilot slash command to force-open the email drawer
   useEffect(() => {
@@ -602,7 +666,7 @@ function Home({
                       openProviderPanel={openProviderPanelTrigger}
                     />
                   </div>
-                  {showActivityPanel && (
+                  {!showEmbeddedBrowser && showActivityPanel && (
                     <>
                       <div
                         className="activity-resize-handle"
@@ -634,7 +698,16 @@ function Home({
                       </div>
                     </>
                   )}
-                  {(feed.loggedEmailAutopilot || autopilotForceOpen) && (
+                  {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
+                    <EmbeddedBrowserSidebar
+                      requestedUrl={embeddedBrowserUrl}
+                      onClose={() => {
+                        setShowEmbeddedBrowser(false)
+                        localStorage.setItem('knapsack.browser.sidebar.open', 'false')
+                      }}
+                    />
+                  )}
+                  {!showEmbeddedBrowser && (feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer
                       feed={feed}
                       onGoToEmail={() => {
@@ -648,6 +721,21 @@ function Home({
                       onForceOpenHandled={() => setAutopilotForceOpen(false)}
                       isChatBusy={isChatBusy}
                     />
+                  )}
+                  {embeddedBrowserEnabled && !showEmbeddedBrowser && (
+                    <button
+                      className="embedded-browser-launcher"
+                      type="button"
+                      title="Open browser"
+                      aria-label="Open browser"
+                      onClick={() => {
+                        setShowActivityPanel(false)
+                        setShowEmbeddedBrowser(true)
+                        localStorage.setItem('knapsack.browser.sidebar.open', 'true')
+                      }}
+                    >
+                      Browser
+                    </button>
                   )}
                 </div>
 

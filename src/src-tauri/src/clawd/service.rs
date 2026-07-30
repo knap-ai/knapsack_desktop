@@ -10298,7 +10298,7 @@ async fn prepare_gateway_config(
       // anomaly and no cascading SIGUSR1 restart on first launch.
       "browser": {
         "enabled": true,
-        "headless": false,           // user needs visible Chrome for logins
+        "headless": false,           // existing-user-compatible visible browser default
         "defaultProfile": "openclaw" // managed, isolated profile
       },
       "plugins": {
@@ -10515,18 +10515,19 @@ async fn prepare_gateway_config(
           patched = true;
         }
 
-        // Ensure browser is NOT headless
+        // Preserve an explicit Settings choice; default existing users to the
+        // visible managed browser when the field is absent.
         let browser_headless = cfg_val
           .pointer("/browser/headless")
           .and_then(|v| v.as_bool());
-        if browser_headless != Some(false) {
+        if browser_headless.is_none() {
           cfg_val
             .pointer_mut("/browser")
             .unwrap()
             .as_object_mut()
             .unwrap()
             .insert("headless".to_string(), serde_json::json!(false));
-          eprintln!("[clawd/service] Patched browser.headless to false");
+          eprintln!("[clawd/service] Defaulted browser.headless to false");
           patched = true;
         }
 
@@ -12643,18 +12644,17 @@ pub async fn set_service_enabled(
               patched = true;
             }
 
-            // Ensure the browser is NOT headless — the user needs to see the
-            // managed Chrome window to log into services (OAuth, banking, etc.).
-            // Always set explicitly — if absent, the gateway may default to headless=true.
+            // Preserve an explicit Settings choice; default to the established
+            // visible managed browser when the field is absent.
             let browser_headless = cfg.pointer("/browser/headless").and_then(|v| v.as_bool());
-            if browser_headless != Some(false) {
+            if browser_headless.is_none() {
               cfg
                 .pointer_mut("/browser")
                 .unwrap()
                 .as_object_mut()
                 .unwrap()
                 .insert("headless".to_string(), serde_json::json!(false));
-              eprintln!("[clawd/service] Patched browser.headless to false (user needs visible Chrome for logins)");
+              eprintln!("[clawd/service] Defaulted browser.headless to false");
               patched = true;
             }
 
