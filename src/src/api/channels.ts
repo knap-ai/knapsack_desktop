@@ -197,6 +197,21 @@ export const configureGenericChannel = (channel: string, config: Record<string, 
 export const disconnectGenericChannel = (channel: string) =>
   post<GenericResponse>(`/api/clawd/channels/generic/${channel}/disconnect`, {})
 
+// ── Snowflake identity broker ────────────────────────────────
+
+interface SessionCapabilitySecretStatusResponse {
+  success: boolean
+  configured: boolean
+}
+
+/** Whether a Snowflake broker secret is on file — never the secret itself. */
+export const getSessionCapabilitySecretStatus = () =>
+  get<SessionCapabilitySecretStatusResponse>('/api/clawd/service/session-capability-secret-status')
+
+/** Save (or clear, if `secret` is empty) the Snowflake broker's shared HMAC secret. */
+export const setSessionCapabilitySecret = (secret: string) =>
+  post<GenericResponse>('/api/clawd/service/set-session-capability-secret', { secret })
+
 // ── Signal CLI ──────────────────────────────────────────────
 
 export interface SignalCliStatus {

@@ -9,6 +9,10 @@ import {
   getGoogleDriveConnections,
   getGoogleGmailConnections,
 } from 'src/api/connections'
+import {
+  getSessionCapabilitySecretStatus,
+  setSessionCapabilitySecret,
+} from 'src/api/channels'
 import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
@@ -362,6 +366,39 @@ export const SettingsDialog = ({
 
   // Accordion state — which provider section is expanded
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+
+  // Snowflake identity broker secret (shared with the team, not user-generated)
+  const [snowflakeSecretConfigured, setSnowflakeSecretConfigured] = useState(false)
+  const [snowflakeSecretInput, setSnowflakeSecretInput] = useState('')
+  const [snowflakeSecretSaving, setSnowflakeSecretSaving] = useState(false)
+  const [snowflakeSecretMessage, setSnowflakeSecretMessage] = useState('')
+
+  useEffect(() => {
+    getSessionCapabilitySecretStatus()
+      .then(res => setSnowflakeSecretConfigured(res.configured))
+      .catch(() => {
+        /* status endpoint unreachable — leave as not configured */
+      })
+  }, [])
+
+  const handleSaveSnowflakeSecret = useCallback(async () => {
+    setSnowflakeSecretSaving(true)
+    setSnowflakeSecretMessage('')
+    try {
+      const res = await setSessionCapabilitySecret(snowflakeSecretInput.trim())
+      if (res.success) {
+        setSnowflakeSecretConfigured(!!snowflakeSecretInput.trim())
+        setSnowflakeSecretInput('')
+        setSnowflakeSecretMessage(res.message ?? 'Saved')
+      } else {
+        setSnowflakeSecretMessage(res.message ?? 'Failed to save')
+      }
+    } catch {
+      setSnowflakeSecretMessage('Failed to reach the local service — is Knapsack running?')
+    } finally {
+      setSnowflakeSecretSaving(false)
+    }
+  }, [snowflakeSecretInput])
 
   // Ollama state
   const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
@@ -1031,6 +1068,52 @@ export const SettingsDialog = ({
                 </ProviderAccordion>
               )
             })}
+
+            {/* Snowflake identity broker — a shared secret from the Scout/broker
+                team, not an LLM provider key, but it lives in the same tokens.json
+                as the other keys above, so it's surfaced here too. */}
+            <ProviderAccordion
+              title="Snowflake Broker (Scout)"
+              isConnected={snowflakeSecretConfigured}
+              expanded={expandedProvider === 'snowflake-broker'}
+              onToggle={() => toggleProvider('snowflake-broker')}
+            >
+              <div style={{ marginBottom: 8, opacity: 0.75, fontSize: 13 }}>
+                Paste the shared signing secret the Scout/broker team gave you — this
+                isn&apos;t something you generate yourself.
+              </div>
+              <div className={styles.providerActions}>
+                <span className={styles.providerStatus}>
+                  {snowflakeSecretConfigured ? 'Secret configured' : 'No secret set'}
+                </span>
+              </div>
+              <input
+                type="password"
+                placeholder="Paste the broker secret here"
+                value={snowflakeSecretInput}
+                onChange={e => setSnowflakeSecretInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  marginTop: 6,
+                  marginBottom: 6,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'transparent',
+                  color: 'inherit',
+                }}
+              />
+              <button
+                className={styles.providerActionLink}
+                disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
+                onClick={handleSaveSnowflakeSecret}
+              >
+                {snowflakeSecretSaving ? 'Saving...' : 'Save'}
+              </button>
+              {snowflakeSecretMessage && (
+                <div style={{ marginTop: 6, opacity: 0.75 }}>{snowflakeSecretMessage}</div>
+              )}
+            </ProviderAccordion>
 
             {/* Ollama (local LLM) */}
             <ProviderAccordion

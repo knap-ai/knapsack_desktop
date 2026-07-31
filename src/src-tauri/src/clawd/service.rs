@@ -9241,6 +9241,89 @@ pub async fn set_api_key(
   })
 }
 
+/// The Snowflake identity broker's HMAC signing secret — a single shared
+/// value the Scout/broker team provides, not something generated locally.
+/// Saved through the same `tokens.json` (0600) path as provider API keys,
+/// but kept as its own small endpoint rather than folded into
+/// `set_api_key`/`SetApiKeyRequest`, since it isn't an LLM provider key and
+/// has none of that endpoint's provider-switching logic.
+#[derive(Debug, Deserialize)]
+pub struct SetSessionCapabilitySecretRequest {
+  #[serde(default)]
+  pub secret: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetSessionCapabilitySecretResponse {
+  pub success: bool,
+  pub message: String,
+}
+
+#[post("/api/clawd/service/set-session-capability-secret")]
+pub async fn set_session_capability_secret(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<SetSessionCapabilitySecretRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  let secret = payload.secret.trim().to_string();
+  tokens.session_capability_secret = if secret.is_empty() { None } else { Some(secret) };
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  HttpResponse::Ok().json(SetSessionCapabilitySecretResponse {
+    success: true,
+    message: if tokens.session_capability_secret.is_some() {
+      "Snowflake broker secret saved".to_string()
+    } else {
+      "Snowflake broker secret cleared".to_string()
+    },
+  })
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionCapabilitySecretStatusResponse {
+  pub success: bool,
+  /// Never the secret itself — just whether one is on file, so the Settings
+  /// UI can show "configured" without ever displaying or re-transmitting it.
+  pub configured: bool,
+}
+
+#[get("/api/clawd/service/session-capability-secret-status")]
+pub async fn session_capability_secret_status(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(_) => {
+      return HttpResponse::Ok().json(SessionCapabilitySecretStatusResponse {
+        success: true,
+        configured: false,
+      })
+    }
+  };
+  HttpResponse::Ok().json(SessionCapabilitySecretStatusResponse {
+    success: true,
+    configured: tokens
+      .session_capability_secret
+      .as_ref()
+      .is_some_and(|s| !s.is_empty()),
+  })
+}
+
 /// Remove an extra provider key.
 #[derive(Debug, Deserialize)]
 pub struct DeleteExtraProviderKeyRequest {
