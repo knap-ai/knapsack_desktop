@@ -428,9 +428,18 @@ fn setup_handler(
   // app-local config and key propagation.
   let auto_enable_handle = app.handle();
   std::thread::spawn(move || {
-    tokio::runtime::Runtime::new()
-      .unwrap()
-      .block_on(clawd::service::auto_enable_if_needed(&auto_enable_handle));
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+      clawd::service::auto_enable_if_needed(&auto_enable_handle).await;
+      // Keeps Rust aware of live Slack sessions so the Snowflake MCP tool
+      // can bind queries to a verified sender and per-sender sandbox
+      // containers get torn down promptly (see clawd/session_watcher.rs).
+      clawd::session_watcher::spawn(auto_enable_handle.clone());
+      // `spawn()` only schedules the poll loop on this runtime; keep this
+      // dedicated thread/runtime alive for the app's lifetime so the task
+      // keeps running instead of being dropped once this block finishes.
+      std::future::pending::<()>().await;
+    });
   });
 
   config::init_knapsack_config(
@@ -1667,6 +1676,16 @@ fn update_tray_title(app: AppHandle, title: String) {
 
 #[tokio::main]
 async fn main() {
+  // Hidden entrypoint: OpenClaw spawns this same binary as an MCP-over-stdio
+  // subprocess (see `ensure_knapsack_snowflake_mcp_server` in
+  // clawd/service.rs, which points `mcp.servers.snowflake.command` at
+  // `current_exe()`). Intercept before any Tauri/Sentry/tray setup — this
+  // invocation does nothing else with the process.
+  if std::env::args().any(|arg| arg == "--internal-mcp-snowflake") {
+    clawd::snowflake_mcp::run_stdio_server().await;
+    std::process::exit(0);
+  }
+
   create_data_dir();
   create_db_env_variable();
 
