@@ -14,11 +14,11 @@ use std::sync::Mutex;
 
 use crate::clawd::chat_agent;
 use crate::clawd::gateway_client;
+use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
-const AGENT_CHAT_GATEWAY_TIMEOUT: Duration = Duration::from_secs(30);
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Record token usage from a chat API response (best-effort, never panics).
@@ -2548,129 +2548,6 @@ fn extract_docx_text(content: &str) -> String {
   result
 }
 
-/// Parse gateway payload text that may be SSE-formatted.
-///
-/// The gateway sometimes wraps LLM output in SSE framing like:
-///   `data: {"choices":[{"text":"actual content"}]}`
-/// This helper extracts the actual content, handling multiple SSE lines
-/// and `[DONE]` sentinel.  If the text is already plain, returns it as-is.
-fn parse_sse_payload_text(raw: &str) -> String {
-  // If no SSE framing, return as-is
-  if !raw.contains("data: ") {
-    return raw.to_string();
-  }
-
-  let mut parts: Vec<String> = Vec::new();
-  for line in raw.lines() {
-    let line = line.trim();
-    if let Some(json_str) = line.strip_prefix("data: ") {
-      let json_str = json_str.trim();
-      if json_str == "[DONE]" {
-        continue;
-      }
-      // Try to parse as JSON and extract text from choices
-      if let Ok(parsed) = serde_json::from_str::<JsonValue>(json_str) {
-        if let Some(choices) = parsed.get("choices").and_then(|c| c.as_array()) {
-          for choice in choices {
-            // OpenAI-style: choices[].text or choices[].delta.content or choices[].message.content
-            if let Some(text) = choice
-              .get("text")
-              .and_then(|t| t.as_str())
-              .or_else(|| choice.pointer("/delta/content").and_then(|t| t.as_str()))
-              .or_else(|| choice.pointer("/message/content").and_then(|t| t.as_str()))
-            {
-              parts.push(text.to_string());
-            }
-          }
-        } else if let Some(text) = parsed.get("text").and_then(|t| t.as_str()) {
-          parts.push(text.to_string());
-        }
-      }
-      // If JSON parsing fails, include the raw data line as-is
-      else {
-        parts.push(json_str.to_string());
-      }
-    }
-    // Non-SSE lines (e.g. plain text mixed in) — include as-is
-    else if !line.is_empty() && !line.starts_with(':') {
-      parts.push(line.to_string());
-    }
-  }
-
-  if parts.is_empty() {
-    return raw.to_string();
-  }
-  parts.join("")
-}
-
-fn is_degraded_gateway_capability_reply(reply: &str) -> bool {
-  let lower = reply.trim().to_lowercase().replace('`', "");
-  if lower.is_empty() {
-    return true;
-  }
-
-  if lower.contains("web_search tool") && lower.contains("disabled") {
-    return true;
-  }
-  if lower.contains("web search tool") && lower.contains("disabled") {
-    return true;
-  }
-  if lower.contains("direct email access") && lower.contains("none of which include") {
-    return true;
-  }
-
-  [
-    "web_search tool is disabled",
-    "web_search tool required",
-    "web search tool is disabled",
-    "web search tool required",
-    "no provider is available",
-    "don't have access to your email client",
-    "do not have access to your email accounts",
-    "do not have access to your email account",
-    "don't have direct access to your email",
-    "none of which include email access",
-    "none of which include direct email access",
-    "based on my memory.md",
-    "i checked my memory.md",
-    "my memory.md file",
-    "browser is currently unavailable",
-    "unable to perform web searches",
-    "no direct email send capability available",
-  ]
-  .iter()
-  .any(|needle| lower.contains(needle))
-}
-
-fn gateway_run_failed(status: &str) -> bool {
-  matches!(
-    status.trim().to_ascii_lowercase().as_str(),
-    "failed" | "error" | "errored" | "cancelled" | "canceled" | "timed_out" | "timeout"
-  )
-}
-
-fn is_gateway_execution_failure_reply(reply: &str) -> bool {
-  let lower = reply.trim().to_lowercase().replace('`', "");
-  if lower.is_empty() {
-    return false;
-  }
-
-  [
-    "json deserialize error",
-    "unexpected end of hex escape",
-    "invalid args",
-    "missing required key",
-    "cannot find module",
-    "permission denied",
-    "command not found",
-    "message failed",
-    "tool call validation failed",
-  ]
-  .iter()
-  .any(|needle| lower.contains(needle))
-}
-
-/// Send a chat message through the gateway's agent pipeline.
 /// Read recent terminal output from the built-in terminal sessions.
 /// Used by the chat agent's `read_terminal` tool so the AI can see what's
 /// in the terminal without the user having to copy-paste.
@@ -2690,11 +2567,12 @@ pub async fn terminal_output(
   }))
 }
 
+/// Send a chat message through the configured agent harness.
 ///
-/// This shares the same session as Telegram/WhatsApp/iMessage channels,
-/// so conversation history carries across all surfaces.  Falls back to
-/// the direct `/api/clawd/chat` path if the gateway is not reachable or
-/// returns an error.
+/// OpenClaw remains the default and shares the same session as connected
+/// channels. Hermes can be selected for development or deployment through
+/// environment configuration. Both fall back to the direct `/api/clawd/chat`
+/// path when the selected harness is unavailable or returns an error.
 #[post("/api/clawd/agent-chat")]
 pub async fn agent_chat(
   app_handle: web::Data<tauri::AppHandle>,
@@ -2712,14 +2590,14 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
-  // Split attachments: images → gateway RPC params (gateway handles data-URL stripping and
-  // MIME sniffing); non-images → text extracted in Rust and appended to the message.
+  // Split attachments: images go to the selected harness; non-images are
+  // extracted in Rust and appended to the message.
   let raw_attachments = body
     .get("attachments")
     .and_then(|v| v.as_array())
     .cloned()
     .unwrap_or_default();
-  let mut gateway_attachments: Vec<serde_json::Value> = Vec::new();
+  let mut image_attachments: Vec<serde_json::Value> = Vec::new();
   let mut text_with_attachments = text.clone();
 
   for att in &raw_attachments {
@@ -2728,7 +2606,7 @@ pub async fn agent_chat(
     let content = att.get("content").and_then(|v| v.as_str()).unwrap_or("");
 
     if file_type.starts_with("image/") || content.starts_with("data:image/") {
-      gateway_attachments.push(serde_json::json!({
+      image_attachments.push(serde_json::json!({
         "fileName": name,
         "mimeType": file_type,
         "content": content,
@@ -2771,135 +2649,59 @@ pub async fn agent_chat(
   text_with_attachments = clamp_inline_text(
     &text_with_attachments,
     12_000usize,
-    "Additional inline context omitted before sending to the shared gateway session",
+    "Additional inline context omitted before sending to the agent harness",
   );
 
-  // Try gateway agent-chat if port is open
-  let gateway_reply = if gateway_client::is_gateway_port_open().await {
-    eprintln!(
-      "[clawd/agent-chat] Sending to gateway: {:?} (attachments: {})",
-      &text_with_attachments[..text_with_attachments.len().min(100)],
-      gateway_attachments.len()
-    );
+  let session_id = body
+    .get("sessionId")
+    .and_then(JsonValue::as_str)
+    .unwrap_or("ui");
+  let conversation_scope = body.get("conversationScope").and_then(JsonValue::as_str);
+  eprintln!(
+    "[clawd/agent-chat] Sending to selected harness: {:?} (attachments: {})",
+    &text_with_attachments[..text_with_attachments.len().min(100)],
+    image_attachments.len()
+  );
 
-    match tokio::time::timeout(
-      AGENT_CHAT_GATEWAY_TIMEOUT,
-      gateway_client::agent_chat(&text_with_attachments, &gateway_attachments, None, None),
-    )
-    .await
-    {
-      Ok(Ok(result)) => {
-        eprintln!(
-          "[clawd/agent-chat] Gateway returned OK. Keys: {:?}",
-          result.as_object().map(|o| o.keys().collect::<Vec<_>>())
-        );
-        let status = result
-          .get("status")
-          .and_then(|s| s.as_str())
-          .unwrap_or("unknown");
-        eprintln!(
-          "[clawd/agent-chat] status={}, has result/payloads={}",
-          status,
-          result.pointer("/result/payloads").is_some()
-        );
-
-        let reply = result
-          .pointer("/result/payloads")
-          .and_then(|p| p.as_array())
-          .map(|payloads| {
-            payloads
-              .iter()
-              .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
-              .map(|raw| parse_sse_payload_text(raw))
-              .collect::<Vec<_>>()
-              .join("\n\n")
-          })
-          .unwrap_or_else(|| {
-            result
-              .get("summary")
-              .and_then(|s| s.as_str())
-              .unwrap_or("")
-              .to_string()
-          });
-
-        if !reply.is_empty() {
-          // Detect if the gateway returned a raw HTTP error string (e.g. "401 Missing
-          // Authentication header") rather than a real AI response.  These occur when
-          // the gateway's internal API calls fail with an auth error.  Treat them as
-          // gateway failures and fall back to direct chat so the frontend's friendlyError
-          // handler can surface an actionable message instead of raw error text.
-          // Note: no length cap — gateway error messages can be verbose (>250 chars)
-          // and would bypass detection if we required trimmed.len() < 250.
-          let trimmed = reply.trim();
-          let is_http_error = trimmed.len() >= 4
-            && trimmed.as_bytes().get(3) == Some(&b' ')
-            && trimmed[..3]
-              .parse::<u16>()
-              .map(|c| (300..=599).contains(&c))
-              .unwrap_or(false);
-          if gateway_run_failed(status) {
-            eprintln!(
-              "[clawd/agent-chat] Gateway run ended with status={}, falling back to direct chat. Summary: {:?}",
-              status,
-              &reply[..reply.len().min(200)]
-            );
-            None
-          } else if is_gateway_execution_failure_reply(trimmed) {
-            eprintln!(
-              "[clawd/agent-chat] Gateway returned execution failure reply, falling back to direct chat: {:?}",
-              &trimmed[..trimmed.len().min(200)]
-            );
-            None
-          } else if is_http_error {
-            eprintln!(
-              "[clawd/agent-chat] Gateway returned HTTP error reply: {:?}, falling back to direct chat",
-              &trimmed[..trimmed.len().min(100)]
-            );
-            None
-          } else if is_degraded_gateway_capability_reply(trimmed) {
-            eprintln!(
-              "[clawd/agent-chat] Gateway returned degraded capability reply: {:?}, falling back to direct chat",
-              &trimmed[..trimmed.len().min(160)]
-            );
-            None
-          } else {
-            eprintln!(
-              "[clawd/agent-chat] Reply (first 200 chars): {:?}",
-              &reply[..reply.len().min(200)]
-            );
-            Some(reply)
-          }
-        } else {
-          eprintln!("[clawd/agent-chat] Gateway returned empty reply, falling back to direct chat");
-          None
-        }
-      }
-      Ok(Err(e)) => {
-        eprintln!(
-          "[clawd/agent-chat] Gateway agent request FAILED: {}, falling back to direct chat",
-          e
-        );
-        None
-      }
-      Err(_) => {
-        eprintln!(
-          "[clawd/agent-chat] Gateway agent request timed out after {:?}; falling back to direct chat",
-          AGENT_CHAT_GATEWAY_TIMEOUT
-        );
-        None
-      }
+  let selected_harness = harness::selected_harness(app_handle.get_ref());
+  match harness::run_selected(
+    app_handle.get_ref(),
+    harness::HarnessRequest {
+      message: &text_with_attachments,
+      attachments: &image_attachments,
+      conversation_scope,
+      session_id,
+    },
+  )
+  .await
+  {
+    Ok(result) => {
+      eprintln!(
+        "[clawd/agent-chat] {} reply (first 200 chars): {:?}",
+        result.harness.as_str(),
+        &result.reply[..result.reply.len().min(200)]
+      );
+      return HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": result.reply,
+        "harness": result.harness.as_str(),
+        "gateway": result.harness == harness::AgentHarnessKind::OpenClaw,
+      }));
     }
-  } else {
-    eprintln!("[clawd/agent-chat] Gateway port not open, falling back to direct chat");
-    None
-  };
-
-  if let Some(reply) = gateway_reply {
-    return HttpResponse::Ok().json(serde_json::json!({
-      "ok": true,
-      "reply": reply,
-      "gateway": true,
-    }));
+    Err(error) => {
+      if selected_harness == Ok(harness::AgentHarnessKind::Hermes) {
+        return HttpResponse::ServiceUnavailable().json(serde_json::json!({
+          "ok": false,
+          "harness": "hermes",
+          "noFallback": true,
+          "message": format!("Hermes is unavailable: {error}"),
+        }));
+      }
+      eprintln!(
+        "[clawd/agent-chat] Selected harness failed: {}; falling back to direct chat",
+        error
+      );
+    }
   }
 
   // Fallback: direct LLM chat via internal HTTP request to /api/clawd/chat.
@@ -3009,7 +2811,7 @@ pub async fn agent_run(body: web::Json<JsonValue>) -> impl Responder {
           payloads
             .iter()
             .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
-            .map(|raw| parse_sse_payload_text(raw))
+            .map(harness::parse_sse_payload_text)
             .collect::<Vec<_>>()
             .join("\n\n")
         })

@@ -4916,10 +4916,10 @@ ${actualText}`
           }))
         }
 
-        // Try gateway agent-chat first (shared session with Telegram/WhatsApp/iMessage),
-        // fall back to direct chat if gateway is unavailable.
+        // Try the configured agent harness first (OpenClaw by default), then
+        // fall back to direct chat if the harness is unavailable.
         // Keep the frontend timeout longer than the backend request budget.
-        // If the shared gateway session is slow or poisoned, the backend falls
+        // If the selected harness session is slow or unhealthy, the backend falls
         // back to direct chat so desktop users still get a timely answer.
         let useDirectChat = usedNativeEmailCalendarContext
 
@@ -4944,6 +4944,7 @@ ${actualText}`
               provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
+              sessionId: 'ui',
               advancedMode,
               userEmail: userEmail || '',
               userName: userName || '',
@@ -4958,9 +4959,32 @@ ${actualText}`
             signal: agentSignal,
           })
           if (agentTimerId) clearTimeout(agentTimerId)
+          const agentOut = (await agentRes.json()) as {
+            ok?: boolean
+            reply?: string
+            message?: string
+            fallback?: boolean
+            gateway?: boolean
+            harness?: 'openclaw' | 'hermes'
+            model?: string
+            noFallback?: boolean
+          }
+          if (!agentRes.ok && agentOut.noFallback) {
+            const harnessError = new Error(
+              agentOut.message || 'The selected agent runtime is unavailable.',
+            ) as Error & { noFallback?: boolean }
+            harnessError.noFallback = true
+            throw harnessError
+          }
           if (agentRes.ok) {
-            const agentOut = await agentRes.json() as { ok?: boolean; reply?: string; message?: string; fallback?: boolean; gateway?: boolean; model?: string; noFallback?: boolean }
-            console.log('[chat] agent-chat response:', { ok: agentOut.ok, hasReply: !!agentOut.reply, gateway: agentOut.gateway, fallback: agentOut.fallback, message: agentOut.message })
+            console.log('[chat] agent-chat response:', {
+              ok: agentOut.ok,
+              hasReply: !!agentOut.reply,
+              harness: agentOut.harness,
+              gateway: agentOut.gateway,
+              fallback: agentOut.fallback,
+              message: agentOut.message,
+            })
             if (agentOut.ok && agentOut.reply) {
               // Accept replies from both gateway and direct-chat fallback.
               // The backend already called open_first_url_in_reply, so the
@@ -4979,7 +5003,10 @@ ${actualText}`
                 )
                 useDirectChat = true
               } else {
-                console.log('[chat] Using agent-chat response:', { gateway: agentOut.gateway })
+                console.log('[chat] Using agent-chat response:', {
+                  harness: agentOut.harness,
+                  gateway: agentOut.gateway,
+                })
                 let displayText = agentOut.reply!
                 // When the gateway surfaces an error (rate limit, auth, key), enrich the message
                 if (agentOut.gateway) {
@@ -4994,7 +5021,15 @@ ${actualText}`
                 }
                 setMsgs(prev => [
                   ...prev,
-                  { id: crypto.randomUUID(), role: 'assistant', text: displayText, ts: Date.now(), model: agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct' },
+                  {
+                    id: crypto.randomUUID(),
+                    role: 'assistant',
+                    text: displayText,
+                    ts: Date.now(),
+                    model:
+                      agentOut.harness ??
+                      (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
+                  },
                 ])
               }
             } else {
@@ -5011,6 +5046,7 @@ ${actualText}`
           }
         } catch (agentErr: any) {
           if (agentTimerId) clearTimeout(agentTimerId)
+          if (agentErr.noFallback) throw agentErr
           // Only re-throw if this was the USER's abort (not our timeout)
           if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
           // If this was our timeout abort, the gateway already has the user

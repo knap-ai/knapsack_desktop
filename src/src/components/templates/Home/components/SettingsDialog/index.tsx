@@ -12,7 +12,7 @@ import {
 import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
-import { KN_API_GET_USER_EMAIL } from 'src/utils/constants'
+import { KN_API_GET_USER_EMAIL, KN_SERVER_HOST } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -300,6 +300,193 @@ function SupportSection() {
           {copied ? 'Copied!' : 'Copy log path'}
         </button>
       </div>
+    </div>
+  )
+}
+
+type AgentHarnessKind = 'openclaw' | 'hermes'
+type HermesConnectionStatus = 'idle' | 'checking' | 'connected' | 'offline' | 'needs_configuration'
+
+function AgentHarnessSection({ isOpen }: { isOpen: boolean }) {
+  const [harness, setHarness] = useState<AgentHarnessKind>('openclaw')
+  const [hermesBaseUrl, setHermesBaseUrl] = useState('http://127.0.0.1:8642/v1')
+  const [hermesApiKey, setHermesApiKey] = useState('')
+  const [hasSavedKey, setHasSavedKey] = useState(false)
+  const [status, setStatus] = useState<HermesConnectionStatus>('idle')
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetch(`${KN_SERVER_HOST}/api/clawd/harness/settings`)
+      .then(response => response.json())
+      .then(data => {
+        if (!data.success) throw new Error(data.message || 'Could not load agent runtime settings')
+        setHarness(data.harness === 'hermes' ? 'hermes' : 'openclaw')
+        setHermesBaseUrl(data.hermes_base_url || 'http://127.0.0.1:8642/v1')
+        setHasSavedKey(!!data.has_hermes_api_key)
+        setHermesApiKey('')
+        setStatus('idle')
+        setMessage('')
+      })
+      .catch(error => {
+        setStatus('needs_configuration')
+        setMessage(error instanceof Error ? error.message : String(error))
+      })
+  }, [isOpen])
+
+  const requestBody = () => ({
+    harness,
+    hermes_base_url: hermesBaseUrl,
+    ...(hermesApiKey.trim() && { hermes_api_key: hermesApiKey.trim() }),
+  })
+
+  const testHermes = async () => {
+    setStatus('checking')
+    setMessage('Checking the local Hermes server…')
+    try {
+      const response = await fetch(`${KN_SERVER_HOST}/api/clawd/harness/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...requestBody(), harness: 'hermes' }),
+      })
+      const result = await response.json()
+      setStatus(result.status || (result.success ? 'connected' : 'needs_configuration'))
+      setMessage(
+        result.message || (result.success ? 'Hermes is connected.' : 'Hermes is unavailable.'),
+      )
+    } catch {
+      setStatus('offline')
+      setMessage('Hermes is not running or cannot be reached at this address.')
+    }
+  }
+
+  const saveHarness = async () => {
+    setSaving(true)
+    setMessage(harness === 'hermes' ? 'Validating Hermes before switching…' : 'Saving…')
+    if (harness === 'hermes') setStatus('checking')
+    try {
+      const response = await fetch(`${KN_SERVER_HOST}/api/clawd/harness/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody()),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        setStatus(result.status || 'needs_configuration')
+        throw new Error(result.message || 'Could not save the agent runtime')
+      }
+      setHarness(result.harness === 'hermes' ? 'hermes' : 'openclaw')
+      setHasSavedKey(!!result.has_hermes_api_key)
+      setHermesApiKey('')
+      setStatus(result.harness === 'hermes' ? 'connected' : 'idle')
+      setMessage(
+        result.harness === 'hermes'
+          ? 'Hermes is connected and active for new conversations.'
+          : 'OpenClaw is active.',
+      )
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const statusColor =
+    status === 'connected'
+      ? 'text-green-600'
+      : status === 'offline' || status === 'needs_configuration'
+        ? 'text-red-600'
+        : 'text-zinc-500'
+
+  return (
+    <div className="p-6 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <Typography weight={TypographyWeight.medium}>Agent runtime</Typography>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+          Advanced
+        </span>
+      </div>
+      <Typography className="text-xs text-zinc-500 leading-5">
+        OpenClaw provides the standard Knapsack experience. Hermes is experimental and requires a
+        separately installed and running Hermes server.
+      </Typography>
+      <InputSelect
+        options={[
+          { label: 'OpenClaw — Recommended', value: 'openclaw' },
+          { label: 'Hermes — Experimental', value: 'hermes' },
+        ]}
+        value={harness}
+        onChange={value => {
+          setHarness(value as AgentHarnessKind)
+          setStatus('idle')
+          setMessage('')
+        }}
+      />
+
+      {harness === 'hermes' && (
+        <div className="flex flex-col gap-3 rounded border border-zinc-200 bg-zinc-50 p-3">
+          <label className="flex flex-col gap-1 text-xs text-zinc-600">
+            Server URL
+            <input
+              className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm text-black"
+              value={hermesBaseUrl}
+              onChange={event => setHermesBaseUrl(event.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-zinc-600">
+            API key
+            <input
+              className="rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm text-black"
+              type="password"
+              value={hermesApiKey}
+              onChange={event => setHermesApiKey(event.target.value)}
+              placeholder={
+                hasSavedKey
+                  ? 'Key configured — enter a new key to replace it'
+                  : 'Hermes API_SERVER_KEY'
+              }
+              autoComplete="off"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-2">
+            <Typography className={`text-xs ${statusColor}`}>
+              {message || 'Install Hermes, enable its API server, and run `hermes gateway`.'}
+            </Typography>
+            <button
+              className="shrink-0 rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs hover:bg-zinc-100 disabled:opacity-50"
+              onClick={testHermes}
+              disabled={status === 'checking'}
+            >
+              {status === 'checking' ? 'Checking…' : 'Test connection'}
+            </button>
+          </div>
+          {status === 'offline' && (
+            <Typography className="text-xs text-zinc-500">
+              Hermes may not be installed, may not be running, or may be using a different port.
+            </Typography>
+          )}
+          {status === 'needs_configuration' && (
+            <Typography className="text-xs text-zinc-500">
+              Check API-server mode, API_SERVER_KEY, and the configured Hermes model provider.
+            </Typography>
+          )}
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+          onClick={saveHarness}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Save runtime'}
+        </button>
+      </div>
+      {harness === 'openclaw' && message && (
+        <Typography className="text-xs text-zinc-500">{message}</Typography>
+      )}
     </div>
   )
 }
@@ -849,6 +1036,9 @@ export const SettingsDialog = ({
             </Typography>
           )}
         </div>
+        <hr className="border-zinc-200" />
+
+        <AgentHarnessSection isOpen={isOpen} />
         <hr className="border-zinc-200" />
 
         {/* ── AI Provider (accordion) ─────────────────────────────────── */}

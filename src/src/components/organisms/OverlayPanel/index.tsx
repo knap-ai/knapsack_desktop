@@ -279,20 +279,22 @@ function OverlayPanel() {
       setSaveToast(null)
 
       try {
-        // Try gateway agent-chat first (shared session with channels),
-        // fall back to direct LLM chat if gateway is unavailable.
+        // Try the configured agent harness first, then fall back to direct LLM
+        // chat if it is unavailable.
         let reply: string | null = null
 
         try {
           const agentRes = await fetch(AGENT_CHAT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: submittedQuery, preferFast: true }),
+            body: JSON.stringify({ text: submittedQuery, sessionId: 'overlay', preferFast: true }),
             signal: controller.signal,
           })
           const agentData = await agentRes.json()
           if (agentData.ok && agentData.reply) {
             reply = agentData.reply
+          } else if (agentData.noFallback && agentData.message) {
+            reply = agentData.message
           }
           // If not ok or no reply, fall through to direct chat
         } catch (agentErr: any) {

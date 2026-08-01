@@ -10,6 +10,7 @@ pub mod gateway_supervisor;
 pub mod gateway_ws;
 pub mod gbrain;
 pub mod gmail;
+pub mod harness;
 pub mod managed_agents;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
