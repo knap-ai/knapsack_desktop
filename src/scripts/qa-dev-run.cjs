@@ -383,7 +383,11 @@ function waitForUrl(url, timeoutMs = 30_000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
     const attempt = () => {
-      const req = http.get(url, (res) => {
+      const tokens = readJsonFile(qaTokensPath);
+      const headers = tokens?.desktop_api_token
+        ? { "x-knapsack-api-token": tokens.desktop_api_token }
+        : {};
+      const req = http.get(url, { headers }, (res) => {
         res.resume();
         resolve();
       });

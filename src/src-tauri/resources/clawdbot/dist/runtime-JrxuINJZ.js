@@ -27,7 +27,10 @@ async function runDesktopBrowserWebSearchFallback(params, reason) {
 	try {
 		response = await fetch(url.toString(), {
 			method: "GET",
-			headers: { Accept: "application/json" }
+			headers: {
+				Accept: "application/json",
+				"x-knapsack-api-token": process.env.KNAPSACK_DESKTOP_API_TOKEN || ""
+			}
 		});
 	} catch (error) {
 		throw new Error(`web_search browser fallback failed to connect (${reason}): ${error instanceof Error ? error.message : String(error)}`);

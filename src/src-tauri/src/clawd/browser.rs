@@ -655,7 +655,9 @@ async fn knapsack_bearer_token(
     "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
     email
   );
-  match client.get(&token_url).send().await {
+  let request = crate::server::auth::authenticated_request(client.get(&token_url))
+    .map_err(anyhow::Error::msg)?;
+  match request.send().await {
     Ok(resp) => {
       if resp.status().is_success() {
         let token_json: serde_json::Value = resp.json().await?;
@@ -2918,6 +2920,10 @@ pub async fn agent_chat(
     Ok(client) => {
       match client
         .post("http://127.0.0.1:8897/api/clawd/chat")
+        .header(
+          crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+          crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
+        )
         .json(&fallback_body)
         .send()
         .await
@@ -3469,6 +3475,10 @@ pub async fn chat(
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build web_search client: {}", e))?
         .get(&url)
+        .header(
+          crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+          crate::server::auth::desktop_api_token_from_env().map_err(anyhow::Error::msg)?,
+        )
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("web_search request failed: {}", e))?;
