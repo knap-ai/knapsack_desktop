@@ -975,15 +975,15 @@ const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having conne
    JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
 
 1. Check the gateway service status:
-   curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
+   curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 2. Check startup readiness:
-   curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
+   curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
 3. Check if ports are listening without printing process environments:
    lsof -nP -iTCP:18789 -iTCP:18791 -sTCP:LISTEN 2>/dev/null
 4. Check the current Knapsack gateway logs, filtering stale/noisy lines:
    tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || true
 5. Check browser tabs through Knapsack:
-   curl -s http://127.0.0.1:8897/api/clawd/browser/tabs | sh -c "$JSON_PP"
+   curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/browser/tabs | sh -c "$JSON_PP"
 
 Based on the results, tell me:
 - Whether the gateway process is running
@@ -998,16 +998,16 @@ IMPORTANT:
 
 const GATEWAY_RESTART_PROMPT = `Please restart the Knapsack gateway service. Run this command:
 JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
-curl -s http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
+curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/service/startup-ready | sh -c "$JSON_PP"
 Then check if it recovered:
-curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
+curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Tell me whether the gateway and browser are now healthy.`
 
 const GATEWAY_VIEW_LOGS_PROMPT = `Show me the recent Knapsack gateway error logs to help diagnose connectivity issues. Run:
 tail -80 ~/Library/Logs/Knapsack/knapsack-clawdbot.err.log 2>/dev/null | grep -Ev "security warning|model-pricing|socket-mode:SlackWebSocket|slack.*socket disconnected|bonjour|CIAO|staging bundled runtime deps" || echo "No relevant gateway error log lines found"
 Then compare against live health:
 JSON_PP='python3 -m json.tool 2>/dev/null || python -m json.tool 2>/dev/null || jq . 2>/dev/null || cat'
-curl -s http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
+curl -s -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN" http://127.0.0.1:8897/api/clawd/service/health | sh -c "$JSON_PP"
 Summarize only recurring current errors, especially related to: gateway connectivity, browser/CDP failures, channel errors (WhatsApp, iMessage), or port conflicts.
 IMPORTANT: Treat live health as authoritative over stale log lines. If the log is empty or not found, do NOT speculate about Full Disk Access or other permissions — the absence of logs does not imply a permission issue.`
 

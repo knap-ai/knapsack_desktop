@@ -304,6 +304,41 @@ function SupportSection() {
   )
 }
 
+function MobilePairingSection() {
+  const [pairingCode, setPairingCode] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    invoke<string>('get_mobile_pairing_token')
+      .then(setPairingCode)
+      .catch(() => setPairingCode(''))
+  }, [])
+
+  const copyPairingCode = useCallback(async () => {
+    if (!pairingCode) return
+    await navigator.clipboard.writeText(pairingCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [pairingCode])
+
+  return (
+    <div className="p-6 flex flex-col gap-3">
+      <Typography weight={TypographyWeight.medium}>Mobile pairing</Typography>
+      <Typography className="text-zinc-500 text-sm">
+        Copy this private code into Knapsack on your iPhone. It prevents other devices on the same
+        network from reading your chats, meetings, or calendar.
+      </Typography>
+      <button
+        className="self-start px-3 py-1.5 rounded border border-zinc-300 text-sm hover:bg-zinc-100 transition-colors"
+        onClick={copyPairingCode}
+        disabled={!pairingCode}
+      >
+        {copied ? 'Copied!' : 'Copy mobile pairing code'}
+      </button>
+    </div>
+  )
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export const SettingsDialog = ({
@@ -1673,6 +1708,8 @@ export const SettingsDialog = ({
 
         <hr className="border-zinc-200" />
         <HeartbeatSettings />
+        <hr className="border-zinc-200" />
+        <MobilePairingSection />
         <hr className="border-zinc-200" />
         <UpdateSection />
         <hr className="border-zinc-200" />

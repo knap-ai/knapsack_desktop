@@ -80,6 +80,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "KNAPSACK_USER_EMAIL",
     "KNAPSACK_ACCESS_TOKEN",
     "KNAPSACK_REFRESH_TOKEN",
+    "KNAPSACK_DESKTOP_API_TOKEN",
     "OPENCLAW_BUNDLED_CHANNEL_FALLBACK_IDS",
     "OPENCLAW_PLUGIN_DISCOVERY_ALLOWLIST",
   ];
@@ -4594,6 +4595,10 @@ fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
 struct StoredTokens {
   gateway_token: String,
   browser_control_token: String,
+  #[serde(default)]
+  desktop_api_token: String,
+  #[serde(default)]
+  mobile_pairing_token: String,
 
   // Optional: used by the embedded Clawdbot browser server chat agent.
   groq_api_key: Option<String>,
@@ -4661,8 +4666,26 @@ struct StoredTokens {
   knapsack_refresh_token: Option<String>,
 }
 
+static TOKENS_FILE_LOCK: once_cell::sync::Lazy<std::sync::Mutex<()>> =
+  once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
+static API_AUTH_TOKENS_MIGRATED: AtomicBool = AtomicBool::new(false);
+
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
   app_clawdbot_home(app_handle).join("tokens.json")
+}
+
+fn ensure_api_auth_tokens(tokens: &mut StoredTokens) -> bool {
+  let mut changed = false;
+  if tokens.desktop_api_token.trim().is_empty() {
+    tokens.desktop_api_token =
+      uuid::Uuid::new_v4().simple().to_string() + &uuid::Uuid::new_v4().simple().to_string();
+    changed = true;
+  }
+  if tokens.mobile_pairing_token.trim().is_empty() {
+    tokens.mobile_pairing_token = uuid::Uuid::new_v4().simple().to_string();
+    changed = true;
+  }
+  changed
 }
 
 /// Set restrictive file permissions (owner read/write only) on sensitive files.
@@ -4770,6 +4793,9 @@ fn schedule_state_subtree_hardening(root: &Path, context: &str) {
 }
 
 fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, String> {
+  let _tokens_file_guard = TOKENS_FILE_LOCK
+    .lock()
+    .map_err(|_| "Token storage lock is unavailable".to_string())?;
   let home = app_clawdbot_home(app_handle);
   ensure_dir(&home)?;
   harden_dir_permissions(&home);
@@ -4797,32 +4823,45 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
         uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
       dirty = true;
     }
+    let api_auth_tokens_migrated = ensure_api_auth_tokens(&mut t);
+    dirty |= api_auth_tokens_migrated;
     if dirty {
-      if let Ok(json) = serde_json::to_string_pretty(&t) {
-        if let Err(e) = fs::write(&path, json) {
-          eprintln!(
-            "[clawd/service] WARNING: Could not persist regenerated tokens to {}: {}",
-            path.display(),
-            e
-          );
-        } else {
-          harden_file_permissions(&path);
-          eprintln!(
-            "[clawd/service] Regenerated empty auth token(s) in {}",
-            path.display()
-          );
-        }
+      let json = serde_json::to_string_pretty(&t)
+        .map_err(|e| format!("Failed serializing {}: {}", path.display(), e))?;
+      fs::write(&path, json).map_err(|e| {
+        format!(
+          "Failed persisting regenerated tokens to {}: {}",
+          path.display(),
+          e
+        )
+      })?;
+      harden_file_permissions(&path);
+      eprintln!(
+        "[clawd/service] Regenerated empty auth token(s) in {}",
+        path.display()
+      );
+      if api_auth_tokens_migrated {
+        API_AUTH_TOKENS_MIGRATED.store(true, Ordering::Release);
       }
     }
+    std::env::set_var(
+      crate::server::auth::DESKTOP_API_TOKEN_ENV,
+      &t.desktop_api_token,
+    );
     return Ok(t);
   }
 
   // Generate long-ish random-ish tokens. (We can switch to a cryptographic RNG later.)
   let gateway_token = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
   let browser_control_token = uuid::Uuid::new_v4().to_string() + &uuid::Uuid::new_v4().to_string();
+  let desktop_api_token =
+    uuid::Uuid::new_v4().simple().to_string() + &uuid::Uuid::new_v4().simple().to_string();
+  let mobile_pairing_token = uuid::Uuid::new_v4().simple().to_string();
   let t = StoredTokens {
     gateway_token,
     browser_control_token,
+    desktop_api_token,
+    mobile_pairing_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
     openai_model: None,   // Defaults to gpt-5.4
@@ -4852,8 +4891,27 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
     .map_err(|e| format!("Failed writing {}: {}", path.display(), e))?;
   harden_file_permissions(&path);
+  std::env::set_var(
+    crate::server::auth::DESKTOP_API_TOKEN_ENV,
+    &t.desktop_api_token,
+  );
 
   Ok(t)
+}
+
+pub(crate) fn api_auth_tokens(app_handle: &tauri::AppHandle) -> Result<(String, String), String> {
+  let tokens = load_or_create_tokens(app_handle)?;
+  Ok((tokens.desktop_api_token, tokens.mobile_pairing_token))
+}
+
+#[tauri::command]
+pub async fn get_desktop_api_token(app_handle: tauri::AppHandle) -> Result<String, String> {
+  api_auth_tokens(&app_handle).map(|tokens| tokens.0)
+}
+
+#[tauri::command]
+pub async fn get_mobile_pairing_token(app_handle: tauri::AppHandle) -> Result<String, String> {
+  api_auth_tokens(&app_handle).map(|tokens| tokens.1)
 }
 
 /// Load saved LLM API keys from tokens.json and set them as environment
@@ -9436,6 +9494,15 @@ fn upsert_knapsack_local_provider_config(
     provider.insert("apiKey".to_string(), serde_json::json!("knapsack-local"));
     patched = true;
   }
+  if let Ok(token) = crate::server::auth::desktop_api_token_from_env() {
+    let headers = serde_json::json!({
+      (crate::server::auth::DESKTOP_API_TOKEN_HEADER): token,
+    });
+    if provider.get("headers") != Some(&headers) {
+      provider.insert("headers".to_string(), headers);
+      patched = true;
+    }
+  }
   if provider.get("timeoutSeconds").and_then(|v| v.as_u64()) != Some(120) {
     provider.insert("timeoutSeconds".to_string(), serde_json::json!(120));
     patched = true;
@@ -11295,22 +11362,13 @@ async fn prepare_gateway_config(
   }
 
   let tools_md_path = workspace_path.join("TOOLS.md");
-  let should_write_tools_md = if tools_md_path.exists() {
-    fs::read_to_string(&tools_md_path)
-      .map(|content| !content.contains("SELF-REVIEW") || !content.contains("LOCAL_API_VIA_EXEC"))
-      .unwrap_or(true)
-  } else {
-    true
-  };
-  if should_write_tools_md {
-    let tools_md_content = include_str!("tools_md_content.txt");
-    match fs::write(&tools_md_path, tools_md_content) {
-      Ok(_) => eprintln!(
-        "[clawd/service] Created workspace TOOLS.md at {}",
-        tools_md_path.display()
-      ),
-      Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
-    }
+  match gateway_client::ensure_tools_md_at(&tools_md_path) {
+    Ok(true) => eprintln!(
+      "[clawd/service] Created workspace TOOLS.md at {}",
+      tools_md_path.display()
+    ),
+    Ok(false) => {}
+    Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
   }
   eprintln!(
     "[clawd/service] prepare_gateway_config: workspace ready in {}ms",
@@ -11414,6 +11472,10 @@ async fn prepare_gateway_config(
     (
       "OPENCLAW_GATEWAY_TOKEN".to_string(),
       tokens.gateway_token.clone(),
+    ),
+    (
+      crate::server::auth::DESKTOP_API_TOKEN_ENV.to_string(),
+      tokens.desktop_api_token.clone(),
     ),
     ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
     ("OPENCLAW_PLUGIN_STAGE_DIR".to_string(), plugin_stage_dir),
@@ -13171,25 +13233,13 @@ pub async fn set_service_enabled(
 
       let tools_md_path = workspace_path.join("TOOLS.md");
       // Write TOOLS.md if it doesn't exist or if it's missing key sections.
-      let should_write_tools_md = if tools_md_path.exists() {
-        fs::read_to_string(&tools_md_path)
-          .map(|content| {
-            !content.contains("SELF-REVIEW") || !content.contains("LOCAL_API_VIA_EXEC")
-          })
-          .unwrap_or(true)
-      } else {
-        true
-      };
-      if should_write_tools_md {
-        // Single source of truth: tools_md_content.txt
-        let tools_md_content = include_str!("tools_md_content.txt");
-        match fs::write(&tools_md_path, tools_md_content) {
-          Ok(_) => eprintln!(
-            "[clawd/service] Created workspace TOOLS.md at {}",
-            tools_md_path.display()
-          ),
-          Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
-        }
+      match gateway_client::ensure_tools_md_at(&tools_md_path) {
+        Ok(true) => eprintln!(
+          "[clawd/service] Created workspace TOOLS.md at {}",
+          tools_md_path.display()
+        ),
+        Ok(false) => {}
+        Err(e) => eprintln!("[clawd/service] WARNING: Failed to write TOOLS.md: {}", e),
       }
 
       // Run in local mode with explicit tokens/ports.
@@ -13275,6 +13325,10 @@ pub async fn set_service_enabled(
         (
           "OPENCLAW_GATEWAY_TOKEN".to_string(),
           tokens.gateway_token.clone(),
+        ),
+        (
+          crate::server::auth::DESKTOP_API_TOKEN_ENV.to_string(),
+          tokens.desktop_api_token.clone(),
         ),
         // Ensure control server family ports remain default.
         ("OPENCLAW_GATEWAY_PORT".to_string(), "18789".to_string()),
@@ -13523,6 +13577,7 @@ pub async fn set_service_enabled(
           message: format!("Failed writing plist {}: {}", plist_path.display(), e),
         });
       }
+      harden_file_permissions(&plist_path);
 
       // Save for plist regeneration when the API key changes later.
       *LAST_MACOS_PLIST_ARGS.lock().unwrap() = Some((program_args.clone(), env.clone()));
@@ -14445,10 +14500,8 @@ pub async fn oauth_callback(
     return oauth_html_page(false, "OAuth request timed out. Please try again.");
   }
 
-  if let Some(ref returned_state) = query.state {
-    if returned_state != &pending.state {
-      return oauth_html_page(false, "Invalid OAuth state. Please try again.");
-    }
+  if query.state.as_deref() != Some(pending.state.as_str()) {
+    return oauth_html_page(false, "Invalid OAuth state. Please try again.");
   }
 
   let provider = pending.provider.clone();
@@ -15166,6 +15219,7 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     eprintln!("[clawd/service] auto_enable: failed to write plist: {}", e);
     return;
   }
+  harden_file_permissions(&plist_path);
   eprintln!(
     "[clawd/service] auto_enable: wrote plist to {}",
     plist_path.display()
@@ -15228,18 +15282,28 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-  // Fast path: if the gateway is already healthy, just save setup for future
-  // background restarts and return.
+  // Fast path: if the gateway is already healthy, save setup for future
+  // background restarts. A legacy process must still restart once when this
+  // upgrade first creates the desktop API token so Node inherits the new env.
   let already_healthy = crate::clawd::gateway_supervisor::is_gateway_healthy("").await;
+  let mut prepared_setup = None;
+  let mut restart_for_api_auth_migration = false;
   if already_healthy {
     eprintln!("[clawd/service] auto_enable (Windows): gateway already running, caching setup");
     let cfg: crate::clawd::sidecar::SharedClawdbotConfig = std::sync::Arc::new(
       tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
     );
     if let Ok(setup) = prepare_gateway_config(app_handle, &cfg).await {
-      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup);
+      *LAST_GATEWAY_SETUP.lock().unwrap() = Some(setup.clone());
+      prepared_setup = Some(setup);
     }
-    return;
+    restart_for_api_auth_migration = API_AUTH_TOKENS_MIGRATED.swap(false, Ordering::AcqRel);
+    if !restart_for_api_auth_migration {
+      return;
+    }
+    eprintln!(
+      "[clawd/service] auto_enable (Windows): restarting healthy legacy gateway for desktop API authentication"
+    );
   }
 
   // Gateway is not running — start it.
@@ -15255,19 +15319,24 @@ pub async fn auto_enable_if_needed(app_handle: &tauri::AppHandle) {
     tokio::sync::RwLock::new(crate::clawd::sidecar::ClawdbotConfig::default()),
   );
 
-  let setup = match prepare_gateway_config(app_handle, &cfg).await {
-    Ok(s) => s,
-    Err(e) => {
-      eprintln!(
-        "[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}",
-        e
-      );
-      GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
-      return;
-    }
+  let setup = match prepared_setup {
+    Some(setup) => setup,
+    None => match prepare_gateway_config(app_handle, &cfg).await {
+      Ok(s) => s,
+      Err(e) => {
+        eprintln!(
+          "[clawd/service] auto_enable (Windows): prepare_gateway_config failed: {}",
+          e
+        );
+        GATEWAY_RESTART_IN_PROGRESS.store(false, Ordering::Relaxed);
+        return;
+      }
+    },
   };
 
-  if gateway_tcp_port_open(std::time::Duration::from_millis(150)).await {
+  if !restart_for_api_auth_migration
+    && gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
+  {
     eprintln!(
       "[clawd/service] auto_enable (Windows): gateway port became bound during setup; preserving in-flight launch"
     );
@@ -16294,15 +16363,17 @@ mod provider_key_tests {
 mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
-    ensure_knapsack_channel_runtime_defaults, ensure_knapsack_session_isolation,
-    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
-    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
+    ensure_knapsack_session_isolation, has_knapsack_runtime_auth,
+    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
   };
 
   fn empty_tokens() -> StoredTokens {
     StoredTokens {
       gateway_token: String::new(),
       browser_control_token: String::new(),
+      desktop_api_token: String::new(),
+      mobile_pairing_token: String::new(),
       groq_api_key: None,
       openai_api_key: None,
       openai_model: None,
@@ -16328,6 +16399,25 @@ mod knapsack_runtime_auth_tests {
       knapsack_access_token: None,
       knapsack_refresh_token: None,
     }
+  }
+
+  #[test]
+  fn api_auth_token_migration_preserves_existing_credentials() {
+    let mut tokens = empty_tokens();
+    tokens.gateway_token = "existing-gateway".to_string();
+    tokens.browser_control_token = "existing-browser".to_string();
+
+    assert!(ensure_api_auth_tokens(&mut tokens));
+    assert_eq!(tokens.gateway_token, "existing-gateway");
+    assert_eq!(tokens.browser_control_token, "existing-browser");
+    assert_eq!(tokens.desktop_api_token.len(), 64);
+    assert_eq!(tokens.mobile_pairing_token.len(), 32);
+
+    let desktop_api_token = tokens.desktop_api_token.clone();
+    let mobile_pairing_token = tokens.mobile_pairing_token.clone();
+    assert!(!ensure_api_auth_tokens(&mut tokens));
+    assert_eq!(tokens.desktop_api_token, desktop_api_token);
+    assert_eq!(tokens.mobile_pairing_token, mobile_pairing_token);
   }
 
   #[test]

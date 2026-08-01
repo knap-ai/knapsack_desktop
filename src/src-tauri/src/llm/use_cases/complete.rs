@@ -559,7 +559,9 @@ async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> 
     "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
     email
   );
-  match client.get(&token_url).send().await {
+  let request = crate::server::auth::authenticated_request(client.get(&token_url))
+    .map_err(LLMError::ChatCompletionFailed)?;
+  match request.send().await {
     Ok(resp) => {
       if resp.status().is_success() {
         let token_json: serde_json::Value = resp.json().await.map_err(|e| {

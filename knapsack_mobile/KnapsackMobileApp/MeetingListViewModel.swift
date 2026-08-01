@@ -11,6 +11,7 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isSendingChatMessage = false
   @Published var isConnectingToDesktop = false
   @Published var serverURLText: String
+  @Published var pairingCodeText: String
   @Published var errorMessage: String?
   @Published var statusMessage: String?
   private var lastAutoConnectedDesktopID: String?
@@ -20,6 +21,7 @@ final class MeetingListViewModel: ObservableObject {
   init(api: MobileAPI = .shared) {
     self.api = api
     self.serverURLText = Self.initialServerURLText(for: api)
+    self.pairingCodeText = api.pairingToken
   }
 
   var currentMeetingID: UInt64? {
@@ -80,6 +82,7 @@ final class MeetingListViewModel: ObservableObject {
       }
       serverURLText = url.absoluteString
       api.baseURL = url
+      api.pairingToken = pairingCodeText
       statusMessage = "Saved server URL."
       errorMessage = nil
     } else {
@@ -101,6 +104,7 @@ final class MeetingListViewModel: ObservableObject {
     isConnectingToDesktop = true
     serverURLText = url.absoluteString
     api.baseURL = url
+    api.pairingToken = pairingCodeText
 
     do {
       let linkedSession = try await api.getSession()
@@ -111,7 +115,7 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
       await refresh()
     } catch {
-      errorMessage = "Could not reach Knapsack Desktop at \(url.host() ?? url.absoluteString). Make sure the Mac app is open and use your Mac's local network address."
+      errorMessage = "Could not authenticate with Knapsack Desktop. Copy the Mobile pairing code from Settings on your Mac, then try again."
     }
 
     isConnectingToDesktop = false
