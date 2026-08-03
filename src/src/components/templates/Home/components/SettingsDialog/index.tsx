@@ -372,6 +372,7 @@ export const SettingsDialog = ({
   const [snowflakeSecretInput, setSnowflakeSecretInput] = useState('')
   const [snowflakeSecretSaving, setSnowflakeSecretSaving] = useState(false)
   const [snowflakeSecretMessage, setSnowflakeSecretMessage] = useState('')
+  const [showSnowflakeInput, setShowSnowflakeInput] = useState(false)
 
   useEffect(() => {
     getSessionCapabilitySecretStatus()
@@ -390,6 +391,7 @@ export const SettingsDialog = ({
         setSnowflakeSecretConfigured(!!snowflakeSecretInput.trim())
         setSnowflakeSecretInput('')
         setSnowflakeSecretMessage(res.message ?? 'Saved')
+        setShowSnowflakeInput(false)
       } else {
         setSnowflakeSecretMessage(res.message ?? 'Failed to save')
       }
@@ -1607,24 +1609,50 @@ export const SettingsDialog = ({
             isn&apos;t something you generate yourself.
           </div>
           <div className="flex justify-between h-[36px] items-center">
-            <Typography>{snowflakeSecretConfigured ? 'Secret configured' : 'No secret set'}</Typography>
+            <Typography>{snowflakeSecretConfigured ? '••••••••••••' : 'No secret set'}</Typography>
+            {snowflakeSecretConfigured && !showSnowflakeInput && (
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={() => {
+                  setSnowflakeSecretMessage('')
+                  setShowSnowflakeInput(true)
+                }}
+              >
+                Change
+              </Typography>
+            )}
           </div>
-          <div className="flex gap-2 items-center">
-            <input
-              type="password"
-              placeholder="Paste the broker secret here"
-              value={snowflakeSecretInput}
-              onChange={e => setSnowflakeSecretInput(e.target.value)}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-gray-500"
-            />
-            <button
-              className="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-              disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
-              onClick={handleSaveSnowflakeSecret}
-            >
-              {snowflakeSecretSaving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
+          {(showSnowflakeInput || !snowflakeSecretConfigured) && (
+            <div className="flex gap-2 items-center">
+              <input
+                type="password"
+                placeholder="Paste the broker secret here"
+                value={snowflakeSecretInput}
+                onChange={e => setSnowflakeSecretInput(e.target.value)}
+                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+              />
+              <button
+                className="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
+                onClick={handleSaveSnowflakeSecret}
+              >
+                {snowflakeSecretSaving ? 'Saving...' : 'Save'}
+              </button>
+              {snowflakeSecretConfigured && (
+                <button
+                  className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                  disabled={snowflakeSecretSaving}
+                  onClick={() => {
+                    setSnowflakeSecretInput('')
+                    setSnowflakeSecretMessage('')
+                    setShowSnowflakeInput(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
           {snowflakeSecretMessage && (
             <Typography className="text-xs text-gray-400">{snowflakeSecretMessage}</Typography>
           )}
