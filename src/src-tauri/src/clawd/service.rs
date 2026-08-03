@@ -5016,6 +5016,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     knapsack_model: None,
     knapsack_access_token: None,
     knapsack_refresh_token: None,
+    session_capability_secret: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -16587,6 +16588,7 @@ mod knapsack_runtime_auth_tests {
       knapsack_model: None,
       knapsack_access_token: None,
       knapsack_refresh_token: None,
+      session_capability_secret: None,
     }
   }
 
