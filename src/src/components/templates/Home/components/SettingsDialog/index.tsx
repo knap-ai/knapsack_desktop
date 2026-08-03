@@ -1069,52 +1069,6 @@ export const SettingsDialog = ({
               )
             })}
 
-            {/* Snowflake identity broker — a shared secret from the Scout/broker
-                team, not an LLM provider key, but it lives in the same tokens.json
-                as the other keys above, so it's surfaced here too. */}
-            <ProviderAccordion
-              title="Snowflake Broker (Scout)"
-              isConnected={snowflakeSecretConfigured}
-              expanded={expandedProvider === 'snowflake-broker'}
-              onToggle={() => toggleProvider('snowflake-broker')}
-            >
-              <div style={{ marginBottom: 8, opacity: 0.75, fontSize: 13 }}>
-                Paste the shared signing secret the Scout/broker team gave you — this
-                isn&apos;t something you generate yourself.
-              </div>
-              <div className={styles.providerActions}>
-                <span className={styles.providerStatus}>
-                  {snowflakeSecretConfigured ? 'Secret configured' : 'No secret set'}
-                </span>
-              </div>
-              <input
-                type="password"
-                placeholder="Paste the broker secret here"
-                value={snowflakeSecretInput}
-                onChange={e => setSnowflakeSecretInput(e.target.value)}
-                style={{
-                  width: '100%',
-                  marginTop: 6,
-                  marginBottom: 6,
-                  padding: '6px 8px',
-                  borderRadius: 6,
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  background: 'transparent',
-                  color: 'inherit',
-                }}
-              />
-              <button
-                className={styles.providerActionLink}
-                disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
-                onClick={handleSaveSnowflakeSecret}
-              >
-                {snowflakeSecretSaving ? 'Saving...' : 'Save'}
-              </button>
-              {snowflakeSecretMessage && (
-                <div style={{ marginTop: 6, opacity: 0.75 }}>{snowflakeSecretMessage}</div>
-              )}
-            </ProviderAccordion>
-
             {/* Ollama (local LLM) */}
             <ProviderAccordion
               title="Ollama (Local)"
@@ -1645,6 +1599,37 @@ export const SettingsDialog = ({
             )}
           </div>
         </div>
+        <hr className="border-zinc-200" />
+        <div className="SnowflakeBrokerContainer p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>Snowflake Broker (Scout)</Typography>
+          <div style={{ opacity: 0.75, fontSize: 13 }}>
+            Paste the shared signing secret the Scout/broker team gave you — this
+            isn&apos;t something you generate yourself.
+          </div>
+          <div className="flex justify-between h-[36px] items-center">
+            <Typography>{snowflakeSecretConfigured ? 'Secret configured' : 'No secret set'}</Typography>
+          </div>
+          <div className="flex gap-2 items-center">
+            <input
+              type="password"
+              placeholder="Paste the broker secret here"
+              value={snowflakeSecretInput}
+              onChange={e => setSnowflakeSecretInput(e.target.value)}
+              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+            />
+            <button
+              className="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
+              onClick={handleSaveSnowflakeSecret}
+            >
+              {snowflakeSecretSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+          {snowflakeSecretMessage && (
+            <Typography className="text-xs text-gray-400">{snowflakeSecretMessage}</Typography>
+          )}
+        </div>
+        <hr className="border-zinc-200" />
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">
