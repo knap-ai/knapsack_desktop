@@ -2030,7 +2030,11 @@ fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
 }
 
 fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
-  fs::read_to_string(browser_config_path(app_handle))
+  read_embedded_browser_preference_at(&browser_config_path(app_handle))
+}
+
+fn read_embedded_browser_preference_at(path: &Path) -> bool {
+  fs::read_to_string(path)
     .ok()
     .and_then(|raw| serde_json::from_str::<JsonValue>(&raw).ok())
     .and_then(|config| {
@@ -2039,6 +2043,48 @@ fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
         .and_then(|value| value.as_bool())
     })
     .unwrap_or(false)
+}
+
+fn write_embedded_browser_preference(path: &Path, embedded: bool) -> Result<bool, String> {
+  let mut config = if path.exists() {
+    let raw = fs::read_to_string(path)
+      .map_err(|error| format!("Failed to read browser configuration: {}", error))?;
+    match serde_json::from_str::<JsonValue>(&raw) {
+      Ok(value) if value.is_object() => value,
+      Ok(_) => return Err("Browser configuration must contain a JSON object".to_string()),
+      Err(error) => return Err(format!("Failed to parse browser configuration: {}", error)),
+    }
+  } else {
+    serde_json::json!({})
+  };
+  if config
+    .get("browser")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    config
+      .as_object_mut()
+      .unwrap()
+      .insert("browser".to_string(), serde_json::json!({}));
+  }
+  let previous = config
+    .pointer("/browser/headless")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(false);
+  if previous == embedded {
+    return Ok(false);
+  }
+  config
+    .pointer_mut("/browser")
+    .unwrap()
+    .as_object_mut()
+    .unwrap()
+    .insert("headless".to_string(), serde_json::json!(embedded));
+  let encoded = serde_json::to_string_pretty(&config)
+    .map_err(|error| format!("Failed to encode browser preference: {}", error))?;
+  fs::write(path, encoded)
+    .map_err(|error| format!("Failed to save browser preference: {}", error))?;
+  Ok(true)
 }
 
 #[get("/api/clawd/browser/presentation")]
@@ -2067,55 +2113,18 @@ pub async fn set_browser_presentation(
       });
     }
   }
-  let mut config = if path.exists() {
-    let raw = match fs::read_to_string(&path) {
-      Ok(raw) => raw,
-      Err(error) => {
-        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
-          success: false,
-          embedded: read_embedded_browser_preference(&app_handle),
-          changed: false,
-          message: format!("Failed to read browser configuration: {}", error),
-        })
-      }
-    };
-    match serde_json::from_str::<JsonValue>(&raw) {
-      Ok(value) if value.is_object() => value,
-      Ok(_) => {
-        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
-          success: false,
-          embedded: false,
-          changed: false,
-          message: "Browser configuration must contain a JSON object".to_string(),
-        })
-      }
-      Err(error) => {
-        return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
-          success: false,
-          embedded: false,
-          changed: false,
-          message: format!("Failed to parse browser configuration: {}", error),
-        })
-      }
+  let changed = match write_embedded_browser_preference(&path, payload.embedded) {
+    Ok(changed) => changed,
+    Err(message) => {
+      return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
+        success: false,
+        embedded: read_embedded_browser_preference(&app_handle),
+        changed: false,
+        message,
+      })
     }
-  } else {
-    serde_json::json!({})
   };
-  if config
-    .get("browser")
-    .and_then(|value| value.as_object())
-    .is_none()
-  {
-    config
-      .as_object_mut()
-      .unwrap()
-      .insert("browser".to_string(), serde_json::json!({}));
-  }
-  let previous = config
-    .pointer("/browser/headless")
-    .and_then(|value| value.as_bool())
-    .unwrap_or(false);
-  if previous == payload.embedded {
+  if !changed {
     return HttpResponse::Ok().json(BrowserPresentationResponse {
       success: true,
       embedded: payload.embedded,
@@ -2123,43 +2132,37 @@ pub async fn set_browser_presentation(
       message: "Browser presentation preference is already active".to_string(),
     });
   }
-  config
-    .pointer_mut("/browser")
-    .unwrap()
-    .as_object_mut()
-    .unwrap()
-    .insert("headless".to_string(), serde_json::json!(payload.embedded));
-  let encoded = match serde_json::to_string_pretty(&config) {
-    Ok(encoded) => encoded,
-    Err(error) => {
-      return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
-        success: false,
-        embedded: previous,
-        changed: false,
-        message: format!("Failed to encode browser preference: {}", error),
-      })
-    }
-  };
-  if let Err(error) = fs::write(&path, encoded) {
-    return HttpResponse::InternalServerError().json(BrowserPresentationResponse {
-      success: false,
-      embedded: previous,
-      changed: false,
-      message: format!("Failed to save browser preference: {}", error),
-    });
-  }
   harden_file_permissions(&path);
 
-  crate::clawd::service::cycle_service(&app_handle).await;
+  let profile_query = serde_json::json!({"profile": "openclaw"});
+  let _ =
+    gateway_client::browser_request("POST", "/stop", Some(profile_query.clone()), None, None).await;
+  let start_query = serde_json::json!({
+    "profile": "openclaw",
+    "headless": payload.embedded,
+  });
+  if let Err(error) =
+    gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await
+  {
+    return HttpResponse::BadGateway().json(BrowserPresentationResponse {
+      success: false,
+      embedded: payload.embedded,
+      changed: true,
+      message: format!(
+        "Browser preference was saved, but the browser could not restart: {}",
+        error
+      ),
+    });
+  }
 
   HttpResponse::Ok().json(BrowserPresentationResponse {
     success: true,
     embedded: payload.embedded,
     changed: true,
     message: if payload.embedded {
-      "Embedded browser enabled. The shared browser is restarting.".to_string()
+      "Embedded browser enabled. The shared browser restarted headlessly.".to_string()
     } else {
-      "Managed browser window enabled. The shared browser is restarting.".to_string()
+      "Managed browser window enabled. The shared browser restarted visibly.".to_string()
     },
   })
 }
@@ -7294,10 +7297,38 @@ mod tests {
     compact_messages_for_provider, fallback_failure_message, is_context_window_error,
     is_transient_or_internal_provider_error, load_seed_history_from_request,
     provider_compaction_limits, provider_context_recovery_limits,
-    should_attempt_fallback_for_provider_error,
+    read_embedded_browser_preference_at, should_attempt_fallback_for_provider_error,
+    write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
-  use serde_json::json;
+  use serde_json::{json, Value as JsonValue};
+
+  #[test]
+  fn embedded_browser_preference_persists_without_replacing_other_config() {
+    let file = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(
+      file.path(),
+      serde_json::to_vec(&json!({
+        "browser": {"headless": false, "defaultProfile": "openclaw"},
+        "agents": {"defaults": {"model": "google/gemini-2.5-flash"}}
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+
+    assert!(write_embedded_browser_preference(file.path(), true).unwrap());
+    assert!(read_embedded_browser_preference_at(file.path()));
+    let updated: JsonValue = serde_json::from_slice(&std::fs::read(file.path()).unwrap()).unwrap();
+    assert_eq!(
+      updated.pointer("/browser/defaultProfile"),
+      Some(&json!("openclaw"))
+    );
+    assert_eq!(
+      updated.pointer("/agents/defaults/model"),
+      Some(&json!("google/gemini-2.5-flash"))
+    );
+    assert!(!write_embedded_browser_preference(file.path(), true).unwrap());
+  }
 
   fn system_message() -> OaiMessage {
     OaiMessage::System {

@@ -49,28 +49,30 @@ function qaExpectedChannelsFromEnv() {
   );
 }
 
-function desktopClawdbotDir() {
-  if (process.platform === "darwin") {
-    if (!process.env.HOME) return null;
-    return path.join(
-      process.env.HOME,
-      "Library",
-      "Application Support",
-      "ai.knap.knapsack",
-      "clawdbot",
-    );
+let apiAuthStateDir = null;
+
+function qaDevClawdbotDir() {
+  return path.resolve(__dirname, "..", ".qa-dev-openclaw-state");
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
   }
-  if (process.platform === "win32") {
-    if (!process.env.APPDATA) return null;
-    return path.join(process.env.APPDATA, "ai.knap.knapsack", "clawdbot");
+}
+
+function localApiHeaders(url, inputHeaders = {}) {
+  const headers = { ...inputHeaders };
+  const parsed = new URL(url);
+  if (parsed.host !== "127.0.0.1:8897" && parsed.host !== "localhost:8897") {
+    return headers;
   }
-  if (process.env.XDG_CONFIG_HOME) {
-    return path.join(process.env.XDG_CONFIG_HOME, "ai.knap.knapsack", "clawdbot");
-  }
-  if (process.env.HOME) {
-    return path.join(process.env.HOME, ".config", "ai.knap.knapsack", "clawdbot");
-  }
-  return null;
+  const stateDir = apiAuthStateDir || process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
+  const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
+  if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
+  return headers;
 }
 
 const MODELS_BY_PROVIDER = {
@@ -726,12 +728,7 @@ async function killOpenClawProcessesForQa() {
 
 function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
   const { qaSkipBody, ...fetchOptions } = options || {};
-  const headers = { ...(fetchOptions.headers || {}) };
-  if (new URL(url).host === "127.0.0.1:8897" || new URL(url).host === "localhost:8897") {
-    const stateDir = process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
-    const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
-    if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
-  }
+  const headers = localApiHeaders(url, fetchOptions.headers);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, {
@@ -761,12 +758,7 @@ function httpJsonWithTimeout(url, options = {}, timeoutMs = 8_000) {
     const parsed = new URL(url);
     const method = options.method || "GET";
     const body = options.body || null;
-    const headers = { ...(options.headers || {}) };
-    if (parsed.host === "127.0.0.1:8897" || parsed.host === "localhost:8897") {
-      const stateDir = process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
-      const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
-      if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
-    }
+    const headers = localApiHeaders(url, options.headers);
     if (body && !headers["Content-Length"] && !headers["content-length"]) {
       headers["Content-Length"] = Buffer.byteLength(body);
     }
@@ -2045,6 +2037,7 @@ async function checkInterfaceAccess(includeUi, startupState) {
 
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
+  apiAuthStateDir = isProd ? desktopClawdbotDir() : qaDevClawdbotDir();
   const debugBinary = path.join(
     __dirname,
     "..",
@@ -2122,6 +2115,7 @@ async function runMode(mode, opts = {}) {
       restoreQaConfig = null;
       restore();
     }
+    apiAuthStateDir = null;
   };
 
   proc.stdout?.on("data", (chunk) => {
@@ -2484,7 +2478,17 @@ async function runLoop() {
   console.log("Mode targets hit with active+stable launch and functional checks.");
 }
 
-runLoop().catch(error => {
-  console.error(`[qa-loop] unhandled failure: ${error && error.stack ? error.stack : String(error)}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  runLoop().catch(error => {
+    console.error(`[qa-loop] unhandled failure: ${error && error.stack ? error.stack : String(error)}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  localApiHeaders,
+  qaDevClawdbotDir,
+  setApiAuthStateDirForTest(value) {
+    apiAuthStateDir = value;
+  },
+};
