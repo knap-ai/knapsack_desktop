@@ -21,6 +21,7 @@
     "qa:dev": "node scripts/qa-dev-run.cjs",
     "preqa:dev": "node scripts/fix-rollup-native.cjs",
     "qa:loop": "node scripts/qa-loop-runner.cjs",
+    "test:qa-loop": "node --test scripts/qa-loop-runner.test.cjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",
