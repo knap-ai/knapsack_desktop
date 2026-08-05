@@ -294,16 +294,9 @@ function resolveTelegramConversationBaseSessionKey(params) {
 }
 //#endregion
 //#region extensions/telegram/src/group-config-helpers.ts
-const KNAPSACK_CHANNEL_SYSTEM_PROMPT = [
-	"You are replying from the Knapsack desktop app, not a generic workspace agent.",
-	"For calendar, connected email, meeting prep, meeting notes, or recent Knapsack recordings, prefer Knapsack local APIs on http://127.0.0.1:8897 via web_fetch before using generic workspace files or browser search.",
-	"Do not say you lack access to email, calendar, or meeting notes when those Knapsack local APIs can answer the question.",
-	"Do not default to MEMORY.md for routine personal context questions if Knapsack local APIs or synced Knapsack data can answer them.",
-	"If browser access is needed, prefer the managed openclaw profile before claiming the Chrome user profile is unavailable."
-].join("\n");
 function resolveTelegramGroupPromptSettings(params) {
 	const skillFilter = firstDefined(params.topicConfig?.skills, params.groupConfig?.skills);
-	const systemPromptParts = [KNAPSACK_CHANNEL_SYSTEM_PROMPT, params.groupConfig?.systemPrompt?.trim() || null, params.topicConfig?.systemPrompt?.trim() || null].filter((entry) => Boolean(entry));
+	const systemPromptParts = [params.groupConfig?.systemPrompt?.trim() || null, params.topicConfig?.systemPrompt?.trim() || null].filter((entry) => Boolean(entry));
 	return {
 		skillFilter,
 		groupSystemPrompt: systemPromptParts.length > 0 ? systemPromptParts.join("\n\n") : void 0
@@ -984,7 +977,7 @@ const registerTelegramNativeCommands = ({ bot, cfg, runtime, accountId, telegram
 					ChatType: isGroup ? "group" : "direct",
 					ConversationLabel: conversationLabel,
 					GroupSubject: isGroup ? msg.chat.title ?? void 0 : void 0,
-					GroupSystemPrompt: groupSystemPrompt,
+					GroupSystemPrompt: isGroup || !isGroup && groupConfig ? groupSystemPrompt : void 0,
 					SenderName: buildSenderName(msg),
 					SenderId: senderId || void 0,
 					SenderUsername: senderUsername || void 0,
@@ -4468,7 +4461,7 @@ async function buildTelegramInboundContextPayload(params) {
 				date: visibleForwardOrigin.date ? visibleForwardOrigin.date * 1e3 : void 0,
 				senderAllowed: true
 			} : void 0,
-			groupSystemPrompt: groupSystemPrompt,
+			groupSystemPrompt: isGroup || !isGroup && groupConfig ? groupSystemPrompt : void 0,
 			untrustedContext: promptContext.length > 0 ? promptContext : void 0
 		},
 		contextVisibility: contextVisibilityMode,

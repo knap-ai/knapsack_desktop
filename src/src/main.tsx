@@ -13,6 +13,9 @@ import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/Rec
 import { AppUpdateProvider } from 'src/hooks/useAppUpdate'
 
 import { ErrorPage } from './pages/error'
+import { installDesktopApiAuth } from './utils/desktopApiAuth'
+
+installDesktopApiAuth()
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,

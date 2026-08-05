@@ -129,7 +129,7 @@ function launchOptionsForEnsure(options) {
 	return typeof options?.headless === "boolean" ? { headlessOverride: options.headless } : void 0;
 }
 function ensureOptionsKey(options) {
-	return "default";
+	return typeof options?.headless === "boolean" ? `headless:${options.headless}` : "default";
 }
 function formatLocalPortOwnershipHint(profile) {
 	const resetHint = `If OpenClaw should own this local profile, run action=reset-profile profile=${profile.name} to stop the conflicting process.`;

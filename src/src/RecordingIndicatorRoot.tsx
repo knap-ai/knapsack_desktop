@@ -5,6 +5,9 @@ import ReactDOM from 'react-dom/client'
 import RecordingIndicator from './components/molecules/RecordingIndicator'
 
 import { getCurrent } from '@tauri-apps/api/window'
+import { installDesktopApiAuth } from './utils/desktopApiAuth'
+
+installDesktopApiAuth()
 
 const currentWindow = getCurrent()
 if (currentWindow.label === 'recording-indicator') {

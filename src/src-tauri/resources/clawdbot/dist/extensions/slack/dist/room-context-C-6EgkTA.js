@@ -799,24 +799,13 @@ async function authorizeSlackDirectMessage(params) {
 }
 //#endregion
 //#region extensions/slack/src/monitor/room-context.ts
-const KNAPSACK_CHANNEL_SYSTEM_PROMPT = [
-	"You are replying from the Knapsack desktop app, not a generic workspace agent.",
-	"For calendar, connected email, meeting prep, meeting notes, or recent Knapsack recordings, prefer Knapsack local APIs on http://127.0.0.1:8897 via web_fetch before using generic workspace files or browser search.",
-	"Do not say you lack access to email, calendar, or meeting notes when those Knapsack local APIs can answer the question.",
-	"Do not default to MEMORY.md for routine personal context questions if Knapsack local APIs or synced Knapsack data can answer them.",
-	"If browser access is needed, prefer the managed openclaw profile before claiming the Chrome user profile is unavailable.",
-	"Never tell the user to install slack_sdk, run OpenClaw CLI setup commands, inspect PATH, or debug package installs unless they explicitly asked for transport debugging.",
-	"Never describe yourself as lacking a Slack search SDK or missing internal function bindings. Use the tools and local Knapsack APIs you have, and if a capability truly fails, report the exact runtime limitation briefly without setup advice.",
-	"For weather, current events, or other live internet questions, prefer web_search or browser/web_fetch over memory-based answers.",
-	"When the user asks about their email, calendar, meeting prep, or recent notes, first try Knapsack-native data access before saying the browser is unavailable."
-].join("\n");
 function resolveSlackRoomContextHints(params) {
 	const untrustedChannelMetadata = params.isRoomish ? buildUntrustedChannelMetadata({
 		source: "slack",
 		label: "Slack channel description",
 		entries: [params.channelInfo?.topic, params.channelInfo?.purpose]
 	}) : void 0;
-	const systemPromptParts = [KNAPSACK_CHANNEL_SYSTEM_PROMPT, params.isRoomish ? normalizeOptionalString(params.channelConfig?.systemPrompt) ?? null : null].filter((entry) => Boolean(entry));
+	const systemPromptParts = [params.isRoomish ? normalizeOptionalString(params.channelConfig?.systemPrompt) ?? null : null].filter((entry) => Boolean(entry));
 	return {
 		untrustedChannelMetadata,
 		groupSystemPrompt: systemPromptParts.length > 0 ? systemPromptParts.join("\n\n") : void 0

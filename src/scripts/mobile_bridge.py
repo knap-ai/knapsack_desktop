@@ -27,6 +27,7 @@ MOBILE_RECORDINGS_DIR = KNAPSACK_DIR / "mobile_recordings"
 PROFILE_PATH = KNAPSACK_DIR / "profile.dat"
 DESKTOP_CHAT_URL = "http://127.0.0.1:8897/api/clawd/chat"
 DESKTOP_FEED_URL = "http://127.0.0.1:8897/api/knapsack/feed_items"
+DESKTOP_API_TOKEN_HEADER = "x-knapsack-api-token"
 HOST = "0.0.0.0"
 PORTS = (18898, 8898)
 SERVICE_PORT = 18898
@@ -72,6 +73,34 @@ def load_json(path: Path) -> Any | None:
         return json.loads(path.read_text())
     except Exception:
         return None
+
+
+def desktop_api_token() -> str:
+    token = os.environ.get("KNAPSACK_DESKTOP_API_TOKEN", "").strip()
+    if token:
+        return token
+
+    state_dir = os.environ.get("OPENCLAW_STATE_DIR") or os.environ.get("OPENCLAW_HOME")
+    if state_dir:
+        token_path = Path(state_dir) / "tokens.json"
+    elif sys.platform == "darwin":
+        token_path = HOME / "Library" / "Application Support" / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
+    elif sys.platform == "win32":
+        token_path = Path(os.environ.get("APPDATA", HOME)) / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
+    else:
+        token_path = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
+
+    tokens = load_json(token_path) or {}
+    token = str(tokens.get("desktop_api_token") or "").strip()
+    if not token:
+        raise RuntimeError("Desktop API token is unavailable; start Knapsack Desktop once to finish the security upgrade")
+    return token
+
+
+def desktop_auth_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    headers = dict(extra or {})
+    headers[DESKTOP_API_TOKEN_HEADER] = desktop_api_token()
+    return headers
 
 
 def save_json(path: Path, payload: Any) -> None:
@@ -260,7 +289,7 @@ def list_calendar() -> list[dict[str, Any]]:
 
 
 def fetch_desktop_json(url: str, timeout: int = 60) -> Any:
-    req = urllib.request.Request(url, method="GET")
+    req = urllib.request.Request(url, headers=desktop_auth_headers(), method="GET")
     with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode())
 
@@ -502,7 +531,7 @@ def forward_chat(thread_id: int, text: str, seed_history: list[dict[str, str]] |
     req = urllib.request.Request(
         DESKTOP_CHAT_URL,
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers=desktop_auth_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:

@@ -335,6 +335,51 @@ fn ensure_browser_config() -> bool {
 
 /// Write TOOLS.md to the workspace if it's missing or outdated.
 /// This covers dev mode where set_service_enabled never runs.
+fn migrate_tools_md_security_guidance(content: &str) -> String {
+  let mut updated = content.to_string();
+
+  if !updated.contains("KNAPSACK_DESKTOP_API_TOKEN") {
+    updated = updated.replace(
+      "<!-- LOCAL_API_VIA_EXEC -->",
+      "<!-- LOCAL_API_VIA_EXEC -->\nAuthenticate localhost curl requests with `-H \"x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN\"`.",
+    );
+  }
+
+  if !updated.contains("- **Slack**:") {
+    updated = updated.replace(
+      "**Channel-specific notes:**",
+      "**Channel-specific notes:**\n- **Slack**: Use the available tools and Knapsack APIs directly. Do not send the user through SDK or package setup unless they explicitly requested transport debugging.",
+    );
+  }
+
+  if !updated.contains("KNAPSACK_TOOLS_VERSION_2") {
+    updated = updated.replacen("# Tools", "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->", 1);
+  }
+
+  updated
+}
+
+pub(crate) fn ensure_tools_md_at(tools_md_path: &std::path::Path) -> std::io::Result<bool> {
+  let canonical = include_str!("tools_md_content.txt");
+  let updated = if tools_md_path.exists() {
+    let existing = std::fs::read_to_string(tools_md_path)?;
+    if !existing.contains("SELF-REVIEW") || !existing.contains("LOCAL_API_VIA_EXEC") {
+      canonical.to_string()
+    } else {
+      migrate_tools_md_security_guidance(&existing)
+    }
+  } else {
+    canonical.to_string()
+  };
+
+  if std::fs::read_to_string(tools_md_path).ok().as_deref() == Some(updated.as_str()) {
+    return Ok(false);
+  }
+
+  std::fs::write(tools_md_path, updated)?;
+  Ok(true)
+}
+
 fn ensure_tools_md(config_path: &std::path::Path) {
   let content = match std::fs::read_to_string(config_path) {
     Ok(c) => c,
@@ -369,25 +414,12 @@ fn ensure_tools_md(config_path: &std::path::Path) {
   let _ = std::fs::create_dir_all(&workspace_path);
   let tools_md_path = workspace_path.join("TOOLS.md");
 
-  let should_write = if tools_md_path.exists() {
-    std::fs::read_to_string(&tools_md_path)
-      .map(|c| !c.contains("SELF-REVIEW") || !c.contains("LOCAL_API_VIA_EXEC"))
-      .unwrap_or(true)
-  } else {
-    true
-  };
-
-  if !should_write {
-    return;
-  }
-
-  // Single source of truth: tools_md_content.txt (same as service.rs uses).
-  let tools_md = include_str!("tools_md_content.txt");
-  match std::fs::write(&tools_md_path, tools_md) {
-    Ok(_) => eprintln!(
+  match ensure_tools_md_at(&tools_md_path) {
+    Ok(true) => eprintln!(
       "[gateway_client] Wrote TOOLS.md at {}",
       tools_md_path.display()
     ),
+    Ok(false) => {}
     Err(e) => eprintln!("[gateway_client] Failed to write TOOLS.md: {}", e),
   }
 }
@@ -3272,6 +3304,18 @@ mod tests {
         _ => None,
       })
       .unwrap_or_default()
+  }
+
+  #[test]
+  fn tools_md_security_migration_preserves_user_guidance() {
+    let existing = "# Tools\n\nCUSTOM USER GUIDANCE\n\n**Channel-specific notes:**\n- **Desktop chat**: visible\n\n<!-- LOCAL_API_VIA_EXEC -->\nUse curl locally.\n\nSELF-REVIEW\n";
+    let migrated = migrate_tools_md_security_guidance(existing);
+
+    assert!(migrated.contains("CUSTOM USER GUIDANCE"));
+    assert!(migrated.contains("KNAPSACK_TOOLS_VERSION_2"));
+    assert!(migrated.contains("KNAPSACK_DESKTOP_API_TOKEN"));
+    assert!(migrated.contains("- **Slack**:"));
+    assert_eq!(migrated.matches("KNAPSACK_TOOLS_VERSION_2").count(), 1);
   }
 
   #[test]

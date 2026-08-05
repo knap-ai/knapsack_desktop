@@ -229,7 +229,15 @@ async fn fetch_email_context(keywords: &[String], _time_range_hours: u32) -> Vec
     urlencoding::encode(&query)
   );
 
-  match reqwest::get(&url).await {
+  match reqwest::Client::new()
+    .get(&url)
+    .header(
+      crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+      crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
+    )
+    .send()
+    .await
+  {
     Ok(resp) => {
       if let Ok(data) = resp.json::<JsonValue>().await {
         if let Some(results) = data.get("results").and_then(|v| v.as_array()) {
