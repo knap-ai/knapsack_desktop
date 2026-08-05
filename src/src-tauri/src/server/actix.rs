@@ -36,6 +36,7 @@ use crate::connections;
 use crate::heartbeat::api as heartbeat_api;
 use crate::mcp::api as mcp_api;
 use crate::search;
+use crate::server::auth::ApiAuth;
 use crate::server::mobile_discovery;
 use crate::user::UserInfo;
 use crate::workspaces::api as workspace_api;
@@ -192,11 +193,13 @@ pub async fn start_server<'a>(
   let dev_qa_state = Data::new(crate::automations::qa_suite::new_shared_qa_state());
   let dev_qa_scenarios = Data::new(crate::automations::qa_suite::new_shared_scenarios());
   let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
+  let (desktop_api_token, mobile_api_token) = clawd::service::api_auth_tokens(&app_handle)
+    .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+  let mobile_api_token_for_server = mobile_api_token.clone();
   let mobile_port = mobile_lan_port(port);
   let mobile_server = HttpServer::new(move || {
-    let cors = Cors::permissive();
     App::new()
-      .wrap(cors)
+      .wrap(ApiAuth::mobile(mobile_api_token_for_server.clone()))
       .wrap(Logger::default())
       .service(ping)
       .service(api::mobile::create_mobile_meeting)
@@ -237,12 +240,30 @@ pub async fn start_server<'a>(
     }
   };
   let _mobile_discovery = mobile_server_handle.as_ref().and_then(|_| {
-    mobile_discovery::start_mobile_discovery_service(mobile_port, &desktop_discovery_label())
+    mobile_discovery::start_mobile_discovery_service(
+      mobile_port,
+      &desktop_discovery_label(),
+      &mobile_api_token,
+    )
   });
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
-    let cors = Cors::permissive();
+    let cors = Cors::default()
+      .allowed_origin("tauri://localhost")
+      .allowed_origin("https://tauri.localhost")
+      .allowed_origin("http://tauri.localhost")
+      .allowed_origin("http://localhost:1420")
+      .allowed_origin("http://127.0.0.1:1420")
+      .allow_any_method()
+      .allowed_headers(vec![
+        actix_web::http::header::ACCEPT,
+        actix_web::http::header::CONTENT_TYPE,
+        actix_web::http::header::HeaderName::from_static(
+          crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+        ),
+      ])
+      .max_age(3600);
     App::new()
       .app_data(Data::new(app_handle.clone()))
       .app_data(Data::new(semantic_service.clone()))
@@ -262,6 +283,7 @@ pub async fn start_server<'a>(
       .app_data(dev_qa_state.clone())
       .app_data(dev_qa_scenarios.clone())
       .app_data(dev_mode_state.clone())
+      .wrap(ApiAuth::desktop(desktop_api_token.clone()))
       .wrap(cors)
       .wrap(Logger::default())
       .service(llm_complete)
@@ -366,17 +388,24 @@ pub async fn start_server<'a>(
       .service(connections::api::refresh_knapsack_api_token)
       // Clawd integration endpoints
       .service(clawd::browser::open_browser)
+      .service(clawd::browser::navigate_browser)
+      .service(clawd::browser::get_browser_presentation)
+      .service(clawd::browser::set_browser_presentation)
       .service(clawd::browser::list_tabs)
       .service(clawd::browser::focus_tab)
       .service(clawd::browser::snapshot)
       .service(clawd::browser::act)
       .service(clawd::browser::screenshot)
+      .service(clawd::browser::browser_view)
       .service(clawd::browser::browser_search)
       .service(clawd::browser::knapsack_chat_completions_proxy)
       .service(clawd::browser::chat)
       .service(clawd::browser::agent_chat)
       .service(clawd::browser::agent_run)
       .service(clawd::browser::terminal_output)
+      .service(clawd::harness::get_harness_settings)
+      .service(clawd::harness::test_harness_settings)
+      .service(clawd::harness::set_harness_settings)
       .service(clawd::gmail::get_unread_important)
       .service(clawd::sidecar::status)
       .service(clawd::sidecar::set_config)
@@ -389,6 +418,8 @@ pub async fn start_server<'a>(
       .service(clawd::service::api_key_status)
       .service(clawd::service::validate_api_key)
       .service(clawd::service::set_api_key)
+      .service(clawd::service::set_session_capability_secret)
+      .service(clawd::service::session_capability_secret_status)
       .service(clawd::service::delete_extra_provider_key)
       .service(clawd::service::get_api_key)
       // OAuth provider login (OpenRouter browser-based auth) + Knapsack studio auth
@@ -455,6 +486,18 @@ pub async fn start_server<'a>(
       .service(clawd::channels::signal_link)
       .service(clawd::channels::signal_register)
       .service(clawd::channels::signal_verify)
+      .service(clawd::managed_agents::managed_agents_index)
+      .service(clawd::managed_agents::managed_agent_templates)
+      .service(clawd::managed_agents::managed_agent_policies)
+      .service(clawd::managed_agents::managed_agent_list)
+      .service(clawd::managed_agents::managed_agent_sessions)
+      .service(clawd::managed_agents::managed_agent_upsert)
+      .service(clawd::managed_agents::managed_agent_upsert_presence)
+      .service(clawd::managed_agents::managed_agent_presence_for_user)
+      .service(clawd::managed_agents::managed_agent_upsert_context)
+      .service(clawd::managed_agents::managed_agent_context_get)
+      .service(clawd::managed_agents::managed_agent_route_preview)
+      .service(clawd::managed_agents::managed_agent_channel_run)
       // Token usage & cost management endpoints
       .service(usage_api::get_usage_summary)
       .service(usage_api::get_daily_usage)

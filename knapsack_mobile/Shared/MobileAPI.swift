@@ -8,6 +8,8 @@ final class MobileAPI {
   private let fallbackStoreKey = "knapsack.mobile.fallback.meetings"
   private let fallbackChatStoreKey = "knapsack.mobile.fallback.chats"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
+  private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
+  private let mobileTokenHeader = "x-knapsack-mobile-token"
 
   static var defaultBaseURL: URL {
 #if targetEnvironment(simulator)
@@ -27,6 +29,25 @@ final class MobileAPI {
 
   var hasPersistedBaseURL: Bool {
     persistedBaseURL != nil
+  }
+
+  var pairingToken: String? {
+    get {
+      let token = UserDefaults.standard.string(forKey: pairingTokenStoreKey)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      guard let token, !token.isEmpty else {
+        return nil
+      }
+      return token
+    }
+    set {
+      let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if trimmed.isEmpty {
+        UserDefaults.standard.removeObject(forKey: pairingTokenStoreKey)
+      } else {
+        UserDefaults.standard.set(trimmed, forKey: pairingTokenStoreKey)
+      }
+    }
   }
 
   static func isLoopbackURL(_ url: URL) -> Bool {
@@ -248,6 +269,7 @@ final class MobileAPI {
     var request = URLRequest(url: baseURL.appendingPathComponent("api/knapsack/mobile/meetings/\(threadID)/recording"))
     request.httpMethod = "POST"
     request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+    applyAuthentication(to: &request)
 
     let fileData = try Data(contentsOf: fileURL)
     var body = Data()
@@ -307,7 +329,8 @@ final class MobileAPI {
   }
 
   private func fetch<T: Codable>(path: String, queryItems: [URLQueryItem] = []) async throws -> T {
-    let request = URLRequest(url: try requestURL(path: path, queryItems: queryItems))
+    var request = URLRequest(url: try requestURL(path: path, queryItems: queryItems))
+    applyAuthentication(to: &request)
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
       throw MobileAPIError.invalidResponse
@@ -326,6 +349,7 @@ final class MobileAPI {
     var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
     request.httpMethod = method
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    applyAuthentication(to: &request)
     request.httpBody = try encoder.encode(body)
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
@@ -486,5 +510,11 @@ final class MobileAPI {
 
   private func nowTimestamp() -> Int64 {
     Int64(Date().timeIntervalSince1970)
+  }
+
+  private func applyAuthentication(to request: inout URLRequest) {
+    if let pairingToken {
+      request.setValue(pairingToken, forHTTPHeaderField: mobileTokenHeader)
+    }
   }
 }

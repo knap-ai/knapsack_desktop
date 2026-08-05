@@ -7,27 +7,24 @@ private struct KnapsackWidgetEntry: TimelineEntry {
 }
 
 private struct KnapsackWidgetProvider: TimelineProvider {
-  private var readySnapshot: KnapsackComplicationSnapshot {
-    KnapsackComplicationSnapshot(
-      isRecording: false,
-      syncStatus: "Ready",
-      updatedAt: .now
-    )
+  private func currentSnapshot() -> KnapsackComplicationSnapshot {
+    KnapsackComplicationStore.shared.currentSnapshot()
   }
 
   func placeholder(in context: Context) -> KnapsackWidgetEntry {
     KnapsackWidgetEntry(
       date: .now,
-      snapshot: readySnapshot
+      snapshot: currentSnapshot()
     )
   }
 
   func getSnapshot(in context: Context, completion: @escaping (KnapsackWidgetEntry) -> Void) {
-    completion(KnapsackWidgetEntry(date: .now, snapshot: readySnapshot))
+    completion(KnapsackWidgetEntry(date: .now, snapshot: currentSnapshot()))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<KnapsackWidgetEntry>) -> Void) {
-    let entry = KnapsackWidgetEntry(date: .now, snapshot: readySnapshot)
+    let snapshot = currentSnapshot()
+    let entry = KnapsackWidgetEntry(date: snapshot.updatedAt, snapshot: snapshot)
     completion(Timeline(entries: [entry], policy: .never))
   }
 }

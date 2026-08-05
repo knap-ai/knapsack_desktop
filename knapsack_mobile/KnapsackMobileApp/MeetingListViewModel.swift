@@ -215,6 +215,9 @@ final class MeetingListViewModel: ObservableObject {
       serverURLText = desktop.url.absoluteString
       statusMessage = "Found \(desktop.name) nearby."
     }
+    if let pairingToken = desktop.pairingToken {
+      api.pairingToken = pairingToken
+    }
 
     guard lastAutoConnectedDesktopID != desktop.id else { return }
     if session?.linked == true,
@@ -540,6 +543,7 @@ struct DiscoveredDesktop: Identifiable, Equatable {
   let name: String
   let url: URL
   let hostName: String
+  let pairingToken: String?
 }
 
 @MainActor
@@ -597,7 +601,8 @@ final class DesktopDiscoveryCoordinator: NSObject, ObservableObject {
       id: serviceID(for: service),
       name: txtRecord["name"].flatMap { String(data: $0, encoding: .utf8) } ?? service.name,
       url: url,
-      hostName: hostName
+      hostName: hostName,
+      pairingToken: txtRecord["pairingToken"].flatMap { String(data: $0, encoding: .utf8) }
     )
 
     if let index = desktops.firstIndex(where: { $0.id == discovered.id }) {

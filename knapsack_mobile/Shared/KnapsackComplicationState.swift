@@ -54,7 +54,6 @@ struct KnapsackComplicationSnapshot {
   }
 }
 
-@MainActor
 final class KnapsackComplicationStore {
   static let shared = KnapsackComplicationStore()
 

@@ -90,5 +90,6 @@ targets:
         INFOPLIST_FILE: KnapsackWatchWidgetsExtension/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Knapsack
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KnapsackWatchWidgetsExtension/KnapsackWatchWidgetsExtension.entitlements
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME: WidgetBackground
