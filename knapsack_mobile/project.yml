@@ -60,6 +60,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - target: KnapsackWatchExtension
+      - target: KnapsackWatchWidgetsExtension
   KnapsackWatchExtension:
     type: watchkit2-extension
     platform: watchOS
@@ -77,3 +78,17 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Knapsack
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: KnapsackWatchExtension/KnapsackWatchExtension.entitlements
+  KnapsackWatchWidgetsExtension:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: KnapsackWatchWidgetsExtension
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.watchkitapp.widgets
+        INFOPLIST_FILE: KnapsackWatchWidgetsExtension/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Knapsack
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME: WidgetBackground

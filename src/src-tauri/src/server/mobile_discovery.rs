@@ -15,7 +15,10 @@ impl Drop for MobileDiscoveryGuard {
 }
 
 #[cfg(target_os = "macos")]
-pub fn start_mobile_discovery_service(port: u16, service_name: &str) -> Option<MobileDiscoveryGuard> {
+pub fn start_mobile_discovery_service(
+  port: u16,
+  service_name: &str,
+) -> Option<MobileDiscoveryGuard> {
   let child = Command::new("dns-sd")
     .args([
       "-R",
@@ -36,9 +39,7 @@ pub fn start_mobile_discovery_service(port: u16, service_name: &str) -> Option<M
     })
     .ok()?;
 
-  log::info!(
-    "Started Knapsack mobile discovery service for {service_name} on port {port}"
-  );
+  log::info!("Started Knapsack mobile discovery service for {service_name} on port {port}");
 
   Some(MobileDiscoveryGuard { child })
 }

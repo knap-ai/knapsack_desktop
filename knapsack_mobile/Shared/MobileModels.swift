@@ -111,6 +111,94 @@ struct MobileCalendarEventSummary: Codable, Identifiable {
   var calendarAccountEmail: String
 }
 
+struct MobileBrainEntry: Codable, Identifiable, Hashable {
+  var name: String
+  var title: String?
+  var relPath: String
+  var isDir: Bool
+
+  var id: String { relPath }
+}
+
+struct MobileBrainPage: Codable, Identifiable {
+  var relPath: String
+  var title: String
+  var content: String
+
+  var id: String { relPath }
+}
+
+struct MobileAutopilotBrief: Codable {
+  var headline: String
+  var summary: String
+  var generatedAt: Int64
+  var sections: [MobileAutopilotSection]
+}
+
+struct MobileAutopilotSection: Codable, Identifiable {
+  var id: String
+  var title: String
+  var subtitle: String?
+  var cards: [MobileAutopilotCard]
+}
+
+struct MobileAutopilotCard: Codable, Identifiable {
+  var id: String
+  var kind: String
+  var title: String
+  var subtitle: String
+  var preview: String?
+  var rationale: String?
+  var badge: String?
+  var timestamp: Int64?
+  var emailUID: String?
+  var relatedThreadID: UInt64?
+  var relatedChatThreadID: UInt64?
+  var suggestedPrompts: [String]
+}
+
+struct MobileAutopilotEmailMessage: Codable, Identifiable {
+  var emailUID: String
+  var sender: String
+  var recipients: [String]
+  var cc: [String]
+  var subject: String
+  var body: String
+  var summary: String
+  var date: UInt64
+  var isRead: Bool?
+  var isArchived: Bool?
+  var isDeleted: Bool?
+
+  var id: String { emailUID }
+}
+
+struct MobileAutopilotEmailDetail: Codable, Identifiable {
+  var emailUID: String
+  var accountEmail: String
+  var provider: String
+  var category: String
+  var subject: String
+  var sender: String
+  var preview: String?
+  var badge: String?
+  var suggestedPrompts: [String]
+  var messages: [MobileAutopilotEmailMessage]
+
+  var id: String { emailUID }
+
+  var latestMessage: MobileAutopilotEmailMessage? {
+    messages.first
+  }
+}
+
+enum MobileAutopilotEmailAction: String, Codable, CaseIterable {
+  case markRead = "mark_read"
+  case archive = "archive"
+  case delete = "delete"
+  case reply = "reply"
+}
+
 struct APIEnvelope<T: Codable>: Codable {
   let success: Bool
   let data: T?
@@ -132,6 +220,11 @@ struct UpdateStatusRequest: Codable {
   let sourceDevice: String?
   let startedAt: Int64?
   let endedAt: Int64?
+}
+
+struct MobileAutopilotEmailActionRequest: Codable {
+  let action: MobileAutopilotEmailAction
+  let replyBody: String?
 }
 
 enum MobileAPIError: Error, LocalizedError {

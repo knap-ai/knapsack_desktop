@@ -1,10 +1,19 @@
 use crate::api::notes::save_notes_to_file;
+use crate::clawd::gateway_client;
+use crate::clawd::gbrain::{default_brain_root, kn_brain_list, kn_brain_read_page};
+use crate::clawd::gmail::send_gmail_email;
+use crate::connections::google::auth::refresh_connection_token;
+use crate::connections::google::constants::GOOGLE_GMAIL_SCOPE;
+use crate::connections::microsoft::auth::refresh_user_connection;
+use crate::connections::microsoft::constants::{MICROSOFT_BASE_URL, MICROSOFT_OUTLOOK_SCOPE};
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::connection::Connection;
+use crate::db::models::email::Email;
 use crate::db::models::feed_item::FeedItem;
 use crate::db::models::message::Message;
 use crate::db::models::thread::{Thread, ThreadType, ThreadWithMessages};
 use crate::db::models::user::User;
+use crate::db::models::user_connection::UserConnection;
 use crate::error::Error;
 use actix_multipart::Multipart;
 use actix_web::{
@@ -15,6 +24,7 @@ use actix_web::{
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs::{create_dir_all, read_to_string, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -112,12 +122,7 @@ pub struct MobileChatDetail {
   pub updated_at: i64,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct MobileSeedHistoryEntry {
-  role: String,
-  content: String,
-}
+const MOBILE_CHAT_SEED_HISTORY_LIMIT: usize = 12;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +171,105 @@ pub struct MobileCalendarEventSummary {
   pub end: Option<i64>,
   pub google_meet_url: Option<String>,
   pub calendar_account_email: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileBrainListQuery {
+  pub sub_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileBrainPageQuery {
+  pub rel_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileBrainPage {
+  pub rel_path: String,
+  pub title: String,
+  pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotBrief {
+  pub headline: String,
+  pub summary: String,
+  pub generated_at: i64,
+  pub sections: Vec<MobileAutopilotSection>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotSection {
+  pub id: String,
+  pub title: String,
+  pub subtitle: Option<String>,
+  pub cards: Vec<MobileAutopilotCard>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotCard {
+  pub id: String,
+  pub kind: String,
+  pub title: String,
+  pub subtitle: String,
+  pub preview: Option<String>,
+  pub rationale: Option<String>,
+  pub badge: Option<String>,
+  pub timestamp: Option<i64>,
+  pub email_uid: Option<String>,
+  pub related_thread_id: Option<u64>,
+  pub related_chat_thread_id: Option<u64>,
+  pub suggested_prompts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotEmailMessage {
+  pub email_uid: String,
+  pub sender: String,
+  pub recipients: Vec<String>,
+  pub cc: Vec<String>,
+  pub subject: String,
+  pub body: String,
+  pub summary: String,
+  pub date: u64,
+  pub is_read: Option<bool>,
+  pub is_archived: Option<bool>,
+  pub is_deleted: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotEmailDetail {
+  pub email_uid: String,
+  pub account_email: String,
+  pub provider: String,
+  pub category: String,
+  pub subject: String,
+  pub sender: String,
+  pub preview: Option<String>,
+  pub badge: Option<String>,
+  pub suggested_prompts: Vec<String>,
+  pub messages: Vec<MobileAutopilotEmailMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileAutopilotEmailActionRequest {
+  pub action: String,
+  pub reply_body: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MobileEmailProvider {
+  Google,
+  Microsoft,
 }
 
 fn knapsack_data_dir() -> Result<PathBuf, Error> {
@@ -363,6 +467,836 @@ fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary>
     .collect()
 }
 
+fn clean_email_preview(value: &str) -> Option<String> {
+  let preview = value
+    .replace('\r', " ")
+    .replace('\n', " ")
+    .split_whitespace()
+    .collect::<Vec<_>>()
+    .join(" ");
+  let trimmed = preview.trim();
+  if trimmed.is_empty() {
+    None
+  } else {
+    Some(trimmed.chars().take(160).collect())
+  }
+}
+
+fn email_timestamp_seconds(email: &Email) -> i64 {
+  let raw = email.date as i64;
+  if raw > 10_000_000_000 { raw / 1000 } else { raw }
+}
+
+fn is_deleted_or_archived(email: &Email) -> bool {
+  email.is_deleted.unwrap_or(false) || email.is_archived.unwrap_or(false)
+}
+
+fn is_unread(email: &Email) -> bool {
+  !email.is_read.unwrap_or(false)
+}
+
+fn lower_join(subject: &str, body: &str, sender: &str) -> String {
+  format!("{subject} {body} {sender}").to_lowercase()
+}
+
+fn contains_any(haystack: &str, needles: &[&str]) -> bool {
+  needles.iter().any(|needle| haystack.contains(needle))
+}
+
+fn is_noise_email(email: &Email) -> bool {
+  let text = lower_join(&email.subject, &email.body, &email.sender);
+  contains_any(
+    &text,
+    &[
+      "newsletter",
+      "unsubscribe",
+      "sale",
+      "promotion",
+      "promo",
+      "digest",
+      "deals",
+      "marketing",
+      "do not reply",
+      "donotreply",
+      "no-reply",
+      "noreply",
+    ],
+  )
+}
+
+fn is_tracking_email(email: &Email) -> bool {
+  let text = lower_join(&email.subject, &email.body, &email.sender);
+  contains_any(
+    &text,
+    &[
+      "tracking",
+      "out for delivery",
+      "delivered",
+      "shipment",
+      "shipping",
+      "package",
+      "order #",
+      "receipt",
+      "invoice",
+      "payment due",
+      "charged",
+      "flight",
+      "boarding",
+      "reservation",
+      "hotel",
+      "itinerary",
+    ],
+  )
+}
+
+fn is_reply_candidate(email: &Email) -> bool {
+  let sender = email.sender.to_lowercase();
+  is_unread(email)
+    && !is_deleted_or_archived(email)
+    && !is_noise_email(email)
+    && !contains_any(&sender, &["no-reply", "noreply", "donotreply"])
+}
+
+#[derive(Default)]
+struct SenderStat {
+  count: usize,
+  unread_count: usize,
+  latest_subject: Option<String>,
+}
+
+fn split_addresses(value: &str) -> Vec<String> {
+  value
+    .split(',')
+    .map(|entry| entry.trim().to_string())
+    .filter(|entry| !entry.is_empty())
+    .collect()
+}
+
+fn autopilot_category_for_email(email: &Email) -> String {
+  if is_tracking_email(email) {
+    "Track".to_string()
+  } else if is_noise_email(email) {
+    "Clean up".to_string()
+  } else if is_reply_candidate(email) {
+    "Needs attention".to_string()
+  } else {
+    "Inbox".to_string()
+  }
+}
+
+fn provider_label(provider: MobileEmailProvider) -> &'static str {
+  match provider {
+    MobileEmailProvider::Google => "gmail",
+    MobileEmailProvider::Microsoft => "outlook",
+  }
+}
+
+fn detect_mobile_email_provider(account_email: &str) -> Result<MobileEmailProvider, Error> {
+  if UserConnection::find_by_user_email_and_scope(
+    account_email.to_string(),
+    GOOGLE_GMAIL_SCOPE.to_string(),
+  )
+  .is_ok()
+  {
+    return Ok(MobileEmailProvider::Google);
+  }
+
+  if UserConnection::find_by_user_email_and_scope(
+    account_email.to_string(),
+    MICROSOFT_OUTLOOK_SCOPE.to_string(),
+  )
+  .is_ok()
+  {
+    return Ok(MobileEmailProvider::Microsoft);
+  }
+
+  Err(Error::KSError(format!(
+    "No email connection found for {}",
+    account_email
+  )))
+}
+
+fn build_mobile_autopilot_email_message(email: &Email) -> MobileAutopilotEmailMessage {
+  MobileAutopilotEmailMessage {
+    email_uid: email.email_uid.clone(),
+    sender: email.sender.clone(),
+    recipients: split_addresses(&email.recipient),
+    cc: split_addresses(&email.cc),
+    subject: email.subject.clone(),
+    body: email.body.clone(),
+    summary: clean_email_preview(&email.body).unwrap_or_default(),
+    date: email.date,
+    is_read: email.is_read,
+    is_archived: email.is_archived,
+    is_deleted: email.is_deleted,
+  }
+}
+
+fn build_mobile_autopilot_email_detail(email_uid: &str) -> Result<MobileAutopilotEmailDetail, Error> {
+  let email = Email::find_by_uid(email_uid)?
+    .ok_or_else(|| Error::KSError("Email not found".to_string()))?;
+  let provider = detect_mobile_email_provider(&email.account_email)?;
+
+  let mut messages = if let Some(thread_id) = email.thread_id.clone() {
+    Email::get_last_email_by_thread_id(&thread_id)?
+  } else {
+    vec![email.clone()]
+  };
+  messages.sort_by(|left, right| right.date.cmp(&left.date));
+
+  let anchor = messages
+    .iter()
+    .find(|message| message.email_uid == email.email_uid)
+    .cloned()
+    .unwrap_or_else(|| email.clone());
+
+  Ok(MobileAutopilotEmailDetail {
+    email_uid: anchor.email_uid.clone(),
+    account_email: anchor.account_email.clone(),
+    provider: provider_label(provider).to_string(),
+    category: autopilot_category_for_email(&anchor),
+    subject: anchor.subject.clone(),
+    sender: anchor.sender.clone(),
+    preview: clean_email_preview(&anchor.body),
+    badge: if is_reply_candidate(&anchor) {
+      Some("Needs attention".to_string())
+    } else if is_tracking_email(&anchor) {
+      Some("Track".to_string())
+    } else if is_noise_email(&anchor) {
+      Some("Clean up".to_string())
+    } else {
+      None
+    },
+    suggested_prompts: vec![
+      format!("Summarize what matters in '{}'.", anchor.subject),
+      format!("Draft the best reply to '{}'.", anchor.subject),
+      format!("What can I safely ignore in this thread: '{}'?", anchor.subject),
+    ],
+    messages: messages
+      .iter()
+      .map(build_mobile_autopilot_email_message)
+      .collect(),
+  })
+}
+
+fn mark_local_email_state(email_uid: &str, action: &str) -> Result<(), Error> {
+  let Some(mut email) = Email::find_by_uid(email_uid)? else {
+    return Ok(());
+  };
+
+  match action {
+    "mark_read" => {
+      email.is_read = Some(true);
+    }
+    "archive" => {
+      email.is_read = Some(true);
+      email.is_archived = Some(true);
+    }
+    "delete" => {
+      email.is_deleted = Some(true);
+    }
+    _ => {}
+  }
+
+  email.update()
+}
+
+async fn perform_google_email_action(
+  account_email: &str,
+  message_id: &str,
+  action: &str,
+) -> Result<(), Error> {
+  let user_connection = UserConnection::find_by_user_email_and_scope(
+    account_email.to_string(),
+    GOOGLE_GMAIL_SCOPE.to_string(),
+  )?;
+  let access_token = refresh_connection_token(account_email.to_string(), user_connection).await?;
+  let client = reqwest::Client::new();
+
+  let (remove_label_ids, add_label_ids) = match action {
+    "mark_read" => (vec!["UNREAD".to_string()], Vec::new()),
+    "archive" => (
+      vec!["UNREAD".to_string(), "INBOX".to_string()],
+      Vec::new(),
+    ),
+    "delete" => (Vec::new(), vec!["TRASH".to_string()]),
+    _ => {
+      return Err(Error::KSError(format!(
+        "Unsupported Gmail action: {}",
+        action
+      )))
+    }
+  };
+
+  let response = client
+    .post(format!(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}/modify",
+      message_id
+    ))
+    .bearer_auth(access_token)
+    .json(&json!({
+      "removeLabelIds": remove_label_ids,
+      "addLabelIds": add_label_ids,
+    }))
+    .send()
+    .await
+    .map_err(|err| Error::KSError(format!("Gmail request failed: {err}")))?;
+
+  if !response.status().is_success() {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    return Err(Error::KSError(format!(
+      "Gmail action failed ({}): {}",
+      status, body
+    )));
+  }
+
+  Ok(())
+}
+
+async fn perform_microsoft_email_action(
+  account_email: &str,
+  message_id: &str,
+  action: &str,
+) -> Result<(), Error> {
+  let user_connection = UserConnection::find_by_user_email_and_scope(
+    account_email.to_string(),
+    MICROSOFT_OUTLOOK_SCOPE.to_string(),
+  )?;
+  let access_token = refresh_user_connection(user_connection, account_email.to_string())
+    .await?
+    .token;
+  let client = reqwest::Client::new();
+
+  let response = match action {
+    "mark_read" => {
+      client
+        .patch(format!("{}/me/messages/{}", MICROSOFT_BASE_URL, message_id))
+        .bearer_auth(&access_token)
+        .json(&json!({ "isRead": true }))
+        .send()
+        .await
+    }
+    "archive" => {
+      client
+        .post(format!("{}/me/messages/{}/move", MICROSOFT_BASE_URL, message_id))
+        .bearer_auth(&access_token)
+        .json(&json!({ "destinationId": "archive" }))
+        .send()
+        .await
+    }
+    "delete" => {
+      client
+        .delete(format!("{}/me/messages/{}", MICROSOFT_BASE_URL, message_id))
+        .bearer_auth(&access_token)
+        .send()
+        .await
+    }
+    _ => {
+      return Err(Error::KSError(format!(
+        "Unsupported Outlook action: {}",
+        action
+      )))
+    }
+  }
+  .map_err(|err| Error::KSError(format!("Outlook request failed: {err}")))?;
+
+  if !response.status().is_success() {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    return Err(Error::KSError(format!(
+      "Outlook action failed ({}): {}",
+      status, body
+    )));
+  }
+
+  Ok(())
+}
+
+async fn send_mobile_email_reply(email_uid: &str, reply_body: &str) -> Result<(), Error> {
+  let email = Email::find_by_uid(email_uid)?
+    .ok_or_else(|| Error::KSError("Email not found".to_string()))?;
+  let provider = detect_mobile_email_provider(&email.account_email)?;
+  let trimmed = reply_body.trim();
+  if trimmed.is_empty() {
+    return Err(Error::KSError("Reply body is empty".to_string()));
+  }
+
+  match provider {
+    MobileEmailProvider::Google => {
+      let user_name = infer_linked_profile()
+        .and_then(|profile| profile.name)
+        .unwrap_or_default();
+      let subject = if email.subject.to_lowercase().starts_with("re:") {
+        email.subject.clone()
+      } else {
+        format!("Re: {}", email.subject)
+      };
+
+      send_gmail_email(
+        &email.account_email,
+        &user_name,
+        &email.sender,
+        if email.cc.trim().is_empty() {
+          None
+        } else {
+          Some(email.cc.as_str())
+        },
+        &subject,
+        trimmed,
+        email.thread_id.as_deref(),
+        None,
+      )
+      .await
+      .map_err(Error::KSError)?;
+    }
+    MobileEmailProvider::Microsoft => {
+      let user_connection = UserConnection::find_by_user_email_and_scope(
+        email.account_email.clone(),
+        MICROSOFT_OUTLOOK_SCOPE.to_string(),
+      )?;
+      let access_token = refresh_user_connection(user_connection, email.account_email.clone())
+        .await?
+        .token;
+
+      let response = reqwest::Client::new()
+        .post(format!(
+          "{}/me/messages/{}/replyAll",
+          MICROSOFT_BASE_URL, email.email_uid
+        ))
+        .bearer_auth(access_token)
+        .json(&json!({ "comment": trimmed }))
+        .send()
+        .await
+        .map_err(|err| Error::KSError(format!("Outlook reply failed: {err}")))?;
+
+      if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(Error::KSError(format!(
+          "Outlook reply failed ({}): {}",
+          status, body
+        )));
+      }
+    }
+  }
+
+  mark_local_email_state(email_uid, "mark_read")?;
+  Ok(())
+}
+
+fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
+  let now = chrono::Utc::now().timestamp();
+  let session = build_mobile_session();
+  let calendar_events = build_mobile_calendar_events(10);
+  let recent_meetings = Thread::find_all()
+    .unwrap_or_default()
+    .into_iter()
+    .filter(|thread| matches!(thread.thread_type, ThreadType::MeetingNotes))
+    .collect::<Vec<_>>();
+  let recent_chats = merged_mobile_chats().unwrap_or_default();
+  let recent_emails = Email::get_recent_emails(140);
+
+  let mut sections = Vec::new();
+
+  let reply_cards = recent_emails
+    .iter()
+    .filter(|email| is_reply_candidate(email))
+    .take(3)
+    .enumerate()
+    .map(|(index, email)| MobileAutopilotCard {
+      id: format!("reply-{}-{index}", email.email_uid),
+      kind: "reply".to_string(),
+      title: email.subject.clone(),
+      subtitle: format!("Reply to {}", email.sender),
+      preview: clean_email_preview(&email.body),
+      rationale: Some("Unread email that looks like a real conversation, not inbox noise.".to_string()),
+      badge: Some("Needs attention".to_string()),
+      timestamp: Some(email_timestamp_seconds(email)),
+      email_uid: Some(email.email_uid.clone()),
+      related_thread_id: None,
+      related_chat_thread_id: None,
+      suggested_prompts: vec![
+        format!("Draft a concise reply to '{}' from {}.", email.subject, email.sender),
+        format!("Summarize what {} needs from me in '{}'.", email.sender, email.subject),
+      ],
+    })
+    .collect::<Vec<_>>();
+
+  if !reply_cards.is_empty() {
+    sections.push(MobileAutopilotSection {
+      id: "needs-attention".to_string(),
+      title: "Needs attention".to_string(),
+      subtitle: Some("The few things most likely to require a response or decision.".to_string()),
+      cards: reply_cards,
+    });
+  }
+
+  let today_cards = calendar_events
+    .iter()
+    .take(3)
+    .enumerate()
+    .map(|(index, event)| MobileAutopilotCard {
+      id: format!("event-{}-{index}", event.id),
+      kind: "today".to_string(),
+      title: event.title.clone().unwrap_or_else(|| "Upcoming event".to_string()),
+      subtitle: format!("{}{}", format_mobile_timestamp(event.start), event.location.as_ref().map(|v| format!(" · {v}")).unwrap_or_default()),
+      preview: event.description.clone().filter(|value| !value.trim().is_empty()),
+      rationale: Some("Upcoming calendar event surfaced from your linked desktop account.".to_string()),
+      badge: Some("Today".to_string()),
+      timestamp: event.start,
+      email_uid: None,
+      related_thread_id: None,
+      related_chat_thread_id: None,
+      suggested_prompts: vec![
+        format!("Prepare me for '{}'.", event.title.clone().unwrap_or_else(|| "this event".to_string())),
+      ],
+    })
+    .collect::<Vec<_>>();
+
+  let prep_cards = recent_meetings
+    .into_iter()
+    .take(2)
+    .enumerate()
+    .map(|(index, thread)| {
+      let thread_id = thread.id.unwrap_or_default();
+      let detail = mobile_meeting_detail(thread, load_mobile_metadata(thread_id).ok().flatten());
+      let preview = detail
+        .metadata
+        .notes_preview
+        .clone()
+        .or(detail.notes.clone())
+        .and_then(|value| clean_email_preview(&value));
+
+      MobileAutopilotCard {
+        id: format!("meeting-{}-{index}", thread_id),
+        kind: "prep".to_string(),
+        title: detail.thread.title.unwrap_or_else(|| "Recent meeting".to_string()),
+        subtitle: "Recent note worth polishing or reusing".to_string(),
+        preview,
+        rationale: Some("Recent meeting notes are often the fastest way to prepare for the next conversation.".to_string()),
+        badge: Some("Prep".to_string()),
+        timestamp: detail.thread.timestamp,
+        email_uid: None,
+        related_thread_id: Some(thread_id),
+        related_chat_thread_id: None,
+        suggested_prompts: vec![
+          format!("What are the follow-ups from meeting {}?", thread_id),
+          format!("Turn meeting {} into a crisp prep brief.", thread_id),
+        ],
+      }
+    })
+    .collect::<Vec<_>>();
+
+  let mut today_and_prep = Vec::new();
+  today_and_prep.extend(today_cards);
+  today_and_prep.extend(prep_cards);
+  if !today_and_prep.is_empty() {
+    sections.push(MobileAutopilotSection {
+      id: "today".to_string(),
+      title: "Today".to_string(),
+      subtitle: Some("Meetings, logistics, and prep that should stay in view.".to_string()),
+      cards: today_and_prep,
+    });
+  }
+
+  let track_cards = recent_emails
+    .iter()
+    .filter(|email| !is_deleted_or_archived(email) && is_tracking_email(email))
+    .take(4)
+    .enumerate()
+    .map(|(index, email)| MobileAutopilotCard {
+      id: format!("track-{}-{index}", email.email_uid),
+      kind: "track".to_string(),
+      title: email.subject.clone(),
+      subtitle: "Travel, purchase, package, or receipt update".to_string(),
+      preview: clean_email_preview(&email.body),
+      rationale: Some("Useful life-admin and logistics email that is worth keeping handy on phone.".to_string()),
+      badge: Some("Track".to_string()),
+      timestamp: Some(email_timestamp_seconds(email)),
+      email_uid: Some(email.email_uid.clone()),
+      related_thread_id: None,
+      related_chat_thread_id: None,
+      suggested_prompts: vec![
+        format!("Pull the important details out of '{}'.", email.subject),
+      ],
+    })
+    .collect::<Vec<_>>();
+
+  let workspace_cards = recent_chats
+    .into_iter()
+    .take(2)
+    .enumerate()
+    .map(|(index, chat)| {
+      let chat_id = chat.thread.id.unwrap_or_default();
+      MobileAutopilotCard {
+        id: format!("chat-{chat_id}-{index}"),
+        kind: "workspace".to_string(),
+        title: chat.thread.title.unwrap_or_else(|| "Recent chat".to_string()),
+        subtitle: "Pick up an active desktop conversation".to_string(),
+        preview: chat.preview.clone(),
+        rationale: Some(
+          "Knapsack can go beyond email by carrying your live desktop context onto the phone."
+            .to_string(),
+        ),
+        badge: Some("Workspace".to_string()),
+        timestamp: Some(chat.updated_at),
+        email_uid: None,
+        related_thread_id: None,
+        related_chat_thread_id: Some(chat_id),
+        suggested_prompts: vec![format!("Continue the conversation in chat {}.", chat_id)],
+      }
+    })
+    .collect::<Vec<_>>();
+
+  let mut track_and_workspace = Vec::new();
+  track_and_workspace.extend(track_cards);
+  track_and_workspace.extend(workspace_cards);
+  if !track_and_workspace.is_empty() {
+    sections.push(MobileAutopilotSection {
+      id: "track".to_string(),
+      title: "Track".to_string(),
+      subtitle: Some("Useful logistics, receipts, and live work threads.".to_string()),
+      cards: track_and_workspace,
+    });
+  }
+
+  let mut sender_stats = HashMap::<String, SenderStat>::new();
+  for email in recent_emails.iter().filter(|email| !is_deleted_or_archived(email)) {
+    let sender_key = email.sender.trim().to_lowercase();
+    if sender_key.is_empty() || !is_noise_email(email) {
+      continue;
+    }
+    let stat = sender_stats.entry(sender_key).or_default();
+    stat.count += 1;
+    if is_unread(email) {
+      stat.unread_count += 1;
+    }
+    if stat.latest_subject.is_none() {
+      stat.latest_subject = Some(email.subject.clone());
+    }
+  }
+
+  let mut cleanup_cards = sender_stats
+    .into_iter()
+    .filter(|(_, stat)| stat.count >= 2)
+    .collect::<Vec<_>>();
+  cleanup_cards.sort_by(|left, right| right.1.count.cmp(&left.1.count));
+
+  let cleanup_cards = cleanup_cards
+    .into_iter()
+    .take(4)
+    .enumerate()
+    .map(|(index, (sender, stat))| MobileAutopilotCard {
+      id: format!("cleanup-{}-{index}", sender),
+      kind: "cleanup".to_string(),
+      title: sender.clone(),
+      subtitle: format!("{} recent messages, {} still unread", stat.count, stat.unread_count),
+      preview: stat.latest_subject.clone(),
+      rationale: Some("Good candidate for unsubscribe, mute, or bulk archive.".to_string()),
+      badge: Some("Clean up".to_string()),
+      timestamp: None,
+      email_uid: recent_emails
+        .iter()
+        .find(|email| email.sender.trim().eq_ignore_ascii_case(&sender))
+        .map(|email| email.email_uid.clone()),
+      related_thread_id: None,
+      related_chat_thread_id: None,
+      suggested_prompts: vec![
+        format!("Help me clean up mail from {}.", sender),
+      ],
+    })
+    .collect::<Vec<_>>();
+
+  if !cleanup_cards.is_empty() {
+    sections.push(MobileAutopilotSection {
+      id: "cleanup".to_string(),
+      title: "Clean up".to_string(),
+      subtitle: Some("Senders worth muting or unsubscribing from next.".to_string()),
+      cards: cleanup_cards,
+    });
+  }
+
+  let attention_count = sections
+    .iter()
+    .find(|section| section.id == "needs-attention")
+    .map(|section| section.cards.len())
+    .unwrap_or_default();
+  let event_count = calendar_events.len();
+
+  MobileAutopilotBrief {
+    headline: if attention_count > 0 {
+      format!("{} thing{} likely need your attention", attention_count, if attention_count == 1 { "" } else { "s" })
+    } else {
+      "Your workspace looks under control".to_string()
+    },
+    summary: format!(
+      "Knapsack scanned your linked workspace{} and found {} section{} to keep your day moving.",
+      if session.email_connected { ", calendar, and recent email" } else { " and calendar" },
+      sections.len(),
+      if sections.len() == 1 { "" } else { "s" }
+    ) + &if event_count > 0 {
+      format!(" You have {} upcoming calendar item{} in view.", event_count, if event_count == 1 { "" } else { "s" })
+    } else {
+      String::new()
+    },
+    generated_at: now,
+    sections,
+  }
+}
+
+fn is_gbrain_thread(thread: &Thread) -> bool {
+  thread
+    .title
+    .as_deref()
+    .unwrap_or_default()
+    .to_lowercase()
+    .contains("gbrain")
+}
+
+fn format_mobile_timestamp(timestamp: Option<i64>) -> String {
+  timestamp
+    .and_then(|value| chrono::DateTime::from_timestamp(value, 0))
+    .map(|value| value.format("%b %-d at %-I:%M %p").to_string())
+    .unwrap_or_else(|| "Unknown time".to_string())
+}
+
+fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
+  let session = build_mobile_session();
+  let upcoming_events = build_mobile_calendar_events(5);
+  let recent_chats = merged_mobile_chats()
+    .unwrap_or_default()
+    .into_iter()
+    .filter(|chat| chat.thread.id != Some(current_thread_id))
+    .take(5)
+    .collect::<Vec<_>>();
+
+  let mut meeting_threads = Thread::find_all()
+    .unwrap_or_default()
+    .into_iter()
+    .filter(|thread| matches!(thread.thread_type, ThreadType::MeetingNotes))
+    .collect::<Vec<_>>();
+  meeting_threads.sort_by(|left, right| {
+    right
+      .timestamp
+      .unwrap_or_default()
+      .cmp(&left.timestamp.unwrap_or_default())
+  });
+
+  let recent_meetings = meeting_threads
+    .into_iter()
+    .take(5)
+    .map(|thread| {
+      let thread_id = thread.id.unwrap_or_default();
+      let detail = mobile_meeting_detail(thread, load_mobile_metadata(thread_id).ok().flatten());
+      let note_preview = detail
+        .metadata
+        .notes_preview
+        .clone()
+        .or(detail.notes.clone())
+        .unwrap_or_default()
+        .lines()
+        .next()
+        .unwrap_or("No notes yet.")
+        .trim()
+        .to_string();
+      format!(
+        "- {} ({}) :: {}",
+        detail
+          .thread
+          .title
+          .unwrap_or_else(|| "Untitled meeting".to_string()),
+        format_mobile_timestamp(detail.thread.timestamp),
+        note_preview
+      )
+    })
+    .collect::<Vec<_>>();
+
+  let brain_root = default_brain_root().to_string_lossy().to_string();
+  let brain_entries = kn_brain_list(brain_root, String::new())
+    .unwrap_or_default()
+    .into_iter()
+    .take(8)
+    .map(|entry| {
+      if entry.is_dir {
+        format!("- {}/", entry.name)
+      } else {
+        format!("- {}", entry.name)
+      }
+    })
+    .collect::<Vec<_>>();
+
+  let connected_tools = [
+    ("calendar", session.calendar_connected),
+    ("email", session.email_connected),
+    ("drive", session.drive_connected),
+  ]
+  .into_iter()
+  .filter_map(|(name, connected)| connected.then_some(name))
+  .collect::<Vec<_>>();
+
+  let event_lines = upcoming_events
+    .into_iter()
+    .map(|event| {
+      format!(
+        "- {} ({})",
+        event.title.unwrap_or_else(|| "Untitled event".to_string()),
+        format_mobile_timestamp(event.start)
+      )
+    })
+    .collect::<Vec<_>>();
+
+  let chat_lines = recent_chats
+    .into_iter()
+    .map(|chat| {
+      format!(
+        "- {} :: {}",
+        chat
+          .thread
+          .title
+          .unwrap_or_else(|| "Untitled chat".to_string()),
+        chat
+          .preview
+          .unwrap_or_else(|| "No preview available.".to_string())
+      )
+    })
+    .collect::<Vec<_>>();
+
+  format!(
+    "Knapsack mobile workspace context\nLinked account: {}\nConnected tools: {}\n\nUpcoming calendar\n{}\n\nRecent meetings\n{}\n\nRecent desktop chats\n{}\n\nAvailable brain pages\n{}\n\nInstructions\n- Use this context directly when answering.\n- Do not say you lack access to meetings, chats, calendar, or brain pages unless the relevant section above is empty.\n- Answer for a mobile knowledge worker: concise, concrete, and action-oriented.",
+    session
+      .profile
+      .as_ref()
+      .map(|profile| profile.email.clone())
+      .unwrap_or_else(|| "Not linked".to_string()),
+    if connected_tools.is_empty() {
+      "none".to_string()
+    } else {
+      connected_tools.join(", ")
+    },
+    if event_lines.is_empty() {
+      "- No upcoming events found.".to_string()
+    } else {
+      event_lines.join("\n")
+    },
+    if recent_meetings.is_empty() {
+      "- No recent meetings found.".to_string()
+    } else {
+      recent_meetings.join("\n")
+    },
+    if chat_lines.is_empty() {
+      "- No recent chats found.".to_string()
+    } else {
+      chat_lines.join("\n")
+    },
+    if brain_entries.is_empty() {
+      "- No brain pages found.".to_string()
+    } else {
+      brain_entries.join("\n")
+    },
+  )
+}
+
 fn mobile_meeting_detail(
   thread: Thread,
   metadata: Option<MobileMeetingMetadata>,
@@ -415,71 +1349,146 @@ fn mobile_chat_detail_from_thread(thread: Thread, messages: Vec<Message>) -> Mob
   }
 }
 
-fn mobile_seed_history_from_messages(
-  messages: &[MobileChatMessage],
-) -> Vec<MobileSeedHistoryEntry> {
-  messages
-    .iter()
-    .filter_map(|message| {
-      let role = match message.role.as_str() {
-        "user" => "user",
-        "assistant" => "assistant",
-        _ => return None,
-      };
-
-      let content = message.content.trim();
-      if content.is_empty() {
-        return None;
-      }
-
-      Some(MobileSeedHistoryEntry {
-        role: role.to_string(),
-        content: content.to_string(),
-      })
-    })
-    .collect()
+fn seed_history_message(role: &str, content: String) -> Value {
+  json!({
+    "role": role,
+    "content": content,
+  })
 }
 
-fn load_mobile_chat_seed_history(thread_id: u64) -> Vec<MobileSeedHistoryEntry> {
-  match Thread::find_by_id(thread_id) {
-    Ok(Some(thread)) if matches!(thread.thread_type, ThreadType::Chat) => {
-      match Message::find_by_thread_id(thread_id) {
-        Ok(messages) if !messages.is_empty() => {
-          let detail = mobile_chat_detail_from_thread(thread, messages);
-          return mobile_seed_history_from_messages(&detail.messages);
-        }
-        Ok(_) => {}
-        Err(err) => {
-          log::warn!(
-            "Failed to load local messages for mobile chat seed history {}: {:?}",
-            thread_id,
-            err
-          );
-        }
-      }
-    }
-    Ok(Some(_)) | Ok(None) => {}
-    Err(err) => {
-      log::warn!(
-        "Failed to load local thread for mobile chat seed history {}: {:?}",
-        thread_id,
-        err
-      );
-    }
+fn build_seed_history_from_messages(messages: &[Message]) -> Vec<Value> {
+  let mut seed = messages
+    .iter()
+    .filter_map(|message| {
+      let content = thread_message_preview(message)?;
+      Some(seed_history_message(
+        if message.user_id.is_some() {
+          "user"
+        } else {
+          "assistant"
+        },
+        content,
+      ))
+    })
+    .collect::<Vec<_>>();
+
+  if seed.len() > MOBILE_CHAT_SEED_HISTORY_LIMIT {
+    seed.drain(0..seed.len() - MOBILE_CHAT_SEED_HISTORY_LIMIT);
   }
 
-  match feed_backed_mobile_chat_detail(thread_id) {
-    Ok(Some(detail)) => mobile_seed_history_from_messages(&detail.messages),
-    Ok(None) => Vec::new(),
-    Err(err) => {
-      log::warn!(
-        "Failed to load feed-backed seed history for mobile chat {}: {:?}",
-        thread_id,
-        err
-      );
-      Vec::new()
-    }
+  seed
+}
+
+fn build_seed_history_for_thread(
+  thread_id: u64,
+  existing_messages: &[Message],
+) -> Result<Vec<Value>, Error> {
+  if !existing_messages.is_empty() {
+    return Ok(build_seed_history_from_messages(existing_messages));
   }
+
+  let feed_backed_messages = feed_backed_mobile_chat_detail(thread_id)?
+    .map(|detail| {
+      detail
+        .messages
+        .into_iter()
+        .filter_map(|message| {
+          let content = message.content.trim();
+          if content.is_empty() {
+            None
+          } else {
+            Some(seed_history_message(&message.role, content.to_string()))
+          }
+        })
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+
+  Ok(
+    feed_backed_messages
+      .into_iter()
+      .rev()
+      .take(MOBILE_CHAT_SEED_HISTORY_LIMIT)
+      .collect::<Vec<_>>()
+      .into_iter()
+      .rev()
+      .collect(),
+  )
+}
+
+fn parse_gateway_payload_text(raw: &str) -> String {
+  let trimmed = raw.trim();
+  if !trimmed.starts_with("data:") {
+    return trimmed.to_string();
+  }
+
+  let mut chunks = Vec::new();
+  for line in trimmed.lines() {
+    let line = line.trim();
+    if !line.starts_with("data:") {
+      continue;
+    }
+    let payload = line.trim_start_matches("data:").trim();
+    if payload.is_empty() || payload == "[DONE]" {
+      continue;
+    }
+    if let Ok(value) = serde_json::from_str::<Value>(payload) {
+      if let Some(text) = value.get("content").and_then(|item| item.as_str()) {
+        chunks.push(text.to_string());
+        continue;
+      }
+      if let Some(text) = value.get("text").and_then(|item| item.as_str()) {
+        chunks.push(text.to_string());
+        continue;
+      }
+    }
+    chunks.push(payload.to_string());
+  }
+
+  if chunks.is_empty() {
+    trimmed.to_string()
+  } else {
+    chunks.join("\n\n")
+  }
+}
+
+fn gateway_run_failed(status: &str) -> bool {
+  matches!(
+    status.trim().to_ascii_lowercase().as_str(),
+    "failed" | "error" | "timed_out" | "expired" | "cancelled" | "rejected"
+  )
+}
+
+fn gateway_reply_from_result(result: &Value) -> Option<String> {
+  let status = result
+    .get("status")
+    .and_then(|value| value.as_str())
+    .unwrap_or("unknown");
+  if gateway_run_failed(status) {
+    return None;
+  }
+
+  let reply = result
+    .pointer("/result/payloads")
+    .and_then(|payloads| payloads.as_array())
+    .map(|payloads| {
+      payloads
+        .iter()
+        .filter_map(|payload| payload.get("text").and_then(|text| text.as_str()))
+        .map(parse_gateway_payload_text)
+        .collect::<Vec<_>>()
+        .join("\n\n")
+    })
+    .or_else(|| {
+      result
+        .get("summary")
+        .and_then(|summary| summary.as_str())
+        .map(|summary| summary.to_string())
+    })
+    .unwrap_or_default();
+
+  let reply = reply.trim().to_string();
+  if reply.is_empty() { None } else { Some(reply) }
 }
 
 fn thread_message_preview(message: &Message) -> Option<String> {
@@ -620,6 +1629,148 @@ pub async fn list_mobile_calendar_events() -> impl Responder {
   }))
 }
 
+#[get("/api/knapsack/mobile/autopilot")]
+pub async fn get_mobile_autopilot() -> impl Responder {
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": build_mobile_autopilot_brief()
+  }))
+}
+
+#[get("/api/knapsack/mobile/autopilot/email/{email_uid}")]
+pub async fn get_mobile_autopilot_email(path: web::Path<String>) -> impl Responder {
+  match build_mobile_autopilot_email_detail(&path.into_inner()) {
+    Ok(detail) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": detail
+    })),
+    Err(err) => HttpResponse::NotFound().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  }
+}
+
+#[post("/api/knapsack/mobile/autopilot/email/{email_uid}/action")]
+pub async fn perform_mobile_autopilot_email_action(
+  path: web::Path<String>,
+  payload: Json<MobileAutopilotEmailActionRequest>,
+) -> impl Responder {
+  let email_uid = path.into_inner();
+  let action = payload.action.trim().to_lowercase();
+
+  let result = match action.as_str() {
+    "mark_read" | "archive" | "delete" => {
+      let email = match Email::find_by_uid(&email_uid) {
+        Ok(Some(email)) => email,
+        Ok(None) => {
+          return HttpResponse::NotFound().json(json!({
+            "success": false,
+            "error": "Email not found"
+          }))
+        }
+        Err(err) => {
+          return HttpResponse::InternalServerError().json(json!({
+            "success": false,
+            "error": err.to_string()
+          }))
+        }
+      };
+
+      match detect_mobile_email_provider(&email.account_email) {
+        Ok(MobileEmailProvider::Google) => {
+          perform_google_email_action(&email.account_email, &email.email_uid, &action).await
+        }
+        Ok(MobileEmailProvider::Microsoft) => {
+          perform_microsoft_email_action(&email.account_email, &email.email_uid, &action).await
+        }
+        Err(err) => Err(err),
+      }
+      .and_then(|_| mark_local_email_state(&email_uid, &action))
+    }
+    "reply" => send_mobile_email_reply(&email_uid, payload.reply_body.as_deref().unwrap_or("")).await,
+    _ => Err(Error::KSError(format!("Unsupported action: {}", action))),
+  };
+
+  match result {
+    Ok(_) => match build_mobile_autopilot_email_detail(&email_uid) {
+      Ok(detail) => HttpResponse::Ok().json(json!({
+        "success": true,
+        "data": detail
+      })),
+      Err(err) => HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "error": err.to_string()
+      })),
+    },
+    Err(err) => HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  }
+}
+
+#[get("/api/knapsack/mobile/gbrain/root")]
+pub async fn get_mobile_gbrain_root() -> impl Responder {
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": default_brain_root().to_string_lossy().to_string()
+  }))
+}
+
+#[get("/api/knapsack/mobile/gbrain/list")]
+pub async fn list_mobile_gbrain_entries(query: web::Query<MobileBrainListQuery>) -> impl Responder {
+  let brain_root = default_brain_root().to_string_lossy().to_string();
+  let sub_path = query.sub_path.clone().unwrap_or_default();
+
+  match kn_brain_list(brain_root, sub_path) {
+    Ok(entries) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": entries
+    })),
+    Err(err) => HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
+}
+
+#[get("/api/knapsack/mobile/gbrain/page")]
+pub async fn get_mobile_gbrain_page(query: web::Query<MobileBrainPageQuery>) -> impl Responder {
+  let brain_root = default_brain_root().to_string_lossy().to_string();
+  let rel_path = query.rel_path.trim().to_string();
+
+  if rel_path.is_empty() {
+    return HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": "Brain page path is required"
+    }));
+  }
+
+  match kn_brain_read_page(brain_root, rel_path.clone()) {
+    Ok(content) => {
+      let fallback = rel_path
+        .split('/')
+        .last()
+        .unwrap_or("Brain page");
+      let title = crate::clawd::gbrain::markdown_title(&content, fallback);
+
+      HttpResponse::Ok().json(json!({
+        "success": true,
+        "data": MobileBrainPage {
+          rel_path,
+          title,
+          content,
+        }
+      }))
+    }
+    Err(err) => HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
+}
+
 #[get("/api/knapsack/mobile/chats")]
 pub async fn list_mobile_chats() -> impl Responder {
   let chats = match merged_mobile_chats() {
@@ -757,7 +1908,6 @@ pub async fn send_mobile_chat_message(
 ) -> impl Responder {
   let thread_id = path.into_inner();
   let text = data.text.trim().to_string();
-  let seed_history = load_mobile_chat_seed_history(thread_id);
 
   if text.is_empty() {
     return HttpResponse::BadRequest().json(json!({
@@ -790,6 +1940,36 @@ pub async fn send_mobile_chat_message(
     }));
   }
 
+  let existing_messages = match Message::find_by_thread_id(thread_id) {
+    Ok(messages) => messages,
+    Err(err) => {
+      log::error!(
+        "Failed to load existing mobile chat messages for seed history {}: {:?}",
+        thread_id,
+        err
+      );
+      return HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "error": "Failed to load existing chat history"
+      }));
+    }
+  };
+
+  let seed_history = match build_seed_history_for_thread(thread_id, &existing_messages) {
+    Ok(seed_history) => seed_history,
+    Err(err) => {
+      log::error!(
+        "Failed to build seed history for mobile chat {}: {:?}",
+        thread_id,
+        err
+      );
+      return HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "error": "Failed to prepare chat history"
+      }));
+    }
+  };
+
   let mut user_message = Message {
     id: None,
     timestamp: chrono::Utc::now().timestamp(),
@@ -809,77 +1989,43 @@ pub async fn send_mobile_chat_message(
     }));
   }
 
-  let profile = infer_linked_profile();
-  let mut payload = json!({
-    "text": text,
-    "sessionId": format!("mobile-thread-{thread_id}"),
-    "autonomyMode": "assist",
-    "seedHistory": seed_history,
-  });
+  let request_text = if is_gbrain_thread(&thread) {
+    format!(
+      "{}\n\nUser request\n{}",
+      build_mobile_gbrain_context(thread_id),
+      text
+    )
+  } else {
+    text.clone()
+  };
 
-  if let Some(profile) = profile.clone() {
-    payload["userEmail"] = json!(profile.email);
-    if let Some(name) = profile.name {
-      payload["userName"] = json!(name);
-    }
+  let mut attachments = Vec::new();
+  if !seed_history.is_empty() {
+    attachments.push(json!({
+      "name": "mobile-seed-history.json",
+      "type": "application/json",
+      "content": serde_json::to_string(&seed_history).unwrap_or_else(|_| "[]".to_string()),
+    }));
   }
 
-  let client = match reqwest::Client::builder()
-    .timeout(std::time::Duration::from_secs(90))
-    .build()
-  {
-    Ok(client) => client,
-    Err(err) => {
-      log::error!("Failed to initialize mobile chat client: {:?}", err);
-      return HttpResponse::InternalServerError().json(json!({
-        "success": false,
-        "error": "Failed to initialize desktop chat bridge"
-      }));
-    }
-  };
+  let gateway_result =
+    match gateway_client::agent_chat(&request_text, &attachments, None, Some("dm")).await {
+      Ok(result) => result,
+      Err(err) => {
+        log::error!("Mobile chat gateway request failed: {:?}", err);
+        return HttpResponse::BadGateway().json(json!({
+          "success": false,
+          "error": "Desktop chat is unavailable"
+        }));
+      }
+    };
 
-  let response = match client
-    .post("http://127.0.0.1:8897/api/clawd/chat")
-    .header(
-      crate::server::auth::DESKTOP_API_TOKEN_HEADER,
-      crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
-    )
-    .json(&payload)
-    .send()
-    .await
-  {
-    Ok(response) => response,
-    Err(err) => {
-      log::error!("Mobile chat bridge request failed: {:?}", err);
-      return HttpResponse::BadGateway().json(json!({
-        "success": false,
-        "error": "Desktop chat is unavailable"
-      }));
-    }
-  };
-
-  let response_json: Value = match response.json().await {
-    Ok(value) => value,
-    Err(err) => {
-      log::error!("Failed to parse desktop chat response: {:?}", err);
-      return HttpResponse::BadGateway().json(json!({
-        "success": false,
-        "error": "Desktop chat returned an unreadable response"
-      }));
-    }
-  };
-
-  let reply = response_json
-    .get("reply")
-    .and_then(|value| value.as_str())
-    .unwrap_or("")
-    .trim()
-    .to_string();
+  let reply = gateway_reply_from_result(&gateway_result).unwrap_or_default();
 
   if reply.is_empty() {
-    let error_message = response_json
+    let error_message = gateway_result
       .get("message")
-      .or_else(|| response_json.get("error"))
+      .or_else(|| gateway_result.get("error"))
       .and_then(|value| value.as_str())
       .unwrap_or("Desktop chat did not return a response");
     return HttpResponse::BadGateway().json(json!({
@@ -1223,48 +2369,31 @@ pub async fn upload_mobile_recording(
 
 #[cfg(test)]
 mod tests {
-  use super::{mobile_seed_history_from_messages, MobileChatMessage};
+  use super::{gateway_reply_from_result, parse_gateway_payload_text};
+  use serde_json::json;
 
   #[test]
-  fn mobile_seed_history_filters_blank_and_non_chat_roles() {
-    let seed_history = mobile_seed_history_from_messages(&[
-      MobileChatMessage {
-        id: Some(1),
-        timestamp: 1,
-        role: "user".to_string(),
-        content: "  First question  ".to_string(),
-      },
-      MobileChatMessage {
-        id: Some(2),
-        timestamp: 2,
-        role: "assistant".to_string(),
-        content: "Answer".to_string(),
-      },
-      MobileChatMessage {
-        id: Some(3),
-        timestamp: 3,
-        role: "tool".to_string(),
-        content: "ignored".to_string(),
-      },
-      MobileChatMessage {
-        id: Some(4),
-        timestamp: 4,
-        role: "user".to_string(),
-        content: "   ".to_string(),
-      },
-    ]);
+  fn parses_plain_gateway_payload_text() {
+    assert_eq!(parse_gateway_payload_text("hello"), "hello");
+  }
 
-    let rendered = seed_history
-      .into_iter()
-      .map(|entry| (entry.role, entry.content))
-      .collect::<Vec<_>>();
+  #[test]
+  fn parses_sse_gateway_payload_text() {
+    let raw = "data: {\"text\":\"First\"}\n\ndata: {\"content\":\"Second\"}\n\ndata: [DONE]";
+    assert_eq!(parse_gateway_payload_text(raw), "First\n\nSecond");
+  }
 
-    assert_eq!(
-      rendered,
-      vec![
-        ("user".to_string(), "First question".to_string()),
-        ("assistant".to_string(), "Answer".to_string()),
-      ]
-    );
+  #[test]
+  fn extracts_reply_from_gateway_payloads() {
+    let result = json!({
+      "status": "completed",
+      "result": {
+        "payloads": [
+          { "text": "data: {\"text\":\"A\"}\n\ndata: {\"text\":\"B\"}\n\ndata: [DONE]" }
+        ]
+      }
+    });
+
+    assert_eq!(gateway_reply_from_result(&result).as_deref(), Some("A\n\nB"));
   }
 }

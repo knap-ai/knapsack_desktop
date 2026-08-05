@@ -8,7 +8,6 @@ final class MobileAPI {
   private let fallbackStoreKey = "knapsack.mobile.fallback.meetings"
   private let fallbackChatStoreKey = "knapsack.mobile.fallback.chats"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
-  private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
 
   static var defaultBaseURL: URL {
 #if targetEnvironment(simulator)
@@ -46,18 +45,6 @@ final class MobileAPI {
     }
     set {
       UserDefaults.standard.set(newValue.absoluteString, forKey: baseURLStoreKey)
-    }
-  }
-
-  var pairingToken: String {
-    get { UserDefaults.standard.string(forKey: pairingTokenStoreKey) ?? "" }
-    set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: pairingTokenStoreKey) }
-  }
-
-  private func authorize(_ request: inout URLRequest) {
-    let token = pairingToken
-    if !token.isEmpty {
-      request.setValue(token, forHTTPHeaderField: "x-knapsack-mobile-token")
     }
   }
 
@@ -139,6 +126,42 @@ final class MobileAPI {
 
   func listCalendarEvents() async throws -> [MobileCalendarEventSummary] {
     try await fetch(path: "/api/knapsack/mobile/calendar")
+  }
+
+  func getAutopilotBrief() async throws -> MobileAutopilotBrief {
+    try await fetch(path: "/api/knapsack/mobile/autopilot")
+  }
+
+  func getAutopilotEmail(emailUID: String) async throws -> MobileAutopilotEmailDetail {
+    try await fetch(path: "/api/knapsack/mobile/autopilot/email/\(emailUID)")
+  }
+
+  func performAutopilotEmailAction(
+    emailUID: String,
+    action: MobileAutopilotEmailAction,
+    replyBody: String? = nil
+  ) async throws -> MobileAutopilotEmailDetail {
+    try await send(
+      path: "/api/knapsack/mobile/autopilot/email/\(emailUID)/action",
+      method: "POST",
+      body: MobileAutopilotEmailActionRequest(action: action, replyBody: replyBody)
+    )
+  }
+
+  func getGBrainRoot() async throws -> String {
+    try await fetch(path: "/api/knapsack/mobile/gbrain/root")
+  }
+
+  func listGBrainEntries(subPath: String = "") async throws -> [MobileBrainEntry] {
+    try await fetch(path: "/api/knapsack/mobile/gbrain/list", queryItems: [
+      URLQueryItem(name: "subPath", value: subPath)
+    ])
+  }
+
+  func getGBrainPage(relPath: String) async throws -> MobileBrainPage {
+    try await fetch(path: "/api/knapsack/mobile/gbrain/page", queryItems: [
+      URLQueryItem(name: "relPath", value: relPath)
+    ])
   }
 
   func saveNotes(threadID: UInt64, notes: String) async throws -> MobileMeetingMetadata {
@@ -225,7 +248,6 @@ final class MobileAPI {
     var request = URLRequest(url: baseURL.appendingPathComponent("api/knapsack/mobile/meetings/\(threadID)/recording"))
     request.httpMethod = "POST"
     request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-    authorize(&request)
 
     let fileData = try Data(contentsOf: fileURL)
     var body = Data()
@@ -269,9 +291,23 @@ final class MobileAPI {
     return metadata
   }
 
-  private func fetch<T: Codable>(path: String) async throws -> T {
-    var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
-    authorize(&request)
+  private func requestURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
+    let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    let base = baseURL.appendingPathComponent(normalizedPath)
+    guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
+      throw MobileAPIError.invalidResponse
+    }
+    if !queryItems.isEmpty {
+      components.queryItems = queryItems
+    }
+    guard let url = components.url else {
+      throw MobileAPIError.invalidResponse
+    }
+    return url
+  }
+
+  private func fetch<T: Codable>(path: String, queryItems: [URLQueryItem] = []) async throws -> T {
+    let request = URLRequest(url: try requestURL(path: path, queryItems: queryItems))
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
       throw MobileAPIError.invalidResponse
@@ -290,7 +326,6 @@ final class MobileAPI {
     var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
     request.httpMethod = method
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    authorize(&request)
     request.httpBody = try encoder.encode(body)
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
