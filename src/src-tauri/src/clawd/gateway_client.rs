@@ -2971,7 +2971,7 @@ fn read_token_from_config() -> Option<String> {
   None
 }
 
-fn resolve_token(token: Option<&str>) -> Result<String, String> {
+pub(crate) fn resolve_token(token: Option<&str>) -> Result<String, String> {
   if let Some(t) = token {
     return Ok(t.to_string());
   }

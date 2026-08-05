@@ -887,6 +887,27 @@ function logMessageDispatchCompleted(params) {
 	});
 	markDiagnosticActivity();
 }
+async function teardownWorkspacelessSandboxAfterMessage(sessionKey) {
+	if (!sessionKey) return;
+	try {
+		const [ioMod, dockerMod, sandboxMod, sandboxConfigMod] = await Promise.all([
+			import("./io-DoswVvYe.js"),
+			import("./docker-DfzYD6UD.js"),
+			import("./sandbox-DiI74XYF.js"),
+			import("./config-CcQ2HijN.js")
+		]);
+		const config = ioMod.i();
+		const agentId = dockerMod._(sessionKey);
+		const cfg = sandboxConfigMod.i(config, agentId);
+		if (!cfg || cfg.mode === "off" || cfg.scope === "shared" || cfg.workspaceAccess !== "none") return;
+		const scopeKey = dockerMod.v(cfg.scope, sessionKey);
+		const slug = cfg.scope === "shared" ? "shared" : dockerMod.b(scopeKey);
+		const containerName = `${cfg.docker.containerPrefix}${slug}`.slice(0, 63);
+		await sandboxMod.i(containerName);
+	} catch {
+		// Best-effort cleanup only — never let this affect message processing.
+	}
+}
 function logMessageProcessed(params) {
 	if (!areDiagnosticsEnabledForProcess()) return;
 	if (params.outcome === "error" ? diagnosticLogger.isEnabled("error") : diagnosticLogger.isEnabled("debug")) {
@@ -907,6 +928,7 @@ function logMessageProcessed(params) {
 		error: params.error
 	});
 	markDiagnosticActivity();
+	if (params.outcome !== "error") teardownWorkspacelessSandboxAfterMessage(params.sessionKey).catch(() => {});
 }
 function logSessionTurnCreated(params) {
 	if (!areDiagnosticsEnabledForProcess()) return;

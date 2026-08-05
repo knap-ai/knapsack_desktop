@@ -398,6 +398,8 @@ pub async fn start_server<'a>(
       .service(clawd::service::api_key_status)
       .service(clawd::service::validate_api_key)
       .service(clawd::service::set_api_key)
+      .service(clawd::service::set_session_capability_secret)
+      .service(clawd::service::session_capability_secret_status)
       .service(clawd::service::delete_extra_provider_key)
       .service(clawd::service::get_api_key)
       // OAuth provider login (OpenRouter browser-based auth) + Knapsack studio auth
