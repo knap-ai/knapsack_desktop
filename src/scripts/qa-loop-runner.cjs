@@ -10,6 +10,19 @@ const process = require("node:process");
 const API_BASE = "http://127.0.0.1:8897";
 const UI_BASE = "http://127.0.0.1:1420";
 const KNAPSACK_QA_DEFAULT_EXPECTED_CHANNELS = "telegram,slack";
+let activeApiAuthStateDir = null;
+
+function apiAuthStateDir() {
+  return activeApiAuthStateDir || process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
 
 function desktopClawdbotDir() {
   if (process.platform === "darwin") {
@@ -49,18 +62,8 @@ function qaExpectedChannelsFromEnv() {
   );
 }
 
-let apiAuthStateDir = null;
-
 function qaDevClawdbotDir() {
   return path.resolve(__dirname, "..", ".qa-dev-openclaw-state");
-}
-
-function readJsonFile(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
-  } catch {
-    return null;
-  }
 }
 
 function localApiHeaders(url, inputHeaders = {}) {
@@ -69,7 +72,7 @@ function localApiHeaders(url, inputHeaders = {}) {
   if (parsed.host !== "127.0.0.1:8897" && parsed.host !== "localhost:8897") {
     return headers;
   }
-  const stateDir = apiAuthStateDir || process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
+  const stateDir = apiAuthStateDir();
   const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
   if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
   return headers;
@@ -2037,7 +2040,6 @@ async function checkInterfaceAccess(includeUi, startupState) {
 
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
-  apiAuthStateDir = isProd ? desktopClawdbotDir() : qaDevClawdbotDir();
   const debugBinary = path.join(
     __dirname,
     "..",
@@ -2085,6 +2087,10 @@ async function runMode(mode, opts = {}) {
       return { ok: false, phase: "prepare", message: prepared.message };
     }
   }
+  const previousApiAuthStateDir = activeApiAuthStateDir;
+  activeApiAuthStateDir = isProd
+    ? process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir()
+    : qaDevClawdbotDir();
   const proc = spawnApp(isProd ? { command: "release", binary, env: launchEnv } : { command: "dev", env: launchEnv });
   const label = isProd ? "prod" : "dev";
   const startupLog = [];
@@ -2115,7 +2121,7 @@ async function runMode(mode, opts = {}) {
       restoreQaConfig = null;
       restore();
     }
-    apiAuthStateDir = null;
+    activeApiAuthStateDir = previousApiAuthStateDir;
   };
 
   proc.stdout?.on("data", (chunk) => {
@@ -2489,6 +2495,6 @@ module.exports = {
   localApiHeaders,
   qaDevClawdbotDir,
   setApiAuthStateDirForTest(value) {
-    apiAuthStateDir = value;
+    activeApiAuthStateDir = value;
   },
 };

@@ -9,6 +9,10 @@ import {
   getGoogleDriveConnections,
   getGoogleGmailConnections,
 } from 'src/api/connections'
+import {
+  getSessionCapabilitySecretStatus,
+  setSessionCapabilitySecret,
+} from 'src/api/channels'
 import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
@@ -584,6 +588,41 @@ export const SettingsDialog = ({
 
   // Accordion state — which provider section is expanded
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+
+  // Snowflake identity broker secret (shared with the team, not user-generated)
+  const [snowflakeSecretConfigured, setSnowflakeSecretConfigured] = useState(false)
+  const [snowflakeSecretInput, setSnowflakeSecretInput] = useState('')
+  const [snowflakeSecretSaving, setSnowflakeSecretSaving] = useState(false)
+  const [snowflakeSecretMessage, setSnowflakeSecretMessage] = useState('')
+  const [showSnowflakeInput, setShowSnowflakeInput] = useState(false)
+
+  useEffect(() => {
+    getSessionCapabilitySecretStatus()
+      .then(res => setSnowflakeSecretConfigured(res.configured))
+      .catch(() => {
+        /* status endpoint unreachable — leave as not configured */
+      })
+  }, [])
+
+  const handleSaveSnowflakeSecret = useCallback(async () => {
+    setSnowflakeSecretSaving(true)
+    setSnowflakeSecretMessage('')
+    try {
+      const res = await setSessionCapabilitySecret(snowflakeSecretInput.trim())
+      if (res.success) {
+        setSnowflakeSecretConfigured(!!snowflakeSecretInput.trim())
+        setSnowflakeSecretInput('')
+        setSnowflakeSecretMessage(res.message ?? 'Saved')
+        setShowSnowflakeInput(false)
+      } else {
+        setSnowflakeSecretMessage(res.message ?? 'Failed to save')
+      }
+    } catch {
+      setSnowflakeSecretMessage('Failed to reach the local service — is Knapsack running?')
+    } finally {
+      setSnowflakeSecretSaving(false)
+    }
+  }, [snowflakeSecretInput])
 
   // Ollama state
   const [ollamaRunning, setOllamaRunning] = useState<boolean | null>(null)
@@ -1787,6 +1826,63 @@ export const SettingsDialog = ({
             )}
           </div>
         </div>
+        <hr className="border-zinc-200" />
+        <div className="SnowflakeBrokerContainer p-6 flex flex-col gap-4">
+          <Typography weight={TypographyWeight.medium}>Snowflake Broker (Scout)</Typography>
+          <div style={{ opacity: 0.75, fontSize: 13 }}>
+            Paste the shared signing secret the Scout/broker team gave you — this
+            isn&apos;t something you generate yourself.
+          </div>
+          <div className="flex justify-between h-[36px] items-center">
+            <Typography>{snowflakeSecretConfigured ? '••••••••••••' : 'No secret set'}</Typography>
+            {snowflakeSecretConfigured && !showSnowflakeInput && (
+              <Typography
+                className={`cursor-pointer ${styles.link}`}
+                onClick={() => {
+                  setSnowflakeSecretMessage('')
+                  setShowSnowflakeInput(true)
+                }}
+              >
+                Change
+              </Typography>
+            )}
+          </div>
+          {(showSnowflakeInput || !snowflakeSecretConfigured) && (
+            <div className="flex gap-2 items-center">
+              <input
+                type="password"
+                placeholder="Paste the broker secret here"
+                value={snowflakeSecretInput}
+                onChange={e => setSnowflakeSecretInput(e.target.value)}
+                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-gray-500"
+              />
+              <button
+                className="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                disabled={snowflakeSecretSaving || !snowflakeSecretInput.trim()}
+                onClick={handleSaveSnowflakeSecret}
+              >
+                {snowflakeSecretSaving ? 'Saving...' : 'Save'}
+              </button>
+              {snowflakeSecretConfigured && (
+                <button
+                  className="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
+                  disabled={snowflakeSecretSaving}
+                  onClick={() => {
+                    setSnowflakeSecretInput('')
+                    setSnowflakeSecretMessage('')
+                    setShowSnowflakeInput(false)
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
+          {snowflakeSecretMessage && (
+            <Typography className="text-xs text-gray-400">{snowflakeSecretMessage}</Typography>
+          )}
+        </div>
+        <hr className="border-zinc-200" />
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">

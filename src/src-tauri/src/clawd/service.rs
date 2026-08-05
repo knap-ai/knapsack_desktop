@@ -3,7 +3,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -933,7 +933,23 @@ const KNAPSACK_OPENCLAW_SANDBOX_IMAGE: &str = "openclaw-sandbox:bookworm-slim";
 /// Docker isolation is an optional hardening layer. A missing CLI, stopped
 /// daemon, or missing sandbox image must never prevent Knapsack Desktop from
 /// starting or shared-channel agents from replying.
-fn docker_session_sandbox_available() -> Result<(), String> {
+/// Same Dockerfile documented (as a manual `docker build` snippet) in the
+/// vendored `resources/clawdbot/docs/gateway/sandboxing.md` — kept here so
+/// Knapsack can build the default sandbox image automatically on first use
+/// instead of requiring a person to run that command by hand. Update this
+/// alongside that doc if OpenClaw changes the reference Dockerfile.
+const KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE: &str = r#"FROM debian:bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  bash ca-certificates curl git jq python3 ripgrep \
+  && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --shell /bin/bash sandbox
+USER sandbox
+WORKDIR /home/sandbox
+CMD ["sleep", "infinity"]
+"#;
+
+fn docker_candidates() -> Vec<PathBuf> {
   let mut candidates = vec![PathBuf::from("docker")];
   #[cfg(target_os = "macos")]
   candidates.extend([
@@ -941,8 +957,58 @@ fn docker_session_sandbox_available() -> Result<(), String> {
     PathBuf::from("/opt/homebrew/bin/docker"),
     PathBuf::from("/Applications/Docker.app/Contents/Resources/bin/docker"),
   ]);
+  candidates
+}
 
-  for candidate in candidates {
+/// Build the default sandbox image from the embedded Dockerfile, piped over
+/// stdin (`docker build -t <image> -`) exactly like the manual command in
+/// the docs. Best-effort: only called when the image is missing, and any
+/// failure here (Docker Desktop not installed/running, no network for the
+/// base image, etc.) just surfaces the original "image unavailable" error —
+/// it never blocks the app from starting.
+fn try_build_knapsack_sandbox_image(docker_path: &Path) -> Result<(), String> {
+  let mut child = std::process::Command::new(docker_path)
+    .args(["build", "-t", KNAPSACK_OPENCLAW_SANDBOX_IMAGE, "-"])
+    .stdin(Stdio::piped())
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .spawn()
+    .map_err(|error| format!("could not start Docker build: {error}"))?;
+
+  {
+    let stdin = child
+      .stdin
+      .as_mut()
+      .ok_or("Docker build child has no stdin")?;
+    stdin
+      .write_all(KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.as_bytes())
+      .map_err(|error| format!("could not write Dockerfile to docker build: {error}"))?;
+  }
+
+  let output = child
+    .wait_with_output()
+    .map_err(|error| format!("docker build did not complete: {error}"))?;
+  if !output.status.success() {
+    return Err(format!(
+      "docker build failed: {}",
+      String::from_utf8_lossy(&output.stderr)
+        .lines()
+        .last()
+        .unwrap_or("unknown error")
+        .trim()
+    ));
+  }
+  eprintln!(
+    "[clawd/service] Built default sandbox image {} automatically",
+    KNAPSACK_OPENCLAW_SANDBOX_IMAGE
+  );
+  Ok(())
+}
+
+fn docker_session_sandbox_available() -> Result<(), String> {
+  let mut last_error: Option<String> = None;
+
+  for candidate in docker_candidates() {
     let output = match std::process::Command::new(&candidate)
       .args(["image", "inspect", KNAPSACK_OPENCLAW_SANDBOX_IMAGE])
       .env("DOCKER_CLIENT_TIMEOUT", "3")
@@ -970,10 +1036,24 @@ fn docker_session_sandbox_available() -> Result<(), String> {
       .unwrap_or("Docker daemon or sandbox image is unavailable")
       .trim()
       .to_string();
-    return Err(detail);
+
+    // Only the image itself is missing (Docker CLI/daemon responded fine) —
+    // try to build it automatically once instead of failing straight to
+    // sandbox mode "off". Any other failure (daemon not running, CLI
+    // misbehaving) skips straight to returning the original error.
+    if detail.contains("No such image") {
+      if let Err(build_error) = try_build_knapsack_sandbox_image(&candidate) {
+        eprintln!("[clawd/service] Automatic sandbox image build failed: {build_error}");
+        return Err(detail);
+      }
+      return Ok(());
+    }
+
+    last_error = Some(detail);
+    break;
   }
 
-  Err("Docker CLI was not found".to_string())
+  Err(last_error.unwrap_or_else(|| "Docker CLI was not found".to_string()))
 }
 
 /// Enforce safe session boundaries when one gateway is reachable by multiple
@@ -1137,6 +1217,64 @@ fn ensure_knapsack_session_isolation(
   {
     if elevated.get("enabled").and_then(|value| value.as_bool()) != Some(false) {
       elevated.insert("enabled".to_string(), serde_json::json!(false));
+      patched = true;
+    }
+  }
+
+  patched
+}
+
+/// Register the Snowflake MCP tool with the gateway via `mcp.servers.snowflake`,
+/// pointing at this same Knapsack binary's hidden `--internal-mcp-snowflake`
+/// subcommand. This is patched into the app's own openclaw.json (never into
+/// `resources/clawdbot/dist/`), so it survives OpenClaw version bumps. The
+/// spawned subprocess reads the signing secret directly from `tokens.json`
+/// (see `read_session_capability_secret_headless`) — never from this config,
+/// which the gateway stores in cleartext.
+fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_home: &Path) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  let current_exe = match std::env::current_exe() {
+    Ok(path) => path.to_string_lossy().into_owned(),
+    Err(_) => return false,
+  };
+
+  if cfg.get("mcp").and_then(|value| value.as_object()).is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("mcp".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/mcp/servers")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/mcp")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("servers".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+
+  let expected = serde_json::json!({
+    "command": current_exe,
+    "args": ["--internal-mcp-snowflake"],
+    "cwd": clawdbot_home.to_string_lossy(),
+  });
+  if let Some(servers) = cfg
+    .pointer_mut("/mcp/servers")
+    .and_then(|value| value.as_object_mut())
+  {
+    if servers.get("snowflake") != Some(&expected) {
+      servers.insert("snowflake".to_string(), expected);
       patched = true;
     }
   }
@@ -4664,6 +4802,13 @@ struct StoredTokens {
   knapsack_access_token: Option<String>,
   #[serde(default)]
   knapsack_refresh_token: Option<String>,
+
+  /// Shared HMAC secret used to sign short-lived capability JWTs for the Scout
+  /// Snowflake identity broker. Read only by the `--internal-mcp-snowflake`
+  /// subprocess; never exported as a gateway env var and never written into
+  /// openclaw.json (see clawd/snowflake_mcp.rs).
+  #[serde(default)]
+  session_capability_secret: Option<String>,
 }
 
 static TOKENS_FILE_LOCK: once_cell::sync::Lazy<std::sync::Mutex<()>> =
@@ -4672,6 +4817,30 @@ static API_AUTH_TOKENS_MIGRATED: AtomicBool = AtomicBool::new(false);
 
 fn tokens_path(app_handle: &tauri::AppHandle) -> PathBuf {
   app_clawdbot_home(app_handle).join("tokens.json")
+}
+
+/// Headless variant of `app_clawdbot_home` for processes with no Tauri
+/// `AppHandle` (the `--internal-mcp-snowflake` subprocess and the session
+/// watcher). Only resolves on macOS or when `OPENCLAW_STATE_DIR`/
+/// `OPENCLAW_HOME` is set — matches the same resolution `app_clawdbot_home`
+/// falls back to internally.
+pub(crate) fn clawdbot_home_headless() -> Result<PathBuf, String> {
+  default_clawdbot_home_from_env()
+    .ok_or_else(|| "Unable to resolve the Knapsack clawdbot home directory headlessly".to_string())
+}
+
+/// Headless variant of `tokens_path` — see `clawdbot_home_headless`.
+pub(crate) fn read_session_capability_secret_headless() -> Result<String, String> {
+  let clawdbot_home = clawdbot_home_headless()?;
+  let tokens_path = clawdbot_home.join("tokens.json");
+  let raw = fs::read_to_string(&tokens_path)
+    .map_err(|error| format!("Unable to read {}: {error}", tokens_path.display()))?;
+  let tokens: StoredTokens = serde_json::from_str(&raw)
+    .map_err(|error| format!("Unable to parse {}: {error}", tokens_path.display()))?;
+  tokens
+    .session_capability_secret
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| "SESSION_CAPABILITY_SECRET is not configured".to_string())
 }
 
 fn ensure_api_auth_tokens(tokens: &mut StoredTokens) -> bool {
@@ -4886,6 +5055,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     knapsack_model: None,
     knapsack_access_token: None,
     knapsack_refresh_token: None,
+    session_capability_secret: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -5662,7 +5832,7 @@ pub fn get_trustedrouter_model(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "trustedrouter/auto".to_string())
 }
 
-fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
+pub(crate) fn resource_path(app_handle: &tauri::AppHandle, rel: &str) -> PathBuf {
   // NOTE: resolve_resource returns an absolute path inside the .app bundle.
   app_handle
     .path_resolver()
@@ -9130,6 +9300,89 @@ pub async fn set_api_key(
   })
 }
 
+/// The Snowflake identity broker's HMAC signing secret — a single shared
+/// value the Scout/broker team provides, not something generated locally.
+/// Saved through the same `tokens.json` (0600) path as provider API keys,
+/// but kept as its own small endpoint rather than folded into
+/// `set_api_key`/`SetApiKeyRequest`, since it isn't an LLM provider key and
+/// has none of that endpoint's provider-switching logic.
+#[derive(Debug, Deserialize)]
+pub struct SetSessionCapabilitySecretRequest {
+  #[serde(default)]
+  pub secret: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetSessionCapabilitySecretResponse {
+  pub success: bool,
+  pub message: String,
+}
+
+#[post("/api/clawd/service/set-session-capability-secret")]
+pub async fn set_session_capability_secret(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<SetSessionCapabilitySecretRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
+        success: false,
+        message: e,
+      })
+    }
+  };
+
+  let secret = payload.secret.trim().to_string();
+  tokens.session_capability_secret = if secret.is_empty() { None } else { Some(secret) };
+
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
+      success: false,
+      message: e,
+    });
+  }
+
+  HttpResponse::Ok().json(SetSessionCapabilitySecretResponse {
+    success: true,
+    message: if tokens.session_capability_secret.is_some() {
+      "Snowflake broker secret saved".to_string()
+    } else {
+      "Snowflake broker secret cleared".to_string()
+    },
+  })
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionCapabilitySecretStatusResponse {
+  pub success: bool,
+  /// Never the secret itself — just whether one is on file, so the Settings
+  /// UI can show "configured" without ever displaying or re-transmitting it.
+  pub configured: bool,
+}
+
+#[get("/api/clawd/service/session-capability-secret-status")]
+pub async fn session_capability_secret_status(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(_) => {
+      return HttpResponse::Ok().json(SessionCapabilitySecretStatusResponse {
+        success: true,
+        configured: false,
+      })
+    }
+  };
+  HttpResponse::Ok().json(SessionCapabilitySecretStatusResponse {
+    success: true,
+    configured: tokens
+      .session_capability_secret
+      .as_ref()
+      .is_some_and(|s| !s.is_empty()),
+  })
+}
+
 /// Remove an extra provider key.
 #[derive(Debug, Deserialize)]
 pub struct DeleteExtraProviderKeyRequest {
@@ -10545,6 +10798,10 @@ async fn prepare_gateway_config(
           patched = true;
         }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_snowflake_mcp_server(&mut cfg_val, &clawdbot_home) {
+          eprintln!("[clawd/service] Patched mcp.servers.snowflake");
           patched = true;
         }
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
@@ -12632,6 +12889,10 @@ pub async fn set_service_enabled(
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
+              patched = true;
+            }
+            if ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home) {
+              eprintln!("[clawd/service] Patched mcp.servers.snowflake");
               patched = true;
             }
             if ensure_knapsack_agent_defaults(&mut cfg, &clawdbot_home) {
@@ -16364,9 +16625,11 @@ mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
-    ensure_knapsack_session_isolation, has_knapsack_runtime_auth,
-    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    ensure_knapsack_session_isolation, ensure_knapsack_snowflake_mcp_server,
+    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
+    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
+  use std::path::PathBuf;
 
   fn empty_tokens() -> StoredTokens {
     StoredTokens {
@@ -16398,6 +16661,7 @@ mod knapsack_runtime_auth_tests {
       knapsack_model: None,
       knapsack_access_token: None,
       knapsack_refresh_token: None,
+      session_capability_secret: None,
     }
   }
 
@@ -16601,6 +16865,68 @@ mod knapsack_runtime_auth_tests {
       Some("self")
     );
     assert!(!ensure_knapsack_session_isolation(&mut cfg, false));
+  }
+
+  /// Doesn't invoke Docker (this crate's Rust tests must run without macOS
+  /// system deps, per the pre-commit checklist) — just guards against the
+  /// embedded Dockerfile silently drifting from what it's documented to be.
+  #[test]
+  fn embedded_sandbox_dockerfile_matches_documented_defaults() {
+    assert!(KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.starts_with("FROM debian:bookworm-slim"));
+    for expected in ["bash", "curl", "jq", "python3", "ripgrep", "useradd", "sandbox"] {
+      assert!(
+        KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.contains(expected),
+        "embedded Dockerfile is missing expected content: {expected}"
+      );
+    }
+  }
+
+  #[test]
+  fn snowflake_mcp_server_registers_and_is_idempotent() {
+    let mut cfg = serde_json::json!({});
+    let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
+
+    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/snowflake/args")
+        .and_then(|value| value.as_array())
+        .and_then(|value| value.first())
+        .and_then(|value| value.as_str()),
+      Some("--internal-mcp-snowflake")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/snowflake/cwd")
+        .and_then(|value| value.as_str()),
+      Some("/tmp/knapsack-test-clawdbot-home")
+    );
+    assert!(cfg
+      .pointer("/mcp/servers/snowflake/command")
+      .and_then(|value| value.as_str())
+      .is_some_and(|value| !value.is_empty()));
+
+    assert!(!ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+  }
+
+  #[test]
+  fn snowflake_mcp_server_repairs_tampered_entry() {
+    let mut cfg = serde_json::json!({
+      "mcp": {
+        "servers": {
+          "snowflake": { "command": "/bin/evil", "args": [], "cwd": "/tmp" }
+        }
+      }
+    });
+    let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
+
+    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert_ne!(
+      cfg
+        .pointer("/mcp/servers/snowflake/command")
+        .and_then(|value| value.as_str()),
+      Some("/bin/evil")
+    );
   }
 
   #[test]
