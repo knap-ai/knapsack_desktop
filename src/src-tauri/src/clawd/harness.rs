@@ -354,7 +354,9 @@ fn updated_settings(
     .unwrap_or(current.hermes_base_url)
     .trim()
     .to_string();
-  validate_hermes_base_url(&hermes_base_url)?;
+  if harness == AgentHarnessKind::Hermes {
+    validate_hermes_base_url(&hermes_base_url)?;
+  }
   let supplied_key = request
     .hermes_api_key
     .map(|key| key.trim().to_string())
@@ -701,6 +703,12 @@ fn is_degraded_gateway_capability_reply(reply: &str) -> bool {
   if lower.is_empty() {
     return true;
   }
+  if lower.contains("web_search tool") && lower.contains("disabled") {
+    return true;
+  }
+  if lower.contains("web search tool") && lower.contains("disabled") {
+    return true;
+  }
   [
     "web_search tool is disabled",
     "web_search tool required",
@@ -831,6 +839,46 @@ mod tests {
   }
 
   #[test]
+  fn switching_to_openclaw_allows_recovery_from_an_invalid_hermes_url() {
+    let current = StoredHarnessSettings {
+      harness: "hermes".to_string(),
+      hermes_base_url: "http://remote-hermes.example.com/v1".to_string(),
+      ..StoredHarnessSettings::default()
+    };
+    let updated = updated_settings(
+      current,
+      HarnessSettingsRequest {
+        harness: "openclaw".to_string(),
+        hermes_base_url: None,
+        hermes_api_key: None,
+        hermes_model: None,
+      },
+    )
+    .unwrap();
+
+    assert_eq!(updated.harness, "openclaw");
+    assert_eq!(
+      updated.hermes_base_url,
+      "http://remote-hermes.example.com/v1"
+    );
+  }
+
+  #[test]
+  fn selecting_hermes_still_rejects_an_invalid_remote_url() {
+    let result = updated_settings(
+      StoredHarnessSettings::default(),
+      HarnessSettingsRequest {
+        harness: "hermes".to_string(),
+        hermes_base_url: Some("http://remote-hermes.example.com/v1".to_string()),
+        hermes_api_key: None,
+        hermes_model: None,
+      },
+    );
+
+    assert!(result.is_err());
+  }
+
+  #[test]
   fn hermes_input_preserves_text_and_inline_images() {
     let attachments = vec![json!({
       "fileName": "screen.png",
@@ -882,6 +930,11 @@ mod tests {
     assert!(parse_openclaw_reply(&json!({
       "status": "completed",
       "summary": "Browser is currently unavailable"
+    }))
+    .is_err());
+    assert!(parse_openclaw_reply(&json!({
+      "status": "completed",
+      "summary": "The `web_search` tool has been disabled by policy"
     }))
     .is_err());
   }
