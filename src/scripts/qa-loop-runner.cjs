@@ -726,10 +726,17 @@ async function killOpenClawProcessesForQa() {
 
 function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
   const { qaSkipBody, ...fetchOptions } = options || {};
+  const headers = { ...(fetchOptions.headers || {}) };
+  if (new URL(url).host === "127.0.0.1:8897" || new URL(url).host === "localhost:8897") {
+    const stateDir = process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
+    const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
+    if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, {
     ...fetchOptions,
+    headers,
     signal: controller.signal,
   })
     .finally(() => clearTimeout(timer))
@@ -755,6 +762,11 @@ function httpJsonWithTimeout(url, options = {}, timeoutMs = 8_000) {
     const method = options.method || "GET";
     const body = options.body || null;
     const headers = { ...(options.headers || {}) };
+    if (parsed.host === "127.0.0.1:8897" || parsed.host === "localhost:8897") {
+      const stateDir = process.env.OPENCLAW_STATE_DIR || desktopClawdbotDir();
+      const tokens = stateDir ? readJsonFile(path.join(stateDir, "tokens.json")) : null;
+      if (tokens?.desktop_api_token) headers["x-knapsack-api-token"] = tokens.desktop_api_token;
+    }
     if (body && !headers["Content-Length"] && !headers["content-length"]) {
       headers["Content-Length"] = Buffer.byteLength(body);
     }

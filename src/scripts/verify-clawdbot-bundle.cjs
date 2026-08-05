@@ -28,6 +28,8 @@ const REQUIRED_DIRS = [
   'dist/extensions',
 ];
 
+const patchManifestPath = path.join(__dirname, 'clawdbot-patch-manifest.json');
+
 let errors = 0;
 
 console.log('[verify-clawdbot] Checking critical clawdbot bundle files...');
@@ -56,6 +58,37 @@ for (const dir of REQUIRED_DIRS) {
     if (entries.length === 0) {
       console.error(`[verify-clawdbot] EMPTY DIR: ${dir}`);
       errors++;
+    }
+  }
+}
+
+// Fail closed when a vendor refresh drops or partially reverts a Knapsack
+// bundle patch. The manifest is deliberately data-driven so every vendored
+// customization has an explicit owner and upgrade gate.
+if (!fs.existsSync(patchManifestPath)) {
+  console.error('[verify-clawdbot] MISSING: scripts/clawdbot-patch-manifest.json');
+  errors++;
+} else {
+  const patchManifest = JSON.parse(fs.readFileSync(patchManifestPath, 'utf8'));
+  for (const entry of patchManifest) {
+    const targetPath = path.join(CLAWDBOT_DIR, entry.path);
+    if (!fs.existsSync(targetPath)) {
+      console.error(`[verify-clawdbot] MISSING PATCH TARGET: ${entry.path}`);
+      errors++;
+      continue;
+    }
+    const content = fs.readFileSync(targetPath, 'utf8');
+    for (const marker of entry.required || []) {
+      if (!content.includes(marker)) {
+        console.error(`[verify-clawdbot] MISSING PATCH MARKER: ${entry.path}: ${marker}`);
+        errors++;
+      }
+    }
+    for (const marker of entry.forbidden || []) {
+      if (content.includes(marker)) {
+        console.error(`[verify-clawdbot] REVERTED PATCH MARKER: ${entry.path}: ${marker}`);
+        errors++;
+      }
     }
   }
 }

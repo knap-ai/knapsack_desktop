@@ -840,6 +840,10 @@ pub async fn send_mobile_chat_message(
 
   let response = match client
     .post("http://127.0.0.1:8897/api/clawd/chat")
+    .header(
+      crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+      crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
+    )
     .json(&payload)
     .send()
     .await

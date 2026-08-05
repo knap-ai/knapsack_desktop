@@ -2045,6 +2045,8 @@ async fn main() {
       kn_read_logs_since,
       kn_get_log_path,
       kn_get_openclaw_version,
+      clawd::service::get_desktop_api_token,
+      clawd::service::get_mobile_pairing_token,
       kn_set_keep_awake,
       kn_prepare_updater_temp_dir,
       kn_send_composed_email,

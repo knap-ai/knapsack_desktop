@@ -281,6 +281,10 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
   if config.check_emails {
     match client
       .post("http://127.0.0.1:8897/api/knapsack/recent_emails_search")
+      .header(
+        crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+        crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
+      )
       .json(&json!({ "top": 10 }))
       .send()
       .await
@@ -329,6 +333,10 @@ async fn gather_context(config: &HeartbeatConfig) -> GatheredContext {
                 "http://127.0.0.1:8897/api/knapsack/calendar/get_events?start_timestamp={}&end_timestamp={}",
                 now, two_hours_later
             ))
+            .header(
+                crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+                crate::server::auth::desktop_api_token_from_env().unwrap_or_default(),
+            )
             .send()
             .await
         {

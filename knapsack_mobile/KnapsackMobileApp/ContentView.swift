@@ -405,13 +405,26 @@ struct ContentView: View {
       }
 
       VStack(alignment: .leading, spacing: 10) {
-        Text("Manual fallback")
+        Text("Desktop connection")
           .font(KnapsackBrand.inter(12, weight: .semibold))
           .foregroundStyle(KnapsackBrand.inkMuted)
 
         TextField("http://192.168.1.20:18898", text: $viewModel.serverURLText)
           .textInputAutocapitalization(.never)
           .keyboardType(.URL)
+          .autocorrectionDisabled()
+          .font(KnapsackBrand.inter(15))
+          .padding(.horizontal, 14)
+          .padding(.vertical, 12)
+          .background(KnapsackBrand.paper)
+          .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+          .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .stroke(KnapsackBrand.line, lineWidth: 1)
+          )
+
+        SecureField("Mobile pairing code", text: $viewModel.pairingCodeText)
+          .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
           .font(KnapsackBrand.inter(15))
           .padding(.horizontal, 14)
@@ -439,7 +452,7 @@ struct ContentView: View {
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
         }
 
-        Text("You should not need this normally. If discovery misses your Mac, enter its local address here instead of 127.0.0.1.")
+        Text("For the first connection, paste the Mobile pairing code from Settings on your Mac. If discovery misses your Mac, enter its local address here instead of 127.0.0.1.")
           .font(KnapsackBrand.inter(13))
           .foregroundStyle(KnapsackBrand.slate)
       }

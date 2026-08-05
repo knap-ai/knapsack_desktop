@@ -5,7 +5,10 @@ import ReactDOM from 'react-dom/client'
 import OverlayPanel from './components/organisms/OverlayPanel'
 
 import { getCurrent } from '@tauri-apps/api/window'
+import { installDesktopApiAuth } from './utils/desktopApiAuth'
 import './notification.css'
+
+installDesktopApiAuth()
 
 const currentWindow = getCurrent()
 if (currentWindow.label === 'overlay') {

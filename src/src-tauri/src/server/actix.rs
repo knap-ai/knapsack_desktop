@@ -36,11 +36,12 @@ use crate::connections;
 use crate::heartbeat::api as heartbeat_api;
 use crate::mcp::api as mcp_api;
 use crate::search;
+use crate::server::auth::ApiAuth;
+use crate::server::mobile_discovery;
 use crate::user::UserInfo;
 use crate::workspaces::api as workspace_api;
 use crate::ConnectionsData;
 use crate::RecordingState;
-use crate::server::mobile_discovery;
 use sysinfo::System;
 
 #[get("/")]
@@ -192,11 +193,12 @@ pub async fn start_server<'a>(
   let dev_qa_state = Data::new(crate::automations::qa_suite::new_shared_qa_state());
   let dev_qa_scenarios = Data::new(crate::automations::qa_suite::new_shared_scenarios());
   let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
+  let (desktop_api_token, mobile_api_token) = clawd::service::api_auth_tokens(&app_handle)
+    .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
   let mobile_port = mobile_lan_port(port);
   let mobile_server = HttpServer::new(move || {
-    let cors = Cors::permissive();
     App::new()
-      .wrap(cors)
+      .wrap(ApiAuth::mobile(mobile_api_token.clone()))
       .wrap(Logger::default())
       .service(ping)
       .service(api::mobile::create_mobile_meeting)
@@ -236,7 +238,21 @@ pub async fn start_server<'a>(
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
-    let cors = Cors::permissive();
+    let cors = Cors::default()
+      .allowed_origin("tauri://localhost")
+      .allowed_origin("https://tauri.localhost")
+      .allowed_origin("http://tauri.localhost")
+      .allowed_origin("http://localhost:1420")
+      .allowed_origin("http://127.0.0.1:1420")
+      .allow_any_method()
+      .allowed_headers(vec![
+        actix_web::http::header::ACCEPT,
+        actix_web::http::header::CONTENT_TYPE,
+        actix_web::http::header::HeaderName::from_static(
+          crate::server::auth::DESKTOP_API_TOKEN_HEADER,
+        ),
+      ])
+      .max_age(3600);
     App::new()
       .app_data(Data::new(app_handle.clone()))
       .app_data(Data::new(semantic_service.clone()))
@@ -256,6 +272,7 @@ pub async fn start_server<'a>(
       .app_data(dev_qa_state.clone())
       .app_data(dev_qa_scenarios.clone())
       .app_data(dev_mode_state.clone())
+      .wrap(ApiAuth::desktop(desktop_api_token.clone()))
       .wrap(cors)
       .wrap(Logger::default())
       .service(llm_complete)
