@@ -195,10 +195,11 @@ pub async fn start_server<'a>(
   let dev_mode_state = Data::new(clawd::dev_remote::new_shared_dev_mode_state());
   let (desktop_api_token, mobile_api_token) = clawd::service::api_auth_tokens(&app_handle)
     .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+  let mobile_api_token_for_server = mobile_api_token.clone();
   let mobile_port = mobile_lan_port(port);
   let mobile_server = HttpServer::new(move || {
     App::new()
-      .wrap(ApiAuth::mobile(mobile_api_token.clone()))
+      .wrap(ApiAuth::mobile(mobile_api_token_for_server.clone()))
       .wrap(Logger::default())
       .service(ping)
       .service(api::mobile::create_mobile_meeting)
@@ -206,6 +207,12 @@ pub async fn start_server<'a>(
       .service(api::mobile::get_mobile_meeting)
       .service(api::mobile::get_mobile_session)
       .service(api::mobile::list_mobile_calendar_events)
+      .service(api::mobile::get_mobile_autopilot)
+      .service(api::mobile::get_mobile_autopilot_email)
+      .service(api::mobile::perform_mobile_autopilot_email_action)
+      .service(api::mobile::get_mobile_gbrain_root)
+      .service(api::mobile::list_mobile_gbrain_entries)
+      .service(api::mobile::get_mobile_gbrain_page)
       .service(api::mobile::list_mobile_chats)
       .service(api::mobile::get_mobile_chat)
       .service(api::mobile::create_mobile_chat)
@@ -232,9 +239,13 @@ pub async fn start_server<'a>(
       None
     }
   };
-  let _mobile_discovery = mobile_server_handle
-    .as_ref()
-    .and_then(|_| mobile_discovery::start_mobile_discovery_service(mobile_port, &desktop_discovery_label()));
+  let _mobile_discovery = mobile_server_handle.as_ref().and_then(|_| {
+    mobile_discovery::start_mobile_discovery_service(
+      mobile_port,
+      &desktop_discovery_label(),
+      &mobile_api_token,
+    )
+  });
 
   println!("actix.rs: start_server: Starting server on port: {}", port);
   let server = HttpServer::new(move || {
@@ -319,6 +330,12 @@ pub async fn start_server<'a>(
       .service(api::mobile::get_mobile_meeting)
       .service(api::mobile::get_mobile_session)
       .service(api::mobile::list_mobile_calendar_events)
+      .service(api::mobile::get_mobile_autopilot)
+      .service(api::mobile::get_mobile_autopilot_email)
+      .service(api::mobile::perform_mobile_autopilot_email_action)
+      .service(api::mobile::get_mobile_gbrain_root)
+      .service(api::mobile::list_mobile_gbrain_entries)
+      .service(api::mobile::get_mobile_gbrain_page)
       .service(api::mobile::list_mobile_chats)
       .service(api::mobile::get_mobile_chat)
       .service(api::mobile::create_mobile_chat)
@@ -469,7 +486,6 @@ pub async fn start_server<'a>(
       .service(clawd::channels::signal_link)
       .service(clawd::channels::signal_register)
       .service(clawd::channels::signal_verify)
-      // Managed agents: seeded templates, shared context, desktop presence, route preview
       .service(clawd::managed_agents::managed_agents_index)
       .service(clawd::managed_agents::managed_agent_templates)
       .service(clawd::managed_agents::managed_agent_policies)

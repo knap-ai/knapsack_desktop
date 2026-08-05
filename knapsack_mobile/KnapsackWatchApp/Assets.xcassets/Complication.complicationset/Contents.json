@@ -1,0 +1,23 @@
+{
+  "assets" : [
+    {
+      "filename" : "Circular.imageset",
+      "idiom" : "watch",
+      "role" : "circular"
+    },
+    {
+      "filename" : "Modular.imageset",
+      "idiom" : "watch",
+      "role" : "modular"
+    },
+    {
+      "filename" : "Utilitarian.imageset",
+      "idiom" : "watch",
+      "role" : "utilitarian"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

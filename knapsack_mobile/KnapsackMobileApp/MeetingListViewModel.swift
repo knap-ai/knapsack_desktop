@@ -8,10 +8,20 @@ final class MeetingListViewModel: ObservableObject {
   @Published var selectedMeeting: MobileMeetingDetail?
   @Published var chats: [MobileChatSummary] = []
   @Published var selectedChat: MobileChatDetail?
+  @Published var autopilotBrief: MobileAutopilotBrief?
+  @Published var isLoadingAutopilot = false
+  @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
+  @Published var isLoadingAutopilotEmail = false
+  @Published var isPerformingAutopilotEmailAction = false
+  @Published var brainRoot = ""
+  @Published var brainCurrentPath = ""
+  @Published var brainEntries: [MobileBrainEntry] = []
+  @Published var selectedBrainPage: MobileBrainPage?
+  @Published var isLoadingBrain = false
+  @Published var isRunningGBrainPrompt = false
   @Published var isSendingChatMessage = false
   @Published var isConnectingToDesktop = false
   @Published var serverURLText: String
-  @Published var pairingCodeText: String
   @Published var errorMessage: String?
   @Published var statusMessage: String?
   private var lastAutoConnectedDesktopID: String?
@@ -21,7 +31,6 @@ final class MeetingListViewModel: ObservableObject {
   init(api: MobileAPI = .shared) {
     self.api = api
     self.serverURLText = Self.initialServerURLText(for: api)
-    self.pairingCodeText = api.pairingToken
   }
 
   var currentMeetingID: UInt64? {
@@ -34,10 +43,13 @@ final class MeetingListViewModel: ObservableObject {
       calendarEvents = []
       chats = []
       meetings = []
+      autopilotBrief = nil
       selectedMeeting = nil
       selectedChat = nil
+      selectedAutopilotEmail = nil
       statusMessage = "Open Knapsack on your Mac and keep this screen open. Your desktop should appear automatically."
       errorMessage = nil
+      await refreshGBrain()
       return
     }
 
@@ -50,6 +62,8 @@ final class MeetingListViewModel: ObservableObject {
       calendarEvents = try await calendarTask
       meetings = try await meetingsTask
       chats = try await chatsTask
+      chats.sort { $0.updatedAt > $1.updatedAt }
+      await refreshAutopilot()
       if let selectedID = selectedMeeting?.id,
          let matched = meetings.first(where: { $0.id == selectedID }) {
         selectedMeeting = matched
@@ -69,8 +83,83 @@ final class MeetingListViewModel: ObservableObject {
         statusMessage = "Loaded \(meetings.count) meeting\(meetings.count == 1 ? "" : "s") and \(chats.count) chat\(chats.count == 1 ? "" : "s")."
       }
       errorMessage = nil
+      await refreshGBrain()
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshAutopilot() async {
+    isLoadingAutopilot = true
+    defer { isLoadingAutopilot = false }
+
+    do {
+      autopilotBrief = try await api.getAutopilotBrief()
+      errorMessage = nil
+    } catch {
+      autopilotBrief = nil
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func openAutopilotCard(_ card: MobileAutopilotCard) async {
+    if let emailUID = card.emailUID {
+      do {
+        isLoadingAutopilotEmail = true
+        selectedAutopilotEmail = try await api.getAutopilotEmail(emailUID: emailUID)
+        statusMessage = "Loaded email thread."
+        errorMessage = nil
+      } catch {
+        errorMessage = friendlyMessage(for: error)
+      }
+      isLoadingAutopilotEmail = false
+      return
+    }
+
+    if let chatID = card.relatedChatThreadID {
+      do {
+        selectedChat = try await api.getChat(threadID: chatID)
+        statusMessage = "Opened desktop chat."
+        errorMessage = nil
+      } catch {
+        errorMessage = friendlyMessage(for: error)
+      }
+      return
+    }
+
+    if let meetingID = card.relatedThreadID {
+      do {
+        selectedMeeting = try await api.getMeeting(threadID: meetingID)
+        statusMessage = "Opened meeting note."
+        errorMessage = nil
+      } catch {
+        errorMessage = friendlyMessage(for: error)
+      }
+    }
+  }
+
+  func performAutopilotEmailAction(
+    _ action: MobileAutopilotEmailAction,
+    replyBody: String? = nil
+  ) async -> Bool {
+    guard let emailUID = selectedAutopilotEmail?.emailUID else { return false }
+
+    do {
+      isPerformingAutopilotEmailAction = true
+      selectedAutopilotEmail = try await api.performAutopilotEmailAction(
+        emailUID: emailUID,
+        action: action,
+        replyBody: replyBody
+      )
+      await refreshAutopilot()
+      statusMessage = statusMessageForAutopilotAction(action)
+      errorMessage = nil
+      isPerformingAutopilotEmailAction = false
+      return true
+    } catch {
+      isPerformingAutopilotEmailAction = false
+      errorMessage = friendlyMessage(for: error)
+      return false
     }
   }
 
@@ -82,7 +171,6 @@ final class MeetingListViewModel: ObservableObject {
       }
       serverURLText = url.absoluteString
       api.baseURL = url
-      api.pairingToken = pairingCodeText
       statusMessage = "Saved server URL."
       errorMessage = nil
     } else {
@@ -104,7 +192,6 @@ final class MeetingListViewModel: ObservableObject {
     isConnectingToDesktop = true
     serverURLText = url.absoluteString
     api.baseURL = url
-    api.pairingToken = pairingCodeText
 
     do {
       let linkedSession = try await api.getSession()
@@ -115,7 +202,7 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
       await refresh()
     } catch {
-      errorMessage = "Could not authenticate with Knapsack Desktop. Copy the Mobile pairing code from Settings on your Mac, then try again."
+      errorMessage = "Could not reach Knapsack Desktop at \(url.host() ?? url.absoluteString). Make sure the Mac app is open and use your Mac's local network address."
     }
 
     isConnectingToDesktop = false
@@ -127,6 +214,9 @@ final class MeetingListViewModel: ObservableObject {
     if serverURLText != desktop.url.absoluteString {
       serverURLText = desktop.url.absoluteString
       statusMessage = "Found \(desktop.name) nearby."
+    }
+    if let pairingToken = desktop.pairingToken {
+      api.pairingToken = pairingToken
     }
 
     guard lastAutoConnectedDesktopID != desktop.id else { return }
@@ -155,7 +245,7 @@ final class MeetingListViewModel: ObservableObject {
       await refresh()
       statusMessage = "Created meeting \(meeting.id)."
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
     }
   }
 
@@ -170,7 +260,7 @@ final class MeetingListViewModel: ObservableObject {
       statusMessage = "Prepared meeting \(created.id) for recording."
       return created
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
       return nil
     }
   }
@@ -195,7 +285,7 @@ final class MeetingListViewModel: ObservableObject {
       await refresh()
       statusMessage = "Uploaded recording for meeting \(meeting.id)."
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
     }
   }
 
@@ -207,7 +297,7 @@ final class MeetingListViewModel: ObservableObject {
       await refresh()
       statusMessage = "Saved notes for meeting \(meetingID)."
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
     }
   }
 
@@ -217,7 +307,7 @@ final class MeetingListViewModel: ObservableObject {
       statusMessage = "Loaded chat \(chat.id)."
       errorMessage = nil
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
     }
   }
 
@@ -229,13 +319,71 @@ final class MeetingListViewModel: ObservableObject {
       statusMessage = "Created chat \(chat.id)."
       errorMessage = nil
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshGBrain() async {
+    isLoadingBrain = true
+    defer { isLoadingBrain = false }
+
+    do {
+      brainRoot = try await api.getGBrainRoot()
+      brainEntries = try await api.listGBrainEntries(subPath: brainCurrentPath)
+      errorMessage = nil
+    } catch {
+      brainEntries = []
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func openBrainDirectory(_ entry: MobileBrainEntry) async {
+    guard entry.isDir else { return }
+    brainCurrentPath = entry.relPath
+    await refreshGBrain()
+  }
+
+  func navigateBrainUp() async {
+    guard !brainCurrentPath.isEmpty else { return }
+    let components = brainCurrentPath.split(separator: "/").dropLast()
+    brainCurrentPath = components.joined(separator: "/")
+    await refreshGBrain()
+  }
+
+  func openBrainPage(_ entry: MobileBrainEntry) async {
+    guard !entry.isDir else { return }
+    do {
+      selectedBrainPage = try await api.getGBrainPage(relPath: entry.relPath)
+      errorMessage = nil
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func runGBrainPrompt(_ prompt: String) async -> MobileChatDetail? {
+    let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    do {
+      isRunningGBrainPrompt = true
+      let detail = try await sendGBrainPrompt(trimmed)
+      selectedChat = detail
+      upsertChatSummary(from: detail)
+      statusMessage = "GBrain researched that for you."
+      errorMessage = nil
+      isRunningGBrainPrompt = false
+      return detail
+    } catch {
+      isRunningGBrainPrompt = false
+      errorMessage = friendlyMessage(for: error)
+      return nil
     }
   }
 
   func sendChatMessage(_ text: String) async -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
+    let previousChat = selectedChat
 
     do {
       isSendingChatMessage = true
@@ -250,8 +398,24 @@ final class MeetingListViewModel: ObservableObject {
         return false
       }
 
+      let optimisticTimestamp = Int64(Date().timeIntervalSince1970 * 1000)
+      let optimisticMessage = MobileChatMessage(
+        id: nil,
+        timestamp: optimisticTimestamp,
+        role: "user",
+        content: trimmed
+      )
+      if var optimisticChat = selectedChat {
+        optimisticChat.messages.append(optimisticMessage)
+        optimisticChat.updatedAt = optimisticTimestamp
+        selectedChat = optimisticChat
+        upsertChatSummary(from: optimisticChat)
+      }
+
       selectedChat = try await api.sendChatMessage(threadID: threadID, text: trimmed)
-      chats = try await api.listChats()
+      if let selectedChat {
+        upsertChatSummary(from: selectedChat)
+      }
       if let assistantReply = selectedChat?.messages.last(where: { $0.role == "assistant" })?.content,
          let chatTitle = selectedChat?.thread.title ?? selectedChat?.thread.subtitle {
         WatchSyncCoordinator.shared.sendChatNotification(
@@ -265,9 +429,60 @@ final class MeetingListViewModel: ObservableObject {
       isSendingChatMessage = false
       return true
     } catch {
+      if let previousChat {
+        selectedChat = previousChat
+        upsertChatSummary(from: previousChat)
+      }
       isSendingChatMessage = false
-      errorMessage = error.localizedDescription
+      errorMessage = friendlyMessage(for: error)
       return false
+    }
+  }
+
+  private func upsertChatSummary(from chat: MobileChatDetail) {
+    let preview = chat.messages.last?.content
+    let summary = MobileChatSummary(
+      thread: chat.thread,
+      preview: preview,
+      updatedAt: chat.updatedAt,
+      messageCount: chat.messages.count
+    )
+
+    if let index = chats.firstIndex(where: { $0.id == summary.id }) {
+      chats[index] = summary
+    } else {
+      chats.insert(summary, at: 0)
+    }
+
+    chats.sort { $0.updatedAt > $1.updatedAt }
+  }
+
+  private func sendGBrainPrompt(_ prompt: String) async throws -> MobileChatDetail {
+    let threadID: UInt64
+    if let existing = chats.first(where: { ($0.thread.title ?? "").localizedCaseInsensitiveContains("gbrain") })?.id {
+      threadID = existing
+    } else if let existing = selectedChat?.id, (selectedChat?.thread.title ?? "").localizedCaseInsensitiveContains("gbrain") {
+      threadID = existing
+    } else {
+      let chat = try await api.createChat(title: "GBrain")
+      threadID = chat.id
+      selectedChat = chat
+      upsertChatSummary(from: chat)
+    }
+
+    return try await api.sendChatMessage(threadID: threadID, text: prompt)
+  }
+
+  private func statusMessageForAutopilotAction(_ action: MobileAutopilotEmailAction) -> String {
+    switch action {
+    case .markRead:
+      return "Marked email as read."
+    case .archive:
+      return "Archived email."
+    case .delete:
+      return "Deleted email."
+    case .reply:
+      return "Sent reply."
     }
   }
 
@@ -302,6 +517,25 @@ final class MeetingListViewModel: ObservableObject {
     MobileAPI.isLoopbackURL(url)
 #endif
   }
+
+  private func friendlyMessage(for error: Error) -> String {
+    if let apiError = error as? MobileAPIError,
+       let description = apiError.errorDescription {
+      return description
+    }
+
+    if error is DecodingError {
+      return "Knapsack received a response it could not read yet. Please try again."
+    }
+
+    let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+    if message.localizedCaseInsensitiveContains("The data couldn’t be read") ||
+      message.localizedCaseInsensitiveContains("The data couldn't be read") {
+      return "Knapsack received a response it could not read yet. Please try again."
+    }
+
+    return message.isEmpty ? "Something went wrong. Please try again." : message
+  }
 }
 
 struct DiscoveredDesktop: Identifiable, Equatable {
@@ -309,6 +543,7 @@ struct DiscoveredDesktop: Identifiable, Equatable {
   let name: String
   let url: URL
   let hostName: String
+  let pairingToken: String?
 }
 
 @MainActor
@@ -366,7 +601,8 @@ final class DesktopDiscoveryCoordinator: NSObject, ObservableObject {
       id: serviceID(for: service),
       name: txtRecord["name"].flatMap { String(data: $0, encoding: .utf8) } ?? service.name,
       url: url,
-      hostName: hostName
+      hostName: hostName,
+      pairingToken: txtRecord["pairingToken"].flatMap { String(data: $0, encoding: .utf8) }
     )
 
     if let index = desktops.firstIndex(where: { $0.id == discovered.id }) {

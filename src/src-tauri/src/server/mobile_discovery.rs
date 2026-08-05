@@ -15,7 +15,11 @@ impl Drop for MobileDiscoveryGuard {
 }
 
 #[cfg(target_os = "macos")]
-pub fn start_mobile_discovery_service(port: u16, service_name: &str) -> Option<MobileDiscoveryGuard> {
+pub fn start_mobile_discovery_service(
+  port: u16,
+  service_name: &str,
+  pairing_token: &str,
+) -> Option<MobileDiscoveryGuard> {
   let child = Command::new("dns-sd")
     .args([
       "-R",
@@ -25,6 +29,8 @@ pub fn start_mobile_discovery_service(port: u16, service_name: &str) -> Option<M
       &port.to_string(),
       "txtvers=1",
       "service=knapsack-mobile",
+      &format!("name={service_name}"),
+      &format!("pairingToken={pairing_token}"),
     ])
     .stdin(Stdio::null())
     .stdout(Stdio::null())
@@ -36,9 +42,7 @@ pub fn start_mobile_discovery_service(port: u16, service_name: &str) -> Option<M
     })
     .ok()?;
 
-  log::info!(
-    "Started Knapsack mobile discovery service for {service_name} on port {port}"
-  );
+  log::info!("Started Knapsack mobile discovery service for {service_name} on port {port}");
 
   Some(MobileDiscoveryGuard { child })
 }
@@ -50,6 +54,7 @@ pub struct MobileDiscoveryGuard;
 pub fn start_mobile_discovery_service(
   _port: u16,
   _service_name: &str,
+  _pairing_token: &str,
 ) -> Option<MobileDiscoveryGuard> {
   None
 }

@@ -15,7 +15,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 
 HOME = Path.home()
@@ -27,7 +27,6 @@ MOBILE_RECORDINGS_DIR = KNAPSACK_DIR / "mobile_recordings"
 PROFILE_PATH = KNAPSACK_DIR / "profile.dat"
 DESKTOP_CHAT_URL = "http://127.0.0.1:8897/api/clawd/chat"
 DESKTOP_FEED_URL = "http://127.0.0.1:8897/api/knapsack/feed_items"
-DESKTOP_API_TOKEN_HEADER = "x-knapsack-api-token"
 HOST = "0.0.0.0"
 PORTS = (18898, 8898)
 SERVICE_PORT = 18898
@@ -73,34 +72,6 @@ def load_json(path: Path) -> Any | None:
         return json.loads(path.read_text())
     except Exception:
         return None
-
-
-def desktop_api_token() -> str:
-    token = os.environ.get("KNAPSACK_DESKTOP_API_TOKEN", "").strip()
-    if token:
-        return token
-
-    state_dir = os.environ.get("OPENCLAW_STATE_DIR") or os.environ.get("OPENCLAW_HOME")
-    if state_dir:
-        token_path = Path(state_dir) / "tokens.json"
-    elif sys.platform == "darwin":
-        token_path = HOME / "Library" / "Application Support" / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
-    elif sys.platform == "win32":
-        token_path = Path(os.environ.get("APPDATA", HOME)) / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
-    else:
-        token_path = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "ai.knap.knapsack" / "clawdbot" / "tokens.json"
-
-    tokens = load_json(token_path) or {}
-    token = str(tokens.get("desktop_api_token") or "").strip()
-    if not token:
-        raise RuntimeError("Desktop API token is unavailable; start Knapsack Desktop once to finish the security upgrade")
-    return token
-
-
-def desktop_auth_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
-    headers = dict(extra or {})
-    headers[DESKTOP_API_TOKEN_HEADER] = desktop_api_token()
-    return headers
 
 
 def save_json(path: Path, payload: Any) -> None:
@@ -288,14 +259,363 @@ def list_calendar() -> list[dict[str, Any]]:
     ]
 
 
+def clean_email_preview(raw: str | None, limit: int = 180) -> str | None:
+    if not raw:
+        return None
+    compact = " ".join(str(raw).split())
+    if not compact:
+        return None
+    return compact[: limit - 1] + "…" if len(compact) > limit else compact
+
+
+def is_unread_email(row: sqlite3.Row) -> bool:
+    return int(row["is_read"] or 0) == 0
+
+
+def is_deleted_or_archived_email(row: sqlite3.Row) -> bool:
+    return int(row["is_deleted"] or 0) != 0 or int(row["is_archived"] or 0) != 0
+
+
+def lower_join(values: list[str | None]) -> str:
+    return " ".join((value or "").lower() for value in values)
+
+
+def contains_any(haystack: str, needles: tuple[str, ...]) -> bool:
+    return any(needle in haystack for needle in needles)
+
+
+def is_noise_email(row: sqlite3.Row) -> bool:
+    text = lower_join([row["sender"], row["subject"], row["body"]])
+    return contains_any(
+        text,
+        (
+            "unsubscribe",
+            "newsletter",
+            "digest",
+            "promotion",
+            "marketing",
+            "sale",
+            "deal",
+            "sponsored",
+            "announcement",
+        ),
+    )
+
+
+def is_tracking_email(row: sqlite3.Row) -> bool:
+    text = lower_join([row["sender"], row["subject"], row["body"]])
+    return contains_any(
+        text,
+        (
+            "tracking",
+            "delivered",
+            "delivery",
+            "shipment",
+            "receipt",
+            "invoice",
+            "order",
+            "reservation",
+            "booking",
+            "itinerary",
+            "travel",
+            "flight",
+        ),
+    )
+
+
+def recent_emails(limit: int = 80) -> list[sqlite3.Row]:
+    return fetch_all(
+        """
+        SELECT id, email_uid, subject, date, sender, recipient, cc, body, thread_id,
+               is_starred, is_read, is_archived, is_deleted, account_email
+        FROM emails
+        ORDER BY date DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+
+def default_brain_root() -> Path:
+    return NOTES_DIR
+
+
+def humanize_brain_name(name: str) -> str:
+    return name.removesuffix(".md").replace("-", " ").replace("_", " ").strip() or "Brain page"
+
+
+def markdown_title(content: str, fallback: str) -> str:
+    for line in content.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        candidate = trimmed.lstrip("#").lstrip("-").lstrip("*").strip()
+        if candidate:
+            return candidate
+    return humanize_brain_name(fallback)
+
+
+def brain_title_for_path(rel_path: str) -> str:
+    return humanize_brain_name(Path(rel_path).name)
+
+
+def list_brain_entries(sub_path: str = "") -> list[dict[str, Any]]:
+    root = default_brain_root()
+    current = (root / sub_path).resolve() if sub_path else root.resolve()
+    root_resolved = root.resolve()
+
+    if not current.exists() or root_resolved not in [current, *current.parents]:
+        return []
+
+    entries = []
+    for child in sorted(current.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower())):
+        rel_path = child.relative_to(root_resolved).as_posix()
+        title = humanize_brain_name(child.name)
+        if child.is_file():
+            try:
+                title = markdown_title(child.read_text(), child.name)
+            except Exception:
+                pass
+        entries.append(
+            {
+                "name": child.name,
+                "title": title,
+                "relPath": rel_path,
+                "isDir": child.is_dir(),
+            }
+        )
+    return entries
+
+
+def read_brain_page(rel_path: str) -> dict[str, Any] | None:
+    rel = rel_path.strip().lstrip("/")
+    if not rel:
+        return None
+    root = default_brain_root().resolve()
+    target = (root / rel).resolve()
+    if root not in [target, *target.parents] or not target.exists() or not target.is_file():
+        return None
+    try:
+        content = target.read_text()
+    except Exception:
+        return None
+    return {
+        "relPath": rel,
+        "title": markdown_title(content, Path(rel).name),
+        "content": content,
+    }
+
+
+def build_autopilot_brief() -> dict[str, Any]:
+    now = now_ts()
+    calendar = list_calendar()
+    meetings = list_meetings()[:4]
+    chats = list_chats()[:4]
+    emails = recent_emails()
+
+    sections: list[dict[str, Any]] = []
+
+    attention_rows = [
+        row for row in emails
+        if is_unread_email(row) and not is_deleted_or_archived_email(row) and not is_noise_email(row)
+    ][:4]
+    if attention_rows:
+        sections.append(
+            {
+                "id": "needs-attention",
+                "title": "Needs attention",
+                "subtitle": "Important inbox items that look worth a quick decision.",
+                "cards": [
+                    {
+                        "id": f"email-attention-{row['id']}",
+                        "kind": "email",
+                        "title": row["subject"] or "Untitled email",
+                        "subtitle": row["sender"] or row["account_email"] or "Email",
+                        "preview": clean_email_preview(row["body"]),
+                        "rationale": "Unread and not obviously newsletter-like.",
+                        "badge": "Unread",
+                        "timestamp": int(row["date"] or 0),
+                        "relatedThreadID": None,
+                        "relatedChatThreadID": None,
+                        "suggestedPrompts": [
+                            f"Summarize this email and tell me whether I should reply: {row['subject']}",
+                            f"Draft a concise response to this email: {row['subject']}",
+                        ],
+                    }
+                    for row in attention_rows
+                ],
+            }
+        )
+
+    today_cards: list[dict[str, Any]] = []
+    for index, event in enumerate(calendar[:3]):
+        today_cards.append(
+            {
+                "id": f"calendar-{event['id']}-{index}",
+                "kind": "calendar",
+                "title": event.get("title") or "Upcoming event",
+                "subtitle": event.get("calendarAccountEmail") or "Calendar",
+                "preview": clean_email_preview(event.get("description")),
+                "rationale": "Coming up soon on your calendar.",
+                "badge": "Agenda",
+                "timestamp": event.get("start"),
+                "relatedThreadID": None,
+                "relatedChatThreadID": None,
+                "suggestedPrompts": [
+                    f"Prep me for this meeting: {event.get('title') or 'upcoming meeting'}",
+                ],
+            }
+        )
+    for index, meeting in enumerate(meetings[:2]):
+        today_cards.append(
+            {
+                "id": f"meeting-{meeting['metadata']['threadId']}-{index}",
+                "kind": "meeting",
+                "title": meeting["thread"].get("title") or "Meeting notes",
+                "subtitle": meeting["metadata"].get("status") or "Meeting",
+                "preview": clean_email_preview(meeting.get("notes") or meeting["metadata"].get("notesPreview")),
+                "rationale": "Recent meeting that may need cleanup or follow-up.",
+                "badge": "Notes",
+                "timestamp": meeting["metadata"].get("updatedAt"),
+                "relatedThreadID": meeting["metadata"].get("threadId"),
+                "relatedChatThreadID": None,
+                "suggestedPrompts": [
+                    f"Turn these notes into follow-ups for {meeting['thread'].get('title') or 'this meeting'}.",
+                ],
+            }
+        )
+    if today_cards:
+        sections.append(
+            {
+                "id": "today",
+                "title": "Today",
+                "subtitle": "What to prep for and polish before the day runs away.",
+                "cards": today_cards,
+            }
+        )
+
+    track_cards: list[dict[str, Any]] = []
+    for index, row in enumerate([row for row in emails if is_tracking_email(row)][:3]):
+        track_cards.append(
+            {
+                "id": f"track-{row['id']}-{index}",
+                "kind": "tracking",
+                "title": row["subject"] or "Life admin",
+                "subtitle": row["sender"] or "Inbox",
+                "preview": clean_email_preview(row["body"]),
+                "rationale": "Looks like a receipt, delivery, booking, or travel update.",
+                "badge": "Track",
+                "timestamp": int(row["date"] or 0),
+                "relatedThreadID": None,
+                "relatedChatThreadID": None,
+                "suggestedPrompts": [
+                    f"Extract the important logistics from this message: {row['subject']}",
+                ],
+            }
+        )
+    for index, chat in enumerate(chats[:2]):
+        chat_id = chat.get("thread", {}).get("id")
+        track_cards.append(
+            {
+                "id": f"workspace-{chat_id}-{index}",
+                "kind": "workspace",
+                "title": chat.get("thread", {}).get("title") or "Recent chat",
+                "subtitle": "Pick up an active desktop conversation",
+                "preview": clean_email_preview(chat.get("preview")),
+                "rationale": "Desktop context worth carrying onto the phone.",
+                "badge": "Workspace",
+                "timestamp": int(chat.get("updatedAt") or 0),
+                "relatedThreadID": None,
+                "relatedChatThreadID": chat_id,
+                "suggestedPrompts": [
+                    f"Continue this desktop conversation: {chat.get('thread', {}).get('title') or 'recent chat'}",
+                ],
+            }
+        )
+    if track_cards:
+        sections.append(
+            {
+                "id": "track",
+                "title": "Track",
+                "subtitle": "Logistics, life admin, and active conversations.",
+                "cards": track_cards,
+            }
+        )
+
+    sender_counts: dict[str, int] = {}
+    for row in emails:
+        sender = (row["sender"] or "").strip()
+        if not sender or not is_noise_email(row):
+            continue
+        sender_counts[sender] = sender_counts.get(sender, 0) + 1
+    cleanup_cards = []
+    for index, (sender, count) in enumerate(sorted(sender_counts.items(), key=lambda item: item[1], reverse=True)[:3]):
+        cleanup_cards.append(
+            {
+                "id": f"cleanup-{index}",
+                "kind": "cleanup",
+                "title": sender,
+                "subtitle": f"{count} recent low-signal emails",
+                "preview": "Likely candidate for unsubscribe, archive, or a tighter filter.",
+                "rationale": "Repeated noisy mailer in your recent inbox.",
+                "badge": "Cleanup",
+                "timestamp": None,
+                "relatedThreadID": None,
+                "relatedChatThreadID": None,
+                "suggestedPrompts": [
+                    f"Help me clean up emails from {sender}.",
+                ],
+            }
+        )
+    if cleanup_cards:
+        sections.append(
+            {
+                "id": "cleanup",
+                "title": "Cleanup",
+                "subtitle": "Senders that are stealing attention without giving much back.",
+                "cards": cleanup_cards,
+            }
+        )
+
+    total_cards = sum(len(section["cards"]) for section in sections)
+    headline = "Your day is under control"
+    if attention_rows:
+        headline = f"{len(attention_rows)} emails need a decision"
+    elif calendar:
+        headline = f"{len(calendar[:3])} upcoming items to prep for"
+    elif chats:
+        headline = "Your desktop context is ready on mobile"
+
+    summary_bits = []
+    if attention_rows:
+        summary_bits.append(f"{len(attention_rows)} worthwhile inbox items")
+    if calendar:
+        summary_bits.append(f"{len(calendar[:3])} agenda items")
+    if chats:
+        summary_bits.append(f"{len(chats[:2])} active chats")
+    if cleanup_cards:
+        summary_bits.append(f"{len(cleanup_cards)} cleanup targets")
+    summary = ", ".join(summary_bits) if summary_bits else "Link your desktop account to turn Knapsack into a calmer life inbox."
+
+    return {
+        "headline": headline,
+        "summary": summary,
+        "generatedAt": now,
+        "sections": sections,
+    }
+
+
 def fetch_desktop_json(url: str, timeout: int = 60) -> Any:
-    req = urllib.request.Request(url, headers=desktop_auth_headers(), method="GET")
+    req = urllib.request.Request(url, method="GET")
     with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode())
 
 
 def desktop_feed_items() -> list[dict[str, Any]]:
-    payload = fetch_desktop_json(DESKTOP_FEED_URL, timeout=120)
+    try:
+        payload = fetch_desktop_json(DESKTOP_FEED_URL, timeout=120)
+    except Exception:
+        return []
     if isinstance(payload, dict):
         data = payload.get("data")
         if isinstance(data, list):
@@ -457,19 +777,6 @@ def chat_detail(thread_id: int) -> dict[str, Any] | None:
     }
 
 
-def seed_history_entries(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
-    seed_history: list[dict[str, str]] = []
-    for message in messages:
-        role = str(message.get("role") or "").strip()
-        if role not in {"user", "assistant"}:
-            continue
-        content = str(message.get("content") or "").strip()
-        if not content:
-            continue
-        seed_history.append({"role": role, "content": content})
-    return seed_history
-
-
 def create_chat(title: str | None) -> dict[str, Any]:
     thread_id = execute(
         """
@@ -511,6 +818,17 @@ def insert_message(thread_id: int, text: str, user_id: int | None) -> None:
     )
 
 
+def build_seed_history(messages: list[dict[str, Any]], limit: int = 12) -> list[dict[str, str]]:
+    seed: list[dict[str, str]] = []
+    for message in messages:
+        role = str(message.get("role") or "").strip()
+        content = str(message.get("content") or "").strip()
+        if role not in {"user", "assistant"} or not content:
+            continue
+        seed.append({"role": role, "content": content})
+    return seed[-limit:]
+
+
 def forward_chat(thread_id: int, text: str, seed_history: list[dict[str, str]] | None = None) -> str:
     session = mobile_session()
     payload: dict[str, Any] = {
@@ -520,8 +838,9 @@ def forward_chat(thread_id: int, text: str, seed_history: list[dict[str, str]] |
         # differently internally.
         "sessionId": f"mobile-thread-{thread_id}",
         "autonomyMode": "assist",
-        "seedHistory": seed_history or [],
     }
+    if seed_history:
+        payload["seedHistory"] = seed_history
     profile = session.get("profile")
     if profile and profile.get("email"):
         payload["userEmail"] = profile["email"]
@@ -531,7 +850,7 @@ def forward_chat(thread_id: int, text: str, seed_history: list[dict[str, str]] |
     req = urllib.request.Request(
         DESKTOP_CHAT_URL,
         data=json.dumps(payload).encode(),
-        headers=desktop_auth_headers({"Content-Type": "application/json"}),
+        headers={"Content-Type": "application/json"},
         method="POST",
     )
     try:
@@ -599,6 +918,24 @@ class MobileBridgeHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/knapsack/mobile/calendar":
             self.respond_json(HTTPStatus.OK, json_success(list_calendar()))
+            return
+        if path == "/api/knapsack/mobile/gbrain/root":
+            self.respond_json(HTTPStatus.OK, json_success(str(default_brain_root())))
+            return
+        if path == "/api/knapsack/mobile/gbrain/list":
+            query = dict(parse_qsl(urlparse(self.path).query))
+            self.respond_json(HTTPStatus.OK, json_success(list_brain_entries(query.get("subPath", ""))))
+            return
+        if path == "/api/knapsack/mobile/gbrain/page":
+            query = dict(parse_qsl(urlparse(self.path).query))
+            page = read_brain_page(query.get("relPath", ""))
+            if page is None:
+                self.respond_json(*json_error("Brain page not found", 404))
+            else:
+                self.respond_json(HTTPStatus.OK, json_success(page))
+            return
+        if path == "/api/knapsack/mobile/autopilot":
+            self.respond_json(HTTPStatus.OK, json_success(build_autopilot_brief()))
             return
         if path == "/api/knapsack/mobile/meetings":
             self.respond_json(HTTPStatus.OK, json_success(list_meetings()))
@@ -750,11 +1087,11 @@ class MobileBridgeHandler(BaseHTTPRequestHandler):
         if not text:
             self.respond_json(*json_error("Message text is required", 400))
             return
-        detail = chat_detail(thread_id)
-        if not detail:
+        existing_chat = chat_detail(thread_id)
+        if not existing_chat:
             self.respond_json(*json_error("Chat not found", 404))
             return
-        seed_history = seed_history_entries(list(detail.get("messages") or []))
+        seed_history = build_seed_history(existing_chat.get("messages") or [])
         insert_message(thread_id, text, user_id_for_messages())
         try:
             reply = forward_chat(thread_id, text, seed_history)

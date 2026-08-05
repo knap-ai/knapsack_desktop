@@ -52,6 +52,7 @@ fn safe_join(root: &Path, rel: &str) -> Option<PathBuf> {
 #[serde(rename_all = "camelCase")]
 pub struct BrainEntry {
   pub name: String,
+  pub title: Option<String>,
   pub rel_path: String,
   pub is_dir: bool,
 }
@@ -70,6 +71,35 @@ pub struct BrainSearchResult {
   pub snippet: String,
   pub score: i64,
   pub modified_at: u64,
+}
+
+fn humanize_name(name: &str) -> String {
+  name
+    .trim_end_matches(".md")
+    .replace(['-', '_'], " ")
+    .trim()
+    .to_string()
+}
+
+pub fn markdown_title(content: &str, fallback: &str) -> String {
+  for line in content.lines() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      continue;
+    }
+
+    let candidate = trimmed
+      .trim_start_matches('#')
+      .trim_start_matches('-')
+      .trim_start_matches('*')
+      .trim();
+
+    if !candidate.is_empty() {
+      return candidate.to_string();
+    }
+  }
+
+  humanize_name(fallback)
 }
 
 fn page_title(content: &str, path: &Path) -> String {
@@ -93,11 +123,12 @@ fn page_title(content: &str, path: &Path) -> String {
       }
     }
   }
-  path
-    .file_stem()
-    .unwrap_or_default()
-    .to_string_lossy()
-    .replace(['-', '_'], " ")
+  humanize_name(
+    &path
+      .file_stem()
+      .unwrap_or_default()
+      .to_string_lossy(),
+  )
 }
 
 fn page_snippet(content: &str, terms: &[String]) -> String {
@@ -171,8 +202,17 @@ pub fn kn_brain_list(brain_root: String, sub_path: String) -> Result<Vec<BrainEn
         .ok()?
         .to_string_lossy()
         .to_string();
+      let title = if is_dir {
+        Some(humanize_name(&name))
+      } else {
+        std::fs::read_to_string(entry.path())
+          .ok()
+          .map(|content| markdown_title(&content, &name))
+          .or_else(|| Some(humanize_name(&name)))
+      };
       Some(BrainEntry {
         name,
+        title,
         rel_path: rel,
         is_dir,
       })

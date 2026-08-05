@@ -18,25 +18,43 @@
 		46EE25A4FBEAEE6777CCE025 /* KnapsackBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA425947D46186029509F /* KnapsackBrand.swift */; };
 		53F673517263F332DEEB090D /* Spectral-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 549831A986A25DE25F605378 /* Spectral-Italic.ttf */; };
 		5515DB66178FC8C8135FFC50 /* KnapsackBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA425947D46186029509F /* KnapsackBrand.swift */; };
+		55EDA51AB8F8B8881FAD0814 /* KnapsackWatchWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0E8383058F9558BD75ED4E /* KnapsackWatchWidgetsBundle.swift */; };
+		5AAE5DD3E87AB93457C89623 /* KnapsackWatchWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 54642AEAC52A7D3B8E933CA7 /* KnapsackWatchWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5D30651F31AB031403A5CB4A /* MobileAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */; };
 		5ED94C8BF00761180C8D39AF /* MeetingListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C607E8B89964E058132DA08 /* MeetingListViewModel.swift */; };
 		639886A0B7541BBD7F239CC1 /* KnapsackMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35068AE945AF546A9F3CA206 /* KnapsackMobileApp.swift */; };
 		648E87E8E6DA6664EF6C76A0 /* WatchSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3EED218012DD8B71DFEC30E /* WatchSyncManager.swift */; };
+		75C3EA9A88066B28A9781924 /* KnapsackComplicationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */; };
 		7B03DAB9EA654DE27BF6A82A /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = B4D6BAB3EE18C8AF9FA8F50B /* README.md */; };
 		7D01058B52305316B9405883 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07048E1782FE4606E9C5390 /* ContentView.swift */; };
+		7E6ADEDA13FFF2D6E658F0EA /* KnapsackComplicationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */; };
 		876C8B1D9F86FFB010C61DF0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6C019A446949C1CC8155F72B /* Assets.xcassets */; };
+		89DD8732843163CAA34FB0BC /* KnapsackBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA425947D46186029509F /* KnapsackBrand.swift */; };
 		8E628453569C13B0C1AF2E41 /* KnapsackWatchExtensionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 838F8F6C6620E88F147D623D /* KnapsackWatchExtensionApp.swift */; };
+		8F48CEC5FF293F0817037D53 /* MobileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51EC8F25323375C0AC57BA34 /* MobileModels.swift */; };
+		9AD5FD93D3F36A55E6A3F7E4 /* KnapsackWatchComplicationWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DF48BE7A7B73E4ABE278E5 /* KnapsackWatchComplicationWidget.swift */; };
+		9C62A84FF8C11F20CDD403D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DFCFFE08D1792432FA66E23A /* Assets.xcassets */; };
+		A0287BE38395CE71B197206A /* KnapsackComplicationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */; };
 		AC20F9791F3F58248E5AE239 /* WatchSharedBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */; };
 		C6C67E15745CE0EB8DB5A397 /* WatchContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A099A3E14F8DE5E2B80972 /* WatchContentView.swift */; };
 		CBC9B3D779E1F04FE10707C2 /* WatchSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B51AADDC37DC832D1018F1C /* WatchSyncCoordinatorTests.swift */; };
 		D653D445B45B76C040CBAD63 /* InterVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3BB9402DFC33D2466BA206DE /* InterVariable.ttf */; };
+		D94BAAFA197727D1B4D8885E /* WatchSharedBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */; };
 		E84F973C3E3F63420FA9D0E2 /* WatchSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0750B66DAE50350BBAE42E48 /* WatchSyncCoordinator.swift */; };
 		E94D7617F28705F371438355 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 31FB647E05F6B01F3C18018B /* Assets.xcassets */; };
 		EC9B65FF776972129EFA00E2 /* KnapsackWatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D71AAAACBD0BFEEE3FFAC644 /* KnapsackWatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F0852DA7C22532F094806073 /* KnapsackWatchExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 45D3100DF31ABA5433DB95E4 /* KnapsackWatchExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F5A674B233B6DA590899C961 /* MobileAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0BCE7FE9162E12F715F0C0E0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E67A075CF6336BE33F7BFD8C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3A30FE5A018543783675CBF0;
+			remoteInfo = KnapsackWatchWidgetsExtension;
+		};
 		0E103E211843DA86EF4F36BB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = E67A075CF6336BE33F7BFD8C /* Project object */;
@@ -68,6 +86,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				F0852DA7C22532F094806073 /* KnapsackWatchExtension.appex in Embed Foundation Extensions */,
+				5AAE5DD3E87AB93457C89623 /* KnapsackWatchWidgetsExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -90,6 +109,7 @@
 		08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSharedBridge.swift; sourceTree = "<group>"; };
 		1413CCEDA7BAD5C6208F4701 /* Spectral-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Spectral-Medium.ttf"; sourceTree = "<group>"; };
 		14BB451B15862813C199803A /* KnapsackMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnapsackMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		19E23681745D937DDF3B615D /* KnapsackWatchWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnapsackWatchWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		25687114CB733251E531D520 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		25F6241806540E2F996754E9 /* KnapsackMobileApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnapsackMobileApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		29888A3631776C6B7AAF1C34 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -99,9 +119,11 @@
 		43B1601F3C51CC99623A3732 /* WatchRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRecorder.swift; sourceTree = "<group>"; };
 		45D3100DF31ABA5433DB95E4 /* KnapsackWatchExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KnapsackWatchExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		51EC8F25323375C0AC57BA34 /* MobileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileModels.swift; sourceTree = "<group>"; };
+		54642AEAC52A7D3B8E933CA7 /* KnapsackWatchWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KnapsackWatchWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		549831A986A25DE25F605378 /* Spectral-Italic.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Spectral-Italic.ttf"; sourceTree = "<group>"; };
 		54D3D7C9EFCDC82AE547C431 /* KnapsackMobileApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnapsackMobileApp.entitlements; sourceTree = "<group>"; };
 		5D2AA425947D46186029509F /* KnapsackBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackBrand.swift; sourceTree = "<group>"; };
+		69DF48BE7A7B73E4ABE278E5 /* KnapsackWatchComplicationWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackWatchComplicationWidget.swift; sourceTree = "<group>"; };
 		6C019A446949C1CC8155F72B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7B51AADDC37DC832D1018F1C /* WatchSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		7C607E8B89964E058132DA08 /* MeetingListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingListViewModel.swift; sourceTree = "<group>"; };
@@ -111,10 +133,14 @@
 		A824AD5CC350B4EBEE860B16 /* PhoneRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRecorder.swift; sourceTree = "<group>"; };
 		B4D6BAB3EE18C8AF9FA8F50B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		C07048E1782FE4606E9C5390 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		CBF23534AFAFFE0540D26B9D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CD0E8383058F9558BD75ED4E /* KnapsackWatchWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackWatchWidgetsBundle.swift; sourceTree = "<group>"; };
 		D71AAAACBD0BFEEE3FFAC644 /* KnapsackWatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnapsackWatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileAPI.swift; sourceTree = "<group>"; };
+		DFCFFE08D1792432FA66E23A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F3EED218012DD8B71DFEC30E /* WatchSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncManager.swift; sourceTree = "<group>"; };
 		F4AE4DE3F6B2E95FE20B6DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackComplicationState.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -126,6 +152,7 @@
 				CCE88060CA4C2A1F29866EF1 /* KnapsackMobileTests */,
 				6B2C402A12482872F3F40F4B /* KnapsackWatchApp */,
 				EB4708E1620D745821611AB0 /* KnapsackWatchExtension */,
+				38DD4C1B0128AD3BD0625026 /* KnapsackWatchWidgetsExtension */,
 				4B2EE221A67761BAC4CB443F /* Shared */,
 				40A8F1528E3339D8F1C6A748 /* Products */,
 			);
@@ -139,6 +166,18 @@
 			path = Branding;
 			sourceTree = "<group>";
 		};
+		38DD4C1B0128AD3BD0625026 /* KnapsackWatchWidgetsExtension */ = {
+			isa = PBXGroup;
+			children = (
+				DFCFFE08D1792432FA66E23A /* Assets.xcassets */,
+				CBF23534AFAFFE0540D26B9D /* Info.plist */,
+				69DF48BE7A7B73E4ABE278E5 /* KnapsackWatchComplicationWidget.swift */,
+				CD0E8383058F9558BD75ED4E /* KnapsackWatchWidgetsBundle.swift */,
+				19E23681745D937DDF3B615D /* KnapsackWatchWidgetsExtension.entitlements */,
+			);
+			path = KnapsackWatchWidgetsExtension;
+			sourceTree = "<group>";
+		};
 		40A8F1528E3339D8F1C6A748 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -146,6 +185,7 @@
 				14BB451B15862813C199803A /* KnapsackMobileTests.xctest */,
 				D71AAAACBD0BFEEE3FFAC644 /* KnapsackWatchApp.app */,
 				45D3100DF31ABA5433DB95E4 /* KnapsackWatchExtension.appex */,
+				54642AEAC52A7D3B8E933CA7 /* KnapsackWatchWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -154,6 +194,7 @@
 			isa = PBXGroup;
 			children = (
 				5D2AA425947D46186029509F /* KnapsackBrand.swift */,
+				F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */,
 				DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */,
 				51EC8F25323375C0AC57BA34 /* MobileModels.swift */,
 				08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */,
@@ -220,6 +261,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3A30FE5A018543783675CBF0 /* KnapsackWatchWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C07F22F0A0BD065C42C7F23D /* Build configuration list for PBXNativeTarget "KnapsackWatchWidgetsExtension" */;
+			buildPhases = (
+				9F6B4959AAD47DF1A9F99768 /* Sources */,
+				1737011F76B344C2B7967A1E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KnapsackWatchWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = KnapsackWatchWidgetsExtension;
+			productReference = 54642AEAC52A7D3B8E933CA7 /* KnapsackWatchWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		5CB050E375E295D525BA85D7 /* KnapsackMobileTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C5E00342EC219E3CB902B519 /* Build configuration list for PBXNativeTarget "KnapsackMobileTests" */;
@@ -249,6 +308,7 @@
 			);
 			dependencies = (
 				AA9700773D8AEBF5C1BC2605 /* PBXTargetDependency */,
+				53654DE06D756CA5D16D608C /* PBXTargetDependency */,
 			);
 			name = KnapsackWatchApp;
 			packageProductDependencies = (
@@ -304,6 +364,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					3A30FE5A018543783675CBF0 = {
+						ProvisioningStyle = Automatic;
+					};
 					613030CA5D6B5FCC5C160939 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -333,11 +396,20 @@
 				5CB050E375E295D525BA85D7 /* KnapsackMobileTests */,
 				613030CA5D6B5FCC5C160939 /* KnapsackWatchApp */,
 				C34F2A181F7DE1000EF1C152 /* KnapsackWatchExtension */,
+				3A30FE5A018543783675CBF0 /* KnapsackWatchWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		1737011F76B344C2B7967A1E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C62A84FF8C11F20CDD403D9 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		24A026B20E8184949AA69432 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -385,6 +457,7 @@
 			files = (
 				7D01058B52305316B9405883 /* ContentView.swift in Sources */,
 				5515DB66178FC8C8135FFC50 /* KnapsackBrand.swift in Sources */,
+				A0287BE38395CE71B197206A /* KnapsackComplicationState.swift in Sources */,
 				639886A0B7541BBD7F239CC1 /* KnapsackMobileApp.swift in Sources */,
 				5ED94C8BF00761180C8D39AF /* MeetingListViewModel.swift in Sources */,
 				5D30651F31AB031403A5CB4A /* MobileAPI.swift in Sources */,
@@ -400,11 +473,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				46EE25A4FBEAEE6777CCE025 /* KnapsackBrand.swift in Sources */,
+				75C3EA9A88066B28A9781924 /* KnapsackComplicationState.swift in Sources */,
 				8E628453569C13B0C1AF2E41 /* KnapsackWatchExtensionApp.swift in Sources */,
 				C6C67E15745CE0EB8DB5A397 /* WatchContentView.swift in Sources */,
 				3DDD92F522DE1F60E2A6F0F8 /* WatchRecorder.swift in Sources */,
 				2E17B7E22D17181A964B8F8D /* WatchSharedBridge.swift in Sources */,
 				648E87E8E6DA6664EF6C76A0 /* WatchSyncManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9F6B4959AAD47DF1A9F99768 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				89DD8732843163CAA34FB0BC /* KnapsackBrand.swift in Sources */,
+				7E6ADEDA13FFF2D6E658F0EA /* KnapsackComplicationState.swift in Sources */,
+				9AD5FD93D3F36A55E6A3F7E4 /* KnapsackWatchComplicationWidget.swift in Sources */,
+				55EDA51AB8F8B8881FAD0814 /* KnapsackWatchWidgetsBundle.swift in Sources */,
+				F5A674B233B6DA590899C961 /* MobileAPI.swift in Sources */,
+				8F48CEC5FF293F0817037D53 /* MobileModels.swift in Sources */,
+				D94BAAFA197727D1B4D8885E /* WatchSharedBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -415,6 +503,11 @@
 			isa = PBXTargetDependency;
 			target = 9B4F87014FABADA2D53E09B9 /* KnapsackMobileApp */;
 			targetProxy = 68237A77A57A6DDF7BF82798 /* PBXContainerItemProxy */;
+		};
+		53654DE06D756CA5D16D608C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3A30FE5A018543783675CBF0 /* KnapsackWatchWidgetsExtension */;
+			targetProxy = 0BCE7FE9162E12F715F0C0E0 /* PBXContainerItemProxy */;
 		};
 		68377806DD4DC6613AB72DB6 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -437,9 +530,8 @@
 				CODE_SIGN_ENTITLEMENTS = KnapsackMobileApp/KnapsackMobileApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
-				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_FILE = KnapsackMobileApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -452,15 +544,34 @@
 			};
 			name = Debug;
 		};
+		1E2E19578C9774EB9A202E26 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = KnapsackWatchWidgetsExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.knapsack.mobile.watchkitapp.widgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
 		2F743A7319ECE4B995C30AB3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_COMPLICATION_NAME = Complication;
 				CODE_SIGN_ENTITLEMENTS = KnapsackWatchExtension/KnapsackWatchExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
-				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_FILE = KnapsackWatchExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -524,7 +635,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2026071701;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -537,7 +648,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -553,10 +664,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
+				INFOPLIST_FILE = KnapsackWatchApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
-				INFOPLIST_FILE = KnapsackWatchApp/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.knapsack.mobile.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -569,16 +679,35 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
+				INFOPLIST_FILE = KnapsackWatchApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_KEY_CFBundleIconFiles = AppIcon;
-				INFOPLIST_FILE = KnapsackWatchApp/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = ai.knapsack.mobile.watchkitapp;
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = 4;
 			};
 			name = Release;
+		};
+		A0775392B6E6A08373E8751B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = KnapsackWatchWidgetsExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.knapsack.mobile.watchkitapp.widgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
 		};
 		A9CD43506AB8E1EE57B50613 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -614,7 +743,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2026071701;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -633,7 +762,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -653,9 +782,8 @@
 				CODE_SIGN_ENTITLEMENTS = KnapsackMobileApp/KnapsackMobileApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
-				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_FILE = KnapsackMobileApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -674,9 +802,8 @@
 				ASSETCATALOG_COMPILER_COMPLICATION_NAME = Complication;
 				CODE_SIGN_ENTITLEMENTS = KnapsackWatchExtension/KnapsackWatchExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = D4RJNXVA38;
-				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				INFOPLIST_FILE = KnapsackWatchExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Knapsack;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -732,6 +859,15 @@
 			buildConfigurations = (
 				4442EC96AE695D4D72911C89 /* Debug */,
 				93F77B2CB8C1A1DC2B57B6C9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C07F22F0A0BD065C42C7F23D /* Build configuration list for PBXNativeTarget "KnapsackWatchWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0775392B6E6A08373E8751B /* Debug */,
+				1E2E19578C9774EB9A202E26 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
