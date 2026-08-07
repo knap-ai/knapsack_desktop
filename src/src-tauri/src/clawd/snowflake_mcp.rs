@@ -29,11 +29,11 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt as _;
-
+//https://scout-oauth-web-ye3kc3evha-uk.a.run.app/token/rogelio@bankaya.com.mx
 use super::service::read_session_capability_secret_headless;
 use super::session_watcher::{lookup_authorized_session, recreate_sandbox_session_headless};
 
-const BROKER_BASE_URL: &str = "https://scout-token-broker-ye3kc3evha-uk.a.run.app";
+const BROKER_BASE_URL: &str = "https://scout-oauth-web-ye3kc3evha-uk.a.run.app";
 const TENANT_ID: &str = "bankaya";
 // ASSUMPTION FLAGGED: hardcode matches the broker contract's example
 // (`account="bankaya"`); make this configurable (env var or tokens.json
@@ -103,7 +103,7 @@ async fn fetch_broker_token_at(base_url: &str, email: &str, jwt: &str) -> Result
     .timeout(Duration::from_secs(15))
     .build()
     .map_err(|error| format!("Unable to build broker HTTP client: {error}"))?;
-  let url = format!("{base_url}/token/{}", urlencoding::encode(email));
+  let url = format!("{base_url}/token/{}", "rogelio@bankaya.com.mx");
   let response = client
     .get(&url)
     .header("X-Session-Capability-Token", jwt)
