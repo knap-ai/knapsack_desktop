@@ -1282,6 +1282,89 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
   patched
 }
 
+/// Registering `mcp.servers.snowflake` (above) makes the gateway spawn the
+/// MCP subprocess, but the gateway also enforces `tools.allow` as a strict
+/// allowlist — without an entry here the `snowflake_query` tool is filtered
+/// out before it ever reaches an agent session. Mirrors the existing
+/// browser/exec/process onboarding pattern in `prepare_gateway_config` /
+/// `set_service_enabled` below.
+fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  if cfg.get("tools").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+
+  if let Some(allow) = cfg
+    .pointer_mut("/tools/allow")
+    .and_then(|v| v.as_array_mut())
+  {
+    if !allow.iter().any(|item| item.as_str() == Some("snowflake_query")) {
+      allow.push(serde_json::json!("snowflake_query"));
+      patched = true;
+    }
+  } else {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("allow".to_string(), serde_json::json!(["snowflake_query"]));
+    patched = true;
+  }
+
+  if cfg.pointer("/tools/sandbox").is_none() {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/sandbox/tools").is_none() {
+    cfg
+      .pointer_mut("/tools/sandbox")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+
+  if let Some(allow) = cfg
+    .pointer_mut("/tools/sandbox/tools/allow")
+    .and_then(|v| v.as_array_mut())
+  {
+    if !allow.iter().any(|item| item.as_str() == Some("snowflake_query")) {
+      allow.push(serde_json::json!("snowflake_query"));
+      patched = true;
+    }
+  } else {
+    cfg
+      .pointer_mut("/tools/sandbox/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert(
+        "allow".to_string(),
+        serde_json::json!(["snowflake_query"]),
+      );
+    patched = true;
+  }
+
+  if patched {
+    eprintln!("[clawd/service] Added snowflake_query to tools.allow / tools.sandbox.tools.allow");
+  }
+
+  patched
+}
+
 fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -10804,6 +10887,9 @@ async fn prepare_gateway_config(
           eprintln!("[clawd/service] Patched mcp.servers.snowflake");
           patched = true;
         }
+        if ensure_knapsack_snowflake_tool_allow(&mut cfg_val) {
+          patched = true;
+        }
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
           patched = true;
         }
@@ -12893,6 +12979,9 @@ pub async fn set_service_enabled(
             }
             if ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home) {
               eprintln!("[clawd/service] Patched mcp.servers.snowflake");
+              patched = true;
+            }
+            if ensure_knapsack_snowflake_tool_allow(&mut cfg) {
               patched = true;
             }
             if ensure_knapsack_agent_defaults(&mut cfg, &clawdbot_home) {
