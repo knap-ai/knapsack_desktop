@@ -1284,10 +1284,21 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
 
 /// Registering `mcp.servers.snowflake` (above) makes the gateway spawn the
 /// MCP subprocess, but the gateway also enforces `tools.allow` as a strict
-/// allowlist — without an entry here the `snowflake_query` tool is filtered
-/// out before it ever reaches an agent session. Mirrors the existing
-/// browser/exec/process onboarding pattern in `prepare_gateway_config` /
-/// `set_service_enabled` below.
+/// allowlist. Bundle-MCP tools aren't registered under their own schema
+/// name — the gateway materializes them as `<safeServerName>__<toolName>`
+/// (see `buildSafeToolName` in the vendored
+/// `resources/clawdbot/dist/pi-bundle-mcp-names-*.js`), so for server key
+/// `snowflake` and tool `snowflake_query` (`snowflake_mcp.rs` TOOL_NAME) the
+/// allow entry must be the composite name below, not the bare tool name —
+/// the bare name logs "tools.allow allowlist contains unknown entries" and
+/// is silently ignored. Mirrors the existing browser/exec/process
+/// onboarding pattern in `prepare_gateway_config` / `set_service_enabled`
+/// below.
+const SNOWFLAKE_MCP_TOOL_ALLOW_NAME: &str = "snowflake__snowflake_query";
+/// The bare tool name we mistakenly shipped first — cleaned up wherever
+/// found so it doesn't linger as a dead, gateway-rejected entry.
+const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
+
 fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -1306,8 +1317,16 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
     .pointer_mut("/tools/allow")
     .and_then(|v| v.as_array_mut())
   {
-    if !allow.iter().any(|item| item.as_str() == Some("snowflake_query")) {
-      allow.push(serde_json::json!("snowflake_query"));
+    let before_len = allow.len();
+    allow.retain(|item| item.as_str() != Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE));
+    if allow.len() != before_len {
+      patched = true;
+    }
+    if !allow
+      .iter()
+      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
+    {
+      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
       patched = true;
     }
   } else {
@@ -1316,7 +1335,10 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
       .unwrap()
       .as_object_mut()
       .unwrap()
-      .insert("allow".to_string(), serde_json::json!(["snowflake_query"]));
+      .insert(
+        "allow".to_string(),
+        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
+      );
     patched = true;
   }
 
@@ -1341,8 +1363,16 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
     .pointer_mut("/tools/sandbox/tools/allow")
     .and_then(|v| v.as_array_mut())
   {
-    if !allow.iter().any(|item| item.as_str() == Some("snowflake_query")) {
-      allow.push(serde_json::json!("snowflake_query"));
+    let before_len = allow.len();
+    allow.retain(|item| item.as_str() != Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE));
+    if allow.len() != before_len {
+      patched = true;
+    }
+    if !allow
+      .iter()
+      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
+    {
+      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
       patched = true;
     }
   } else {
@@ -1353,13 +1383,16 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
       .unwrap()
       .insert(
         "allow".to_string(),
-        serde_json::json!(["snowflake_query"]),
+        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
       );
     patched = true;
   }
 
   if patched {
-    eprintln!("[clawd/service] Added snowflake_query to tools.allow / tools.sandbox.tools.allow");
+    eprintln!(
+      "[clawd/service] Added {} to tools.allow / tools.sandbox.tools.allow",
+      SNOWFLAKE_MCP_TOOL_ALLOW_NAME
+    );
   }
 
   patched
