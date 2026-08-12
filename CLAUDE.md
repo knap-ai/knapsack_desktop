@@ -121,6 +121,31 @@ await relaunch()        // must follow immediately — no await between them
 rm -f ~/Library/LaunchAgents/ai.knap.knapsack.clawdbot.plist
 ```
 
+### 8. `tools.allow` — build from `service::knapsack_tools_allow()` / `knapsack_sandbox_tools_allow()`, never a literal
+
+Six call sites across `service.rs`, `channels.rs`, and `gateway_client.rs` each used to hand-roll the `tools.allow` / `tools.sandbox.tools.allow` array as a separate `serde_json::json!([...])` literal. When the snowflake MCP tool's allow entry was added, only `ensure_knapsack_snowflake_tool_allow()` got updated — the other five kept shipping the old list. Worse, `apply_runtime_browser_config()` in `gateway_client.rs` pushes its copy via a live `config.patch` RPC exactly once per process lifetime, which silently clobbers whatever `ensure_knapsack_snowflake_tool_allow()` had already fixed on disk whenever the gateway is already running (`prepare_gateway_config()` skips its own file write in that case, on the assumption the RPC path would carry the change — it didn't, for this field).
+
+Symptom: the tool works when invoked directly, but a live Slack/other-channel session behaves as if the tool doesn't exist (the model never attempts it — it has no idea it's allowed), because the gateway's *effective* `tools.allow` never received the new entry.
+
+Fix in place: every `tools.allow` / `tools.sandbox.tools.allow` payload must come from `service::knapsack_tools_allow()` / `service::knapsack_sandbox_tools_allow()`. Add new always-on MCP tool names to `KNAPSACK_MCP_TOOLS_ALLOW` in `service.rs` — never as a one-off literal at a call site.
+
+### 9. `browser.rs` has a PARTIAL mirror of `StoredTokens` — never serialize it back
+
+`clawd/browser.rs` defines its own `StoredTokens` + `load_or_create_tokens`, separate from the real one in `service.rs`. It is a **subset**: it has historically been missing `knapsack_refresh_token`, `desktop_api_token`, `session_capability_secret`, and `mobile_pairing_token`.
+
+Two consequences, both of which have bitten:
+
+1. **A missing field silently disables a feature.** `knapsack_refresh_token` was absent, so `refresh_knapsack_access_token` could only ever read a refresh token from the `KNAPSACK_REFRESH_TOKEN` env var and never from disk — leaving the app permanently 401'd ("Knapsack session expired — please sign in again") once the access token lapsed, even with a valid refresh token sitting in tokens.json. When adding a token field to `service.rs`, add it here too.
+2. **Writing this struct back to tokens.json deletes unrelated secrets.** `load_or_create_tokens` only writes when the file is absent, which is why nothing has been lost yet. Any new persistence path must do a surgical merge on the parsed JSON instead — see `persist_knapsack_access_token`:
+
+```rust
+let mut value: serde_json::Value = serde_json::from_str(&raw)?;
+value.as_object_mut()?.insert("knapsack_access_token".into(), token.into());
+fs::write(&path, serde_json::to_string_pretty(&value)?)?;
+```
+
+Related invariant: **check JWT `exp` before trusting a cached access token.** `knapsack_bearer_token` returned the cached token unconditionally, so an expired credential was reused forever instead of triggering a refresh. `knapsack_token_is_expired` parses `exp` (60s skew) and treats non-JWT/opaque tokens as *not* expired — never discard a credential whose expiry you cannot read. The local `/refresh_token_api/{email}` endpoint echoes stored values rather than performing a real OAuth exchange, so its response must be expiry-checked too.
+
 ## Unit tests
 
 The Rust unit tests live in `src/src-tauri/src/clawd/gateway_client.rs` (bottom of file). They cover the highest-regression-risk parsing logic and don't require a running gateway. Run with:

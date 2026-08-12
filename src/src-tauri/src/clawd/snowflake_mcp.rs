@@ -12,12 +12,18 @@
 //!   sender via the Slack Web API — never trusted from the LLM.
 //! - `SESSION_CAPABILITY_SECRET` is read directly from `tokens.json` by this
 //!   process and never leaves it: it's used only to sign the short-lived
-//!   capability JWT sent to the broker. It never enters the per-session
-//!   Docker sandbox.
-//! - Only the broker's resulting (short-lived, single-use-`jti`, already
-//!   scoped-to-one-user) Snowflake OAuth token is passed into that session's
-//!   sandbox container, to actually run the query — via `docker exec`,
-//!   piped over stdin so the token never appears in `ps`/process argv.
+//!   capability JWT sent to the broker.
+//! - The broker's resulting Snowflake OAuth token is short-lived and
+//!   single-use-`jti` per the broker contract. The query is issued over HTTPS
+//!   from this process; it is never written to argv, a shell command line, or
+//!   disk. (It formerly ran via `docker exec` inside the session's sandbox
+//!   container — see `run_snowflake_statement` for why that path could never
+//!   work and bought no additional protection.)
+//!
+//! DEVELOPMENT OVERRIDE (2026-08-11): every request is currently brokered as
+//! a single fixed identity — see `DEV_FORCED_BROKER_EMAIL`. The verified-sender
+//! gate above still applies, but the brokered identity does not vary per user,
+//! so there is no per-user Snowflake isolation until that constant is `None`.
 //!
 //! ASSUMPTION FLAGGED: the broker's response shape (`{"token": "..."}`) and
 //! the Snowflake account identifier (currently a placeholder constant) are
@@ -28,18 +34,58 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+// Needed by `run_stdio_server` for `stdout.write_all` / `flush`.
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::read_session_capability_secret_headless;
-use super::session_watcher::{lookup_authorized_session, recreate_sandbox_session_headless};
+use super::session_watcher::resolve_authorized_session;
 
 const BROKER_BASE_URL: &str = "https://scout-token-broker-ye3kc3evha-uk.a.run.app";
 const TENANT_ID: &str = "bankaya";
-// ASSUMPTION FLAGGED: hardcode matches the broker contract's example
-// (`account="bankaya"`); make this configurable (env var or tokens.json
-// field) once the real Snowflake account identifier is confirmed.
-const SNOWFLAKE_ACCOUNT: &str = "bankaya";
+/// Fallback only — the account host is normally read straight out of the
+/// OAuth token (see `statements_url_from_token`). Confirmed from a live broker
+/// token on 2026-08-11; the previous value here was the tenant name
+/// (`bankaya`), which is NOT an account locator and 404'd.
+const SNOWFLAKE_ACCOUNT: &str = "XLA65836.us-east-1";
+/// Snowflake requires a non-empty User-Agent on SQL API requests.
+const SNOWFLAKE_USER_AGENT: &str = "knapsack-desktop/1.0";
 const JWT_TTL_SECS: u64 = 60;
+
+/// DEVELOPMENT OVERRIDE — broker every request as this one fixed identity,
+/// whichever verified Slack sender actually triggered it.
+///
+/// The verified-sender gate still applies: a request with no verified Slack
+/// identity on record is still refused (see `resolve_authorized_session`).
+/// Only the identity handed to the token broker is overridden.
+///
+/// **This means any verified Slack sender gets this account's Snowflake
+/// access — there is no per-user isolation while it is set.**
+///
+/// To move to per-user identity later, set this to `None`; the verified
+/// sender's own email is then used and no other change is needed. The
+/// `KNAPSACK_SNOWFLAKE_BROKER_EMAIL` env var overrides it at runtime, so
+/// per-user behaviour can be exercised without a rebuild.
+const DEV_FORCED_BROKER_EMAIL: Option<&str> = Some("rogelio@bankaya.com.mx");
+
+/// Runtime-resolved override, env var taking precedence over the constant.
+fn forced_broker_email() -> Option<String> {
+  if let Ok(value) = std::env::var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL") {
+    let value = value.trim().to_string();
+    if !value.is_empty() {
+      return Some(value);
+    }
+  }
+  DEV_FORCED_BROKER_EMAIL.map(|email| email.to_string())
+}
+
+/// The identity to broker as. Kept as one pure function used for BOTH the JWT
+/// `sub` claim and the broker URL path: previously the URL hardcoded one email
+/// while `sub` carried the verified sender's, and the broker rejected the
+/// mismatch with HTTP 403 "sub did not match the requested email". Deriving
+/// both from here makes that drift impossible.
+fn resolve_broker_email<'a>(verified_email: &'a str, forced: Option<&'a str>) -> &'a str {
+  forced.unwrap_or(verified_email)
+}
 
 #[derive(Serialize)]
 struct JwtClaims {
@@ -103,6 +149,10 @@ async fn fetch_broker_token_at(base_url: &str, email: &str, jwt: &str) -> Result
     .timeout(Duration::from_secs(15))
     .build()
     .map_err(|error| format!("Unable to build broker HTTP client: {error}"))?;
+  // Use the caller-supplied identity (percent-encoded — `@` is not valid
+  // unescaped in a path segment). This previously hardcoded one address and
+  // ignored the `email` argument entirely, which is what made `sub` and the
+  // requested email disagree.
   let url = format!("{base_url}/token/{}", urlencoding::encode(email));
   let response = client
     .get(&url)
@@ -127,126 +177,145 @@ async fn fetch_broker_token_at(base_url: &str, email: &str, jwt: &str) -> Result
   parse_broker_response(&body)
 }
 
-fn find_sandbox_container(scope_key: &str) -> Result<String, String> {
-  // Containers are labeled `openclaw.sessionKey=<scopeKey>` at create time
-  // (confirmed in the bundle's docker sandbox code) — filter on that instead
-  // of reimplementing OpenClaw's slug algorithm.
-  let output = std::process::Command::new("docker")
-    .args([
-      "ps",
-      "--filter",
-      &format!("label=openclaw.sessionKey={scope_key}"),
-      "--format",
-      "{{.Names}}",
-    ])
-    .output()
-    .map_err(|error| format!("Unable to run docker ps: {error}"))?;
-  if !output.status.success() {
-    return Err(format!(
-      "docker ps failed: {}",
-      String::from_utf8_lossy(&output.stderr)
-    ));
-  }
-  let name = String::from_utf8_lossy(&output.stdout)
-    .lines()
-    .next()
-    .map(|line| line.trim().to_string())
-    .filter(|line| !line.is_empty())
-    .ok_or_else(|| format!("No running sandbox container found for session {scope_key}"))?;
-  Ok(name)
+fn snowflake_statements_url() -> String {
+  format!("https://{SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/statements")
 }
 
-/// Single-quote a string for safe inclusion in a POSIX shell command line,
-/// using the standard `'"'"'` escape for any embedded single quotes.
-fn shell_single_quote(value: &str) -> String {
-  format!("'{}'", value.replace('\'', "'\\''"))
+/// Snowflake's OAuth token names the account host it was minted for, in its
+/// own `aud`/`iss` claims (confirmed against a live broker token 2026-08-11:
+/// `https://XLA65836.us-east-1.snowflakecomputing.com`). Prefer that over any
+/// compiled-in guess — the previous hardcoded `bankaya` host does not exist and
+/// Snowflake's edge answered with a 404 HTML error page.
+///
+/// Only `*.snowflakecomputing.com` is accepted: the token comes from our own
+/// broker, but a claim is still attacker-influenceable input and must never be
+/// able to redirect a bearer token to an arbitrary host.
+fn statements_url_from_token(oauth_token: &str) -> Option<String> {
+  let payload = oauth_token.split('.').nth(1)?;
+  let decoded = base64::Engine::decode(
+    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+    payload.trim_end_matches('='),
+  )
+  .ok()?;
+  let claims: Value = serde_json::from_slice(&decoded).ok()?;
+  let base = ["aud", "iss"]
+    .iter()
+    .filter_map(|key| claims.get(*key).and_then(|value| value.as_str()))
+    .find_map(|value| {
+      let base = value.trim_end_matches('/');
+      let host = base.strip_prefix("https://")?;
+      // Reject anything that isn't a Snowflake host, and any embedded
+      // path/credential/port trickery in the claim.
+      if host.ends_with(".snowflakecomputing.com")
+        && !host.contains('/')
+        && !host.contains('@')
+        && !host.contains(':')
+      {
+        Some(base.to_string())
+      } else {
+        None
+      }
+    })?;
+  Some(format!("{base}/api/v2/statements"))
 }
 
-async fn run_snowflake_statement_in_container(
-  container_name: &str,
-  oauth_token: &str,
-  sql: &str,
-) -> Result<Value, String> {
-  let statement_body = json!({ "statement": sql, "timeout": 60 }).to_string();
-  // The whole command is written to `sh -s`'s stdin in one shot (not passed
-  // as argv) so neither the OAuth token nor the query text ever appears in
-  // `ps`/process listing on the host or inside the container.
-  let script = format!(
-    "curl -s -X POST 'https://{account}.snowflakecomputing.com/api/v2/statements' \
-     -H \"Authorization: Bearer $SNOWFLAKE_TOKEN\" \
-     -H 'Content-Type: application/json' \
-     -H 'Accept: application/json' \
-     -d {body}\n",
-    account = SNOWFLAKE_ACCOUNT,
-    body = shell_single_quote(&statement_body),
-  );
-
-  let mut child = tokio::process::Command::new("docker")
-    .args(["exec", "-i", "-e", &format!("SNOWFLAKE_TOKEN={oauth_token}"), container_name, "sh", "-s"])
-    .stdin(std::process::Stdio::piped())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .spawn()
-    .map_err(|error| format!("Unable to spawn docker exec: {error}"))?;
-
-  {
-    let mut stdin = child
-      .stdin
-      .take()
-      .ok_or("docker exec child has no stdin")?;
-    stdin
-      .write_all(script.as_bytes())
-      .await
-      .map_err(|error| format!("Unable to write script to docker exec: {error}"))?;
-    // Explicitly drop (closes the pipe / sends EOF) rather than letting it
-    // linger open — `sh -s` otherwise may keep waiting for more input
-    // before running the command we already wrote, hanging `wait_with_output`.
-    drop(stdin);
-  }
-
-  let output = child
-    .wait_with_output()
+/// Run the statement directly over HTTPS from this process.
+///
+/// This previously shelled out to `docker exec` against the session's sandbox
+/// container so the OAuth token would only ever exist inside that container.
+/// That could not work, for two independent reasons found on 2026-08-11:
+///
+/// 1. Sandbox containers are created **lazily** by the gateway, only when a
+///    sandboxed exec/fs tool actually needs one, and OpenClaw exposes no
+///    "create" command (`openclaw sandbox recreate` only *removes* them, per
+///    its own `--help`). A turn that only calls this MCP tool therefore has no
+///    container at all — `openclaw sandbox list` reported `Total: 0`, with no
+///    container ever created, running or stopped.
+/// 2. This handler then called `recreate_sandbox_session_headless`, which
+///    *removes* the container — so even a container that did exist would be
+///    destroyed by the first query and unavailable to the next.
+///
+/// The container hop also bought no real protection here: this host process
+/// fetches the token from the broker and necessarily holds it in memory
+/// already, so piping it into a container does not keep it off the host. The
+/// token remains short-lived and single-use-`jti` by the broker's contract,
+/// and `SESSION_CAPABILITY_SECRET` still never leaves this process.
+async fn run_snowflake_statement(oauth_token: &str, sql: &str) -> Result<Value, String> {
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(90))
+    // Snowflake's SQL API rejects a missing User-Agent outright:
+    // `391903 Invalid or empty User-Agent header set: null` (reqwest sends
+    // none by default).
+    .user_agent(SNOWFLAKE_USER_AGENT)
+    .build()
+    .map_err(|error| format!("Unable to build Snowflake HTTP client: {error}"))?;
+  let url = statements_url_from_token(oauth_token).unwrap_or_else(snowflake_statements_url);
+  let response = client
+    .post(&url)
+    .bearer_auth(oauth_token)
+    // The broker mints an OAuth access token (`"type": "OAT"`); without this
+    // Snowflake interprets the bearer as the wrong credential type.
+    .header("X-Snowflake-Authorization-Token-Type", "OAUTH")
+    .header("Content-Type", "application/json")
+    .header("Accept", "application/json")
+    .json(&json!({ "statement": sql, "timeout": 60 }))
+    .send()
     .await
-    .map_err(|error| format!("docker exec failed: {error}"))?;
-  if !output.status.success() {
+    .map_err(|error| format!("Unable to reach Snowflake: {error}"))?;
+
+  let status = response.status();
+  let body = response
+    .text()
+    .await
+    .map_err(|error| format!("Unable to read Snowflake response: {error}"))?;
+  if !status.is_success() {
+    // Surface Snowflake's own message — it is far more actionable than a
+    // generic failure (unknown account, bad role/warehouse, SQL error, ...).
     return Err(format!(
-      "Snowflake query failed inside sandbox: {}",
-      String::from_utf8_lossy(&output.stderr)
+      "Snowflake returned {status}: {}",
+      body.trim().chars().take(600).collect::<String>()
     ));
   }
-  serde_json::from_slice(&output.stdout)
+  serde_json::from_str(&body)
     .map_err(|error| format!("Snowflake returned a non-JSON response: {error}"))
 }
 
 async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
-  let session_id = args
-    .get("session_id")
-    .and_then(|v| v.as_str())
-    .ok_or("Missing required argument: session_id")?;
+  // `session_id` is an optional hint only — see `resolve_authorized_session`.
+  // Requiring it made every call fail: the model cannot know its own gateway
+  // session id (it is never in its context) so it guessed its sandbox
+  // directory name and was rejected every time.
+  let session_id = args.get("session_id").and_then(|v| v.as_str());
   let query = args
     .get("query")
     .and_then(|v| v.as_str())
     .ok_or("Missing required argument: query")?;
 
-  let (email, scope_key) = lookup_authorized_session(session_id)
+  let (email, scope_key) = resolve_authorized_session(session_id)
     .map_err(|error| format!("Cannot authorize this session for Snowflake access: {error}"))?;
 
   let secret = read_session_capability_secret_headless()?;
-  let jwt = mint_capability_jwt(&secret, &email, session_id)?;
-  let oauth_token = fetch_broker_token(&email, &jwt).await?;
-  let container_name = find_sandbox_container(&scope_key)?;
-  let result = run_snowflake_statement_in_container(&container_name, &oauth_token, query).await;
+  // One value drives both the `sub` claim and the broker URL — see
+  // `resolve_broker_email`.
+  let forced = forced_broker_email();
+  let broker_email = resolve_broker_email(&email, forced.as_deref());
+  if broker_email != email {
+    eprintln!(
+      "[snowflake_mcp] dev override active: verified sender {email} brokered as {broker_email}"
+    );
+  }
+  // Sign the RESOLVED scope key, never the model-supplied hint — the claim
+  // must describe the session Knapsack actually verified.
+  let jwt = mint_capability_jwt(&secret, broker_email, &scope_key)?;
+  let oauth_token = fetch_broker_token(broker_email, &jwt).await?;
 
-  // Destroy+recreate this session's sandbox container immediately after this
-  // one query, success or failure — it briefly held the broker's ephemeral
-  // OAuth token in its process environment via `docker exec -e`, and per the
-  // broker contract every capability grant is meant to be single-use. Don't
-  // let a stale container linger with that token still resident. This is
-  // intentionally stricter than the end-of-turn teardown `session_watcher`
-  // also does, since multiple Snowflake calls can happen within one turn.
-  recreate_sandbox_session_headless(&scope_key).await;
-
-  result
+  // No sandbox-container teardown here any more: the token is never placed in
+  // a container (see `run_snowflake_statement`), and the teardown this used to
+  // perform actively *removed* the session's container — which is one of the
+  // two reasons the container path could never work. Removing a live sandbox
+  // out from under a running session is a side effect a read-only query has no
+  // business having. `session_watcher` still does its own end-of-turn teardown.
+  run_snowflake_statement(&oauth_token, query).await
 }
 
 // ── minimal MCP-over-stdio JSON-RPC framing ─────────────────────────────
@@ -259,14 +328,14 @@ const TOOL_NAME: &str = "snowflake_query";
 fn tool_schema() -> Value {
   json!({
     "name": TOOL_NAME,
-    "description": "Query Snowflake as the specific user who owns this chat session. Always pass your own session_id (given in your context) — never guess or pass someone else's. The email used for authorization is resolved independently by Knapsack, not from anything you supply.",
+    "description": "Run a SQL query against Snowflake. Access is already authenticated and authorized — Knapsack independently resolves the identity of the verified chat sender, so you do not supply, look up, or ask the user for any credentials, account name, warehouse, or session id. Just pass `query`.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "session_id": { "type": "string", "description": "Your own session id, exactly as given in your context." },
-        "query": { "type": "string", "description": "The SQL statement to run." }
+        "query": { "type": "string", "description": "The SQL statement to run." },
+        "session_id": { "type": "string", "description": "Optional. Ignore unless you were explicitly given a Knapsack session id; it is only a hint and is never required." }
       },
-      "required": ["session_id", "query"]
+      "required": ["query"]
     }
   })
 }
@@ -375,6 +444,88 @@ pub async fn run_stdio_server() {
 mod tests {
   use super::*;
 
+  fn fake_oauth_token(claims: serde_json::Value) -> String {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    format!("header.{}.sig", URL_SAFE_NO_PAD.encode(claims.to_string()))
+  }
+
+  /// The 404 bug: the statements host must come from the token, not a guess.
+  #[test]
+  fn statements_url_is_taken_from_the_token_claims() {
+    let token = fake_oauth_token(json!({
+      "aud": "https://XLA65836.us-east-1.snowflakecomputing.com",
+      "iss": "https://XLA65836.us-east-1.snowflakecomputing.com"
+    }));
+    assert_eq!(
+      statements_url_from_token(&token).as_deref(),
+      Some("https://XLA65836.us-east-1.snowflakecomputing.com/api/v2/statements")
+    );
+  }
+
+  #[test]
+  fn statements_url_falls_back_when_the_token_carries_no_host() {
+    assert_eq!(statements_url_from_token("not-a-jwt"), None);
+    assert_eq!(
+      statements_url_from_token(&fake_oauth_token(json!({ "sub": "1" }))),
+      None
+    );
+  }
+
+  /// A bearer token must never be sent to a non-Snowflake host just because a
+  /// claim said so.
+  #[test]
+  fn statements_url_rejects_non_snowflake_hosts() {
+    for hostile in [
+      "https://evil.example.com",
+      "https://evil.com/x.snowflakecomputing.com",
+      "https://user@evil.com",
+      "http://XLA65836.us-east-1.snowflakecomputing.com",
+    ] {
+      let token = fake_oauth_token(json!({ "aud": hostile }));
+      assert_eq!(
+        statements_url_from_token(&token),
+        None,
+        "should have rejected {hostile}"
+      );
+    }
+  }
+
+  /// The 403 "sub did not match the requested email" bug: the URL and the JWT
+  /// `sub` must always come from the same value.
+  #[test]
+  fn broker_email_override_applies_to_any_verified_sender() {
+    assert_eq!(
+      resolve_broker_email("daniel.ciolfi@ckl.io", Some("rogelio@bankaya.com.mx")),
+      "rogelio@bankaya.com.mx"
+    );
+  }
+
+  /// Setting `DEV_FORCED_BROKER_EMAIL` to `None` must be the only change
+  /// needed to switch to per-user identity.
+  #[test]
+  fn without_an_override_the_verified_sender_is_used() {
+    assert_eq!(
+      resolve_broker_email("daniel.ciolfi@ckl.io", None),
+      "daniel.ciolfi@ckl.io"
+    );
+  }
+
+  #[test]
+  fn dev_override_is_currently_the_fixed_development_identity() {
+    std::env::remove_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL");
+    assert_eq!(
+      forced_broker_email().as_deref(),
+      Some("rogelio@bankaya.com.mx")
+    );
+  }
+
+  #[test]
+  fn env_var_overrides_the_compiled_dev_identity() {
+    std::env::set_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL", "someone.else@ckl.io");
+    assert_eq!(forced_broker_email().as_deref(), Some("someone.else@ckl.io"));
+    std::env::remove_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL");
+  }
+
   #[test]
   fn jwt_claims_have_expected_shape() {
     let jwt = mint_capability_jwt("test-secret", "rogelio@bankaya.com.mx", "sess_123").unwrap();
@@ -401,45 +552,23 @@ mod tests {
     assert_ne!(a, b);
   }
 
-  #[test]
-  fn shell_single_quote_escapes_embedded_quotes() {
-    assert_eq!(shell_single_quote("hello"), "'hello'");
-    assert_eq!(shell_single_quote("O'Brien"), "'O'\\''Brien'");
-  }
-
-  /// Proves the escaping is actually safe by round-tripping through a real
-  /// shell, rather than pattern-matching the escaped string (which contains
-  /// adjacent `'` and `;` characters as a normal artifact of correct
-  /// escaping — a naive substring check would false-positive on that).
-  #[test]
-  fn shell_single_quote_round_trips_through_a_real_shell() {
-    for sql in [
-      "SELECT 1",
-      "SELECT * FROM t WHERE name = 'x'; rm -rf /",
-      "it's a \"test\" with $VAR and `backticks`",
-      "",
-    ] {
-      let quoted = shell_single_quote(sql);
-      let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(format!("printf '%s' {quoted}"))
-        .output()
-        .expect("sh must be available to run this test");
-      assert!(output.status.success());
-      assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        sql,
-        "shell round-trip did not preserve the original string for input: {sql:?}"
-      );
-    }
-  }
-
   #[tokio::test]
-  async fn rejects_tool_call_missing_session_id() {
+  async fn rejects_tool_call_missing_query() {
+    std::env::set_var("OPENCLAW_STATE_DIR", tempfile::tempdir().unwrap().path());
+    let error = handle_snowflake_query(&json!({})).await.unwrap_err();
+    assert!(error.contains("query"), "unexpected error: {error}");
+  }
+
+  /// `session_id` is deliberately NOT required any more (the model cannot
+  /// know it), but with no verified identity on record the call must still be
+  /// refused rather than falling back to some default identity.
+  #[tokio::test]
+  async fn rejects_tool_call_when_no_verified_identity_exists() {
+    std::env::set_var("OPENCLAW_STATE_DIR", tempfile::tempdir().unwrap().path());
     let error = handle_snowflake_query(&json!({ "query": "select 1" }))
       .await
       .unwrap_err();
-    assert!(error.contains("session_id"));
+    assert!(error.contains("Cannot authorize"), "unexpected error: {error}");
   }
 
   #[tokio::test]
@@ -449,6 +578,35 @@ mod tests {
       .await
       .unwrap_err();
     assert!(error.contains("Cannot authorize"));
+  }
+
+  /// The exact shape that failed in production on 2026-08-11: the model
+  /// passed its sandbox workspace directory name as `session_id` because the
+  /// real session id is not in its context. With one verified identity on
+  /// record this must now succeed at the authorization step instead of
+  /// dead-ending on "No verified identity on record".
+  #[tokio::test]
+  async fn wrong_model_supplied_session_id_still_authorizes_against_the_verified_record() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    let dir = tempdir.path().join("snowflake-identities");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+      dir.join("f2abdfc8-real-session-id.json"),
+      r#"{"email":"rogelio@bankaya.com.mx","scope_key":"agent:main:slack:default:direct:u0bpj321v9p"}"#,
+    )
+    .unwrap();
+
+    let error = handle_snowflake_query(&json!({
+      "session_id": "agent-main-slack-default-direct--b1096950",
+      "query": "select 1"
+    }))
+    .await
+    .unwrap_err();
+    assert!(
+      !error.contains("Cannot authorize"),
+      "authorization should have resolved via the verified record, got: {error}"
+    );
   }
 
   #[tokio::test]
