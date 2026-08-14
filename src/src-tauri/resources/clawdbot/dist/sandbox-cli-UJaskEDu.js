@@ -20,7 +20,7 @@ import "./sessions-CQHHcgC_.js";
 import { r as resolveSandboxToolPolicyForAgent } from "./tool-policy-BY51AUO-.js";
 import { i as resolveSandboxConfigForAgent } from "./config-CcQ2HijN.js";
 import { t as formatDurationCompact } from "./format-duration-BrZ-AaEJ.js";
-import { i as removeSandboxContainer, n as listSandboxContainers, r as removeSandboxBrowserContainer, t as listSandboxBrowsers } from "./sandbox-DiI74XYF.js";
+import { i as removeSandboxContainer, n as listSandboxContainers, r as removeSandboxBrowserContainer, t as listSandboxBrowsers, o as resolveSandboxContext } from "./sandbox-DiI74XYF.js";
 import { t as formatHelpExamples } from "./help-format-DXVAk021.js";
 import { confirm } from "@clack/prompts";
 //#region src/commands/sandbox-explain.ts
@@ -288,6 +288,52 @@ function displayRecreateResult(result, runtime) {
 }
 //#endregion
 //#region src/commands/sandbox.ts
+// KNAPSACK PATCH (2026-08-14): CLI never exposed a way to force sandbox
+// creation on demand — only `recreate` (which removes) existed, and creation
+// otherwise only happens lazily as a side effect of an agent turn actually
+// using a sandboxed exec/fs tool. Callers that need a container to exist
+// *before* invoking some other, non-sandboxed tool (e.g. the Snowflake MCP
+// tool, which talks to Snowflake over HTTPS but still wants the session's
+// sandbox container available for other steps of the same turn) had no way
+// to ask for that. This reuses the exact same `resolveSandboxContext` path
+// the agent runner calls internally (see sandbox-DiI74XYF.js), so it creates
+// (or reuses) the container with the session's real config — no new backend
+// logic, just a CLI entry point onto the existing one.
+async function sandboxCreateCommand(opts, runtime) {
+	const cfg = getRuntimeConfig();
+	const defaultAgentId = resolveAgentIdFromSessionKey(resolveMainSessionKey(cfg));
+	const resolvedAgentId = normalizeAgentId(opts.agent?.trim() ? opts.agent : opts.session?.trim() ? resolveAgentIdFromSessionKey(opts.session) : defaultAgentId);
+	const sessionKey = normalizeExplainSessionKey({
+		cfg,
+		agentId: resolvedAgentId,
+		session: opts.session
+	});
+	let context;
+	try {
+		context = await resolveSandboxContext({
+			sessionKey,
+			config: cfg
+		});
+	} catch (err) {
+		runtime.error(`Failed to create sandbox for ${sessionKey}: ${formatErrorMessage(err)}`);
+		runtime.exit(1);
+		return;
+	}
+	if (!context) {
+		runtime.error(`Session ${sessionKey} is not sandboxed (sandbox mode is "off", or this session isn't agent-scoped) — nothing to create. Run ${formatCliCommand("openclaw sandbox explain --session " + sessionKey)} to inspect why.`);
+		runtime.exit(1);
+		return;
+	}
+	if (opts.json) {
+		writeRuntimeJson(runtime, {
+			sessionKey,
+			containerName: context.containerName,
+			backendId: context.backendId
+		});
+		return;
+	}
+	runtime.log(`✓ Sandbox ready for ${sessionKey}: ${context.containerName} (${context.backendId})`);
+}
 async function sandboxListCommand(opts, runtime) {
 	const containers = opts.browser ? [] : await listSandboxContainers().catch(() => []);
 	const browsers = opts.browser ? await listSandboxBrowsers().catch(() => []) : [];
@@ -415,6 +461,12 @@ const SANDBOX_EXAMPLES = {
 		["openclaw sandbox explain --session agent:main:main", "Explain a specific session."],
 		["openclaw sandbox explain --agent work", "Explain an agent sandbox."],
 		["openclaw sandbox explain --json", "JSON output."]
+	],
+	create: [
+		["openclaw sandbox create", "Create (or reuse) the sandbox for the main session."],
+		["openclaw sandbox create --session agent:main:main", "Create for a specific session."],
+		["openclaw sandbox create --agent work", "Create for a specific agent."],
+		["openclaw sandbox create --json", "JSON output."]
 	]
 };
 function createRunner(commandFn) {
@@ -443,6 +495,11 @@ function registerSandboxCli(program) {
 		force: Boolean(opts.force)
 	}, defaultRuntime)));
 	sandbox.command("explain").description("Explain effective sandbox/tool policy for a session/agent").option("--session <key>", "Session key to inspect (defaults to agent main)").option("--agent <id>", "Agent id to inspect (defaults to derived agent)").option("--json", "Output result as JSON", false).addHelpText("after", () => `\n${theme.heading("Examples:")}\n${formatHelpExamples(SANDBOX_EXAMPLES.explain)}\n`).action(createRunner((opts) => sandboxExplainCommand({
+		session: opts.session,
+		agent: opts.agent,
+		json: Boolean(opts.json)
+	}, defaultRuntime)));
+	sandbox.command("create").description("Create (or reuse) the sandbox container for a session/agent on demand").option("--session <key>", "Session key to create/ensure (defaults to agent main)").option("--agent <id>", "Agent id to create/ensure (defaults to derived agent)").option("--json", "Output result as JSON", false).addHelpText("after", () => `\n${theme.heading("Examples:")}\n${formatHelpExamples(SANDBOX_EXAMPLES.create)}\n\n${theme.heading("Why use this?")}\n${theme.muted("Containers are otherwise only created lazily, as a side effect of the agent actually using a sandboxed exec/fs tool in a turn.")}\n${theme.muted("This forces creation (or confirms an existing container) up front, for callers that need one to exist before that happens naturally.")}`).action(createRunner((opts) => sandboxCreateCommand({
 		session: opts.session,
 		agent: opts.agent,
 		json: Boolean(opts.json)
