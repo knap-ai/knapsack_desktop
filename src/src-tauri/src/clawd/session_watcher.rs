@@ -382,6 +382,65 @@ async fn run_sandbox_recreate(openclaw_bin: &std::path::Path, node_bin: Option<&
   }
 }
 
+/// `openclaw sandbox create --session <scopeKey>` — KNAPSACK PATCH (see
+/// `sandbox-cli-UJaskEDu.js`): the bundled OpenClaw CLI never exposed a way
+/// to force sandbox creation on demand, only `recreate` (which only
+/// *removes*). Containers were otherwise only ever created lazily as a side
+/// effect of the agent turn actually invoking a sandboxed exec/fs tool. This
+/// gives callers that need a container to exist ahead of that (before any
+/// exec/fs tool call has happened this turn) a way to ask for it directly,
+/// reusing the exact same `resolveSandboxContext` path the agent runner uses
+/// internally — no new backend logic on the OpenClaw side, just a CLI entry
+/// point onto the existing one.
+async fn run_sandbox_create(openclaw_bin: &std::path::Path, node_bin: Option<&std::path::Path>, scope_key: &str) -> Result<(), String> {
+  let mut command = match node_bin {
+    Some(node_bin) if node_bin.exists() => tokio::process::Command::new(node_bin),
+    _ => tokio::process::Command::new("node"), // fall back to a system node in dev builds
+  };
+  let output = command
+    .arg(openclaw_bin)
+    .arg("sandbox")
+    .arg("create")
+    .arg("--session")
+    .arg(scope_key)
+    .output()
+    .await
+    .map_err(|error| format!("unable to run sandbox create --session {scope_key}: {error}"))?;
+  if !output.status.success() {
+    return Err(format!(
+      "sandbox create --session {} failed: {}",
+      scope_key,
+      String::from_utf8_lossy(&output.stderr)
+    ));
+  }
+  Ok(())
+}
+
+/// Headless variant for the `--internal-mcp-snowflake` subprocess (mirrors
+/// `recreate_sandbox_session_headless` — see its comment for the resource-dir
+/// derivation rationale). Best-effort: on dev builds outside a signed `.app`
+/// bundle this may not resolve, in which case the caller should fall back to
+/// the HTTPS path rather than block on it.
+///
+/// Currently unused: not yet wired into `snowflake_mcp.rs` (that tool still
+/// runs entirely over HTTPS, deliberately — see its module doc). Kept ready
+/// for a caller that genuinely needs a container to exist for some other
+/// reason, without reintroducing the OAuth-token-in-container-env exposure
+/// `docker exec` had.
+#[allow(dead_code)]
+pub(crate) async fn ensure_sandbox_session_headless(scope_key: &str) -> Result<(), String> {
+  let exe = std::env::current_exe().map_err(|error| format!("unable to resolve current_exe: {error}"))?;
+  // macOS .app bundle layout: Contents/MacOS/<exe> -> Contents/Resources/<rel>
+  let resources_dir = exe
+    .parent()
+    .and_then(|p| p.parent())
+    .map(|p| p.join("Resources"))
+    .ok_or_else(|| format!("unable to resolve bundle Resources dir from {}", exe.display()))?;
+  let openclaw_bin = resources_dir.join("resources").join("clawdbot").join("openclaw.mjs");
+  let node_bin = resources_dir.join("resources").join("node").join("node");
+  run_sandbox_create(&openclaw_bin, Some(node_bin.as_path()), scope_key).await
+}
+
 /// Destroy+recreate the sandbox container for a given session's `scopeKey`,
 /// called from within the main app process (the `session_watcher` poll
 /// loop), which has a real Tauri `AppHandle` and can use its resource
