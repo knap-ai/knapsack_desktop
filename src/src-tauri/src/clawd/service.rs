@@ -16952,7 +16952,8 @@ mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
-    ensure_knapsack_session_isolation, ensure_knapsack_snowflake_mcp_server,
+    ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
+    ensure_knapsack_snowflake_mcp_server,
     has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
     KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
@@ -17256,7 +17257,6 @@ mod knapsack_runtime_auth_tests {
     );
   }
 
-  #[test]
   /// Regression test for the "always says Mapping" report: the gateway's
   /// default label is a stable hash of `accountId:channelId`, so an unset
   /// label means one fixed word per conversation forever.
