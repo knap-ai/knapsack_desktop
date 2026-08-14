@@ -356,6 +356,34 @@ fn migrate_tools_md_security_guidance(content: &str) -> String {
     updated = updated.replacen("# Tools", "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->", 1);
   }
 
+  // Without this, the model has no documented reason to trust an unfamiliar
+  // `snowflake_query` tool over its own training-data assumption that
+  // "Snowflake access" always means an OAuth/credentials setup step — so it
+  // tells the user to go configure something that doesn't exist, even when
+  // the tool is present, available, and the user's identity is already
+  // verified. Inserted right after the opening principle (not appended at
+  // the end) so it survives TOOLS.md's ~12000-char injection truncation.
+  if !updated.contains("## Snowflake") {
+    updated = updated.replacen(
+      "## SELF-REVIEW: Check Every Response Before Sending",
+      "## Snowflake\n\nIf a `snowflake_query` tool is present in your tool list, you already have direct, pre-authenticated access to the user's Snowflake account — there is nothing to set up and no credentials to collect. The system verifies the requester's identity independently before the tool ever runs; you never see or need an account name, warehouse, or token.\n\nWhen the user asks about Snowflake data:\n1. **Immediately call `snowflake_query`** with just the SQL statement — no session id, credentials, or setup questions are needed.\n2. **NEVER** tell the user to configure credentials, verify their identity, or open Settings/Integrations for this. That instruction does not exist and is always wrong.\n3. If the call itself returns an error, report that specific error — do not fall back to a generic \"credentials not configured\" explanation you weren't given.\n\n## SELF-REVIEW: Check Every Response Before Sending",
+      1,
+    );
+  }
+
+  // Upgrade the first-draft Snowflake block, which told the model to pass its
+  // own `session_id`. That argument is no longer required — and never could
+  // be satisfied, since the real session id is not in the model's context
+  // (it guessed its sandbox directory name and every call was rejected).
+  // Workspaces that already received the first draft are skipped by the
+  // `## Snowflake` guard above, so fix the stale sentence in place here.
+  if updated.contains("with your own `session_id` (given in your context)") {
+    updated = updated.replace(
+      "1. **Immediately call `snowflake_query`** with your own `session_id` (given in your context) and the SQL statement — do not ask clarifying setup questions first.",
+      "1. **Immediately call `snowflake_query`** with just the SQL statement — no session id, credentials, or setup questions are needed.",
+    );
+  }
+
   updated
 }
 
@@ -1757,19 +1785,14 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
-      "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+      "allow": crate::clawd::service::knapsack_tools_allow(),
       "exec": {
         "applyPatch": { "enabled": true }
       },
       "sandbox": {
         "tools": {
           "deny": ["canvas", "nodes", "cron", "gateway"],
-          "allow": [
-            "message", "exec", "process", "group:fs",
-            "image", "sessions_list", "sessions_history",
-            "sessions_send", "sessions_spawn", "session_status",
-            "browser", "web_fetch", "web_search", "group:web"
-          ]
+          "allow": crate::clawd::service::knapsack_sandbox_tools_allow()
         }
       }
     }
@@ -1849,12 +1872,34 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
     let current_progress_command_text = config_inner
       .pointer("/channels/slack/streaming/progress/commandText")
       .and_then(|v| v.as_str());
+    // The disk patcher (`ensure_knapsack_progress_draft_labels`) also sets
+    // this, but `prepare_gateway_config` skips its file write whenever the
+    // gateway is already live and defers to this RPC — so a key this payload
+    // does not carry can never actually take effect on a running system. That
+    // is why the pinned progress label kept reverting to the gateway's own
+    // seeded default ("Mapping") even with the label code compiled in. Same
+    // failure mode as CLAUDE.md invariant #8: every site that can win must
+    // agree.
+    let current_progress_label = config_inner.pointer("/channels/slack/streaming/progress/label");
+    // Pin the label only when it is unset or "auto". A deliberate choice must
+    // survive — including `label: false`, which hides the word entirely — so
+    // this is evaluated separately from `needs_slack_patch`: the patch can fire
+    // for an unrelated reason (e.g. reply modes) and must not clobber it then.
+    let should_pin_progress_label = match current_progress_label {
+      None => true,
+      Some(Value::String(existing)) => {
+        let trimmed = existing.trim();
+        trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto")
+      }
+      _ => false,
+    };
 
     let needs_slack_patch = current_group_reply_mode != Some("all")
       || current_channel_reply_mode != Some("all")
       || current_preview_tool_progress != Some(false)
       || current_progress_tool_progress != Some(false)
-      || current_progress_command_text != Some("status");
+      || current_progress_command_text != Some("status")
+      || should_pin_progress_label;
 
     if needs_slack_patch {
       let root = patch_obj
@@ -1864,6 +1909,16 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
         .entry("channels".to_string())
         .or_insert_with(|| serde_json::json!({}));
       if let Some(channels_obj) = channels.as_object_mut() {
+        let mut progress = serde_json::json!({
+          "toolProgress": false,
+          "commandText": "status"
+        });
+        if should_pin_progress_label {
+          progress.as_object_mut().unwrap().insert(
+            "label".to_string(),
+            serde_json::json!(crate::clawd::service::KNAPSACK_PROGRESS_DRAFT_LABEL),
+          );
+        }
         channels_obj.insert(
           "slack".to_string(),
           serde_json::json!({
@@ -1875,10 +1930,7 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
               "preview": {
                 "toolProgress": false
               },
-              "progress": {
-                "toolProgress": false,
-                "commandText": "status"
-              }
+              "progress": progress
             }
           }),
         );
@@ -3318,6 +3370,41 @@ mod tests {
     assert_eq!(migrated.matches("KNAPSACK_TOOLS_VERSION_2").count(), 1);
   }
 
+  /// Regression test for the 2026-08-11 incident: the model had a working,
+  /// correctly-authorized `snowflake_query` tool and still told the user to
+  /// go configure credentials, because TOOLS.md never told it the tool
+  /// exists or that it's already authenticated. Confirms the migration
+  /// reaches already-materialized workspace files (not just fresh installs)
+  /// and is idempotent.
+  #[test]
+  fn tools_md_migration_adds_snowflake_guidance() {
+    let existing = "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->\n\n## Core Principle\n\n## SELF-REVIEW: Check Every Response Before Sending\n\n<!-- LOCAL_API_VIA_EXEC -->\n**Channel-specific notes:**\n";
+    let migrated = migrate_tools_md_security_guidance(existing);
+
+    assert!(migrated.contains("## Snowflake"));
+    assert!(migrated.contains("snowflake_query"));
+    assert!(migrated.contains("NEVER** tell the user to configure credentials"));
+    assert_eq!(migrated.matches("## Snowflake").count(), 1);
+
+    let migrated_again = migrate_tools_md_security_guidance(&migrated);
+    assert_eq!(migrated_again.matches("## Snowflake").count(), 1);
+    assert!(!migrated.contains("with your own `session_id`"));
+  }
+
+  /// Workspaces that received the first-draft Snowflake block are skipped by
+  /// the "## Snowflake" guard, so the stale "pass your own session_id"
+  /// instruction has to be upgraded in place or the model keeps sending an
+  /// argument it cannot know.
+  #[test]
+  fn tools_md_migration_upgrades_first_draft_snowflake_guidance() {
+    let first_draft = "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->\n\n## Snowflake\n\nWhen the user asks about Snowflake data:\n1. **Immediately call `snowflake_query`** with your own `session_id` (given in your context) and the SQL statement — do not ask clarifying setup questions first.\n\n## SELF-REVIEW: Check Every Response Before Sending\n<!-- LOCAL_API_VIA_EXEC -->\n**Channel-specific notes:**\n";
+    let migrated = migrate_tools_md_security_guidance(first_draft);
+
+    assert!(!migrated.contains("with your own `session_id`"));
+    assert!(migrated.contains("with just the SQL statement"));
+    assert_eq!(migrated.matches("## Snowflake").count(), 1);
+  }
+
   #[test]
   fn model_string_form_is_read_correctly() {
     let cfg = json!({"agents": {"defaults": {"model": "groq/llama-3.3-70b"}}});
@@ -3417,18 +3504,13 @@ mod tests {
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],
-        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": crate::clawd::service::knapsack_tools_allow(),
         "exec": { "applyPatch": { "enabled": true } },
         "media": { "image": { "enabled": true } },
         "sandbox": {
           "tools": {
             "deny": ["canvas", "nodes", "cron", "gateway"],
-            "allow": [
-              "message", "exec", "process", "group:fs", "image",
-              "sessions_list", "sessions_history",
-              "sessions_send", "sessions_spawn", "session_status",
-              "browser", "web_fetch", "web_search", "group:web"
-            ]
+            "allow": crate::clawd::service::knapsack_sandbox_tools_allow()
           }
         }
       },

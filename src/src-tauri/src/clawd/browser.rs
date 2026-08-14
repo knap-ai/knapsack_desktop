@@ -129,6 +129,14 @@ struct StoredTokens {
   knapsack_model: Option<String>,
   #[serde(default)]
   knapsack_access_token: Option<String>,
+  /// Required for automatic re-auth. This field was missing from this
+  /// module's copy of `StoredTokens`, so `refresh_knapsack_access_token`
+  /// could only ever see a refresh token via the `KNAPSACK_REFRESH_TOKEN`
+  /// env var and never from disk — leaving the app permanently 401'd once
+  /// the access token expired, even though a valid refresh token was sitting
+  /// in tokens.json the whole time.
+  #[serde(default)]
+  knapsack_refresh_token: Option<String>,
 }
 
 fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -209,6 +217,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     knapsack_email: None,
     knapsack_model: None,
     knapsack_access_token: None,
+    knapsack_refresh_token: None,
   };
 
   fs::write(&path, serde_json::to_string_pretty(&t).unwrap_or_default())
@@ -606,12 +615,100 @@ fn knapsack_access_token(app_handle: &tauri::AppHandle) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
-async fn refresh_knapsack_access_token() -> Option<String> {
-  let refresh_token = std::env::var("KNAPSACK_REFRESH_TOKEN").ok()?;
-  let refresh_token = refresh_token.trim().to_string();
-  if refresh_token.is_empty() {
-    return None;
+/// Refresh slightly before the real deadline so a token that expires
+/// mid-flight doesn't produce a spurious 401.
+const KNAPSACK_TOKEN_EXPIRY_SKEW_SECS: u64 = 60;
+
+/// `exp` claim (seconds since epoch) from a JWT's payload, if it is a JWT at
+/// all. No signature verification — this is only used to decide when to
+/// proactively refresh, never to make an authorization decision.
+fn jwt_expiry_unix(token: &str) -> Option<u64> {
+  let payload = token.split('.').nth(1)?;
+  // JWT payloads are base64url; tolerate the padded variant too.
+  let decoded = base64::Engine::decode(
+    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+    payload.trim_end_matches('='),
+  )
+  .ok()?;
+  let claims: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+  claims.get("exp").and_then(|exp| exp.as_u64())
+}
+
+/// True only when the token is a JWT whose `exp` has passed (or is about to).
+/// Opaque, non-JWT tokens report `false`: we cannot know, so we let the
+/// server be the judge rather than discarding a possibly-valid credential.
+fn knapsack_token_is_expired(token: &str) -> bool {
+  let Some(exp) = jwt_expiry_unix(token) else {
+    return false;
+  };
+  let now = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|elapsed| elapsed.as_secs())
+    .unwrap_or(0);
+  exp <= now.saturating_add(KNAPSACK_TOKEN_EXPIRY_SKEW_SECS)
+}
+
+fn knapsack_refresh_token_value(app_handle: &tauri::AppHandle) -> Option<String> {
+  if let Ok(k) = std::env::var("KNAPSACK_REFRESH_TOKEN") {
+    let k = k.trim().to_string();
+    if !k.is_empty() {
+      return Some(k);
+    }
   }
+  load_or_create_tokens(app_handle)
+    .ok()
+    .and_then(|t| t.knapsack_refresh_token)
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+/// Persist a freshly refreshed access token so it survives an app restart and
+/// reaches subprocesses that read tokens.json directly.
+///
+/// Deliberately a surgical merge on the parsed JSON rather than serializing
+/// this module's `StoredTokens`: that struct is a partial mirror of the real
+/// one in `service.rs` (it is missing `desktop_api_token`,
+/// `session_capability_secret`, `mobile_pairing_token`, ...), so writing it
+/// back wholesale would silently delete unrelated secrets.
+fn persist_knapsack_access_token(app_handle: &tauri::AppHandle, token: &str) {
+  let path = tokens_path(app_handle);
+  let Ok(raw) = fs::read_to_string(&path) else {
+    return;
+  };
+  let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+    return;
+  };
+  let Some(object) = value.as_object_mut() else {
+    return;
+  };
+  object.insert(
+    "knapsack_access_token".to_string(),
+    serde_json::Value::String(token.to_string()),
+  );
+  if let Ok(text) = serde_json::to_string_pretty(&value) {
+    if fs::write(&path, text).is_ok() {
+      harden_file_permissions(&path);
+    } else {
+      log::warn!("[knapsack_token] could not persist refreshed access token");
+    }
+  }
+}
+
+/// Exchange the stored refresh token for a new access token.
+///
+/// `app_handle` is optional so callers without one can still attempt an
+/// env-only refresh; pass `Some` whenever available, since that is what
+/// enables both the tokens.json fallback and persistence of the result.
+pub(crate) async fn refresh_knapsack_access_token(
+  app_handle: Option<&tauri::AppHandle>,
+) -> Option<String> {
+  let refresh_token = match app_handle {
+    Some(handle) => knapsack_refresh_token_value(handle),
+    None => std::env::var("KNAPSACK_REFRESH_TOKEN")
+      .ok()
+      .map(|token| token.trim().to_string())
+      .filter(|token| !token.is_empty()),
+  }?;
   let client = reqwest::Client::new();
   let resp = client
     .get(format!(
@@ -637,6 +734,12 @@ async fn refresh_knapsack_access_token() -> Option<String> {
     .map(|t| t.trim().to_string())
     .filter(|token| !token.is_empty())?;
   std::env::set_var("KNAPSACK_ACCESS_TOKEN", &token);
+  // Persist as well as export: an env-only refresh is lost on restart, which
+  // is how an expired token kept coming back from disk after every relaunch.
+  if let Some(handle) = app_handle {
+    persist_knapsack_access_token(handle, &token);
+  }
+  log::info!("[knapsack_token] access token refreshed");
   Some(token)
 }
 
@@ -644,8 +747,20 @@ async fn knapsack_bearer_token(
   app_handle: &tauri::AppHandle,
   email: &str,
 ) -> anyhow::Result<String> {
+  // The cached token was previously returned unconditionally, with no expiry
+  // check anywhere in this path — so once it lapsed the app handed out the
+  // same dead credential forever and every Knapsack inference call 401'd
+  // ("Knapsack session expired — please sign in again") until the user
+  // manually re-authenticated, despite a usable refresh token on disk.
   if let Some(token) = knapsack_access_token(app_handle) {
-    return Ok(token);
+    if !knapsack_token_is_expired(&token) {
+      return Ok(token);
+    }
+    log::info!("[knapsack_token] cached access token expired; refreshing");
+    if let Some(refreshed) = refresh_knapsack_access_token(Some(app_handle)).await {
+      return Ok(refreshed);
+    }
+    log::warn!("[knapsack_token] refresh failed for expired access token");
   }
 
   let client = reqwest::Client::builder()
@@ -661,18 +776,22 @@ async fn knapsack_bearer_token(
     Ok(resp) => {
       if resp.status().is_success() {
         let token_json: serde_json::Value = resp.json().await?;
+        // This endpoint echoes whatever is already stored rather than doing a
+        // real OAuth exchange, so it can hand back the very token we just
+        // rejected. Never accept an expired one from here.
         if let Some(jwt) = token_json
           .get("token")
           .and_then(|t| t.as_str())
           .or_else(|| token_json.get("access_token").and_then(|t| t.as_str()))
-          .filter(|token| !token.trim().is_empty())
+          .map(|token| token.trim())
+          .filter(|token| !token.is_empty() && !knapsack_token_is_expired(token))
         {
           return Ok(jwt.to_string());
         }
         if let Some(jwt) = std::env::var("KNAPSACK_ACCESS_TOKEN")
           .ok()
           .map(|t| t.trim().to_string())
-          .filter(|token| !token.is_empty())
+          .filter(|token| !token.is_empty() && !knapsack_token_is_expired(token))
         {
           return Ok(jwt);
         }
@@ -692,7 +811,7 @@ async fn knapsack_bearer_token(
     ),
   }
 
-  if let Some(refreshed) = refresh_knapsack_access_token().await {
+  if let Some(refreshed) = refresh_knapsack_access_token(Some(app_handle)).await {
     return Ok(refreshed);
   }
 
@@ -5734,7 +5853,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           .send()
           .await?;
         if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
-          if let Some(refreshed_jwt) = refresh_knapsack_access_token().await {
+          if let Some(refreshed_jwt) = refresh_knapsack_access_token(Some(app_handle)).await {
             resp = client
               .post(format!(
                 "{}/chat/completions",
@@ -5751,7 +5870,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           let status = resp.status();
           let text = resp.text().await.unwrap_or_default();
           if status == reqwest::StatusCode::UNAUTHORIZED {
-            if let Some(new_token) = refresh_knapsack_access_token().await {
+            if let Some(new_token) = refresh_knapsack_access_token(Some(app_handle)).await {
               let retry_resp = client
                 .post(&request_url)
                 .header("Authorization", format!("Bearer {}", new_token))
@@ -7298,10 +7417,60 @@ mod tests {
     is_transient_or_internal_provider_error, load_seed_history_from_request,
     provider_compaction_limits, provider_context_recovery_limits,
     read_embedded_browser_preference_at, should_attempt_fallback_for_provider_error,
-    write_embedded_browser_preference,
+    jwt_expiry_unix, knapsack_token_is_expired, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
+
+  fn make_jwt(exp_unix: u64) -> String {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    let payload = URL_SAFE_NO_PAD.encode(format!(r#"{{"sub":"a@b.c","exp":{exp_unix}}}"#));
+    format!("header.{payload}.signature")
+  }
+
+  fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .unwrap()
+      .as_secs()
+  }
+
+  #[test]
+  fn jwt_expiry_is_parsed_from_the_payload() {
+    assert_eq!(jwt_expiry_unix(&make_jwt(1786403214)), Some(1786403214));
+    assert_eq!(jwt_expiry_unix("not-a-jwt"), None);
+    assert_eq!(jwt_expiry_unix("header.$$$notbase64$$$.sig"), None);
+  }
+
+  /// Regression test for the 2026-08-11 incident: the real access token had
+  /// been expired for ~19 hours and was still handed to every request,
+  /// because nothing on the bearer-token path ever inspected `exp`.
+  #[test]
+  fn expired_access_tokens_are_detected() {
+    assert!(knapsack_token_is_expired(&make_jwt(now_unix() - 60)));
+    assert!(knapsack_token_is_expired(&make_jwt(1786403214)));
+  }
+
+  #[test]
+  fn valid_access_tokens_are_not_treated_as_expired() {
+    assert!(!knapsack_token_is_expired(&make_jwt(now_unix() + 3600)));
+  }
+
+  /// A token expiring within the refresh skew counts as expired so it cannot
+  /// lapse mid-flight, but one comfortably beyond it must not.
+  #[test]
+  fn expiry_skew_only_covers_the_imminent_window() {
+    assert!(knapsack_token_is_expired(&make_jwt(now_unix() + 10)));
+    assert!(!knapsack_token_is_expired(&make_jwt(now_unix() + 600)));
+  }
+
+  /// Opaque (non-JWT) credentials must not be discarded just because we
+  /// cannot read an expiry out of them.
+  #[test]
+  fn opaque_tokens_are_never_assumed_expired() {
+    assert!(!knapsack_token_is_expired("opaque-api-key-value"));
+    assert!(!knapsack_token_is_expired(""));
+  }
 
   #[test]
   fn embedded_browser_preference_persists_without_replacing_other_config() {

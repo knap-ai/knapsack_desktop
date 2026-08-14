@@ -232,12 +232,35 @@ for (const dir of clawdbotDirs) {
 // follows that cycle during dev/build, producing enormous recursive
 // cargo:rerun-if-changed paths. service.rs recreates the link at runtime after
 // resources have been copied, so the source bundle should remain acyclic.
+//
+// EXCEPTION: in dev the gateway loads straight from this source tree (there is
+// no copy step), so the link it needs and the link pruned here are the same
+// path. Pruning it out from under an already-running gateway silently breaks
+// every inbound Slack message — the Slack pipeline lazily imports the bare
+// specifier 'openclaw' and each message then dies with
+// `inbound debounce flush failed: Cannot find package 'openclaw'`, with no
+// reply and nothing to recreate the link until the next gateway restart.
+// So only prune when no gateway is listening. Tauri's glob runs at build
+// start, before any gateway of this session exists, which is exactly when the
+// prune does need to happen.
 const sourceSelfLinkPath = path.join(SOURCE_CLAWDBOT_DIR, 'node_modules', 'openclaw');
+function gatewayIsListening() {
+  // Default gateway port; a bound port means a live gateway may be serving
+  // messages right now. `lsof` is unavailable in some environments — when we
+  // cannot tell, fall back to pruning (previous behaviour).
+  const probe = spawnSync('lsof', ['-nP', '-iTCP:18789', '-sTCP:LISTEN'], { encoding: 'utf8' });
+  if (probe.error || typeof probe.stdout !== 'string') return false;
+  return probe.stdout.trim().length > 0;
+}
 try {
   const stat = fs.lstatSync(sourceSelfLinkPath);
   if (stat.isSymbolicLink()) {
-    fs.unlinkSync(sourceSelfLinkPath);
-    console.log('[ensure-clawdbot-deps] Removed source openclaw self-link to prevent Tauri glob recursion');
+    if (gatewayIsListening()) {
+      console.log('[ensure-clawdbot-deps] Kept source openclaw self-link: a gateway is running and pruning it would break inbound messages');
+    } else {
+      fs.unlinkSync(sourceSelfLinkPath);
+      console.log('[ensure-clawdbot-deps] Removed source openclaw self-link to prevent Tauri glob recursion');
+    }
   }
 } catch {
   // absent is fine

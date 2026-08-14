@@ -512,30 +512,15 @@ fn parse_retry_after(text: &str, attempt: u32) -> f64 {
 
 /// Refresh the Knapsack JWT access token using the stored refresh token.
 /// Returns the new access token string on success, or None on any failure.
+///
+/// Delegates to the single canonical implementation rather than keeping a
+/// second copy: this module's former duplicate could only read the refresh
+/// token from `KNAPSACK_REFRESH_TOKEN` and never persisted the result, which
+/// is exactly the pair of bugs that left expired tokens in place. No
+/// `AppHandle` is available here, so this remains an env-only attempt — the
+/// paths that do have one get the tokens.json fallback and persistence.
 async fn refresh_knapsack_token() -> Option<String> {
-  let refresh_token = std::env::var("KNAPSACK_REFRESH_TOKEN").ok()?;
-  if refresh_token.trim().is_empty() {
-    return None;
-  }
-  let client = reqwest::Client::new();
-  let resp = client
-    .get(format!(
-      "{}/api/authentication/refresh/app",
-      option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai")
-    ))
-    .header("refresh-token", refresh_token.trim())
-    .send()
-    .await
-    .ok()?;
-  if !resp.status().is_success() {
-    log::warn!("[knapsack_refresh] token refresh failed: {}", resp.status());
-    return None;
-  }
-  let json: serde_json::Value = resp.json().await.ok()?;
-  let new_token = json["access_token"].as_str()?.to_string();
-  std::env::set_var("KNAPSACK_ACCESS_TOKEN", &new_token);
-  log::info!("[knapsack_refresh] access token refreshed");
-  Some(new_token)
+  crate::clawd::browser::refresh_knapsack_access_token(None).await
 }
 
 async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> {

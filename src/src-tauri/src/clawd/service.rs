@@ -1282,6 +1282,305 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
   patched
 }
 
+/// Registering `mcp.servers.snowflake` (above) makes the gateway spawn the
+/// MCP subprocess, but the gateway also enforces `tools.allow` as a strict
+/// allowlist. Bundle-MCP tools aren't registered under their own schema
+/// name — the gateway materializes them as `<safeServerName>__<toolName>`
+/// (see `buildSafeToolName` in the vendored
+/// `resources/clawdbot/dist/pi-bundle-mcp-names-*.js`), so for server key
+/// `snowflake` and tool `snowflake_query` (`snowflake_mcp.rs` TOOL_NAME) the
+/// allow entry must be the composite name below, not the bare tool name —
+/// the bare name logs "tools.allow allowlist contains unknown entries" and
+/// is silently ignored. Mirrors the existing browser/exec/process
+/// onboarding pattern in `prepare_gateway_config` / `set_service_enabled`
+/// below.
+const SNOWFLAKE_MCP_TOOL_ALLOW_NAME: &str = "snowflake__snowflake_query";
+/// The bare tool name we mistakenly shipped first — cleaned up wherever
+/// found so it doesn't linger as a dead, gateway-rejected entry.
+const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
+
+/// MCP-provided tools that must always ride along with the base tools.allow
+/// / tools.sandbox.tools.allow lists below. Add new bundle-MCP tool names
+/// here — never as a one-off literal at a config.patch call site. Missing an
+/// entry here is silent: the gateway just never mentions the tool to the
+/// model, which improvises something else (e.g. browsing to the product's
+/// website) instead of reporting an error.
+const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME];
+
+/// Canonical base `tools.allow` set for Knapsack-managed gateway sessions.
+///
+/// Every site that builds a `tools.allow` config.patch/default-config
+/// payload (`prepare_gateway_config`, channel auto-repair in `channels.rs`,
+/// the runtime handshake patch in `gateway_client.rs`, ...) MUST build it
+/// via [`knapsack_tools_allow`] rather than hand-rolling the array. Six call
+/// sites previously duplicated this list as separate literals; when the
+/// snowflake MCP tool was added, only one of them was updated, so the
+/// gateway's live config silently never granted the tool — see CLAUDE.md's
+/// recurring-bug entry on duplicated allow/scope lists across gateway
+/// handshake sites.
+const KNAPSACK_BASE_TOOLS_ALLOW: &[&str] = &[
+  "message",
+  "sessions_send",
+  "browser",
+  "web_fetch",
+  "web_search",
+  "group:web",
+  "exec",
+  "process",
+  "group:fs",
+];
+
+/// Sandbox-mode counterpart of [`KNAPSACK_BASE_TOOLS_ALLOW`] — see that
+/// constant's doc comment; the same "one shared source" rule applies here.
+const KNAPSACK_BASE_SANDBOX_TOOLS_ALLOW: &[&str] = &[
+  "message",
+  "exec",
+  "process",
+  "group:fs",
+  "image",
+  "sessions_list",
+  "sessions_history",
+  "sessions_send",
+  "sessions_spawn",
+  "session_status",
+  "browser",
+  "web_fetch",
+  "web_search",
+  "group:web",
+];
+
+/// The `tools.allow` array to use at every config.patch / default-config
+/// call site — base tools plus every always-on MCP tool.
+pub fn knapsack_tools_allow() -> Vec<&'static str> {
+  KNAPSACK_BASE_TOOLS_ALLOW
+    .iter()
+    .chain(KNAPSACK_MCP_TOOLS_ALLOW.iter())
+    .copied()
+    .collect()
+}
+
+/// The `tools.sandbox.tools.allow` array to use at every config.patch /
+/// default-config call site — sandbox base tools plus every always-on MCP
+/// tool.
+pub fn knapsack_sandbox_tools_allow() -> Vec<&'static str> {
+  KNAPSACK_BASE_SANDBOX_TOOLS_ALLOW
+    .iter()
+    .chain(KNAPSACK_MCP_TOOLS_ALLOW.iter())
+    .copied()
+    .collect()
+}
+
+#[cfg(test)]
+mod knapsack_tools_allow_tests {
+  use super::*;
+
+  /// Regression test for the 2026-08-11 incident: the snowflake MCP tool's
+  /// allow entry was added to `ensure_knapsack_snowflake_tool_allow` but not
+  /// to the other five hardcoded `tools.allow` literals across
+  /// service.rs/channels.rs/gateway_client.rs, so the live gateway's config
+  /// never actually granted it and the model had no idea the tool existed.
+  #[test]
+  fn tools_allow_includes_every_always_on_mcp_tool() {
+    let allow = knapsack_tools_allow();
+    for mcp_tool in KNAPSACK_MCP_TOOLS_ALLOW {
+      assert!(
+        allow.contains(mcp_tool),
+        "knapsack_tools_allow() is missing MCP tool {mcp_tool:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn sandbox_tools_allow_includes_every_always_on_mcp_tool() {
+    let allow = knapsack_sandbox_tools_allow();
+    for mcp_tool in KNAPSACK_MCP_TOOLS_ALLOW {
+      assert!(
+        allow.contains(mcp_tool),
+        "knapsack_sandbox_tools_allow() is missing MCP tool {mcp_tool:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn tools_allow_still_has_the_base_tools() {
+    let allow = knapsack_tools_allow();
+    for base_tool in KNAPSACK_BASE_TOOLS_ALLOW {
+      assert!(allow.contains(base_tool), "missing base tool {base_tool:?}");
+    }
+  }
+}
+
+fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+
+  let mut patched = false;
+
+  if cfg.get("tools").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+
+  if let Some(allow) = cfg
+    .pointer_mut("/tools/allow")
+    .and_then(|v| v.as_array_mut())
+  {
+    let before_len = allow.len();
+    allow.retain(|item| item.as_str() != Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE));
+    if allow.len() != before_len {
+      patched = true;
+    }
+    if !allow
+      .iter()
+      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
+    {
+      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
+      patched = true;
+    }
+  } else {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert(
+        "allow".to_string(),
+        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
+      );
+    patched = true;
+  }
+
+  if cfg.pointer("/tools/sandbox").is_none() {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+  }
+  if cfg.pointer("/tools/sandbox/tools").is_none() {
+    cfg
+      .pointer_mut("/tools/sandbox")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+
+  if let Some(allow) = cfg
+    .pointer_mut("/tools/sandbox/tools/allow")
+    .and_then(|v| v.as_array_mut())
+  {
+    let before_len = allow.len();
+    allow.retain(|item| item.as_str() != Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE));
+    if allow.len() != before_len {
+      patched = true;
+    }
+    if !allow
+      .iter()
+      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
+    {
+      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
+      patched = true;
+    }
+  } else {
+    cfg
+      .pointer_mut("/tools/sandbox/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert(
+        "allow".to_string(),
+        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
+      );
+    patched = true;
+  }
+
+  if patched {
+    eprintln!(
+      "[clawd/service] Added {} to tools.allow / tools.sandbox.tools.allow",
+      SNOWFLAKE_MCP_TOOL_ALLOW_NAME
+    );
+  }
+
+  patched
+}
+
+/// Word shown in chat while a turn is in flight (after the gateway's ~5s
+/// progress-draft delay), in place of its randomly-seeded default.
+pub(crate) const KNAPSACK_PROGRESS_DRAFT_LABEL: &str = "Thinking...";
+
+/// Pin the in-flight progress word for every configured messaging channel.
+///
+/// Left unset, the gateway picks from its own hiking-themed pool
+/// (`DEFAULT_PROGRESS_DRAFT_LABELS`: Exploring, Trailblazing, Scouting,
+/// Mapping, ...) — but *deterministically*, by hashing a seed of
+/// `"<accountId>:<channelId>"` (`progressSeed` in each channel pipeline, e.g.
+/// `extensions/slack/dist/pipeline.runtime-*.js`). That seed never changes for
+/// a given conversation, so a channel shows the same word forever rather than
+/// rotating: this workspace's Slack DM hashed to "Mapping" on every turn, which
+/// reads as a glitch instead of a status.
+///
+/// There is no global setting for this — each channel pipeline reads only its
+/// own `channels.<id>.streaming.progress`, so it has to be applied per entry or
+/// enabling a new channel silently reverts to a random word.
+///
+/// Only fills in a missing or `"auto"` value, so a deliberate choice is kept —
+/// including `label: false`, which hides the word entirely.
+fn ensure_knapsack_progress_draft_labels(cfg: &mut serde_json::Value) -> bool {
+  let Some(channels) = cfg
+    .pointer_mut("/channels")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  let mut patched = false;
+  for (channel_id, entry) in channels.iter_mut() {
+    // Skip `null`/`false` (disabled) and any non-object entry.
+    let Some(entry) = entry.as_object_mut() else {
+      continue;
+    };
+    let streaming = entry
+      .entry("streaming".to_string())
+      .or_insert_with(|| serde_json::json!({}));
+    let Some(streaming) = streaming.as_object_mut() else {
+      continue;
+    };
+    let progress = streaming
+      .entry("progress".to_string())
+      .or_insert_with(|| serde_json::json!({}));
+    let Some(progress) = progress.as_object_mut() else {
+      continue;
+    };
+
+    let label_is_unset = match progress.get("label") {
+      None => true,
+      Some(serde_json::Value::String(existing)) => {
+        existing.trim().is_empty() || existing.trim().eq_ignore_ascii_case("auto")
+      }
+      // `false` (hidden) or anything else explicit: leave it alone.
+      _ => false,
+    };
+    if label_is_unset {
+      progress.insert(
+        "label".to_string(),
+        serde_json::json!(KNAPSACK_PROGRESS_DRAFT_LABEL),
+      );
+      eprintln!(
+        "[clawd/service] Pinned {} progress label to {:?}",
+        channel_id, KNAPSACK_PROGRESS_DRAFT_LABEL
+      );
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
@@ -1406,12 +1705,17 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
           },
           "progress": {
             "toolProgress": false,
-            "commandText": "status"
+            "commandText": "status",
+            "label": KNAPSACK_PROGRESS_DRAFT_LABEL
           }
         }),
       );
       patched = true;
     }
+  }
+
+  if ensure_knapsack_progress_draft_labels(cfg) {
+    patched = true;
   }
 
   if patched {
@@ -3021,6 +3325,57 @@ fn ensure_openclaw_self_link(root_nm: &std::path::Path) {
   }
 }
 
+/// Resolve the clawdbot runtime entry the gateway actually loads.
+///
+/// In dev this is the **source** `resources/clawdbot` tree (there is no copy
+/// step), which is why the self-link has to be repaired there at runtime — see
+/// `ensure_clawdbot_runtime_self_link_for_app`.
+fn resolve_clawdbot_entry(app_handle: &tauri::AppHandle) -> PathBuf {
+  if cfg!(debug_assertions) {
+    let workspace_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .join("resources")
+      .join("clawdbot")
+      .join("dist")
+      .join("entry.js");
+    if cfg!(target_os = "windows") {
+      return workspace_entry;
+    }
+    let system_entry = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
+    if system_entry.exists() {
+      return system_entry;
+    }
+    return workspace_entry;
+  }
+  resource_path(app_handle, "resources/clawdbot/dist/entry.js")
+}
+
+/// Repair the `node_modules/openclaw -> ..` self-link if it has gone missing.
+///
+/// Cheap (one `symlink_metadata` when present) and safe to call on a timer.
+///
+/// This is deliberately not a one-shot startup task. `scripts/ensure-clawdbot-deps.cjs`
+/// *intentionally* deletes this link from the source tree — Tauri's
+/// `resources/clawdbot/**/*` glob would otherwise follow the `..` cycle forever
+/// and emit enormous `cargo:rerun-if-changed` path sets — and relies on the
+/// runtime to put it back. Any npm install after `prepare_gateway_config` has
+/// run therefore leaves a live gateway with no link, and nothing recreated it
+/// until the next full restart.
+///
+/// The failure is silent and total: the Slack inbound pipeline lazily
+/// `import`s the bare specifier `'openclaw'`, so every incoming message dies
+/// with `inbound debounce flush failed: Cannot find package 'openclaw'` and the
+/// user simply never gets a reply (observed 2026-08-11 13:42, 13:43, 17:46,
+/// 17:47). Because that import is per-message, restoring the link fixes the
+/// next message without needing a gateway restart — which is exactly why this
+/// belongs on a recurring check.
+pub(crate) fn ensure_clawdbot_runtime_self_link_for_app(app_handle: &tauri::AppHandle) {
+  let entry = resolve_clawdbot_entry(app_handle);
+  if !entry.exists() {
+    return;
+  }
+  ensure_clawdbot_runtime_self_link(&entry);
+}
+
 fn ensure_clawdbot_runtime_self_link(clawdbot_entry: &std::path::Path) {
   let Some(clawdbot_root) = clawdbot_entry.parent().and_then(|p| p.parent()) else {
     return;
@@ -3676,7 +4031,7 @@ fn read_log_tail_lines_bounded(
   )
 }
 
-fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
+pub(crate) fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
   if let Some(home) = default_clawdbot_home_from_env() {
     return home;
   }
@@ -10482,31 +10837,7 @@ async fn prepare_gateway_config(
   );
 
   // ── Find clawdbot entry ────────────────────────────────────────────
-  let clawdbot_entry = if cfg!(debug_assertions) {
-    if cfg!(target_os = "windows") {
-      // Dev on Windows: look for workspace entry
-      let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("clawdbot")
-        .join("dist")
-        .join("entry.js");
-      ws_entry
-    } else {
-      let sys_entry = PathBuf::from("/opt/homebrew/lib/node_modules/clawdbot/dist/entry.js");
-      let ws_entry = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("resources")
-        .join("clawdbot")
-        .join("dist")
-        .join("entry.js");
-      if sys_entry.exists() {
-        sys_entry
-      } else {
-        ws_entry
-      }
-    }
-  } else {
-    resource_path(app_handle, "resources/clawdbot/dist/entry.js")
-  };
+  let clawdbot_entry = resolve_clawdbot_entry(app_handle);
 
   if !clawdbot_entry.exists() {
     eprintln!(
@@ -10628,7 +10959,7 @@ async fn prepare_gateway_config(
         }
       },
       "tools": {
-        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": knapsack_tools_allow(),
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "sessions": {"visibility": "self"},
         "elevated": {"enabled": false},
@@ -10637,12 +10968,7 @@ async fn prepare_gateway_config(
         "sandbox": {
           "tools": {
             "deny": ["canvas", "nodes", "cron", "gateway"],
-            "allow": [
-              "message", "exec", "process", "group:fs",
-              "image", "sessions_list", "sessions_history",
-              "sessions_send", "sessions_spawn", "session_status",
-              "browser", "web_fetch", "web_search", "group:web"
-            ]
+            "allow": knapsack_sandbox_tools_allow()
           }
         }
       }
@@ -10802,6 +11128,9 @@ async fn prepare_gateway_config(
         }
         if ensure_knapsack_snowflake_mcp_server(&mut cfg_val, &clawdbot_home) {
           eprintln!("[clawd/service] Patched mcp.servers.snowflake");
+          patched = true;
+        }
+        if ensure_knapsack_snowflake_tool_allow(&mut cfg_val) {
           patched = true;
         }
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
@@ -12670,19 +12999,14 @@ pub async fn set_service_enabled(
             }
           },
           "tools": {
-            "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+            "allow": knapsack_tools_allow(),
             "deny": ["canvas", "nodes", "cron", "gateway"],
             "exec": {"applyPatch": {"enabled": true}},
             "media": {"image": {"enabled": true}},
             "sandbox": {
               "tools": {
                 "deny": ["canvas", "nodes", "cron", "gateway"],
-                "allow": [
-                  "message", "exec", "process", "group:fs",
-                  "image", "sessions_list", "sessions_history",
-                  "sessions_send", "sessions_spawn", "session_status",
-                  "browser", "web_fetch", "web_search", "group:web"
-                ]
+                "allow": knapsack_sandbox_tools_allow()
               }
             }
           }
@@ -12893,6 +13217,9 @@ pub async fn set_service_enabled(
             }
             if ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home) {
               eprintln!("[clawd/service] Patched mcp.servers.snowflake");
+              patched = true;
+            }
+            if ensure_knapsack_snowflake_tool_allow(&mut cfg) {
               patched = true;
             }
             if ensure_knapsack_agent_defaults(&mut cfg, &clawdbot_home) {
@@ -16625,7 +16952,8 @@ mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
-    ensure_knapsack_session_isolation, ensure_knapsack_snowflake_mcp_server,
+    ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
+    ensure_knapsack_snowflake_mcp_server,
     has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
     KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
@@ -16927,6 +17255,63 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("/bin/evil")
     );
+  }
+
+  /// Regression test for the "always says Mapping" report: the gateway's
+  /// default label is a stable hash of `accountId:channelId`, so an unset
+  /// label means one fixed word per conversation forever.
+  #[test]
+  fn progress_label_is_pinned_for_every_configured_channel() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        // already has a streaming block (the shape found on disk)
+        "slack": { "streaming": { "mode": "progress", "progress": { "toolProgress": false } } },
+        // no streaming block at all
+        "telegram": { "botToken": "t" },
+        // explicitly "auto" == let the gateway choose == still ours to pin
+        "discord": { "streaming": { "progress": { "label": "auto" } } }
+      }
+    });
+
+    assert!(ensure_knapsack_progress_draft_labels(&mut cfg));
+    for channel in ["slack", "telegram", "discord"] {
+      assert_eq!(
+        cfg
+          .pointer(&format!("/channels/{channel}/streaming/progress/label"))
+          .and_then(|value| value.as_str()),
+        Some("Thinking..."),
+        "{channel} should have the pinned label"
+      );
+    }
+
+    // Idempotent: a second pass changes nothing.
+    assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+  }
+
+  #[test]
+  fn progress_label_preserves_a_deliberate_user_choice() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "slack": { "streaming": { "progress": { "label": "Cooking" } } },
+        // `false` means "hide the label" — must not be overwritten
+        "telegram": { "streaming": { "progress": { "label": false } } },
+        // disabled channels are left alone entirely
+        "discord": null
+      }
+    });
+
+    assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/streaming/progress/label")
+        .and_then(|value| value.as_str()),
+      Some("Cooking")
+    );
+    assert_eq!(
+      cfg.pointer("/channels/telegram/streaming/progress/label"),
+      Some(&serde_json::Value::Bool(false))
+    );
+    assert!(cfg.pointer("/channels/discord").unwrap().is_null());
   }
 
   #[test]

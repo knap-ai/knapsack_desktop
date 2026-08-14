@@ -1024,19 +1024,13 @@ fn build_enable_patch(channel_patch: &str, snapshot: &serde_json::Value) -> Stri
         "sandbox": {
             "tools": {
                 "deny": ["canvas", "nodes", "cron", "gateway"],
-                "allow": [
-                    "message",
-                    "exec", "process", "group:fs",
-                    "image", "sessions_list", "sessions_history",
-                    "sessions_send", "sessions_spawn", "session_status",
-                    "browser", "web_fetch", "web_search", "group:web"
-                ]
+                "allow": service::knapsack_sandbox_tools_allow()
             }
         }
     });
     // Also ensure normal-mode tools.allow includes browser + group:web + message
     let mut tools_val = serde_json::json!({
-        "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+        "allow": service::knapsack_tools_allow(),
         "deny": ["canvas", "nodes", "cron", "gateway"],
         "exec": {"applyPatch": {"enabled": true}},
         "media": {"image": {"enabled": true}}
@@ -3926,20 +3920,14 @@ pub async fn channel_diagnostics() -> impl Responder {
           let bh = extract_base_hash(&snap);
           let sandbox_patch = serde_json::json!({
               "tools": {
-                  "allow": ["message", "sessions_send", "browser", "web_fetch", "web_search", "group:web", "exec", "process", "group:fs"],
+                  "allow": service::knapsack_tools_allow(),
                   "deny": ["canvas", "nodes", "cron", "gateway"],
                   "exec": {"applyPatch": {"enabled": true}},
                   "media": {"image": {"enabled": true}},
                   "sandbox": {
                       "tools": {
                           "deny": ["canvas", "nodes", "cron", "gateway"],
-                          "allow": [
-                              "message",
-                              "exec", "process", "group:fs",
-                              "image", "sessions_list", "sessions_history",
-                              "sessions_send", "sessions_spawn", "session_status",
-                              "browser", "web_fetch", "web_search", "group:web"
-                          ]
+                          "allow": service::knapsack_sandbox_tools_allow()
                       }
                   }
               }

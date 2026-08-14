@@ -13,13 +13,56 @@ pub struct ImageAttachment {
   pub data: String,
 }
 
+/// Gateways speak both the legacy OpenAI shape (`content: "..."`) and the
+/// newer multi-part shape (`content: [{"type":"text","text":"..."}, ...]`).
+/// A plain `String` field rejects the latter with a "invalid type: sequence,
+/// expected a string" 400 — flatten either shape into one string on the way
+/// in instead of trusting the wire format to stay a scalar.
+fn flatten_content_value(value: &JsonValue) -> String {
+  match value {
+    JsonValue::String(s) => s.clone(),
+    JsonValue::Array(parts) => parts
+      .iter()
+      .filter_map(|part| {
+        part
+          .as_str()
+          .map(|s| s.to_string())
+          .or_else(|| part.get("text").and_then(|t| t.as_str()).map(|s| s.to_string()))
+      })
+      .collect::<Vec<_>>()
+      .join("\n"),
+    JsonValue::Null => String::new(),
+    other => other.to_string(),
+  }
+}
+
+fn deserialize_flexible_content<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let value = JsonValue::deserialize(deserializer)?;
+  Ok(flatten_content_value(&value))
+}
+
+fn deserialize_flexible_content_opt<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+  D: serde::Deserializer<'de>,
+{
+  let value = Option::<JsonValue>::deserialize(deserializer)?;
+  Ok(value.map(|v| flatten_content_value(&v)))
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "role")]
 pub enum OaiMessage {
   #[serde(rename = "system")]
-  System { content: String },
+  System {
+    #[serde(deserialize_with = "deserialize_flexible_content")]
+    content: String,
+  },
   #[serde(rename = "user")]
   User {
+    #[serde(deserialize_with = "deserialize_flexible_content")]
     content: String,
     /// Optional image attachments for vision-capable models.
     /// Skipped during default serialization — each provider builds its own format.
@@ -28,6 +71,7 @@ pub enum OaiMessage {
   },
   #[serde(rename = "assistant")]
   Assistant {
+    #[serde(default, deserialize_with = "deserialize_flexible_content_opt")]
     content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<OaiToolCall>>,
@@ -35,6 +79,7 @@ pub enum OaiMessage {
   #[serde(rename = "tool")]
   Tool {
     tool_call_id: String,
+    #[serde(deserialize_with = "deserialize_flexible_content")]
     content: String,
   },
 }
@@ -1488,5 +1533,57 @@ mod tests {
       parsed.get("note").and_then(|v| v.as_str()),
       Some(r#"draft \q now"#)
     );
+  }
+
+  #[test]
+  fn oai_message_accepts_plain_string_content() {
+    let raw = r#"{"role":"user","content":"hello there"}"#;
+    let msg: OaiMessage = serde_json::from_str(raw).unwrap();
+    match msg {
+      OaiMessage::User { content, .. } => assert_eq!(content, "hello there"),
+      other => panic!("expected User, got {other:?}"),
+    }
+  }
+
+  /// The upstream gateway (openclaw) sometimes sends the newer multi-part
+  /// content shape instead of a plain string — a strict `String` field
+  /// rejects this with "invalid type: sequence, expected a string" and the
+  /// whole request 400s (this broke real Slack sessions on 2026-08-11).
+  #[test]
+  fn oai_message_flattens_array_content_blocks() {
+    let raw = r#"{"role":"user","content":[{"type":"text","text":"part one"},{"type":"text","text":"part two"}]}"#;
+    let msg: OaiMessage = serde_json::from_str(raw).unwrap();
+    match msg {
+      OaiMessage::User { content, .. } => assert_eq!(content, "part one\npart two"),
+      other => panic!("expected User, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn oai_message_assistant_flattens_array_content_and_handles_null() {
+    let with_blocks =
+      r#"{"role":"assistant","content":[{"type":"text","text":"reply"}],"tool_calls":null}"#;
+    let msg: OaiMessage = serde_json::from_str(with_blocks).unwrap();
+    match msg {
+      OaiMessage::Assistant { content, .. } => assert_eq!(content.as_deref(), Some("reply")),
+      other => panic!("expected Assistant, got {other:?}"),
+    }
+
+    let with_null = r#"{"role":"assistant","content":null,"tool_calls":null}"#;
+    let msg: OaiMessage = serde_json::from_str(with_null).unwrap();
+    match msg {
+      OaiMessage::Assistant { content, .. } => assert_eq!(content, None),
+      other => panic!("expected Assistant, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn oai_message_tool_flattens_array_content() {
+    let raw = r#"{"role":"tool","tool_call_id":"call_1","content":[{"type":"text","text":"tool result"}]}"#;
+    let msg: OaiMessage = serde_json::from_str(raw).unwrap();
+    match msg {
+      OaiMessage::Tool { content, .. } => assert_eq!(content, "tool result"),
+      other => panic!("expected Tool, got {other:?}"),
+    }
   }
 }
