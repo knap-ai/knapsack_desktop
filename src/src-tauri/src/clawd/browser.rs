@@ -1472,6 +1472,40 @@ fn clamp_inline_text(text: &str, max_chars: usize, reason: &str) -> String {
   )
 }
 
+fn local_file_request_requires_inspection(text: &str) -> bool {
+  let lower = text.to_ascii_lowercase();
+  [
+    "disk space",
+    "storage space",
+    "free up space",
+    "running out of space",
+    "downloads folder",
+    "downloads directory",
+    "~/downloads",
+    "specific files for deletion",
+    "files should i delete",
+    "files can i delete",
+  ]
+  .iter()
+  .any(|needle| lower.contains(needle))
+}
+
+fn incorrectly_denies_local_file_access(reply: &str) -> bool {
+  let lower = reply.to_ascii_lowercase();
+  [
+    "don't have direct access to your personal file system",
+    "do not have direct access to your personal file system",
+    "can't directly peek into your",
+    "cannot directly peek into your",
+    "can't directly list the contents",
+    "cannot directly list the contents",
+    "no direct method to browse or list files",
+    "sandboxed, restricted environment",
+  ]
+  .iter()
+  .any(|needle| lower.contains(needle))
+}
+
 fn trim_memory_notes(memory_notes: &[String]) -> Vec<String> {
   const MAX_MEMORY_NOTES: usize = 6;
   const MAX_MEMORY_NOTE_CHARS: usize = 240;
@@ -5250,6 +5284,17 @@ This loop is your primary workflow. Use it constantly.
     String::new()
   };
 
+  let local_files_section = r#"
+
+## LOCAL FILE ACCESS — CAPABILITY TRUTH
+You are running inside the Knapsack desktop app and have direct local filesystem tools in normal mode: `read_file`, `list_directory`, `search_files`, and `run_script`. These tools can inspect paths such as `~/Downloads`, `~/Documents`, and `~/Desktop` without Advanced Mode.
+
+- When a request depends on the user's actual files or disk usage, inspect them with a tool before stating any filenames, sizes, or recommendations.
+- Never invent file sizes or imply that you inspected a directory when you did not.
+- Never claim that you are generically sandboxed away from the user's files. If a tool returns an OS permission error, report that exact error and explain the specific macOS or Windows permission that is needed.
+- Reading and analysis are allowed without confirmation. Ask before deleting or irreversibly modifying files.
+"#.to_string();
+
   // Skills section — inform the agent about available skills
   let skills_section = r#"
 
@@ -5329,7 +5374,7 @@ No email account is directly connected via the send_email tool. However, you CAN
   } else {
     format!(
       r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -5751,6 +5796,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       autonomy_section,
       meeting_section,
       advanced_section,
+      local_files_section,
       skills_section,
       platform_section,
       email_section,
@@ -6030,6 +6076,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
   let mut tool_iter = 0u32;
   let mut prompt_compaction_alerted = false;
+  let mut local_capability_retry_used = false;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
@@ -6540,6 +6587,19 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
     if choice.message.tool_calls.is_empty() {
       let reply = choice.message.content.clone().unwrap_or_default();
+      if !local_capability_retry_used
+        && (local_file_request_requires_inspection(&full_text)
+          || incorrectly_denies_local_file_access(&reply))
+      {
+        local_capability_retry_used = true;
+        eprintln!(
+          "[clawd/chat] local filesystem request returned without a tool call; requiring inspection"
+        );
+        messages.push(chat_agent::OaiMessage::System {
+          content: "The latest user request requires factual local filesystem inspection. Call `run_script`, `list_directory`, `search_files`, or `read_file` now and base the answer on the result. Do not answer from assumptions, invent sizes, or claim generic sandbox restrictions. If the tool fails, report its exact OS error.".to_string(),
+        });
+        continue;
+      }
       // persist history (keep last ~20 messages — omit images to avoid bloating)
       let user_msg = chat_agent::OaiMessage::User {
         content: full_text.clone(),
@@ -7503,11 +7563,12 @@ fn strip_html_tags(html: &str) -> String {
 mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
-    compact_messages_for_provider, fallback_failure_message, is_context_window_error,
-    is_transient_or_internal_provider_error, load_seed_history_from_request,
-    provider_compaction_limits, provider_context_recovery_limits,
-    read_embedded_browser_preference_at, should_attempt_fallback_for_provider_error,
-    jwt_expiry_unix, knapsack_token_is_expired, write_embedded_browser_preference,
+    compact_messages_for_provider, fallback_failure_message, incorrectly_denies_local_file_access,
+    is_context_window_error, is_transient_or_internal_provider_error, jwt_expiry_unix,
+    knapsack_token_is_expired, load_seed_history_from_request,
+    local_file_request_requires_inspection, provider_compaction_limits,
+    provider_context_recovery_limits, read_embedded_browser_preference_at,
+    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -7523,6 +7584,32 @@ mod tests {
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs()
+  }
+
+  #[test]
+  fn disk_cleanup_requests_require_real_local_inspection() {
+    assert!(local_file_request_requires_inspection(
+      "Recommend specific files for deletion from ~/Downloads"
+    ));
+    assert!(local_file_request_requires_inspection(
+      "I am running out of disk space"
+    ));
+    assert!(!local_file_request_requires_inspection(
+      "Explain how cloud object storage works"
+    ));
+  }
+
+  #[test]
+  fn generic_local_access_denials_are_rejected() {
+    assert!(incorrectly_denies_local_file_access(
+      "I don't have direct access to your personal file system."
+    ));
+    assert!(incorrectly_denies_local_file_access(
+      "I operate in a sandboxed, restricted environment."
+    ));
+    assert!(!incorrectly_denies_local_file_access(
+      "macOS returned Operation not permitted while listing ~/Downloads."
+    ));
   }
 
   #[test]

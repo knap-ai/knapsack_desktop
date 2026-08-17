@@ -2009,7 +2009,7 @@ pub async fn send_mobile_chat_message(
   }
 
   let gateway_result =
-    match gateway_client::agent_chat(&request_text, &attachments, None, Some("dm")).await {
+    match gateway_client::agent_chat(&request_text, &attachments, None, Some("dm"), None).await {
       Ok(result) => result,
       Err(err) => {
         log::error!("Mobile chat gateway request failed: {:?}", err);

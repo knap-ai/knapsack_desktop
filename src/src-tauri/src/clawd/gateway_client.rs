@@ -3277,6 +3277,7 @@ pub async fn agent_chat(
   attachments: &[serde_json::Value],
   token: Option<&str>,
   conversation_scope: Option<&str>,
+  session_key: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
   let idem = format!(
@@ -3299,6 +3300,9 @@ pub async fn agent_chat(
   });
   if !scope.is_empty() {
     params["conversationScope"] = serde_json::json!(scope);
+  }
+  if let Some(key) = session_key.map(str::trim).filter(|key| !key.is_empty()) {
+    params["sessionKey"] = serde_json::json!(key);
   }
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
