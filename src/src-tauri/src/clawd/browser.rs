@@ -262,6 +262,31 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   }
 }
 
+/// Resolve a browser profile requested by the desktop UI. Agent-owned profiles
+/// are deliberately namespaced so callers cannot select arbitrary gateway
+/// profiles or smuggle query syntax through the profile value.
+fn desktop_browser_profile(profile: Option<&str>, chrome: Option<bool>) -> Result<String, String> {
+  let Some(raw) = profile.map(str::trim).filter(|value| !value.is_empty()) else {
+    return Ok(clawd_profile(chrome).to_string());
+  };
+  if raw == "openclaw" {
+    return Ok(raw.to_string());
+  }
+  let valid_agent_profile = raw
+    .strip_prefix("agent-")
+    .filter(|id| !id.is_empty() && id.len() <= 48)
+    .map(|id| {
+      id.bytes()
+        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    })
+    .unwrap_or(false);
+  if valid_agent_profile {
+    Ok(raw.to_string())
+  } else {
+    Err("profile must be openclaw or a valid agent-* profile".to_string())
+  }
+}
+
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
 /// This keeps the fallback browser aligned with the gateway-managed profile
 /// instead of opening a second legacy profile under ~/.openclaw.
@@ -1959,6 +1984,9 @@ pub struct OpenBrowserParams {
   /// If true, use the `chrome` profile (Chrome extension relay).
   pub chrome: Option<bool>,
 
+  /// Durable agent-owned browser profile.
+  pub profile: Option<String>,
+
   /// When true, fail closed instead of launching a visible fallback browser.
   /// The embedded browser surface uses this to guarantee popup-free behavior.
   pub embedded: Option<bool>,
@@ -2009,7 +2037,17 @@ pub async fn open_browser(
     });
   }
 
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest().json(OpenBrowserResponse {
+        success: false,
+        message,
+        target_id: None,
+        used_clawdbot: false,
+      })
+    }
+  };
 
   // Try browser control via gateway RPC first
   let rpc_query = serde_json::json!({"profile": profile});
@@ -2042,10 +2080,14 @@ pub async fn open_browser(
     }
   }
 
-  if query.embedded.unwrap_or(false) {
+  // An agent profile is an isolation boundary. Never silently fall back to the
+  // shared managed browser or system browser when that workspace is unavailable.
+  if query.embedded.unwrap_or(false) || profile != "openclaw" {
     return HttpResponse::BadGateway().json(OpenBrowserResponse {
       success: false,
-      message: "The embedded browser is still starting. Please try again in a moment.".to_string(),
+      message: format!(
+        "The {profile} browser workspace is still starting. Please try again in a moment."
+      ),
       target_id: None,
       used_clawdbot: false,
     });
@@ -2076,6 +2118,8 @@ pub struct NavigateBrowserRequest {
 
   #[serde(rename = "targetId")]
   pub target_id: Option<String>,
+
+  pub profile: Option<String>,
 }
 
 #[post("/api/clawd/browser/navigate")]
@@ -2104,10 +2148,18 @@ pub async fn navigate_browser(payload: web::Json<NavigateBrowserRequest>) -> imp
     body["targetId"] = serde_json::json!(target_id);
   }
 
+  let profile = match desktop_browser_profile(payload.profile.as_deref(), None) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
+
   match gateway_client::browser_request(
     "POST",
     "/navigate",
-    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(serde_json::json!({"profile": profile})),
     Some(body),
     None,
   )
@@ -2289,6 +2341,7 @@ pub async fn set_browser_presentation(
 #[derive(Debug, Deserialize)]
 pub struct BrowserProfileQuery {
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2303,7 +2356,13 @@ pub async fn list_tabs(
   _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<BrowserProfileQuery>,
 ) -> impl Responder {
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
     Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
@@ -2317,6 +2376,7 @@ pub struct FocusRequest {
   pub target_id: String,
 
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
 }
 
 #[post("/api/clawd/browser/focus")]
@@ -2325,7 +2385,13 @@ pub async fn focus_tab(
   _cfg: web::Data<SharedClawdbotConfig>,
   payload: web::Json<FocusRequest>,
 ) -> impl Responder {
-  let profile = clawd_profile(payload.chrome);
+  let profile = match desktop_browser_profile(payload.profile.as_deref(), payload.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2352,6 +2418,7 @@ pub async fn focus_tab(
 pub struct SnapshotQuery {
   pub targetId: Option<String>,
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
   pub mode: Option<String>,
   pub refs: Option<String>,
   pub format: Option<String>,
@@ -2365,7 +2432,10 @@ pub async fn snapshot(
   _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<SnapshotQuery>,
 ) -> impl Responder {
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let mut rpc_query = serde_json::json!({"profile": profile});
   if let Some(tid) = query
     .targetId
@@ -2431,13 +2501,18 @@ pub async fn act(
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
-  let profile = clawd_profile(chrome);
+  let requested_profile = body.get("profile").and_then(|v| v.as_str());
+  let profile = match desktop_browser_profile(requested_profile, chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let rpc_query = serde_json::json!({"profile": profile});
 
   // Forward body (minus chrome) to the gateway browser control.
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
+    obj.remove("profile");
   }
 
   match gateway_client::browser_request("POST", "/act", Some(rpc_query), Some(forward), None).await
@@ -6602,12 +6677,17 @@ pub async fn screenshot(
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
-  let profile = clawd_profile(chrome);
+  let requested_profile = body.get("profile").and_then(|v| v.as_str());
+  let profile = match desktop_browser_profile(requested_profile, chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let rpc_query = serde_json::json!({"profile": profile});
 
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
+    obj.remove("profile");
   }
 
   match gateway_client::browser_request("POST", "/screenshot", Some(rpc_query), Some(forward), None)
@@ -6629,6 +6709,7 @@ pub async fn screenshot(
 pub struct BrowserViewQuery {
   #[serde(rename = "targetId")]
   pub target_id: Option<String>,
+  pub profile: Option<String>,
 }
 
 fn screenshot_path_from_result(result: &JsonValue) -> Option<PathBuf> {
@@ -6646,6 +6727,15 @@ fn screenshot_path_from_result(result: &JsonValue) -> Option<PathBuf> {
 /// React browser pane to render the exact tab OpenClaw is operating.
 #[get("/api/clawd/browser/view")]
 pub async fn browser_view(query: web::Query<BrowserViewQuery>) -> impl Responder {
+  let profile = match desktop_browser_profile(query.profile.as_deref(), None) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest().json(serde_json::json!({
+        "success": false,
+        "message": message,
+      }))
+    }
+  };
   let mut body = serde_json::json!({"type": "jpeg", "timeoutMs": 8000});
   if let Some(target_id) = query
     .target_id
@@ -6659,7 +6749,7 @@ pub async fn browser_view(query: web::Query<BrowserViewQuery>) -> impl Responder
   let result = match gateway_client::browser_request(
     "POST",
     "/screenshot",
-    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(serde_json::json!({"profile": profile})),
     Some(body),
     None,
   )
@@ -7433,6 +7523,29 @@ mod tests {
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs()
+  }
+
+  #[test]
+  fn desktop_browser_profiles_allow_only_managed_agent_namespace() {
+    assert_eq!(
+      super::desktop_browser_profile(Some("agent-scout"), None).unwrap(),
+      "agent-scout"
+    );
+    assert_eq!(
+      super::desktop_browser_profile(Some("openclaw"), None).unwrap(),
+      "openclaw"
+    );
+    assert!(super::desktop_browser_profile(Some("agent-Scout"), None).is_err());
+    assert!(super::desktop_browser_profile(Some("work"), None).is_err());
+    assert!(super::desktop_browser_profile(Some("agent-../../personal"), None).is_err());
+  }
+
+  #[test]
+  fn desktop_browser_profile_defaults_to_existing_openclaw_behavior() {
+    assert_eq!(
+      super::desktop_browser_profile(None, None).unwrap(),
+      "openclaw"
+    );
   }
 
   #[test]

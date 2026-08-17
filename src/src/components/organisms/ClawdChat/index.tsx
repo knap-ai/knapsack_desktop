@@ -1923,12 +1923,21 @@ interface ClawdChatProps {
   /** Render with a tighter header for embedded surfaces. */
   compact?: boolean
   title?: string
+  /** Stable identity for this chat's durable local history. */
+  chatId?: string
+  /** Stable gateway/harness session identity. */
+  sessionId?: string
+  /** Browser profile owned by this chat's agent. */
+  browserProfile?: string
+  agentName?: string
+  agentPersonality?: string
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat' }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality }: ClawdChatProps = {}) {
+  const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
-    const stored = localStorage.getItem(CHAT_HISTORY_STORAGE)
+    const stored = localStorage.getItem(chatHistoryStorage)
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Msg[]
@@ -2264,7 +2273,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return { tooltip: lines.join('\n'), colorClass }
   }, [channelStatus.whatsapp, channelStatus.imessage, channelStatus.telegram, channelStatus.genericChannels, channelStatus.channelErrors, channelStatus.gatewayHealthy, channelStatus.gatewayStarting])
 
-  const onboardingAgentsData = useMemo(() => getOnboardingAgentsPrompt(), [])
+  const onboardingAgentsData = useMemo(
+    () => (chatId === 'main' ? getOnboardingAgentsPrompt() : null),
+    [chatId],
+  )
 
   const welcomeMessages = useMemo(
     () => {
@@ -2293,6 +2305,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ]
       }
 
+      if (agentName) {
+        return [
+          {
+            id: 'welcome-1',
+            role: 'assistant' as Role,
+            text: `Hi, I'm ${agentName} — ${agentPersonality || 'your AI teammate'}. This is our dedicated chat, and I have a separate browser workspace for the work you give me.`,
+            ts: Date.now(),
+          },
+          {
+            id: 'welcome-2',
+            role: 'assistant' as Role,
+            text: 'What should we work on?',
+            ts: Date.now() + 1,
+            promptActions: [
+              { label: 'Help me plan my priorities', prompt: 'Help me plan my priorities for today.' },
+              { label: 'Review what needs attention', prompt: 'Review my connected information and tell me what needs my attention.' },
+            ],
+          },
+        ]
+      }
+
       return [
       {
         id: 'welcome-1',
@@ -2312,7 +2345,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ],
       },
     ]},
-    [onboardingAgentsData],
+    [agentName, agentPersonality, onboardingAgentsData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -3960,9 +3993,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     // Only save if we have messages beyond the initial welcome
     const nonWelcomeMsgs = msgs.filter(m => !m.id.startsWith('welcome-') && !m.id.startsWith('example-'))
     if (nonWelcomeMsgs.length > 0) {
-      localStorage.setItem(CHAT_HISTORY_STORAGE, JSON.stringify(msgs))
+      localStorage.setItem(chatHistoryStorage, JSON.stringify(msgs))
     }
-  }, [msgs])
+  }, [chatHistoryStorage, msgs])
 
 
   const refreshStatus = async () => {
@@ -4109,16 +4142,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Clear chat history and start fresh
   const clearHistory = useCallback(() => {
-    localStorage.removeItem(CHAT_HISTORY_STORAGE)
+    localStorage.removeItem(chatHistoryStorage)
     setMsgs(welcomeMessages)
     autoTriggeredBriefingRef.current = false
-  }, [welcomeMessages])
+  }, [chatHistoryStorage, welcomeMessages])
 
   // Auto-trigger initial briefing for onboarded users with email/calendar connected.
   // Fires once per session when: onboarding is complete, gateway is healthy,
   // and only welcome messages are showing (no prior chat history).
   useEffect(() => {
     if (
+      chatId === 'main' &&
       hasCompletedOnboarding &&
       health?.gateway_ok &&
       !autoTriggeredBriefingRef.current &&
@@ -4143,7 +4177,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       }, 800)
       return () => clearTimeout(timer)
     }
-  }, [hasCompletedOnboarding, health?.gateway_ok, busy, advancedMode, developerMode, autonomyMode, msgs])
+  }, [chatId, hasCompletedOnboarding, health?.gateway_ok, busy, advancedMode, developerMode, autonomyMode, msgs])
 
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)
@@ -4159,7 +4193,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }
 
   const getTabs = async (): Promise<Tab[]> => {
-    const res = await apiGet<TabsResponse>('/api/clawd/browser/tabs')
+    const query = new URLSearchParams({ profile: browserProfile })
+    const res = await apiGet<TabsResponse>(`/api/clawd/browser/tabs?${query}`)
     if (!res.success) throw new Error(res.message || 'tabs failed')
     return res.tabs || []
   }
@@ -4284,7 +4319,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       e.preventDefault()
       e.stopPropagation()
       if (href && href.startsWith('http')) {
-        openBesideApp(href).catch(err => console.error('Failed to open link:', err))
+        openBesideApp(href, browserProfile).catch(err => console.error('Failed to open link:', err))
       }
     }
     return (
@@ -4292,7 +4327,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         {children}
       </a>
     )
-  }, []) as Components['a']
+  }, [browserProfile]) as Components['a']
 
   // Custom code block renderer with Copy + Run in Terminal buttons
   const ChatCodeBlock: Components['pre'] = useCallback(({ children }: any) => {
@@ -4522,7 +4557,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const urlToOpen = openMatch?.[1] || bareUrl?.[1]
         if (urlToOpen) {
           const fullUrl = urlToOpen.startsWith('http') ? urlToOpen : `https://${urlToOpen}`
-          openBesideApp(fullUrl).catch(err => console.error('[chat] Failed to open URL:', err))
+          openBesideApp(fullUrl, browserProfile).catch(err => console.error('[chat] Failed to open URL:', err))
         }
       }
 
@@ -4554,7 +4589,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           pushAssistant(`No tab at index ${idx}. Run: tabs`)
           return
         }
-        const resText = await apiPostText('/api/clawd/browser/focus', { targetId: t.targetId })
+        const resText = await apiPostText('/api/clawd/browser/focus', {
+          targetId: t.targetId,
+          profile: browserProfile,
+        })
         setCurrentTargetId(t.targetId)
         pushAssistant(formatMaybeJson(resText))
         return
@@ -4566,6 +4604,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         if (targetId) qs.set('targetId', targetId)
         qs.set('format', 'ai')
         qs.set('refs', 'aria')
+        qs.set('profile', browserProfile)
         const snap = await apiGetText(`/api/clawd/browser/snapshot?${qs.toString()}`)
         pushAssistant(formatMaybeJson(snap, 12000))
         return
@@ -4573,7 +4612,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       if (cmd === 'screenshot') {
         const targetId = currentTargetId || undefined
-        const body: any = { type: 'png' }
+        const body: any = { type: 'png', profile: browserProfile }
         if (targetId) body.targetId = targetId
         const out = await apiPostText('/api/clawd/browser/screenshot', body)
         pushAssistant(formatMaybeJson(out))
@@ -4590,6 +4629,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const out = await apiPostText('/api/clawd/browser/act', {
           kind: 'click',
           targetId: currentTargetId || undefined,
+          profile: browserProfile,
           ref,
         })
         pushAssistant(formatMaybeJson(out))
@@ -4607,6 +4647,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const out = await apiPostText('/api/clawd/browser/act', {
           kind: 'type',
           targetId: currentTargetId || undefined,
+          profile: browserProfile,
           ref,
           text: t,
         })
@@ -4895,7 +4936,7 @@ ${actualText}`
           provider: providerAtSend,
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
-          sessionId: 'ui',
+          sessionId,
           tone: selectedTone,
           tonePrompt,
           voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
@@ -4904,7 +4945,7 @@ ${actualText}`
           developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
-          memoryNotes: trimMemoryNotes(getAgentMemory('knapsack-chat')), // Persistent cross-session context
+          memoryNotes: trimMemoryNotes(getAgentMemory(`knapsack-chat:${chatId}`)), // Persistent per-agent context
         }
 
         // Add attachments if present
@@ -4944,7 +4985,7 @@ ${actualText}`
               provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
-              sessionId: 'ui',
+              sessionId,
               advancedMode,
               userEmail: userEmail || '',
               userName: userName || '',

@@ -7,9 +7,10 @@ const BACKEND = 'http://127.0.0.1:8897'
  * Lets the opted-in embedded browser handle URLs in place. When it is disabled
  * or unavailable, keep the existing managed-Chrome/system fallback.
  */
-export async function openBesideApp(url: string) {
+export async function openBesideApp(url: string, profile = 'openclaw') {
+  const isIsolatedAgentProfile = profile.startsWith('agent-')
   const embeddedEvent = new CustomEvent('knapsack:open-browser', {
-    detail: { url },
+    detail: { url, profile },
     cancelable: true,
   })
   const handledInApp = !window.dispatchEvent(embeddedEvent)
@@ -17,12 +18,16 @@ export async function openBesideApp(url: string) {
 
   try {
     const res = await fetch(
-      `${BACKEND}/api/clawd/browser/open?${new URLSearchParams({ url }).toString()}`,
+      `${BACKEND}/api/clawd/browser/open?${new URLSearchParams({ url, profile }).toString()}`,
     )
     if (!res.ok) {
+      if (isIsolatedAgentProfile) {
+        throw new Error(`Agent browser profile ${profile} is unavailable`)
+      }
       await open(url)
     }
-  } catch {
+  } catch (error) {
+    if (isIsolatedAgentProfile) throw error
     await open(url)
   }
   setTimeout(() => {

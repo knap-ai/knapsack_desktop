@@ -37,6 +37,19 @@ const BREAKER_COOLDOWN: Duration = Duration::from_secs(15);
 
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 static LAST_BROWSER_RPC_SUCCESS_MS: AtomicU64 = AtomicU64::new(0);
+
+/// Starter teammates each get a durable managed Chromium profile. OpenClaw
+/// launches these lazily, so the profiles do not consume a browser process
+/// until the agent actually needs one.
+pub fn knapsack_agent_browser_profiles() -> Value {
+  serde_json::json!({
+    "agent-polly": {"cdpPort": 18810, "color": "#A855F7"},
+    "agent-scout": {"cdpPort": 18811, "color": "#6474AC"},
+    "agent-atlas": {"cdpPort": 18812, "color": "#0F766E"},
+    "agent-coach": {"cdpPort": 18813, "color": "#C14841"}
+  })
+}
+
 fn next_request_id() -> String {
   REQUEST_ID.fetch_add(1, Ordering::SeqCst).to_string()
 }
@@ -548,6 +561,34 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
       .unwrap()
       .insert("browser".into(), serde_json::json!({}));
     patched = true;
+  }
+
+  if cfg
+    .pointer("/browser/profiles")
+    .and_then(|v| v.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/browser")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("profiles".into(), serde_json::json!({}));
+    patched = true;
+  }
+  if let Some(starter_profiles) = knapsack_agent_browser_profiles().as_object() {
+    let profiles = cfg
+      .pointer_mut("/browser/profiles")
+      .unwrap()
+      .as_object_mut()
+      .unwrap();
+    for (name, definition) in starter_profiles {
+      if !profiles.contains_key(name) {
+        profiles.insert(name.clone(), definition.clone());
+        eprintln!("[gateway_client] Added managed browser profile {name}");
+        patched = true;
+      }
+    }
   }
 
   // browser.enabled = true
@@ -1781,7 +1822,8 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
       "enabled": true,
       "headless": false,
       "defaultProfile": "openclaw",
-      "noSandbox": no_sandbox
+      "noSandbox": no_sandbox,
+      "profiles": knapsack_agent_browser_profiles()
     },
     "tools": {
       "deny": ["canvas", "nodes", "cron", "gateway"],
@@ -3342,6 +3384,22 @@ mod tests {
     let mut f = NamedTempFile::new().unwrap();
     f.write_all(content.as_bytes()).unwrap();
     f
+  }
+
+  #[test]
+  fn starter_agent_browser_profiles_are_unique_and_lazy_managed_profiles() {
+    let profiles = knapsack_agent_browser_profiles();
+    let profiles = profiles.as_object().unwrap();
+    assert_eq!(profiles.len(), 4);
+
+    let mut ports = profiles
+      .values()
+      .filter_map(|profile| profile.get("cdpPort").and_then(Value::as_u64))
+      .collect::<Vec<_>>();
+    ports.sort_unstable();
+    ports.dedup();
+    assert_eq!(ports.len(), 4);
+    assert!(profiles.keys().all(|name| name.starts_with("agent-")));
   }
 
   fn read_model_from_config(val: &Value) -> String {

@@ -61,6 +61,7 @@ import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
 import { buildFollowUpEmailBody } from 'src/utils/emails'
+import { loadTeamRoster, TeamAgent } from 'src/agents/teamRoster'
 
 export interface ToastrState {
   message?: ReactElement
@@ -115,12 +116,27 @@ function Home({
     )
   })
   const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('')
+  const [embeddedBrowserProfile, setEmbeddedBrowserProfile] = useState('openclaw')
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const isResizingRef = useRef(false)
+
+  const activeAgent = useMemo(
+    () => teamAgents.find(agent => agent.id === activeAgentId) ?? null,
+    [activeAgentId, teamAgents],
+  )
+  const activeChatId = activeAgent ? `agent-${activeAgent.id}` : 'main'
+  const activeBrowserProfile = activeAgent?.browserProfile ?? 'openclaw'
+  const activeAgentContext = activeAgent
+    ? `You are ${activeAgent.name}, one member of the user's Knapsack team. ${activeAgent.soul}
+
+Stay within your role: ${activeAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeAgent.browserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
+    : undefined
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -201,11 +217,12 @@ function Home({
 
   useEffect(() => {
     const handleOpenInBrowser = (event: Event) => {
-      const browserEvent = event as CustomEvent<{ url?: string }>
+      const browserEvent = event as CustomEvent<{ url?: string; profile?: string }>
       const url = browserEvent.detail?.url?.trim()
       if (!url || !embeddedBrowserEnabled) return
       browserEvent.preventDefault()
       setEmbeddedBrowserUrl(url)
+      setEmbeddedBrowserProfile(browserEvent.detail?.profile || activeBrowserProfile)
       setShowActivityPanel(false)
       setShowEmbeddedBrowser(true)
       setCurrentTab(TabChoices.Openclaw)
@@ -227,7 +244,13 @@ function Home({
       window.removeEventListener('knapsack:open-browser', handleOpenInBrowser)
       window.removeEventListener('knapsack:browser-mode-changed', handleBrowserModeChanged)
     }
-  }, [embeddedBrowserEnabled])
+  }, [activeBrowserProfile, embeddedBrowserEnabled])
+
+  useEffect(() => {
+    const refreshRoster = () => setTeamAgents(loadTeamRoster())
+    window.addEventListener('knapsack:team-roster-changed', refreshRoster)
+    return () => window.removeEventListener('knapsack:team-roster-changed', refreshRoster)
+  }, [])
 
   // Listen for /autopilot slash command to force-open the email drawer
   useEffect(() => {
@@ -601,6 +624,20 @@ function Home({
                 : 'home'
             }
             recordingHandlers={recordingHandlers}
+            teamAgents={teamAgents}
+            activeAgentId={activeAgentId}
+            onAgentSelect={agent => {
+              setActiveAgentId(agent.id)
+              setEmbeddedBrowserProfile(agent.browserProfile)
+              setCurrentTab(TabChoices.Openclaw)
+              setMeetingSubView('chat')
+            }}
+            onTeamChatSelect={() => {
+              setActiveAgentId(null)
+              setEmbeddedBrowserProfile('openclaw')
+              setCurrentTab(TabChoices.Openclaw)
+              setMeetingSubView('chat')
+            }}
           />
           <div data-tauri-drag-region className="overflow-hidden w-full h-full">
             <div className="KNWorkspace overflow-hidden w-full h-full bg-ks-bg-main relative">
@@ -657,6 +694,7 @@ function Home({
               <div className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}>
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
+                      key={activeChatId}
                       showActivityPanel={showActivityPanel}
                       onToggleActivity={() => setShowActivityPanel(prev => !prev)}
                       onCloseActivity={() => setShowActivityPanel(false)}
@@ -664,6 +702,13 @@ function Home({
                       userName={userName}
                       onBusyChange={setIsChatBusy}
                       openProviderPanel={openProviderPanelTrigger}
+                      chatId={activeChatId}
+                      sessionId={activeAgent ? `ui-agent-${activeAgent.id}` : 'ui'}
+                      contextPrefix={activeAgentContext}
+                      browserProfile={activeBrowserProfile}
+                      agentName={activeAgent?.name}
+                      agentPersonality={activeAgent?.personality}
+                      title={activeAgent ? `${activeAgent.emoji} ${activeAgent.name}` : 'Knapsack Chat'}
                     />
                   </div>
                   {!showEmbeddedBrowser && showActivityPanel && (
@@ -700,7 +745,9 @@ function Home({
                   )}
                   {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
                     <EmbeddedBrowserSidebar
+                      key={embeddedBrowserProfile}
                       requestedUrl={embeddedBrowserUrl}
+                      browserProfile={embeddedBrowserProfile}
                       onClose={() => {
                         setShowEmbeddedBrowser(false)
                         setEmbeddedBrowserUrl('')
@@ -731,6 +778,7 @@ function Home({
                       aria-label="Open browser"
                       onClick={() => {
                         setShowActivityPanel(false)
+                        setEmbeddedBrowserProfile(activeBrowserProfile)
                         setShowEmbeddedBrowser(true)
                         localStorage.setItem('knapsack.browser.sidebar.open', 'true')
                       }}

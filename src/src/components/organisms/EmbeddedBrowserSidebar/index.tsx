@@ -59,11 +59,11 @@ function tabsFromEnvelope(envelope: TabsEnvelope): BrowserTab[] {
   return Array.isArray(envelope.data?.tabs) ? envelope.data.tabs : []
 }
 
-async function postBrowserAction(body: Record<string, unknown>) {
+async function postBrowserAction(body: Record<string, unknown>, profile: string) {
   const response = await fetch(`${BACKEND}/api/clawd/browser/act`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, profile }),
   })
   if (!response.ok) {
     const message = await response.text()
@@ -73,10 +73,11 @@ async function postBrowserAction(body: Record<string, unknown>) {
 
 interface EmbeddedBrowserSidebarProps {
   requestedUrl?: string
+  browserProfile?: string
   onClose: () => void
 }
 
-function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSidebarProps) {
+function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onClose }: EmbeddedBrowserSidebarProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const screenshotUrlRef = useRef('')
@@ -106,13 +107,14 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
           targetId,
           width: Math.round(width),
           height: Math.round(height),
-        }).catch(() => undefined)
+        }, browserProfile).catch(() => undefined)
       }
     }
-  }, [])
+  }, [browserProfile])
 
   const refreshTabs = useCallback(async () => {
-    const response = await fetch(`${BACKEND}/api/clawd/browser/tabs`, {
+    const query = new URLSearchParams({ profile: browserProfile })
+    const response = await fetch(`${BACKEND}/api/clawd/browser/tabs?${query}`, {
       cache: 'no-store',
     })
     if (!response.ok) throw new Error('The shared browser is still starting')
@@ -135,7 +137,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
     }
     setCurrentTitle(selected.title || '')
     return tabs
-  }, [selectTarget])
+  }, [browserProfile, selectTarget])
 
   const refreshScreenshot = useCallback(async () => {
     if (screenshotPendingRef.current || !currentTargetIdRef.current) return
@@ -143,6 +145,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
     try {
       const query = new URLSearchParams({
         targetId: currentTargetIdRef.current,
+        profile: browserProfile,
         t: String(Date.now()),
       })
       const response = await fetch(`${BACKEND}/api/clawd/browser/view?${query}`, {
@@ -164,7 +167,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
     } finally {
       screenshotPendingRef.current = false
     }
-  }, [])
+  }, [browserProfile])
 
   const navigate = useCallback(
     async (value: string) => {
@@ -183,11 +186,12 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
             body: JSON.stringify({
               url,
               targetId: currentTargetIdRef.current,
+              profile: browserProfile,
             }),
           })
           if (!response.ok) throw new Error(await response.text())
         } else {
-          const query = new URLSearchParams({ url, embedded: 'true' })
+          const query = new URLSearchParams({ url, embedded: 'true', profile: browserProfile })
           const response = await fetch(`${BACKEND}/api/clawd/browser/open?${query}`)
           const result = (await response.json()) as OpenBrowserResponse
           if (!response.ok || !result.success) {
@@ -205,7 +209,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
         navigationPendingRef.current = false
       }
     },
-    [refreshScreenshot, refreshTabs, selectTarget],
+    [browserProfile, refreshScreenshot, refreshTabs, selectTarget],
   )
 
   useEffect(() => {
@@ -276,7 +280,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
           targetId: currentTargetIdRef.current,
           width: Math.round(width),
           height: Math.round(height),
-        }).catch(() => undefined)
+        }, browserProfile).catch(() => undefined)
       }, 180)
     })
     resizeObserver.observe(viewport)
@@ -284,7 +288,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
       resizeObserver.disconnect()
       window.clearTimeout(resizeTimerRef.current)
     }
-  }, [])
+  }, [browserProfile])
 
   const submitAddress = (event: FormEvent) => {
     event.preventDefault()
@@ -306,7 +310,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
         kind: 'evaluate',
         targetId: currentTargetIdRef.current,
         fn,
-      })
+      }, browserProfile)
       window.setTimeout(() => {
         refreshTabs().catch(() => undefined)
         refreshScreenshot()
@@ -337,7 +341,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
         targetId: currentTargetIdRef.current,
         x: Math.round(x),
         y: Math.round(y),
-      })
+      }, browserProfile)
       window.setTimeout(refreshScreenshot, 180)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -377,7 +381,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
       kind: 'press',
       targetId: currentTargetIdRef.current,
       key: parts.join('+'),
-    })
+    }, browserProfile)
       .then(() => window.setTimeout(refreshScreenshot, 120))
       .catch(err => setError(err instanceof Error ? err.message : String(err)))
   }
@@ -392,7 +396,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
       fn: `() => window.scrollBy({ top: ${Math.round(event.deltaY)}, left: ${Math.round(
         event.deltaX,
       )}, behavior: "auto" })`,
-    })
+    }, browserProfile)
       .then(() => window.setTimeout(refreshScreenshot, 100))
       .catch(err => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => {
@@ -403,7 +407,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, onClose }: EmbeddedBrowserSideba
   }
 
   return (
-    <aside className="EmbeddedBrowserSidebar" aria-label="Embedded browser">
+    <aside className="EmbeddedBrowserSidebar" aria-label={`Embedded browser (${browserProfile})`}>
       <div className="EmbeddedBrowserToolbar">
         <div className="EmbeddedBrowserNav">
           <button
