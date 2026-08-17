@@ -1529,7 +1529,11 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
   } = props
-  const [input, setInput] = useState('')
+  // Keep the draft in the native textarea instead of React state. This leaves
+  // keystrokes on the browser's fast path; React only needs to render when the
+  // draft crosses the empty/non-empty boundary for button state.
+  const inputRef = useRef('')
+  const [hasInput, setHasInput] = useState(false)
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1543,21 +1547,28 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 
   useEffect(() => {
     if (initialValue) {
-      setInput(initialValue)
+      inputRef.current = initialValue
+      setHasInput(initialValue.trim().length > 0)
+      if (textareaRef.current) textareaRef.current.value = initialValue
       setTimeout(() => textareaRef.current?.focus(), 150)
     }
   }, [initialValue])
 
+  const clearInput = () => {
+    inputRef.current = ''
+    setHasInput(false)
+    if (textareaRef.current) {
+      textareaRef.current.value = ''
+      textareaRef.current.style.height = 'auto'
+    }
+  }
+
   const handleSend = () => {
-    const text = input.trim()
+    const text = inputRef.current.trim()
     if (!text && attachedFiles.length === 0) return
 
     onSend(text)
-    setInput('')
-    // Reset textarea height after send
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
+    clearInput()
   }
 
   // Auto-resize textarea to fit content.
@@ -1648,10 +1659,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           <textarea
             ref={textareaRef}
             data-testid="qa-clawd-chat-input"
-            value={input}
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
-              setInput(e.target.value)
+              const nextInput = e.currentTarget.value
+              inputRef.current = nextInput
+              const nextHasInput = nextInput.trim().length > 0
+              setHasInput(previous => previous === nextHasInput ? previous : nextHasInput)
               autoResize()
               if (debugPerf) {
                 performance.mark('ks:chatInput:onChange:end')
@@ -1659,13 +1672,14 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               }
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault()
                 if (busy) {
                   // Queue the message to send after current request completes
-                  if (input.trim() || attachedFiles.length > 0) {
-                    onQueue(input.trim(), attachedFiles)
-                    setInput('')
+                  const text = inputRef.current.trim()
+                  if (text || attachedFiles.length > 0) {
+                    onQueue(text, attachedFiles)
+                    clearInput()
                     autoResize()
                   }
                 } else {
@@ -1701,11 +1715,12 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               ⏹️ Stop
             </button>
             <button
-              disabled={!input.trim() && attachedFiles.length === 0}
+              disabled={!hasInput && attachedFiles.length === 0}
               onClick={() => {
-                if (input.trim() || attachedFiles.length > 0) {
-                  onQueue(input.trim(), attachedFiles)
-                  setInput('')
+                const text = inputRef.current.trim()
+                if (text || attachedFiles.length > 0) {
+                  onQueue(text, attachedFiles)
+                  clearInput()
                   autoResize()
                 }
               }}
@@ -1715,7 +1730,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             </button>
           </>
         ) : (
-          <button disabled={!input.trim() && attachedFiles.length === 0} onClick={handleSend}>
+          <button disabled={!hasInput && attachedFiles.length === 0} onClick={handleSend}>
             Send
           </button>
         )}
@@ -5216,6 +5231,7 @@ ${actualText}`
   const stopGenerationRef = useRef(stopGeneration)
   stopGenerationRef.current = stopGeneration
   const stableStopGeneration = useCallback(() => { stopGenerationRef.current() }, [])
+  const stableCancelReply = useCallback(() => setReplyToMsg(null), [])
 
   // Queue a message to send after the current request completes
   const stableQueueMessage = useCallback((text: string, attachments: Attachment[] = []) => {
@@ -6125,7 +6141,7 @@ ${actualText}`
         onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
         replyToMsg={replyToMsg}
-        onCancelReply={() => setReplyToMsg(null)}
+        onCancelReply={stableCancelReply}
         initialValue={initialInput}
       />
       </div>
