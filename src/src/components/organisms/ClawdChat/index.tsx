@@ -1533,6 +1533,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   // keystrokes on the browser's fast path; React only needs to render when the
   // draft crosses the empty/non-empty boundary for button state.
   const inputRef = useRef('')
+  const hasInputRef = useRef(false)
   const [hasInput, setHasInput] = useState(false)
   const debugPerf = useMemo(() => localStorage.getItem('KS_DEBUG_CHAT_PERF') === 'true', [])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -1548,7 +1549,8 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   useEffect(() => {
     if (initialValue) {
       inputRef.current = initialValue
-      setHasInput(initialValue.trim().length > 0)
+      hasInputRef.current = initialValue.trim().length > 0
+      setHasInput(hasInputRef.current)
       if (textareaRef.current) textareaRef.current.value = initialValue
       setTimeout(() => textareaRef.current?.focus(), 150)
     }
@@ -1556,6 +1558,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
 
   const clearInput = () => {
     inputRef.current = ''
+    hasInputRef.current = false
     setHasInput(false)
     if (textareaRef.current) {
       textareaRef.current.value = ''
@@ -1664,7 +1667,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
               const nextInput = e.currentTarget.value
               inputRef.current = nextInput
               const nextHasInput = nextInput.trim().length > 0
-              setHasInput(previous => previous === nextHasInput ? previous : nextHasInput)
+              if (nextHasInput !== hasInputRef.current) {
+                hasInputRef.current = nextHasInput
+                setHasInput(nextHasInput)
+              }
               autoResize()
               if (debugPerf) {
                 performance.mark('ks:chatInput:onChange:end')
