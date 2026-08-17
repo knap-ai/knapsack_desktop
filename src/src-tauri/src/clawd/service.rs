@@ -10950,7 +10950,8 @@ async fn prepare_gateway_config(
       "browser": {
         "enabled": true,
         "headless": false,           // existing-user-compatible visible browser default
-        "defaultProfile": "openclaw" // managed, isolated profile
+        "defaultProfile": "openclaw", // managed, isolated profile
+        "profiles": crate::clawd::gateway_client::knapsack_agent_browser_profiles()
       },
       "plugins": {
         "allow": KNAPSACK_REQUIRED_PLUGINS,
@@ -12990,7 +12991,8 @@ pub async fn set_service_enabled(
           "browser": {
             "enabled": true,
             "headless": false,
-            "defaultProfile": "openclaw"
+            "defaultProfile": "openclaw",
+            "profiles": crate::clawd::gateway_client::knapsack_agent_browser_profiles()
           },
           "plugins": {
             "allow": KNAPSACK_REQUIRED_PLUGINS,

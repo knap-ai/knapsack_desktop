@@ -11,6 +11,7 @@ import {
   microsoftConnections,
 } from 'src/api/connections'
 import { AGENT_TEMPLATES } from 'src/automations/agentTemplates'
+import { upsertTeamAgents } from 'src/agents/teamRoster'
 import { AutomationDataSources, CadenceType } from 'src/automations/automation'
 import Prompt from 'src/automations/steps/Prompt'
 import SemanticSearch from 'src/automations/steps/SemanticSearch'
@@ -415,8 +416,10 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
       name: s.identity.displayName,
       emoji: s.identity.emoji,
       personality: s.identity.personality,
+      soul: s.identity.soul,
     }))
     localStorage.setItem('kn_onboarding_agents', JSON.stringify(activatedAgentsForChat))
+    upsertTeamAgents(activatedAgentsForChat)
 
     // Build the list for the Telegram setup step
     const telegramEntries: AgentTelegramEntry[] = enabledSelections.map(s => ({

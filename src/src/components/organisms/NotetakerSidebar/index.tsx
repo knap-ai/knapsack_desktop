@@ -10,6 +10,7 @@ import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { TabChoices } from 'src/components/TabBar'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
+import { TeamAgent } from 'src/agents/teamRoster'
 
 import './style.scss'
 
@@ -24,6 +25,10 @@ interface NotetakerSidebarProps {
   activeView?: 'home' | 'chat'
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   recordingHandlers?: RecordingContextProps
+  teamAgents?: TeamAgent[]
+  activeAgentId?: string | null
+  onAgentSelect?: (agent: TeamAgent) => void
+  onTeamChatSelect?: () => void
 }
 
 function NotetakerSidebar({
@@ -37,6 +42,10 @@ function NotetakerSidebar({
   activeView = 'home',
   onLibraryWorkspaceOpen,
   recordingHandlers,
+  teamAgents = [],
+  activeAgentId,
+  onAgentSelect,
+  onTeamChatSelect,
 }: NotetakerSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -404,6 +413,48 @@ function NotetakerSidebar({
 
       {/* Scrollable content */}
       <div className="notetaker-sidebar__content">
+        {teamAgents.length > 0 && (
+          <section className="notetaker-sidebar__team" aria-label="Your team">
+            <div className="notetaker-sidebar__team-header">
+              <h2 className="notetaker-sidebar__section-title">Your team</h2>
+            </div>
+            <div className="notetaker-sidebar__team-list">
+              <button
+                type="button"
+                className={`notetaker-sidebar__team-agent ${activeAgentId == null ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                onClick={onTeamChatSelect}
+                aria-pressed={activeAgentId == null}
+              >
+                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">🧭</span>
+                <span className="notetaker-sidebar__team-copy">
+                  <span className="notetaker-sidebar__team-name">Knapsack</span>
+                  <span className="notetaker-sidebar__team-role">Coordinate your whole team</span>
+                </span>
+                <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+              </button>
+              {teamAgents.map(agent => (
+                <button
+                  type="button"
+                  key={agent.id}
+                  className={`notetaker-sidebar__team-agent ${activeAgentId === agent.id ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                  onClick={() => onAgentSelect?.(agent)}
+                  aria-pressed={activeAgentId === agent.id}
+                >
+                  <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                    {agent.emoji}
+                    <span className="notetaker-sidebar__team-presence" />
+                  </span>
+                  <span className="notetaker-sidebar__team-copy">
+                    <span className="notetaker-sidebar__team-name">{agent.name}</span>
+                    <span className="notetaker-sidebar__team-role">{agent.personality}</span>
+                  </span>
+                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Connect calendar prompt */}
         {!hasCalendarConnected && (
           <div className="notetaker-sidebar__connect-prompt">

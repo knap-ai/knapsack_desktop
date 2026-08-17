@@ -262,6 +262,31 @@ fn clawd_profile(chrome: Option<bool>) -> &'static str {
   }
 }
 
+/// Resolve a browser profile requested by the desktop UI. Agent-owned profiles
+/// are deliberately namespaced so callers cannot select arbitrary gateway
+/// profiles or smuggle query syntax through the profile value.
+fn desktop_browser_profile(profile: Option<&str>, chrome: Option<bool>) -> Result<String, String> {
+  let Some(raw) = profile.map(str::trim).filter(|value| !value.is_empty()) else {
+    return Ok(clawd_profile(chrome).to_string());
+  };
+  if raw == "openclaw" {
+    return Ok(raw.to_string());
+  }
+  let valid_agent_profile = raw
+    .strip_prefix("agent-")
+    .filter(|id| !id.is_empty() && id.len() <= 48)
+    .map(|id| {
+      id.bytes()
+        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    })
+    .unwrap_or(false);
+  if valid_agent_profile {
+    Ok(raw.to_string())
+  } else {
+    Err("profile must be openclaw or a valid agent-* profile".to_string())
+  }
+}
+
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
 /// This keeps the fallback browser aligned with the gateway-managed profile
 /// instead of opening a second legacy profile under ~/.openclaw.
@@ -1447,6 +1472,40 @@ fn clamp_inline_text(text: &str, max_chars: usize, reason: &str) -> String {
   )
 }
 
+fn local_file_request_requires_inspection(text: &str) -> bool {
+  let lower = text.to_ascii_lowercase();
+  [
+    "disk space",
+    "storage space",
+    "free up space",
+    "running out of space",
+    "downloads folder",
+    "downloads directory",
+    "~/downloads",
+    "specific files for deletion",
+    "files should i delete",
+    "files can i delete",
+  ]
+  .iter()
+  .any(|needle| lower.contains(needle))
+}
+
+fn incorrectly_denies_local_file_access(reply: &str) -> bool {
+  let lower = reply.to_ascii_lowercase();
+  [
+    "don't have direct access to your personal file system",
+    "do not have direct access to your personal file system",
+    "can't directly peek into your",
+    "cannot directly peek into your",
+    "can't directly list the contents",
+    "cannot directly list the contents",
+    "no direct method to browse or list files",
+    "sandboxed, restricted environment",
+  ]
+  .iter()
+  .any(|needle| lower.contains(needle))
+}
+
 fn trim_memory_notes(memory_notes: &[String]) -> Vec<String> {
   const MAX_MEMORY_NOTES: usize = 6;
   const MAX_MEMORY_NOTE_CHARS: usize = 240;
@@ -1959,6 +2018,9 @@ pub struct OpenBrowserParams {
   /// If true, use the `chrome` profile (Chrome extension relay).
   pub chrome: Option<bool>,
 
+  /// Durable agent-owned browser profile.
+  pub profile: Option<String>,
+
   /// When true, fail closed instead of launching a visible fallback browser.
   /// The embedded browser surface uses this to guarantee popup-free behavior.
   pub embedded: Option<bool>,
@@ -2009,7 +2071,17 @@ pub async fn open_browser(
     });
   }
 
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest().json(OpenBrowserResponse {
+        success: false,
+        message,
+        target_id: None,
+        used_clawdbot: false,
+      })
+    }
+  };
 
   // Try browser control via gateway RPC first
   let rpc_query = serde_json::json!({"profile": profile});
@@ -2042,10 +2114,14 @@ pub async fn open_browser(
     }
   }
 
-  if query.embedded.unwrap_or(false) {
+  // An agent profile is an isolation boundary. Never silently fall back to the
+  // shared managed browser or system browser when that workspace is unavailable.
+  if query.embedded.unwrap_or(false) || profile != "openclaw" {
     return HttpResponse::BadGateway().json(OpenBrowserResponse {
       success: false,
-      message: "The embedded browser is still starting. Please try again in a moment.".to_string(),
+      message: format!(
+        "The {profile} browser workspace is still starting. Please try again in a moment."
+      ),
       target_id: None,
       used_clawdbot: false,
     });
@@ -2076,6 +2152,8 @@ pub struct NavigateBrowserRequest {
 
   #[serde(rename = "targetId")]
   pub target_id: Option<String>,
+
+  pub profile: Option<String>,
 }
 
 #[post("/api/clawd/browser/navigate")]
@@ -2104,10 +2182,18 @@ pub async fn navigate_browser(payload: web::Json<NavigateBrowserRequest>) -> imp
     body["targetId"] = serde_json::json!(target_id);
   }
 
+  let profile = match desktop_browser_profile(payload.profile.as_deref(), None) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
+
   match gateway_client::browser_request(
     "POST",
     "/navigate",
-    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(serde_json::json!({"profile": profile})),
     Some(body),
     None,
   )
@@ -2289,6 +2375,7 @@ pub async fn set_browser_presentation(
 #[derive(Debug, Deserialize)]
 pub struct BrowserProfileQuery {
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2303,7 +2390,13 @@ pub async fn list_tabs(
   _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<BrowserProfileQuery>,
 ) -> impl Responder {
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
     Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
@@ -2317,6 +2410,7 @@ pub struct FocusRequest {
   pub target_id: String,
 
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
 }
 
 #[post("/api/clawd/browser/focus")]
@@ -2325,7 +2419,13 @@ pub async fn focus_tab(
   _cfg: web::Data<SharedClawdbotConfig>,
   payload: web::Json<FocusRequest>,
 ) -> impl Responder {
-  let profile = clawd_profile(payload.chrome);
+  let profile = match desktop_browser_profile(payload.profile.as_deref(), payload.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2352,6 +2452,7 @@ pub async fn focus_tab(
 pub struct SnapshotQuery {
   pub targetId: Option<String>,
   pub chrome: Option<bool>,
+  pub profile: Option<String>,
   pub mode: Option<String>,
   pub refs: Option<String>,
   pub format: Option<String>,
@@ -2365,7 +2466,10 @@ pub async fn snapshot(
   _cfg: web::Data<SharedClawdbotConfig>,
   query: web::Query<SnapshotQuery>,
 ) -> impl Responder {
-  let profile = clawd_profile(query.chrome);
+  let profile = match desktop_browser_profile(query.profile.as_deref(), query.chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let mut rpc_query = serde_json::json!({"profile": profile});
   if let Some(tid) = query
     .targetId
@@ -2431,13 +2535,18 @@ pub async fn act(
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
-  let profile = clawd_profile(chrome);
+  let requested_profile = body.get("profile").and_then(|v| v.as_str());
+  let profile = match desktop_browser_profile(requested_profile, chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let rpc_query = serde_json::json!({"profile": profile});
 
   // Forward body (minus chrome) to the gateway browser control.
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
+    obj.remove("profile");
   }
 
   match gateway_client::browser_request("POST", "/act", Some(rpc_query), Some(forward), None).await
@@ -5175,6 +5284,17 @@ This loop is your primary workflow. Use it constantly.
     String::new()
   };
 
+  let local_files_section = r#"
+
+## LOCAL FILE ACCESS — CAPABILITY TRUTH
+You are running inside the Knapsack desktop app and have direct local filesystem tools in normal mode: `read_file`, `list_directory`, `search_files`, and `run_script`. These tools can inspect paths such as `~/Downloads`, `~/Documents`, and `~/Desktop` without Advanced Mode.
+
+- When a request depends on the user's actual files or disk usage, inspect them with a tool before stating any filenames, sizes, or recommendations.
+- Never invent file sizes or imply that you inspected a directory when you did not.
+- Never claim that you are generically sandboxed away from the user's files. If a tool returns an OS permission error, report that exact error and explain the specific macOS or Windows permission that is needed.
+- Reading and analysis are allowed without confirmation. Ask before deleting or irreversibly modifying files.
+"#.to_string();
+
   // Skills section — inform the agent about available skills
   let skills_section = r#"
 
@@ -5254,7 +5374,7 @@ No email account is directly connected via the send_email tool. However, you CAN
   } else {
     format!(
       r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -5676,6 +5796,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       autonomy_section,
       meeting_section,
       advanced_section,
+      local_files_section,
       skills_section,
       platform_section,
       email_section,
@@ -5955,6 +6076,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
   let mut tool_iter = 0u32;
   let mut prompt_compaction_alerted = false;
+  let mut local_capability_retry_used = false;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
@@ -6465,6 +6587,19 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
     if choice.message.tool_calls.is_empty() {
       let reply = choice.message.content.clone().unwrap_or_default();
+      if !local_capability_retry_used
+        && (local_file_request_requires_inspection(&full_text)
+          || incorrectly_denies_local_file_access(&reply))
+      {
+        local_capability_retry_used = true;
+        eprintln!(
+          "[clawd/chat] local filesystem request returned without a tool call; requiring inspection"
+        );
+        messages.push(chat_agent::OaiMessage::System {
+          content: "The latest user request requires factual local filesystem inspection. Call `run_script`, `list_directory`, `search_files`, or `read_file` now and base the answer on the result. Do not answer from assumptions, invent sizes, or claim generic sandbox restrictions. If the tool fails, report its exact OS error.".to_string(),
+        });
+        continue;
+      }
       // persist history (keep last ~20 messages — omit images to avoid bloating)
       let user_msg = chat_agent::OaiMessage::User {
         content: full_text.clone(),
@@ -6602,12 +6737,17 @@ pub async fn screenshot(
   body: web::Json<JsonValue>,
 ) -> impl Responder {
   let chrome = body.get("chrome").and_then(|v| v.as_bool());
-  let profile = clawd_profile(chrome);
+  let requested_profile = body.get("profile").and_then(|v| v.as_str());
+  let profile = match desktop_browser_profile(requested_profile, chrome) {
+    Ok(profile) => profile,
+    Err(message) => return HttpResponse::BadRequest().body(message),
+  };
   let rpc_query = serde_json::json!({"profile": profile});
 
   let mut forward = body.into_inner();
   if let Some(obj) = forward.as_object_mut() {
     obj.remove("chrome");
+    obj.remove("profile");
   }
 
   match gateway_client::browser_request("POST", "/screenshot", Some(rpc_query), Some(forward), None)
@@ -6629,6 +6769,7 @@ pub async fn screenshot(
 pub struct BrowserViewQuery {
   #[serde(rename = "targetId")]
   pub target_id: Option<String>,
+  pub profile: Option<String>,
 }
 
 fn screenshot_path_from_result(result: &JsonValue) -> Option<PathBuf> {
@@ -6646,6 +6787,15 @@ fn screenshot_path_from_result(result: &JsonValue) -> Option<PathBuf> {
 /// React browser pane to render the exact tab OpenClaw is operating.
 #[get("/api/clawd/browser/view")]
 pub async fn browser_view(query: web::Query<BrowserViewQuery>) -> impl Responder {
+  let profile = match desktop_browser_profile(query.profile.as_deref(), None) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest().json(serde_json::json!({
+        "success": false,
+        "message": message,
+      }))
+    }
+  };
   let mut body = serde_json::json!({"type": "jpeg", "timeoutMs": 8000});
   if let Some(target_id) = query
     .target_id
@@ -6659,7 +6809,7 @@ pub async fn browser_view(query: web::Query<BrowserViewQuery>) -> impl Responder
   let result = match gateway_client::browser_request(
     "POST",
     "/screenshot",
-    Some(serde_json::json!({"profile": "openclaw"})),
+    Some(serde_json::json!({"profile": profile})),
     Some(body),
     None,
   )
@@ -7413,11 +7563,12 @@ fn strip_html_tags(html: &str) -> String {
 mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
-    compact_messages_for_provider, fallback_failure_message, is_context_window_error,
-    is_transient_or_internal_provider_error, load_seed_history_from_request,
-    provider_compaction_limits, provider_context_recovery_limits,
-    read_embedded_browser_preference_at, should_attempt_fallback_for_provider_error,
-    jwt_expiry_unix, knapsack_token_is_expired, write_embedded_browser_preference,
+    compact_messages_for_provider, fallback_failure_message, incorrectly_denies_local_file_access,
+    is_context_window_error, is_transient_or_internal_provider_error, jwt_expiry_unix,
+    knapsack_token_is_expired, load_seed_history_from_request,
+    local_file_request_requires_inspection, provider_compaction_limits,
+    provider_context_recovery_limits, read_embedded_browser_preference_at,
+    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -7433,6 +7584,55 @@ mod tests {
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs()
+  }
+
+  #[test]
+  fn disk_cleanup_requests_require_real_local_inspection() {
+    assert!(local_file_request_requires_inspection(
+      "Recommend specific files for deletion from ~/Downloads"
+    ));
+    assert!(local_file_request_requires_inspection(
+      "I am running out of disk space"
+    ));
+    assert!(!local_file_request_requires_inspection(
+      "Explain how cloud object storage works"
+    ));
+  }
+
+  #[test]
+  fn generic_local_access_denials_are_rejected() {
+    assert!(incorrectly_denies_local_file_access(
+      "I don't have direct access to your personal file system."
+    ));
+    assert!(incorrectly_denies_local_file_access(
+      "I operate in a sandboxed, restricted environment."
+    ));
+    assert!(!incorrectly_denies_local_file_access(
+      "macOS returned Operation not permitted while listing ~/Downloads."
+    ));
+  }
+
+  #[test]
+  fn desktop_browser_profiles_allow_only_managed_agent_namespace() {
+    assert_eq!(
+      super::desktop_browser_profile(Some("agent-scout"), None).unwrap(),
+      "agent-scout"
+    );
+    assert_eq!(
+      super::desktop_browser_profile(Some("openclaw"), None).unwrap(),
+      "openclaw"
+    );
+    assert!(super::desktop_browser_profile(Some("agent-Scout"), None).is_err());
+    assert!(super::desktop_browser_profile(Some("work"), None).is_err());
+    assert!(super::desktop_browser_profile(Some("agent-../../personal"), None).is_err());
+  }
+
+  #[test]
+  fn desktop_browser_profile_defaults_to_existing_openclaw_behavior() {
+    assert_eq!(
+      super::desktop_browser_profile(None, None).unwrap(),
+      "openclaw"
+    );
   }
 
   #[test]

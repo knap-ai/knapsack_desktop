@@ -188,6 +188,7 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
     return Err("OpenClaw gateway is not reachable".to_string());
   }
 
+  let session_key = openclaw_session_key(request.session_id);
   let result = tokio::time::timeout(
     HARNESS_TIMEOUT,
     gateway_client::agent_chat(
@@ -195,6 +196,7 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
       request.attachments,
       None,
       request.conversation_scope,
+      Some(&session_key),
     ),
   )
   .await
@@ -517,6 +519,10 @@ fn safe_session_id(raw: &str) -> String {
   }
 }
 
+fn openclaw_session_key(session_id: &str) -> String {
+  format!("agent:main:webchat:dm:{}", safe_session_id(session_id))
+}
+
 fn hermes_input(request: &HarnessRequest<'_>) -> Value {
   if request.attachments.is_empty() {
     return Value::String(request.message.to_string());
@@ -787,7 +793,6 @@ mod tests {
     );
     assert!(parse_harness_kind(Some("unknown")).is_err());
   }
-
   #[test]
   fn hermes_url_only_allows_loopback_http_or_https() {
     assert!(validate_hermes_base_url("http://127.0.0.1:8642/v1").is_ok());
@@ -945,6 +950,18 @@ mod tests {
     assert_eq!(safe_session_id("\r\n"), "--");
     assert_eq!(safe_session_id(""), "ui");
     assert!(safe_session_id(&"a".repeat(300)).len() <= 128);
+  }
+
+  #[test]
+  fn openclaw_agent_chats_use_distinct_stable_session_keys() {
+    assert_eq!(
+      openclaw_session_key("ui-agent-scout"),
+      "agent:main:webchat:dm:ui-agent-scout"
+    );
+    assert_ne!(
+      openclaw_session_key("ui-agent-scout"),
+      openclaw_session_key("ui-agent-operator")
+    );
   }
 
   #[tokio::test]
