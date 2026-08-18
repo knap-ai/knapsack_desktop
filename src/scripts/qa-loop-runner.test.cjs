@@ -5,6 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  evaluateBrowserPersistenceCapabilities,
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,
@@ -67,4 +68,44 @@ test("agent capabilities continue on the provider left active by the chat loop",
   ];
   assert.deepEqual(lastSuccessfulChatCheck(checks), checks[2]);
   assert.equal(lastSuccessfulChatCheck([{ ok: false }, { ok: true, skipped: true }]), null);
+});
+
+test("managed browser persistence rejects sync and insecure password-store blockers", () => {
+  assert.deepEqual(
+    evaluateBrowserPersistenceCapabilities({
+      commandLine: "chrome --disable-sync --password-store=basic",
+      preferences: {},
+    }),
+    {
+      ok: false,
+      blockedFlags: ["--disable-sync", "--password-store=basic"],
+      passwordSavingEnabled: true,
+      paymentSavingEnabled: true,
+    },
+  );
+});
+
+test("managed browser persistence accepts enabled password and payment storage", () => {
+  assert.deepEqual(
+    evaluateBrowserPersistenceCapabilities({
+      commandLine: "chrome --user-data-dir=/tmp/knapsack-browser",
+      preferences: {
+        credentials_enable_service: true,
+        autofill: { credit_card_enabled: true },
+      },
+    }),
+    {
+      ok: true,
+      blockedFlags: [],
+      passwordSavingEnabled: true,
+      paymentSavingEnabled: true,
+    },
+  );
+  assert.equal(
+    evaluateBrowserPersistenceCapabilities({
+      commandLine: "chrome",
+      preferences: { autofill: { credit_card_enabled: false } },
+    }).ok,
+    false,
+  );
 });

@@ -117,6 +117,11 @@ function Home({
   })
   const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('')
   const [embeddedBrowserProfile, setEmbeddedBrowserProfile] = useState('openclaw')
+  const [embeddedBrowserWidth, setEmbeddedBrowserWidth] = useState(() => {
+    const stored = Number(localStorage.getItem('knapsack.browser.sidebar.width'))
+    if (Number.isFinite(stored) && stored > 0) return Math.max(380, Math.min(960, stored))
+    return Math.max(440, Math.min(760, window.innerWidth * 0.48))
+  })
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
@@ -754,16 +759,70 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                     </>
                   )}
                   {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
-                    <EmbeddedBrowserSidebar
-                      key={embeddedBrowserProfile}
-                      requestedUrl={embeddedBrowserUrl}
-                      browserProfile={embeddedBrowserProfile}
-                      onClose={() => {
-                        setShowEmbeddedBrowser(false)
-                        setEmbeddedBrowserUrl('')
-                        localStorage.setItem('knapsack.browser.sidebar.open', 'false')
-                      }}
-                    />
+                    <>
+                      <div
+                        className="activity-resize-handle embedded-browser-resize-handle"
+                        role="separator"
+                        aria-label="Resize embedded browser"
+                        aria-orientation="vertical"
+                        aria-valuemin={380}
+                        aria-valuemax={960}
+                        aria-valuenow={Math.round(embeddedBrowserWidth)}
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                          event.preventDefault()
+                          const direction = event.key === 'ArrowLeft' ? 1 : -1
+                          const containerWidth = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
+                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                          const renderedWidth = event.currentTarget.nextElementSibling?.getBoundingClientRect().width ?? embeddedBrowserWidth
+                          const nextWidth = Math.max(380, Math.min(maxWidth, renderedWidth + direction * 24))
+                          setEmbeddedBrowserWidth(nextWidth)
+                          localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                        }}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          isResizingRef.current = true
+                          const startX = event.clientX
+                          const startWidth = event.currentTarget.nextElementSibling?.getBoundingClientRect().width ?? embeddedBrowserWidth
+                          const containerWidth = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
+                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                          let nextWidth = startWidth
+                          const onMove = (moveEvent: MouseEvent) => {
+                            if (!isResizingRef.current) return
+                            nextWidth = Math.max(380, Math.min(maxWidth, startWidth + startX - moveEvent.clientX))
+                            setEmbeddedBrowserWidth(nextWidth)
+                          }
+                          const onUp = () => {
+                            isResizingRef.current = false
+                            localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                            document.body.style.cursor = ''
+                            document.body.style.userSelect = ''
+                          }
+                          document.body.style.cursor = 'col-resize'
+                          document.body.style.userSelect = 'none'
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                      <div
+                        className="embedded-browser-panel"
+                        style={{ width: embeddedBrowserWidth, flexBasis: embeddedBrowserWidth }}
+                      >
+                        <EmbeddedBrowserSidebar
+                          key={embeddedBrowserProfile}
+                          requestedUrl={embeddedBrowserUrl}
+                          browserProfile={embeddedBrowserProfile}
+                          onClose={() => {
+                            setShowEmbeddedBrowser(false)
+                            setEmbeddedBrowserUrl('')
+                            localStorage.setItem('knapsack.browser.sidebar.open', 'false')
+                          }}
+                        />
+                      </div>
+                    </>
                   )}
                   {!showEmbeddedBrowser && (feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer

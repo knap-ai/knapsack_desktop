@@ -827,6 +827,44 @@ async function probeBrowserControl(timeoutMs = 1_200) {
   return false;
 }
 
+function evaluateBrowserPersistenceCapabilities({ commandLine = "", preferences = {} } = {}) {
+  const blockedFlags = ["--disable-sync", "--password-store=basic"]
+    .filter((flag) => commandLine.includes(flag));
+  const passwordSavingEnabled = preferences.credentials_enable_service !== false
+    && preferences.profile?.password_manager_enabled !== false;
+  const paymentSavingEnabled = preferences.autofill?.credit_card_enabled !== false;
+  return {
+    ok: blockedFlags.length === 0 && passwordSavingEnabled && paymentSavingEnabled,
+    blockedFlags,
+    passwordSavingEnabled,
+    paymentSavingEnabled,
+  };
+}
+
+function probeBrowserPersistenceCapabilities() {
+  const stateDir = apiAuthStateDir();
+  const userDataDir = stateDir
+    ? path.join(stateDir, "browser", "openclaw", "user-data")
+    : "";
+  let commandLine = "";
+  if (process.platform === "darwin" && userDataDir) {
+    const ps = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
+    commandLine = String(ps.stdout || "")
+      .split(/\r?\n/)
+      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+  }
+  const preferences = userDataDir
+    ? readJsonFile(path.join(userDataDir, "Default", "Preferences")) || {}
+    : {};
+  const result = evaluateBrowserPersistenceCapabilities({ commandLine, preferences });
+  return {
+    ...result,
+    commandLineObserved: Boolean(commandLine),
+    profilePreferencesObserved: Object.keys(preferences).length > 0,
+    ok: result.ok && (process.platform !== "darwin" || Boolean(commandLine)),
+  };
+}
+
 function summarizeStartupState(payload) {
   const startup = payload.startup || {};
   const status = payload.status || {};
@@ -2057,6 +2095,10 @@ async function checkInterfaceAccess(includeUi, startupState) {
   if (includeUi && (!ui || !ui.ok)) failures.push("UI /home unreachable");
   const uiBrowserOk = browserControl || healthBrowserOk;
   if (!uiBrowserOk) failures.push("browser control not reachable");
+  const browserPersistence = uiBrowserOk
+    ? probeBrowserPersistenceCapabilities()
+    : { ok: false, commandLineObserved: false, profilePreferencesObserved: false };
+  if (!browserPersistence.ok) failures.push("browser password/payment persistence disabled");
   return {
     ok: failures.length === 0,
     failures,
@@ -2067,6 +2109,7 @@ async function checkInterfaceAccess(includeUi, startupState) {
       automationsApi: Boolean(automations?.ok && Array.isArray(automations.body?.data)),
       feedApi: Boolean(feed?.ok),
       browserControl: Boolean(uiBrowserOk),
+      browserPersistence,
       channelStates,
       configuredChannelsActive: configuredChannelStates.filter((state) => state.active).map((state) => state.channel),
       configuredChannelsDeferred: configuredChannelStates.filter((state) => state.deferred).map((state) => state.channel),
@@ -2524,6 +2567,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  evaluateBrowserPersistenceCapabilities,
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,

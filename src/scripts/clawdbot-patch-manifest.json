@@ -3,7 +3,7 @@
   {"path":"dist/browser-tool.schema-C8BVx0PT.js","required":["\"scrollIntoView\""],"forbidden":[]},
   {"path":"dist/channel-streaming-BKIuGSWW.js","required":["\"Trailblazing\"","\"Summiting\""],"forbidden":[]},
   {"path":"dist/channel-streaming-BiotFNcB.d.ts","required":["DEFAULT_PROGRESS_DRAFT_LABELS","\"Trailblazing\""],"forbidden":[]},
-  {"path":"dist/chrome-BZjIEoo0.js","required":["isChromeCdpReady(profile.cdpUrl, 500, 800)"],"forbidden":[]},
+  {"path":"dist/chrome-BZjIEoo0.js","required":["isChromeCdpReady(profile.cdpUrl, 500, 800)"],"forbidden":["--disable-sync","--password-store=basic"]},
   {"path":"dist/control-service-QFP_AmWr.js","required":["__openclawBrowserControlServiceStartPromise"],"forbidden":[]},
   {"path":"dist/extensions/slack/dist/room-context-C-6EgkTA.js","required":["params.isRoomish ? normalizeOptionalString(params.channelConfig?.systemPrompt)"],"forbidden":["KNAPSACK_CHANNEL_SYSTEM_PROMPT"]},
   {"path":"dist/get-reply-DOTqK3jN.js","required":["suppressSlackChannelReasoningAndVerbose"],"forbidden":[]},

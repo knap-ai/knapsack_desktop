@@ -1269,13 +1269,11 @@ function buildOpenClawChromeLaunchArgs(params) {
 		`--user-data-dir=${userDataDir}`,
 		"--no-first-run",
 		"--no-default-browser-check",
-		"--disable-sync",
 		"--disable-background-networking",
 		"--disable-component-update",
 		"--disable-features=Translate,MediaRouter",
 		"--disable-session-crashed-bubble",
-		"--hide-crash-restore-bubble",
-		"--password-store=basic"
+		"--hide-crash-restore-bubble"
 	];
 	if (headlessMode.headless) {
 		args.push("--headless=new");
