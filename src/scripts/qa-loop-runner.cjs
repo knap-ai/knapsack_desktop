@@ -2416,7 +2416,7 @@ async function runLoop() {
       }
       if (Array.isArray(modeResult.startupLog) && modeResult.startupLog.length > 0) {
         const traceLines = modeResult.startupLog.filter((line) =>
-          /startup trace|http\.bound|ready|plugins\.lookup|secrets|sidecars|browser-control|Using Clawdbot entry|Patched OpenClaw config|Forwarding QA plugin|OpenClaw compile cache/.test(line),
+          /startup trace|http\.bound|ready|plugins\.lookup|secrets|sidecars|browser-control|Using Clawdbot entry|Patched OpenClaw config|Forwarding QA plugin|OpenClaw compile cache|Gateway QA port|another macOS user/.test(line),
         );
         const linesToPrint = traceLines.length > 0
           ? traceLines

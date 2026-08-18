@@ -190,32 +190,64 @@ fn kill_process_on_port(port: u16) {
 
 /// On Unix/macOS, kill a process listening on the given TCP port.
 /// Enhanced with retry logic to ensure the port is actually freed.
+#[cfg(any(not(target_os = "windows"), test))]
+fn external_port_holder_pids(output: &str, current_pid: u32) -> Vec<i32> {
+  let mut pids = output
+    .lines()
+    .filter_map(|line| line.trim().parse::<i32>().ok())
+    .filter(|pid| *pid > 0 && *pid as u32 != current_pid)
+    .collect::<Vec<_>>();
+  pids.sort_unstable();
+  pids.dedup();
+  pids
+}
+
+#[cfg(any(not(target_os = "windows"), test))]
+fn lsof_listener_args(port: u16) -> Vec<String> {
+  vec![
+    "-nP".to_string(),
+    format!("-iTCP:{}", port),
+    "-sTCP:LISTEN".to_string(),
+    "-t".to_string(),
+  ]
+}
+
 #[cfg(not(target_os = "windows"))]
 fn kill_process_on_port(port: u16) {
   // Try up to 5 times to kill the process and verify port is free
   for attempt in 1..=5 {
     let output = std::process::Command::new("lsof")
-      .args(["-ti", &format!(":{}", port)])
+      .args(lsof_listener_args(port))
       .output();
 
     let mut found_process = false;
     if let Ok(out) = output {
-      let pid_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
-      if !pid_str.is_empty() {
-        if let Ok(pid) = pid_str.parse::<i32>() {
-          if pid > 0 {
-            found_process = true;
-            eprintln!(
-              "[clawd/service] Attempt {}: killing process on port {} (pid {})",
-              attempt, port, pid
-            );
-            let _ = std::process::Command::new("kill")
-              .args(["-9", &pid.to_string()])
-              .status();
-            // Wait for process to fully terminate with longer delay
-            std::thread::sleep(std::time::Duration::from_millis(800));
-          }
-        }
+      let pid_output = String::from_utf8_lossy(&out.stdout);
+      let current_pid = std::process::id();
+      let pids = external_port_holder_pids(&pid_output, current_pid);
+      let current_process_holds_port = pid_output
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .any(|pid| pid == current_pid);
+
+      if current_process_holds_port {
+        eprintln!(
+          "[clawd/service] Refusing to kill current process {} while clearing port {}",
+          current_pid, port
+        );
+      }
+
+      for pid in pids {
+        found_process = true;
+        eprintln!(
+          "[clawd/service] Attempt {}: killing process on port {} (pid {})",
+          attempt, port, pid
+        );
+        let _ = std::process::Command::new("kill")
+          .args(["-9", &pid.to_string()])
+          .status();
+        // Wait for process to fully terminate with longer delay
+        std::thread::sleep(std::time::Duration::from_millis(800));
       }
     }
 
@@ -263,7 +295,9 @@ fn is_pid_alive(pid: u32) -> bool {
 static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
+static GATEWAY_LAST_SELF_HEAL_MS: AtomicU64 = AtomicU64::new(0);
 const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 600_000;
+const GATEWAY_SELF_HEAL_COOLDOWN_MS: u64 = 15_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
 const PLUGIN_RUNTIME_DEPS_OWNER_LOCK_GRACE_MS: u64 = 180_000;
 
@@ -423,6 +457,23 @@ fn gateway_launch_grace_active() -> Option<u64> {
   }
 }
 
+fn gateway_self_heal_cooldown_active() -> Option<u64> {
+  let started = GATEWAY_LAST_SELF_HEAL_MS.load(Ordering::Relaxed);
+  if started == 0 {
+    return None;
+  }
+  let elapsed = now_epoch_ms().saturating_sub(started);
+  if elapsed < GATEWAY_SELF_HEAL_COOLDOWN_MS {
+    Some(elapsed)
+  } else {
+    None
+  }
+}
+
+fn mark_gateway_self_heal_started() {
+  GATEWAY_LAST_SELF_HEAL_MS.store(now_epoch_ms(), Ordering::Relaxed);
+}
+
 #[cfg(target_os = "macos")]
 fn qa_direct_gateway_process_active() -> bool {
   if std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() != Some("1") {
@@ -450,6 +501,10 @@ fn qa_direct_gateway_process_active() -> bool {
 
 fn qa_direct_gateway_mode() -> bool {
   std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
+}
+
+fn should_restart_gateway_via_launchd(qa_direct: bool) -> bool {
+  !qa_direct
 }
 
 fn qa_direct_gateway_grace_active() -> Option<u64> {
@@ -718,6 +773,16 @@ fn remove_stale_standalone_gateway() {
 /// non-LaunchAgent process, the kill is the only way to clear the port.
 #[cfg(target_os = "macos")]
 pub async fn self_heal_gateway_conflict(token: &str) {
+  let _lifecycle_guard = GATEWAY_LIFECYCLE_MUTEX.lock().await;
+  if let Some(elapsed_ms) = gateway_self_heal_cooldown_active() {
+    eprintln!(
+      "[clawd/service] self-heal: restart cooldown active ({}ms), skipping duplicate request",
+      elapsed_ms
+    );
+    return;
+  }
+  mark_gateway_self_heal_started();
+
   let evicted = evict_competing_gateway_plists();
   eprintln!(
     "[clawd/service] self-heal: evicted competing plists: {:?}",
@@ -728,6 +793,13 @@ pub async fn self_heal_gateway_conflict(token: &str) {
   // Wait for LaunchAgent throttle / for the supervisor to be willing to
   // kickstart again.  Also gives mDNS/Bonjour time to release its bindings.
   tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+
+  if qa_direct_gateway_mode() {
+    eprintln!(
+      "[clawd/service] self-heal: waiting for QA direct gateway supervisor restart"
+    );
+    return;
+  }
 
   let result =
     crate::clawd::gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
@@ -9255,48 +9327,28 @@ pub async fn set_api_key(
     {
       if let Ok(plist_path) = launch_agent_plist_path() {
         regenerate_macos_plist_with_current_env(&plist_path);
-        if qa_direct_gateway_mode() {
-          bootout_gateway_launch_agent(LAUNCH_AGENT_LABEL);
-          let qa_switch_model = switch_model.clone();
-          tokio::spawn(async move {
-            if !crate::clawd::gateway_client::is_gateway_port_open().await {
-              return;
-            }
-            let cfg_result = crate::clawd::gateway_client::config_get(None).await;
-            if let Ok(cfg_val) = cfg_result {
-              let base_hash = cfg_val.get("hash").and_then(|h| h.as_str()).unwrap_or("");
-              if !base_hash.is_empty() {
-                let patch = serde_json::json!({
-                  "agents": {"defaults": {"model": {"primary": qa_switch_model}}}
-                });
-                match crate::clawd::gateway_client::config_patch(&patch.to_string(), base_hash, None).await {
-                  Ok(_) => eprintln!(
-                    "[clawd/service] Pushed provider switch model to running gateway in QA direct mode"
-                  ),
-                  Err(e) => eprintln!(
-                    "[clawd/service] Failed to push QA direct provider switch model to gateway: {}",
-                    e
-                  ),
-                }
-              }
-            }
-          });
+        let qa_direct = qa_direct_gateway_mode();
+        if qa_direct {
+          mark_gateway_self_heal_started();
+          kill_process_on_port(18789);
           eprintln!(
-            "[clawd/service] Provider switch to '{}' prepared plist without launchd restart in QA direct mode",
+            "[clawd/service] Provider switch to '{}' requested a QA direct gateway restart",
             provider
           );
         }
-        let uid = unsafe { libc::getuid() };
-        let domain = format!("gui/{}", uid);
-        let _ = std::process::Command::new("launchctl")
-          .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
-          .status();
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        let _ = std::process::Command::new("launchctl")
-          .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
-          .status();
-        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-        launchctl_kickstart_with_timeout(&service, "provider switch kickstart");
+        if should_restart_gateway_via_launchd(qa_direct) {
+          let uid = unsafe { libc::getuid() };
+          let domain = format!("gui/{}", uid);
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          std::thread::sleep(std::time::Duration::from_millis(500));
+          let _ = std::process::Command::new("launchctl")
+            .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+            .status();
+          let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+          launchctl_kickstart_with_timeout(&service, "provider switch kickstart");
+        }
       }
     }
     let (gateway_ready, channel_ready, fallback_ready) =
@@ -9611,17 +9663,26 @@ pub async fn set_api_key(
       // the health-check is not enough because the health-check uses kickstart
       // which re-uses the old (stale) plist.
       regenerate_macos_plist_with_current_env(&plist_path);
-      let uid = unsafe { libc::getuid() };
-      let domain = format!("gui/{}", uid);
-      let _ = std::process::Command::new("launchctl")
-        .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
-        .status();
-      std::thread::sleep(std::time::Duration::from_millis(500));
-      let _ = std::process::Command::new("launchctl")
-        .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
-        .status();
-      let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
-      launchctl_kickstart_with_timeout(&service, "api key restart kickstart");
+      let qa_direct = qa_direct_gateway_mode();
+      if should_restart_gateway_via_launchd(qa_direct) {
+        let uid = unsafe { libc::getuid() };
+        let domain = format!("gui/{}", uid);
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootout", &domain, plist_path.to_string_lossy().as_ref()])
+          .status();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let _ = std::process::Command::new("launchctl")
+          .args(["bootstrap", &domain, plist_path.to_string_lossy().as_ref()])
+          .status();
+        let service = format!("{}/{}", domain, LAUNCH_AGENT_LABEL);
+        launchctl_kickstart_with_timeout(&service, "api key restart kickstart");
+      } else {
+        mark_gateway_self_heal_started();
+        kill_process_on_port(18789);
+        eprintln!(
+          "[clawd/service] API key update requested a QA direct gateway restart"
+        );
+      }
     }
   }
 
@@ -17511,9 +17572,40 @@ mod knapsack_runtime_auth_tests {
 #[cfg(test)]
 mod service_status_message_tests {
   use super::{
-    is_noisy_browser_probe_error, is_transient_browser_probe_error, mac_service_status_summary,
-    parse_browser_control_status_body, BrowserControlProbe,
+    external_port_holder_pids, is_noisy_browser_probe_error, is_transient_browser_probe_error,
+    lsof_listener_args, mac_service_status_summary, parse_browser_control_status_body,
+    should_restart_gateway_via_launchd, BrowserControlProbe,
   };
+
+  #[test]
+  fn port_cleanup_never_targets_current_process() {
+    assert_eq!(
+      external_port_holder_pids("5892\n6000\n5892\n", 5892),
+      vec![6000]
+    );
+  }
+
+  #[test]
+  fn port_cleanup_parses_multiple_unique_lsof_pids() {
+    assert_eq!(
+      external_port_holder_pids("7002\ninvalid\n7001\n7002\n", 9999),
+      vec![7001, 7002]
+    );
+  }
+
+  #[test]
+  fn port_cleanup_only_queries_listening_sockets() {
+    assert_eq!(
+      lsof_listener_args(18789),
+      vec!["-nP", "-iTCP:18789", "-sTCP:LISTEN", "-t"]
+    );
+  }
+
+  #[test]
+  fn qa_direct_provider_switch_does_not_restart_launchd_gateway() {
+    assert!(!should_restart_gateway_via_launchd(true));
+    assert!(should_restart_gateway_via_launchd(false));
+  }
 
   #[test]
   fn qa_direct_startup_is_not_reported_as_not_running() {
