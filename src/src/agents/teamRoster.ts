@@ -51,6 +51,14 @@ export function defaultTeamRoster(): TeamAgent[] {
   )
 }
 
+export function getPrimaryScout(agents: TeamAgent[]): TeamAgent {
+  const scout = agents.find(agent => agent.id === 'scout')
+    ?? defaultTeamRoster().find(agent => agent.id === 'scout')
+
+  if (!scout) throw new Error('Scout is missing from the default team roster')
+  return scout
+}
+
 export function saveTeamRoster(agents: TeamAgent[]) {
   localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(agents))
   window.dispatchEvent(new CustomEvent('knapsack:team-roster-changed'))

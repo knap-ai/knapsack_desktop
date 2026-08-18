@@ -61,7 +61,7 @@ import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import GBrainView from 'src/components/organisms/GBrainView'
 import { Workspace } from 'src/api/workspaces'
 import { buildFollowUpEmailBody } from 'src/utils/emails'
-import { loadTeamRoster, TeamAgent } from 'src/agents/teamRoster'
+import { getPrimaryScout, loadTeamRoster, TeamAgent } from 'src/agents/teamRoster'
 
 export interface ToastrState {
   message?: ReactElement
@@ -126,16 +126,26 @@ function Home({
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const isResizingRef = useRef(false)
 
+  const primaryAgent = useMemo(
+    () => getPrimaryScout(teamAgents),
+    [teamAgents],
+  )
   const activeAgent = useMemo(
     () => teamAgents.find(agent => agent.id === activeAgentId) ?? null,
     [activeAgentId, teamAgents],
   )
+  // Scout is Knapsack's primary product identity and intentionally runs on
+  // OpenClaw's stable `main` agent. Other team chats remain separately scoped
+  // personas, but selecting "Scout" must not create a competing runtime agent.
+  const chatAgent = activeAgent ?? primaryAgent
   const activeChatId = activeAgent ? `agent-${activeAgent.id}` : 'main'
+  // Preserve the established main browser profile (and its cookies/logins)
+  // when presenting main as Scout. Only secondary agents get new profiles.
   const activeBrowserProfile = activeAgent?.browserProfile ?? 'openclaw'
-  const activeAgentContext = activeAgent
-    ? `You are ${activeAgent.name}, one member of the user's Knapsack team. ${activeAgent.soul}
+  const activeAgentContext = chatAgent
+    ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
 
-Stay within your role: ${activeAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeAgent.browserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
+Stay within your role: ${chatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
     : undefined
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
@@ -706,9 +716,9 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       sessionId={activeAgent ? `ui-agent-${activeAgent.id}` : 'ui'}
                       contextPrefix={activeAgentContext}
                       browserProfile={activeBrowserProfile}
-                      agentName={activeAgent?.name}
-                      agentPersonality={activeAgent?.personality}
-                      title={activeAgent ? `${activeAgent.emoji} ${activeAgent.name}` : 'Knapsack Chat'}
+                      agentName={chatAgent?.name}
+                      agentPersonality={chatAgent?.personality}
+                      title={chatAgent ? `${chatAgent.emoji} ${chatAgent.name}` : 'Knapsack Chat'}
                     />
                   </div>
                   {!showEmbeddedBrowser && showActivityPanel && (

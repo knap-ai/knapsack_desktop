@@ -10,7 +10,7 @@ import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { TabChoices } from 'src/components/TabBar'
 import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
-import { TeamAgent } from 'src/agents/teamRoster'
+import { getPrimaryScout, TeamAgent } from 'src/agents/teamRoster'
 
 import './style.scss'
 
@@ -205,6 +205,8 @@ function NotetakerSidebar({
   const isEmailActive = currentTab === TabChoices.Email
   const isLibraryActive = currentTab === TabChoices.Library
   const isGBrainActive = currentTab === TabChoices.GBrain
+  const primaryAgent = getPrimaryScout(teamAgents)
+  const secondaryAgents = teamAgents.filter(agent => agent.id !== primaryAgent.id)
 
   const chatIcon = (
     <svg
@@ -425,14 +427,14 @@ function NotetakerSidebar({
                 onClick={onTeamChatSelect}
                 aria-pressed={activeAgentId == null}
               >
-                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">🧭</span>
+                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">{primaryAgent.emoji}</span>
                 <span className="notetaker-sidebar__team-copy">
-                  <span className="notetaker-sidebar__team-name">Knapsack</span>
-                  <span className="notetaker-sidebar__team-role">Coordinate your whole team</span>
+                  <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
+                  <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
                 </span>
                 <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
               </button>
-              {teamAgents.map(agent => (
+              {secondaryAgents.map(agent => (
                 <button
                   type="button"
                   key={agent.id}

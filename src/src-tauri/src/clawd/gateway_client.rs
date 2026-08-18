@@ -3276,7 +3276,7 @@ pub async fn agent_chat(
   message: &str,
   attachments: &[serde_json::Value],
   token: Option<&str>,
-  conversation_scope: Option<&str>,
+  _conversation_scope: Option<&str>,
   session_key: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
@@ -3287,28 +3287,35 @@ pub async fn agent_chat(
       .unwrap_or_default()
       .as_millis()
   );
-  let scope = conversation_scope
-    .unwrap_or("dm")
-    .trim()
-    .to_ascii_lowercase();
+  let params = build_agent_chat_params(message, attachments, session_key, &idem);
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+fn build_agent_chat_params(
+  message: &str,
+  attachments: &[serde_json::Value],
+  session_key: Option<&str>,
+  idempotency_key: &str,
+) -> serde_json::Value {
   let mut params = serde_json::json!({
     "message": message,
-    "idempotencyKey": idem,
+    "idempotencyKey": idempotency_key,
     "deliver": false,
     "channel": "webchat",
     "agentId": "main",
   });
-  if !scope.is_empty() {
-    params["conversationScope"] = serde_json::json!(scope);
-  }
+  // OpenClaw 2026.5.22 rejects `conversationScope` as an unexpected agent RPC
+  // property. The explicit session key already carries the `dm` scope, so do
+  // not send the obsolete field or interactive Scout chat falls back to the
+  // direct LLM path and loses its shared main-agent session.
   if let Some(key) = session_key.map(str::trim).filter(|key| !key.is_empty()) {
     params["sessionKey"] = serde_json::json!(key);
   }
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
   }
-  // 5 minute timeout — LLM tool loops can take a while
-  gateway_request_agent("agent", Some(params), &t, 300).await
+  params
 }
 
 /// Send an automation agent run through the gateway's `agent` RPC method.
@@ -3492,6 +3499,25 @@ mod tests {
     assert_eq!(normalize_agent_run_channel(Some("")), "webchat");
     assert_eq!(normalize_agent_run_channel(Some("automation")), "webchat");
     assert_eq!(normalize_agent_run_channel(Some("telegram")), "telegram");
+  }
+
+  #[test]
+  fn interactive_agent_chat_uses_main_session_without_obsolete_scope_field() {
+    let params = build_agent_chat_params(
+      "hello",
+      &[],
+      Some("agent:main:webchat:dm:ui"),
+      "test-idempotency-key",
+    );
+    assert_eq!(
+      params.get("agentId").and_then(|value| value.as_str()),
+      Some("main")
+    );
+    assert_eq!(
+      params.get("sessionKey").and_then(|value| value.as_str()),
+      Some("agent:main:webchat:dm:ui")
+    );
+    assert!(params.get("conversationScope").is_none());
   }
 
   #[test]

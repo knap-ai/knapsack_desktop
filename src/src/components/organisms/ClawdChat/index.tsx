@@ -2331,7 +2331,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           {
             id: 'welcome-1',
             role: 'assistant' as Role,
-            text: `Hi, I'm ${agentName} — ${agentPersonality || 'your AI teammate'}. This is our dedicated chat, and I have a separate browser workspace for the work you give me.`,
+            text: `Hi, I'm ${agentName} — ${agentPersonality || 'your AI teammate'}. This is our dedicated chat, and I can use the browser workspace attached to this chat for the work you give me.`,
             ts: Date.now(),
           },
           {

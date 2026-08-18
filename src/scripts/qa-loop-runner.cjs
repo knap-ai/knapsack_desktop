@@ -1447,7 +1447,12 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
-  const requestTimeoutMs = Number(process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS || 30_000);
+  // The backend deliberately waits up to 45s for gateway readiness and up to
+  // 120s for channel readiness after a provider switch. A 30s client timeout
+  // abandons the request while the restart continues, so the next provider
+  // switch overlaps it and creates a restart loop. Keep the client budget
+  // longer than the server's complete readiness budget.
+  const requestTimeoutMs = qaSetProviderTimeoutMs();
   const req = await fetchWithTimeout(`${API_BASE}/api/clawd/service/set-api-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1457,12 +1462,46 @@ async function setProviderAndModel(provider, model) {
       key: "",
     }),
   }, requestTimeoutMs);
+  if (providerSwitchAppliedButStillStarting(req.status, req.body)) {
+    // The provider/model is already persisted. Do not submit the switch again:
+    // that would trigger another full restart. Give the existing restart one
+    // recovery nudge and wait for stable health instead.
+    await ensureGatewayEnabledForQA(30_000);
+    const readiness = await waitForGatewayHealthReady({ budgetMs: 120_000 });
+    if (readiness.ok) {
+      return {
+        ok: true,
+        payload: req.body,
+        status: req.status,
+        recovered: true,
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+  }
   return {
     ok: Boolean(req.ok),
     payload: req.body,
     status: req.status,
     elapsedMs: Date.now() - startedAt,
   };
+}
+
+function qaSetProviderTimeoutMs(raw = process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS) {
+  const configured = Number(raw);
+  return Number.isFinite(configured) && configured > 0 ? configured : 150_000;
+}
+
+function providerSwitchAppliedButStillStarting(status, payload) {
+  if (Number(status) !== 503) return false;
+  const message = String(payload?.message || payload || "").toLowerCase();
+  return (
+    message.includes("provider switched, but gateway did not become ready") ||
+    message.includes("api key saved, but gateway did not become ready")
+  );
+}
+
+function lastSuccessfulChatCheck(chatChecks) {
+  return [...chatChecks].reverse().find((check) => check && check.ok && !check.skipped) ?? null;
 }
 
 async function runChatSmoke(provider, model, options = {}) {
@@ -2254,21 +2293,14 @@ async function runMode(mode, opts = {}) {
       }
 
       functionalProgress.step = "agent capability checks";
-      const primaryAgentCheck = chatChecks.find((check) => check && check.ok && !check.skipped);
-      if (primaryAgentCheck) {
-        const restoreAgentProvider = await setProviderAndModel(
-          primaryAgentCheck.provider,
-          primaryAgentCheck.model,
-        );
-        if (!restoreAgentProvider.ok) {
-          return {
-            ok: false,
-            phase: "agent-capabilities",
-            message: `could not restore provider for agent capability checks: ${normalizeResult(restoreAgentProvider.payload?.message || restoreAgentProvider.payload)}`,
-            chatChecks,
-          };
-        }
-      }
+      // The final successful chat check already left its provider/model active.
+      // Restarting back to the first provider adds a fifth gateway restart and
+      // can exhaust readiness even though every requested provider passed.
+      // Continue capability checks on the active provider instead.
+      const activeAgentCheck = lastSuccessfulChatCheck(chatChecks);
+      functionalProgress.agentCapabilityProvider = activeAgentCheck
+        ? `${activeAgentCheck.provider}/${activeAgentCheck.model}`
+        : null;
       const agentCapabilityChecks = [
         {
           label: "weather-search",
@@ -2492,7 +2524,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  lastSuccessfulChatCheck,
   localApiHeaders,
+  providerSwitchAppliedButStillStarting,
+  qaSetProviderTimeoutMs,
   qaDevClawdbotDir,
   setApiAuthStateDirForTest(value) {
     activeApiAuthStateDir = value;
