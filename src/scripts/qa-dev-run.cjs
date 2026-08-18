@@ -600,7 +600,26 @@ function restoreLaunchAgentBackupIfPresent() {
   }
 }
 
-function killStaleGateways() {
+function tcpPortIsOpen(port) {
+  const result = spawnSync("nc", ["-z", "-w", "1", "127.0.0.1", String(port)], {
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
+
+function foreignOpenClawProcessPresent() {
+  if (process.platform !== "darwin" || typeof process.getuid !== "function") return false;
+  const result = spawnSync("ps", ["-axo", "uid=,comm="], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) return false;
+  const currentUid = process.getuid();
+  return result.stdout.split(/\r?\n/).some((line) => {
+    const match = line.trim().match(/^(\d+)\s+(.+)$/);
+    if (!match || Number(match[1]) === currentUid) return false;
+    return path.basename(match[2].trim()) === "openclaw";
+  });
+}
+
+function killStaleGateways({ requireFree = false } = {}) {
   if (process.platform === "win32") {
     killWindowsRepoGatewayProcesses();
     killWindowsListenersOnPorts([18789, 18791, 18800, 8897]);
@@ -608,21 +627,45 @@ function killStaleGateways() {
   }
   if (process.platform !== "darwin") return;
   spawnSync("pkill", ["-TERM", "-f", "openclaw-gateway"], { stdio: "ignore" });
+  // Current OpenClaw builds set the gateway process title to exactly
+  // "openclaw", so the historical openclaw-gateway pattern does not match
+  // orphaned instances. Those stale processes can retain the browser-control
+  // port and an old auth token even after their original supervisor exits.
+  spawnSync("pkill", ["-TERM", "-x", "openclaw"], { stdio: "ignore" });
 
   const deadline = Date.now() + 3_000;
   while (Date.now() < deadline) {
-    const holders = gatewayPortHolderPids();
-    if (holders.length === 0) return;
+    const holders = gatewayRuntimePortHolderPids();
+    if (holders.length === 0) break;
     sleep(150);
   }
 
-  const holders = gatewayPortHolderPids();
+  const holders = gatewayRuntimePortHolderPids();
   if (holders.length > 0) {
     console.warn(
-      `[qa-dev-run] Force-killing stale gateway port holder(s): ${holders.join(", ")}`,
+      `[qa-dev-run] Force-killing stale gateway/browser-control port holder(s): ${holders.join(", ")}`,
     );
     spawnSync("kill", ["-KILL", ...holders], { stdio: "ignore" });
   }
+
+  if (requireFree) {
+    const blockedPorts = [18789, 18791].filter(tcpPortIsOpen);
+    if (blockedPorts.length > 0 || foreignOpenClawProcessPresent()) {
+      throw new Error(
+        `${blockedPorts.length > 0 ? `Gateway QA port(s) ${blockedPorts.join(", ")} remain occupied after cleanup. ` : ""}` +
+        "A gateway in another macOS user session is likely running; stop that Knapsack/OpenClaw session before retrying isolated QA.",
+      );
+    }
+  }
+}
+
+function gatewayRuntimePortHolderPids() {
+  return Array.from(
+    new Set([
+      ...gatewayPortHolderPids(),
+      ...listeningPortHolderPids(18791),
+    ]),
+  );
 }
 
 function killStaleOpenClawChrome() {
@@ -881,7 +924,7 @@ function startDirectGatewayFromPlist() {
     "[qa-dev-run] Starting direct dev gateway from LaunchAgent plist",
   );
   bootoutLaunchAgent();
-  killStaleGateways();
+  killStaleGateways({ requireFree: true });
   return spawn(args[0], args.slice(1), {
     cwd: tauriDir,
     stdio: "inherit",
@@ -1102,7 +1145,7 @@ async function main() {
     Number(process.env.KNAPSACK_QA_VITE_READY_TIMEOUT_MS || 90_000),
   );
   bootoutLaunchAgent();
-  killStaleGateways();
+  killStaleGateways({ requireFree: true });
   killStaleOpenClawChrome();
 
   const appEnv =
