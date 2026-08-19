@@ -1,14 +1,14 @@
 // Notetaker sidebar using Knapsack color scheme
-$ks-bg: #FAFAFA;
-$ks-bg-hover: #F0EFEF;
-$ks-bg-selected: #E3E2E2;
+$ks-bg: #fafafa;
+$ks-bg-hover: #f0efef;
+$ks-bg-selected: #e3e2e2;
 $ks-text: #333333;
-$ks-text-secondary: #6A6969;
-$ks-text-muted: #ABA9A9;
-$ks-border: #E3E2E2;
-$ks-accent: #6474AC;
-$ks-accent-light: #E6EBF3;
-$ks-red: #C14841;
+$ks-text-secondary: #6a6969;
+$ks-text-muted: #aba9a9;
+$ks-border: #e3e2e2;
+$ks-accent: #6474ac;
+$ks-accent-light: #e6ebf3;
+$ks-red: #c14841;
 
 .notetaker-sidebar {
   width: 300px;
@@ -20,7 +20,10 @@ $ks-red: #C14841;
   height: 100%;
   background: $ks-bg;
   border-right: 1px solid $ks-border;
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    sans-serif;
   user-select: none;
   position: relative;
 
@@ -223,9 +226,12 @@ $ks-red: #C14841;
   // Scrollable content
   &__content {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     overflow-x: hidden;
-    padding: 8px 0;
+    padding: 0;
 
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -235,7 +241,17 @@ $ks-red: #C14841;
   }
 
   // Persistent agent roster
+  &__team-pane {
+    min-height: 176px;
+    flex: 0 0 auto;
+    overflow: hidden;
+    padding-top: 8px;
+  }
+
   &__team {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
     padding: 0 16px 12px;
   }
 
@@ -250,11 +266,41 @@ $ks-red: #C14841;
     }
   }
 
+  &__team-actions {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+
+    button {
+      min-width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      padding: 0 7px;
+      border: 1px solid $ks-border;
+      border-radius: 8px;
+      background: white;
+      color: $ks-text-secondary;
+      font: 600 13px/1 inherit;
+      cursor: pointer;
+
+      &:hover {
+        border-color: rgba($ks-accent, 0.5);
+        background: $ks-accent-light;
+        color: $ks-accent;
+      }
+    }
+  }
+
   &__team-list {
-    overflow: hidden;
+    min-height: 0;
+    overflow-y: auto;
     background: white;
     border: 1px solid $ks-border;
     border-radius: 12px;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(106, 105, 105, 0.35) transparent;
   }
 
   &__team-agent {
@@ -281,6 +327,64 @@ $ks-red: #C14841;
 
     &--active {
       background: $ks-accent-light;
+    }
+
+    &--group {
+      .notetaker-sidebar__team-avatar {
+        background: #f2effa;
+      }
+    }
+  }
+
+  &__team-resizer {
+    position: relative;
+    height: 11px;
+    flex: 0 0 11px;
+    display: grid;
+    place-items: center;
+    cursor: row-resize;
+    outline: none;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 5px;
+      height: 1px;
+      background: $ks-border;
+    }
+
+    span {
+      position: relative;
+      z-index: 1;
+      width: 38px;
+      height: 5px;
+      border-radius: 999px;
+      background: #cfcdcd;
+      box-shadow: 0 0 0 4px $ks-bg;
+      transition:
+        background 0.12s ease,
+        width 0.12s ease;
+    }
+
+    &:hover span,
+    &:focus-visible span {
+      width: 48px;
+      background: $ks-accent;
+    }
+  }
+
+  &__meeting-pane {
+    min-height: 140px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-top: 8px;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
     }
   }
 
@@ -333,6 +437,199 @@ $ks-red: #C14841;
   &__team-chat {
     color: $ks-text-muted;
     font-size: 18px;
+  }
+
+  &__composer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(31, 36, 48, 0.34);
+    backdrop-filter: blur(3px);
+  }
+
+  &__composer {
+    width: min(460px, calc(100vw - 48px));
+    max-height: min(680px, calc(100vh - 48px));
+    overflow-y: auto;
+    padding: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 18px;
+    background: white;
+    box-shadow: 0 24px 80px rgba(31, 36, 48, 0.24);
+    user-select: text;
+  }
+
+  &__composer-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+
+    h2 {
+      margin: 0;
+      color: $ks-text;
+      font:
+        700 22px/1.25 'Lora',
+        serif;
+    }
+    p {
+      margin: 5px 0 0;
+      color: $ks-text-muted;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    > button {
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 8px;
+      background: $ks-bg-hover;
+      color: $ks-text-secondary;
+      font-size: 22px;
+      cursor: pointer;
+    }
+  }
+
+  &__composer-label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 14px;
+    color: $ks-text;
+    font-size: 12px;
+    font-weight: 650;
+
+    > span {
+      color: $ks-text-muted;
+      font-weight: 400;
+    }
+    input,
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid $ks-border;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fcfcfc;
+      color: $ks-text;
+      font: 400 13px/1.4 inherit;
+      outline: none;
+      resize: vertical;
+
+      &:focus {
+        border-color: $ks-accent;
+        box-shadow: 0 0 0 3px rgba($ks-accent, 0.12);
+        background: white;
+      }
+    }
+  }
+
+  &__composer-name-row {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 8px;
+
+    .notetaker-sidebar__composer-emoji {
+      padding: 8px;
+      text-align: center;
+      font-size: 20px;
+    }
+  }
+
+  &__composer-members {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 14px 0 0;
+    padding: 0;
+    border: none;
+
+    legend {
+      margin-bottom: 8px;
+      color: $ks-text;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    legend span {
+      margin-left: 5px;
+      color: $ks-text-muted;
+      font-weight: 400;
+    }
+    button {
+      display: grid;
+      grid-template-columns: 32px 1fr 22px;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid $ks-border;
+      border-radius: 11px;
+      background: white;
+      color: $ks-text;
+      text-align: left;
+      cursor: pointer;
+
+      > span:first-child {
+        font-size: 18px;
+        text-align: center;
+      }
+      > span:nth-child(2) {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      strong {
+        font-size: 13px;
+      }
+      small {
+        overflow: hidden;
+        color: $ks-text-muted;
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      &.is-selected {
+        border-color: $ks-accent;
+        background: $ks-accent-light;
+      }
+    }
+  }
+
+  &__composer-check {
+    color: $ks-accent;
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  &__composer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 22px;
+
+    button {
+      padding: 9px 15px;
+      border-radius: 9px;
+      font: 600 12px/1 inherit;
+      cursor: pointer;
+    }
+    .is-secondary {
+      border: 1px solid $ks-border;
+      background: white;
+      color: $ks-text-secondary;
+    }
+    .is-primary {
+      border: 1px solid $ks-accent;
+      background: $ks-accent;
+      color: white;
+    }
+    .is-primary:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
   }
 
   // Connect calendar prompt
@@ -558,8 +855,15 @@ $ks-red: #C14841;
   }
 
   @keyframes sidebar-rec-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.8); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.4;
+      transform: scale(0.8);
+    }
   }
 
   &__start-now-btn {
@@ -616,7 +920,7 @@ $ks-red: #C14841;
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: linear-gradient(135deg, #B5C4DB, #91A5C9);
+    background: linear-gradient(135deg, #b5c4db, #91a5c9);
     display: flex;
     align-items: center;
     justify-content: center;

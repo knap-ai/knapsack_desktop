@@ -10,17 +10,25 @@ export type TeamAgent = {
   suggestedPrompts: string[]
 }
 
+export type TeamGroup = {
+  id: string
+  name: string
+  emoji: string
+  agentIds: string[]
+}
+
 const TEAM_ROSTER_STORAGE = 'knapsack.team.roster.v1'
+const TEAM_GROUPS_STORAGE = 'knapsack.team.groups.v1'
 const ONBOARDING_AGENTS_STORAGE = 'kn_onboarding_agents'
 
 const BUILT_IN_SUGGESTED_PROMPTS: Record<string, string[]> = {
   scout: [
-    'Brief me on today\'s meetings, commitments, and top priorities.',
+    "Brief me on today's meetings, commitments, and top priorities.",
     'Find the follow-ups that are most at risk of falling through the cracks.',
   ],
   polly: [
     'Triage my inbox and show me the messages that deserve a response first.',
-    'Summarize today\'s newsletters and social notifications without the noise.',
+    "Summarize today's newsletters and social notifications without the noise.",
   ],
   atlas: [
     'Show me the relationships and opportunities I should act on this week.',
@@ -41,7 +49,7 @@ function slugifyAgentId(value: string) {
   return slug || 'teammate'
 }
 
-function toTeamAgent(agent: {
+export function createTeamAgent(agent: {
   id?: string
   name: string
   emoji: string
@@ -60,17 +68,26 @@ function toTeamAgent(agent: {
     browserProfile: `agent-${id}`,
     suggestedPrompts: customSuggestedPrompts?.length
       ? customSuggestedPrompts
-      : BUILT_IN_SUGGESTED_PROMPTS[id]
-      || [
+      : BUILT_IN_SUGGESTED_PROMPTS[id] || [
         `Review my connected information as ${agent.name}, ${agent.personality}, and tell me what matters most.`,
         `What is the highest-value action you can take for me today as ${agent.name}?`,
       ],
   }
 }
 
+function normalizeTeamGroup(group: TeamGroup): TeamGroup {
+  const id = slugifyAgentId(group.id || group.name)
+  return {
+    id,
+    name: group.name.trim() || 'Team chat',
+    emoji: group.emoji || '👥',
+    agentIds: Array.from(new Set(group.agentIds.filter(Boolean))),
+  }
+}
+
 export function defaultTeamRoster(): TeamAgent[] {
   return AGENT_TEMPLATES.map(template =>
-    toTeamAgent({
+    createTeamAgent({
       id: template.id,
       name: template.defaultIdentity.displayName,
       emoji: template.defaultIdentity.emoji,
@@ -82,8 +99,9 @@ export function defaultTeamRoster(): TeamAgent[] {
 }
 
 export function getPrimaryScout(agents: TeamAgent[]): TeamAgent {
-  const scout = agents.find(agent => agent.id === 'scout')
-    ?? defaultTeamRoster().find(agent => agent.id === 'scout')
+  const scout =
+    agents.find(agent => agent.id === 'scout') ??
+    defaultTeamRoster().find(agent => agent.id === 'scout')
 
   if (!scout) throw new Error('Scout is missing from the default team roster')
   return scout
@@ -100,7 +118,7 @@ export function loadTeamRoster(): TeamAgent[] {
     try {
       const parsed = JSON.parse(stored) as TeamAgent[]
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(agent => toTeamAgent(agent))
+        return parsed.map(agent => createTeamAgent(agent))
       }
     } catch {
       // Fall through to onboarding migration/defaults.
@@ -117,7 +135,7 @@ export function loadTeamRoster(): TeamAgent[] {
         soul?: string
       }>
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const migrated = parsed.map(toTeamAgent)
+        const migrated = parsed.map(createTeamAgent)
         localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(migrated))
         return migrated
       }
@@ -136,6 +154,28 @@ export function upsertTeamAgents(
 ) {
   const existing = loadTeamRoster()
   const byId = new Map(existing.map(agent => [agent.id, agent]))
-  for (const agent of agents.map(toTeamAgent)) byId.set(agent.id, agent)
+  for (const agent of agents.map(createTeamAgent)) byId.set(agent.id, agent)
   saveTeamRoster(Array.from(byId.values()))
+}
+
+export function loadTeamGroups(): TeamGroup[] {
+  const stored = localStorage.getItem(TEAM_GROUPS_STORAGE)
+  if (!stored) return []
+  try {
+    const parsed = JSON.parse(stored) as TeamGroup[]
+    return Array.isArray(parsed)
+      ? parsed.map(normalizeTeamGroup).filter(group => group.agentIds.length >= 2)
+      : []
+  } catch {
+    return []
+  }
+}
+
+export function saveTeamGroups(groups: TeamGroup[]) {
+  localStorage.setItem(TEAM_GROUPS_STORAGE, JSON.stringify(groups.map(normalizeTeamGroup)))
+  window.dispatchEvent(new CustomEvent('knapsack:team-groups-changed'))
+}
+
+export function createTeamGroup(group: Omit<TeamGroup, 'id'> & { id?: string }): TeamGroup {
+  return normalizeTeamGroup({ ...group, id: group.id || group.name })
 }
