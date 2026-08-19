@@ -1058,13 +1058,13 @@ const SLASH_COMMANDS: Record<string, string> = {
  * Returns a formatted context string, or empty string if no data is available.
  * This avoids browser emulation — data is fetched directly via authenticated APIs.
  */
-async function fetchEmailCalendarContext(): Promise<string> {
+async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<string> {
   const dataFetcher = new DataFetcher()
   const contextParts: string[] = []
 
   // Fetch recent emails (last 2 days, up to 15)
   try {
-    const emails = await dataFetcher.getRecentGmailMessages(2, 15)
+    const emails = await dataFetcher.getRecentGmailMessages(2, 15, nativeEmailConnected)
     if (emails?.length) {
       contextParts.push('## Recent Emails\n')
       for (const email of emails.slice(0, 10)) {
@@ -1074,9 +1074,20 @@ async function fetchEmailCalendarContext(): Promise<string> {
           `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
         )
       }
+    } else if (nativeEmailConnected) {
+      contextParts.push(`## Native Email Status
+
+- Knapsack's connected email query completed but returned no messages from the last 2 days.
+- Do not open Gmail in the browser or ask for a Google password. Report that the connected inbox returned no recent messages.`)
     }
   } catch (err) {
     console.warn('[ClawdChat] Failed to pre-fetch emails:', err)
+    if (nativeEmailConnected) {
+      contextParts.push(`## Native Email Status
+
+- A Gmail or Outlook account is connected, but Knapsack's native email query failed: ${err instanceof Error ? err.message : String(err)}
+- Do not open Gmail in the browser, ask for a password, or claim Google requested verification. Report this as a Knapsack connection/query error.`)
+    }
   }
 
   // Fetch today's calendar events
@@ -1441,7 +1452,7 @@ const ChatMessage = memo(function ChatMessage({
                   onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt, m.id) }}
                 >
                   <span className="ClawdPromptActionNum">{i + 1}</span>
-                  {action.label}
+                  <span className="ClawdPromptActionLabel">{action.label}</span>
                 </button>
               )
             })}
@@ -1935,6 +1946,8 @@ interface ClawdChatProps {
   userEmail?: string
   userName?: string
   onBusyChange?: (busy: boolean) => void
+  onProviderPanelOpenChange?: (open: boolean) => void
+  nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
@@ -1952,9 +1965,10 @@ interface ClawdChatProps {
   browserProfile?: string
   agentName?: string
   agentPersonality?: string
+  agentSuggestedPrompts?: string[]
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts }: ClawdChatProps = {}) {
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -1998,6 +2012,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Onboarding state
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
+  useEffect(() => {
+    onProviderPanelOpenChange?.(showKeyPrompt)
+    return () => onProviderPanelOpenChange?.(false)
+  }, [onProviderPanelOpenChange, showKeyPrompt])
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
@@ -2340,8 +2358,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             text: 'What should we work on?',
             ts: Date.now() + 1,
             promptActions: [
-              { label: 'Help me plan my priorities', prompt: 'Help me plan my priorities for today.' },
-              { label: 'Review what needs attention', prompt: 'Review my connected information and tell me what needs my attention.' },
+              ...(agentSuggestedPrompts?.length ? agentSuggestedPrompts : [
+                `Review my connected information as ${agentName} and tell me what matters most.`,
+                `What is the highest-value action you can take for me today as ${agentName}?`,
+              ]).slice(0, 3).map(prompt => ({
+                label: prompt,
+                prompt,
+              })),
             ],
           },
         ]
@@ -2366,7 +2389,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ],
       },
     ]},
-    [agentName, agentPersonality, onboardingAgentsData],
+    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -4877,7 +4900,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (isSmartPrompt) {
           try {
-            const context = await fetchEmailCalendarContext()
+            const context = await fetchEmailCalendarContext(nativeEmailConnected)
             if (context) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
               usedNativeEmailCalendarContext = true
@@ -4893,7 +4916,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(text)) {
           try {
-            const context = await fetchEmailCalendarContext()
+            const context = await fetchEmailCalendarContext(nativeEmailConnected)
             if (context) {
               usedNativeEmailCalendarContext = true
               actualText = `${text}
@@ -5901,21 +5924,21 @@ ${actualText}`
                   onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">1</span>
-                  Diagnose the issue
+                  <span className="ClawdPromptActionLabel">Diagnose the issue</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_RESTART_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">2</span>
-                  Restart the gateway
+                  <span className="ClawdPromptActionLabel">Restart the gateway</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">3</span>
-                  View error logs
+                  <span className="ClawdPromptActionLabel">View error logs</span>
                 </button>
               </div>
             </div>
@@ -5936,14 +5959,14 @@ ${actualText}`
                   onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">1</span>
-                  Diagnose the issue
+                  <span className="ClawdPromptActionLabel">Diagnose the issue</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">2</span>
-                  View error logs
+                  <span className="ClawdPromptActionLabel">View error logs</span>
                 </button>
               </div>
             </div>

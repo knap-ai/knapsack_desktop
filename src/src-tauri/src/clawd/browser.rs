@@ -2049,6 +2049,9 @@ struct ClawdbotTab {
 
   #[serde(rename = "title")]
   title: Option<String>,
+
+  #[serde(rename = "type")]
+  target_type: Option<String>,
 }
 
 #[get("/api/clawd/browser/open")]
@@ -2384,6 +2387,23 @@ pub struct TabsListResponse {
   pub tabs: Vec<ClawdbotTab>,
 }
 
+fn filter_top_level_page_tabs(mut result: JsonValue) -> JsonValue {
+  let keep_page = |tab: &JsonValue| {
+    tab
+      .get("type")
+      .and_then(JsonValue::as_str)
+      .map(|target_type| target_type == "page")
+      .unwrap_or(true)
+  };
+
+  if let Some(tabs) = result.as_array_mut() {
+    tabs.retain(keep_page);
+  } else if let Some(tabs) = result.get_mut("tabs").and_then(JsonValue::as_array_mut) {
+    tabs.retain(keep_page);
+  }
+  result
+}
+
 #[get("/api/clawd/browser/tabs")]
 pub async fn list_tabs(
   _app_handle: web::Data<tauri::AppHandle>,
@@ -2399,7 +2419,10 @@ pub async fn list_tabs(
   };
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
-    Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
+    Ok(result) => HttpResponse::Ok().json(serde_json::json!({
+      "success": true,
+      "data": filter_top_level_page_tabs(result),
+    })),
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
@@ -2444,6 +2467,40 @@ pub async fn focus_tab(
   {
     Ok(_) => HttpResponse::Ok()
       .json(serde_json::json!({"success": true, "message": "Focused tab", "targetId": target_id})),
+    Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
+  }
+}
+
+#[post("/api/clawd/browser/close")]
+pub async fn close_tab(
+  _app_handle: web::Data<tauri::AppHandle>,
+  _cfg: web::Data<SharedClawdbotConfig>,
+  payload: web::Json<FocusRequest>,
+) -> impl Responder {
+  let profile = match desktop_browser_profile(payload.profile.as_deref(), payload.chrome) {
+    Ok(profile) => profile,
+    Err(message) => {
+      return HttpResponse::BadRequest()
+        .json(serde_json::json!({"success": false, "message": message}))
+    }
+  };
+  let target_id = payload.target_id.trim().to_string();
+  if target_id.is_empty() {
+    return HttpResponse::BadRequest()
+      .json(serde_json::json!({"success": false, "message": "targetId is required"}));
+  }
+
+  match gateway_client::browser_request(
+    "DELETE",
+    &format!("/tabs/{}", target_id),
+    Some(serde_json::json!({"profile": profile})),
+    None,
+    None,
+  )
+  .await
+  {
+    Ok(_) => HttpResponse::Ok()
+      .json(serde_json::json!({"success": true, "message": "Closed tab", "targetId": target_id})),
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
@@ -5464,6 +5521,8 @@ Examples:
 - If the user pasted or referenced a connected Google Docs / Sheets / Drive URL, fetch it through the local Knapsack Drive endpoint first so you can read the exported text/CSV directly before opening the browser.
 - Only use browser navigation for Gmail/Calendar/Drive when the user explicitly asks to use the web UI or when the native context/tooling cannot answer the request.
 - "check my email" / "Gmail" → prefer native email context first; only navigate("https://mail.google.com") if native context is unavailable or insufficient
+- If native context says Gmail or Outlook is connected but a query returned no data or failed, report that exact native result. Do not switch to browser login, ask for a password, or claim Google requested verification.
+- Never claim a site requested a password, CAPTCHA, or verification unless a browser snapshot from the current request explicitly showed it.
 - "search for X" → navigate("https://www.google.com/search?q=X")  (only the search query goes in the URL)
 - "calendar" → prefer native calendar context first; only navigate("https://calendar.google.com") if native context is unavailable or insufficient
 - "tasks" / "Google Tasks" → navigate("https://tasks.google.com")
@@ -7563,12 +7622,13 @@ fn strip_html_tags(html: &str) -> String {
 mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
-    compact_messages_for_provider, fallback_failure_message, incorrectly_denies_local_file_access,
-    is_context_window_error, is_transient_or_internal_provider_error, jwt_expiry_unix,
-    knapsack_token_is_expired, load_seed_history_from_request,
-    local_file_request_requires_inspection, provider_compaction_limits,
-    provider_context_recovery_limits, read_embedded_browser_preference_at,
-    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
+    compact_messages_for_provider, fallback_failure_message, filter_top_level_page_tabs,
+    incorrectly_denies_local_file_access, is_context_window_error,
+    is_transient_or_internal_provider_error, jwt_expiry_unix, knapsack_token_is_expired,
+    load_seed_history_from_request, local_file_request_requires_inspection,
+    provider_compaction_limits, provider_context_recovery_limits,
+    read_embedded_browser_preference_at, should_attempt_fallback_for_provider_error,
+    write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -7584,6 +7644,26 @@ mod tests {
       .duration_since(std::time::UNIX_EPOCH)
       .unwrap()
       .as_secs()
+  }
+
+  #[test]
+  fn embedded_tabs_exclude_iframes_and_workers() {
+    let tabs = json!({
+      "tabs": [
+        {"targetId": "page-1", "type": "page", "url": "https://example.com"},
+        {"targetId": "frame-1", "type": "iframe", "url": "https://ads.example.com"},
+        {"targetId": "worker-1", "type": "service_worker", "url": "https://example.com/sw.js"},
+        {"targetId": "legacy-page", "url": "https://legacy.example.com"}
+      ]
+    });
+    let filtered = filter_top_level_page_tabs(tabs);
+    let ids = filtered["tabs"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|tab| tab["targetId"].as_str())
+      .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["page-1", "legacy-page"]);
   }
 
   #[test]

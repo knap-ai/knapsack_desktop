@@ -7,10 +7,30 @@ export type TeamAgent = {
   personality: string
   soul: string
   browserProfile: string
+  suggestedPrompts: string[]
 }
 
 const TEAM_ROSTER_STORAGE = 'knapsack.team.roster.v1'
 const ONBOARDING_AGENTS_STORAGE = 'kn_onboarding_agents'
+
+const BUILT_IN_SUGGESTED_PROMPTS: Record<string, string[]> = {
+  scout: [
+    'Brief me on today\'s meetings, commitments, and top priorities.',
+    'Find the follow-ups that are most at risk of falling through the cracks.',
+  ],
+  polly: [
+    'Triage my inbox and show me the messages that deserve a response first.',
+    'Summarize today\'s newsletters and social notifications without the noise.',
+  ],
+  atlas: [
+    'Show me the relationships and opportunities I should act on this week.',
+    'Who should I follow up with now, and what should I say?',
+  ],
+  coach: [
+    'Analyze my recent work patterns and give me a realistic plan for today.',
+    'Where am I being too reactive, and what should I change this week?',
+  ],
+}
 
 function slugifyAgentId(value: string) {
   const slug = value
@@ -27,8 +47,10 @@ function toTeamAgent(agent: {
   emoji: string
   personality: string
   soul?: string
+  suggestedPrompts?: string[]
 }): TeamAgent {
   const id = slugifyAgentId(agent.id || agent.name)
+  const customSuggestedPrompts = agent.suggestedPrompts?.filter(Boolean).slice(0, 3)
   return {
     id,
     name: agent.name.trim() || 'Teammate',
@@ -36,6 +58,13 @@ function toTeamAgent(agent: {
     personality: agent.personality.trim() || 'Your AI teammate',
     soul: agent.soul?.trim() || `You are ${agent.name}, a focused and helpful AI teammate.`,
     browserProfile: `agent-${id}`,
+    suggestedPrompts: customSuggestedPrompts?.length
+      ? customSuggestedPrompts
+      : BUILT_IN_SUGGESTED_PROMPTS[id]
+      || [
+        `Review my connected information as ${agent.name}, ${agent.personality}, and tell me what matters most.`,
+        `What is the highest-value action you can take for me today as ${agent.name}?`,
+      ],
   }
 }
 
@@ -47,6 +76,7 @@ export function defaultTeamRoster(): TeamAgent[] {
       emoji: template.defaultIdentity.emoji,
       personality: template.defaultIdentity.personality,
       soul: template.defaultIdentity.soul,
+      suggestedPrompts: BUILT_IN_SUGGESTED_PROMPTS[template.id],
     }),
   )
 }

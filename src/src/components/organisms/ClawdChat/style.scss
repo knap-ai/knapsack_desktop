@@ -834,6 +834,9 @@
   .ClawdPromptActions {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     gap: 6px;
     margin-top: 10px;
     padding-top: 10px;
@@ -856,7 +859,11 @@
 
   .ClawdPromptAction {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     gap: 8px;
     padding: 8px 12px;
     border-radius: 8px;
@@ -869,6 +876,18 @@
     cursor: pointer;
     transition: all 0.15s ease;
     font-family: inherit;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+
+    .ClawdPromptActionLabel {
+      flex: 1 1 auto;
+      min-width: 0;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
 
     &:hover {
       background: rgba(197, 72, 65, 0.14);
@@ -2862,7 +2881,8 @@
 // Channels Panel — full-height right-side drawer
 .ClawdChannelsPanel {
   @extend %ClawdDrawer;
-  width: 400px;
+  width: min(400px, 100%);
+  max-width: 100%;
 }
 
 .ClawdChannelsPanelHeader {

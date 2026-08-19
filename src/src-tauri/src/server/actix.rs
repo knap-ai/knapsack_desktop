@@ -393,6 +393,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::set_browser_presentation)
       .service(clawd::browser::list_tabs)
       .service(clawd::browser::focus_tab)
+      .service(clawd::browser::close_tab)
       .service(clawd::browser::snapshot)
       .service(clawd::browser::act)
       .service(clawd::browser::screenshot)

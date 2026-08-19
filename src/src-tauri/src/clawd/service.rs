@@ -7562,6 +7562,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
+        // Warm the agent-owned browser as soon as the gateway becomes ready.
+        // The existing single-flight guard prevents duplicate Chrome launches.
+        spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
       }
     } else if !gateway_transient_stall {
       GATEWAY_WAS_HEALTHY.store(false, Ordering::Relaxed);

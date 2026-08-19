@@ -124,6 +124,7 @@ function Home({
   })
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [isChatProviderPanelOpen, setIsChatProviderPanelOpen] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
@@ -155,6 +156,10 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+  const nativeEmailConnected = useMemo(
+    () => getGoogleGmailConnections(connections).length > 0 || Boolean(connections[ConnectionKeys.MICROSOFT_OUTLOOK]),
+    [connections],
+  )
   const userImage = auth.profile?.profile_image || '/assets/images/chat/no-pic-user-avatar-icon.svg'
 
   const stopLLMExecution = async () => {
@@ -715,7 +720,9 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                       onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
+                      nativeEmailConnected={nativeEmailConnected}
                       onBusyChange={setIsChatBusy}
+                      onProviderPanelOpenChange={setIsChatProviderPanelOpen}
                       openProviderPanel={openProviderPanelTrigger}
                       chatId={activeChatId}
                       sessionId={activeAgent ? `ui-agent-${activeAgent.id}` : 'ui'}
@@ -723,6 +730,7 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                       browserProfile={activeBrowserProfile}
                       agentName={chatAgent?.name}
                       agentPersonality={chatAgent?.personality}
+                      agentSuggestedPrompts={chatAgent?.suggestedPrompts}
                       title={chatAgent ? `${chatAgent.emoji} ${chatAgent.name}` : 'Knapsack Chat'}
                     />
                   </div>
@@ -839,7 +847,7 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                       isChatBusy={isChatBusy}
                     />
                   )}
-                  {embeddedBrowserEnabled && !showEmbeddedBrowser && (
+                  {embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen && (
                     <button
                       className="embedded-browser-launcher"
                       type="button"
