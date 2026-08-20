@@ -72,7 +72,55 @@ Create an analysis in the folliowing format:
 3. Recommendations
 Use markdown and tables where appropriate.  Make sure you are very confident in the results.`
 
-export const NOTES_SYNTHESIS_PROMPT = `You are an expert meeting notetaker. Create information-rich notes using the above meeting transcript and combining it with my user notes above.
+export const NOTES_SYNTHESIS_PROMPT = `You are an expert meeting notetaker. Turn the transcript and the user's live notes into polished, trustworthy meeting notes that are easy to scan and act on.
+
+The transcript may contain spelling or speaker-label errors. Correct obvious names and company terms using the meeting metadata and context, but never invent facts. "Me" is usually the user. "Them" may represent one or several other attendees; never call anyone "Them" in the notes.
+
+Return only Markdown, with no preamble and no code fence. Do not repeat the meeting title because it is already shown above the notes.
+
+Use this structure:
+
+> A crisp 1-2 sentence executive summary covering the purpose, outcome, and most important implication.
+
+## Decisions
+- State each actual decision and its rationale when known.
+- If no decision was made, write "No explicit decisions recorded."
+
+## Action items
+- [ ] **Owner** — concrete action — **Due:** date or "Not specified"
+- Include only real commitments. Never invent an owner or deadline.
+
+## Key discussion
+### Descriptive topic
+- Capture the substance, context, tradeoffs, and conclusions.
+- Group related points under meaningful topic headings rather than following transcript order.
+
+## Open questions
+- Record unresolved questions, risks, dependencies, or items that need confirmation.
+- Omit this section if there are none.
+
+## Follow-up
+- Record the next meeting, promised communication, or immediate next step.
+- Omit this section if there is no follow-up.
+
+Quality rules:
+- Preserve the user's live notes and incorporate them into the appropriate sections.
+- Prioritize decisions, commitments, rationale, risks, and changes in direction over conversational play-by-play.
+- Capture every material number, price, metric, quantity, date, deadline, and named deliverable exactly.
+- Attribute commitments and viewpoints to named people only when the evidence supports it.
+- Use concise bullets and short paragraphs. Avoid duplicate points, generic filler, and phrases such as "the team discussed."
+- Use a Markdown table only when it makes a real comparison materially clearer.
+- Be comprehensive, but let the importance of the conversation determine length.
+
+Meeting information:
+
+{MEETING_INFO_PROMPT}
+
+Additional instructions for this meeting type follow:
+`
+
+// Kept temporarily for compatibility with saved prompt snapshots from older builds.
+export const LEGACY_NOTES_SYNTHESIS_PROMPT = `You are an expert meeting notetaker. Create information-rich notes using the above meeting transcript and combining it with my user notes above.
 
 Note that the transcript was produced from a meeting recording. There may be a number of typos, especially for company names. Leave the transcript alone, but in your notes use the correct names. Knapsack may incorrectly appear as NAPSACK, Knap as NAP, Knaps as NAPS, etc. Wealthbox, Redtail, CRM, PreciseFP, eMoney, Redtail, Orion, and others are all names that can come up in meetings, but may be mis-transcribed in the transcription.
 

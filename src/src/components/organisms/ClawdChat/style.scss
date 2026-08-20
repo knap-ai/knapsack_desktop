@@ -11,11 +11,15 @@
 }
 
 .ClawdChatRoot--compact {
+  position: relative;
   padding: 0;
+  contain: layout paint;
 
   .ClawdChatHeader {
+    position: relative;
     padding: 10px 12px;
-    gap: 6px;
+    gap: 0;
+    background: #fff;
   }
 
   .ClawdChatLogo {
@@ -31,13 +35,46 @@
     font-size: 11px;
   }
 
-  .ClawdChatActions {
-    gap: 4px;
+  .ClawdChatTitleRow {
+    align-items: center;
+    justify-content: space-between;
   }
 
-  .ClawdChatActions button {
-    font-size: 10px;
-    padding: 3px 6px;
+  .ClawdChatTitleGroup {
+    gap: 1px;
+  }
+
+  .ClawdChatActions--compact {
+    display: none;
+    position: absolute;
+    top: 52px;
+    right: 10px;
+    z-index: 80;
+    width: 220px;
+    max-height: min(420px, 70vh);
+    overflow-y: auto;
+    padding: 8px;
+    gap: 4px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 12px 30px rgba(35, 35, 35, 0.16);
+  }
+
+  .ClawdChatActions--compact.ClawdChatActions--open {
+    display: flex;
+  }
+
+  .ClawdChatActions--compact button {
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 9px;
+    border-radius: 7px;
+    font-size: 11px;
+    text-align: left;
+    justify-content: flex-start;
   }
 
   .ClawdChatBody {
@@ -46,7 +83,34 @@
 
   .ClawdChatInput {
     padding: 8px 10px;
+    contain: layout style;
   }
+}
+
+.ClawdCompactControlsButton {
+  display: none;
+}
+
+.ClawdChatRoot--compact .ClawdCompactControlsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.11);
+  border-radius: 8px;
+  background: #fff;
+  color: #686463;
+  font-size: 13px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.ClawdChatRoot--compact .ClawdCompactControlsButton:hover,
+.ClawdChatRoot--compact .ClawdCompactControlsButton[aria-expanded='true'] {
+  background: #f4f2f1;
+  color: #2f2c2b;
 }
 
 // Flex row that holds the main chat area and any side panel

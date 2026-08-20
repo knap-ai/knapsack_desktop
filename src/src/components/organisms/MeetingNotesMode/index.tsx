@@ -27,6 +27,7 @@ import { extractExternalEmails, extractInternalEmails, extractWorkDomains } from
 import { logError } from 'src/utils/errorHandling'
 import { KNFileType } from 'src/utils/KNSearchFilters'
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { enterMeetingWindowLayout } from 'src/utils/meetingWindowLayout'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
 import {
@@ -140,6 +141,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   userEmail,
   userName,
 }) => {
+  useEffect(() => enterMeetingWindowLayout(), [])
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
@@ -152,6 +154,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     'What should I pay attention to in this meeting?',
   )
   const [meetingTranscriptContext, setMeetingTranscriptContext] = useState('')
+  const [briefPrepContent, setBriefPrepContent] = useState('')
+  const [isBriefPrepGenerating, setIsBriefPrepGenerating] = useState(false)
+  const [briefPrepDismissed, setBriefPrepDismissed] = useState(false)
+  const [briefPrepExpanded, setBriefPrepExpanded] = useState(true)
+  const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
+  const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
+  const briefPrepTriggeredRef = useRef(false)
 
   useEffect(() => {
     listWorkspaces().then(res => {
@@ -200,6 +209,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const openMeetingChat = () => {
     setMeetingChatInitialInput('What should I pay attention to in this meeting?')
+    setBriefPrepExpanded(true)
     setIsMeetingChatOpen(true)
   }
 
@@ -221,7 +231,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       .filter(Boolean)
       .join(', ') || 'Unknown'
     const lines = [
-      'You are answering from the inline meeting chat. Use the full Knapsack gateway, tools, memory, and normal chat context, but prioritize the meeting context below over broader context when there is a conflict.',
+      'You are answering from the inline meeting chat. Answer from the meeting brief, notes, transcript, and details below before using broader memory.',
+      'Do not open a browser, navigate to a linked agenda, or use an external integration unless the user explicitly asks you to. If the meeting context is incomplete, say what is missing instead of attempting a login.',
       `The user is ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''}. Address the user directly and do not confuse them with external attendees.`,
       '',
       'Meeting details:',
@@ -232,6 +243,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       meeting?.description ? `- Description: ${meeting.description}` : '',
       `- Recording status: ${recordingHandlers.isRecording(thread.id) ? 'currently recording' : 'not recording'}`,
       '',
+      'Current meeting brief:',
+      briefPrepContent || 'No brief is available yet.',
+      '',
       'Current notes:',
       notesMarkdown || 'No notes yet.',
       '',
@@ -239,7 +253,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       meetingTranscriptContext || (thread.savedTranscript ? 'Transcript is being loaded or unavailable.' : 'No saved transcript yet. If the meeting is still live, rely on current notes and meeting details.'),
     ]
     return lines.filter(line => line !== '').join('\n')
-  }, [meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userName])
+  }, [briefPrepContent, meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userName])
 
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
@@ -260,14 +274,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const attendeePickerRef = useRef<HTMLDivElement>(null)
 
   const [inlineInsights, setInlineInsights] = useState<Array<{id: number; mins: number; text: string}>>([])
-  const [briefPrepContent, setBriefPrepContent] = useState('')
-  const [isBriefPrepGenerating, setIsBriefPrepGenerating] = useState(false)
-  const [briefPrepDismissed, setBriefPrepDismissed] = useState(false)
-  const [briefPrepExpanded, setBriefPrepExpanded] = useState(true)
-  const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
-  const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
-  const briefPrepTriggeredRef = useRef(false)
-
   const sameDayMeetings = useMemo(() => {
     if (!feed.meetings || meeting) return []
     const day = dayjs(timestamp).format('YYYY-MM-DD')
@@ -1622,7 +1628,7 @@ Be direct, specific, and concise. No filler text.`
                   onClick={() => {
                     setMeetingChatInitialInput('What did I miss? Compare the brief, current notes, and available meeting context.')
                     setIsMeetingChatOpen(true)
-                    setBriefPrepExpanded(false)
+                    setBriefPrepExpanded(true)
                   }}
                 >
                   What did I miss?
@@ -1673,6 +1679,30 @@ Be direct, specific, and concise. No filler text.`
               </div>
             )}
           </div>
+        )}
+
+        {isMeetingChatOpen && (
+          <section className="notetaker-note__inline-chat" aria-label="Meeting chat">
+            <button
+              type="button"
+              className="notetaker-note__inline-chat-close"
+              onClick={() => setIsMeetingChatOpen(false)}
+              title="Close meeting chat"
+              aria-label="Close meeting chat"
+            >
+              ×
+            </button>
+            <ClawdChat
+              userName={userName}
+              userEmail={userEmail}
+              compact
+              title="Ask about this meeting"
+              contextPrefix={meetingChatContext}
+              initialInput={meetingChatInitialInput}
+              chatId={`meeting:${thread.id}`}
+              sessionId={`meeting:${thread.id}`}
+            />
+          </section>
         )}
 
         {/* Inline insights — collected from heartbeat during recording, dismissable */}
@@ -1770,12 +1800,14 @@ Be direct, specific, and concise. No filler text.`
                 </div>
               </div>
             )}
-            <div className="text-left text-wrap max-w-[85vh] min-h-[320px]">
+            <div className="notetaker-note__document notetaker-note__document--editing text-left text-wrap min-h-[320px]">
               <EditorContent editor={editor} />
             </div>
           </div>
         ) : (
-          <MarkdownDisplay markdown={notesMarkdown}
+          <MarkdownDisplay
+            markdown={notesMarkdown}
+            className="notetaker-note__document notetaker-note__document--display"
             onChange={(updatedMarkdown) => {
               setNotesMarkdown(updatedMarkdown)
               saveNotes(thread.id, updatedMarkdown)
@@ -1875,35 +1907,6 @@ Be direct, specific, and concise. No filler text.`
       </div>
       </div>
 
-      {isMeetingChatOpen && (
-        <div className="notetaker-note__chat-drawer">
-          <div className="notetaker-note__chat-drawer-header">
-            <div>
-              <div className="notetaker-note__chat-drawer-title">Meeting Chat</div>
-              <div className="notetaker-note__chat-drawer-subtitle">
-                Full gateway chat, grounded first in this meeting.
-              </div>
-            </div>
-            <button
-              className="notetaker-note__chat-drawer-close"
-              onClick={() => setIsMeetingChatOpen(false)}
-              title="Close meeting chat"
-            >
-              ×
-            </button>
-          </div>
-          <div className="notetaker-note__chat-drawer-body">
-            <ClawdChat
-              userName={userName}
-              userEmail={userEmail}
-              compact
-              title="Meeting Chat"
-              contextPrefix={meetingChatContext}
-              initialInput={meetingChatInitialInput}
-            />
-          </div>
-        </div>
-      )}
       </div>
 
       {/* Notetaker bottom bar */}

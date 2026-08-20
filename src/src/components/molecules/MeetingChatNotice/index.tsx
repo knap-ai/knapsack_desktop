@@ -19,7 +19,8 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
 
   // Attempt auto-send on mount if enabled
   useEffect(() => {
-    if (!message || !meetingPlatform || !enabled) return
+    const supportedPlatform = ['google_meet', 'zoom', 'teams'].includes(meetingPlatform || '')
+    if (!message || !supportedPlatform || !enabled) return
 
     const tryAutoSend = async () => {
       const autoSendEnabled = await getMeetingChatAutoSend()

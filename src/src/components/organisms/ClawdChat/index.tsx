@@ -1977,8 +1977,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [chatFindQuery, setChatFindQuery] = useState('')
   const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [showCompactControls, setShowCompactControls] = useState(false)
+  const compactControlsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
+
+  useEffect(() => {
+    if (!compact || !showCompactControls) return
+    const closeCompactControls = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return
+      if (
+        event instanceof MouseEvent
+        && compactControlsRef.current?.contains(event.target as Node)
+      ) {
+        return
+      }
+      setShowCompactControls(false)
+    }
+    document.addEventListener('mousedown', closeCompactControls)
+    document.addEventListener('keydown', closeCompactControls)
+    return () => {
+      document.removeEventListener('mousedown', closeCompactControls)
+      document.removeEventListener('keydown', closeCompactControls)
+    }
+  }, [compact, showCompactControls])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<QueuedDraft[]>([])
@@ -5481,8 +5503,25 @@ ${actualText}`
             {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
+          {compact && (
+            <button
+              type="button"
+              className="ClawdCompactControlsButton"
+              aria-label="Meeting chat settings"
+              aria-expanded={showCompactControls}
+              onMouseDown={event => event.stopPropagation()}
+              onClick={() => setShowCompactControls(prev => !prev)}
+            >
+              <span aria-hidden="true">•••</span>
+            </button>
+          )}
         </div>
-        <div className="ClawdChatActions">
+        <div
+          ref={compactControlsRef}
+          className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : ''} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
+          onMouseDown={compact ? event => event.stopPropagation() : undefined}
+          onClick={compact ? () => setShowCompactControls(false) : undefined}
+        >
           <button
             disabled={busy}
             onClick={() => enableAssistant(!status?.running)}

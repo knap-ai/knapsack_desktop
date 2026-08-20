@@ -143,6 +143,35 @@ type NotificationService = {
   minutesToNotify: number
 }
 
+export const buildMeetingNotificationBrief = (
+  meeting: {
+    description?: string
+    participants?: { name?: string; email?: string }[]
+  },
+  userEmail: string,
+) => {
+  const attendeeLabels = (meeting.participants || [])
+    .filter(participant =>
+      !userEmail
+      || !participant.email
+      || participant.email.toLowerCase() !== userEmail.toLowerCase(),
+    )
+    .map(participant => participant.name?.trim() || participant.email?.split('@')[0] || '')
+    .filter(Boolean)
+  const visibleAttendees = attendeeLabels.slice(0, 3)
+  const attendeeSummary = visibleAttendees.length
+    ? `With ${visibleAttendees.join(', ')}${attendeeLabels.length > 3 ? ` +${attendeeLabels.length - 3}` : ''}`
+    : ''
+  const description = (meeting.description || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const contextSummary = description.length > 150
+    ? `${description.slice(0, 147).trimEnd()}…`
+    : description
+  return [attendeeSummary, contextSummary].filter(Boolean).join(' · ')
+}
+
 export interface IGoogleAuthControls {
   showGoogleAuthPopup: boolean
   setShowGoogleAuthPopup: (show: boolean) => void
@@ -502,6 +531,7 @@ export function useAutomations({
       buttonConfigs: ButtonConfig[],
       title: string,
       time: string,
+      brief?: string,
     ) => {
       if (!isNotificationWindowShowing) {
         try {
@@ -510,6 +540,7 @@ export function useAutomations({
             buttonConfigs,
             title,
             time,
+            brief,
           })
           setIsNotificationWindowShowing(true)
         } catch (error) {
@@ -569,6 +600,7 @@ export function useAutomations({
                 ],
                 meeting.title,
                 startTime.format('h:mm A'),
+                buildMeetingNotificationBrief(meeting, userEmail),
               )
               setNotificationServices(prev =>
                 prev.map((s, idx) =>
@@ -588,7 +620,7 @@ export function useAutomations({
         }
       }
     },
-    [dataFetcher, isNotificationWindowShowing],
+    [dataFetcher, isNotificationWindowShowing, openNotificationWindow, userEmail],
   )
 
   const handleNotificationsScheduleService = useCallback(

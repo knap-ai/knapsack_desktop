@@ -115,7 +115,7 @@ fn windows_work_area() -> Option<(i32, i32, i32, i32)> {
   }
 }
 
-const NOTIF_HEIGHT: f64 = 180.0;
+const NOTIF_HEIGHT: f64 = 210.0;
 const NOTIF_WIDTH: f64 = 720.0;
 const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
 const NOTIF_START_X_OFFSET: i32 = 500;
@@ -742,6 +742,7 @@ async fn show_notification_window(
   button_configs: Vec<ButtonConfig>,
   title: String,
   time: String,
+  brief: Option<String>,
 ) {
   if let Some(window) = app.get_window("notification") {
     if let Ok(monitor) = window.current_monitor() {
@@ -773,7 +774,18 @@ async fn show_notification_window(
           }))
           .unwrap();
 
-        window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
+        window
+          .emit(
+            "notification_event_id",
+            json!({
+              "event_id": event_id,
+              "button_configs": button_configs,
+              "title": title,
+              "time": time,
+              "brief": brief,
+            }),
+          )
+          .unwrap();
 
         let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
 
@@ -950,21 +962,34 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
           r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#,
         )
       }
-      _ => {
-        // Google Meet in browser: Cmd+Shift+C toggles chat
-        // We target the frontmost browser
+      "google_meet" => {
+        // Google Meet in a supported browser: Cmd+Shift+C toggles chat.
+        // Resolve the browser explicitly. The Knapsack meeting window is often
+        // frontmost, so targeting the frontmost process can paste this notice
+        // into Knapsack's own meeting-chat input.
         (
           "key code 8 using {command down, shift down}", // C
           "key code 8 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose frontmost is true"#,
+          r#"tell application "System Events"
+            set browserNames to {"Google Chrome", "Arc", "Safari", "Microsoft Edge", "Brave Browser"}
+            set targetApp to ""
+            repeat with browserName in browserNames
+              if exists application process (browserName as text) then
+                set targetApp to browserName as text
+                exit repeat
+              end if
+            end repeat
+          end tell
+          if targetApp is "" then error "No supported browser is open for Google Meet""#,
         )
       }
+      _ => return Ok(false),
     };
 
     let script = format!(
       r#"
       {target_app}
-      tell application targetApp to activate
+      tell application "System Events" to set frontmost of application process targetApp to true
       delay 0.5
       tell application "System Events"
         tell process targetApp
