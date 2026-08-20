@@ -25,6 +25,7 @@ import { useLLMBar } from 'src/hooks/feed/useLLMBar'
 import { getHasOnboarded, Onboarding } from 'src/pages/onboarding'
 import { KN_API_STOP_LLM_EXECUTION, KN_CHAT_MESSAGE_MAX_STREAM_READS } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
+import { initOnboardingIntent } from 'src/utils/onboardingIntent'
 
 import Home from './components/templates/Home/Home'
 import {
@@ -265,6 +266,27 @@ function App() {
   const reconnectDismissCheckDone = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+
+  // The website opens knapsack://onboard?role=... after download, so the role a
+  // visitor chose there selects the right worker in onboarding.
+  useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    initOnboardingIntent()
+      .then(fn => {
+        if (cancelled) fn()
+        else unlisten = fn
+      })
+      .catch(err =>
+        logError(err instanceof Error ? err : new Error(String(err)), {
+          additionalInfo: 'Failed to listen for onboarding deep links',
+        }),
+      )
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
 
   useEffect(() => {
     Promise.all([
