@@ -33,6 +33,7 @@ pub struct FetchGoogleGmailResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleGmailParams {
   email: String,
+  account_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -43,6 +44,7 @@ pub struct SetEmailReadResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SetEmailReadResponseParams {
   email: String,
+  account_email: Option<String>,
   message_id: String,
   extra_action: Option<String>,
 }
@@ -340,6 +342,7 @@ pub async fn fetch_gmail(
 
 async fn start_gmail_data_fetching(
   email: String,
+  account_email: Option<String>,
   semantic_service: Arc<Mutex<Option<SemanticService>>>,
   connections_data: Arc<Mutex<ConnectionsData>>,
   app_handle: tauri::AppHandle,
@@ -351,10 +354,20 @@ async fn start_gmail_data_fetching(
     }
   };
 
-  let user_connection = match UserConnection::find_by_user_email_and_scope(
+  let requested_account = account_email.clone().unwrap_or_else(|| email.clone());
+  let precise_connection = UserConnection::find_by_user_email_scope_and_account(
     email.clone(),
     String::from(GOOGLE_GMAIL_SCOPE),
-  ) {
+    requested_account.clone(),
+  );
+  let connection_result = if account_email.is_some() && requested_account != email {
+    precise_connection
+  } else {
+    precise_connection.or_else(|_| {
+      UserConnection::find_by_user_email_and_scope(email.clone(), String::from(GOOGLE_GMAIL_SCOPE))
+    })
+  };
+  let user_connection = match connection_result {
     Ok(connection) => connection,
     Err(error) => {
       log::error!("Failed to find user connection: {:?}", error);
@@ -376,18 +389,9 @@ async fn start_gmail_data_fetching(
   };
   let account_email = user_connection.calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
-    if ConnectionsData::lock_and_get_connection_is_syncing(
+    ConnectionsData::lock_and_start_connection_sync(
       connections_data.clone(),
       ConnectionsEnum::GoogleGmail,
-    )
-    .await
-    {
-      return;
-    }
-    ConnectionsData::lock_and_set_connection_is_syncing(
-      connections_data.clone(),
-      ConnectionsEnum::GoogleGmail,
-      true,
     )
     .await;
     let fetching_day_result = fetch_gmail(
@@ -416,10 +420,9 @@ async fn start_gmail_data_fetching(
       }
     }
 
-    ConnectionsData::lock_and_set_connection_is_syncing(
+    ConnectionsData::lock_and_finish_connection_sync(
       connections_data,
       ConnectionsEnum::GoogleGmail,
-      false,
     )
     .await;
   });
@@ -440,6 +443,7 @@ async fn fetch_google_gmail_api(
   let unwrapped_app_handle = app_handle.get_ref().clone();
   match start_gmail_data_fetching(
     params.email.clone(),
+    params.account_email.clone(),
     unwrapped_semantic_service,
     unwrapped_connections_data,
     unwrapped_app_handle,
@@ -459,14 +463,45 @@ async fn fetch_google_gmail_api(
 
 #[post("/api/knapsack/connections/google/gmail/read")]
 async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Responder {
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    payload.email.clone(),
-    String::from(GOOGLE_GMAIL_SCOPE),
-  )
-  .unwrap();
-  let access_token = refresh_connection_token(payload.email.clone(), user_connection.clone())
-    .await
-    .unwrap();
+  let precise_connection = payload.account_email.as_ref().and_then(|account_email| {
+    UserConnection::find_by_user_email_scope_and_account(
+      payload.email.clone(),
+      String::from(GOOGLE_GMAIL_SCOPE),
+      account_email.clone(),
+    )
+    .ok()
+    .or_else(|| {
+      UserConnection::find_by_scope_and_account_email(
+        String::from(GOOGLE_GMAIL_SCOPE),
+        account_email.clone(),
+      )
+      .ok()
+    })
+  });
+  let user_connection = precise_connection.or_else(|| {
+    if payload.account_email.is_some() {
+      return None;
+    }
+    UserConnection::find_by_user_email_and_scope(
+      payload.email.clone(),
+      String::from(GOOGLE_GMAIL_SCOPE),
+    )
+    .ok()
+  });
+  let Some(user_connection) = user_connection else {
+    return HttpResponse::BadRequest().json(SetEmailReadResponse {
+      message: "The requested Gmail account is not connected".to_string(),
+    });
+  };
+  let access_token =
+    match refresh_connection_token(payload.email.clone(), user_connection.clone()).await {
+      Ok(token) => token,
+      Err(_) => {
+        return HttpResponse::BadRequest().json(SetEmailReadResponse {
+          message: "Failed to authenticate the requested Gmail account".to_string(),
+        })
+      }
+    };
   let message_id = payload.message_id.clone();
 
   let hub = Gmail::new(get_https_client(), access_token.to_string());

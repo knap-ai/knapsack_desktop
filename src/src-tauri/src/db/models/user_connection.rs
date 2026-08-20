@@ -23,8 +23,8 @@ pub struct UserConnection {
   pub refresh_token: Option<String>,
   pub connection: Option<Connection>,
   pub last_synced: Option<u64>,
-  /// For google_calendar_read connections this holds the Google account email
-  /// whose calendar is synced. Empty string for all other connection types.
+  /// Google account email for account-scoped Calendar, Gmail, and Drive
+  /// connections. The database column keeps its legacy calendar-specific name.
   pub calendar_account_email: String,
 }
 
@@ -140,11 +140,14 @@ impl UserConnection {
     Ok(user_connection)
   }
 
-  /// Find the calendar connection for a specific Google calendar account email.
-  pub fn find_by_user_email_scope_and_calendar_account(
+  /// Find a connection for a specific account under a Desktop user.
+  ///
+  /// `calendar_account_email` is the legacy database column name, but it is
+  /// used for every account-scoped Google connection (Calendar, Gmail, Drive).
+  pub fn find_by_user_email_scope_and_account(
     user_email: String,
     scope: String,
-    calendar_account_email: String,
+    account_email: String,
   ) -> Result<UserConnection, Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
@@ -164,7 +167,7 @@ impl UserConnection {
       LEFT JOIN users on user_id = users.id
       WHERE users.email = ?1 AND scope = ?2 AND user_connections.calendar_account_email = ?3",
     )?;
-    let row = stmt.query_row(params![user_email, scope, calendar_account_email], |row| {
+    let row = stmt.query_row(params![user_email, scope, account_email], |row| {
       Ok((
         row.get::<_, u64>(0)?,
         row.get::<_, u64>(1)?,
@@ -205,6 +208,57 @@ impl UserConnection {
       last_synced,
       calendar_account_email: cal_email,
     })
+  }
+
+  /// Backwards-compatible calendar-specific name.
+  pub fn find_by_user_email_scope_and_calendar_account(
+    user_email: String,
+    scope: String,
+    calendar_account_email: String,
+  ) -> Result<UserConnection, Error> {
+    Self::find_by_user_email_scope_and_account(user_email, scope, calendar_account_email)
+  }
+
+  /// Resolve an account-scoped connection regardless of which Desktop user
+  /// owns it. This is needed when an action names the sender account directly.
+  pub fn find_by_scope_and_account_email(
+    scope: String,
+    account_email: String,
+  ) -> Result<UserConnection, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT
+        user_connections.id,
+        user_connections.user_id,
+        user_connections.connection_id,
+        user_connections.token,
+        user_connections.refresh_token,
+        user_connections.last_synced,
+        scope,
+        provider,
+        user_connections.calendar_account_email
+      FROM user_connections
+      LEFT JOIN connections on connection_id = connections.id
+      WHERE scope = ?1 AND user_connections.calendar_account_email = ?2
+      LIMIT 1",
+    )?;
+    let row = stmt.query_row(params![scope, account_email], |row| {
+      Ok(UserConnection {
+        id: Some(row.get(0)?),
+        user_id: row.get(1)?,
+        connection_id: row.get(2)?,
+        token: row.get(3)?,
+        refresh_token: row.get(4)?,
+        last_synced: row.get(5)?,
+        connection: Some(Connection {
+          id: Some(row.get(2)?),
+          scope: row.get(6)?,
+          provider: row.get(7)?,
+        }),
+        calendar_account_email: row.get(8)?,
+      })
+    })?;
+    Ok(row)
   }
 
   /// Return all calendar connections for a user (one per linked Google account).

@@ -65,16 +65,20 @@ pub enum ConnectionsEnum {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ConnectionsData {
   is_syncing: HashMap<ConnectionsEnum, bool>,
+  #[serde(skip)]
+  active_sync_counts: HashMap<ConnectionsEnum, u32>,
 }
 
 impl ConnectionsData {
   pub fn new() -> ConnectionsData {
     ConnectionsData {
       is_syncing: HashMap::from([]),
+      active_sync_counts: HashMap::from([]),
     }
   }
 
   pub fn reset(&mut self) {
+    self.active_sync_counts.clear();
     let connections_clone = self.is_syncing.clone();
     let keys = connections_clone.keys();
     for key in keys {
@@ -88,6 +92,24 @@ impl ConnectionsData {
 
   pub fn set_connection_is_syncing(&mut self, connection: ConnectionsEnum, is_syncing: bool) {
     self.is_syncing.insert(connection, is_syncing);
+  }
+
+  fn start_connection_sync(&mut self, connection: ConnectionsEnum) {
+    *self
+      .active_sync_counts
+      .entry(connection.clone())
+      .or_insert(0) += 1;
+    self.set_connection_is_syncing(connection, true);
+  }
+
+  fn finish_connection_sync(&mut self, connection: ConnectionsEnum) {
+    let remaining = self
+      .active_sync_counts
+      .entry(connection.clone())
+      .and_modify(|count| *count = count.saturating_sub(1))
+      .or_insert(0);
+    let is_syncing = *remaining > 0;
+    self.set_connection_is_syncing(connection, is_syncing);
   }
 
   pub async fn lock_and_get_connection_is_syncing(
@@ -105,6 +127,40 @@ impl ConnectionsData {
   ) {
     let mut connections_data_locked = connection_data.lock().await;
     connections_data_locked.set_connection_is_syncing(connection, is_syncing)
+  }
+
+  /// Mark one account-level sync as active without hiding another account's
+  /// in-flight sync when the first one finishes.
+  pub async fn lock_and_start_connection_sync(
+    connection_data: Arc<Mutex<ConnectionsData>>,
+    connection: ConnectionsEnum,
+  ) {
+    let mut data = connection_data.lock().await;
+    data.start_connection_sync(connection);
+  }
+
+  pub async fn lock_and_finish_connection_sync(
+    connection_data: Arc<Mutex<ConnectionsData>>,
+    connection: ConnectionsEnum,
+  ) {
+    let mut data = connection_data.lock().await;
+    data.finish_connection_sync(connection);
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{ConnectionsData, ConnectionsEnum};
+
+  #[test]
+  fn account_sync_count_keeps_provider_busy_until_every_account_finishes() {
+    let mut data = ConnectionsData::new();
+    data.start_connection_sync(ConnectionsEnum::GoogleGmail);
+    data.start_connection_sync(ConnectionsEnum::GoogleGmail);
+    data.finish_connection_sync(ConnectionsEnum::GoogleGmail);
+    assert!(data.get_connection_is_syncing(ConnectionsEnum::GoogleGmail));
+    data.finish_connection_sync(ConnectionsEnum::GoogleGmail);
+    assert!(!data.get_connection_is_syncing(ConnectionsEnum::GoogleGmail));
   }
 }
 

@@ -15,6 +15,7 @@ export interface SourceDocument {
 
 export interface EmailDocument extends SourceDocument {
   emailUid: string
+  accountEmail?: string
   sender: string
   recipients: string[]
   cc: string[]
@@ -49,4 +50,3 @@ export const serializeEmailDocumentsToAdditionalDocuments = (
     content: JSON.stringify(email),
   }))
 }
-

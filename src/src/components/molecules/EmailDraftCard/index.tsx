@@ -54,6 +54,7 @@ const EmailDraftCard = ({
   const ccInputRef = useRef<HTMLInputElement>(null)
   const subtitle = decodeEmailSubject(email.message.subject)
   const emailUid = email.message.emailUid
+  const senderAccountEmail = email.message.accountEmail || userEmail
   const emailBody = email.message.body
   const emailSummary: string[] | undefined = email.classification?.summary
   const emailDraftReply = email.draftedReply ? email.draftedReply : ''
@@ -322,7 +323,7 @@ const EmailDraftCard = ({
             emailAutopilot={emailAutopilot}
             email={email.message}
             isRegenerate={editor?.getText() !== ''}
-            userEmail={userEmail}
+            userEmail={senderAccountEmail}
             userName={userName}
             onSuccess={(draft: string) => {
               const newContent = draft.replace(/\n/g, '<br>')
@@ -360,7 +361,7 @@ const EmailDraftCard = ({
         )}
         <SendEmailButton
           previousEmail={email}
-          userEmail={userEmail}
+          userEmail={senderAccountEmail}
           userName={userName}
           body={editor?.getText() || ''}
           threadId={email.message.threadId}

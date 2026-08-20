@@ -35,8 +35,8 @@ export type Connection = {
   state: ConnectionStates
   lastSynced?: Date | string
   syncedSince?: Date | string
-  /** Set for google_calendar_read connections — the Google account email whose
-   *  calendar this connection syncs.  Empty string for all other types. */
+  /** Google account email for account-scoped Calendar, Gmail, and Drive
+   * connections. The API field keeps its legacy calendar-specific name. */
   calendarAccountEmail?: string
   /** The local Knapsack profile email that owns this connection. */
   ownerEmail?: string
@@ -562,8 +562,9 @@ export async function signout() {
   return await response.json()
 }
 
-export async function getAccessToken(userEmail: string, scope: string) {
-  const response = await fetch(`${KN_API_GOOGLE_ACCESS_TOKEN}?email=${userEmail}&scope=${scope}`, {
+export async function getAccessToken(userEmail: string, scope: string, accountEmail?: string) {
+  const accountParam = accountEmail ? `&account_email=${encodeURIComponent(accountEmail)}` : ''
+  const response = await fetch(`${KN_API_GOOGLE_ACCESS_TOKEN}?email=${userEmail}&scope=${scope}${accountParam}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

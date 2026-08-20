@@ -104,6 +104,7 @@ pub struct GmailSearchResponseDoc {
   #[serde(flatten)]
   pub sourceDocument: DisplayDocument,
   pub email_uid: String,
+  pub account_email: String,
   pub sender: String,
   pub recipients: Vec<String>,
   pub cc: Vec<String>,
@@ -409,6 +410,7 @@ fn build_gmail_response_doc_from_email_row(email: Email) -> Option<GmailSearchRe
   let doc: GmailSearchResponseDoc = GmailSearchResponseDoc {
     sourceDocument: display_document,
     email_uid: email.email_uid,
+    account_email: email.account_email,
     subject: email.subject.clone(),
     cc: vec![email.cc],
     date: email.date,

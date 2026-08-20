@@ -16,7 +16,9 @@ use crate::clawd::chat_agent;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+use crate::connections::google::constants::GOOGLE_GMAIL_SCOPE;
 use crate::db::models::token_usage::TokenUsage;
+use crate::db::models::user_connection::UserConnection;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
@@ -903,6 +905,152 @@ fn knapsack_base_url() -> String {
     .to_string()
 }
 
+#[derive(Debug, Deserialize)]
+struct StudioConnectionsResponse {
+  #[serde(default)]
+  scopes: Vec<String>,
+}
+
+fn select_studio_integrations(available: Vec<String>, requested: &[String]) -> Vec<String> {
+  let requested = requested
+    .iter()
+    .map(|value| value.trim().to_lowercase())
+    .filter(|value| !value.is_empty())
+    .collect::<Vec<_>>();
+  let mut selected = Vec::new();
+  for scope in available {
+    let trimmed = scope.trim();
+    if trimmed.is_empty()
+      || (!requested.is_empty()
+        && !requested
+          .iter()
+          .any(|value| value == &trimmed.to_lowercase()))
+      || selected
+        .iter()
+        .any(|value: &String| value.eq_ignore_ascii_case(trimmed))
+    {
+      continue;
+    }
+    selected.push(trimmed.to_string());
+  }
+  selected
+}
+
+fn parse_studio_sse(body: &str) -> anyhow::Result<JsonValue> {
+  let mut events = Vec::new();
+  let mut message = String::new();
+  for line in body.lines() {
+    let Some(data) = line.trim().strip_prefix("data:") else {
+      continue;
+    };
+    let data = data.trim();
+    if data.is_empty() || data == "[DONE]" {
+      continue;
+    }
+    let Ok(event) = serde_json::from_str::<JsonValue>(data) else {
+      continue;
+    };
+    if event.get("type").and_then(JsonValue::as_str) == Some("error") {
+      anyhow::bail!(
+        "Studio integration request failed: {}",
+        event
+          .get("message")
+          .and_then(JsonValue::as_str)
+          .unwrap_or(data)
+      );
+    }
+    if event.get("tool_name").and_then(JsonValue::as_str) == Some("Complete") {
+      return Ok(
+        json!({"ok": true, "result": event.get("data").cloned().unwrap_or(JsonValue::Null)}),
+      );
+    }
+    if event.get("type").and_then(JsonValue::as_str) == Some("message_chunk") {
+      if let Some(chunk) = event
+        .get("content")
+        .or_else(|| event.get("data"))
+        .and_then(JsonValue::as_str)
+      {
+        message.push_str(chunk);
+      }
+    }
+    events.push(event);
+  }
+  if !message.is_empty() {
+    return Ok(json!({"ok": true, "result": message}));
+  }
+  if events.is_empty() {
+    anyhow::bail!("Studio returned no integration results");
+  }
+  Ok(json!({"ok": true, "events": events}))
+}
+
+async fn run_studio_integrations(
+  app_handle: &tauri::AppHandle,
+  task: &str,
+  requested: &[String],
+) -> anyhow::Result<JsonValue> {
+  let email = knapsack_user_email(app_handle).ok_or_else(|| {
+    anyhow::anyhow!("Knapsack Studio is not connected. Sign in to Knapsack in Settings.")
+  })?;
+  let jwt = knapsack_bearer_token(app_handle, &email).await?;
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(180))
+    .build()?;
+  let base_url = knapsack_base_url();
+  let connections = client
+    .get(format!(
+      "{}/api/connections/available_connections",
+      base_url
+    ))
+    .bearer_auth(&jwt)
+    .send()
+    .await?;
+  if !connections.status().is_success() {
+    anyhow::bail!(
+      "Studio connections request failed with {}",
+      connections.status()
+    );
+  }
+  let available = connections
+    .json::<StudioConnectionsResponse>()
+    .await?
+    .scopes;
+  let selected = select_studio_integrations(available, requested);
+  if selected.is_empty() {
+    anyhow::bail!("No matching native integrations are connected in Knapsack Studio");
+  }
+  let tool_types = selected
+    .iter()
+    .map(|scope| {
+      json!({
+        "tool_type": scope,
+        "tool_description": format!("Use the user's connected {} integration", scope)
+      })
+    })
+    .collect::<Vec<_>>();
+  let response = client
+    .post(format!("{}/api/knap-tools/run", base_url))
+    .bearer_auth(&jwt)
+    .json(&json!({
+      "messages": [{"role": "user", "content": task}],
+      "tool_types": tool_types,
+      "stream_updates": true,
+      "chat_id": null,
+      "use_smart_cache": true
+    }))
+    .send()
+    .await?;
+  if !response.status().is_success() {
+    let status = response.status();
+    let detail = response.text().await.unwrap_or_default();
+    anyhow::bail!("Studio integration run failed with {}: {}", status, detail);
+  }
+  let body = response.text().await?;
+  let mut result = parse_studio_sse(&body)?;
+  result["integrations"] = json!(selected);
+  Ok(result)
+}
+
 async fn call_knapsack_chat_completion(
   app_handle: &tauri::AppHandle,
   model: &str,
@@ -1233,6 +1381,7 @@ fn should_retry_knapsack_before_fallback(err_lower: &str) -> bool {
 /// user seeing the draft first.
 #[derive(Clone)]
 struct PendingEmail {
+  sender_email: String,
   to: String,
   cc: Option<String>,
   subject: String,
@@ -4836,6 +4985,30 @@ pub async fn chat(
       }
     }
 
+    if name == "use_studio_integrations" {
+      let task = args_map
+        .get("task")
+        .and_then(JsonValue::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("task is required"))?;
+      let integrations = args_map
+        .get("integrations")
+        .and_then(JsonValue::as_array)
+        .map(|values| {
+          values
+            .iter()
+            .filter_map(JsonValue::as_str)
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+      return match run_studio_integrations(app_handle, task, &integrations).await {
+        Ok(result) => Ok(result),
+        Err(error) => Ok(json!({"ok": false, "error": error.to_string()})),
+      };
+    }
+
     // Direct email sending via Gmail API (no browser automation needed).
     // Two-phase: first call drafts & stores a pending email; second call
     // with confirmed=true + pending_id actually sends.  This ensures the
@@ -4856,6 +5029,17 @@ pub async fn chat(
         .get("pending_id")
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
+      let sender_was_explicit = args_map
+        .get("sender_email")
+        .and_then(|v| v.as_str())
+        .is_some_and(|value| !value.trim().is_empty());
+      let mut sender_email = args_map
+        .get("sender_email")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(user_email)
+        .to_string();
 
       // Phase 2: send a previously confirmed draft.
       if confirmed {
@@ -4879,7 +5063,7 @@ pub async fn chat(
           }
         };
         match crate::clawd::gmail::send_gmail_email(
-          user_email,
+          &draft.sender_email,
           user_name,
           &draft.to,
           draft.cc.as_deref(),
@@ -4929,8 +5113,11 @@ pub async fn chat(
         if let Ok(thread_emails) = crate::db::models::email::Email::get_last_email_by_thread_id(tid)
         {
           if let Some(most_recent) = thread_emails.first() {
+            if !sender_was_explicit && !most_recent.account_email.trim().is_empty() {
+              sender_email = most_recent.account_email.trim().to_string();
+            }
             let db_sender = most_recent.sender.trim().to_string();
-            if !db_sender.is_empty() && db_sender != user_email {
+            if !db_sender.is_empty() && !db_sender.contains(&sender_email) {
               to = db_sender;
             }
           }
@@ -4949,6 +5136,7 @@ pub async fn chat(
         store.insert(
           pid.clone(),
           PendingEmail {
+            sender_email: sender_email.clone(),
             to: to.clone(),
             cc: cc.clone(),
             subject: subject.clone(),
@@ -4969,6 +5157,7 @@ pub async fn chat(
           "body": body_html,
           "threadId": thread_id,
           "userEmail": user_email,
+          "senderEmail": sender_email.clone(),
           "userName": user_name,
         }),
       );
@@ -4983,7 +5172,7 @@ pub async fn chat(
           "subject": subject,
           "body": body_html,
           "thread_id": thread_id,
-          "user_email": user_email,
+          "user_email": sender_email,
           "user_name": user_name,
         },
         "message": "Email draft created and opened in the Email Autopilot compose drawer. Tell the user their draft is ready to review and send in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer."
@@ -5312,9 +5501,27 @@ When the user asks "what can you do" or "what skills do you have", mention that 
     String::new()
   };
 
-  let email_section = if !user_email.is_empty() {
-    r#"## EMAIL SENDING
-Your email account is connected. You have a **send_email** tool that sends emails directly via the Gmail API. NEVER use browser automation to compose or send emails — always use the send_email tool.
+  let connected_email_accounts = UserConnection::find_by_user_email(user_email.to_string())
+    .unwrap_or_default()
+    .into_iter()
+    .filter(|connection| {
+      connection
+        .connection
+        .as_ref()
+        .is_some_and(|connection| connection.scope == GOOGLE_GMAIL_SCOPE)
+    })
+    .map(|connection| {
+      if connection.calendar_account_email.is_empty() {
+        user_email.to_string()
+      } else {
+        connection.calendar_account_email
+      }
+    })
+    .collect::<Vec<_>>();
+  let email_section = if !connected_email_accounts.is_empty() {
+    format!(
+      r#"## EMAIL SENDING
+The following Gmail accounts are connected and available simultaneously: {}. There is no global account switcher. Use **sender_email** only to identify the account for a specific draft or reply. You have a **send_email** tool that sends emails directly via the Gmail API. NEVER use browser automation to compose or send emails — always use the send_email tool.
 
 ### How to Send Emails
 1. **Call send_email** with to, subject, body (and thread_id for replies). This creates a draft, stores it, AND opens it in the user's Email Autopilot UI automatically.
@@ -5322,7 +5529,9 @@ Your email account is connected. You have a **send_email** tool that sends email
 3. The user reviews and sends from the Email tab. You do NOT need to ask for chat confirmation.
 4. If the user explicitly says "send it" or "yes send" in chat, call send_email again with `confirmed: true` and the `pending_id`.
 
-CRITICAL: NEVER use browser automation for email when this tool is available. NEVER navigate to gmail.com or outlook.com to send email."#.to_string()
+CRITICAL: NEVER use browser automation for email when this tool is available. NEVER navigate to gmail.com or outlook.com to send email."#,
+      connected_email_accounts.join(", ")
+    )
   } else {
     r#"## EMAIL
 No email account is directly connected via the send_email tool. However, you CAN still help the user with email by using browser automation — navigate to Gmail (https://mail.google.com) or Outlook (https://outlook.live.com) in the browser to read, search, and compose emails. Do NOT tell the user that email is unavailable or ask them to connect their account — just use the browser to help with email tasks."#.to_string()
@@ -7522,6 +7731,38 @@ mod browser_search_tests {
     assert!(!is_ddg_bot_challenge_html(
       "<html><body><a href=\"https://example.com\">Example</a></body></html>"
     ));
+  }
+
+  #[test]
+  fn studio_integrations_are_simultaneous_and_deduplicated() {
+    let selected = super::select_studio_integrations(
+      vec![
+        "gmail".to_string(),
+        "google_calendar".to_string(),
+        "GMAIL".to_string(),
+      ],
+      &[],
+    );
+    assert_eq!(selected, vec!["gmail", "google_calendar"]);
+  }
+
+  #[test]
+  fn studio_integrations_can_be_narrowed_per_action() {
+    let selected = super::select_studio_integrations(
+      vec!["gmail".to_string(), "salesforce".to_string()],
+      &["Salesforce".to_string()],
+    );
+    assert_eq!(selected, vec!["salesforce"]);
+  }
+
+  #[test]
+  fn studio_sse_parser_returns_complete_result() {
+    let parsed = super::parse_studio_sse(
+      "data: {\"tool_name\":\"gmail\",\"data\":\"running\"}\n\n\
+       data: {\"tool_name\":\"Complete\",\"data\":\"Two messages need attention\"}\n\n",
+    )
+    .unwrap();
+    assert_eq!(parsed["result"], "Two messages need attention");
   }
 }
 

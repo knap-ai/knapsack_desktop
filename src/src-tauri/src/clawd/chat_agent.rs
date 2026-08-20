@@ -440,12 +440,29 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
     OaiToolSpec {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
+        name: "use_studio_integrations".to_string(),
+        description: "Use all relevant native integrations connected to the user's Knapsack Studio account in one request (for example CRM, Gmail, Google Drive, Calendar, Slack, SharePoint, or databases). There is no account switcher: connected integrations are available simultaneously. Use this when local Desktop data is insufficient or the user asks about a Studio-connected service.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "task": { "type": "string", "description": "The complete task to perform using the connected integrations." },
+            "integrations": { "type": "array", "items": { "type": "string" }, "description": "Optional integration scope names to limit the request. Omit to let Studio use every connected integration relevant to the task." }
+          },
+          "required": ["task"],
+          "additionalProperties": false
+        }),
+      },
+    },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
         name: "send_email".to_string(),
         description: "Draft an email via Gmail or Outlook API. Call with to/subject/body to create a draft — this does NOT send immediately. The draft opens automatically in the Email Autopilot compose drawer for the user to review and send. After calling, tell the user their draft is ready in the Email tab. Do NOT ask for chat confirmation — the user sends from the drawer. Only call again with confirmed=true + pending_id if the user explicitly says to send in chat.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
             "to": { "type": "string", "description": "Comma-separated recipient email addresses" },
+            "sender_email": { "type": "string", "description": "Connected account to send from. Use when the user names an account or when replying from the account that received the thread." },
             "cc": { "type": "string", "description": "Comma-separated CC email addresses (optional)" },
             "subject": { "type": "string", "description": "Email subject line" },
             "body": { "type": "string", "description": "Email body in HTML format. Use <p>, <br>, <b>, <i> tags for formatting." },

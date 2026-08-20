@@ -5,6 +5,7 @@ import {
   Connection,
   ConnectionKeys,
   ConnectionStates,
+  getGoogleGmailConnections,
   hasEmailCapability,
 } from 'src/api/connections'
 import { getEmailThread } from 'src/api/data_source'
@@ -733,6 +734,14 @@ export function useFeed(
 
   const runEmailAutopilot = async () => {
     const dataFetcher = new DataFetcher()
+    const connectedGmailAccounts = new Set(
+      getGoogleGmailConnections(connections).map(
+        connection => connection.calendarAccountEmail || connection.ownerEmail || userEmail,
+      ),
+    )
+    connectedGmailAccounts.add(userEmail)
+    const isConnectedSender = (sender: string) =>
+      Array.from(connectedGmailAccounts).some(account => sender.includes(account))
     // const isSynced = handleSyncSources([AutomationDataSources.GMAIL])
     await updateRecentClassifiedEmails()
     if (emailAutopilotStatus.status === 'classifying-emails') {
@@ -754,7 +763,7 @@ export function useFeed(
       // replied to (sent messages are read, so the filter below would drop them).
       const userRepliedThreadIds = new Set<string>()
       allMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
+        if (isConnectedSender(message.sender) && message.threadId) {
           userRepliedThreadIds.add(message.threadId)
         }
       })
@@ -762,6 +771,11 @@ export function useFeed(
       allMessages = allMessages.filter(
         message => message.isStarred || (!message.isRead && !message.isArchived),
       )
+
+      if (allMessages.length === 0) {
+        setEmailAutopilotStatus({ status: 'complete' })
+        return
+      }
 
       let messages = []
       if (lastEmailId.current) {
@@ -800,26 +814,27 @@ export function useFeed(
       // Also check thread messages for user replies (now that the backend
       // returns the full thread instead of only the latest message).
       allThreadMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
+        if (isConnectedSender(message.sender) && message.threadId) {
           userRepliedThreadIds.add(message.threadId)
         }
       })
 
       let newMessages = allThreadMessages.filter(
         message =>
-          !message.sender.includes(userEmail) &&
+          !isConnectedSender(message.sender) &&
           !(message.threadId && userRepliedThreadIds.has(message.threadId)),
       )
 
       const uniqueUuids: Record<string, number> = {}
 
       newMessages = newMessages.reduce((finalEmails, message) => {
-        if (uniqueUuids[message.emailUid]) {
-          const index = uniqueUuids[message.emailUid]
+        const accountMessageId = `${message.accountEmail || ''}:${message.emailUid}`
+        if (uniqueUuids[accountMessageId] !== undefined) {
+          const index = uniqueUuids[accountMessageId]
           finalEmails[index] = finalEmails[index].date > message.date ? finalEmails[index] : message
         } else {
           const pos = finalEmails.push(message)
-          uniqueUuids[message.emailUid] = pos - 1
+          uniqueUuids[accountMessageId] = pos - 1
         }
         return finalEmails
       }, [] as EmailDocument[])
@@ -2027,14 +2042,26 @@ export function useFeed(
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                updatedEmail.message.accountEmail || userEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })
           } else if (reply_actions.includes(action)) {
             updatedEmail.wasReplySent = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                updatedEmail.message.accountEmail || userEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })
