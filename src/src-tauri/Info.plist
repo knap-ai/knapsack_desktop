@@ -6,6 +6,14 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
+            <string>ai.knap.knapsack.onboarding</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>knapsack</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleURLName</key>
             <string>ai.knap.knapsack.auth</string>
             <key>CFBundleURLSchemes</key>
             <array>

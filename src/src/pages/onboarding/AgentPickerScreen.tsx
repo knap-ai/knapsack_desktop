@@ -1,10 +1,16 @@
-import { ReactNode, useCallback, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
 import cn from 'classnames'
 
 import { AgentIdentity, Cadence, CadenceType, DaysOfWeek } from 'src/automations/automation'
 import { AGENT_TEMPLATES, AGENTMAKER_PROMPT } from 'src/automations/agentTemplates'
 import LoadingIcon from 'src/components/atoms/loading-icon'
+import {
+  clearOnboardingIntent,
+  getOnboardingIntent,
+  ONBOARDING_INTENT_EVENT,
+  OnboardingIntent,
+} from 'src/utils/onboardingIntent'
 
 import styles from './styles.module.scss'
 
@@ -29,6 +35,18 @@ type AgentPickerScreenProps = {
   connectedProvider: 'google' | 'microsoft' | null
   onActivate: (selections: AgentSelection[]) => void
   onSkip: (index: number) => void
+}
+
+function selectionsForTemplate(templateId?: string): AgentSelection[] {
+  const matchesRequest = templateId
+    ? AGENT_TEMPLATES.some(template => template.id === templateId)
+    : false
+
+  return AGENT_TEMPLATES.map(template => ({
+    templateId: template.id,
+    enabled: matchesRequest ? template.id === templateId : true,
+    identity: { ...template.defaultIdentity },
+  }))
 }
 
 // ── Emoji Picker (lightweight) ──────────────────────────────
@@ -372,17 +390,26 @@ export default function AgentPickerScreen({
   onActivate,
   onSkip,
 }: AgentPickerScreenProps) {
-  const [selections, setSelections] = useState<AgentSelection[]>(() =>
-    AGENT_TEMPLATES.map(t => ({
-      templateId: t.id,
-      enabled: true,
-      identity: { ...t.defaultIdentity },
-    })),
-  )
+  const [selections, setSelections] = useState<AgentSelection[]>(() => {
+    // If the app was opened from a role landing page, start with just that
+    // worker selected. Otherwise keep the existing all-on default.
+    const intent = getOnboardingIntent()
+    return selectionsForTemplate(intent?.templateId)
+  })
   const [agentmakerResults, setAgentmakerResults] = useState<AgentSelection[]>([])
   const [agentmakerLoading, setAgentmakerLoading] = useState(false)
   const [agentmakerError, setAgentmakerError] = useState<string | null>(null)
   const [agentmakerRan, setAgentmakerRan] = useState(false)
+
+  useEffect(() => {
+    const handleIntent = (event: Event) => {
+      const intent = (event as CustomEvent<OnboardingIntent>).detail
+      if (intent?.templateId) setSelections(selectionsForTemplate(intent.templateId))
+    }
+
+    window.addEventListener(ONBOARDING_INTENT_EVENT, handleIntent)
+    return () => window.removeEventListener(ONBOARDING_INTENT_EVENT, handleIntent)
+  }, [])
 
   const enabledCount = useMemo(
     () => [...selections, ...agentmakerResults].filter(s => s.enabled).length,
@@ -404,6 +431,7 @@ export default function AgentPickerScreen({
 
   const handleActivate = useCallback(() => {
     const allSelections = [...selections, ...agentmakerResults]
+    clearOnboardingIntent()
     onActivate(allSelections)
   }, [selections, agentmakerResults, onActivate])
 
