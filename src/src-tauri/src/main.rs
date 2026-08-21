@@ -887,7 +887,10 @@ mod meeting_chat_target_tests {
   #[test]
   fn rejects_missing_or_non_meet_targets() {
     assert_eq!(google_meet_url_needle(None), None);
-    assert_eq!(google_meet_url_needle(Some("https://news.google.com/")), None);
+    assert_eq!(
+      google_meet_url_needle(Some("https://news.google.com/")),
+      None
+    );
     assert_eq!(google_meet_url_needle(Some("not a url")), None);
   }
 }
@@ -1573,6 +1576,15 @@ fn create_data_dir() {
 
 // make the db path OS agnostic
 fn create_db_env_variable() {
+  // QA and self-hosted launches provide an explicit database path. Preserve
+  // it so a dev build cannot silently fall back to and mutate the user's
+  // production ~/.knapsack.db.
+  if std::env::var_os("DATABASE_URL")
+    .filter(|value| !value.is_empty())
+    .is_some()
+  {
+    return;
+  }
   let home_dir = dirs::home_dir().expect("Could not determine the home directory");
   let db_dir = home_dir.join(KNAPSACK_DB_FILENAME);
   let db_path = db_dir.as_path();

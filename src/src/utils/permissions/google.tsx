@@ -48,7 +48,11 @@ const addAccountStorageKey = (nonce: string) => `${ADD_ACCOUNT_STORAGE_PREFIX}:$
 const buildAddAccountState = (primaryEmail: string, type: PendingAddAccountFlow['type']) => {
   const nonce = createAddAccountNonce()
   window.sessionStorage.setItem(addAccountStorageKey(nonce), JSON.stringify({ primaryEmail, type }))
-  return `${ADD_ACCOUNT_STATE_PREFIX}:${type}:${nonce}`
+  // Keep the primary account in the signed OAuth round trip as well as local
+  // session storage. The desktop callback can then finish linking the account
+  // even if the webview listener is reloaded, suspended, or otherwise misses
+  // the one-shot Tauri event.
+  return `${ADD_ACCOUNT_STATE_PREFIX}:${type}:${nonce}:${primaryEmail}`
 }
 
 export const parsePendingAddAccountState = (
@@ -58,7 +62,7 @@ export const parsePendingAddAccountState = (
     return null
   }
 
-  const [, type, value] = state.split(':')
+  const [, type, value, statePrimaryEmail] = state.split(':')
   if (
     (type !== 'workspace' && type !== 'calendar' && type !== 'drive' && type !== 'gmail') ||
     !value
@@ -77,6 +81,10 @@ export const parsePendingAddAccountState = (
     } catch {
       return null
     }
+  }
+
+  if (statePrimaryEmail) {
+    return { primaryEmail: statePrimaryEmail, type }
   }
 
   // Backward-compatible parser for any in-flight links opened by builds that

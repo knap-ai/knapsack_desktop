@@ -60,6 +60,13 @@ pub struct SigninEventPayload {
   state: Option<String>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct AdditionalSigninEventPayload {
+  primary_email: String,
+  account_email: String,
+  connection_keys: Vec<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GoogleSigninResponse {
   refresh_token: String,
@@ -233,16 +240,18 @@ pub async fn google_refresh_token(email: String, refresh_token: String) -> Resul
     .ok()
     .filter(|secret| !secret.is_empty());
 
-  match refresh_token_locally(refresh_token.clone(), client_secret.as_deref()).await {
-    Ok(access_token) => return Ok(access_token),
-    Err(Error::KSError(message)) if message == "Invalid refresh token" => {
-      return Err(Error::KSError(message));
-    }
-    Err(error) => {
-      log::warn!(
-        "Local Google token refresh failed, falling back to knap.ai backend: {:?}",
-        error
-      );
+  if let Some(client_secret) = client_secret.as_deref() {
+    match refresh_token_locally(refresh_token.clone(), Some(client_secret)).await {
+      Ok(access_token) => return Ok(access_token),
+      Err(Error::KSError(message)) if message == "Invalid refresh token" => {
+        return Err(Error::KSError(message));
+      }
+      Err(error) => {
+        log::warn!(
+          "Local Google token refresh failed, falling back to knap.ai backend: {:?}",
+          error
+        );
+      }
     }
   }
 
@@ -482,28 +491,78 @@ async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
     .ok()
     .filter(|secret| !secret.is_empty());
 
-  match exchange_code_locally(code.clone(), client_secret.as_deref()).await {
-    Ok(response) => {
-      log::info!("Using local Google OAuth token exchange");
-      return Ok(response);
-    }
-    Err(FetchError::UnknownError(message))
-      if message.contains("invalid_grant")
-        || message.contains("invalid_client")
-        || message.contains("unauthorized_client") =>
-    {
-      return Err(FetchError::UnknownError(message));
-    }
-    Err(error) => {
-      log::warn!(
-        "Local Google OAuth token exchange failed, falling back to knap.ai backend: {:?}",
-        error
-      );
+  // The production Google client is a confidential web client. Submitting its
+  // authorization code without the secret is not a harmless capability probe:
+  // Google may invalidate the one-time code before the backend can exchange it.
+  // Only attempt the local exchange when a secret is actually configured.
+  if let Some(client_secret) = client_secret.as_deref() {
+    match exchange_code_locally(code.clone(), Some(client_secret)).await {
+      Ok(response) => {
+        log::info!("Using local Google OAuth token exchange");
+        return Ok(response);
+      }
+      Err(FetchError::UnknownError(message))
+        if message.contains("invalid_grant")
+          || message.contains("invalid_client")
+          || message.contains("unauthorized_client") =>
+      {
+        return Err(FetchError::UnknownError(message));
+      }
+      Err(error) => {
+        log::warn!(
+          "Local Google OAuth token exchange failed, falling back to knap.ai backend: {:?}",
+          error
+        );
+      }
     }
   }
 
   log::info!("Using knap.ai backend for Google OAuth token exchange");
   exchange_code_via_backend(code).await
+}
+
+async fn link_additional_google_account(
+  code: String,
+  raw_scopes: String,
+  primary_email: String,
+) -> Result<(String, Vec<String>), String> {
+  let response = post_signin(code)
+    .await
+    .map_err(|err| format!("Failed to post signin: {:?}", err))?;
+  let profile = fetch_google_profile(
+    response.access_token.clone(),
+    response.refresh_internal.clone(),
+  )
+  .await
+  .map_err(|err| format!("Failed to fetch Google profile: {:?}", err))?;
+  let account_email = profile
+    .email
+    .ok_or_else(|| "Google profile did not include an email address".to_string())?;
+  let connection_keys = create_additional_connections(
+    primary_email,
+    account_email.clone(),
+    raw_scopes,
+    response.refresh_token,
+    response.refresh_internal,
+  )
+  .map_err(|err| format!("Failed to link additional account: {:?}", err))?;
+  Ok((account_email, connection_keys))
+}
+
+fn parse_add_account_primary_email(state: Option<&str>) -> Option<String> {
+  let state = state?;
+  let parts = state.split(':').collect::<Vec<_>>();
+  if parts.len() < 4 || parts[0] != "knapsack_add_account" {
+    return None;
+  }
+  if !matches!(parts[1], "workspace" | "calendar" | "drive" | "gmail") {
+    return None;
+  }
+  let email = parts[3].trim();
+  if email.is_empty() || !email.contains('@') {
+    return None;
+  }
+  Some(email.to_string())
 }
 
 fn focus_window(window: Window) {
@@ -519,6 +578,23 @@ async fn complete_google_signin(
   let params = actix_web::web::Query::<SigninParams>::from_query(req.query_string()).unwrap();
   let code = params.code.as_ref().unwrap().to_string();
   let raw_scopes = params.scope.as_ref().unwrap().to_string();
+
+  if let Some(primary_email) = params.primary_email.clone() {
+    return match link_additional_google_account(code, raw_scopes, primary_email).await {
+      Ok((account_email, connection_keys)) => HttpResponse::Ok().json(json!({
+        "success": true,
+        "calendar_email": account_email,
+        "connection_keys": connection_keys
+      })),
+      Err(err) => {
+        log::error!("Failed to link additional account: {}", err);
+        HttpResponse::InternalServerError().json(json!({
+          "error": err,
+          "success": false
+        }))
+      }
+    };
+  }
 
   let response = match post_signin(code.clone()).await {
     Ok(response) => response,
@@ -548,41 +624,6 @@ async fn complete_google_signin(
   };
 
   let calendar_email = profile.email.clone().unwrap();
-
-  // ── Add-account flow ───────────────────────────────────────────────────────
-  // When `primary_email` is provided the caller is already logged in as that
-  // user and wants to link an additional Google account (calendar, drive, or
-  // gmail depending on which scopes were granted).
-  if let Some(primary_email) = params.primary_email.clone() {
-    match create_additional_connections(
-      primary_email.clone(),
-      calendar_email.clone(),
-      raw_scopes.clone(),
-      response.refresh_token.clone(),
-      response.refresh_internal.clone(),
-    ) {
-      Ok(created_keys) => {
-        log::info!(
-          "Linked additional account {} to user {} for scopes {:?}",
-          calendar_email,
-          primary_email,
-          created_keys
-        );
-        return HttpResponse::Ok().json(json!({
-          "success": true,
-          "calendar_email": calendar_email,
-          "connection_keys": created_keys
-        }));
-      }
-      Err(err) => {
-        log::error!("Failed to link additional account: {:?}", err);
-        return HttpResponse::InternalServerError().json(json!({
-          "error": format!("Failed to link additional account: {:?}", err),
-          "success": false
-        }));
-      }
-    }
-  }
 
   // ── Normal (primary) sign-in flow ──────────────────────────────────────────
   let email = calendar_email.clone();
@@ -633,7 +674,51 @@ async fn google_signin_api(req: HttpRequest, app_handle: Data<tauri::AppHandle>)
   };
 
   match (params.code.as_ref(), params.error.as_ref()) {
-    (Some(code), None) => handle_successful_signin(&params, app_handle),
+    (Some(code), None) => {
+      if let Some(primary_email) = parse_add_account_primary_email(params.state.as_deref()) {
+        let raw_scopes = params.scope.clone().unwrap_or_default();
+        let window = app_handle.get_window(WINDOW_LABEL).unwrap();
+        return match link_additional_google_account(code.clone(), raw_scopes, primary_email.clone())
+          .await
+        {
+          Ok((account_email, connection_keys)) => {
+            log::info!(
+              "Linked additional Google account {} to {} for scopes {:?}",
+              account_email,
+              primary_email,
+              connection_keys
+            );
+            let _ = window.emit(
+              "google_account_linked",
+              AdditionalSigninEventPayload {
+                primary_email,
+                account_email,
+                connection_keys,
+              },
+            );
+            focus_window(window);
+            let html_file = app_handle
+              .path_resolver()
+              .resolve_resource("resources/signin_success.html")
+              .expect("failed to resolve resource");
+            let html_string = std::fs::read_to_string(&html_file).unwrap_or_else(|_| {
+              "Google account connected. You can close this window.".to_string()
+            });
+            HttpResponse::Ok()
+              .content_type("text/html; charset=utf-8")
+              .body(html_string)
+          }
+          Err(err) => {
+            log::error!("Failed to link additional Google account: {}", err);
+            focus_window(window);
+            HttpResponse::InternalServerError()
+              .content_type("text/html; charset=utf-8")
+              .body("Google account connection failed. Return to Knapsack and try again.")
+          }
+        };
+      }
+      handle_successful_signin(&params, app_handle)
+    }
     (None, Some(error)) => handle_error_signin(&params, app_handle),
     _ => HttpResponse::BadRequest().body("Invalid signin request"),
   }
@@ -808,5 +893,36 @@ async fn fetch_google_auth_token_api(
       success: false,
       access_token: None,
     }),
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::parse_add_account_primary_email;
+
+  #[test]
+  fn parses_primary_email_from_supported_add_account_state() {
+    assert_eq!(
+      parse_add_account_primary_email(Some(
+        "knapsack_add_account:workspace:nonce-123:mark@knap.ai"
+      )),
+      Some("mark@knap.ai".to_string())
+    );
+  }
+
+  #[test]
+  fn rejects_legacy_malformed_or_unrelated_state() {
+    assert_eq!(
+      parse_add_account_primary_email(Some("knapsack_add_account:workspace:nonce-123")),
+      None
+    );
+    assert_eq!(
+      parse_add_account_primary_email(Some("knapsack_add_account:unknown:nonce-123:mark@knap.ai")),
+      None
+    );
+    assert_eq!(
+      parse_add_account_primary_email(Some("other:workspace:nonce-123:mark@knap.ai")),
+      None
+    );
   }
 }
