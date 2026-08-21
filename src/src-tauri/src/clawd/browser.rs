@@ -865,13 +865,15 @@ fn knapsack_fallback_credential(app_handle: &tauri::AppHandle) -> Option<String>
   knapsack_user_email(app_handle)
 }
 
-fn connected_google_accounts_section(user_email: &str) -> String {
+fn connected_google_accounts(
+  user_email: &str,
+) -> std::collections::BTreeMap<String, Vec<&'static str>> {
   if user_email.trim().is_empty() {
-    return String::new();
+    return std::collections::BTreeMap::new();
   }
 
   let Ok(connections) = UserConnection::find_by_user_email(user_email.to_string()) else {
-    return String::new();
+    return std::collections::BTreeMap::new();
   };
   let mut accounts = std::collections::BTreeMap::<String, Vec<&'static str>>::new();
   for connection in connections {
@@ -897,6 +899,11 @@ fn connected_google_accounts_section(user_email: &str) -> String {
       services.push(service);
     }
   }
+  accounts
+}
+
+fn connected_google_accounts_section(user_email: &str) -> String {
+  let accounts = connected_google_accounts(user_email);
   if accounts.is_empty() {
     return String::new();
   }
@@ -910,6 +917,36 @@ fn connected_google_accounts_section(user_email: &str) -> String {
     "\n\n## CONNECTED GOOGLE ACCOUNTS — CAPABILITY TRUTH\n{}\nThese are authenticated native connections. An empty search or no recent Drive activity means no matching data was found; it does not mean the account lacks access. Never tell the user to reconnect a service listed here unless an actual native request returns an authentication error.\n",
     rows
   )
+}
+
+fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
+  let normalized = request.to_ascii_lowercase();
+  let mentions_google_service = ["google", "gmail", "calendar", "drive", "email"]
+    .iter()
+    .any(|needle| normalized.contains(needle));
+  let asks_inventory = normalized.contains("connected")
+    && ["account", "service", "capabilit"]
+      .iter()
+      .any(|needle| normalized.contains(needle));
+  let asks_access = normalized.contains("access")
+    && (normalized.contains('@') || normalized.contains("account"));
+  if !mentions_google_service || (!asks_inventory && !asks_access) {
+    return None;
+  }
+
+  let accounts = connected_google_accounts(user_email);
+  if accounts.is_empty() {
+    return None;
+  }
+  let rows = accounts
+    .into_iter()
+    .map(|(account, services)| format!("- **{}**: {}", account, services.join(", ")))
+    .collect::<Vec<_>>()
+    .join("\n");
+  Some(format!(
+    "Your native Google connections are:\n\n{}\n\nThese accounts are available simultaneously; no account switcher is required.",
+    rows
+  ))
 }
 
 fn normalize_provider_model(provider: &str, model: &str) -> String {
@@ -2907,6 +2944,25 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
+  let native_connection_owner = body
+    .get("userEmail")
+    .and_then(JsonValue::as_str)
+    .map(str::trim)
+    .filter(|email| !email.is_empty())
+    .map(str::to_string)
+    .or_else(|| knapsack_user_email(app_handle.get_ref()));
+  if let Some(reply) = native_connection_owner
+    .as_deref()
+    .and_then(|email| google_capability_reply(email, &text))
+  {
+    return HttpResponse::Ok().json(serde_json::json!({
+      "ok": true,
+      "reply": reply,
+      "harness": "native",
+      "gateway": false,
+    }));
+  }
+
   // Split attachments: images go to the selected harness; non-images are
   // extracted in Rust and appended to the message.
   let raw_attachments = body
@@ -2984,13 +3040,6 @@ pub async fn agent_chat(
   // OpenClaw/Hermes harness owns its own system prompt. Pass the authoritative
   // native connection inventory with every harness turn so it cannot mistake
   // an empty activity result (or a browser profile) for missing OAuth access.
-  let native_connection_owner = body
-    .get("userEmail")
-    .and_then(JsonValue::as_str)
-    .map(str::trim)
-    .filter(|email| !email.is_empty())
-    .map(str::to_string)
-    .or_else(|| knapsack_user_email(app_handle.get_ref()));
   let harness_message = native_connection_owner
     .map(|email| connected_google_accounts_section(&email))
     .filter(|section| !section.is_empty())
