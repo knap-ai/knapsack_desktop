@@ -2947,6 +2947,10 @@ pub async fn agent_chat(
     .and_then(JsonValue::as_str)
     .unwrap_or("ui");
   let conversation_scope = body.get("conversationScope").and_then(JsonValue::as_str);
+  let no_fallback = body
+    .get("noFallback")
+    .and_then(JsonValue::as_bool)
+    .unwrap_or(false);
   eprintln!(
     "[clawd/agent-chat] Sending to selected harness: {:?} (attachments: {})",
     &text_with_attachments[..text_with_attachments.len().min(100)],
@@ -2979,12 +2983,12 @@ pub async fn agent_chat(
       }));
     }
     Err(error) => {
-      if selected_harness == Ok(harness::AgentHarnessKind::Hermes) {
+      if no_fallback || selected_harness == Ok(harness::AgentHarnessKind::Hermes) {
         return HttpResponse::ServiceUnavailable().json(serde_json::json!({
           "ok": false,
-          "harness": "hermes",
+          "harness": selected_harness.ok().map(|kind| kind.as_str()),
           "noFallback": true,
-          "message": format!("Hermes is unavailable: {error}"),
+          "message": format!("The selected agent runtime is unavailable: {error}"),
         }));
       }
       eprintln!(

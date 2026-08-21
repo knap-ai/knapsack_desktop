@@ -728,7 +728,10 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
             onGroupSelect={group => {
               setActiveAgentId(null)
               setActiveGroupId(group.id)
-              setEmbeddedBrowserProfile(`group-${group.id}`)
+              const leadProfile = group.agentIds
+                .map(id => teamAgents.find(agent => agent.id === id)?.browserProfile)
+                .find(Boolean)
+              setEmbeddedBrowserProfile(leadProfile || 'openclaw')
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
             }}

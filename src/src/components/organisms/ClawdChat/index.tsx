@@ -5009,7 +5009,8 @@ ${actualText}`
         // Native context is an optimization for ordinary chats, but group
         // rooms must still enter the harness so sessions_spawn/sessions_yield
         // can collect each selected member's contribution.
-        let useDirectChat = usedNativeEmailCalendarContext && !chatId.startsWith('group-')
+        const requiresHarness = chatId.startsWith('group-')
+        let useDirectChat = usedNativeEmailCalendarContext && !requiresHarness
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
@@ -5033,6 +5034,7 @@ ${actualText}`
               model: selectedModelForProvider,
               text: requestBody.text,
               sessionId,
+              noFallback: requiresHarness,
               advancedMode,
               userEmail: userEmail || '',
               userName: userName || '',
@@ -5074,6 +5076,13 @@ ${actualText}`
               message: agentOut.message,
             })
             if (agentOut.ok && agentOut.reply) {
+              if (requiresHarness && !agentOut.gateway) {
+                const orchestrationError = new Error(
+                  'The team room could not reach its multi-agent runtime. Please try again in a moment.',
+                ) as Error & { noFallback?: boolean }
+                orchestrationError.noFallback = true
+                throw orchestrationError
+              }
               // Accept replies from both gateway and direct-chat fallback.
               // The backend already called open_first_url_in_reply, so the
               // browser should have opened if the reply contained a URL.
@@ -5130,11 +5139,18 @@ ${actualText}`
             }
           } else {
             console.warn('[chat] agent-chat HTTP error:', agentRes.status)
+            if (requiresHarness) {
+              const orchestrationError = new Error(
+                agentOut.message || 'The team room could not reach its multi-agent runtime.',
+              ) as Error & { noFallback?: boolean }
+              orchestrationError.noFallback = true
+              throw orchestrationError
+            }
             useDirectChat = true
           }
         } catch (agentErr: any) {
           if (agentTimerId) clearTimeout(agentTimerId)
-          if (agentErr.noFallback) throw agentErr
+          if (agentErr.noFallback || requiresHarness) throw agentErr
           // Only re-throw if this was the USER's abort (not our timeout)
           if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
           // If this was our timeout abort, the gateway already has the user
