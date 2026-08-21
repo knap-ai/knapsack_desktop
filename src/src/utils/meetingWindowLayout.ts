@@ -24,13 +24,14 @@ export const calculateMeetingWindowBounds = (
   monitorYPhysical: number,
   scaleFactor: number,
   topInset = 0,
+  bottomInset = 0,
 ) => {
   const monitorWidth = monitorWidthPhysical / scaleFactor
   const monitorHeight = monitorHeightPhysical / scaleFactor
   const width = Math.min(720, Math.max(520, monitorWidth * 0.42))
   return {
     width,
-    height: Math.max(560, monitorHeight - topInset),
+    height: Math.max(560, monitorHeight - topInset - bottomInset),
     x: monitorXPhysical / scaleFactor + monitorWidth - width,
     y: monitorYPhysical / scaleFactor + topInset,
   }
@@ -49,13 +50,39 @@ const applyMeetingLayout = async () => {
 
   if (savedWindowBounds.maximized) await appWindow.unmaximize()
   const isMac = navigator.userAgent.includes('Mac')
+  const isWindows = navigator.userAgent.includes('Windows')
+  const innerSize = await appWindow.innerSize()
+  const frameHeight = Math.max(0, savedWindowBounds.size.height - innerSize.height)
+  const screenWithOffsets = window.screen as Screen & {
+    availLeft?: number
+    availTop?: number
+  }
+  const useWindowsWorkArea = isWindows
+    && window.screen.availWidth > 0
+    && window.screen.availHeight > 0
+  const workArea = useWindowsWorkArea
+    ? {
+        width: window.screen.availWidth * monitor.scaleFactor,
+        height: window.screen.availHeight * monitor.scaleFactor,
+        x: (screenWithOffsets.availLeft ?? monitor.position.x / monitor.scaleFactor)
+          * monitor.scaleFactor,
+        y: (screenWithOffsets.availTop ?? monitor.position.y / monitor.scaleFactor)
+          * monitor.scaleFactor,
+      }
+    : {
+        width: monitor.size.width,
+        height: monitor.size.height,
+        x: monitor.position.x,
+        y: monitor.position.y,
+      }
   const bounds = calculateMeetingWindowBounds(
-    monitor.size.width,
-    monitor.size.height,
-    monitor.position.x,
-    monitor.position.y,
+    workArea.width,
+    workArea.height,
+    workArea.x,
+    workArea.y,
     monitor.scaleFactor,
     isMac ? 25 : 0,
+    isWindows ? frameHeight / monitor.scaleFactor : 0,
   )
   await appWindow.setSize(new LogicalSize(bounds.width, bounds.height))
   await appWindow.setPosition(new LogicalPosition(bounds.x, bounds.y))

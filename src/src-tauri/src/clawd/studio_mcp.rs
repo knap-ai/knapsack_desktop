@@ -18,7 +18,14 @@ use super::service::clawdbot_home_headless;
 
 const LIST_TOOL: &str = "list_connector_tools";
 const CALL_TOOL: &str = "call_connector_tool";
-static REFRESHED_ACCESS_TOKEN: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+#[derive(Clone)]
+struct RefreshedStudioToken {
+  refresh_token: String,
+  access_token: String,
+}
+
+static REFRESHED_ACCESS_TOKEN: Lazy<Mutex<Option<RefreshedStudioToken>>> =
+  Lazy::new(|| Mutex::new(None));
 
 #[derive(Deserialize)]
 struct StudioTokens {
@@ -78,7 +85,10 @@ async fn refresh_access_token(refresh_token: &str) -> Result<String, String> {
     .map(ToOwned::to_owned)
     .ok_or_else(|| "Studio refresh response did not contain an access token".to_string())?;
   if let Ok(mut cached) = REFRESHED_ACCESS_TOKEN.lock() {
-    *cached = Some(token.clone());
+    *cached = Some(RefreshedStudioToken {
+      refresh_token: refresh_token.to_string(),
+      access_token: token.clone(),
+    });
   }
   Ok(token)
 }
@@ -89,12 +99,23 @@ async fn request_studio(
   body: Option<Value>,
 ) -> Result<Value, String> {
   let tokens = read_tokens()?;
-  let cached = REFRESHED_ACCESS_TOKEN
-    .lock()
-    .ok()
-    .and_then(|value| value.clone());
+  let stored_access_token = nonempty(tokens.knapsack_access_token);
   let refresh_token = nonempty(tokens.knapsack_refresh_token);
-  let mut access_token = match cached.or_else(|| nonempty(tokens.knapsack_access_token)) {
+  if stored_access_token.is_none() && refresh_token.is_none() {
+    if let Ok(mut cached) = REFRESHED_ACCESS_TOKEN.lock() {
+      *cached = None;
+    }
+    return Err("Connect a Knapsack Studio account in Settings first.".to_string());
+  }
+  let cached = refresh_token.as_deref().and_then(|current_refresh| {
+    REFRESHED_ACCESS_TOKEN
+      .lock()
+      .ok()
+      .and_then(|value| value.clone())
+      .filter(|value| value.refresh_token == current_refresh)
+      .map(|value| value.access_token)
+  });
+  let mut access_token = match stored_access_token.or(cached) {
     Some(token) => token,
     None => match refresh_token.as_deref() {
       Some(refresh) => refresh_access_token(refresh).await?,
