@@ -899,6 +899,7 @@ function capInlineChatContext(text: string): string {
     'Additional inline context omitted to keep the request within the model budget',
   )
 }
+const MAX_AGENT_PERSONA_CONTEXT_CHARS = 6_000
 const SLACK_GUIDED_SETUP_PROMPT = `Please set up the Slack integration for Knapsack for me using the browser.
 
 Goals:
@@ -4931,7 +4932,12 @@ ${context}`
         }
 
         if (contextPrefix?.trim()) {
-          actualText = `${contextPrefix.trim()}
+          const personaContext = truncateWithNotice(
+            contextPrefix.trim(),
+            MAX_AGENT_PERSONA_CONTEXT_CHARS,
+            'Additional agent instructions omitted to preserve the user request',
+          )
+          actualText = `${personaContext}
 
 ---
 User message:

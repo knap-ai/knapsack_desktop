@@ -14,7 +14,9 @@ const DEFAULT_HERMES_MODEL: &str = "hermes-agent";
 // Group rooms can spawn several independent agents and wait for synthesis.
 // Keep this aligned with the frontend agent-chat budget so the harness does
 // not abandon orchestration and silently fall back to a single direct model.
-const HARNESS_TIMEOUT: Duration = Duration::from_secs(300);
+// Leave a small transport/UI buffer inside the frontend's 300-second budget.
+// Every OpenClaw phase shares this one deadline.
+const HARNESS_TIMEOUT: Duration = Duration::from_secs(285);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentHarnessKind {
@@ -193,11 +195,10 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   }
 
   let session_key = openclaw_session_key(request.session_id);
-  let existing_children = openclaw_child_session_keys(&session_key)
-    .await
-    .unwrap_or_default();
+  let deadline = tokio::time::Instant::now() + HARNESS_TIMEOUT;
+  let existing_children = openclaw_child_session_keys(&session_key).await?;
   let result = tokio::time::timeout(
-    HARNESS_TIMEOUT,
+    remaining_until(deadline)?,
     gateway_client::agent_chat(
       request.message,
       request.attachments,
@@ -213,14 +214,21 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
     Ok(reply) => Ok(reply),
     Err(error) if error == "OpenClaw returned an empty reply" => {
       let contributions =
-        collect_openclaw_subagent_results(&session_key, &existing_children).await?;
-      synthesize_openclaw_group_reply(request, &session_key, &contributions).await
+        collect_openclaw_subagent_results(&session_key, &existing_children, deadline).await?;
+      synthesize_openclaw_group_reply(request, &session_key, &contributions, deadline).await
     }
     Err(error) => Err(error),
   }
 }
 
 const OPENCLAW_FOLLOWUP_TIMEOUT: Duration = Duration::from_secs(120);
+
+fn remaining_until(deadline: tokio::time::Instant) -> Result<Duration, String> {
+  deadline
+    .checked_duration_since(tokio::time::Instant::now())
+    .filter(|remaining| !remaining.is_zero())
+    .ok_or_else(|| "OpenClaw orchestration exceeded its overall deadline".to_string())
+}
 
 async fn openclaw_child_session_keys(session_key: &str) -> Result<HashSet<String>, String> {
   let sessions = gateway_client::sessions_list(None, 500).await?;
@@ -240,8 +248,9 @@ async fn openclaw_child_session_keys(session_key: &str) -> Result<HashSet<String
 async fn collect_openclaw_subagent_results(
   session_key: &str,
   existing_children: &HashSet<String>,
+  overall_deadline: tokio::time::Instant,
 ) -> Result<Vec<(String, String)>, String> {
-  let deadline = tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT;
+  let deadline = (tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT).min(overall_deadline);
   let mut delay = Duration::from_millis(250);
 
   loop {
@@ -304,6 +313,7 @@ async fn synthesize_openclaw_group_reply(
   request: &HarnessRequest<'_>,
   parent_session_key: &str,
   contributions: &[(String, String)],
+  deadline: tokio::time::Instant,
 ) -> Result<String, String> {
   let contributions_text = contributions
     .iter()
@@ -324,11 +334,11 @@ async fn synthesize_openclaw_group_reply(
   );
   let synthesis_key = format!("{parent_session_key}:synthesis");
   let result = tokio::time::timeout(
-    HARNESS_TIMEOUT,
+    remaining_until(deadline)?,
     gateway_client::agent_chat(&prompt, &[], None, None, Some(&synthesis_key)),
   )
   .await
-  .map_err(|_| format!("OpenClaw synthesis timed out after {HARNESS_TIMEOUT:?}"))??;
+  .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
   parse_openclaw_reply(&result)
 }
 
