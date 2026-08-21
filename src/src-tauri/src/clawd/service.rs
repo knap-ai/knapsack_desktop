@@ -8760,6 +8760,7 @@ pub struct ApiKeyStatusResponse {
   pub preferred_coding_agent: Option<String>,
   // Knapsack cloud inference
   pub has_knapsack: bool,
+  pub knapsack_auth_expired: bool,
   pub knapsack_email: Option<String>,
   pub knapsack_model: Option<String>,
 }
@@ -8776,10 +8777,26 @@ fn has_nonempty(value: Option<&String>) -> bool {
   value.map(|v| !v.trim().is_empty()).unwrap_or(false)
 }
 
+fn has_usable_knapsack_token(value: Option<&String>) -> bool {
+  value
+    .map(|token| token.trim())
+    .filter(|token| !token.is_empty())
+    .map(|token| !crate::clawd::browser::knapsack_token_is_expired(token))
+    .unwrap_or(false)
+}
+
 fn has_knapsack_runtime_auth(tokens: &StoredTokens) -> bool {
   has_nonempty(tokens.knapsack_email.as_ref())
-    && (has_nonempty(tokens.knapsack_access_token.as_ref())
-      || has_nonempty(tokens.knapsack_refresh_token.as_ref()))
+    && (has_usable_knapsack_token(tokens.knapsack_access_token.as_ref())
+      || has_usable_knapsack_token(tokens.knapsack_refresh_token.as_ref()))
+}
+
+fn knapsack_auth_is_expired(tokens: &StoredTokens) -> bool {
+  let has_stored_token = has_nonempty(tokens.knapsack_access_token.as_ref())
+    || has_nonempty(tokens.knapsack_refresh_token.as_ref());
+  has_nonempty(tokens.knapsack_email.as_ref())
+    && has_stored_token
+    && !has_knapsack_runtime_auth(tokens)
 }
 
 #[get("/api/clawd/service/api-key-status")]
@@ -8815,6 +8832,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         extra_providers: vec![],
         preferred_coding_agent: None,
         has_knapsack: false,
+        knapsack_auth_expired: false,
         knapsack_email: None,
         knapsack_model: None,
       })
@@ -8859,6 +8877,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
   let has_knapsack = has_knapsack_runtime_auth(&tokens);
+  let knapsack_auth_expired = knapsack_auth_is_expired(&tokens);
   let has_key = has_openai
     || has_anthropic
     || has_gemini
@@ -8984,6 +9003,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     extra_providers,
     preferred_coding_agent: tokens.preferred_coding_agent.clone(),
     has_knapsack,
+    knapsack_auth_expired,
     knapsack_email: tokens.knapsack_email.clone(),
     knapsack_model: tokens.knapsack_model.clone(),
   })
@@ -15654,11 +15674,16 @@ pub async fn studio_connections(app_handle: web::Data<tauri::AppHandle>) -> impl
   };
 
   if !has_knapsack_runtime_auth(&tokens) {
-    return HttpResponse::Ok().json(StudioConnectionsResponse {
+    let expired = knapsack_auth_is_expired(&tokens);
+    return HttpResponse::Unauthorized().json(StudioConnectionsResponse {
       success: false,
       connected: Vec::new(),
       available: Vec::new(),
-      message: Some("Connect a Knapsack Studio account first.".to_string()),
+      message: Some(if expired {
+        "Knapsack Studio sign-in expired. Please reconnect.".to_string()
+      } else {
+        "Connect a Knapsack Studio account first.".to_string()
+      }),
     });
   }
 
@@ -17372,7 +17397,8 @@ mod knapsack_runtime_auth_tests {
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
     ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
     ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
-    ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, parse_studio_connector_catalog,
+    ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
+    parse_studio_connector_catalog,
     sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
     KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
@@ -17473,6 +17499,18 @@ mod knapsack_runtime_auth_tests {
     tokens.knapsack_access_token = Some("   ".to_string());
     tokens.knapsack_refresh_token = Some("   ".to_string());
     assert!(!has_knapsack_runtime_auth(&tokens));
+  }
+
+  #[test]
+  fn knapsack_auth_rejects_expired_studio_tokens() {
+    let mut tokens = empty_tokens();
+    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
+    let expired = "e30.eyJleHAiOjF9.signature".to_string();
+    tokens.knapsack_access_token = Some(expired.clone());
+    tokens.knapsack_refresh_token = Some(expired);
+
+    assert!(!has_knapsack_runtime_auth(&tokens));
+    assert!(knapsack_auth_is_expired(&tokens));
   }
 
   #[test]

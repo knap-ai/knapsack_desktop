@@ -647,7 +647,7 @@ const KNAPSACK_TOKEN_EXPIRY_SKEW_SECS: u64 = 60;
 /// `exp` claim (seconds since epoch) from a JWT's payload, if it is a JWT at
 /// all. No signature verification — this is only used to decide when to
 /// proactively refresh, never to make an authorization decision.
-fn jwt_expiry_unix(token: &str) -> Option<u64> {
+pub(crate) fn jwt_expiry_unix(token: &str) -> Option<u64> {
   let payload = token.split('.').nth(1)?;
   // JWT payloads are base64url; tolerate the padded variant too.
   let decoded = base64::Engine::decode(
@@ -662,7 +662,7 @@ fn jwt_expiry_unix(token: &str) -> Option<u64> {
 /// True only when the token is a JWT whose `exp` has passed (or is about to).
 /// Opaque, non-JWT tokens report `false`: we cannot know, so we let the
 /// server be the judge rather than discarding a possibly-valid credential.
-fn knapsack_token_is_expired(token: &str) -> bool {
+pub(crate) fn knapsack_token_is_expired(token: &str) -> bool {
   let Some(exp) = jwt_expiry_unix(token) else {
     return false;
   };

@@ -452,6 +452,7 @@ type ApiKeyStatus = {
   has_openrouter_key?: boolean
   has_trustedrouter_key?: boolean
   has_knapsack?: boolean
+  knapsack_auth_expired?: boolean
   knapsack_email?: string
   knapsack_model?: string
   openai_key_hint?: string
@@ -2066,6 +2067,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [knapsackEmail, setKnapsackEmail] = useState<string>('')
   const [isKnapsackConnecting, setIsKnapsackConnecting] = useState(false)
   const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
+  const [studioConnectedLabels, setStudioConnectedLabels] = useState<string[]>([])
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
@@ -2508,8 +2510,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           openrouter: !!keyStatus.has_openrouter_key,
           trustedrouter: !!keyStatus.has_trustedrouter_key,
         })
-        if (keyStatus.knapsack_email) {
-          setKnapsackEmail(keyStatus.knapsack_email)
+        setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+        if (keyStatus.knapsack_auth_expired) {
+          setKnapsackConnectError('Your Knapsack Studio session expired. Reconnect to use Studio integrations.')
+        } else if (keyStatus.has_knapsack) {
+          setKnapsackConnectError(null)
         }
         if (keyStatus.knapsack_model) {
           const knapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
@@ -3385,6 +3390,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           setKnapsackEmail(email)
           setIsKnapsackConnecting(false)
           setKnapsackConnectError(null)
+          setStudioConnectedLabels([])
           setSelectedProvider('knapsack')
           setConfirmedProvider('knapsack')
           localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
@@ -4058,6 +4064,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       studioConnectedScopesRef.current = new Set()
       studioAvailableConnectorsRef.current = []
       studioConnectionsLoadedRef.current = false
+      setStudioConnectedLabels([])
       setStudioConnectorSuggestion(null)
       return
     }
@@ -4065,6 +4072,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       const response = await apiGet<StudioConnectionsResponse>('/api/clawd/service/studio-connections')
       if (!response.success) {
         studioConnectionsLoadedRef.current = false
+        setStudioConnectedLabels([])
         setStudioConnectorSuggestion(null)
         return
       }
@@ -4073,6 +4081,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       studioConnectedScopesRef.current = connected
       studioAvailableConnectorsRef.current = available
       studioConnectionsLoadedRef.current = true
+      const connectedLabels = available
+        .filter(connector => connected.has(connector.scope || connector.id))
+        .map(connector => connector.name)
+      const knownScopes = new Set(available.map(connector => connector.scope || connector.id))
+      for (const scope of connected) {
+        if (!knownScopes.has(scope)) {
+          connectedLabels.push(
+            scope.replace(/^google_/, '').replace(/_(read|modify)$/, '').replace(/_/g, ' '),
+          )
+        }
+      }
+      setStudioConnectedLabels([...new Set(connectedLabels)].sort())
       setStudioConnectorSuggestion(current => {
         if (!current) return null
         const remaining = current.connectors.filter(connector => !connected.has(connector.scope || connector.id))
@@ -4080,6 +4100,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       })
     } catch {
       studioConnectionsLoadedRef.current = false
+      setStudioConnectedLabels([])
     }
   }, [knapsackEmail])
 
@@ -7812,6 +7833,7 @@ ${actualText}`
                                     localStorage.setItem(ACTIVE_PROVIDER_STORAGE, next)
                                   } catch {}
                                   setKnapsackEmail('')
+                                  setStudioConnectedLabels([])
                                   setKnapsackConnectError(null)
                                 }}
                                 disabled={savingKey}
@@ -7819,6 +7841,12 @@ ${actualText}`
                                 Disconnect
                               </button>
                             </div>
+                            <p style={{ margin: '10px 0 0', fontSize: 11, color: '#64748b' }}>
+                              Studio integrations:{' '}
+                              {studioConnectedLabels.length > 0
+                                ? studioConnectedLabels.join(', ')
+                                : 'No connected integrations found'}
+                            </p>
                           </>
                         ) : (
                           <>
