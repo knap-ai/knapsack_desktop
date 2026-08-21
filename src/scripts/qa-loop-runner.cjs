@@ -422,7 +422,10 @@ function parseArgs() {
     chatRetries: 2,
     chatRetryDelayMs: 800,
     startupBudgetMs: 120_000,
-    functionalTimeoutMs: 90_000,
+    // Connected capability checks can each take up to 60 seconds. Keep the
+    // aggregate gate large enough to exercise all three plus meeting/browser
+    // coverage instead of timing out a healthy run midway through the suite.
+    functionalTimeoutMs: Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 240_000),
     readinessHealthTimeoutMs: 60_000,
     coreOnly: false,
     strictReadiness: false,
@@ -1980,53 +1983,56 @@ async function checkInterfaceAccess(includeUi, startupState) {
     return result;
   };
 
-  const root = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const health = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const workspaces = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
-    4,
-    1_000,
-  );
-
-  const channels = await retryWithDelay(
-    () => fetchWithTimeout(
-      `${API_BASE}/api/clawd/channels/diagnostics`,
-      { method: "GET" },
-      Number(process.env.KNAPSACK_QA_CHANNELS_DIAGNOSTICS_TIMEOUT_MS || 5_000),
-    ),
-    3,
-    1_000,
-  );
-  const automations = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
-    3,
-    1_000,
-  );
-  const skills = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const feed = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
-    4,
-    1_000,
-  );
-  const ui = includeUi
-    ? await retryWithDelay(
-      () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
+  // These probes are independent. Running them serially made the aggregate QA
+  // deadline depend on the sum of every retry window during startup load.
+  const [root, health, workspaces, channels, automations, skills, feed, ui] = await Promise.all([
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
       4,
       1_000,
-    )
-    : { ok: true };
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(
+        `${API_BASE}/api/clawd/channels/diagnostics`,
+        { method: "GET" },
+        Number(process.env.KNAPSACK_QA_CHANNELS_DIAGNOSTICS_TIMEOUT_MS || 5_000),
+      ),
+      3,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
+      3,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
+      4,
+      1_000,
+    ),
+    includeUi
+      ? retryWithDelay(
+        () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
+        4,
+        1_000,
+      )
+      : Promise.resolve({ ok: true }),
+  ]);
   const healthBrowserOk = Boolean(health?.body?.browser_ok);
   const browserControl = healthBrowserOk
     ? true
