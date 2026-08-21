@@ -183,7 +183,7 @@ export function loadTeamRoster(): TeamAgent[] {
 }
 
 export function upsertTeamAgents(
-  agents: Array<{ name: string; emoji: string; personality: string; soul?: string }>,
+  agents: Array<{ id?: string; name: string; emoji: string; personality: string; soul?: string }>,
 ) {
   const existing = loadTeamRoster()
   const byId = new Map(existing.map(agent => [agent.id, agent]))

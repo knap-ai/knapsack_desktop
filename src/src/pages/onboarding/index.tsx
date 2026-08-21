@@ -413,6 +413,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
     // Save activated agents so the first chat session can introduce them
     const activatedAgentsForChat = enabledSelections.map(s => ({
+      id: s.isCustom ? undefined : s.templateId,
       name: s.identity.displayName,
       emoji: s.identity.emoji,
       personality: s.identity.personality,
