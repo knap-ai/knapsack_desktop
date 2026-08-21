@@ -54,7 +54,11 @@ const qaTokensPath = path.join(qaStateDir, "tokens.json");
 const prodTokensPath = path.join(prodStateDir, "tokens.json");
 const prodDbPath = path.join(process.env.HOME || "", ".knapsack.db");
 const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
-const qaAppBundle = path.join(qaStateDir, "Knapsack Dev.app");
+// Keep the executable outside OPENCLAW_STATE_DIR. The app deliberately
+// hardens every regular file in that state tree to 0600, which would strip
+// execute permission from an app bundle stored there and break bundled MCP
+// subprocesses with EACCES.
+const qaAppBundle = path.join(projectDir, ".qa-dev-app", "Knapsack Dev.app");
 const qaAppExecutable = path.join(
   qaAppBundle,
   "Contents",
