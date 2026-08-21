@@ -2984,7 +2984,14 @@ pub async fn agent_chat(
   // OpenClaw/Hermes harness owns its own system prompt. Pass the authoritative
   // native connection inventory with every harness turn so it cannot mistake
   // an empty activity result (or a browser profile) for missing OAuth access.
-  let harness_message = knapsack_user_email(app_handle.get_ref())
+  let native_connection_owner = body
+    .get("userEmail")
+    .and_then(JsonValue::as_str)
+    .map(str::trim)
+    .filter(|email| !email.is_empty())
+    .map(str::to_string)
+    .or_else(|| knapsack_user_email(app_handle.get_ref()));
+  let harness_message = native_connection_owner
     .map(|email| connected_google_accounts_section(&email))
     .filter(|section| !section.is_empty())
     .map(|section| {
