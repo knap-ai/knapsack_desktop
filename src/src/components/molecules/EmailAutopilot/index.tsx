@@ -4,13 +4,13 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, IFeed } from 'src/hooks/feed/useFeed'
+import { HAS_SHOWN_EA_INFO_MODAL, KNLocalStorage } from 'src/utils/KNLocalStorage'
 
 import { Typography } from 'src/components/atoms/typography'
-
-import EmailDraftCard from '../EmailDraftCard'
-import EmailAutopilotSettings from '../EmailAutopilotSettings'
-import { KNLocalStorage, HAS_SHOWN_EA_INFO_MODAL } from "src/utils/KNLocalStorage"
 import { Dialog } from 'src/components/molecules/Dialog'
+
+import EmailAutopilotSettings from '../EmailAutopilotSettings'
+import EmailDraftCard from '../EmailDraftCard'
 
 interface EmailAutopilotProps {
   feed: IFeed
@@ -23,8 +23,13 @@ interface EmailAutopilotProps {
 
 type VisibleEmails = {
   emailUuid: string
+  accountEmail: string
+  emailKey: string
   index: number
 }
+
+const emailActionKey = (emailUid: string, accountEmail: string) =>
+  `${accountEmail.trim().toLowerCase()}::${emailUid}`
 export const EmailAutopilot = ({
   feed,
   profileProvider,
@@ -34,10 +39,15 @@ export const EmailAutopilot = ({
   setShowSettings,
 }: EmailAutopilotProps) => {
   const [visibleEmailIds, setVisibleEmailIds] = useState<VisibleEmails[]>([])
-  const [selectedEmail, setSelectedEmail] = useState<VisibleEmails>({ emailUuid: '', index: 0 })
-  const [generatingDraftUid, setGeneratingDraftUid] = useState<string>('')
-  const [sendingReplyUid, setSendingReplyUid] = useState<string>('')
-  const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
+  const [selectedEmail, setSelectedEmail] = useState<VisibleEmails>({
+    emailUuid: '',
+    accountEmail: '',
+    emailKey: '',
+    index: 0,
+  })
+  const [generatingDraftKey, setGeneratingDraftKey] = useState<string>('')
+  const [sendingReplyKey, setSendingReplyKey] = useState<string>('')
+  const [removingEmailKey, setRemovingEmailKey] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [showEAInfoModal, setShowEAInfoModal] = useState(false)
 
@@ -48,7 +58,6 @@ export const EmailAutopilot = ({
     () => feed.selectedEmailCategory || EmailImportance.IMPORTANT,
     [feed.selectedEmailCategory],
   ) as EmailImportance
-
 
   useEffect(() => {
     const checkModalStatus = async () => {
@@ -68,11 +77,12 @@ export const EmailAutopilot = ({
     const filterUniqueEmails = (emails: DisplayEmail[] | undefined) => {
       if (!emails) return []
       return emails.filter(email => {
-        if (uniqueEmailIds.has(email.message.emailUid)) {
+        const key = emailActionKey(email.message.emailUid, email.message.accountEmail || userEmail)
+        if (uniqueEmailIds.has(key)) {
           return false
         }
         if (!email.wasIgnored && !email.wasReplySent && email.message.body) {
-          uniqueEmailIds.add(email.message.emailUid)
+          uniqueEmailIds.add(key)
         }
         return !email.wasIgnored && !email.wasReplySent && email.message.body
       })
@@ -115,16 +125,19 @@ export const EmailAutopilot = ({
 
   useEffect(() => {
     if (emailsCategory && emailsCategory.length > 0) {
-      setSelectedEmail({ emailUuid: emailsCategory[0].message.emailUid, index: 0 })
-      scrollToSelectedEmail(emailsCategory[0].message.emailUid)
+      const first = emailsCategory[0].message
+      const accountEmail = first.accountEmail || userEmail
+      const emailKey = emailActionKey(first.emailUid, accountEmail)
+      setSelectedEmail({ emailUuid: first.emailUid, accountEmail, emailKey, index: 0 })
+      scrollToSelectedEmail(emailKey)
     }
-  }, [selectedCategory])
+  }, [selectedCategory, userEmail])
 
-  const scrollToSelectedEmail = useCallback((emailUuid?: string) => {
+  const scrollToSelectedEmail = useCallback((emailKey?: string) => {
     let timeoutScroll = undefined
-    if (emailUuid && emailRefs.current[emailUuid]) {
+    if (emailKey && emailRefs.current[emailKey]) {
       timeoutScroll = setTimeout(() => {
-        emailRefs.current[emailUuid]?.scrollIntoView({
+        emailRefs.current[emailKey]?.scrollIntoView({
           behavior: 'smooth',
           block: 'center',
         })
@@ -140,68 +153,79 @@ export const EmailAutopilot = ({
     if (emailsCategory && emailsCategory.length > 0 && selectedEmail) {
       const currentEmailIndex = selectedEmail.index
       const email = emailsCategory[currentEmailIndex]
-      if (sendingReplyUid != email.message.emailUid) {
+      const accountEmail = email.message.accountEmail || userEmail
+      const emailKey = emailActionKey(email.message.emailUid, accountEmail)
+      if (sendingReplyKey != emailKey) {
         if (!email.draftedReply) {
-          setGeneratingDraftUid(email.message.emailUid)
+          setGeneratingDraftKey(emailKey)
           return
         }
-        setSendingReplyUid(email.message.emailUid)
+        setSendingReplyKey(emailKey)
       }
     }
-  }, [emailsCategory, selectedEmail, sendingReplyUid])
+  }, [emailsCategory, selectedEmail, sendingReplyKey, userEmail])
 
   const navigateEmails = useCallback(
     (direction: 'next' | 'previous') => {
       const accumulatorValue = direction == 'next' ? 1 : -1
       const nextItemIndex = selectedEmail.index + accumulatorValue
       if (emailsCategory && nextItemIndex >= 0 && nextItemIndex < emailsCategory.length) {
-        scrollToSelectedEmail(emailsCategory[nextItemIndex].message.emailUid)
+        const next = emailsCategory[nextItemIndex].message
+        const accountEmail = next.accountEmail || userEmail
+        const emailKey = emailActionKey(next.emailUid, accountEmail)
+        scrollToSelectedEmail(emailKey)
         setSelectedEmail({
-          emailUuid: emailsCategory[nextItemIndex].message.emailUid,
+          emailUuid: next.emailUid,
+          accountEmail,
+          emailKey,
           index: nextItemIndex,
         })
       }
     },
-    [emailsCategory, selectedEmail],
+    [emailsCategory, selectedEmail, userEmail],
   )
 
-  const handleEmailActionTaken = useCallback((
-    actionTaken: AutopilotActions,
-    emailUid: string,
-    draftReply?: string,
-    accountEmail?: string,
-  ) => {
-    if (
-      actionTaken === AutopilotActions.MARK_AS_READ ||
-      actionTaken === AutopilotActions.DELETE ||
-      actionTaken === AutopilotActions.ARCHIVE
-    ) {
-      setRemovingEmailUid(emailUid)
-      setTimeout(() => {
+  const handleEmailActionTaken = useCallback(
+    (
+      actionTaken: AutopilotActions,
+      emailUid: string,
+      draftReply?: string,
+      accountEmail?: string,
+    ) => {
+      if (
+        actionTaken === AutopilotActions.MARK_AS_READ ||
+        actionTaken === AutopilotActions.DELETE ||
+        actionTaken === AutopilotActions.ARCHIVE
+      ) {
+        const actionKey = emailActionKey(emailUid, accountEmail || userEmail)
+        setRemovingEmailKey(actionKey)
+        setTimeout(() => {
+          feed.takeEmailAction(
+            emailUid,
+            actionTaken,
+            profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+            undefined,
+            accountEmail,
+          )
+          setRemovingEmailKey('')
+        }, 300)
+      } else if (
+        actionTaken === AutopilotActions.SEND_REPLY ||
+        actionTaken === AutopilotActions.REPLY_ARCHIVE ||
+        actionTaken === AutopilotActions.REPLY_DELETE ||
+        actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
+      ) {
         feed.takeEmailAction(
           emailUid,
           actionTaken,
           profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-          undefined,
+          draftReply,
           accountEmail,
         )
-        setRemovingEmailUid('')
-      }, 300)
-    } else if (
-      actionTaken === AutopilotActions.SEND_REPLY ||
-      actionTaken === AutopilotActions.REPLY_ARCHIVE ||
-      actionTaken === AutopilotActions.REPLY_DELETE ||
-      actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
-    ) {
-      feed.takeEmailAction(
-        emailUid,
-        actionTaken,
-        profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-        draftReply,
-        accountEmail,
-      )
-    }
-  }, [feed.takeEmailAction, profileProvider])
+      }
+    },
+    [feed.takeEmailAction, profileProvider, userEmail],
+  )
 
   const keyDownHandler = useCallback(
     (event: KeyboardEvent) => {
@@ -222,7 +246,12 @@ export const EmailAutopilot = ({
             event.preventDefault()
 
             if (event.key === 'ArrowLeft') {
-              handleEmailActionTaken(actions.leftAction, selectedEmail.emailUuid)
+              handleEmailActionTaken(
+                actions.leftAction,
+                selectedEmail.emailUuid,
+                undefined,
+                selectedEmail.accountEmail,
+              )
             } else if (event.key === 'ArrowRight') {
               arrowRightHandler()
             }
@@ -239,7 +268,7 @@ export const EmailAutopilot = ({
       actions,
       arrowRightHandler,
       navigateEmails,
-      handleEmailActionTaken
+      handleEmailActionTaken,
     ],
   )
 
@@ -258,17 +287,26 @@ export const EmailAutopilot = ({
 
       if (
         selectedEmail.emailUuid &&
-        !visibleEmailIds?.map(email => email.emailUuid).includes(selectedEmail.emailUuid) &&
+        !visibleEmailIds?.map(email => email.emailKey).includes(selectedEmail.emailKey) &&
         visibleEmailIds.length > 0
       ) {
         setSelectedEmail(visibleEmailIds[0])
       } else {
         if (emailsCategory) {
           const index = emailsCategory.findIndex(
-            email => email.message.emailUid === selectedEmail.emailUuid,
+            email =>
+              emailActionKey(email.message.emailUid, email.message.accountEmail || userEmail) ===
+              selectedEmail.emailKey,
           )
           if (index >= 0) {
-            setSelectedEmail({ emailUuid: emailsCategory[index].message.emailUid, index: index })
+            const match = emailsCategory[index].message
+            const accountEmail = match.accountEmail || userEmail
+            setSelectedEmail({
+              emailUuid: match.emailUid,
+              accountEmail,
+              emailKey: emailActionKey(match.emailUid, accountEmail),
+              index,
+            })
           }
         }
       }
@@ -282,12 +320,19 @@ export const EmailAutopilot = ({
       const newVisible = [...prevVisible]
       entries.forEach(entry => {
         const emailId = entry.target.getAttribute('data-email-id')
+        const accountEmail = entry.target.getAttribute('data-account-email')
+        const emailKey = entry.target.getAttribute('data-email-key')
         const index = entry.target.getAttribute('index-id')
-        if (emailId && index) {
-          const existingIndex = newVisible.findIndex(item => item.emailUuid === emailId)
+        if (emailId && accountEmail && emailKey && index) {
+          const existingIndex = newVisible.findIndex(item => item.emailKey === emailKey)
           if (entry.isIntersecting) {
             if (existingIndex === -1) {
-              newVisible.push({ emailUuid: emailId, index: parseInt(index) })
+              newVisible.push({
+                emailUuid: emailId,
+                accountEmail,
+                emailKey,
+                index: parseInt(index),
+              })
             }
           } else {
             if (existingIndex !== -1) {
@@ -325,8 +370,8 @@ export const EmailAutopilot = ({
   }
 
   const isSelected = useCallback(
-    (uid: string) => {
-      if (selectedEmail && selectedEmail.emailUuid) return uid == selectedEmail.emailUuid
+    (emailKey: string) => {
+      if (selectedEmail && selectedEmail.emailKey) return emailKey == selectedEmail.emailKey
 
       return false
     },
@@ -340,7 +385,7 @@ export const EmailAutopilot = ({
 
   return (
     <div className="flex EmailAutopilot">
-      {showEAInfoModal &&
+      {showEAInfoModal && (
         <Dialog
           onClose={handleEAInfoModalClose}
           isOpen={showEAInfoModal}
@@ -348,15 +393,14 @@ export const EmailAutopilot = ({
           className="flex items-center justify-center"
         >
           <div className="bg-white py-6 rounded-lg font-Lora font-normal text-black text-2xl text-center content-center">
-          <img className="mx-auto" src="assets/images/EAInfoModalImage.png" />
+            <img className="mx-auto" src="assets/images/EAInfoModalImage.png" />
             <div className="mx-auto mt-6 w-[20em]">
               Use the left and right arrow keys to quickly Send or Dismiss emails
             </div>
           </div>
         </Dialog>
-      }
+      )}
       <div className="flex-1 p-4 h-full overflow-y-auto relative">
-
         {/* Settings Sidebar */}
         {showSettings && (
           <div className="fixed inset-0 z-50 flex justify-end">
@@ -370,8 +414,8 @@ export const EmailAutopilot = ({
           </div>
         )}
         {(feed.emailAutopilotStatus.status === 'fetching-emails' ||
-        feed.emailAutopilotStatus.status === 'classifying-emails' ||
-        feed.emailAutopilotStatus.status === 'sync-email') &&
+          feed.emailAutopilotStatus.status === 'classifying-emails' ||
+          feed.emailAutopilotStatus.status === 'sync-email') &&
         (!emailsCategory || emailsCategory.length === 0) ? (
           <div className="flex flex-col items-center justify-center mb-8">
             <CircularProgress size="3rem" sx={{ color: '#C14841' }} />
@@ -388,19 +432,23 @@ export const EmailAutopilot = ({
         <div className="space-y-4 pb-28">
           {emailsCategory &&
             emailsCategory.map((email, index) => {
+              const accountEmail = email.message.accountEmail || userEmail
+              const emailKey = emailActionKey(email.message.emailUid, accountEmail)
               return (
                 <div
-                  key={email.message.documentId + '-' + index}
+                  key={`${emailKey}-${email.message.documentId}-${index}`}
                   className={`transition-opacity duration-1000 ease-out ${
-                    removingEmailUid === email.message.emailUid ? 'opacity-0' : 'opacity-100'
+                    removingEmailKey === emailKey ? 'opacity-0' : 'opacity-100'
                   }`}
                   index-id={index}
                   data-email-id={email.message.emailUid}
+                  data-account-email={accountEmail}
+                  data-email-key={emailKey}
                   ref={el => {
                     if (el && observer.current) {
                       observer.current.observe(el)
                     }
-                    emailRefs.current[email.message.emailUid] = el
+                    emailRefs.current[emailKey] = el
                   }}
                 >
                   <EmailDraftCard
@@ -410,9 +458,9 @@ export const EmailAutopilot = ({
                     userEmail={userEmail}
                     userName={userName}
                     profileProvider={profileProvider ? profileProvider : ''}
-                    selected={isSelected(email.message.emailUid)}
-                    generatingDraftUid={generatingDraftUid}
-                    sendingReplyUid={sendingReplyUid}
+                    selected={isSelected(emailKey)}
+                    isGeneratingDraft={generatingDraftKey === emailKey}
+                    shouldSendReply={sendingReplyKey === emailKey}
                     actions={actions}
                     updateAction={updateAction}
                     setIsEditorActive={setIsEditorActive}

@@ -5,6 +5,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { AutopilotActions, IEmailAutopilot } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, EmailAction } from 'src/hooks/feed/useFeed'
+import { decodeEmailSubject } from 'src/utils/emails'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import KNDateUtils from 'src/utils/KNDateUtils'
@@ -13,7 +14,6 @@ import GenerateDraftButton from 'src/components/molecules/GenerateDraftButton'
 import IgnoreEmailButton from 'src/components/molecules/IgnoreEmailButton'
 import SendEmailButton from 'src/components/molecules/SendEmailButton'
 import TakeActionButton from 'src/components/molecules/TakeActionButton'
-import { decodeEmailSubject } from 'src/utils/emails'
 
 interface EmailDraftCardProps {
   emailAutopilot: IEmailAutopilot
@@ -28,8 +28,8 @@ interface EmailDraftCardProps {
   userName: string
   profileProvider: string
   selected: boolean
-  generatingDraftUid: string
-  sendingReplyUid: string
+  isGeneratingDraft: boolean
+  shouldSendReply: boolean
   actions: EmailAction
   updateAction: (actionSide: 'LEFT' | 'RIGHT', action: AutopilotActions) => void
   setIsEditorActive: (isActive: boolean) => void
@@ -44,8 +44,8 @@ const EmailDraftCard = ({
   userName,
   profileProvider,
   selected,
-  generatingDraftUid,
-  sendingReplyUid,
+  isGeneratingDraft,
+  shouldSendReply,
   actions,
   updateAction,
   setIsEditorActive,
@@ -72,36 +72,45 @@ const EmailDraftCard = ({
     setCcInput('')
   }, [email.message.emailUid])
 
-  const handleRemoveCc = useCallback((index: number) => {
-    setCcList(prev => {
-      const updated = prev.filter((_, i) => i !== index)
-      onCcChange?.(updated)
-      return updated
-    })
-  }, [onCcChange])
+  const handleRemoveCc = useCallback(
+    (index: number) => {
+      setCcList(prev => {
+        const updated = prev.filter((_, i) => i !== index)
+        onCcChange?.(updated)
+        return updated
+      })
+    },
+    [onCcChange],
+  )
 
-  const handleAddCc = useCallback((value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    // Basic email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return
-    if (ccList.includes(trimmed)) return
-    setCcList(prev => {
-      const updated = [...prev, trimmed]
-      onCcChange?.(updated)
-      return updated
-    })
-    setCcInput('')
-  }, [ccList, onCcChange])
+  const handleAddCc = useCallback(
+    (value: string) => {
+      const trimmed = value.trim()
+      if (!trimmed) return
+      // Basic email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return
+      if (ccList.includes(trimmed)) return
+      setCcList(prev => {
+        const updated = [...prev, trimmed]
+        onCcChange?.(updated)
+        return updated
+      })
+      setCcInput('')
+    },
+    [ccList, onCcChange],
+  )
 
-  const handleCcKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
-      e.preventDefault()
-      handleAddCc(ccInput)
-    } else if (e.key === 'Backspace' && ccInput === '' && ccList.length > 0) {
-      handleRemoveCc(ccList.length - 1)
-    }
-  }, [ccInput, ccList, handleAddCc, handleRemoveCc])
+  const handleCcKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+        e.preventDefault()
+        handleAddCc(ccInput)
+      } else if (e.key === 'Backspace' && ccInput === '' && ccList.length > 0) {
+        handleRemoveCc(ccList.length - 1)
+      }
+    },
+    [ccInput, ccList, handleAddCc, handleRemoveCc],
+  )
 
   const editor = useEditor({
     extensions: [
@@ -164,7 +173,9 @@ const EmailDraftCard = ({
     >
       <div className="flex flex-col items-start justify-between">
         <div className="flex flex-row w-full justify-between">
-          <div className="flex-1 text-zinc-900 font-Lora text-xl font-semibold leading-6">{subtitle}</div>
+          <div className="flex-1 text-zinc-900 font-Lora text-xl font-semibold leading-6">
+            {subtitle}
+          </div>
           <div className="min-w-fit font-InterTight text-black font-normal text-sm pl-2">
             {KNDateUtils.formatFriendlyDate(email.message.date)}
           </div>
@@ -274,14 +285,24 @@ const EmailDraftCard = ({
                           {cc}
                           <button
                             type="button"
-                            onClick={(e) => {
+                            onClick={e => {
                               e.stopPropagation()
                               handleRemoveCc(index)
                             }}
                             className="ml-0.5 text-ks-warm-grey-400 hover:text-ks-red-500 transition-colors"
                           >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            <svg
+                              className="w-3 h-3"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
                             </svg>
                           </button>
                         </span>
@@ -290,7 +311,7 @@ const EmailDraftCard = ({
                         ref={ccInputRef}
                         type="text"
                         value={ccInput}
-                        onChange={(e) => setCcInput(e.target.value)}
+                        onChange={e => setCcInput(e.target.value)}
                         onKeyDown={handleCcKeyDown}
                         onBlur={() => handleAddCc(ccInput)}
                         placeholder={ccList.length === 0 ? 'Add CC...' : ''}
@@ -344,7 +365,7 @@ const EmailDraftCard = ({
             onError={error => {
               console.error('Failed to generate draft:', error)
             }}
-            isGeneratingDraft={generatingDraftUid === emailUid}
+            isGeneratingDraft={isGeneratingDraft}
           />
         </div>
       </div>
@@ -391,7 +412,7 @@ const EmailDraftCard = ({
             })
           }}
           profileProvider={profileProvider}
-          shouldSend={sendingReplyUid === emailUid}
+          shouldSend={shouldSendReply}
           action={actions.rightAction}
           updateAction={updateAction}
         />

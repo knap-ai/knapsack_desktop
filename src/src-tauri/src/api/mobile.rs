@@ -591,22 +591,27 @@ fn provider_label(provider: MobileEmailProvider) -> &'static str {
   }
 }
 
-fn detect_mobile_email_provider(account_email: &str) -> Result<MobileEmailProvider, Error> {
-  if UserConnection::find_by_user_email_and_scope(
+fn resolve_mobile_email_connection(
+  account_email: &str,
+  scope: &str,
+) -> Result<(String, UserConnection), Error> {
+  let owner_email = infer_linked_profile()
+    .map(|profile| profile.email)
+    .ok_or_else(|| Error::KSError("No linked Desktop profile found".to_string()))?;
+  let connection = UserConnection::find_by_scope_and_account_email(
+    owner_email.clone(),
+    scope.to_string(),
     account_email.to_string(),
-    GOOGLE_GMAIL_SCOPE.to_string(),
-  )
-  .is_ok()
-  {
+  )?;
+  Ok((owner_email, connection))
+}
+
+fn detect_mobile_email_provider(account_email: &str) -> Result<MobileEmailProvider, Error> {
+  if resolve_mobile_email_connection(account_email, GOOGLE_GMAIL_SCOPE).is_ok() {
     return Ok(MobileEmailProvider::Google);
   }
 
-  if UserConnection::find_by_user_email_and_scope(
-    account_email.to_string(),
-    MICROSOFT_OUTLOOK_SCOPE.to_string(),
-  )
-  .is_ok()
-  {
+  if resolve_mobile_email_connection(account_email, MICROSOFT_OUTLOOK_SCOPE).is_ok() {
     return Ok(MobileEmailProvider::Microsoft);
   }
 
@@ -706,11 +711,9 @@ async fn perform_google_email_action(
   message_id: &str,
   action: &str,
 ) -> Result<(), Error> {
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    account_email.to_string(),
-    GOOGLE_GMAIL_SCOPE.to_string(),
-  )?;
-  let access_token = refresh_connection_token(account_email.to_string(), user_connection).await?;
+  let (owner_email, user_connection) =
+    resolve_mobile_email_connection(account_email, GOOGLE_GMAIL_SCOPE)?;
+  let access_token = refresh_connection_token(owner_email, user_connection).await?;
   let client = reqwest::Client::new();
 
   let (remove_label_ids, add_label_ids) = match action {
@@ -759,11 +762,9 @@ async fn perform_microsoft_email_action(
   message_id: &str,
   action: &str,
 ) -> Result<(), Error> {
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    account_email.to_string(),
-    MICROSOFT_OUTLOOK_SCOPE.to_string(),
-  )?;
-  let access_token = refresh_user_connection(user_connection, account_email.to_string())
+  let (owner_email, user_connection) =
+    resolve_mobile_email_connection(account_email, MICROSOFT_OUTLOOK_SCOPE)?;
+  let access_token = refresh_user_connection(user_connection, owner_email)
     .await?
     .token;
   let client = reqwest::Client::new();
@@ -854,11 +855,9 @@ async fn send_mobile_email_reply(email_uid: &str, reply_body: &str) -> Result<()
       .map_err(Error::KSError)?;
     }
     MobileEmailProvider::Microsoft => {
-      let user_connection = UserConnection::find_by_user_email_and_scope(
-        email.account_email.clone(),
-        MICROSOFT_OUTLOOK_SCOPE.to_string(),
-      )?;
-      let access_token = refresh_user_connection(user_connection, email.account_email.clone())
+      let (owner_email, user_connection) =
+        resolve_mobile_email_connection(&email.account_email, MICROSOFT_OUTLOOK_SCOPE)?;
+      let access_token = refresh_user_connection(user_connection, owner_email)
         .await?
         .token;
 

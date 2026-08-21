@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import CircularProgress from '@mui/material/CircularProgress'
-import { listen } from '@tauri-apps/api/event'
 import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, IFeed } from 'src/hooks/feed/useFeed'
-import KNAnalytics from 'src/utils/KNAnalytics'
-import {
-  KNLocalStorage,
-  EMAIL_NOTIFICATION_DRAWER_DISMISSED,
-} from 'src/utils/KNLocalStorage'
-
-import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
-import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
-import TakeActionButton from 'src/components/molecules/TakeActionButton'
-import SettingsButton from 'src/components/atoms/settings-button'
 import { decodeEmailSubject } from 'src/utils/emails'
+import KNAnalytics from 'src/utils/KNAnalytics'
+import { EMAIL_NOTIFICATION_DRAWER_DISMISSED, KNLocalStorage } from 'src/utils/KNLocalStorage'
+
+import SettingsButton from 'src/components/atoms/settings-button'
+import EmailAutopilotSettings from 'src/components/molecules/EmailAutopilotSettings'
+import EmailDraftCard from 'src/components/molecules/EmailDraftCard'
+import TakeActionButton from 'src/components/molecules/TakeActionButton'
+
+import { listen } from '@tauri-apps/api/event'
 
 interface EmailNotificationDrawerProps {
   feed: IFeed
@@ -198,9 +196,7 @@ const EmailNotificationDrawer = ({
   // Total count of active important emails
   const totalPendingCount = useMemo(() => {
     const importantEmails = feed.classifiedEmails?.[EmailImportance.IMPORTANT] || []
-    return importantEmails.filter(
-      e => !e.wasIgnored && !e.wasReplySent && e.message.body,
-    ).length
+    return importantEmails.filter(e => !e.wasIgnored && !e.wasReplySent && e.message.body).length
   }, [feed.classifiedEmails])
 
   // Conservative auto-surface: only show after inference has been running for
@@ -245,7 +241,13 @@ const EmailNotificationDrawer = ({
 
     prevChatBusyRef.current = isChatBusy
     prevEmailCountRef.current = currentCount
-  }, [feed.classifiedEmails, feed.emailAutopilotStatus.status, permanentlyDismissed, pendingEmail, isChatBusy])
+  }, [
+    feed.classifiedEmails,
+    feed.emailAutopilotStatus.status,
+    permanentlyDismissed,
+    pendingEmail,
+    isChatBusy,
+  ])
 
   // Delayed show: only pop the drawer after chat has been busy for BUSY_DELAY_MS,
   // and only for emails not yet shown this session.
@@ -302,43 +304,46 @@ const EmailNotificationDrawer = ({
     }
   }, [emailsForCategory.length, isExpanded, isVisible, isLoading])
 
-  const handleEmailActionTaken = useCallback((
-    actionTaken: AutopilotActions,
-    emailUid: string,
-    draftReply?: string,
-    accountEmail?: string,
-  ) => {
-    if (
-      actionTaken === AutopilotActions.MARK_AS_READ ||
-      actionTaken === AutopilotActions.DELETE ||
-      actionTaken === AutopilotActions.ARCHIVE
-    ) {
-      setRemovingEmailUid(emailUid)
-      setTimeout(() => {
+  const handleEmailActionTaken = useCallback(
+    (
+      actionTaken: AutopilotActions,
+      emailUid: string,
+      draftReply?: string,
+      accountEmail?: string,
+    ) => {
+      if (
+        actionTaken === AutopilotActions.MARK_AS_READ ||
+        actionTaken === AutopilotActions.DELETE ||
+        actionTaken === AutopilotActions.ARCHIVE
+      ) {
+        setRemovingEmailUid(emailUid)
+        setTimeout(() => {
+          feed.takeEmailAction(
+            emailUid,
+            actionTaken,
+            profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+            undefined,
+            accountEmail,
+          )
+          setRemovingEmailUid('')
+        }, 300)
+      } else if (
+        actionTaken === AutopilotActions.SEND_REPLY ||
+        actionTaken === AutopilotActions.REPLY_ARCHIVE ||
+        actionTaken === AutopilotActions.REPLY_DELETE ||
+        actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
+      ) {
         feed.takeEmailAction(
           emailUid,
           actionTaken,
           profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-          undefined,
+          draftReply,
           accountEmail,
         )
-        setRemovingEmailUid('')
-      }, 300)
-    } else if (
-      actionTaken === AutopilotActions.SEND_REPLY ||
-      actionTaken === AutopilotActions.REPLY_ARCHIVE ||
-      actionTaken === AutopilotActions.REPLY_DELETE ||
-      actionTaken === AutopilotActions.GENERATE_DRAFT_REPLY
-    ) {
-      feed.takeEmailAction(
-        emailUid,
-        actionTaken,
-        profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
-        draftReply,
-        accountEmail,
-      )
-    }
-  }, [feed.takeEmailAction, profileProvider])
+      }
+    },
+    [feed.takeEmailAction, profileProvider],
+  )
 
   const handleDismiss = useCallback(() => {
     if (pendingEmail) {
@@ -406,31 +411,37 @@ const EmailNotificationDrawer = ({
     }, 300)
   }, [pendingEmail, feed.takeEmailAction, profileProvider])
 
-
   // Resize drag handler — user drags the top-left corner to grow/shrink the drawer
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    resizingRef.current = true
-    resizeStartRef.current = { x: e.clientX, y: e.clientY, w: drawerWidth, h: drawerHeight }
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      resizingRef.current = true
+      resizeStartRef.current = { x: e.clientX, y: e.clientY, w: drawerWidth, h: drawerHeight }
 
-    const onMouseMove = (ev: MouseEvent) => {
-      if (!resizingRef.current) return
-      const dx = resizeStartRef.current.x - ev.clientX // dragging left = increase width
-      const dy = resizeStartRef.current.y - ev.clientY // dragging up = increase height
-      setDrawerWidth(Math.max(400, Math.min(window.innerWidth * 0.9, resizeStartRef.current.w + dx)))
-      setDrawerHeight(Math.max(300, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)))
-    }
+      const onMouseMove = (ev: MouseEvent) => {
+        if (!resizingRef.current) return
+        const dx = resizeStartRef.current.x - ev.clientX // dragging left = increase width
+        const dy = resizeStartRef.current.y - ev.clientY // dragging up = increase height
+        setDrawerWidth(
+          Math.max(400, Math.min(window.innerWidth * 0.9, resizeStartRef.current.w + dx)),
+        )
+        setDrawerHeight(
+          Math.max(300, Math.min(window.innerHeight - 32, resizeStartRef.current.h + dy)),
+        )
+      }
 
-    const onMouseUp = () => {
-      resizingRef.current = false
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
+      const onMouseUp = () => {
+        resizingRef.current = false
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
 
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-  }, [drawerWidth, drawerHeight])
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [drawerWidth, drawerHeight],
+  )
 
   const getLoadingText = (status: string) => {
     if (status === 'fetching-emails') return 'Engaging autopilot...'
@@ -444,7 +455,8 @@ const EmailNotificationDrawer = ({
   if (!isVisible) return null
   if (!isExpanded && !pendingEmail) return null
 
-  const summary = pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
+  const summary =
+    pendingEmail?.classification?.summary?.join(' ') || 'New email needs your response.'
   const sender = pendingEmail?.message.sender ?? ''
   const subject = decodeEmailSubject(pendingEmail?.message.subject ?? '')
   const actionRequired = pendingEmail?.classification?.actionRequired || null
@@ -452,11 +464,13 @@ const EmailNotificationDrawer = ({
   return (
     <div
       className={`absolute bottom-0 right-0 z-40 transition-all duration-400 ease-out ${
-        isAnimatingOut
-          ? 'translate-y-full opacity-0'
-          : 'translate-y-0 opacity-100'
+        isAnimatingOut ? 'translate-y-full opacity-0' : 'translate-y-0 opacity-100'
       }`}
-      style={isExpanded ? { width: `${drawerWidth}px`, maxWidth: '90vw' } : { width: '540px', maxWidth: '540px' }}
+      style={
+        isExpanded
+          ? { width: `${drawerWidth}px`, maxWidth: '90vw' }
+          : { width: '540px', maxWidth: '540px' }
+      }
     >
       <div
         className={`mr-4 mb-4 rounded-xl bg-white border border-ks-warm-grey-200 shadow-lg overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
@@ -471,7 +485,11 @@ const EmailNotificationDrawer = ({
             onMouseDown={handleResizeStart}
             title="Drag to resize"
           >
-            <svg className="w-3 h-3 m-0.5 text-ks-warm-grey-300 group-hover:text-ks-warm-grey-500 transition-colors" viewBox="0 0 10 10" fill="currentColor">
+            <svg
+              className="w-3 h-3 m-0.5 text-ks-warm-grey-300 group-hover:text-ks-warm-grey-500 transition-colors"
+              viewBox="0 0 10 10"
+              fill="currentColor"
+            >
               <circle cx="2" cy="2" r="1.2" />
               <circle cx="2" cy="6" r="1.2" />
               <circle cx="6" cy="2" r="1.2" />
@@ -505,43 +523,78 @@ const EmailNotificationDrawer = ({
             )}
             {/* Open Full View icon */}
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation()
                 handleGoToEmail()
               }}
               className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
               title="Open Full View"
             >
-              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+              <svg
+                className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"
+                />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3h6v6" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14L21 3" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 14L21 3"
+                />
               </svg>
             </button>
             {/* Don't show again icon */}
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation()
                 handleDismissForever()
               }}
               className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
               title="Don't show again"
             >
-              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" />
+              <svg
+                className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18"
+                />
               </svg>
             </button>
             {/* Close / Dismiss button */}
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation()
                 handleDismiss()
               }}
               className="p-1 rounded hover:bg-ks-warm-grey-100 transition-colors"
               title="Dismiss"
             >
-              <svg className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="w-3.5 h-3.5 text-ks-warm-grey-500 hover:text-ks-warm-grey-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -575,12 +628,10 @@ const EmailNotificationDrawer = ({
                 No Response Needed
               </button>
               {/* Take Action button — show for all important emails needing response */}
-              {pendingEmail && pendingEmail.classification?.classification === 'IMPORTANT_NEEDS_RESPONSE' && (
-                <TakeActionButton
-                  email={pendingEmail}
-                  label={actionRequired || undefined}
-                />
-              )}
+              {pendingEmail &&
+                pendingEmail.classification?.classification === 'IMPORTANT_NEEDS_RESPONSE' && (
+                  <TakeActionButton email={pendingEmail} label={actionRequired || undefined} />
+                )}
               <button
                 onClick={handleExpand}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ks-red-600 hover:bg-ks-red-700 text-white text-xs font-semibold font-InterTight transition-colors"
@@ -617,9 +668,21 @@ const EmailNotificationDrawer = ({
                   </span>
                 </div>
               ) : !emailsForCategory || emailsForCategory.length === 0 || !currentEmail ? (
-                <div className={`flex flex-col items-center justify-center py-8 transition-opacity duration-500 ${caughtUpDismissing ? 'opacity-60' : 'opacity-100'}`}>
-                  <svg className="w-10 h-10 text-green-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <div
+                  className={`flex flex-col items-center justify-center py-8 transition-opacity duration-500 ${caughtUpDismissing ? 'opacity-60' : 'opacity-100'}`}
+                >
+                  <svg
+                    className="w-10 h-10 text-green-400 mb-3"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <div className="text-sm font-semibold font-Inter text-ks-warm-grey-800">
                     You're all caught up!
@@ -641,8 +704,18 @@ const EmailNotificationDrawer = ({
                         disabled={currentEmailIndex === 0}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 19l-7-7 7-7"
+                          />
                         </svg>
                         Prev
                       </button>
@@ -651,15 +724,28 @@ const EmailNotificationDrawer = ({
                       </span>
                       <button
                         onClick={() => {
-                          const nextIdx = Math.min(emailsForCategory.length - 1, currentEmailIndex + 1)
+                          const nextIdx = Math.min(
+                            emailsForCategory.length - 1,
+                            currentEmailIndex + 1,
+                          )
                           setCurrentEmailUid(emailsForCategory[nextIdx].message.emailUid)
                         }}
                         disabled={currentEmailIndex === emailsForCategory.length - 1}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
                       >
                         Next
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
                         </svg>
                       </button>
                     </div>
@@ -668,7 +754,9 @@ const EmailNotificationDrawer = ({
                   <div
                     key={currentEmail.message.emailUid}
                     className={`transition-opacity duration-300 ease-out ${
-                      removingEmailUid === currentEmail.message.emailUid ? 'opacity-0' : 'opacity-100'
+                      removingEmailUid === currentEmail.message.emailUid
+                        ? 'opacity-0'
+                        : 'opacity-100'
                     }`}
                   >
                     <EmailDraftCard
@@ -684,8 +772,8 @@ const EmailNotificationDrawer = ({
                       userName={userName}
                       profileProvider={profileProvider ? profileProvider : ''}
                       selected={true}
-                      generatingDraftUid={generatingDraftUid}
-                      sendingReplyUid={sendingReplyUid}
+                      isGeneratingDraft={generatingDraftUid === currentEmail.message.emailUid}
+                      shouldSendReply={sendingReplyUid === currentEmail.message.emailUid}
                       actions={actions}
                       updateAction={updateAction}
                       setIsEditorActive={setIsEditorActive}
@@ -694,7 +782,6 @@ const EmailNotificationDrawer = ({
                 </div>
               )}
             </div>
-
           </>
         )}
       </div>

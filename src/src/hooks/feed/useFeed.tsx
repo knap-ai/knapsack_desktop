@@ -1,4 +1,4 @@
-import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { insertAutomationRun } from 'src/api/automations'
 import {
@@ -407,8 +407,6 @@ export function useFeed(
     UNCLASSIFIED: 0,
   }
 
-  const lastEmailIdsByAccount = useRef<Record<string, number>>({})
-
   const selectEmailCategory = useCallback(() => {
     const getTabCount = (category: EmailImportance): number => {
       if (!classifiedEmails) return 0
@@ -703,8 +701,7 @@ export function useFeed(
                 // Mark as replied if the user has sent a message in the same thread,
                 // or fall back to the read/archived/deleted heuristic.
                 const userRepliedInThread =
-                  updatedMessage.threadId != null &&
-                  repliedThreadIds.has(updatedMessage.threadId)
+                  updatedMessage.threadId != null && repliedThreadIds.has(updatedMessage.threadId)
 
                 return {
                   ...displayEmail,
@@ -778,31 +775,12 @@ export function useFeed(
         return
       }
 
-      const messagesByAccount = new Map<string, EmailDocument[]>()
-      for (const message of allMessages) {
-        const account = message.accountEmail || userEmail
-        const accountMessages = messagesByAccount.get(account) ?? []
-        accountMessages.push(message)
-        messagesByAccount.set(account, accountMessages)
-      }
-
-      const messages: EmailDocument[] = []
-      for (const [account, accountMessages] of messagesByAccount) {
-        const previousCursor = lastEmailIdsByAccount.current[account]
-        if (previousCursor == null) {
-          messages.push(...accountMessages)
-        } else {
-          const cursorIndex = accountMessages.findIndex(
-            message => message.documentId === previousCursor,
-          )
-          // If the previous marker has aged out of the seven-day window, avoid
-          // dropping newly synced messages from this account.
-          messages.push(...(cursorIndex >= 0 ? accountMessages.slice(0, cursorIndex) : accountMessages))
-        }
-        if (accountMessages[0]) {
-          lastEmailIdsByAccount.current[account] = accountMessages[0].documentId
-        }
-      }
+      // Process the complete unread/starred window on every sync completion.
+      // Concurrent Google accounts finish independently, so advancing a local
+      // cursor from a partially synced mailbox can permanently skip messages
+      // inserted after that cursor. Thread/account de-duplication below keeps
+      // this replay safe while ensuring every completed account is observed.
+      const messages = allMessages
 
       const emailThreadsSet = new Set<EmailDocument>()
 
@@ -1215,7 +1193,9 @@ export function useFeed(
             // Look up the calendar event by event_id (meetings is keyed by title_start,
             // so we need to search by value).
             if (runParams?.event_id && meetings) {
-              item.calendarEvent = Object.values(meetings).find(m => m.event_id === runParams.event_id)
+              item.calendarEvent = Object.values(meetings).find(
+                m => m.event_id === runParams.event_id,
+              )
             }
             // Fallback: match by title + start-minute so feed items without an
             // event_id (e.g. manually created sessions) still surface in Coming Up.
@@ -1245,8 +1225,8 @@ export function useFeed(
         // we can skip calendar events that already have a corresponding feed item
         // (handles multi-account calendars where event_ids differ).
         const existingEventIds = new Set<string>()
-        const existingMeetingKeys = new Set<string>();
-        (Object.values(groupedFeedItems) as any[][]).forEach((items) => {
+        const existingMeetingKeys = new Set<string>()
+        ;(Object.values(groupedFeedItems) as any[][]).forEach(items => {
           items.forEach((item: any) => {
             const rp =
               typeof item.run?.runParams === 'string'
@@ -1431,7 +1411,11 @@ export function useFeed(
   const isRecentDate = (date: string, showPastDates: boolean, showFutureDates: boolean) => {
     const recentDates = ['Today', 'Yesterday', 'COMING UP']
     if (showPastDates && showFutureDates) {
-      return pastDays.includes(date) || futureDays.includes(date) || recentDates.some(recentDate => date.includes(recentDate))
+      return (
+        pastDays.includes(date) ||
+        futureDays.includes(date) ||
+        recentDates.some(recentDate => date.includes(recentDate))
+      )
     } else if (showPastDates) {
       return pastDays.includes(date) || recentDates.some(recentDate => date.includes(recentDate))
     } else if (showFutureDates) {
@@ -1765,12 +1749,7 @@ export function useFeed(
       setSelectedFeedItem(feedItem)
       setSubTab(SubTabChoices.Workspace)
       try {
-        await startRecord(
-          thread.id,
-          feedItem.id,
-          parseNumericEventId(meeting.id),
-          saveTranscript,
-        )
+        await startRecord(thread.id, feedItem.id, parseNumericEventId(meeting.id), saveTranscript)
         setIsRecording(feedItem)
       } catch (recordErr: any) {
         logError(new Error('Failed to start recording for calendar meeting'), {
@@ -1822,9 +1801,7 @@ export function useFeed(
       setFeedContent(prevState => {
         const updated = { ...prevState }
         // Replace the feed item with the updated (now-linked) version.
-        updated[timelineKey] = feedItems.map(fi =>
-          fi.id === feedItemId ? updatedFeedItem : fi,
-        )
+        updated[timelineKey] = feedItems.map(fi => (fi.id === feedItemId ? updatedFeedItem : fi))
         // Remove the calendar-only placeholder for this meeting from every
         // timeline bucket. The placeholder has no DB id and carries the same
         // event_id as the meeting being attached.
@@ -2053,18 +2030,20 @@ export function useFeed(
         if (!emails) return
 
         // Find and update the matching email
-        const emailIndex = emails.findIndex(email =>
-          email.message.emailUid === emailUid
-          && (!accountEmail || (email.message.accountEmail || userEmail) === accountEmail),
+        const emailIndex = emails.findIndex(
+          email =>
+            email.message.emailUid === emailUid &&
+            (!accountEmail || (email.message.accountEmail || userEmail) === accountEmail),
         )
 
         if (emailIndex !== -1) {
           actionHandled = true
           const updatedEmail = { ...emails[emailIndex] }
           const dataFetcher = new DataFetcher()
-          const actionOwnerEmail = userProvider === ConnectionKeys.GOOGLE_PROFILE
-            ? userEmail
-            : (updatedEmail.message.accountEmail || userEmail)
+          const actionOwnerEmail =
+            userProvider === ConnectionKeys.GOOGLE_PROFILE
+              ? userEmail
+              : updatedEmail.message.accountEmail || userEmail
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true
             dataFetcher
