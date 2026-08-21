@@ -560,6 +560,10 @@ pub async fn start_server<'a>(
       .service(clawd::dev_remote::remote_command)
       .service(clawd::dev_remote::notify_channel)
   })
+  // OAuth providers redirect to `http://localhost:8897`. Browsers may resolve
+  // localhost to either IPv4 or IPv6, so listen on both loopback addresses.
+  // Binding only 127.0.0.1 makes a successful consent silently fail whenever
+  // the browser selects ::1 for the callback.
   .bind(("127.0.0.1", port))
   .map_err(|e| {
     eprintln!(
@@ -567,6 +571,14 @@ pub async fn start_server<'a>(
       port, e
     );
     eprintln!("FATAL: Is another instance of Knapsack already running on this port?");
+    e
+  })?
+  .bind(("::1", port))
+  .map_err(|e| {
+    eprintln!(
+      "FATAL: Failed to bind actix server to [::1]:{}: {}",
+      port, e
+    );
     e
   })?
   .run();
