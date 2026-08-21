@@ -15,6 +15,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::clawdbot_home_headless;
+use super::session_watcher::resolve_authorized_session;
 
 const LIST_TOOL: &str = "list_connector_tools";
 const CALL_TOOL: &str = "call_connector_tool";
@@ -31,6 +32,7 @@ static REFRESHED_ACCESS_TOKEN: Lazy<Mutex<Option<RefreshedStudioToken>>> =
 struct StudioTokens {
   knapsack_access_token: Option<String>,
   knapsack_refresh_token: Option<String>,
+  knapsack_email: Option<String>,
 }
 
 fn api_base() -> String {
@@ -115,7 +117,9 @@ async fn request_studio(
       .filter(|value| value.refresh_token == current_refresh)
       .map(|value| value.access_token)
   });
-  let mut access_token = match stored_access_token.or(cached) {
+  // A token refreshed by this process is newer than the access token still
+  // present on disk. Prefer it while the refresh-token identity is unchanged.
+  let mut access_token = match cached.or(stored_access_token) {
     Some(token) => token,
     None => match refresh_token.as_deref() {
       Some(refresh) => refresh_access_token(refresh).await?,
@@ -164,6 +168,23 @@ async fn request_studio(
   Err("Knapsack Studio sign-in expired. Reconnect Studio in Settings.".to_string())
 }
 
+fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
+  let tokens = read_tokens()?;
+  let owner = nonempty(tokens.knapsack_email)
+    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?;
+  let session_id = arguments.get("session_id").and_then(Value::as_str);
+  match resolve_authorized_session(session_id) {
+    Ok((sender, _)) if sender.eq_ignore_ascii_case(&owner) => Ok(()),
+    Ok((sender, _)) => Err(format!(
+      "This shared chat is authenticated as {sender}, not the connected Studio owner. Refusing to use the owner's connectors."
+    )),
+    // Desktop's first-party chat has no Slack identity record. Its local app
+    // process owns the private token store, so it remains the trusted path.
+    Err(error) if error.starts_with("No verified Slack session on record") => Ok(()),
+    Err(error) => Err(format!("Cannot authorize Studio connector access: {error}")),
+  }
+}
+
 async fn connected_connectors() -> Result<Vec<Value>, String> {
   let body = request_studio(
     reqwest::Method::GET,
@@ -181,6 +202,7 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 }
 
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
+  authorize_studio_request(arguments)?;
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -199,6 +221,7 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
 }
 
 async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
+  authorize_studio_request(arguments)?;
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -227,10 +250,6 @@ async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
 }
 
 fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Value> {
-  let ids = connectors
-    .iter()
-    .filter_map(|connector| connector.get("id").and_then(Value::as_str))
-    .collect::<Vec<_>>();
   let labels = connectors
     .iter()
     .filter_map(|connector| {
@@ -242,18 +261,16 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
     })
     .collect::<Vec<_>>()
     .join(", ");
-  let connector_schema = if ids.is_empty() {
-    let description = discovery_error
-      .map(|error| {
-        format!(
-          "Connected Studio connector id. Connector discovery is currently unavailable: {error}"
-        )
-      })
-      .unwrap_or_else(|| "Connected Studio connector id".to_string());
-    json!({ "type": "string", "description": description })
+  let description = if !labels.is_empty() {
+    format!("Connected Studio connector id. Currently available: {labels}")
+  } else if let Some(error) = discovery_error {
+    format!("Connected Studio connector id. Connector discovery is currently unavailable: {error}")
   } else {
-    json!({ "type": "string", "enum": ids, "description": format!("Connected Studio connector. Available: {labels}") })
+    "Connected Studio connector id".to_string()
   };
+  // Keep this an open string. MCP clients cache tools/list; a static enum
+  // would reject a connector added inline until the gateway relisted tools.
+  let connector_schema = json!({ "type": "string", "description": description });
   vec![
     json!({
       "name": LIST_TOOL,
@@ -375,11 +392,12 @@ mod tests {
   use super::*;
 
   #[test]
-  fn connector_catalog_becomes_mcp_enum_without_secrets() {
+  fn connector_catalog_describes_connectors_without_freezing_an_enum_or_secrets() {
     let tools = tool_schemas(&[json!({ "id": "slack", "name": "Slack" })], None);
     let serialized = serde_json::to_string(&tools).unwrap();
     assert!(serialized.contains("slack"));
     assert!(serialized.contains("Slack"));
+    assert!(!serialized.contains("\"enum\""));
     assert!(!serialized.contains("access_token"));
   }
 }

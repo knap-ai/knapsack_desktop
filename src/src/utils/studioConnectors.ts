@@ -119,7 +119,10 @@ export function normalizeStudioConnectorCatalog(
       category,
     }]
   })
-  return normalized.length > 0 ? normalized : FALLBACK_COMPOSIO_CONNECTORS
+  // A successful empty catalog is authoritative: Studio may have disabled
+  // every connector for this deployment. Only a missing/unavailable catalog
+  // (undefined above) uses the compatibility list.
+  return normalized
 }
 
 const suggestionGroups: Array<{

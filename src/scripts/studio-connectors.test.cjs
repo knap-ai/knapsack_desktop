@@ -49,6 +49,11 @@ test('uses connectors delivered dynamically by Studio', async () => {
   assert.equal(suggestion?.connectors[0]?.id, 'future_crm')
 })
 
+test('treats a successful empty Studio catalog as authoritative', async () => {
+  const { normalizeStudioConnectorCatalog } = await loadConnectorModule()
+  assert.deepEqual(normalizeStudioConnectorCatalog([]), [])
+})
+
 test('respects dismissed suggestions and ignores unrelated chat', async () => {
   const { detectStudioConnectorSuggestion } = await loadConnectorModule()
   assert.equal(detectStudioConnectorSuggestion('Use Confluence', [], ['confluence']), null)
