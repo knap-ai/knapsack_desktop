@@ -3588,7 +3588,8 @@ mod tests {
       "browser": {
         "enabled": true,
         "headless": false,
-        "defaultProfile": "openclaw"
+        "defaultProfile": "openclaw",
+        "profiles": knapsack_agent_browser_profiles()
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],
