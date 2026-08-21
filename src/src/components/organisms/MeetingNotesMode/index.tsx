@@ -1141,7 +1141,10 @@ Be specific, compact, and useful while the user is joining the call.`,
           )}
           {/* Show recording notice + stop button when recording during loading */}
           {recordingHandlers.isRecording(thread.id) && (
-            <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+            <MeetingChatNotice
+              meetingPlatform={meeting?.meeting_platform}
+              meetingUrl={meeting?.google_meet_url}
+            />
           )}
         </div>
         </div>
@@ -1499,7 +1502,10 @@ Be direct, specific, and concise. No filler text.`
 
         {/* Recording notice */}
         {recordingHandlers.isRecording(thread.id) && (
-          <MeetingChatNotice meetingPlatform={meeting?.meeting_platform} />
+          <MeetingChatNotice
+            meetingPlatform={meeting?.meeting_platform}
+            meetingUrl={meeting?.google_meet_url}
+          />
         )}
 
         {/* Live recording welcome banner */}

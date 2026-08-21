@@ -924,8 +924,44 @@ fn activate_main_window_from_notification(window: tauri::Window) {
 /// API / keyboard simulation. Copies the message to the clipboard, activates
 /// the meeting window, opens chat via platform-specific keyboard shortcut,
 /// pastes, and sends. Falls back to clipboard-only on non-macOS.
+fn google_meet_url_needle(meeting_url: Option<&str>) -> Option<String> {
+  meeting_url
+    .and_then(|value| url::Url::parse(value).ok())
+    .filter(|url| url.host_str() == Some("meet.google.com"))
+    .and_then(|url| {
+      url
+        .path_segments()
+        .and_then(|mut segments| segments.find(|segment| !segment.is_empty()))
+        .map(|code| format!("meet.google.com/{code}"))
+    })
+}
+
+#[cfg(test)]
+mod meeting_chat_target_tests {
+  use super::google_meet_url_needle;
+
+  #[test]
+  fn extracts_exact_google_meet_target() {
+    assert_eq!(
+      google_meet_url_needle(Some("https://meet.google.com/abc-defg-hij?authuser=1")),
+      Some("meet.google.com/abc-defg-hij".to_string())
+    );
+  }
+
+  #[test]
+  fn rejects_missing_or_non_meet_targets() {
+    assert_eq!(google_meet_url_needle(None), None);
+    assert_eq!(google_meet_url_needle(Some("https://news.google.com/")), None);
+    assert_eq!(google_meet_url_needle(Some("not a url")), None);
+  }
+}
+
 #[tauri::command]
-async fn send_meeting_chat_message(platform: String, message: String) -> Result<bool, String> {
+async fn send_meeting_chat_message(
+  platform: String,
+  message: String,
+  meeting_url: Option<String>,
+) -> Result<bool, String> {
   #[cfg(target_os = "macos")]
   {
     use std::process::Command;
@@ -951,7 +987,7 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
         (
           "key code 4 using {command down, shift down}", // H
           "key code 4 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#,
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#.to_string(),
         )
       }
       "teams" => {
@@ -959,7 +995,7 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
         (
           "key code 46 using {command down, shift down}", // M
           "key code 46 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#,
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#.to_string(),
         )
       }
       "google_meet" => {
@@ -967,20 +1003,66 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
         // Resolve the browser explicitly. The Knapsack meeting window is often
         // frontmost, so targeting the frontmost process can paste this notice
         // into Knapsack's own meeting-chat input.
+        let meeting_needle = google_meet_url_needle(meeting_url.as_deref());
+        let Some(meeting_needle) = meeting_needle else {
+          log::warn!("Cannot safely target Google Meet chat without a specific Meet URL");
+          return Ok(false);
+        };
+        let meeting_needle = meeting_needle.replace('\\', "\\\\").replace('"', "\\\"");
+        let target_script = format!(
+          r#"set meetingNeedle to "{meeting_needle}"
+          set targetApp to ""
+          tell application "System Events" to set runningBrowsers to name of every application process
+          set chromiumBrowsers to {{"Google Chrome", "Microsoft Edge", "Brave Browser"}}
+          repeat with browserName in chromiumBrowsers
+            set browserNameText to browserName as text
+            if runningBrowsers contains browserNameText then
+              try
+                using terms from application "Google Chrome"
+                  tell application browserNameText
+                    repeat with browserWindow in windows
+                      repeat with tabIndex from 1 to count of tabs of browserWindow
+                        if URL of tab tabIndex of browserWindow contains meetingNeedle then
+                          set active tab index of browserWindow to tabIndex
+                          set index of browserWindow to 1
+                          activate
+                          set targetApp to browserNameText
+                          exit repeat
+                        end if
+                      end repeat
+                      if targetApp is not "" then exit repeat
+                    end repeat
+                  end tell
+                end using terms from
+              end try
+            end if
+            if targetApp is not "" then exit repeat
+          end repeat
+          if targetApp is "" and runningBrowsers contains "Safari" then
+            try
+              tell application "Safari"
+                repeat with browserWindow in windows
+                  repeat with browserTab in tabs of browserWindow
+                    if URL of browserTab contains meetingNeedle then
+                      set current tab of browserWindow to browserTab
+                      set index of browserWindow to 1
+                      activate
+                      set targetApp to "Safari"
+                      exit repeat
+                    end if
+                  end repeat
+                  if targetApp is not "" then exit repeat
+                end repeat
+              end tell
+            end try
+          end if
+          if targetApp is "" then error "The Google Meet tab could not be located""#,
+          meeting_needle = meeting_needle,
+        );
         (
           "key code 8 using {command down, shift down}", // C
           "key code 8 using {command down, shift down}", // toggle off
-          r#"tell application "System Events"
-            set browserNames to {"Google Chrome", "Arc", "Safari", "Microsoft Edge", "Brave Browser"}
-            set targetApp to ""
-            repeat with browserName in browserNames
-              if exists application process (browserName as text) then
-                set targetApp to browserName as text
-                exit repeat
-              end if
-            end repeat
-          end tell
-          if targetApp is "" then error "No supported browser is open for Google Meet""#,
+          target_script,
         )
       }
       _ => return Ok(false),
