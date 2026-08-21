@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -192,6 +193,9 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   }
 
   let session_key = openclaw_session_key(request.session_id);
+  let existing_children = openclaw_child_session_keys(&session_key)
+    .await
+    .unwrap_or_default();
   let result = tokio::time::timeout(
     HARNESS_TIMEOUT,
     gateway_client::agent_chat(
@@ -208,7 +212,9 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   match parse_openclaw_reply(&result) {
     Ok(reply) => Ok(reply),
     Err(error) if error == "OpenClaw returned an empty reply" => {
-      wait_for_openclaw_followup(&session_key).await
+      let contributions =
+        collect_openclaw_subagent_results(&session_key, &existing_children).await?;
+      synthesize_openclaw_group_reply(request, &session_key, &contributions).await
     }
     Err(error) => Err(error),
   }
@@ -216,28 +222,114 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
 
 const OPENCLAW_FOLLOWUP_TIMEOUT: Duration = Duration::from_secs(120);
 
-async fn wait_for_openclaw_followup(session_key: &str) -> Result<String, String> {
+async fn openclaw_child_session_keys(session_key: &str) -> Result<HashSet<String>, String> {
+  let sessions = gateway_client::sessions_list(None, 500).await?;
+  Ok(
+    sessions
+      .get("sessions")
+      .and_then(Value::as_array)
+      .into_iter()
+      .flatten()
+      .filter(|session| session.get("spawnedBy").and_then(Value::as_str) == Some(session_key))
+      .filter_map(|session| session.get("key").and_then(Value::as_str))
+      .map(str::to_string)
+      .collect(),
+  )
+}
+
+async fn collect_openclaw_subagent_results(
+  session_key: &str,
+  existing_children: &HashSet<String>,
+) -> Result<Vec<(String, String)>, String> {
   let deadline = tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT;
   let mut delay = Duration::from_millis(250);
 
   loop {
-    match gateway_client::chat_history(session_key, None, 100).await {
-      Ok(history) => {
-        if let Some(reply) = latest_assistant_after_last_user(&history) {
-          return Ok(reply);
+    match gateway_client::sessions_list(None, 500).await {
+      Ok(sessions) => {
+        let children = new_child_sessions(&sessions, session_key, existing_children);
+        if children.len() >= 2 && children.iter().all(|child| child.1 == "done") {
+          let mut contributions = Vec::with_capacity(children.len());
+          for (key, _) in children {
+            let history = gateway_client::chat_history(&key, None, 100).await?;
+            let reply = latest_assistant_after_last_user(&history)
+              .ok_or_else(|| format!("OpenClaw child session {key} completed without a reply"))?;
+            contributions.push((key, reply));
+          }
+          return Ok(contributions);
         }
       }
       Err(error) => {
-        eprintln!("[harness] Could not read yielded OpenClaw history yet: {error}");
+        eprintln!("[harness] Could not inspect yielded OpenClaw children yet: {error}");
       }
     }
 
     if tokio::time::Instant::now() >= deadline {
-      return Err("OpenClaw group orchestration did not finish in time".to_string());
+      return Err("OpenClaw child agents did not finish in time".to_string());
     }
     tokio::time::sleep(delay).await;
     delay = (delay * 2).min(Duration::from_secs(2));
   }
+}
+
+fn new_child_sessions(
+  sessions: &Value,
+  parent_key: &str,
+  existing_children: &HashSet<String>,
+) -> Vec<(String, String)> {
+  sessions
+    .get("sessions")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter(|session| session.get("spawnedBy").and_then(Value::as_str) == Some(parent_key))
+    .filter_map(|session| {
+      let key = session.get("key")?.as_str()?;
+      if existing_children.contains(key) {
+        return None;
+      }
+      Some((
+        key.to_string(),
+        session
+          .get("status")
+          .and_then(Value::as_str)
+          .unwrap_or("unknown")
+          .to_string(),
+      ))
+    })
+    .collect()
+}
+
+async fn synthesize_openclaw_group_reply(
+  request: &HarnessRequest<'_>,
+  parent_session_key: &str,
+  contributions: &[(String, String)],
+) -> Result<String, String> {
+  let contributions_text = contributions
+    .iter()
+    .enumerate()
+    .map(|(index, (_, reply))| {
+      let capped = if reply.chars().count() > 8_000 {
+        reply.chars().take(8_000).collect::<String>()
+      } else {
+        reply.clone()
+      };
+      format!("Contributor {}:\n{}", index + 1, capped)
+    })
+    .collect::<Vec<_>>()
+    .join("\n\n");
+  let prompt = format!(
+    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their independent work. Do not call tools or spawn more agents. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
+    request.message, contributions_text
+  );
+  let synthesis_key = format!("{parent_session_key}:synthesis");
+  let result = tokio::time::timeout(
+    HARNESS_TIMEOUT,
+    gateway_client::agent_chat(&prompt, &[], None, None, Some(&synthesis_key)),
+  )
+  .await
+  .map_err(|_| format!("OpenClaw synthesis timed out after {HARNESS_TIMEOUT:?}"))??;
+  parse_openclaw_reply(&result)
 }
 
 fn latest_assistant_after_last_user(history: &Value) -> Option<String> {
@@ -1037,6 +1129,28 @@ mod tests {
       ]
     });
     assert_eq!(latest_assistant_after_last_user(&still_waiting), None);
+  }
+
+  #[test]
+  fn yielded_openclaw_collection_ignores_old_children_and_waits_for_all_new_ones() {
+    let sessions = json!({
+      "sessions": [
+        {"key": "old", "spawnedBy": "parent", "status": "done"},
+        {"key": "scout", "spawnedBy": "parent", "status": "done"},
+        {"key": "polly", "spawnedBy": "parent", "status": "running"},
+        {"key": "other", "spawnedBy": "another-parent", "status": "done"}
+      ]
+    });
+    let existing = HashSet::from(["old".to_string()]);
+    let children = new_child_sessions(&sessions, "parent", &existing);
+    assert_eq!(
+      children,
+      vec![
+        ("scout".to_string(), "done".to_string()),
+        ("polly".to_string(), "running".to_string())
+      ]
+    );
+    assert!(!children.iter().all(|child| child.1 == "done"));
   }
 
   #[test]

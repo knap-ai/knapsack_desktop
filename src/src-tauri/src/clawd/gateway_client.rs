@@ -3329,6 +3329,20 @@ pub async fn chat_history(
   .await
 }
 
+pub async fn sessions_list(token: Option<&str>, limit: usize) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(
+    "sessions.list",
+    Some(serde_json::json!({
+      "limit": limit.clamp(1, 1000),
+      "includeGlobal": false,
+      "includeUnknown": false,
+    })),
+    &t,
+  )
+  .await
+}
+
 fn build_agent_chat_params(
   message: &str,
   attachments: &[serde_json::Value],
