@@ -24,8 +24,22 @@ import { open } from '@tauri-apps/api/shell'
 
 const BACKEND = 'http://127.0.0.1:8897'
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
-const SCREENSHOT_INTERVAL_MS = 700
-const TABS_INTERVAL_MS = 900
+const SCREENSHOT_INTERVAL_MS = 1200
+const TABS_INTERVAL_MS = 1800
+const MIN_DESKTOP_VIEWPORT_WIDTH = 1100
+const MAX_DESKTOP_VIEWPORT_HEIGHT = 1600
+
+function desktopBrowserViewport(width: number, height: number) {
+  const roundedWidth = Math.round(width)
+  const roundedHeight = Math.round(height)
+  if (roundedWidth >= MIN_DESKTOP_VIEWPORT_WIDTH) return { width: roundedWidth, height: roundedHeight }
+
+  const scale = MIN_DESKTOP_VIEWPORT_WIDTH / Math.max(roundedWidth, 1)
+  return {
+    width: MIN_DESKTOP_VIEWPORT_WIDTH,
+    height: Math.min(MAX_DESKTOP_VIEWPORT_HEIGHT, Math.max(roundedHeight, Math.round(roundedHeight * scale))),
+  }
+}
 
 interface BrowserTab {
   targetId: string
@@ -127,11 +141,11 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     if (viewport) {
       const { width, height } = viewport.getBoundingClientRect()
       if (width >= 320 && height >= 240) {
+        const browserViewport = desktopBrowserViewport(width, height)
         postBrowserAction({
           kind: 'resize',
           targetId,
-          width: Math.round(width),
-          height: Math.round(height),
+          ...browserViewport,
         }, browserProfile).catch(() => undefined)
       }
     }
@@ -174,7 +188,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }, [activeTabStorageKey, browserProfile, selectTarget])
 
   const refreshScreenshot = useCallback(async () => {
-    if (screenshotPendingRef.current || !currentTargetIdRef.current) return
+    if (document.hidden || screenshotPendingRef.current || !currentTargetIdRef.current) return
     screenshotPendingRef.current = true
     try {
       const query = new URLSearchParams({
@@ -381,11 +395,11 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       window.clearTimeout(resizeTimerRef.current)
       resizeTimerRef.current = window.setTimeout(() => {
         if (!currentTargetIdRef.current || width < 320 || height < 240) return
+        const browserViewport = desktopBrowserViewport(width, height)
         postBrowserAction({
           kind: 'resize',
           targetId: currentTargetIdRef.current,
-          width: Math.round(width),
-          height: Math.round(height),
+          ...browserViewport,
         }, browserProfile).catch(() => undefined)
       }, 180)
     })
