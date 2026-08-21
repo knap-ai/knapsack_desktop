@@ -435,6 +435,9 @@ pub async fn start_server<'a>(
       .service(clawd::service::ollama_configure)
       .service(clawd::service::ollama_pull)
       .service(clawd::service::ollama_delete)
+      // Docker sandbox mode endpoints
+      .service(clawd::service::docker_mode_status)
+      .service(clawd::service::docker_mode_configure)
       // Skills management endpoints
       .service(clawd::service::skills_status)
       .service(clawd::service::skills_install)

@@ -1745,6 +1745,11 @@ async fn main() {
     std::process::exit(0);
   }
 
+  // Must run before any other setup so the knapsack:// scheme is claimed by
+  // this process. Carries the role a visitor picked on the website into
+  // onboarding; see www ThankYou page.
+  tauri_plugin_deep_link::prepare("ai.knap.knapsack");
+
   create_data_dir();
   create_db_env_variable();
 
@@ -1810,6 +1815,19 @@ async fn main() {
     .manage(semantic_service.clone())
     .manage(recording_state)
     .setup(move |app| {
+      {
+        let deep_link_handle = app.handle();
+        if let Err(err) = tauri_plugin_deep_link::register("knapsack", move |request| {
+          // Forwarded to the webview, which parses role/attr_id and preselects
+          // the matching agent during onboarding.
+          if let Err(emit_err) = deep_link_handle.emit_all("deep-link-received", request) {
+            log::error!("Failed to emit deep link to webview: {emit_err}");
+          }
+        }) {
+          log::error!("Failed to register knapsack:// deep link handler: {err}");
+        }
+      }
+
       #[cfg(not(debug_assertions))]
       {
         let mut missing = vec![];

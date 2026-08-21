@@ -40,7 +40,7 @@ use tokio::io::AsyncWriteExt as _;
 use super::service::read_session_capability_secret_headless;
 use super::session_watcher::resolve_authorized_session;
 
-const BROKER_BASE_URL: &str = "https://scout-token-broker-ye3kc3evha-uk.a.run.app";
+const BROKER_BASE_URL: &str = "https://scout-oauth-web-ye3kc3evha-uk.a.run.app";
 const TENANT_ID: &str = "bankaya";
 /// Fallback only — the account host is normally read straight out of the
 /// OAuth token (see `statements_url_from_token`). Confirmed from a live broker
@@ -65,7 +65,7 @@ const JWT_TTL_SECS: u64 = 60;
 /// sender's own email is then used and no other change is needed. The
 /// `KNAPSACK_SNOWFLAKE_BROKER_EMAIL` env var overrides it at runtime, so
 /// per-user behaviour can be exercised without a rebuild.
-const DEV_FORCED_BROKER_EMAIL: Option<&str> = Some("rogelio@bankaya.com.mx");
+const DEV_FORCED_BROKER_EMAIL: Option<&str> = None;
 
 /// Runtime-resolved override, env var taking precedence over the constant.
 fn forced_broker_email() -> Option<String> {
