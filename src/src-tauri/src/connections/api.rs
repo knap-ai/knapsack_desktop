@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use actix_web::delete;
@@ -65,12 +65,18 @@ pub enum ConnectionsEnum {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ConnectionsData {
   is_syncing: HashMap<ConnectionsEnum, bool>,
+  /// In-flight Google syncs are scoped to the connected account. This keeps a
+  /// second Google account from being mistaken for a duplicate of the first
+  /// while still suppressing duplicate jobs for the same service/account.
+  #[serde(skip, default)]
+  syncing_accounts: HashSet<(ConnectionsEnum, String)>,
 }
 
 impl ConnectionsData {
   pub fn new() -> ConnectionsData {
     ConnectionsData {
       is_syncing: HashMap::from([]),
+      syncing_accounts: HashSet::new(),
     }
   }
 
@@ -80,6 +86,7 @@ impl ConnectionsData {
     for key in keys {
       self.is_syncing.insert(key.clone(), false);
     }
+    self.syncing_accounts.clear();
   }
 
   pub fn get_connection_is_syncing(&self, connection: ConnectionsEnum) -> bool {
@@ -105,6 +112,101 @@ impl ConnectionsData {
   ) {
     let mut connections_data_locked = connection_data.lock().await;
     connections_data_locked.set_connection_is_syncing(connection, is_syncing)
+  }
+
+  pub async fn lock_and_try_begin_account_sync(
+    connections_data: Arc<Mutex<ConnectionsData>>,
+    connection: ConnectionsEnum,
+    account_email: &str,
+  ) -> bool {
+    let mut data = connections_data.lock().await;
+    let key = (
+      connection.clone(),
+      account_email.trim().to_ascii_lowercase(),
+    );
+    if !data.syncing_accounts.insert(key) {
+      return false;
+    }
+    data.set_connection_is_syncing(connection, true);
+    true
+  }
+
+  pub async fn lock_and_finish_account_sync(
+    connections_data: Arc<Mutex<ConnectionsData>>,
+    connection: ConnectionsEnum,
+    account_email: &str,
+  ) {
+    let mut data = connections_data.lock().await;
+    let key = (
+      connection.clone(),
+      account_email.trim().to_ascii_lowercase(),
+    );
+    data.syncing_accounts.remove(&key);
+    let still_syncing = data
+      .syncing_accounts
+      .iter()
+      .any(|(active_connection, _)| active_connection == &connection);
+    data.set_connection_is_syncing(connection, still_syncing);
+  }
+}
+
+#[cfg(test)]
+mod connections_data_tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn account_syncs_are_independent_but_duplicates_are_suppressed() {
+    let data = Arc::new(Mutex::new(ConnectionsData::new()));
+
+    assert!(
+      ConnectionsData::lock_and_try_begin_account_sync(
+        data.clone(),
+        ConnectionsEnum::GoogleGmail,
+        "first@example.com",
+      )
+      .await
+    );
+    assert!(
+      ConnectionsData::lock_and_try_begin_account_sync(
+        data.clone(),
+        ConnectionsEnum::GoogleGmail,
+        "second@example.com",
+      )
+      .await
+    );
+    assert!(
+      !ConnectionsData::lock_and_try_begin_account_sync(
+        data.clone(),
+        ConnectionsEnum::GoogleGmail,
+        "FIRST@example.com",
+      )
+      .await
+    );
+
+    ConnectionsData::lock_and_finish_account_sync(
+      data.clone(),
+      ConnectionsEnum::GoogleGmail,
+      "first@example.com",
+    )
+    .await;
+    assert!(
+      ConnectionsData::lock_and_get_connection_is_syncing(
+        data.clone(),
+        ConnectionsEnum::GoogleGmail,
+      )
+      .await
+    );
+
+    ConnectionsData::lock_and_finish_account_sync(
+      data.clone(),
+      ConnectionsEnum::GoogleGmail,
+      "second@example.com",
+    )
+    .await;
+    assert!(
+      !ConnectionsData::lock_and_get_connection_is_syncing(data, ConnectionsEnum::GoogleGmail,)
+        .await
+    );
   }
 }
 

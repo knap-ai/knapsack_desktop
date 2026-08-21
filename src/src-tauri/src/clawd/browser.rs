@@ -17,6 +17,8 @@ use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
+use crate::db::models::user::User;
+use crate::db::models::user_connection::UserConnection;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
@@ -647,7 +649,7 @@ const KNAPSACK_TOKEN_EXPIRY_SKEW_SECS: u64 = 60;
 /// `exp` claim (seconds since epoch) from a JWT's payload, if it is a JWT at
 /// all. No signature verification — this is only used to decide when to
 /// proactively refresh, never to make an authorization decision.
-fn jwt_expiry_unix(token: &str) -> Option<u64> {
+pub(crate) fn jwt_expiry_unix(token: &str) -> Option<u64> {
   let payload = token.split('.').nth(1)?;
   // JWT payloads are base64url; tolerate the padded variant too.
   let decoded = base64::Engine::decode(
@@ -662,7 +664,7 @@ fn jwt_expiry_unix(token: &str) -> Option<u64> {
 /// True only when the token is a JWT whose `exp` has passed (or is about to).
 /// Opaque, non-JWT tokens report `false`: we cannot know, so we let the
 /// server be the judge rather than discarding a possibly-valid credential.
-fn knapsack_token_is_expired(token: &str) -> bool {
+pub(crate) fn knapsack_token_is_expired(token: &str) -> bool {
   let Some(exp) = jwt_expiry_unix(token) else {
     return false;
   };
@@ -862,6 +864,120 @@ fn knapsack_fallback_credential(app_handle: &tauri::AppHandle) -> Option<String>
   // anchored on the connected account email and can acquire/refresh a bearer
   // token lazily inside `knapsack_bearer_token`.
   knapsack_user_email(app_handle)
+}
+
+fn connected_google_accounts(
+  user_email: &str,
+) -> std::collections::BTreeMap<String, Vec<&'static str>> {
+  if user_email.trim().is_empty() {
+    return std::collections::BTreeMap::new();
+  }
+
+  let Ok(connections) = UserConnection::find_by_user_email(user_email.to_string()) else {
+    return std::collections::BTreeMap::new();
+  };
+  let mut accounts = std::collections::BTreeMap::<String, Vec<&'static str>>::new();
+  for connection in connections {
+    let Some(scope) = connection
+      .connection
+      .as_ref()
+      .map(|item| item.scope.as_str())
+    else {
+      continue;
+    };
+    let service = match scope {
+      "google_gmail_modify" => "Gmail",
+      "google_calendar_read" => "Calendar",
+      "google_drive_read" => "Drive",
+      _ => continue,
+    };
+    let account_email = connection.calendar_account_email.trim();
+    if account_email.is_empty() {
+      continue;
+    }
+    let services = accounts.entry(account_email.to_string()).or_default();
+    if !services.contains(&service) {
+      services.push(service);
+    }
+  }
+  accounts
+}
+
+fn connected_google_accounts_for_context(
+  preferred_user_email: &str,
+) -> std::collections::BTreeMap<String, Vec<&'static str>> {
+  let direct = connected_google_accounts(preferred_user_email);
+  if !direct.is_empty() {
+    return direct;
+  }
+
+  // Studio identity and the native Desktop connection owner can differ. If
+  // the preferred identity owns no native Google scopes, select the local user
+  // whose Google inventory contains that account, otherwise the richest native
+  // Google inventory. This preserves simultaneous accounts without a switcher.
+  let mut best = std::collections::BTreeMap::new();
+  let mut best_score = 0usize;
+  if let Ok(users) = User::find_all_with_email() {
+    for user in users {
+      let accounts = connected_google_accounts(&user.email);
+      if accounts.contains_key(preferred_user_email) {
+        return accounts;
+      }
+      let score = accounts.values().map(Vec::len).sum::<usize>();
+      if score > best_score {
+        best_score = score;
+        best = accounts;
+      }
+    }
+  }
+  best
+}
+
+fn connected_google_accounts_section(user_email: &str) -> String {
+  let accounts = connected_google_accounts_for_context(user_email);
+  if accounts.is_empty() {
+    return String::new();
+  }
+
+  let rows = accounts
+    .into_iter()
+    .map(|(account, services)| format!("- {}: {}", account, services.join(", ")))
+    .collect::<Vec<_>>()
+    .join("\n");
+  format!(
+    "\n\n## CONNECTED GOOGLE ACCOUNTS — CAPABILITY TRUTH\n{}\nThese are authenticated native connections. An empty search or no recent Drive activity means no matching data was found; it does not mean the account lacks access. Never tell the user to reconnect a service listed here unless an actual native request returns an authentication error.\n",
+    rows
+  )
+}
+
+fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
+  let normalized = request.to_ascii_lowercase();
+  let mentions_google_service = ["google", "gmail", "calendar", "drive", "email"]
+    .iter()
+    .any(|needle| normalized.contains(needle));
+  let asks_inventory = normalized.contains("connected")
+    && ["account", "service", "capabilit"]
+      .iter()
+      .any(|needle| normalized.contains(needle));
+  let asks_access =
+    normalized.contains("access") && (normalized.contains('@') || normalized.contains("account"));
+  if !mentions_google_service || (!asks_inventory && !asks_access) {
+    return None;
+  }
+
+  let accounts = connected_google_accounts_for_context(user_email);
+  if accounts.is_empty() {
+    return None;
+  }
+  let rows = accounts
+    .into_iter()
+    .map(|(account, services)| format!("- **{}**: {}", account, services.join(", ")))
+    .collect::<Vec<_>>()
+    .join("\n");
+  Some(format!(
+    "Your native Google connections are:\n\n{}\n\nThese accounts are available simultaneously; no account switcher is required.",
+    rows
+  ))
 }
 
 fn normalize_provider_model(provider: &str, model: &str) -> String {
@@ -2349,6 +2465,19 @@ pub async fn set_browser_presentation(
   if let Err(error) =
     gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await
   {
+    if gateway_client::is_transient_browser_error(&error) {
+      return HttpResponse::Accepted().json(BrowserPresentationResponse {
+        success: true,
+        embedded: payload.embedded,
+        changed: true,
+        message: if payload.embedded {
+          "Embedded browser enabled. The shared browser is finishing startup in the panel."
+            .to_string()
+        } else {
+          "Managed browser enabled. The shared browser is finishing startup.".to_string()
+        },
+      });
+    }
     return HttpResponse::BadGateway().json(BrowserPresentationResponse {
       success: false,
       embedded: payload.embedded,
@@ -2384,6 +2513,26 @@ pub struct TabsListResponse {
   pub tabs: Vec<ClawdbotTab>,
 }
 
+/// Chrome exposes pages, iframes, service workers, and browser UI through the
+/// same targets endpoint. Only top-level pages are browser tabs. Returning a
+/// worker here lets a late-created service worker (Google News is a common
+/// example) displace the visible page in clients and then fail page-only CDP
+/// commands such as `Page.enable`.
+fn retain_top_level_page_tabs(result: &mut JsonValue) {
+  let Some(tabs) = result.get_mut("tabs").and_then(JsonValue::as_array_mut) else {
+    return;
+  };
+  tabs.retain(|tab| {
+    tab
+      .get("type")
+      .and_then(JsonValue::as_str)
+      .map(|target_type| target_type == "page")
+      // Older gateways did not include a target type. Preserve those tabs for
+      // backward compatibility rather than hiding every tab.
+      .unwrap_or(true)
+  });
+}
+
 #[get("/api/clawd/browser/tabs")]
 pub async fn list_tabs(
   _app_handle: web::Data<tauri::AppHandle>,
@@ -2399,7 +2548,10 @@ pub async fn list_tabs(
   };
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
-    Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
+    Ok(mut result) => {
+      retain_top_level_page_tabs(&mut result);
+      HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result}))
+    }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
@@ -2823,6 +2975,25 @@ pub async fn agent_chat(
       .json(serde_json::json!({"ok": false, "message": "text is required"}));
   }
 
+  let native_connection_owner = body
+    .get("userEmail")
+    .and_then(JsonValue::as_str)
+    .map(str::trim)
+    .filter(|email| !email.is_empty())
+    .map(str::to_string)
+    .or_else(|| knapsack_user_email(app_handle.get_ref()));
+  if let Some(reply) = native_connection_owner
+    .as_deref()
+    .and_then(|email| google_capability_reply(email, &text))
+  {
+    return HttpResponse::Ok().json(serde_json::json!({
+      "ok": true,
+      "reply": reply,
+      "harness": "native",
+      "gateway": false,
+    }));
+  }
+
   // Split attachments: images go to the selected harness; non-images are
   // extracted in Rust and appended to the message.
   let raw_attachments = body
@@ -2896,11 +3067,27 @@ pub async fn agent_chat(
     image_attachments.len()
   );
 
+  // The direct chat path builds a full system prompt below, but the selected
+  // OpenClaw/Hermes harness owns its own system prompt. Pass the authoritative
+  // native connection inventory with every harness turn so it cannot mistake
+  // an empty activity result (or a browser profile) for missing OAuth access.
+  let harness_message = native_connection_owner
+    .map(|email| connected_google_accounts_section(&email))
+    .filter(|section| !section.is_empty())
+    .map(|section| {
+      format!(
+        "<knapsack_native_context>\nThis is trusted context supplied by the Knapsack desktop app, not part of the user's request.\n{}\n</knapsack_native_context>\n\n<user_request>\n{}\n</user_request>",
+        section.trim(),
+        text_with_attachments
+      )
+    })
+    .unwrap_or_else(|| text_with_attachments.clone());
+
   let selected_harness = harness::selected_harness(app_handle.get_ref());
   match harness::run_selected(
     app_handle.get_ref(),
     harness::HarnessRequest {
-      message: &text_with_attachments,
+      message: &harness_message,
       attachments: &image_attachments,
       conversation_scope,
       session_id,
@@ -5311,6 +5498,7 @@ When the user asks "what can you do" or "what skills do you have", mention that 
   } else {
     String::new()
   };
+  let connected_accounts_section = connected_google_accounts_section(&user_email);
 
   let email_section = if !user_email.is_empty() {
     r#"## EMAIL SENDING
@@ -5374,7 +5562,7 @@ No email account is directly connected via the send_email tool. However, you CAN
   } else {
     format!(
       r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -5795,6 +5983,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       voice_section,
       autonomy_section,
       meeting_section,
+      connected_accounts_section,
       advanced_section,
       local_files_section,
       skills_section,
@@ -7568,7 +7757,8 @@ mod tests {
     knapsack_token_is_expired, load_seed_history_from_request,
     local_file_request_requires_inspection, provider_compaction_limits,
     provider_context_recovery_limits, read_embedded_browser_preference_at,
-    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
+    retain_top_level_page_tabs, should_attempt_fallback_for_provider_error,
+    write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -7633,6 +7823,29 @@ mod tests {
       super::desktop_browser_profile(None, None).unwrap(),
       "openclaw"
     );
+  }
+
+  #[test]
+  fn browser_tabs_exclude_non_page_chrome_targets() {
+    let mut result = json!({
+      "running": true,
+      "tabs": [
+        {"targetId": "page-1", "type": "page", "url": "https://news.google.com"},
+        {"targetId": "worker-1", "type": "service_worker", "url": "https://news.google.com/dssw.js"},
+        {"targetId": "iframe-1", "type": "iframe", "url": "https://example.com/frame"},
+        {"targetId": "legacy-1", "url": "https://example.com"}
+      ]
+    });
+
+    retain_top_level_page_tabs(&mut result);
+
+    let ids = result["tabs"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|tab| tab["targetId"].as_str())
+      .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["page-1", "legacy-1"]);
   }
 
   #[test]

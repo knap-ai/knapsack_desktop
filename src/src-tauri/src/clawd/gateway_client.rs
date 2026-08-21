@@ -290,8 +290,8 @@ async fn ensure_gateway_best_effort(token: &str) {
   let _ = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
 }
 
-/// Ensure the OpenClaw config has browser settings suitable for the desktop app:
-///   browser.enabled = true, browser.headless = false, browser.defaultProfile = "openclaw".
+/// Ensure the OpenClaw config has browser settings suitable for the desktop app,
+/// while preserving an explicit browser presentation choice.
 ///
 /// The `set_service_enabled` endpoint (macOS launchctl setup) also patches these,
 /// but that path is never hit in `npm run tauri dev` or on non-macOS.  Running this
@@ -344,6 +344,45 @@ fn ensure_browser_config() -> bool {
   let changed = ensure_browser_config_at(&config_path);
   ensure_tools_md(&config_path);
   changed
+}
+
+fn read_browser_headless_preference() -> Option<bool> {
+  let mut candidates = Vec::new();
+  if let Ok(path) = std::env::var("OPENCLAW_CONFIG_PATH") {
+    let path = path.trim();
+    if !path.is_empty() {
+      candidates.push(std::path::PathBuf::from(path));
+    }
+  }
+  for var in ["OPENCLAW_HOME", "OPENCLAW_STATE_DIR"] {
+    if let Ok(dir) = std::env::var(var) {
+      let dir = dir.trim();
+      if !dir.is_empty() {
+        candidates.push(std::path::PathBuf::from(dir).join("openclaw.json"));
+        candidates.push(std::path::PathBuf::from(dir).join("clawdbot.json"));
+      }
+    }
+  }
+  candidates.into_iter().find_map(|path| {
+    std::fs::read_to_string(path)
+      .ok()
+      .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+      .and_then(|config| {
+        config
+          .pointer("/browser/headless")
+          .and_then(|value| value.as_bool())
+      })
+  })
+}
+
+fn runtime_browser_headless(config_inner: &Value, disk_preference: Option<bool>) -> bool {
+  disk_preference
+    .or_else(|| {
+      config_inner
+        .pointer("/browser/headless")
+        .and_then(|value| value.as_bool())
+    })
+    .unwrap_or(false)
 }
 
 /// Write TOOLS.md to the workspace if it's missing or outdated.
@@ -1816,11 +1855,13 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
   // Also ensure agents.defaults.model is set — if the original channel-enable
   // config.patch failed (e.g. due to token mismatch), the model may be missing
   // and the gateway can't generate AI responses for incoming messages.
+  let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
   let no_sandbox = cfg!(target_os = "linux");
+  let browser_headless = runtime_browser_headless(config_inner, read_browser_headless_preference());
   let mut patch_obj = serde_json::json!({
     "browser": {
       "enabled": true,
-      "headless": false,
+      "headless": browser_headless,
       "defaultProfile": "openclaw",
       "noSandbox": no_sandbox,
       "profiles": knapsack_agent_browser_profiles()
@@ -1846,7 +1887,6 @@ async fn apply_runtime_browser_config(token: &str) -> bool {
   // the resolved model in the runtime patch we ensure the gateway uses
   // whatever the user selected most recently in Settings.
   let model = resolve_default_model();
-  let config_inner = cfg_val.get("config").unwrap_or(&cfg_val);
   let existing_model = config_inner
     .pointer("/agents/defaults/model")
     .and_then(|v| match v {
@@ -3105,22 +3145,26 @@ pub async fn call_channel_method(
 /// Check whether an error string indicates a transient browser/CDP startup issue
 /// (Chrome hasn't finished launching, CDP port not yet listening, etc.) as
 /// opposed to a permanent failure (bad request, gateway auth error, etc.).
-fn is_transient_browser_error(err: &str) -> bool {
-  err.contains("onnection refused")
-    || err.contains("No pages available")
-    || err.contains("tcp connect error")
-    || err.contains("error sending request")
-    || err.contains("not reachable")
-    || err.contains("not running")
-    || err.contains("not ready")
-    || err.contains("cdpReady")
-    || err.contains("ECONNREFUSED")
-    || err.contains("Target closed")
-    || err.contains("Browser not started")
-    || err.contains("browser is not running")
-    || err.contains("Can't reach")
-    || err.contains("tab not found")
-    || err.contains("CDP") && err.contains("not")
+pub(crate) fn is_transient_browser_error(err: &str) -> bool {
+  let normalized = err.to_ascii_lowercase();
+  normalized.contains("connection refused")
+    || normalized.contains("connection closed")
+    || normalized.contains("websocket closed")
+    || normalized.contains("timed out waiting for browser")
+    || normalized.contains("no pages available")
+    || normalized.contains("tcp connect error")
+    || normalized.contains("error sending request")
+    || normalized.contains("not reachable")
+    || normalized.contains("not running")
+    || normalized.contains("not ready")
+    || normalized.contains("cdpready")
+    || normalized.contains("econnrefused")
+    || normalized.contains("target closed")
+    || normalized.contains("browser not started")
+    || normalized.contains("can't reach")
+    || normalized.contains("tab not found")
+    || normalized.contains("in use for profile") && normalized.contains("but not by openclaw")
+    || normalized.contains("cdp") && normalized.contains("not")
 }
 
 fn browser_request_can_retry(http_method: &str, path: &str) -> bool {
@@ -3134,7 +3178,11 @@ fn browser_request_can_retry(http_method: &str, path: &str) -> bool {
   // that showed up as the same Drive URL opening in multiple tabs at once.
   // Keep automatic retry limited to startup-ish operations that are safe to
   // repeat.
-  method == "POST" && matches!(path, "/start")
+  // Screenshot is a read-only POST and is safe to repeat. OpenClaw can
+  // occasionally lose its in-memory ownership marker for one CDP probe while
+  // the managed Chrome process remains healthy; a retry avoids turning that
+  // transient mismatch into a blank embedded-browser panel.
+  method == "POST" && matches!(path, "/start" | "/screenshot")
 }
 
 /// Send a browser control request through the gateway's `browser.request`
@@ -3307,8 +3355,25 @@ pub async fn agent_chat(
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
   }
-  // 5 minute timeout — LLM tool loops can take a while
-  gateway_request_agent("agent", Some(params), &t, 300).await
+  // 5 minute timeout — LLM tool loops can take a while. Older bundled
+  // OpenClaw runtimes do not yet accept `conversationScope`. Retry without
+  // that optional hint when the RPC schema rejects it so Desktop chat stays
+  // on the gateway/tool path instead of degrading to direct chat.
+  match gateway_request_agent("agent", Some(params.clone()), &t, 300).await {
+    Err(error)
+      if params.get("conversationScope").is_some()
+        && error.contains("unexpected property 'conversationScope'") =>
+    {
+      eprintln!(
+        "[gateway_client] bundled gateway rejected conversationScope; retrying compatible agent request"
+      );
+      if let Some(object) = params.as_object_mut() {
+        object.remove("conversationScope");
+      }
+      gateway_request_agent("agent", Some(params), &t, 300).await
+    }
+    result => result,
+  }
 }
 
 /// Send an automation agent run through the gateway's `agent` RPC method.
@@ -3601,6 +3666,40 @@ mod tests {
 
     let updated: Value = serde_json::from_str(&std::fs::read_to_string(f.path()).unwrap()).unwrap();
     assert_eq!(updated.pointer("/browser/headless"), Some(&json!(true)));
+  }
+
+  #[test]
+  fn runtime_browser_patch_prefers_the_saved_presentation_choice() {
+    let headed_runtime = json!({"browser": {"headless": false}});
+    assert!(runtime_browser_headless(&headed_runtime, Some(true)));
+
+    let headless_runtime = json!({"browser": {"headless": true}});
+    assert!(!runtime_browser_headless(&headless_runtime, Some(false)));
+    assert!(runtime_browser_headless(&headless_runtime, None));
+  }
+
+  #[test]
+  fn browser_startup_classifies_closed_gateway_connections_as_transient() {
+    assert!(is_transient_browser_error("Gateway connection closed"));
+    assert!(is_transient_browser_error(
+      "Failed to connect to gateway: IO error: Connection refused (os error 61)"
+    ));
+    assert!(is_transient_browser_error(
+      "Timed out waiting for browser response after 2027ms"
+    ));
+    assert!(is_transient_browser_error(
+      "Port 18800 is in use for profile \"openclaw\" but not by openclaw"
+    ));
+    assert!(!is_transient_browser_error("Unauthorized browser request"));
+  }
+
+  #[test]
+  fn browser_retries_only_safe_read_like_posts() {
+    assert!(browser_request_can_retry("GET", "/tabs"));
+    assert!(browser_request_can_retry("POST", "/start"));
+    assert!(browser_request_can_retry("POST", "/screenshot"));
+    assert!(!browser_request_can_retry("POST", "/navigate"));
+    assert!(!browser_request_can_retry("POST", "/act"));
   }
 
   #[test]

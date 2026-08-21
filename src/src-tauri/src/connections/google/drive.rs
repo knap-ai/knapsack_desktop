@@ -46,6 +46,7 @@ pub struct FetchGoogleDriveResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleDriveParams {
   email: String,
+  account_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -641,16 +642,21 @@ pub async fn fetch_drive(
 
 async fn start_drive_data_fetching(
   email: String,
+  account_email: String,
   semantic_service: Arc<Mutex<Option<SemanticService>>>,
   connections_data: Arc<Mutex<ConnectionsData>>,
 ) -> Result<(), Error> {
-  let user_connection = match UserConnection::find_by_user_email_and_scope(
+  let user_connection = match UserConnection::find_by_user_email_scope_and_calendar_account(
     email.clone(),
     String::from(GOOGLE_DRIVE_SCOPE),
+    account_email.clone(),
   ) {
     Ok(connection) => connection,
     Err(error) => {
-      let msg = format!("Failed to find user connection for user: {}", email);
+      let msg = format!(
+        "Failed to find Drive connection for user {} / account {}",
+        email, account_email
+      );
       knap_log_error(msg, Some(error), Some(true));
       return Err(Error::KSError("Fail to get user connection".to_string()));
     }
@@ -669,39 +675,34 @@ async fn start_drive_data_fetching(
     }
   };
 
-  let account_email = user_connection.calendar_account_email.clone();
+  if !ConnectionsData::lock_and_try_begin_account_sync(
+    connections_data.clone(),
+    ConnectionsEnum::GoogleDrive,
+    &account_email,
+  )
+  .await
+  {
+    return Ok(());
+  }
+
   tauri::async_runtime::spawn(async move {
-    if ConnectionsData::lock_and_get_connection_is_syncing(
-      connections_data.clone(),
-      ConnectionsEnum::GoogleDrive,
-    )
-    .await
-    {
-      return;
-    }
-    ConnectionsData::lock_and_set_connection_is_syncing(
-      connections_data.clone(),
-      ConnectionsEnum::GoogleDrive,
-      true,
-    )
-    .await;
     let result = fetch_drive(
       access_token,
       semantic_service,
       user_connection.clone(),
-      account_email,
+      account_email.clone(),
     )
     .await;
     if let Err(error) = result {
       let msg = format!("Failed to fetch drive files: {}", email);
       knap_log_error(msg, Some(error), Some(true));
-      ConnectionsData::lock_and_set_connection_is_syncing(
-        connections_data,
-        ConnectionsEnum::GoogleDrive,
-        false,
-      )
-      .await;
     }
+    ConnectionsData::lock_and_finish_account_sync(
+      connections_data,
+      ConnectionsEnum::GoogleDrive,
+      &account_email,
+    )
+    .await;
   });
   Ok(())
 }
@@ -718,6 +719,7 @@ async fn fetch_google_drive_api(
   let unwrapped_connections_data = connections_data.get_ref().clone();
   match start_drive_data_fetching(
     params.email.clone(),
+    params.account_email.clone().unwrap_or(params.email.clone()),
     unwrapped_semenatic_service,
     unwrapped_connections_data,
   )

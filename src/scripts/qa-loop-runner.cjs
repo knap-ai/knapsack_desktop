@@ -66,6 +66,16 @@ function qaDevClawdbotDir() {
   return path.resolve(__dirname, "..", ".qa-dev-openclaw-state");
 }
 
+function shouldPreserveExistingQaState(
+  env = process.env,
+  stateDir = qaDevClawdbotDir(),
+) {
+  if (Object.prototype.hasOwnProperty.call(env, "KNAPSACK_QA_PRESERVE_STATE")) {
+    return String(env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
+  }
+  return existsSync(path.join(stateDir, "tokens.json"));
+}
+
 function localApiHeaders(url, inputHeaders = {}) {
   const headers = { ...inputHeaders };
   const parsed = new URL(url);
@@ -2060,6 +2070,14 @@ async function runMode(mode, opts = {}) {
     KNAPSACK_HEALTH_AUTO_START_BROWSER: "1",
     KNAPSACK_STARTUP_READY_AUTO_START_BROWSER: "1",
   };
+  // A user may authenticate an account in the isolated dev build before
+  // starting the broader QA loop. Keep that QA-owned OAuth state instead of
+  // silently replacing it with the installed app's (possibly stale) tokens.
+  // A genuinely fresh QA directory still seeds from the installed app.
+  if (!isProd && shouldPreserveExistingQaState()) {
+    launchEnv.KNAPSACK_QA_PRESERVE_STATE = "1";
+    console.log("[qa-loop] preserving existing isolated QA OAuth state");
+  }
   const qaPluginAllowlist = qaPluginAllowlistForProviders(opts.providers);
   if (pluginAllowlistIncludesChannel(qaPluginAllowlist)) {
     launchEnv.OPENCLAW_DISABLE_BUNDLED_PLUGINS = "0";
@@ -2494,6 +2512,7 @@ if (require.main === module) {
 module.exports = {
   localApiHeaders,
   qaDevClawdbotDir,
+  shouldPreserveExistingQaState,
   setApiAuthStateDirForTest(value) {
     activeApiAuthStateDir = value;
   },

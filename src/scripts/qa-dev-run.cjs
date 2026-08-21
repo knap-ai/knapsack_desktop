@@ -13,6 +13,7 @@ const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
 const projectDir = path.resolve(__dirname, "..");
+const packageVersion = require(path.join(projectDir, "package.json")).version;
 const tauriDir = path.join(projectDir, "src-tauri");
 const binary = path.join(
   tauriDir,
@@ -53,6 +54,17 @@ const qaTokensPath = path.join(qaStateDir, "tokens.json");
 const prodTokensPath = path.join(prodStateDir, "tokens.json");
 const prodDbPath = path.join(process.env.HOME || "", ".knapsack.db");
 const qaDbPath = path.join(qaStateDir, "knapsack-qa.db");
+// Keep the executable outside OPENCLAW_STATE_DIR. The app deliberately
+// hardens every regular file in that state tree to 0600, which would strip
+// execute permission from an app bundle stored there and break bundled MCP
+// subprocesses with EACCES.
+const qaAppBundle = path.join(projectDir, ".qa-dev-app", "Knapsack Dev.app");
+const qaAppExecutable = path.join(
+  qaAppBundle,
+  "Contents",
+  "MacOS",
+  "Knapsack Dev",
+);
 const qaSeededTokenKeys = [
   "gateway_token",
   "browser_control_token",
@@ -321,10 +333,16 @@ function seedQaConfigFromProd() {
     prodConfig.browser && typeof prodConfig.browser === "object"
       ? cloneJson(prodConfig.browser)
       : {};
+  const preservedHeadless =
+    typeof qaConfig.browser?.headless === "boolean"
+      ? qaConfig.browser.headless
+      : typeof prodBrowser.headless === "boolean"
+        ? prodBrowser.headless
+        : false;
   next.browser = {
     ...prodBrowser,
     enabled: true,
-    headless: false,
+    headless: preservedHeadless,
     defaultProfile: "openclaw",
   };
 
@@ -1026,8 +1044,48 @@ function binaryNeedsRebuild() {
     latestMtimeMs(path.join(tauriDir, "src"), (file) => file.endsWith(".rs")),
     fs.statSync(path.join(tauriDir, "Cargo.toml")).mtimeMs,
     fs.statSync(path.join(tauriDir, "build.rs")).mtimeMs,
+    fs.statSync(__filename).mtimeMs,
   );
   return rustSourceMtime > binaryMtime;
+}
+
+function prepareMacDevAppBundle() {
+  if (process.platform !== "darwin") return binary;
+
+  const contentsDir = path.join(qaAppBundle, "Contents");
+  const macosDir = path.join(contentsDir, "MacOS");
+  const resourcesDir = path.join(contentsDir, "Resources");
+  fs.rmSync(qaAppBundle, { recursive: true, force: true });
+  fs.mkdirSync(macosDir, { recursive: true });
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  // Tauri's updater rejects a current executable reached through a symlink on
+  // macOS. Keep the QA bundle self-contained so updater initialization behaves
+  // the same way it does in a packaged application.
+  fs.copyFileSync(binary, qaAppExecutable);
+  fs.chmodSync(qaAppExecutable, 0o755);
+
+  const debugResources = path.join(tauriDir, "target", "debug", "resources");
+  if (fs.existsSync(debugResources)) {
+    fs.symlinkSync(debugResources, path.join(resourcesDir, "resources"));
+  }
+
+  const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key><string>Knapsack Dev</string>
+  <key>CFBundleExecutable</key><string>Knapsack Dev</string>
+  <key>CFBundleIdentifier</key><string>ai.knap.knapsack.dev</string>
+  <key>CFBundleName</key><string>Knapsack Dev</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>${packageVersion}</string>
+  <key>CFBundleVersion</key><string>${packageVersion}</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+`;
+  fs.writeFileSync(path.join(contentsDir, "Info.plist"), infoPlist);
+  return qaAppExecutable;
 }
 
 function syncDevClawdbotResources() {
@@ -1068,10 +1126,18 @@ async function main() {
   ]);
   syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
+  const preserveQaState =
+    String(process.env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
-  syncQaGatewayState();
+  if (!preserveQaState) {
+    syncQaGatewayState();
+  } else {
+    console.log("[qa-dev-run] preserving existing isolated QA gateway state");
+  }
   seedQaDatabaseFromProd();
-  seedQaProviderTokensFromProd();
+  if (!preserveQaState) {
+    seedQaProviderTokensFromProd();
+  }
   seedQaConfigFromProd();
   bootoutLaunchAgent();
   killStaleVitePort();
@@ -1080,8 +1146,12 @@ async function main() {
 
   if (binaryNeedsRebuild()) {
     const tauriConfig = JSON.stringify({
+      package: {
+        productName: "Knapsack Dev",
+      },
       tauri: {
         bundle: {
+          identifier: "ai.knap.knapsack.dev",
           resources: [
             "resources/signin_success.html",
             "resources/signin_error.html",
@@ -1099,6 +1169,8 @@ async function main() {
     process.exit(0);
     return;
   }
+
+  const appExecutable = prepareMacDevAppBundle();
 
   const vite = spawnVite();
   let gateway = null;
@@ -1158,7 +1230,7 @@ async function main() {
           DATABASE_URL: qaDbPath,
         })
       : qaEnv();
-    app = spawn(binary, [], {
+    app = spawn(appExecutable, [], {
       cwd: tauriDir,
       stdio: "inherit",
       env: appEnv,

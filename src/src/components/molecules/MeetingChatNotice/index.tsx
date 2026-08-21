@@ -4,9 +4,10 @@ import { getMeetingChatMessage, getMeetingChatAutoSend, getMeetingChatEnabled } 
 
 interface MeetingChatNoticeProps {
   meetingPlatform: string | undefined
+  meetingUrl?: string
 }
 
-const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }) => {
+const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform, meetingUrl }) => {
   const [copied, setCopied] = useState(false)
   const [autoSendStatus, setAutoSendStatus] = useState<'pending' | 'sent' | 'failed' | 'idle'>('idle')
   const [message, setMessage] = useState('')
@@ -19,7 +20,8 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
 
   // Attempt auto-send on mount if enabled
   useEffect(() => {
-    if (!message || !meetingPlatform || !enabled) return
+    const supportedPlatform = ['google_meet', 'zoom', 'teams'].includes(meetingPlatform || '')
+    if (!message || !supportedPlatform || !enabled) return
 
     const tryAutoSend = async () => {
       const autoSendEnabled = await getMeetingChatAutoSend()
@@ -35,6 +37,7 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
         const success = await invoke<boolean>('send_meeting_chat_message', {
           platform: meetingPlatform,
           message,
+          meetingUrl,
         })
         setAutoSendStatus(success ? 'sent' : 'failed')
       } catch {
@@ -43,7 +46,7 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
     }
 
     tryAutoSend()
-  }, [message, meetingPlatform])
+  }, [message, meetingPlatform, meetingUrl])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -72,12 +75,13 @@ const MeetingChatNotice: React.FC<MeetingChatNoticeProps> = ({ meetingPlatform }
       const success = await invoke<boolean>('send_meeting_chat_message', {
         platform: meetingPlatform,
         message,
+        meetingUrl,
       })
       setAutoSendStatus(success ? 'sent' : 'failed')
     } catch {
       setAutoSendStatus('failed')
     }
-  }, [meetingPlatform, message])
+  }, [meetingPlatform, meetingUrl, message])
 
   if (!message || !enabled) return null
 
