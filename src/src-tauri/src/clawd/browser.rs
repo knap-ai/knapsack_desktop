@@ -2980,11 +2980,27 @@ pub async fn agent_chat(
     image_attachments.len()
   );
 
+  // The direct chat path builds a full system prompt below, but the selected
+  // OpenClaw/Hermes harness owns its own system prompt. Pass the authoritative
+  // native connection inventory with every harness turn so it cannot mistake
+  // an empty activity result (or a browser profile) for missing OAuth access.
+  let harness_message = knapsack_user_email(app_handle.get_ref())
+    .map(|email| connected_google_accounts_section(&email))
+    .filter(|section| !section.is_empty())
+    .map(|section| {
+      format!(
+        "<knapsack_native_context>\nThis is trusted context supplied by the Knapsack desktop app, not part of the user's request.\n{}\n</knapsack_native_context>\n\n<user_request>\n{}\n</user_request>",
+        section.trim(),
+        text_with_attachments
+      )
+    })
+    .unwrap_or_else(|| text_with_attachments.clone());
+
   let selected_harness = harness::selected_harness(app_handle.get_ref());
   match harness::run_selected(
     app_handle.get_ref(),
     harness::HarnessRequest {
-      message: &text_with_attachments,
+      message: &harness_message,
       attachments: &image_attachments,
       conversation_scope,
       session_id,
