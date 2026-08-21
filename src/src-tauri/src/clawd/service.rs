@@ -795,9 +795,7 @@ pub async fn self_heal_gateway_conflict(token: &str) {
   tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
   if qa_direct_gateway_mode() {
-    eprintln!(
-      "[clawd/service] self-heal: waiting for QA direct gateway supervisor restart"
-    );
+    eprintln!("[clawd/service] self-heal: waiting for QA direct gateway supervisor restart");
     return;
   }
 
@@ -1340,6 +1338,10 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
     "command": current_exe,
     "args": ["--internal-mcp-snowflake"],
     "cwd": clawdbot_home.to_string_lossy(),
+    // The MCP runtime sanitizes the inherited host environment. Pass the
+    // app-owned state path explicitly so the subprocess reads the same private
+    // token store as Desktop instead of falling back to ~/.openclaw.
+    "env": { "OPENCLAW_STATE_DIR": clawdbot_home.to_string_lossy() },
   });
   if let Some(servers) = cfg
     .pointer_mut("/mcp/servers")
@@ -1390,6 +1392,7 @@ fn ensure_knapsack_studio_mcp_server(cfg: &mut serde_json::Value, clawdbot_home:
     "command": current_exe,
     "args": ["--internal-mcp-studio"],
     "cwd": clawdbot_home.to_string_lossy(),
+    "env": { "OPENCLAW_STATE_DIR": clawdbot_home.to_string_lossy() },
   });
   if let Some(servers) = cfg
     .pointer_mut("/mcp/servers")
@@ -7398,10 +7401,7 @@ async fn browser_control_start_direct(
   if let Some(headless) = headless {
     request = request.query(&[("headless", headless)]);
   }
-  let resp = request
-    .send()
-    .await
-    .map_err(|e| e.to_string())?;
+  let resp = request.send().await.map_err(|e| e.to_string())?;
 
   if resp.status().is_success() {
     Ok(())
@@ -9863,9 +9863,7 @@ pub async fn set_api_key(
       } else {
         mark_gateway_self_heal_started();
         kill_process_on_port(18789);
-        eprintln!(
-          "[clawd/service] API key update requested a QA direct gateway restart"
-        );
+        eprintln!("[clawd/service] API key update requested a QA direct gateway restart");
       }
     }
   }
@@ -9934,7 +9932,11 @@ pub async fn set_session_capability_secret(
   };
 
   let secret = payload.secret.trim().to_string();
-  tokens.session_capability_secret = if secret.is_empty() { None } else { Some(secret) };
+  tokens.session_capability_secret = if secret.is_empty() {
+    None
+  } else {
+    Some(secret)
+  };
 
   if let Err(e) = save_tokens(&app_handle, &tokens) {
     return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
@@ -17398,9 +17400,8 @@ mod knapsack_runtime_auth_tests {
     ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
     ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
     ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
-    parse_studio_connector_catalog,
-    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
-    KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
+    parse_studio_connector_catalog, sync_active_provider_for_ollama_toggle, StoredTokens,
+    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
   use std::path::PathBuf;
 
@@ -17672,7 +17673,9 @@ mod knapsack_runtime_auth_tests {
   #[test]
   fn embedded_sandbox_dockerfile_matches_documented_defaults() {
     assert!(KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.starts_with("FROM debian:bookworm-slim"));
-    for expected in ["bash", "curl", "jq", "python3", "ripgrep", "useradd", "sandbox"] {
+    for expected in [
+      "bash", "curl", "jq", "python3", "ripgrep", "useradd", "sandbox",
+    ] {
       assert!(
         KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.contains(expected),
         "embedded Dockerfile is missing expected content: {expected}"
@@ -17685,7 +17688,10 @@ mod knapsack_runtime_auth_tests {
     let mut cfg = serde_json::json!({});
     let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
 
-    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
     assert_eq!(
       cfg
         .pointer("/mcp/servers/snowflake/args")
@@ -17700,12 +17706,21 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("/tmp/knapsack-test-clawdbot-home")
     );
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/snowflake/env/OPENCLAW_STATE_DIR")
+        .and_then(|value| value.as_str()),
+      Some("/tmp/knapsack-test-clawdbot-home")
+    );
     assert!(cfg
       .pointer("/mcp/servers/snowflake/command")
       .and_then(|value| value.as_str())
       .is_some_and(|value| !value.is_empty()));
 
-    assert!(!ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(!ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
   }
 
   #[test]
@@ -17719,6 +17734,12 @@ mod knapsack_runtime_auth_tests {
         .pointer("/mcp/servers/studio/args/0")
         .and_then(|value| value.as_str()),
       Some("--internal-mcp-studio")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/studio/env/OPENCLAW_STATE_DIR")
+        .and_then(|value| value.as_str()),
+      Some("/tmp/knapsack-test-clawdbot-home")
     );
     assert!(ensure_knapsack_studio_tool_allow(&mut cfg));
     for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
@@ -17744,7 +17765,10 @@ mod knapsack_runtime_auth_tests {
     });
     let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
 
-    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
     assert_ne!(
       cfg
         .pointer("/mcp/servers/snowflake/command")

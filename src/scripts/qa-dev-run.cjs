@@ -1126,10 +1126,18 @@ async function main() {
   ]);
   syncDevClawdbotResources();
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
+  const preserveQaState =
+    String(process.env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
   fs.mkdirSync(qaStateDir, { recursive: true });
-  syncQaGatewayState();
+  if (!preserveQaState) {
+    syncQaGatewayState();
+  } else {
+    console.log("[qa-dev-run] preserving existing isolated QA gateway state");
+  }
   seedQaDatabaseFromProd();
-  seedQaProviderTokensFromProd();
+  if (!preserveQaState) {
+    seedQaProviderTokensFromProd();
+  }
   seedQaConfigFromProd();
   bootoutLaunchAgent();
   killStaleVitePort();

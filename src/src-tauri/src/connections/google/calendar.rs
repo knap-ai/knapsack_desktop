@@ -84,21 +84,15 @@ pub async fn fetch_calendar(
     }
   };
 
-  if ConnectionsData::lock_and_get_connection_is_syncing(
+  if !ConnectionsData::lock_and_try_begin_account_sync(
     connections_data.clone(),
     ConnectionsEnum::GoogleCalendar,
+    &calendar_account_email,
   )
   .await
   {
     return Ok(());
   }
-
-  ConnectionsData::lock_and_set_connection_is_syncing(
-    connections_data.clone(),
-    ConnectionsEnum::GoogleCalendar,
-    true,
-  )
-  .await;
 
   let cal_email_clone = calendar_account_email.clone();
   tauri::async_runtime::spawn(async move {
@@ -222,22 +216,16 @@ pub async fn fetch_calendar(
           log::error!("Calendar sync failed {:?}", error.to_string());
           let error_msg = format!("Fetch calendar failed: {:?}", error.to_string());
           knap_log_error(error_msg, None, Some(true));
-          ConnectionsData::lock_and_set_connection_is_syncing(
-            connections_data.clone(),
-            ConnectionsEnum::GoogleCalendar,
-            false,
-          )
-          .await;
           break;
         }
       };
     }
     let event_count = event_ids_total.len();
     CalendarEvent::delete_calendar_events_removed(event_ids_total, &cal_email_clone);
-    ConnectionsData::lock_and_set_connection_is_syncing(
+    ConnectionsData::lock_and_finish_account_sync(
       connections_data,
       ConnectionsEnum::GoogleCalendar,
-      false,
+      &cal_email_clone,
     )
     .await;
     UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), chrono::Utc::now());

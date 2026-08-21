@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { getSessionCapabilitySecretStatus, setSessionCapabilitySecret } from 'src/api/channels'
 import {
   Connection,
   ConnectionKeys,
@@ -9,10 +10,6 @@ import {
   getGoogleDriveConnections,
   getGoogleGmailConnections,
 } from 'src/api/connections'
-import {
-  getSessionCapabilitySecretStatus,
-  setSessionCapabilitySecret,
-} from 'src/api/channels'
 import { Profile } from 'src/hooks/auth/useAuth'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import { useAppUpdate } from 'src/hooks/useAppUpdate'
@@ -21,11 +18,7 @@ import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
-import {
-  openAddGoogleCalendarScreen,
-  openAddGoogleDriveScreen,
-  openAddGoogleGmailScreen,
-} from 'src/utils/permissions/google'
+import { openAddGoogleWorkspaceScreen } from 'src/utils/permissions/google'
 import {
   arePushNotificationsOSEnabledAndWantedByUser,
   requestNotificationOSPermissions,
@@ -673,21 +666,9 @@ export const SettingsDialog = ({
     [googlePrimaryEmail],
   )
 
-  const handleAddGoogleDrive = useCallback(() => {
-    const primaryEmail = requireGooglePrimaryEmail('drive')
-    if (primaryEmail) openAddGoogleDriveScreen(primaryEmail)
-  }, [requireGooglePrimaryEmail])
-
-  const handleAddGoogleGmail = useCallback(() => {
-    const primaryEmail = requireGooglePrimaryEmail('gmail')
-    if (primaryEmail) openAddGoogleGmailScreen(primaryEmail)
-  }, [requireGooglePrimaryEmail])
-
-  const handleAddGoogleCalendar = useCallback(() => {
-    const primaryEmail = requireGooglePrimaryEmail('calendar')
-    if (primaryEmail) {
-      openAddGoogleCalendarScreen(primaryEmail, 'https://www.googleapis.com/auth/calendar.readonly')
-    }
+  const handleAddGoogleWorkspace = useCallback(() => {
+    const primaryEmail = requireGooglePrimaryEmail('workspace')
+    if (primaryEmail) openAddGoogleWorkspaceScreen(primaryEmail)
   }, [requireGooglePrimaryEmail])
 
   const getGoogleAccountLabel = useCallback(
@@ -794,19 +775,14 @@ export const SettingsDialog = ({
       }
       setEmbeddedBrowserEnabled(result.embedded)
       setBrowserPresentationMessage(result.message)
-      localStorage.setItem(
-        'knapsack.browser.embedded.enabled',
-        String(result.embedded),
-      )
+      localStorage.setItem('knapsack.browser.embedded.enabled', String(result.embedded))
       window.dispatchEvent(
         new CustomEvent('knapsack:browser-mode-changed', {
           detail: { enabled: result.embedded },
         }),
       )
     } catch (error) {
-      setBrowserPresentationMessage(
-        error instanceof Error ? error.message : String(error),
-      )
+      setBrowserPresentationMessage(error instanceof Error ? error.message : String(error))
     } finally {
       setBrowserPresentationBusy(false)
     }
@@ -1082,19 +1058,13 @@ export const SettingsDialog = ({
 
         <div className="p-6 flex flex-col gap-3">
           <Typography weight={TypographyWeight.medium}>Browser</Typography>
-          <InputCheckbox
-            checked={embeddedBrowserEnabled}
-            onClick={handleEmbeddedBrowserToggle}
-          >
-            <Typography className="text-black">
-              Use embedded browser
-            </Typography>
+          <InputCheckbox checked={embeddedBrowserEnabled} onClick={handleEmbeddedBrowserToggle}>
+            <Typography className="text-black">Use embedded browser</Typography>
           </InputCheckbox>
           <Typography className="text-xs text-zinc-500 leading-5">
-            Off keeps the existing managed Chrome window. On shows that same
-            browser profile beside chat and prevents separate browser popups.
-            Saved logins remain in the profile in either mode. Changing this
-            setting briefly restarts the browser.
+            Off keeps the existing managed Chrome window. On shows that same browser profile beside
+            chat and prevents separate browser popups. Saved logins remain in the profile in either
+            mode. Changing this setting briefly restarts the browser.
           </Typography>
           {browserPresentationMessage && (
             <Typography
@@ -1104,9 +1074,7 @@ export const SettingsDialog = ({
                   : 'text-zinc-500'
               }`}
             >
-              {browserPresentationBusy
-                ? 'Switching browser mode…'
-                : browserPresentationMessage}
+              {browserPresentationBusy ? 'Switching browser mode…' : browserPresentationMessage}
             </Typography>
           )}
         </div>
@@ -1830,8 +1798,8 @@ export const SettingsDialog = ({
         <div className="SnowflakeBrokerContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Snowflake Broker (Scout)</Typography>
           <div style={{ opacity: 0.75, fontSize: 13 }}>
-            Paste the shared signing secret the Scout/broker team gave you — this
-            isn&apos;t something you generate yourself.
+            Paste the shared signing secret the Scout/broker team gave you — this isn&apos;t
+            something you generate yourself.
           </div>
           <div className="flex justify-between h-[36px] items-center">
             <Typography>{snowflakeSecretConfigured ? '••••••••••••' : 'No secret set'}</Typography>
@@ -1886,6 +1854,24 @@ export const SettingsDialog = ({
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">
+            {googlePrimaryEmail && (
+              <div className="flex flex-col gap-1 py-1">
+                <div className="flex justify-between min-h-[36px] items-center gap-4">
+                  <Typography>Google account</Typography>
+                  <Typography
+                    className={`cursor-pointer shrink-0 ${styles.link}`}
+                    onClick={handleAddGoogleWorkspace}
+                  >
+                    Add another
+                  </Typography>
+                </div>
+                <Typography className="text-xs text-gray-500">
+                  Connect Gmail, Calendar, and Drive together. All connected accounts stay active
+                  simultaneously.
+                </Typography>
+              </div>
+            )}
+
             {/* Standard permissions that aren't multi-account and aren't yet connected */}
             {connectionsKey
               .filter(
@@ -1908,47 +1894,6 @@ export const SettingsDialog = ({
                   </Typography>
                 </div>
               ))}
-
-            {/* Add Google Drive (always available for Google users) */}
-            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
-              <div className="flex justify-between h-[36px] items-center">
-                <Typography>Google Drive</Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={handleAddGoogleDrive}
-                >
-                  {getGoogleDriveConnections(displayConnections).length > 0 ? 'Add another' : 'Add'}
-                </Typography>
-              </div>
-            )}
-
-            {/* Add Gmail (always available for Google users) */}
-            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
-              <div className="flex justify-between h-[36px] items-center">
-                <Typography>Gmail</Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={handleAddGoogleGmail}
-                >
-                  {getGoogleGmailConnections(displayConnections).length > 0 ? 'Add another' : 'Add'}
-                </Typography>
-              </div>
-            )}
-
-            {/* Add Google Calendar (always available for Google users) */}
-            {profile?.provider === ConnectionKeys.GOOGLE_PROFILE && (
-              <div className="flex justify-between h-[36px] items-center">
-                <Typography>Google Calendar</Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={handleAddGoogleCalendar}
-                >
-                  {getGoogleCalendarConnections(displayConnections).length > 0
-                    ? 'Add another'
-                    : 'Add'}
-                </Typography>
-              </div>
-            )}
           </div>
         </div>
         <hr className="border-zinc-200" />

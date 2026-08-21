@@ -3355,8 +3355,25 @@ pub async fn agent_chat(
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
   }
-  // 5 minute timeout — LLM tool loops can take a while
-  gateway_request_agent("agent", Some(params), &t, 300).await
+  // 5 minute timeout — LLM tool loops can take a while. Older bundled
+  // OpenClaw runtimes do not yet accept `conversationScope`. Retry without
+  // that optional hint when the RPC schema rejects it so Desktop chat stays
+  // on the gateway/tool path instead of degrading to direct chat.
+  match gateway_request_agent("agent", Some(params.clone()), &t, 300).await {
+    Err(error)
+      if params.get("conversationScope").is_some()
+        && error.contains("unexpected property 'conversationScope'") =>
+    {
+      eprintln!(
+        "[gateway_client] bundled gateway rejected conversationScope; retrying compatible agent request"
+      );
+      if let Some(object) = params.as_object_mut() {
+        object.remove("conversationScope");
+      }
+      gateway_request_agent("agent", Some(params), &t, 300).await
+    }
+    result => result,
+  }
 }
 
 /// Send an automation agent run through the gateway's `agent` RPC method.

@@ -7,6 +7,7 @@ const test = require("node:test");
 const {
   localApiHeaders,
   setApiAuthStateDirForTest,
+  shouldPreserveExistingQaState,
 } = require("./qa-loop-runner.cjs");
 
 test.afterEach(() => setApiAuthStateDirForTest(null));
@@ -31,4 +32,20 @@ test("non-local requests never receive the desktop API token", () => {
   assert.deepEqual(localApiHeaders("https://api.knapsack.ai/health", { accept: "application/json" }), {
     accept: "application/json",
   });
+});
+
+test("existing isolated OAuth state is preserved unless explicitly disabled", () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "knapsack-qa-state-"));
+  fs.writeFileSync(path.join(stateDir, "tokens.json"), "{}\n");
+
+  assert.equal(shouldPreserveExistingQaState({}, stateDir), true);
+  assert.equal(
+    shouldPreserveExistingQaState({ KNAPSACK_QA_PRESERVE_STATE: "0" }, stateDir),
+    false,
+  );
+  assert.equal(
+    shouldPreserveExistingQaState({ KNAPSACK_QA_PRESERVE_STATE: "1" }, stateDir),
+    true,
+  );
+  fs.rmSync(stateDir, { recursive: true, force: true });
 });

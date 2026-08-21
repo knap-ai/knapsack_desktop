@@ -15,7 +15,7 @@ export class GoogleAuthError extends Error {
 // "add account" flow rather than a primary login.
 type PendingAddAccountFlow = {
   primaryEmail: string
-  type: 'calendar' | 'drive' | 'gmail'
+  type: 'workspace' | 'calendar' | 'drive' | 'gmail'
 }
 
 let _pendingAddAccountFlow: PendingAddAccountFlow | null = null
@@ -23,7 +23,10 @@ const ADD_ACCOUNT_STATE_PREFIX = 'knapsack_add_account'
 const ADD_ACCOUNT_STORAGE_PREFIX = 'KN_GOOGLE_ADD_ACCOUNT_FLOW'
 
 /** Store the primary user email and connection type before triggering an add-account OAuth flow. */
-export const setPendingAddAccountFlow = (primaryEmail: string, type: 'calendar' | 'drive' | 'gmail'): void => {
+export const setPendingAddAccountFlow = (
+  primaryEmail: string,
+  type: PendingAddAccountFlow['type'],
+): void => {
   _pendingAddAccountFlow = { primaryEmail, type }
 }
 
@@ -44,21 +47,20 @@ const addAccountStorageKey = (nonce: string) => `${ADD_ACCOUNT_STORAGE_PREFIX}:$
 
 const buildAddAccountState = (primaryEmail: string, type: PendingAddAccountFlow['type']) => {
   const nonce = createAddAccountNonce()
-  window.sessionStorage.setItem(
-    addAccountStorageKey(nonce),
-    JSON.stringify({ primaryEmail, type }),
-  )
+  window.sessionStorage.setItem(addAccountStorageKey(nonce), JSON.stringify({ primaryEmail, type }))
   return `${ADD_ACCOUNT_STATE_PREFIX}:${type}:${nonce}`
 }
 
-export const parsePendingAddAccountState = (state?: string | null): PendingAddAccountFlow | null => {
+export const parsePendingAddAccountState = (
+  state?: string | null,
+): PendingAddAccountFlow | null => {
   if (!state?.startsWith(`${ADD_ACCOUNT_STATE_PREFIX}:`)) {
     return null
   }
 
   const [, type, value] = state.split(':')
   if (
-    (type !== 'calendar' && type !== 'drive' && type !== 'gmail') ||
+    (type !== 'workspace' && type !== 'calendar' && type !== 'drive' && type !== 'gmail') ||
     !value
   ) {
     return null
@@ -89,6 +91,23 @@ export const parsePendingAddAccountState = (state?: string | null): PendingAddAc
   }
 }
 
+/**
+ * Add another Google account with the complete native Desktop integration.
+ * Gmail, Calendar, and Drive are granted together so the account appears
+ * consistently across all three services and remains active alongside every
+ * previously connected account.
+ */
+export const openAddGoogleWorkspaceScreen = (primaryEmail: string): void => {
+  setPendingAddAccountFlow(primaryEmail, 'workspace')
+  const scope = [
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/userinfo.email',
+  ].join(' ')
+  openGoogleAuthScreen(scope, buildAddAccountState(primaryEmail, 'workspace'))
+}
+
 /** @deprecated Use setPendingAddAccountFlow / consumePendingAddAccountFlow instead. */
 export const setPendingCalendarAddEmail = (email: string): void =>
   setPendingAddAccountFlow(email, 'calendar')
@@ -105,7 +124,7 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
 
   if (!clientId) {
     const error = new GoogleAuthError(
-      'Google OAuth client ID is not configured. Set VITE_GOOGLE_CLIENT_ID in your .env file.'
+      'Google OAuth client ID is not configured. Set VITE_GOOGLE_CLIENT_ID in your .env file.',
     )
     logError(error, {
       additionalInfo: 'VITE_GOOGLE_CLIENT_ID is missing or empty',
@@ -121,7 +140,7 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
     client_id: clientId,
     access_type: 'offline',
     scope,
-    prompt: 'consent',
+    prompt: 'select_account consent',
   })
   if (state) {
     params.set('state', state)
@@ -169,10 +188,7 @@ export const openGoogleAuthScreen = (scope: string, state?: string) => {
 }
 
 /** Open the OAuth flow to add an additional Google Calendar account. */
-export const openAddGoogleCalendarScreen = (
-  primaryEmail: string,
-  calendarScope: string,
-): void => {
+export const openAddGoogleCalendarScreen = (primaryEmail: string, calendarScope: string): void => {
   setPendingAddAccountFlow(primaryEmail, 'calendar')
   // userinfo.email is required so the backend can identify which Google account
   // was just authorized and store it as the calendar_account_email.
@@ -181,19 +197,17 @@ export const openAddGoogleCalendarScreen = (
 }
 
 /** Open the OAuth flow to add an additional Google Drive account. */
-export const openAddGoogleDriveScreen = (
-  primaryEmail: string,
-): void => {
+export const openAddGoogleDriveScreen = (primaryEmail: string): void => {
   setPendingAddAccountFlow(primaryEmail, 'drive')
-  const scope = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email'
+  const scope =
+    'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email'
   openGoogleAuthScreen(scope, buildAddAccountState(primaryEmail, 'drive'))
 }
 
 /** Open the OAuth flow to add an additional Gmail account. */
-export const openAddGoogleGmailScreen = (
-  primaryEmail: string,
-): void => {
+export const openAddGoogleGmailScreen = (primaryEmail: string): void => {
   setPendingAddAccountFlow(primaryEmail, 'gmail')
-  const scope = 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email'
+  const scope =
+    'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email'
   openGoogleAuthScreen(scope, buildAddAccountState(primaryEmail, 'gmail'))
 }
