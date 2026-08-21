@@ -296,6 +296,19 @@ static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
 static GATEWAY_LAST_SELF_HEAL_MS: AtomicU64 = AtomicU64::new(0);
+/// Dev-mode (`cfg!(debug_assertions)`) only: `prepare_gateway_config` reinstalls
+/// bundled plugin runtime deps directly into the **source** `resources/clawdbot`
+/// tree (there is no copy step in dev — see `resolve_clawdbot_entry`). Every
+/// self-heal cycle calls `prepare_gateway_config`, and every such reinstall
+/// writes/touches thousands of files under a path `tauri dev`'s file watcher
+/// scans, which triggers a full app rebuild+relaunch. If the gateway is not yet
+/// reachable when the new process boots, self-heal fires again immediately —
+/// producing a restart loop that never lets the gateway finish starting.
+/// This flag makes the dev reinstall run at most once per process lifetime;
+/// subsequent self-heal cycles skip it, exactly like the release path already
+/// does unconditionally (see the `!cfg!(debug_assertions)` guard around the
+/// direct call in `run_gateway_self_heal_cycle`).
+static DEBUG_PLUGIN_RUNTIME_DEPS_INSTALLED_ONCE: AtomicBool = AtomicBool::new(false);
 const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 600_000;
 const GATEWAY_SELF_HEAL_COOLDOWN_MS: u64 = 15_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
@@ -1140,6 +1153,7 @@ fn docker_session_sandbox_available() -> Result<(), String> {
 fn ensure_knapsack_session_isolation(
   cfg: &mut serde_json::Value,
   docker_sandbox_available: bool,
+  force_docker_mode: bool,
 ) -> bool {
   if !cfg.is_object() {
     return false;
@@ -1216,10 +1230,12 @@ fn ensure_knapsack_session_isolation(
     .pointer_mut("/agents/defaults/sandbox")
     .and_then(|value| value.as_object_mut())
   {
-    let expected_mode = if docker_sandbox_available {
-      "non-main"
-    } else {
+    let expected_mode = if !docker_sandbox_available {
       "off"
+    } else if force_docker_mode {
+      "all"
+    } else {
+      "non-main"
     };
     if sandbox.get("mode").and_then(|value| value.as_str()) != Some(expected_mode) {
       sandbox.insert("mode".to_string(), serde_json::json!(expected_mode));
@@ -1581,6 +1597,98 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
   patched
 }
 
+/// Force-reset whatever section(s) the gateway's own `config.get` reported as
+/// invalid, directly on the config file on disk.
+///
+/// The gateway refuses `config.patch`/`config.set` outright whenever the
+/// *existing* on-disk config already fails schema validation — even for a
+/// patch to a completely unrelated section (see `config.patch`'s
+/// `if (!snapshot.valid)` guard in the vendored gateway). A narrowly-targeted
+/// fix (see `ensure_knapsack_progress_draft_labels_migration`) is only
+/// possible for issues Knapsack itself caused and already knows the shape of;
+/// this is the general fallback for any other invalid section, known or not:
+/// each issue's `path` (e.g. `"channels.whatsapp"`) names the JSON object
+/// that failed validation, so that whole object is reset to `{}` — safer than
+/// deleting the key outright (which could implicitly disable a channel whose
+/// enablement is presence-based) and it lets Knapsack's own default-filling
+/// migrations (`ensure_knapsack_channel_runtime_defaults`, etc.) repopulate it
+/// with sane values on the next config prep pass.
+///
+/// A timestamped backup of the untouched file is written alongside it first.
+/// Returns the list of dotted paths that were reset (empty if nothing to do
+/// or nothing was resettable).
+pub(crate) fn force_reset_invalid_gateway_config_sections(
+  config_snapshot: &serde_json::Value,
+) -> Result<Vec<String>, String> {
+  if config_snapshot.get("valid").and_then(serde_json::Value::as_bool) != Some(false) {
+    return Ok(vec![]);
+  }
+  let config_path = config_snapshot
+    .get("path")
+    .and_then(serde_json::Value::as_str)
+    .ok_or("config snapshot did not report a file path")?;
+
+  let mut reset_paths: Vec<String> = config_snapshot
+    .get("issues")
+    .and_then(serde_json::Value::as_array)
+    .map(|issues| {
+      issues
+        .iter()
+        .filter_map(|issue| issue.get("path").and_then(serde_json::Value::as_str))
+        .filter(|path| !path.is_empty())
+        .map(|path| path.to_string())
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  reset_paths.sort();
+  reset_paths.dedup();
+  if reset_paths.is_empty() {
+    return Err(
+      "config is invalid but the gateway reported no resettable (non-root) issue path"
+        .to_string(),
+    );
+  }
+
+  let raw = std::fs::read_to_string(config_path)
+    .map_err(|error| format!("could not read {config_path}: {error}"))?;
+  let mut config: serde_json::Value = serde_json::from_str(&raw)
+    .map_err(|error| format!("could not parse {config_path} as JSON: {error}"))?;
+
+  let now_ms = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis())
+    .unwrap_or(0);
+  let backup_path = format!("{config_path}.bak.{now_ms}");
+  std::fs::write(&backup_path, &raw)
+    .map_err(|error| format!("could not write backup {backup_path}: {error}"))?;
+
+  let mut actually_reset = Vec::new();
+  for dotted_path in &reset_paths {
+    let pointer = format!("/{}", dotted_path.replace('.', "/"));
+    if let Some(target) = config.pointer_mut(&pointer) {
+      *target = serde_json::json!({});
+      actually_reset.push(dotted_path.clone());
+    }
+  }
+
+  if actually_reset.is_empty() {
+    return Ok(vec![]);
+  }
+
+  let serialized = serde_json::to_string_pretty(&config)
+    .map_err(|error| format!("could not serialize repaired config: {error}"))?;
+  std::fs::write(config_path, serialized)
+    .map_err(|error| format!("could not write repaired {config_path}: {error}"))?;
+
+  eprintln!(
+    "[clawd/service] Force-reset invalid gateway config section(s) [{}] (backup: {})",
+    actually_reset.join(", "),
+    backup_path
+  );
+
+  Ok(actually_reset)
+}
+
 /// Word shown in chat while a turn is in flight (after the gateway's ~5s
 /// progress-draft delay), in place of its randomly-seeded default.
 pub(crate) const KNAPSACK_PROGRESS_DRAFT_LABEL: &str = "Thinking...";
@@ -1602,6 +1710,52 @@ pub(crate) const KNAPSACK_PROGRESS_DRAFT_LABEL: &str = "Thinking...";
 ///
 /// Only fills in a missing or `"auto"` value, so a deliberate choice is kept —
 /// including `label: false`, which hides the word entirely.
+///
+/// Only channels whose config schema actually declares a `streaming` field
+/// get touched. WhatsApp, Google Chat, Signal, and iMessage all validate their
+/// section with Zod's `.strict()` and have no `streaming` property (WhatsApp
+/// uses `blockStreaming`/`blockStreamingCoalesce` instead) — blindly inserting
+/// `streaming.progress.label` into any of them makes the whole config fail
+/// gateway-side schema validation with "must NOT have additional properties",
+/// which then blocks *every* subsequent `config.patch` (including unrelated
+/// ones, e.g. updating an allowlist) until the file is manually repaired.
+const KNAPSACK_STREAMING_PROGRESS_CHANNELS: &[&str] = &["slack", "telegram", "discord", "msteams"];
+
+/// Repair-in-place: remove a `streaming` key from any channel whose schema
+/// doesn't declare one. Older builds of `ensure_knapsack_progress_draft_labels`
+/// wrote it unconditionally, which permanently corrupted `channels.whatsapp`
+/// (and would corrupt `googlechat`/`signal`/`imessage` the same way) on disk —
+/// the gateway rejects `config.patch`/`config.set` outright while an
+/// already-invalid field is on disk, so simply not adding new ones doesn't
+/// self-heal an install that got the bad write before this fix shipped.
+fn ensure_knapsack_progress_draft_labels_migration(cfg: &mut serde_json::Value) -> bool {
+  let Some(channels) = cfg
+    .pointer_mut("/channels")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  let mut patched = false;
+  for (channel_id, entry) in channels.iter_mut() {
+    if KNAPSACK_STREAMING_PROGRESS_CHANNELS.contains(&channel_id.as_str()) {
+      continue;
+    }
+    let Some(entry) = entry.as_object_mut() else {
+      continue;
+    };
+    if entry.remove("streaming").is_some() {
+      eprintln!(
+        "[clawd/service] Removed unsupported channels.{}.streaming (schema has no such field)",
+        channel_id
+      );
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_progress_draft_labels(cfg: &mut serde_json::Value) -> bool {
   let Some(channels) = cfg
     .pointer_mut("/channels")
@@ -1612,6 +1766,9 @@ fn ensure_knapsack_progress_draft_labels(cfg: &mut serde_json::Value) -> bool {
 
   let mut patched = false;
   for (channel_id, entry) in channels.iter_mut() {
+    if !KNAPSACK_STREAMING_PROGRESS_CHANNELS.contains(&channel_id.as_str()) {
+      continue;
+    }
     // Skip `null`/`false` (disabled) and any non-object entry.
     let Some(entry) = entry.as_object_mut() else {
       continue;
@@ -1784,6 +1941,10 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
       );
       patched = true;
     }
+  }
+
+  if ensure_knapsack_progress_draft_labels_migration(cfg) {
+    patched = true;
   }
 
   if ensure_knapsack_progress_draft_labels(cfg) {
@@ -5208,6 +5369,15 @@ struct StoredTokens {
   #[serde(default)]
   ollama_base_url: Option<String>,
 
+  /// When set, always run the OpenClaw session sandbox in Docker "all" mode
+  /// (every session, not just non-main ones) instead of the default
+  /// "non-main"/auto behaviour. Docker availability is still probed — this
+  /// never blocks startup when Docker isn't actually installed/running (see
+  /// `docker_session_sandbox_available`); it only changes the requested mode
+  /// once Docker is confirmed available.
+  #[serde(default)]
+  force_docker_mode: Option<bool>,
+
   /// Additional provider API keys (env_var_name -> key).
   /// These are passed as environment variables to the OpenClaw subprocess.
   /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
@@ -5476,6 +5646,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
+    force_docker_mode: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
     knapsack_email: None,
@@ -6936,6 +7107,50 @@ fn gateway_log_channel_started_from_log(content: &str, channel_id: &str) -> bool
   target_lines
     .iter()
     .any(|marker| hay.contains(&marker.to_lowercase()))
+}
+
+/// Markers for the two failure lines the gateway logs when a sandboxed turn
+/// can't reach Docker or its image (see `docker_session_sandbox_available`/
+/// `try_build_knapsack_sandbox_image` for the Knapsack-side probe, and the
+/// vendored gateway's own `Sandbox image not found` / `Docker daemon` errors
+/// thrown at actual exec time — the two can disagree, e.g. the probe passes
+/// but the daemon isn't fully up yet when a turn actually runs).
+const DOCKER_SANDBOX_ERROR_MARKERS: &[&str] = &[
+  "sandbox image not found",
+  "docker daemon",
+  "cannot connect to the docker daemon",
+  "embedded agent failed before reply: sandbox",
+];
+
+/// Last Docker/sandbox-related error line seen in the gateway's own logs, for
+/// troubleshooting from the Settings UI — see `docker_mode_status`. These
+/// errors are always written to stderr in practice, but stdout is scanned too
+/// as a fallback; within a stream, the last match is the most recent one.
+/// Only scans the trailing ~200KB of each file so this stays cheap on a
+/// long-running install with a large log.
+pub(crate) fn last_docker_sandbox_error_from_logs() -> Option<String> {
+  const TAIL_BYTES: usize = 200_000;
+  let read_tail = |path: PathBuf| -> String {
+    let Ok(bytes) = std::fs::read(&path) else {
+      return String::new();
+    };
+    let start = bytes.len().saturating_sub(TAIL_BYTES);
+    String::from_utf8_lossy(&bytes[start..]).into_owned()
+  };
+  let last_match = |content: &str| -> Option<String> {
+    content
+      .lines()
+      .filter(|line| {
+        let lower = line.to_lowercase();
+        DOCKER_SANDBOX_ERROR_MARKERS
+          .iter()
+          .any(|marker| lower.contains(marker))
+      })
+      .last()
+      .map(|line| line.trim().to_string())
+  };
+
+  last_match(&read_tail(gateway_stderr_log())).or_else(|| last_match(&read_tail(gateway_stdout_log())))
 }
 
 pub(crate) fn gateway_ready_since_last_start() -> bool {
@@ -10221,6 +10436,95 @@ fn upsert_knapsack_local_provider_config(
   patched
 }
 
+#[derive(Debug, Serialize)]
+pub struct DockerModeStatusResponse {
+  pub success: bool,
+  pub force_docker_mode: bool,
+  pub docker_sandbox_available: bool,
+  pub message: Option<String>,
+  /// Most recent Docker/sandbox failure line pulled from the gateway's own
+  /// logs (e.g. "Sandbox image not found: ..."), if any — see
+  /// `last_docker_sandbox_error_from_logs`. Surfaced so a live failure that
+  /// only happens mid-turn (the probe here can pass while a turn still fails)
+  /// is visible from Settings instead of only in the log files on disk.
+  pub last_gateway_error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DockerModeConfigureRequest {
+  pub enabled: bool,
+}
+
+/// Whether Docker is force-enabled ("all" sessions) rather than the default
+/// "non-main"/auto behaviour. Still gated by actual Docker availability —
+/// see `docker_session_sandbox_available` and CLAUDE.md's "never block
+/// startup" invariant.
+#[get("/api/clawd/service/docker-mode-status")]
+pub async fn docker_mode_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+        success: false,
+        force_docker_mode: false,
+        docker_sandbox_available: false,
+        message: Some(e),
+        last_gateway_error: None,
+      })
+    }
+  };
+  let docker_sandbox_status = docker_session_sandbox_available();
+  HttpResponse::Ok().json(DockerModeStatusResponse {
+    success: true,
+    force_docker_mode: tokens.force_docker_mode.unwrap_or(false),
+    docker_sandbox_available: docker_sandbox_status.is_ok(),
+    message: docker_sandbox_status.err(),
+    last_gateway_error: last_docker_sandbox_error_from_logs(),
+  })
+}
+
+/// Persist the "force Docker mode" preference. Takes effect on the next
+/// gateway config sync (`prepare_gateway_config` / the shared-channel patch
+/// path), which re-reads `tokens.force_docker_mode` each time it runs.
+#[post("/api/clawd/service/docker-mode-configure")]
+pub async fn docker_mode_configure(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<DockerModeConfigureRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+        success: false,
+        force_docker_mode: false,
+        docker_sandbox_available: false,
+        message: Some(e),
+        last_gateway_error: None,
+      })
+    }
+  };
+
+  tokens.force_docker_mode = Some(payload.enabled);
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+      success: false,
+      force_docker_mode: payload.enabled,
+      docker_sandbox_available: false,
+      message: Some(e),
+      last_gateway_error: None,
+    });
+  }
+
+  let docker_sandbox_status = docker_session_sandbox_available();
+  HttpResponse::Ok().json(DockerModeStatusResponse {
+    success: true,
+    force_docker_mode: payload.enabled,
+    docker_sandbox_available: docker_sandbox_status.is_ok(),
+    message: docker_sandbox_status.err(),
+    last_gateway_error: last_docker_sandbox_error_from_logs(),
+  })
+}
+
 fn sync_active_provider_for_ollama_toggle(tokens: &mut StoredTokens, enabled: bool) {
   if enabled {
     if tokens
@@ -10930,10 +11234,11 @@ async fn prepare_gateway_config(
   let workspace_path_default = knapsack_openclaw_workspace_path(&clawdbot_home);
   let docker_sandbox_status = docker_session_sandbox_available();
   let docker_sandbox_available = docker_sandbox_status.is_ok();
+  let force_docker_mode = tokens.force_docker_mode.unwrap_or(false);
   match &docker_sandbox_status {
     Ok(()) => eprintln!(
-      "[clawd/service] Docker session sandbox available ({})",
-      KNAPSACK_OPENCLAW_SANDBOX_IMAGE
+      "[clawd/service] Docker session sandbox available ({}); force_docker_mode={}",
+      KNAPSACK_OPENCLAW_SANDBOX_IMAGE, force_docker_mode
     ),
     Err(reason) => eprintln!(
       "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
@@ -11178,7 +11483,7 @@ async fn prepare_gateway_config(
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
           patched = true;
         }
-        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available) {
+        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available, force_docker_mode) {
           eprintln!(
             "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
             docker_sandbox_available
@@ -12426,7 +12731,11 @@ async fn prepare_gateway_config(
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   if cfg!(debug_assertions) {
-    if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
+    if DEBUG_PLUGIN_RUNTIME_DEPS_INSTALLED_ONCE.swap(true, Ordering::Relaxed) {
+      eprintln!(
+        "[clawd/service] dev plugin runtime deps already installed this run — skipping to avoid a self-heal/file-watcher restart loop"
+      );
+    } else if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
       install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir, Some(&plugin_filter));
       ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
     }
@@ -13262,13 +13571,14 @@ pub async fn set_service_enabled(
             }
             let docker_sandbox_status = docker_session_sandbox_available();
             let docker_sandbox_available = docker_sandbox_status.is_ok();
+            let force_docker_mode = tokens.force_docker_mode.unwrap_or(false);
             if let Err(reason) = &docker_sandbox_status {
               eprintln!(
                 "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
                 reason
               );
             }
-            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available) {
+            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available, force_docker_mode) {
               eprintln!(
                 "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
                 docker_sandbox_available
@@ -17046,6 +17356,7 @@ mod knapsack_runtime_auth_tests {
       ollama_enabled: None,
       ollama_model: None,
       ollama_base_url: None,
+      force_docker_mode: None,
       extra_provider_keys: None,
       preferred_coding_agent: None,
       knapsack_email: None,
@@ -17153,7 +17464,7 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, false));
     assert_eq!(
       cfg
         .pointer("/session/scope")
@@ -17213,8 +17524,8 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
-    assert!(!ensure_knapsack_session_isolation(&mut cfg, true));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, false));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, true, false));
   }
 
   #[test]
@@ -17236,7 +17547,7 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, false));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, false, false));
     assert_eq!(
       cfg
         .pointer("/agents/defaults/sandbox/mode")
@@ -17255,7 +17566,36 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("self")
     );
-    assert!(!ensure_knapsack_session_isolation(&mut cfg, false));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, false, false));
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_forces_all_sessions_when_requested() {
+    let mut cfg = serde_json::json!({});
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, true));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("all")
+    );
+
+    // Docker being unavailable still wins over the force flag — never block
+    // startup when Docker genuinely isn't there (see the invariant comment
+    // on `docker_session_sandbox_available`).
+    let mut cfg_unavailable = serde_json::json!({});
+    assert!(ensure_knapsack_session_isolation(
+      &mut cfg_unavailable,
+      false,
+      true
+    ));
+    assert_eq!(
+      cfg_unavailable
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("off")
+    );
   }
 
   /// Doesn't invoke Docker (this crate's Rust tests must run without macOS
@@ -17349,6 +17689,31 @@ mod knapsack_runtime_auth_tests {
 
     // Idempotent: a second pass changes nothing.
     assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+  }
+
+  /// Regression: WhatsApp/Google Chat/Signal/iMessage config schemas are
+  /// `.strict()` with no `streaming` field. Inserting one made the whole
+  /// config fail gateway-side validation ("must NOT have additional
+  /// properties"), which then blocked every subsequent `config.patch` —
+  /// including unrelated ones, like updating a different channel's allowlist.
+  #[test]
+  fn progress_label_skips_channels_without_a_streaming_field() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "whatsapp": { "dmPolicy": "pairing", "groupPolicy": "allowlist" },
+        "googlechat": { "dmPolicy": "pairing" },
+        "signal": { "dmPolicy": "pairing" },
+        "imessage": { "dmPolicy": "pairing" }
+      }
+    });
+
+    assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+    for channel in ["whatsapp", "googlechat", "signal", "imessage"] {
+      assert!(
+        cfg.pointer(&format!("/channels/{channel}/streaming")).is_none(),
+        "{channel} must not get a streaming field injected"
+      );
+    }
   }
 
   #[test]

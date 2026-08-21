@@ -3484,7 +3484,66 @@ pub async fn channel_allowlist_update(
   let channel = path.into_inner();
   let config_result = gateway_client::config_get(None).await;
   match config_result {
-    Ok(config_snapshot) => {
+    Ok(mut config_snapshot) => {
+      // `config.patch` refuses to apply ANY patch — including this unrelated
+      // allowlist change — if the on-disk config already fails schema
+      // validation (see `readConfigFileSnapshotForWrite` in the vendored
+      // gateway). Rather than surface that as a dead end, force-reset
+      // whichever section(s) are invalid (see
+      // `force_reset_invalid_gateway_config_sections`) and re-check — this is
+      // what actually recovers a broken install instead of just describing
+      // the problem to the user.
+      if config_snapshot.get("valid").and_then(Value::as_bool) == Some(false) {
+        if let Err(reset_error) = service::force_reset_invalid_gateway_config_sections(&config_snapshot) {
+          eprintln!("[clawd/channels] Could not force-reset invalid gateway config: {reset_error}");
+        } else {
+          config_snapshot = match gateway_client::config_get(None).await {
+            Ok(refreshed) => refreshed,
+            Err(e) => {
+              return HttpResponse::Ok().json(GenericResponse {
+                success: false,
+                message: Some(format!(
+                  "Config was force-reset but could not be re-read from the gateway: {e}"
+                )),
+                configured: None,
+                linked: None,
+              })
+            }
+          };
+        }
+      }
+
+      if config_snapshot.get("valid").and_then(Value::as_bool) == Some(false) {
+        let issues = config_snapshot
+          .get("issues")
+          .and_then(Value::as_array)
+          .map(|issues| {
+            issues
+              .iter()
+              .map(|issue| {
+                let path = issue.get("path").and_then(Value::as_str).unwrap_or("");
+                let message = issue.get("message").and_then(Value::as_str).unwrap_or("");
+                if path.is_empty() {
+                  message.to_string()
+                } else {
+                  format!("{path}: {message}")
+                }
+              })
+              .collect::<Vec<_>>()
+              .join("; ")
+          })
+          .filter(|s| !s.is_empty())
+          .unwrap_or_else(|| "no details returned by the gateway".to_string());
+        return HttpResponse::Ok().json(GenericResponse {
+          success: false,
+          message: Some(format!(
+            "Gateway config is still invalid after an automatic reset attempt — fix it before the allowlist can be updated: {issues}"
+          )),
+          configured: None,
+          linked: None,
+        });
+      }
+
       let uses_nested_dm = matches!(channel.as_str(), "discord" | "slack" | "googlechat");
 
       let mut patch_inner = serde_json::Map::new();

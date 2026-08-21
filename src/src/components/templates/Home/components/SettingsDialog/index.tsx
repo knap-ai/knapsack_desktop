@@ -495,6 +495,107 @@ function AgentHarnessSection({ isOpen }: { isOpen: boolean }) {
   )
 }
 
+// ── Docker sandbox mode section ──────────────────────────────────────────────
+
+function DockerModeSection({ isOpen }: { isOpen: boolean }) {
+  const [forceDockerMode, setForceDockerMode] = useState(false)
+  const [dockerAvailable, setDockerAvailable] = useState<boolean | null>(null)
+  const [message, setMessage] = useState('')
+  const [lastGatewayError, setLastGatewayError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const refreshStatus = useCallback(() => {
+    return fetch('http://127.0.0.1:8897/api/clawd/service/docker-mode-status')
+      .then(response => response.json())
+      .then(data => {
+        setForceDockerMode(!!data.force_docker_mode)
+        setDockerAvailable(!!data.docker_sandbox_available)
+        setMessage(data.docker_sandbox_available ? '' : data.message || '')
+        setLastGatewayError(data.last_gateway_error || '')
+      })
+      .catch(() => {
+        setMessage('Could not reach the local service — is Knapsack running?')
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    void refreshStatus()
+  }, [isOpen, refreshStatus])
+
+  const handleToggle = useCallback(async () => {
+    if (saving) return
+    const nextEnabled = !forceDockerMode
+    setSaving(true)
+    try {
+      const response = await fetch(
+        'http://127.0.0.1:8897/api/clawd/service/docker-mode-configure',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: nextEnabled }),
+        },
+      )
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Could not update Docker mode')
+      }
+      setForceDockerMode(!!result.force_docker_mode)
+      setDockerAvailable(!!result.docker_sandbox_available)
+      setMessage(result.docker_sandbox_available ? '' : result.message || '')
+      setLastGatewayError(result.last_gateway_error || '')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSaving(false)
+    }
+  }, [forceDockerMode, saving])
+
+  return (
+    <div className="p-6 flex flex-col gap-3">
+      <Typography weight={TypographyWeight.medium}>Docker sandbox</Typography>
+      <InputCheckbox checked={forceDockerMode} onClick={handleToggle}>
+        <Typography className="text-black">Always use Docker sandbox</Typography>
+      </InputCheckbox>
+      <Typography className="text-xs text-zinc-500 leading-5">
+        Off sandboxes only non-main sessions when Docker is available (default). On
+        requires every session, including the main chat, to run inside the Docker
+        sandbox. Docker Desktop (or a running Docker daemon reachable via the
+        `docker` CLI) must be installed and running — Knapsack builds the sandbox
+        image automatically the first time it&apos;s needed. If Docker isn&apos;t
+        available, Knapsack falls back to host tools regardless of this setting.
+      </Typography>
+      {dockerAvailable === false && (
+        <Typography className="text-xs text-amber-600">
+          Docker sandbox is currently unavailable{message ? `: ${message}` : ''}.
+          Sessions are running on host tools until Docker is reachable.
+        </Typography>
+      )}
+      {dockerAvailable === true && message && (
+        <Typography className="text-xs text-red-500">{message}</Typography>
+      )}
+      {lastGatewayError && (
+        <div className="flex flex-col gap-1 rounded border border-zinc-200 bg-zinc-50 px-3 py-2">
+          <div className="flex items-center justify-between">
+            <Typography className="text-xs font-medium text-zinc-600">
+              Last Docker error from the gateway log
+            </Typography>
+            <button
+              className="text-xs text-zinc-400 hover:text-zinc-600"
+              onClick={() => void refreshStatus()}
+            >
+              Refresh
+            </button>
+          </div>
+          <Typography className="text-xs text-red-500 break-words">
+            {lastGatewayError}
+          </Typography>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MobilePairingSection() {
   const [pairingCode, setPairingCode] = useState('')
   const [copied, setCopied] = useState(false)
@@ -1113,6 +1214,9 @@ export const SettingsDialog = ({
         <hr className="border-zinc-200" />
 
         <AgentHarnessSection isOpen={isOpen} />
+        <hr className="border-zinc-200" />
+
+        <DockerModeSection isOpen={isOpen} />
         <hr className="border-zinc-200" />
 
         {/* ── AI Provider (accordion) ─────────────────────────────────── */}
