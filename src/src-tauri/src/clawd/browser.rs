@@ -17,6 +17,7 @@ use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
+use crate::db::models::user::User;
 use crate::db::models::user_connection::UserConnection;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
@@ -902,8 +903,38 @@ fn connected_google_accounts(
   accounts
 }
 
+fn connected_google_accounts_for_context(
+  preferred_user_email: &str,
+) -> std::collections::BTreeMap<String, Vec<&'static str>> {
+  let direct = connected_google_accounts(preferred_user_email);
+  if !direct.is_empty() {
+    return direct;
+  }
+
+  // Studio identity and the native Desktop connection owner can differ. If
+  // the preferred identity owns no native Google scopes, select the local user
+  // whose Google inventory contains that account, otherwise the richest native
+  // Google inventory. This preserves simultaneous accounts without a switcher.
+  let mut best = std::collections::BTreeMap::new();
+  let mut best_score = 0usize;
+  if let Ok(users) = User::find_all_with_email() {
+    for user in users {
+      let accounts = connected_google_accounts(&user.email);
+      if accounts.contains_key(preferred_user_email) {
+        return accounts;
+      }
+      let score = accounts.values().map(Vec::len).sum::<usize>();
+      if score > best_score {
+        best_score = score;
+        best = accounts;
+      }
+    }
+  }
+  best
+}
+
 fn connected_google_accounts_section(user_email: &str) -> String {
-  let accounts = connected_google_accounts(user_email);
+  let accounts = connected_google_accounts_for_context(user_email);
   if accounts.is_empty() {
     return String::new();
   }
@@ -934,7 +965,7 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
     return None;
   }
 
-  let accounts = connected_google_accounts(user_email);
+  let accounts = connected_google_accounts_for_context(user_email);
   if accounts.is_empty() {
     return None;
   }
