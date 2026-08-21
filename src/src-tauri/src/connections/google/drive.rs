@@ -223,9 +223,38 @@ fn drive_sync_temp_dir(home_dir: &Path, account_email: &str) -> PathBuf {
     .join(format!("{}-{}", safe_account, Uuid::new_v4()))
 }
 
+struct DriveSyncTempDir {
+  path: PathBuf,
+}
+
+impl DriveSyncTempDir {
+  fn create(path: PathBuf) -> Result<Self, Error> {
+    fs::create_dir_all(&path)?;
+    Ok(Self { path })
+  }
+
+  fn path(&self) -> &PathBuf {
+    &self.path
+  }
+}
+
+impl Drop for DriveSyncTempDir {
+  fn drop(&mut self) {
+    if let Err(error) = fs::remove_dir_all(&self.path) {
+      if error.kind() != std::io::ErrorKind::NotFound {
+        log::warn!(
+          "[google-drive] failed to clean sync temp directory path={} error={}",
+          self.path.display(),
+          error
+        );
+      }
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
-  use super::{drive_sync_temp_dir, resolve_google_drive_file_id};
+  use super::{drive_sync_temp_dir, resolve_google_drive_file_id, DriveSyncTempDir};
 
   #[test]
   fn extracts_drive_ids_from_google_urls_and_plain_ids() {
@@ -262,6 +291,16 @@ mod tests {
     assert_ne!(first, retry);
     assert!(first.to_string_lossy().contains("first_example_com"));
     assert!(second.to_string_lossy().contains("second_example_com"));
+  }
+
+  #[test]
+  fn drive_sync_temp_directory_is_removed_when_scope_ends() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("sync");
+    let scoped = DriveSyncTempDir::create(path.clone()).unwrap();
+    std::fs::write(scoped.path().join("partial-download"), b"partial").unwrap();
+    drop(scoped);
+    assert!(!path.exists());
   }
 }
 
@@ -599,10 +638,9 @@ pub async fn fetch_drive(
     limit_date.format("%Y-%m-%dT%H:%M:%S")
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let temp_dir = drive_sync_temp_dir(&home_dir, &account_email);
-  fs::create_dir_all(temp_dir.clone())?;
+  let temp_dir = DriveSyncTempDir::create(drive_sync_temp_dir(&home_dir, &account_email))?;
   let mut all_documents =
-    fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
+    fetch_drive_corpus(&hub, &query, "user", None, temp_dir.path(), &account_email).await?;
   let shared_drives = list_accessible_shared_drives(&hub).await;
   log::info!(
     "[google-drive] syncing account={} shared_drive_count={}",
@@ -620,7 +658,7 @@ pub async fn fetch_drive(
         &query,
         "drive",
         Some(shared_drive_id),
-        &temp_dir,
+        temp_dir.path(),
         &account_email,
       )
       .await
@@ -659,7 +697,6 @@ pub async fn fetch_drive(
   // locked_semantic_service
   //   .add_handle_embed_finish_to_queue(ConnectionsEnum::GoogleDrive, 1)
   //   .await;
-  let _ = fs::remove_dir_all(temp_dir);
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), limit_date);
   Ok(())
 }

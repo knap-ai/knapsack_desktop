@@ -2062,11 +2062,14 @@ export function useFeed(
           actionHandled = true
           const updatedEmail = { ...emails[emailIndex] }
           const dataFetcher = new DataFetcher()
+          const actionOwnerEmail = userProvider === ConnectionKeys.GOOGLE_PROFILE
+            ? userEmail
+            : (updatedEmail.message.accountEmail || userEmail)
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true
             dataFetcher
               .postMarkEmailRead(
-                updatedEmail.message.accountEmail || userEmail,
+                actionOwnerEmail,
                 emailUid,
                 userProvider,
                 action,
@@ -2079,7 +2082,7 @@ export function useFeed(
             updatedEmail.wasReplySent = true
             dataFetcher
               .postMarkEmailRead(
-                updatedEmail.message.accountEmail || userEmail,
+                actionOwnerEmail,
                 emailUid,
                 userProvider,
                 action,

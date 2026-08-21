@@ -113,12 +113,17 @@ pub async fn send_gmail_email(
 ) -> Result<String, String> {
   // 1. Get OAuth access token
   let scope = GOOGLE_GMAIL_SCOPE.to_string();
-  let user_connection = UserConnection::find_by_scope_and_account_email(
+  let precise_connection = UserConnection::find_by_scope_and_account_email(
     owner_email.to_string(),
     scope.clone(),
     sender_email.to_string(),
-  )
-  .or_else(|_| UserConnection::find_by_user_email_and_scope(owner_email.to_string(), scope))
+  );
+  let user_connection = if sender_email.eq_ignore_ascii_case(owner_email) {
+    precise_connection
+      .or_else(|_| UserConnection::find_by_user_email_and_scope(owner_email.to_string(), scope))
+  } else {
+    precise_connection
+  }
   .map_err(|e| format!("Email account not connected: {:?}", e))?;
 
   let access_token = refresh_connection_token(owner_email.to_string(), user_connection)
