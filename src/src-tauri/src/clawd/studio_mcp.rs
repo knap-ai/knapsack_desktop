@@ -253,11 +253,16 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
   let labels = connectors
     .iter()
     .filter_map(|connector| {
-      Some(format!(
-        "{} ({})",
-        connector.get("name")?.as_str()?,
-        connector.get("id")?.as_str()?
-      ))
+      let name = connector.get("name")?.as_str()?;
+      let id = connector.get("id")?.as_str()?;
+      match connector
+        .get("account")
+        .and_then(Value::as_str)
+        .filter(|account| !account.trim().is_empty())
+      {
+        Some(account) => Some(format!("{name} ({id}; account {account})")),
+        None => Some(format!("{name} ({id})")),
+      }
     })
     .collect::<Vec<_>>()
     .join(", ");
@@ -393,10 +398,23 @@ mod tests {
 
   #[test]
   fn connector_catalog_describes_connectors_without_freezing_an_enum_or_secrets() {
-    let tools = tool_schemas(&[json!({ "id": "slack", "name": "Slack" })], None);
+    let tools = tool_schemas(
+      &[
+        json!({ "id": "slack", "name": "Slack" }),
+        json!({
+          "id": "google_gmail_modify",
+          "name": "Google Gmail",
+          "account": "mark@knap.ai",
+          "provider": "native"
+        }),
+      ],
+      None,
+    );
     let serialized = serde_json::to_string(&tools).unwrap();
     assert!(serialized.contains("slack"));
     assert!(serialized.contains("Slack"));
+    assert!(serialized.contains("google_gmail_modify"));
+    assert!(serialized.contains("mark@knap.ai"));
     assert!(!serialized.contains("\"enum\""));
     assert!(!serialized.contains("access_token"));
   }
