@@ -846,74 +846,10 @@ fn activate_main_window(window: tauri::Window) {
 
 #[tauri::command]
 fn activate_main_window_from_notification(window: tauri::Window) {
-  let app = window.app_handle();
-
-  if let Some(main_window) = app.get_window("main") {
-    // Determine position and size from the notification window so the main
-    // window appears to "expand" from it.
-    if let Some(notification_window) = app.get_window("notification") {
-      if let Ok(notif_pos) = notification_window.outer_position() {
-        // On Windows, use the actual work area so we never overlap the taskbar.
-        #[cfg(target_os = "windows")]
-        {
-          if let Some((_wa_x, wa_y, _wa_w, wa_h)) = windows_work_area() {
-            let scale_factor = notification_window
-              .current_monitor()
-              .ok()
-              .flatten()
-              .map(|m| m.scale_factor())
-              .unwrap_or(1.0);
-            // Subtract frame overhead so the outer window fits in the work area
-            let frame_overhead_physical = main_window
-              .outer_size()
-              .ok()
-              .and_then(|outer| {
-                main_window
-                  .inner_size()
-                  .ok()
-                  .map(|inner| outer.height as i32 - inner.height as i32)
-              })
-              .unwrap_or(0);
-            let usable_h = (wa_h - frame_overhead_physical).max(400);
-            let wa_h_logical = usable_h as f64 / scale_factor;
-
-            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-              width: NOTIF_WIDTH,
-              height: wa_h_logical,
-            }));
-            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-              x: notif_pos.x,
-              y: wa_y,
-            }));
-          }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-          if let Ok(Some(monitor)) = notification_window.current_monitor() {
-            let screen_size = monitor.size();
-            let monitor_pos = monitor.position();
-            let scale_factor = monitor.scale_factor();
-
-            // macOS: ~25px for the menu bar at the top
-            let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-            let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height;
-
-            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-              width: NOTIF_WIDTH,
-              height: logical_height,
-            }));
-
-            let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
-            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-              x: notif_pos.x,
-              y: (y * scale_factor) as i32,
-            }));
-          }
-        }
-      }
-    }
-
+  if let Some(main_window) = window.app_handle().get_window("main") {
+    // MeetingNotesMode owns the right-side meeting layout. Keeping the
+    // pre-meeting bounds intact here lets it restore the user's original
+    // window after the meeting closes.
     let _ = main_window.unminimize();
     let _ = main_window.show();
     let _ = main_window.set_focus();

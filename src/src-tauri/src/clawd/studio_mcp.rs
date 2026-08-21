@@ -93,10 +93,14 @@ async fn request_studio(
     .lock()
     .ok()
     .and_then(|value| value.clone());
-  let mut access_token = cached
-    .or_else(|| nonempty(tokens.knapsack_access_token))
-    .ok_or_else(|| "Connect a Knapsack Studio account in Settings first.".to_string())?;
   let refresh_token = nonempty(tokens.knapsack_refresh_token);
+  let mut access_token = match cached.or_else(|| nonempty(tokens.knapsack_access_token)) {
+    Some(token) => token,
+    None => match refresh_token.as_deref() {
+      Some(refresh) => refresh_access_token(refresh).await?,
+      None => return Err("Connect a Knapsack Studio account in Settings first.".to_string()),
+    },
+  };
   let timeout = if method == reqwest::Method::POST && path.ends_with("/call") {
     Duration::from_secs(120)
   } else {
