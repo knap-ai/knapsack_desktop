@@ -126,13 +126,13 @@ const NOTIF_FRAME_TIME: u64 = 8;
 #[cfg(target_os = "macos")]
 fn updater_temp_root_from_executable(executable_path: &std::path::Path) -> Option<PathBuf> {
   let executable_dir = executable_path.parent()?;
-  let app_root = if executable_dir.to_string_lossy().contains("Contents/MacOS") {
-    executable_dir.parent()?.parent()?.to_path_buf()
+  if executable_dir.to_string_lossy().contains("Contents/MacOS") {
+    let app_root = executable_dir.parent()?.parent()?;
+    let install_root = app_root.parent()?;
+    Some(install_root.join(".knapsack-updater-tmp"))
   } else {
-    executable_dir.to_path_buf()
-  };
-  let install_root = app_root.parent()?.to_path_buf();
-  Some(install_root.join(".knapsack-updater-tmp"))
+    Some(executable_dir.join(".knapsack-updater-tmp"))
+  }
 }
 
 #[tauri::command]
