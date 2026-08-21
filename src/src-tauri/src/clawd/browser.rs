@@ -17,6 +17,7 @@ use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
 use crate::db::models::token_usage::TokenUsage;
+use crate::db::models::user_connection::UserConnection;
 use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
@@ -862,6 +863,53 @@ fn knapsack_fallback_credential(app_handle: &tauri::AppHandle) -> Option<String>
   // anchored on the connected account email and can acquire/refresh a bearer
   // token lazily inside `knapsack_bearer_token`.
   knapsack_user_email(app_handle)
+}
+
+fn connected_google_accounts_section(user_email: &str) -> String {
+  if user_email.trim().is_empty() {
+    return String::new();
+  }
+
+  let Ok(connections) = UserConnection::find_by_user_email(user_email.to_string()) else {
+    return String::new();
+  };
+  let mut accounts = std::collections::BTreeMap::<String, Vec<&'static str>>::new();
+  for connection in connections {
+    let Some(scope) = connection
+      .connection
+      .as_ref()
+      .map(|item| item.scope.as_str())
+    else {
+      continue;
+    };
+    let service = match scope {
+      "google_gmail_modify" => "Gmail",
+      "google_calendar_read" => "Calendar",
+      "google_drive_read" => "Drive",
+      _ => continue,
+    };
+    let account_email = connection.calendar_account_email.trim();
+    if account_email.is_empty() {
+      continue;
+    }
+    let services = accounts.entry(account_email.to_string()).or_default();
+    if !services.contains(&service) {
+      services.push(service);
+    }
+  }
+  if accounts.is_empty() {
+    return String::new();
+  }
+
+  let rows = accounts
+    .into_iter()
+    .map(|(account, services)| format!("- {}: {}", account, services.join(", ")))
+    .collect::<Vec<_>>()
+    .join("\n");
+  format!(
+    "\n\n## CONNECTED GOOGLE ACCOUNTS — CAPABILITY TRUTH\n{}\nThese are authenticated native connections. An empty search or no recent Drive activity means no matching data was found; it does not mean the account lacks access. Never tell the user to reconnect a service listed here unless an actual native request returns an authentication error.\n",
+    rows
+  )
 }
 
 fn normalize_provider_model(provider: &str, model: &str) -> String {
@@ -5347,6 +5395,7 @@ When the user asks "what can you do" or "what skills do you have", mention that 
   } else {
     String::new()
   };
+  let connected_accounts_section = connected_google_accounts_section(&user_email);
 
   let email_section = if !user_email.is_empty() {
     r#"## EMAIL SENDING
@@ -5410,7 +5459,7 @@ No email account is directly connected via the send_email tool. However, you CAN
   } else {
     format!(
       r#"You are Openclaw, an intelligent personal assistant running inside the Knapsack desktop app with browser control capabilities.
-{}{}{}{}{}{}{}{}{}
+{}{}{}{}{}{}{}{}{}{}
 # CORE IDENTITY
 You are PROACTIVE, PERSISTENT, THOROUGH, and CREATIVE in helping users accomplish their goals. You don't give up easily and you always see tasks through to completion.
 
@@ -5831,6 +5880,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       voice_section,
       autonomy_section,
       meeting_section,
+      connected_accounts_section,
       advanced_section,
       local_files_section,
       skills_section,
