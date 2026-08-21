@@ -6,6 +6,12 @@ import { Color } from '@tiptap/extension-color'
 import Heading from '@tiptap/extension-heading'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
+import Table from '@tiptap/extension-table'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TableRow from '@tiptap/extension-table-row'
+import TaskItemExtension from '@tiptap/extension-task-item'
+import TaskList from '@tiptap/extension-task-list'
 import TextStyle from '@tiptap/extension-text-style'
 import Typography from '@tiptap/extension-typography'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -28,6 +34,7 @@ import { logError } from 'src/utils/errorHandling'
 import { KNFileType } from 'src/utils/KNSearchFilters'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { enterMeetingWindowLayout } from 'src/utils/meetingWindowLayout'
+import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
 import {
@@ -264,7 +271,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     'Saving transcript locally...',
     'Transcript saved',
   ]
-  const [isEditing, setIsEditing] = useState(true)
+  // Completed meetings should open as polished notes. Editing is opt-in so the
+  // document doesn't flash a toolbar or flatten rich Markdown on first render.
+  const [isEditing, setIsEditing] = useState(!thread.recorded)
   const [prepContent, setPrepContent] = useState('')
   const [isPrepGenerating, setIsPrepGenerating] = useState(false)
   const [suggestedCalendarEvent, setSuggestedCalendarEvent] = useState<Meeting | null>(null)
@@ -441,6 +450,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       Highlight.configure({
         multicolor: true,
       }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: { class: 'notetaker-note__table' },
+      }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      TaskList.configure({
+        HTMLAttributes: { class: 'notetaker-note__task-list' },
+      }),
+      TaskItemExtension.configure({ nested: true }),
       Markdown.configure({
         transformPastedText: true,
         transformCopiedText: true,
@@ -778,8 +798,10 @@ Be specific, compact, and useful while the user is joining the call.`,
       if (response.ok) {
         const data = await response.json()
         if (data && data.data && data.data.notes) {
-          setNotesMarkdown(data.data.notes)
-          editor?.commands.setContent(data.data.notes)
+          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes)
+          setNotesMarkdown(normalizedNotes)
+          const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
+          editor?.commands.setContent(parsedNotes || normalizedNotes)
         } else {
           setMarkdown('')
           editor?.commands.setContent('')
@@ -1681,30 +1703,6 @@ Be direct, specific, and concise. No filler text.`
           </div>
         )}
 
-        {isMeetingChatOpen && (
-          <section className="notetaker-note__inline-chat" aria-label="Meeting chat">
-            <button
-              type="button"
-              className="notetaker-note__inline-chat-close"
-              onClick={() => setIsMeetingChatOpen(false)}
-              title="Close meeting chat"
-              aria-label="Close meeting chat"
-            >
-              ×
-            </button>
-            <ClawdChat
-              userName={userName}
-              userEmail={userEmail}
-              compact
-              title="Ask about this meeting"
-              contextPrefix={meetingChatContext}
-              initialInput={meetingChatInitialInput}
-              chatId={`meeting:${thread.id}`}
-              sessionId={`meeting:${thread.id}`}
-            />
-          </section>
-        )}
-
         {/* Inline insights — collected from heartbeat during recording, dismissable */}
         {inlineInsights.length > 0 && (
           <div className="notetaker-note__insights-inline">
@@ -1908,6 +1906,31 @@ Be direct, specific, and concise. No filler text.`
       </div>
 
       </div>
+
+      {isMeetingChatOpen && (
+        <section className="notetaker-note__chat-overlay" aria-label="Meeting chat">
+          <div className="notetaker-note__chat-overlay-handle" aria-hidden="true" />
+          <button
+            type="button"
+            className="notetaker-note__chat-overlay-close"
+            onClick={() => setIsMeetingChatOpen(false)}
+            title="Close meeting chat"
+            aria-label="Close meeting chat"
+          >
+            ×
+          </button>
+          <ClawdChat
+            userName={userName}
+            userEmail={userEmail}
+            compact
+            title="Ask about this meeting"
+            contextPrefix={meetingChatContext}
+            initialInput={meetingChatInitialInput}
+            chatId={`meeting:${thread.id}`}
+            sessionId={`meeting:${thread.id}`}
+          />
+        </section>
+      )}
 
       {/* Notetaker bottom bar */}
       {(true) && (

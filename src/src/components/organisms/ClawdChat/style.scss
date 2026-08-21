@@ -528,6 +528,58 @@
   }
 }
 
+.ClawdStudioConnectorNudge {
+  align-items: flex-start;
+  background: #f6f2ff;
+  border-color: #d9ccf4;
+
+  .ClawdSkillNudgeName {
+    color: #5f3a8a;
+  }
+
+  .ClawdSkillNudgeDesc {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.35;
+  }
+
+  .ClawdStudioConnectorNudgeActions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 48%;
+  }
+
+  .ClawdSkillNudgeAction {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #7048a8;
+
+    &:hover {
+      background: #5e3a92;
+    }
+  }
+
+  @media (max-width: 760px) {
+    flex-wrap: wrap;
+
+    .ClawdSkillNudgeBody {
+      flex-basis: calc(100% - 64px);
+    }
+
+    .ClawdStudioConnectorNudgeActions {
+      order: 3;
+      max-width: none;
+      width: 100%;
+      justify-content: flex-start;
+      padding-left: 28px;
+    }
+  }
+}
+
 .ClawdMsg {
   display: flex;
   margin-bottom: 10px;

@@ -2349,6 +2349,19 @@ pub async fn set_browser_presentation(
   if let Err(error) =
     gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await
   {
+    if gateway_client::is_transient_browser_error(&error) {
+      return HttpResponse::Accepted().json(BrowserPresentationResponse {
+        success: true,
+        embedded: payload.embedded,
+        changed: true,
+        message: if payload.embedded {
+          "Embedded browser enabled. The shared browser is finishing startup in the panel."
+            .to_string()
+        } else {
+          "Managed browser enabled. The shared browser is finishing startup.".to_string()
+        },
+      });
+    }
     return HttpResponse::BadGateway().json(BrowserPresentationResponse {
       success: false,
       embedded: payload.embedded,
@@ -2384,6 +2397,26 @@ pub struct TabsListResponse {
   pub tabs: Vec<ClawdbotTab>,
 }
 
+/// Chrome exposes pages, iframes, service workers, and browser UI through the
+/// same targets endpoint. Only top-level pages are browser tabs. Returning a
+/// worker here lets a late-created service worker (Google News is a common
+/// example) displace the visible page in clients and then fail page-only CDP
+/// commands such as `Page.enable`.
+fn retain_top_level_page_tabs(result: &mut JsonValue) {
+  let Some(tabs) = result.get_mut("tabs").and_then(JsonValue::as_array_mut) else {
+    return;
+  };
+  tabs.retain(|tab| {
+    tab
+      .get("type")
+      .and_then(JsonValue::as_str)
+      .map(|target_type| target_type == "page")
+      // Older gateways did not include a target type. Preserve those tabs for
+      // backward compatibility rather than hiding every tab.
+      .unwrap_or(true)
+  });
+}
+
 #[get("/api/clawd/browser/tabs")]
 pub async fn list_tabs(
   _app_handle: web::Data<tauri::AppHandle>,
@@ -2399,7 +2432,10 @@ pub async fn list_tabs(
   };
   let rpc_query = serde_json::json!({"profile": profile});
   match gateway_client::browser_request("GET", "/tabs", Some(rpc_query), None, None).await {
-    Ok(result) => HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result})),
+    Ok(mut result) => {
+      retain_top_level_page_tabs(&mut result);
+      HttpResponse::Ok().json(serde_json::json!({"success": true, "data": result}))
+    }
     Err(e) => HttpResponse::BadGateway().json(serde_json::json!({"success": false, "message": e})),
   }
 }
@@ -7568,7 +7604,8 @@ mod tests {
     knapsack_token_is_expired, load_seed_history_from_request,
     local_file_request_requires_inspection, provider_compaction_limits,
     provider_context_recovery_limits, read_embedded_browser_preference_at,
-    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
+    retain_top_level_page_tabs, should_attempt_fallback_for_provider_error,
+    write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -7633,6 +7670,29 @@ mod tests {
       super::desktop_browser_profile(None, None).unwrap(),
       "openclaw"
     );
+  }
+
+  #[test]
+  fn browser_tabs_exclude_non_page_chrome_targets() {
+    let mut result = json!({
+      "running": true,
+      "tabs": [
+        {"targetId": "page-1", "type": "page", "url": "https://news.google.com"},
+        {"targetId": "worker-1", "type": "service_worker", "url": "https://news.google.com/dssw.js"},
+        {"targetId": "iframe-1", "type": "iframe", "url": "https://example.com/frame"},
+        {"targetId": "legacy-1", "url": "https://example.com"}
+      ]
+    });
+
+    retain_top_level_page_tabs(&mut result);
+
+    let ids = result["tabs"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .filter_map(|tab| tab["targetId"].as_str())
+      .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["page-1", "legacy-1"]);
   }
 
   #[test]

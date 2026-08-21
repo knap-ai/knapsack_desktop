@@ -31,6 +31,7 @@ interface BrowserTab {
   targetId: string
   title?: string
   url?: string
+  type?: string
 }
 
 interface TabsEnvelope {
@@ -119,7 +120,9 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     })
     if (!response.ok) throw new Error('The shared browser is still starting')
     const envelope = (await response.json()) as TabsEnvelope
-    const tabs = tabsFromEnvelope(envelope).filter(tab => tab.targetId)
+    const tabs = tabsFromEnvelope(envelope).filter(
+      tab => tab.targetId && (!tab.type || tab.type === 'page'),
+    )
     if (!tabs.length) return []
 
     const previousIds = knownTargetIdsRef.current
@@ -163,11 +166,23 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       setError('')
       setIsLoading(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      const targetWasNotAPage =
+        message.includes("'Page.enable' wasn't found") ||
+        message.includes('Command can only be executed on top-level targets')
+      if (targetWasNotAPage) {
+        // Dynamic sites can create workers between the tab and screenshot
+        // polls. Drop the stale selection and immediately resolve the current
+        // top-level page instead of surfacing a low-level CDP error.
+        currentTargetIdRef.current = ''
+        await refreshTabs().catch(() => undefined)
+      } else {
+        setError(message)
+      }
     } finally {
       screenshotPendingRef.current = false
     }
-  }, [browserProfile])
+  }, [browserProfile, refreshTabs])
 
   const navigate = useCallback(
     async (value: string) => {

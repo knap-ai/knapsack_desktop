@@ -1354,6 +1354,55 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
   patched
 }
 
+/// Register the generic Studio/Composio bridge. The bridge reads the Studio
+/// JWT from Desktop's private token store; no credential is written into the
+/// gateway configuration or exposed to the model.
+fn ensure_knapsack_studio_mcp_server(cfg: &mut serde_json::Value, clawdbot_home: &Path) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+  let current_exe = match std::env::current_exe() {
+    Ok(path) => path.to_string_lossy().into_owned(),
+    Err(_) => return false,
+  };
+  let mut patched = false;
+  if cfg.get("mcp").and_then(|value| value.as_object()).is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("mcp".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/mcp/servers")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/mcp")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("servers".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  let expected = serde_json::json!({
+    "command": current_exe,
+    "args": ["--internal-mcp-studio"],
+    "cwd": clawdbot_home.to_string_lossy(),
+  });
+  if let Some(servers) = cfg
+    .pointer_mut("/mcp/servers")
+    .and_then(|value| value.as_object_mut())
+  {
+    if servers.get("studio") != Some(&expected) {
+      servers.insert("studio".to_string(), expected);
+      patched = true;
+    }
+  }
+  patched
+}
+
 /// Registering `mcp.servers.snowflake` (above) makes the gateway spawn the
 /// MCP subprocess, but the gateway also enforces `tools.allow` as a strict
 /// allowlist. Bundle-MCP tools aren't registered under their own schema
@@ -1370,6 +1419,7 @@ const SNOWFLAKE_MCP_TOOL_ALLOW_NAME: &str = "snowflake__snowflake_query";
 /// The bare tool name we mistakenly shipped first — cleaned up wherever
 /// found so it doesn't linger as a dead, gateway-rejected entry.
 const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
+const STUDIO_MCP_TOOLS_ALLOW: &str = "studio__*";
 
 /// MCP-provided tools that must always ride along with the base tools.allow
 /// / tools.sandbox.tools.allow lists below. Add new bundle-MCP tool names
@@ -1377,7 +1427,7 @@ const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
 /// entry here is silent: the gateway just never mentions the tool to the
 /// model, which improvises something else (e.g. browsing to the product's
 /// website) instead of reporting an error.
-const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME];
+const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME, STUDIO_MCP_TOOLS_ALLOW];
 
 /// Canonical base `tools.allow` set for Knapsack-managed gateway sessions.
 ///
@@ -1578,6 +1628,82 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
     );
   }
 
+  patched
+}
+
+fn ensure_knapsack_studio_tool_allow(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+  let mut patched = false;
+  if cfg.get("tools").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/allow")
+    .and_then(|value| value.as_array())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("allow".to_string(), serde_json::json!([]));
+  }
+  if cfg
+    .pointer("/tools/sandbox")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/sandbox/tools")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools/sandbox")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/sandbox/tools/allow")
+    .and_then(|value| value.as_array())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools/sandbox/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("allow".to_string(), serde_json::json!([]));
+  }
+  for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
+    if let Some(allow) = cfg
+      .pointer_mut(pointer)
+      .and_then(|value| value.as_array_mut())
+    {
+      if !allow
+        .iter()
+        .any(|item| item.as_str() == Some(STUDIO_MCP_TOOLS_ALLOW))
+      {
+        allow.push(serde_json::json!(STUDIO_MCP_TOOLS_ALLOW));
+        patched = true;
+      }
+    }
+  }
   patched
 }
 
@@ -4112,6 +4238,26 @@ pub(crate) fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
     .app_data_dir()
     .unwrap_or_else(|| PathBuf::from("."))
     .join("clawdbot")
+}
+
+fn read_embedded_browser_preference_at(app_handle: &tauri::AppHandle) -> bool {
+  let home = app_clawdbot_home(app_handle);
+  let current = home.join("openclaw.json");
+  let legacy = home.join("clawdbot.json");
+  let path = if current.exists() || !legacy.exists() {
+    current
+  } else {
+    legacy
+  };
+  fs::read_to_string(path)
+    .ok()
+    .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+    .and_then(|config| {
+      config
+        .pointer("/browser/headless")
+        .and_then(|value| value.as_bool())
+    })
+    .unwrap_or(false)
 }
 
 fn knapsack_openclaw_workspace_path(clawdbot_home: &Path) -> PathBuf {
@@ -7239,15 +7385,20 @@ async fn browser_control_rpc_ready(gateway_token: &str, timeout: std::time::Dura
 async fn browser_control_start_direct(
   gateway_token: &str,
   timeout: std::time::Duration,
+  headless: Option<bool>,
 ) -> Result<(), String> {
   let client = reqwest::Client::builder()
     .timeout(timeout)
     .build()
     .map_err(|e| e.to_string())?;
-  let resp = client
+  let mut request = client
     .post("http://127.0.0.1:18791/start")
     .query(&[("profile", "openclaw")])
-    .bearer_auth(gateway_token)
+    .bearer_auth(gateway_token);
+  if let Some(headless) = headless {
+    request = request.query(&[("headless", headless)]);
+  }
+  let resp = request
     .send()
     .await
     .map_err(|e| e.to_string())?;
@@ -7280,8 +7431,12 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         return;
       }
 
-      match browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(900))
-        .await
+      match browser_control_start_direct(
+        &gateway_token,
+        std::time::Duration::from_millis(900),
+        None,
+      )
+      .await
       {
         Ok(()) => {
           eprintln!("[clawd/service] startup-ready browser /start nudge succeeded");
@@ -7738,6 +7893,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let token = tokens.gateway_token.clone();
       let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
+        let embedded_browser = read_embedded_browser_preference_at(&nudge_app_handle);
         if qa_direct_runtime {
           #[cfg(target_os = "macos")]
           {
@@ -7777,7 +7933,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
         match tokio::time::timeout(
           std::time::Duration::from_secs(4),
-          browser_control_start_direct(&token, std::time::Duration::from_secs(3)),
+          browser_control_start_direct(
+            &token,
+            std::time::Duration::from_secs(3),
+            Some(embedded_browser),
+          ),
         )
         .await
         {
@@ -7798,7 +7958,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           gateway_client::browser_request(
             "POST",
             "/start",
-            Some(serde_json::json!({"profile": "openclaw"})),
+            Some(serde_json::json!({
+              "profile": "openclaw",
+              "headless": embedded_browser,
+            })),
             None,
             None,
           ),
@@ -8238,6 +8401,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         let _ = browser_control_start_direct(
           &tokens.gateway_token,
           std::time::Duration::from_millis(900),
+          Some(read_embedded_browser_preference_at(app_handle.get_ref())),
         )
         .await;
         probe =
@@ -11192,7 +11356,14 @@ async fn prepare_gateway_config(
           eprintln!("[clawd/service] Patched mcp.servers.snowflake");
           patched = true;
         }
+        if ensure_knapsack_studio_mcp_server(&mut cfg_val, &clawdbot_home) {
+          eprintln!("[clawd/service] Patched mcp.servers.studio");
+          patched = true;
+        }
         if ensure_knapsack_snowflake_tool_allow(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_studio_tool_allow(&mut cfg_val) {
           patched = true;
         }
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
@@ -13282,7 +13453,14 @@ pub async fn set_service_enabled(
               eprintln!("[clawd/service] Patched mcp.servers.snowflake");
               patched = true;
             }
+            if ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home) {
+              eprintln!("[clawd/service] Patched mcp.servers.studio");
+              patched = true;
+            }
             if ensure_knapsack_snowflake_tool_allow(&mut cfg) {
+              patched = true;
+            }
+            if ensure_knapsack_studio_tool_allow(&mut cfg) {
               patched = true;
             }
             if ensure_knapsack_agent_defaults(&mut cfg, &clawdbot_home) {
@@ -15361,6 +15539,183 @@ pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> imp
   HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
 }
 
+#[derive(Debug, Serialize)]
+pub struct StudioConnectionsResponse {
+  pub success: bool,
+  pub connected: Vec<String>,
+  pub available: Vec<serde_json::Value>,
+  pub message: Option<String>,
+}
+
+fn parse_studio_connector_catalog(
+  body: &serde_json::Value,
+) -> (Vec<String>, Vec<serde_json::Value>) {
+  let mut available = body
+    .get("connectors")
+    .and_then(|value| value.as_array())
+    .cloned()
+    .unwrap_or_default();
+  available.retain(|connector| {
+    connector
+      .get("id")
+      .and_then(|value| value.as_str())
+      .is_some()
+      && connector
+        .get("name")
+        .and_then(|value| value.as_str())
+        .is_some()
+  });
+  let mut connected = available
+    .iter()
+    .filter(|connector| connector.get("connected").and_then(|value| value.as_bool()) == Some(true))
+    .filter_map(|connector| connector.get("scope").and_then(|value| value.as_str()))
+    .map(ToOwned::to_owned)
+    .collect::<Vec<_>>();
+  connected.sort();
+  connected.dedup();
+  (connected, available)
+}
+
+async fn fetch_studio_connector_catalog(
+  token: &str,
+) -> Result<(Vec<String>, Vec<serde_json::Value>), String> {
+  let api_base = std::env::var("KNAPSACK_STUDIO_API_BASE")
+    .ok()
+    .filter(|value| !value.trim().is_empty())
+    .unwrap_or_else(|| {
+      option_env!("VITE_KN_API_SERVER")
+        .unwrap_or("https://api.knapsack.ai")
+        .to_string()
+    });
+  let response = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+    .map_err(|error| error.to_string())?
+    .get(format!(
+      "{}/api/composio/auth/catalog",
+      api_base.trim_end_matches('/')
+    ))
+    .bearer_auth(token)
+    .send()
+    .await
+    .map_err(|error| error.to_string())?;
+  if response.status() == reqwest::StatusCode::NOT_FOUND {
+    let legacy = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_secs(15))
+      .build()
+      .map_err(|error| error.to_string())?
+      .get(format!(
+        "{}/api/connections/available_connections",
+        api_base.trim_end_matches('/')
+      ))
+      .bearer_auth(token)
+      .send()
+      .await
+      .map_err(|error| error.to_string())?;
+    if !legacy.status().is_success() {
+      return Err(format!("Studio returned {}", legacy.status()));
+    }
+    let body: serde_json::Value = legacy.json().await.map_err(|error| error.to_string())?;
+    let mut connected = body
+      .get("scopes")
+      .and_then(|value| value.as_array())
+      .into_iter()
+      .flatten()
+      .filter_map(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(ToOwned::to_owned)
+      .collect::<Vec<_>>();
+    connected.sort();
+    connected.dedup();
+    return Ok((connected, Vec::new()));
+  }
+  if !response.status().is_success() {
+    return Err(format!("Studio returned {}", response.status()));
+  }
+  let body: serde_json::Value = response.json().await.map_err(|error| error.to_string())?;
+  Ok(parse_studio_connector_catalog(&body))
+}
+
+/// Return the Studio integrations available to the account connected to the
+/// desktop app without exposing the stored Studio bearer token to the webview.
+#[get("/api/clawd/service/studio-connections")]
+pub async fn studio_connections(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(tokens) => tokens,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(StudioConnectionsResponse {
+        success: false,
+        connected: Vec::new(),
+        available: Vec::new(),
+        message: Some(error),
+      });
+    }
+  };
+
+  if !has_knapsack_runtime_auth(&tokens) {
+    return HttpResponse::Ok().json(StudioConnectionsResponse {
+      success: false,
+      connected: Vec::new(),
+      available: Vec::new(),
+      message: Some("Connect a Knapsack Studio account first.".to_string()),
+    });
+  }
+
+  let mut token = tokens
+    .knapsack_access_token
+    .as_deref()
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .map(ToOwned::to_owned);
+
+  if token.is_none() {
+    token = crate::clawd::browser::refresh_knapsack_access_token(Some(&app_handle)).await;
+  }
+
+  if let Some(current_token) = token {
+    match fetch_studio_connector_catalog(&current_token).await {
+      Ok((connected, available)) => {
+        return HttpResponse::Ok().json(StudioConnectionsResponse {
+          success: true,
+          connected,
+          available,
+          message: None,
+        });
+      }
+      Err(first_error) => {
+        if let Some(refreshed) =
+          crate::clawd::browser::refresh_knapsack_access_token(Some(&app_handle)).await
+        {
+          if refreshed != current_token {
+            if let Ok((connected, available)) = fetch_studio_connector_catalog(&refreshed).await {
+              return HttpResponse::Ok().json(StudioConnectionsResponse {
+                success: true,
+                connected,
+                available,
+                message: None,
+              });
+            }
+          }
+        }
+        return HttpResponse::BadGateway().json(StudioConnectionsResponse {
+          success: false,
+          connected: Vec::new(),
+          available: Vec::new(),
+          message: Some(first_error),
+        });
+      }
+    }
+  }
+
+  HttpResponse::Unauthorized().json(StudioConnectionsResponse {
+    success: false,
+    connected: Vec::new(),
+    available: Vec::new(),
+    message: Some("Knapsack Studio sign-in expired. Please reconnect.".to_string()),
+  })
+}
+
 async fn exchange_openrouter_code(code: &str) -> Result<String, String> {
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
@@ -17016,9 +17371,10 @@ mod knapsack_runtime_auth_tests {
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
     ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
-    ensure_knapsack_snowflake_mcp_server,
-    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
-    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
+    ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
+    ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, parse_studio_connector_catalog,
+    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
   use std::path::PathBuf;
 
@@ -17054,6 +17410,20 @@ mod knapsack_runtime_auth_tests {
       knapsack_refresh_token: None,
       session_capability_secret: None,
     }
+  }
+
+  #[test]
+  fn studio_connector_catalog_is_validated_and_connected_scopes_are_normalized() {
+    let body = serde_json::json!({
+      "connectors": [
+        {"id": "slack", "scope": "slack", "name": "Slack", "connected": true},
+        {"id": "future", "scope": "future", "name": "Future", "connected": false},
+        {"id": "broken", "connected": true}
+      ]
+    });
+    let (connected, available) = parse_studio_connector_catalog(&body);
+    assert_eq!(connected, vec!["slack".to_string()]);
+    assert_eq!(available.len(), 2);
   }
 
   #[test]
@@ -17298,6 +17668,31 @@ mod knapsack_runtime_auth_tests {
       .is_some_and(|value| !value.is_empty()));
 
     assert!(!ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+  }
+
+  #[test]
+  fn studio_mcp_server_and_dynamic_tool_allow_are_registered() {
+    let mut cfg = serde_json::json!({});
+    let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
+
+    assert!(ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home));
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/studio/args/0")
+        .and_then(|value| value.as_str()),
+      Some("--internal-mcp-studio")
+    );
+    assert!(ensure_knapsack_studio_tool_allow(&mut cfg));
+    for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
+      assert!(cfg
+        .pointer(pointer)
+        .and_then(|value| value.as_array())
+        .is_some_and(|values| values
+          .iter()
+          .any(|value| value.as_str() == Some("studio__*"))));
+    }
+    assert!(!ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(!ensure_knapsack_studio_tool_allow(&mut cfg));
   }
 
   #[test]

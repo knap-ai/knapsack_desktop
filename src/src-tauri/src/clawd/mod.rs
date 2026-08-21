@@ -19,3 +19,4 @@ pub mod service;
 pub mod session_watcher;
 pub mod sidecar;
 pub mod snowflake_mcp;
+pub mod studio_mcp;

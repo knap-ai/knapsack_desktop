@@ -25,6 +25,12 @@ import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import { XAI_MODELS } from 'src/utils/xaiModels'
+import {
+  detectStudioConnectorSuggestion,
+  normalizeStudioConnectorCatalog,
+  type StudioConnector,
+  type StudioConnectorSuggestion,
+} from 'src/utils/studioConnectors'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -404,6 +410,13 @@ type ServiceHealth = {
   browser_ok: boolean
   message: string
   diagnostic_type?: string
+}
+
+type StudioConnectionsResponse = {
+  success: boolean
+  connected: string[]
+  available?: Array<Partial<StudioConnector>>
+  message?: string
 }
 
 const HEALTH_POLL_INTERVAL_MS = 3000
@@ -2192,6 +2205,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const skillSuggestionRef = useRef<SkillInfo | null>(null)
   const [dismissedSkillNames, setDismissedSkillNames] = useState<Set<string>>(new Set())
   const pendingSkillSuggestionRef = useRef<SkillInfo | null>(null)
+  const studioConnectedScopesRef = useRef<Set<string>>(new Set())
+  const studioAvailableConnectorsRef = useRef<StudioConnector[]>([])
+  const studioConnectionsLoadedRef = useRef(false)
+  const [studioConnectorSuggestion, setStudioConnectorSuggestion] = useState<StudioConnectorSuggestion | null>(null)
+  const studioConnectorSuggestionRef = useRef<StudioConnectorSuggestion | null>(null)
+  const pendingStudioConnectorSuggestionRef = useRef<StudioConnectorSuggestion | null>(null)
+  const dismissedStudioConnectorIdsRef = useRef<Set<string>>(new Set())
+  const knapsackEmailRef = useRef<string | null>(null)
 
   // Channels removed - gateway-based messaging not available in this version
 
@@ -3853,6 +3874,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Separate counter for gateway_ok && !browser_ok polls so we can gate
         // the troubleshooting banner without conflating gateway-down polls.
         let browserNotReadyCount = 0
+        let browserRecoveryInFlight = false
         let lastHealthJson = ''
         let lastStatusJson = ''
         // Exponential backoff for the catch branch (HTTP backend itself unreachable).
@@ -3889,12 +3911,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
-              // Poll every 3s so we detect browser readiness quickly.
-              // (Backend sends a one-time /start nudge automatically.)
+              // Poll every 3s so we detect browser readiness quickly. The
+              // initial startup-ready request can finish before a slow gateway
+              // is ready to accept the browser /start command, so retry the
+              // readiness gate once the gateway is confirmed healthy.
               consecutiveDownPolls++
               browserNotReadyCount++
               setBrowserNotReadyPolls(browserNotReadyCount)
               setGatewayDownPolls(0)
+              if (
+                !browserRecoveryInFlight
+                && (browserNotReadyCount === 1 || browserNotReadyCount % 6 === 0)
+              ) {
+                browserRecoveryInFlight = true
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready')
+                  .catch(() => undefined)
+                  .finally(() => {
+                    browserRecoveryInFlight = false
+                  })
+              }
               setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
             } else {
               // Gateway is down (reconnecting state).
@@ -3988,10 +4023,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => {
     const wasThinking = prevThinkingRef.current
     prevThinkingRef.current = thinkingMessage
-    if (wasThinking && !thinkingMessage && pendingSkillSuggestionRef.current) {
-      setSkillSuggestion(pendingSkillSuggestionRef.current)
-      skillSuggestionRef.current = pendingSkillSuggestionRef.current
-      pendingSkillSuggestionRef.current = null
+    if (wasThinking && !thinkingMessage) {
+      const connectorSuggestion = pendingStudioConnectorSuggestionRef.current
+      pendingStudioConnectorSuggestionRef.current = null
+      if (connectorSuggestion) {
+        setStudioConnectorSuggestion(connectorSuggestion)
+        studioConnectorSuggestionRef.current = connectorSuggestion
+        pendingSkillSuggestionRef.current = null
+        return
+      }
+      if (pendingSkillSuggestionRef.current) {
+        setSkillSuggestion(pendingSkillSuggestionRef.current)
+        skillSuggestionRef.current = pendingSkillSuggestionRef.current
+        pendingSkillSuggestionRef.current = null
+      }
     }
   }, [thinkingMessage])
 
@@ -3999,6 +4044,50 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => {
     skillSuggestionRef.current = skillSuggestion
   }, [skillSuggestion])
+
+  useEffect(() => {
+    studioConnectorSuggestionRef.current = studioConnectorSuggestion
+  }, [studioConnectorSuggestion])
+
+  useEffect(() => {
+    knapsackEmailRef.current = knapsackEmail
+  }, [knapsackEmail])
+
+  const refreshStudioConnections = useCallback(async () => {
+    if (!knapsackEmail) {
+      studioConnectedScopesRef.current = new Set()
+      studioAvailableConnectorsRef.current = []
+      studioConnectionsLoadedRef.current = false
+      setStudioConnectorSuggestion(null)
+      return
+    }
+    try {
+      const response = await apiGet<StudioConnectionsResponse>('/api/clawd/service/studio-connections')
+      if (!response.success) {
+        studioConnectionsLoadedRef.current = false
+        setStudioConnectorSuggestion(null)
+        return
+      }
+      const connected = new Set(response.connected || [])
+      const available = normalizeStudioConnectorCatalog(response.available)
+      studioConnectedScopesRef.current = connected
+      studioAvailableConnectorsRef.current = available
+      studioConnectionsLoadedRef.current = true
+      setStudioConnectorSuggestion(current => {
+        if (!current) return null
+        const remaining = current.connectors.filter(connector => !connected.has(connector.scope || connector.id))
+        return remaining.length > 0 ? { ...current, connectors: remaining } : null
+      })
+    } catch {
+      studioConnectionsLoadedRef.current = false
+    }
+  }, [knapsackEmail])
+
+  useEffect(() => {
+    void refreshStudioConnections()
+    window.addEventListener('focus', refreshStudioConnections)
+    return () => window.removeEventListener('focus', refreshStudioConnections)
+  }, [refreshStudioConnections])
 
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
@@ -4158,10 +4247,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
+    pendingStudioConnectorSuggestionRef.current =
+      knapsackEmailRef.current && studioConnectionsLoadedRef.current
+        ? detectStudioConnectorSuggestion(
+            text,
+            studioConnectedScopesRef.current,
+            dismissedStudioConnectorIdsRef.current,
+            studioAvailableConnectorsRef.current,
+          )
+        : null
     // Detect a relevant not-yet-installed skill from the user's message.
     // Stored in a ref so the post-response effect can read the latest value.
     const allSkills = skills.length > 0 ? skills : FALLBACK_SKILLS
-    pendingSkillSuggestionRef.current = findRelevantSkill(text, allSkills, dismissedSkillNames)
+    pendingSkillSuggestionRef.current = pendingStudioConnectorSuggestionRef.current
+      ? null
+      : findRelevantSkill(text, allSkills, dismissedSkillNames)
   }
 
   // Stop current generation
@@ -4187,6 +4287,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const clearHistory = useCallback(() => {
     localStorage.removeItem(chatHistoryStorage)
     setMsgs(welcomeMessages)
+    setStudioConnectorSuggestion(null)
+    pendingStudioConnectorSuggestionRef.current = null
     autoTriggeredBriefingRef.current = false
   }, [chatHistoryStorage, welcomeMessages])
 
@@ -4242,6 +4344,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return res.tabs || []
   }
 
+  const openStudioConnector = useCallback(async (connector: StudioConnector) => {
+    const studioBase = (import.meta.env.VITE_KN_STUDIO_SERVER || 'https://studio.knapsack.ai').replace(/\/$/, '')
+    const url = `${studioBase}/connections?connect=${encodeURIComponent(connector.id)}&source=desktop-chat`
+    setStudioConnectorSuggestion(null)
+    studioConnectorSuggestionRef.current = null
+    try {
+      await shellOpen(url)
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }, [])
+
   // Send with specific text (for prompt action clicks, example clicks, voice auto-send)
   // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string, srcMsgId?: string) => {
@@ -4249,6 +4363,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     // If a skill nudge is showing and the user types a short affirmative, install it.
     const AFFIRMATIVES = new Set(['yes', 'yep', 'yeah', 'sure', 'ok', 'okay', 'do it', 'install it', 'install', 'go ahead', 'sounds good', 'yes please'])
+    const connectorSuggestion = studioConnectorSuggestionRef.current
+    if (
+      connectorSuggestion?.connectors.length === 1
+      && AFFIRMATIVES.has(text.trim().toLowerCase())
+    ) {
+      pushUser(text)
+      await openStudioConnector(connectorSuggestion.connectors[0])
+      return
+    }
     if (skillSuggestionRef.current && AFFIRMATIVES.has(text.trim().toLowerCase())) {
       const skill = skillSuggestionRef.current
       setSkillSuggestion(null)
@@ -4326,7 +4449,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     await doSend(text.trim())
-  }, [])
+  }, [openStudioConnector])
 
   // Keep handleSendWithTextRef updated for the clawd-send-user event listener
   handleSendWithTextRef.current = handleSendWithText
@@ -6117,6 +6240,43 @@ ${actualText}`
           </svg>
           New messages
         </button>
+      )}
+
+      {studioConnectorSuggestion && (
+        <div className="ClawdSkillNudge ClawdStudioConnectorNudge">
+          <span className="ClawdSkillNudgeEmoji">🔌</span>
+          <div className="ClawdSkillNudgeBody">
+            <span className="ClawdSkillNudgeName">{studioConnectorSuggestion.label}</span>
+            <span className="ClawdSkillNudgeDesc">{studioConnectorSuggestion.description}</span>
+          </div>
+          <div className="ClawdStudioConnectorNudgeActions">
+            {studioConnectorSuggestion.connectors.map(connector => (
+              <button
+                key={connector.id}
+                className="ClawdSkillNudgeAction"
+                onClick={() => void openStudioConnector(connector)}
+                title={connector.description}
+              >
+                <span aria-hidden="true">{connector.icon}</span>
+                {connector.name}
+              </button>
+            ))}
+          </div>
+          <button
+            className="ClawdSkillNudgeDismiss"
+            onClick={() => {
+              const ids = studioConnectorSuggestion.connectors.map(connector => connector.id)
+              dismissedStudioConnectorIdsRef.current = new Set([
+                ...dismissedStudioConnectorIdsRef.current,
+                ...ids,
+              ])
+              setStudioConnectorSuggestion(null)
+            }}
+            title="Not now"
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {/* Inline skill suggestion — appears after an AI response when a relevant

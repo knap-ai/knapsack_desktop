@@ -1710,6 +1710,10 @@ async fn main() {
     clawd::snowflake_mcp::run_stdio_server().await;
     std::process::exit(0);
   }
+  if std::env::args().any(|arg| arg == "--internal-mcp-studio") {
+    clawd::studio_mcp::run_stdio_server().await;
+    std::process::exit(0);
+  }
 
   create_data_dir();
   create_db_env_variable();
