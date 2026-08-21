@@ -20,6 +20,16 @@ export type TeamGroup = {
 const TEAM_ROSTER_STORAGE = 'knapsack.team.roster.v1'
 const TEAM_GROUPS_STORAGE = 'knapsack.team.groups.v1'
 const ONBOARDING_AGENTS_STORAGE = 'kn_onboarding_agents'
+export const CUSTOM_AGENT_BROWSER_PROFILES = Array.from(
+  { length: 64 },
+  (_, index) => `agent-custom-${String(index + 1).padStart(2, '0')}`,
+)
+const BUILT_IN_BROWSER_PROFILES = new Set([
+  'agent-polly',
+  'agent-scout',
+  'agent-atlas',
+  'agent-coach',
+])
 
 const BUILT_IN_SUGGESTED_PROMPTS: Record<string, string[]> = {
   scout: [
@@ -56,6 +66,7 @@ export function createTeamAgent(agent: {
   personality: string
   soul?: string
   suggestedPrompts?: string[]
+  browserProfile?: string
 }): TeamAgent {
   const id = slugifyAgentId(agent.id || agent.name)
   const customSuggestedPrompts = agent.suggestedPrompts?.filter(Boolean).slice(0, 3)
@@ -65,7 +76,7 @@ export function createTeamAgent(agent: {
     emoji: agent.emoji || '🤖',
     personality: agent.personality.trim() || 'Your AI teammate',
     soul: agent.soul?.trim() || `You are ${agent.name}, a focused and helpful AI teammate.`,
-    browserProfile: `agent-${id}`,
+    browserProfile: agent.browserProfile || `agent-${id}`,
     suggestedPrompts: customSuggestedPrompts?.length
       ? customSuggestedPrompts
       : BUILT_IN_SUGGESTED_PROMPTS[id] || [
@@ -73,6 +84,28 @@ export function createTeamAgent(agent: {
         `What is the highest-value action you can take for me today as ${agent.name}?`,
       ],
   }
+}
+
+function normalizeTeamBrowserProfiles(agents: TeamAgent[]): TeamAgent[] {
+  const used = new Set<string>()
+  return agents.map(agent => {
+    if (BUILT_IN_BROWSER_PROFILES.has(agent.browserProfile)) {
+      used.add(agent.browserProfile)
+      return agent
+    }
+    const preserved = CUSTOM_AGENT_BROWSER_PROFILES.includes(agent.browserProfile)
+      && !used.has(agent.browserProfile)
+      ? agent.browserProfile
+      : CUSTOM_AGENT_BROWSER_PROFILES.find(profile => !used.has(profile))
+    const browserProfile = preserved || 'openclaw'
+    used.add(browserProfile)
+    return { ...agent, browserProfile }
+  })
+}
+
+export function nextCustomAgentBrowserProfile(agents: TeamAgent[]): string {
+  const used = new Set(agents.map(agent => agent.browserProfile))
+  return CUSTOM_AGENT_BROWSER_PROFILES.find(profile => !used.has(profile)) || 'openclaw'
 }
 
 function normalizeTeamGroup(group: TeamGroup): TeamGroup {
@@ -108,7 +141,7 @@ export function getPrimaryScout(agents: TeamAgent[]): TeamAgent {
 }
 
 export function saveTeamRoster(agents: TeamAgent[]) {
-  localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(agents))
+  localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(normalizeTeamBrowserProfiles(agents)))
   window.dispatchEvent(new CustomEvent('knapsack:team-roster-changed'))
 }
 
@@ -118,7 +151,7 @@ export function loadTeamRoster(): TeamAgent[] {
     try {
       const parsed = JSON.parse(stored) as TeamAgent[]
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(agent => createTeamAgent(agent))
+        return normalizeTeamBrowserProfiles(parsed.map(agent => createTeamAgent(agent)))
       }
     } catch {
       // Fall through to onboarding migration/defaults.
@@ -135,7 +168,7 @@ export function loadTeamRoster(): TeamAgent[] {
         soul?: string
       }>
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const migrated = parsed.map(createTeamAgent)
+        const migrated = normalizeTeamBrowserProfiles(parsed.map(createTeamAgent))
         localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(migrated))
         return migrated
       }
@@ -155,7 +188,7 @@ export function upsertTeamAgents(
   const existing = loadTeamRoster()
   const byId = new Map(existing.map(agent => [agent.id, agent]))
   for (const agent of agents.map(createTeamAgent)) byId.set(agent.id, agent)
-  saveTeamRoster(Array.from(byId.values()))
+  saveTeamRoster(normalizeTeamBrowserProfiles(Array.from(byId.values())))
 }
 
 export function loadTeamGroups(): TeamGroup[] {

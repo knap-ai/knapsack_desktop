@@ -42,12 +42,24 @@ static LAST_BROWSER_RPC_SUCCESS_MS: AtomicU64 = AtomicU64::new(0);
 /// launches these lazily, so the profiles do not consume a browser process
 /// until the agent actually needs one.
 pub fn knapsack_agent_browser_profiles() -> Value {
-  serde_json::json!({
+  let mut profiles = serde_json::json!({
     "agent-polly": {"cdpPort": 18810, "color": "#A855F7"},
     "agent-scout": {"cdpPort": 18811, "color": "#6474AC"},
     "agent-atlas": {"cdpPort": 18812, "color": "#0F766E"},
     "agent-coach": {"cdpPort": 18813, "color": "#C14841"}
-  })
+  });
+  let custom_colors = ["#2563EB", "#7C3AED", "#0F766E", "#C2410C"];
+  let profile_map = profiles.as_object_mut().expect("browser profiles are an object");
+  for index in 0..64u16 {
+    profile_map.insert(
+      format!("agent-custom-{:02}", index + 1),
+      serde_json::json!({
+        "cdpPort": 18820 + index,
+        "color": custom_colors[index as usize % custom_colors.len()],
+      }),
+    );
+  }
+  profiles
 }
 
 fn next_request_id() -> String {
@@ -3401,7 +3413,7 @@ mod tests {
   fn starter_agent_browser_profiles_are_unique_and_lazy_managed_profiles() {
     let profiles = knapsack_agent_browser_profiles();
     let profiles = profiles.as_object().unwrap();
-    assert_eq!(profiles.len(), 4);
+    assert_eq!(profiles.len(), 68);
 
     let mut ports = profiles
       .values()
@@ -3409,7 +3421,7 @@ mod tests {
       .collect::<Vec<_>>();
     ports.sort_unstable();
     ports.dedup();
-    assert_eq!(ports.len(), 4);
+    assert_eq!(ports.len(), 68);
     assert!(profiles.keys().all(|name| name.starts_with("agent-")));
   }
 

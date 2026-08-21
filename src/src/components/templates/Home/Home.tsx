@@ -166,7 +166,7 @@ function Home({
   // Preserve the established main browser profile (and its cookies/logins)
   // when presenting main as Scout. Only secondary agents get new profiles.
   const activeBrowserProfile = activeGroup
-    ? `group-${activeGroup.id}`
+    ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
     : (activeAgent?.browserProfile ?? 'openclaw')
   const groupContext =
     activeGroup && activeGroupAgents.length >= 2
@@ -175,7 +175,7 @@ ${activeGroupAgents.map(agent => `- ${agent.emoji} ${agent.name} — ${agent.per
 
 This is a collaborative room, not a single blended persona. For every substantive request, choose a lead agent and use native subagent orchestration: call sessions_spawn once for each relevant member with that member's name, role, instructions, and the user's request; use isolated child sessions without an agentId so this stays inside the room's private session tree; then use sessions_yield to receive their completed contributions. Do not use sessions_send or cross-agent session messaging. Compare the independent outputs, let the lead challenge conflicts when needed, and synthesize a clear answer. Preserve meaningful disagreements and label individual contributions when that helps the user. Do not invent agreement or impersonate members when delegation is available. Keep the user-facing answer concise unless they ask for the full discussion.
 
-This room has its own durable session and shared browser workspace. When any member uses the browser, always select browser profile "${activeBrowserProfile}". Never use or copy cookies, tabs, credentials, or private memory from an individual agent's browser profile.`
+This room has its own durable session. Browser work uses the lead member's isolated browser workspace. When any member uses the browser, always select browser profile "${activeBrowserProfile}". Never use or copy cookies, tabs, credentials, or private memory from any other agent's browser profile.`
       : undefined
   const activeAgentContext =
     groupContext ??

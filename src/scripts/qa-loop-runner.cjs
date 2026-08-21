@@ -850,9 +850,23 @@ function probeBrowserPersistenceCapabilities() {
     ? path.join(stateDir, "browser", "openclaw", "user-data")
     : "";
   let commandLine = "";
-  if (process.platform === "darwin" && userDataDir) {
-    const ps = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
-    commandLine = String(ps.stdout || "")
+  if (userDataDir && (process.platform === "darwin" || process.platform === "linux")) {
+    const processList = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
+    commandLine = String(processList.stdout || "")
+      .split(/\r?\n/)
+      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+  } else if (userDataDir && process.platform === "win32") {
+    const processList = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine",
+      ],
+      { encoding: "utf8" },
+    );
+    commandLine = String(processList.stdout || "")
       .split(/\r?\n/)
       .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
   }
@@ -864,7 +878,7 @@ function probeBrowserPersistenceCapabilities() {
     ...result,
     commandLineObserved: Boolean(commandLine),
     profilePreferencesObserved: Object.keys(preferences).length > 0,
-    ok: result.ok && (process.platform !== "darwin" || Boolean(commandLine)),
+    ok: result.ok && (!["darwin", "win32"].includes(process.platform) || Boolean(commandLine)),
   };
 }
 

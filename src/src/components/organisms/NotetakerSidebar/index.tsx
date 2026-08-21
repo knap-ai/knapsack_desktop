@@ -7,6 +7,7 @@ import {
   getPrimaryScout,
   saveTeamGroups,
   saveTeamRoster,
+  nextCustomAgentBrowserProfile,
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
@@ -81,7 +82,10 @@ function TeamComposerDialog({
       let id = base.id
       let suffix = 2
       while (agents.some(agent => agent.id === id)) id = `${base.id}-${suffix++}`
-      saveTeamRoster([...agents, { ...base, id, browserProfile: `agent-${id}` }])
+      saveTeamRoster([
+        ...agents,
+        { ...base, id, browserProfile: nextCustomAgentBrowserProfile(agents) },
+      ])
     } else {
       const base = createTeamGroup({ name, emoji, agentIds: selectedAgentIds })
       let id = base.id
