@@ -1199,6 +1199,8 @@ fn is_transient_or_internal_provider_error(err_lower: &str) -> bool {
     || err_lower.contains("socket")
     || err_lower.contains("econnreset")
     || err_lower.contains("econnrefused")
+    || err_lower.contains("overloaded")
+    || err_lower.contains("try again")
 }
 
 fn should_attempt_fallback_for_provider_error(err_lower: &str) -> bool {
