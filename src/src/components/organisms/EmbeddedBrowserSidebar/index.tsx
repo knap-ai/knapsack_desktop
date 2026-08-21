@@ -267,8 +267,13 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     setIsLoading(true)
     setError('')
     try {
+      // The browser service deliberately reuses an existing tab when the URL
+      // matches. Give explicit "New tab" actions a unique start URL so the +
+      // button creates a real tab instead of focusing the existing Google tab.
+      const newTabUrl = new URL(DEFAULT_BROWSER_URL)
+      newTabUrl.searchParams.set('knapsack_new_tab', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
       const query = new URLSearchParams({
-        url: DEFAULT_BROWSER_URL,
+        url: newTabUrl.toString(),
         embedded: 'true',
         profile: browserProfile,
       })
@@ -277,7 +282,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       if (!response.ok || !result.success || !result.target_id) {
         throw new Error(result.message || 'Could not open a new browser tab')
       }
-      const tab = { targetId: result.target_id, title: 'New tab', url: DEFAULT_BROWSER_URL }
+      const tab = { targetId: result.target_id, title: 'New tab', url: newTabUrl.toString() }
       selectTarget(tab.targetId, tab)
       await refreshTabs()
       await refreshScreenshot()
