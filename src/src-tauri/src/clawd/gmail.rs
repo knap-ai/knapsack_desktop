@@ -101,7 +101,8 @@ pub async fn get_unread_important(query: web::Query<UnreadImportantParams>) -> i
 /// Send an email via the Gmail API using the user's OAuth credentials.
 /// Supports both new emails and replies (when thread_id is provided).
 pub async fn send_gmail_email(
-  user_email: &str,
+  owner_email: &str,
+  sender_email: &str,
   user_name: &str,
   to: &str,
   cc: Option<&str>,
@@ -112,21 +113,24 @@ pub async fn send_gmail_email(
 ) -> Result<String, String> {
   // 1. Get OAuth access token
   let scope = GOOGLE_GMAIL_SCOPE.to_string();
-  let user_connection =
-    UserConnection::find_by_scope_and_account_email(scope.clone(), user_email.to_string())
-      .or_else(|_| UserConnection::find_by_user_email_and_scope(user_email.to_string(), scope))
-      .map_err(|e| format!("Email account not connected: {:?}", e))?;
+  let user_connection = UserConnection::find_by_scope_and_account_email(
+    owner_email.to_string(),
+    scope.clone(),
+    sender_email.to_string(),
+  )
+  .or_else(|_| UserConnection::find_by_user_email_and_scope(owner_email.to_string(), scope))
+  .map_err(|e| format!("Email account not connected: {:?}", e))?;
 
-  let access_token = refresh_connection_token(user_email.to_string(), user_connection)
+  let access_token = refresh_connection_token(owner_email.to_string(), user_connection)
     .await
     .map_err(|e| format!("Failed to refresh auth token: {:?}", e))?;
 
   // 2. Build the MIME message
   let message_id = format!("<{}.knapsack@gmail.com>", Uuid::new_v4());
   let full_sender = if user_name.is_empty() {
-    user_email.to_string()
+    sender_email.to_string()
   } else {
-    format!("{} <{}>", user_name, user_email)
+    format!("{} <{}>", user_name, sender_email)
   };
 
   let has_attachments = attachments.map(|items| !items.is_empty()).unwrap_or(false);

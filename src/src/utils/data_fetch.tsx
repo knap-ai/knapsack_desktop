@@ -510,6 +510,7 @@ export default class DataFetcher {
         },
         body: JSON.stringify({
           emailUid: messageId,
+          accountEmail,
           isRead: true,
         }),
       })

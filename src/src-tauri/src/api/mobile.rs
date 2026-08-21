@@ -484,7 +484,11 @@ fn clean_email_preview(value: &str) -> Option<String> {
 
 fn email_timestamp_seconds(email: &Email) -> i64 {
   let raw = email.date as i64;
-  if raw > 10_000_000_000 { raw / 1000 } else { raw }
+  if raw > 10_000_000_000 {
+    raw / 1000
+  } else {
+    raw
+  }
 }
 
 fn is_deleted_or_archived(email: &Email) -> bool {
@@ -632,9 +636,11 @@ fn build_mobile_autopilot_email_message(email: &Email) -> MobileAutopilotEmailMe
   }
 }
 
-fn build_mobile_autopilot_email_detail(email_uid: &str) -> Result<MobileAutopilotEmailDetail, Error> {
-  let email = Email::find_by_uid(email_uid)?
-    .ok_or_else(|| Error::KSError("Email not found".to_string()))?;
+fn build_mobile_autopilot_email_detail(
+  email_uid: &str,
+) -> Result<MobileAutopilotEmailDetail, Error> {
+  let email =
+    Email::find_by_uid(email_uid)?.ok_or_else(|| Error::KSError("Email not found".to_string()))?;
   let provider = detect_mobile_email_provider(&email.account_email)?;
 
   let mut messages = if let Some(thread_id) = email.thread_id.clone() {
@@ -670,7 +676,10 @@ fn build_mobile_autopilot_email_detail(email_uid: &str) -> Result<MobileAutopilo
     suggested_prompts: vec![
       format!("Summarize what matters in '{}'.", anchor.subject),
       format!("Draft the best reply to '{}'.", anchor.subject),
-      format!("What can I safely ignore in this thread: '{}'?", anchor.subject),
+      format!(
+        "What can I safely ignore in this thread: '{}'?",
+        anchor.subject
+      ),
     ],
     messages: messages
       .iter()
@@ -715,10 +724,7 @@ async fn perform_google_email_action(
 
   let (remove_label_ids, add_label_ids) = match action {
     "mark_read" => (vec!["UNREAD".to_string()], Vec::new()),
-    "archive" => (
-      vec!["UNREAD".to_string(), "INBOX".to_string()],
-      Vec::new(),
-    ),
+    "archive" => (vec!["UNREAD".to_string(), "INBOX".to_string()], Vec::new()),
     "delete" => (Vec::new(), vec!["TRASH".to_string()]),
     _ => {
       return Err(Error::KSError(format!(
@@ -779,7 +785,10 @@ async fn perform_microsoft_email_action(
     }
     "archive" => {
       client
-        .post(format!("{}/me/messages/{}/move", MICROSOFT_BASE_URL, message_id))
+        .post(format!(
+          "{}/me/messages/{}/move",
+          MICROSOFT_BASE_URL, message_id
+        ))
         .bearer_auth(&access_token)
         .json(&json!({ "destinationId": "archive" }))
         .send()
@@ -814,8 +823,8 @@ async fn perform_microsoft_email_action(
 }
 
 async fn send_mobile_email_reply(email_uid: &str, reply_body: &str) -> Result<(), Error> {
-  let email = Email::find_by_uid(email_uid)?
-    .ok_or_else(|| Error::KSError("Email not found".to_string()))?;
+  let email =
+    Email::find_by_uid(email_uid)?.ok_or_else(|| Error::KSError("Email not found".to_string()))?;
   let provider = detect_mobile_email_provider(&email.account_email)?;
   let trimmed = reply_body.trim();
   if trimmed.is_empty() {
@@ -834,6 +843,9 @@ async fn send_mobile_email_reply(email_uid: &str, reply_body: &str) -> Result<()
       };
 
       send_gmail_email(
+        &infer_linked_profile()
+          .map(|profile| profile.email)
+          .unwrap_or_else(|| email.account_email.clone()),
         &email.account_email,
         &user_name,
         &email.sender,
@@ -910,15 +922,23 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
       title: email.subject.clone(),
       subtitle: format!("Reply to {}", email.sender),
       preview: clean_email_preview(&email.body),
-      rationale: Some("Unread email that looks like a real conversation, not inbox noise.".to_string()),
+      rationale: Some(
+        "Unread email that looks like a real conversation, not inbox noise.".to_string(),
+      ),
       badge: Some("Needs attention".to_string()),
       timestamp: Some(email_timestamp_seconds(email)),
       email_uid: Some(email.email_uid.clone()),
       related_thread_id: None,
       related_chat_thread_id: None,
       suggested_prompts: vec![
-        format!("Draft a concise reply to '{}' from {}.", email.subject, email.sender),
-        format!("Summarize what {} needs from me in '{}'.", email.sender, email.subject),
+        format!(
+          "Draft a concise reply to '{}' from {}.",
+          email.subject, email.sender
+        ),
+        format!(
+          "Summarize what {} needs from me in '{}'.",
+          email.sender, email.subject
+        ),
       ],
     })
     .collect::<Vec<_>>();
@@ -939,18 +959,38 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
     .map(|(index, event)| MobileAutopilotCard {
       id: format!("event-{}-{index}", event.id),
       kind: "today".to_string(),
-      title: event.title.clone().unwrap_or_else(|| "Upcoming event".to_string()),
-      subtitle: format!("{}{}", format_mobile_timestamp(event.start), event.location.as_ref().map(|v| format!(" · {v}")).unwrap_or_default()),
-      preview: event.description.clone().filter(|value| !value.trim().is_empty()),
-      rationale: Some("Upcoming calendar event surfaced from your linked desktop account.".to_string()),
+      title: event
+        .title
+        .clone()
+        .unwrap_or_else(|| "Upcoming event".to_string()),
+      subtitle: format!(
+        "{}{}",
+        format_mobile_timestamp(event.start),
+        event
+          .location
+          .as_ref()
+          .map(|v| format!(" · {v}"))
+          .unwrap_or_default()
+      ),
+      preview: event
+        .description
+        .clone()
+        .filter(|value| !value.trim().is_empty()),
+      rationale: Some(
+        "Upcoming calendar event surfaced from your linked desktop account.".to_string(),
+      ),
       badge: Some("Today".to_string()),
       timestamp: event.start,
       email_uid: None,
       related_thread_id: None,
       related_chat_thread_id: None,
-      suggested_prompts: vec![
-        format!("Prepare me for '{}'.", event.title.clone().unwrap_or_else(|| "this event".to_string())),
-      ],
+      suggested_prompts: vec![format!(
+        "Prepare me for '{}'.",
+        event
+          .title
+          .clone()
+          .unwrap_or_else(|| "this event".to_string())
+      )],
     })
     .collect::<Vec<_>>();
 
@@ -971,10 +1011,16 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
       MobileAutopilotCard {
         id: format!("meeting-{}-{index}", thread_id),
         kind: "prep".to_string(),
-        title: detail.thread.title.unwrap_or_else(|| "Recent meeting".to_string()),
+        title: detail
+          .thread
+          .title
+          .unwrap_or_else(|| "Recent meeting".to_string()),
         subtitle: "Recent note worth polishing or reusing".to_string(),
         preview,
-        rationale: Some("Recent meeting notes are often the fastest way to prepare for the next conversation.".to_string()),
+        rationale: Some(
+          "Recent meeting notes are often the fastest way to prepare for the next conversation."
+            .to_string(),
+        ),
         badge: Some("Prep".to_string()),
         timestamp: detail.thread.timestamp,
         email_uid: None,
@@ -1011,15 +1057,18 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
       title: email.subject.clone(),
       subtitle: "Travel, purchase, package, or receipt update".to_string(),
       preview: clean_email_preview(&email.body),
-      rationale: Some("Useful life-admin and logistics email that is worth keeping handy on phone.".to_string()),
+      rationale: Some(
+        "Useful life-admin and logistics email that is worth keeping handy on phone.".to_string(),
+      ),
       badge: Some("Track".to_string()),
       timestamp: Some(email_timestamp_seconds(email)),
       email_uid: Some(email.email_uid.clone()),
       related_thread_id: None,
       related_chat_thread_id: None,
-      suggested_prompts: vec![
-        format!("Pull the important details out of '{}'.", email.subject),
-      ],
+      suggested_prompts: vec![format!(
+        "Pull the important details out of '{}'.",
+        email.subject
+      )],
     })
     .collect::<Vec<_>>();
 
@@ -1032,7 +1081,10 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
       MobileAutopilotCard {
         id: format!("chat-{chat_id}-{index}"),
         kind: "workspace".to_string(),
-        title: chat.thread.title.unwrap_or_else(|| "Recent chat".to_string()),
+        title: chat
+          .thread
+          .title
+          .unwrap_or_else(|| "Recent chat".to_string()),
         subtitle: "Pick up an active desktop conversation".to_string(),
         preview: chat.preview.clone(),
         rationale: Some(
@@ -1062,7 +1114,10 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
   }
 
   let mut sender_stats = HashMap::<String, SenderStat>::new();
-  for email in recent_emails.iter().filter(|email| !is_deleted_or_archived(email)) {
+  for email in recent_emails
+    .iter()
+    .filter(|email| !is_deleted_or_archived(email))
+  {
     let sender_key = email.sender.trim().to_lowercase();
     if sender_key.is_empty() || !is_noise_email(email) {
       continue;
@@ -1091,7 +1146,10 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
       id: format!("cleanup-{}-{index}", sender),
       kind: "cleanup".to_string(),
       title: sender.clone(),
-      subtitle: format!("{} recent messages, {} still unread", stat.count, stat.unread_count),
+      subtitle: format!(
+        "{} recent messages, {} still unread",
+        stat.count, stat.unread_count
+      ),
       preview: stat.latest_subject.clone(),
       rationale: Some("Good candidate for unsubscribe, mute, or bulk archive.".to_string()),
       badge: Some("Clean up".to_string()),
@@ -1102,9 +1160,7 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
         .map(|email| email.email_uid.clone()),
       related_thread_id: None,
       related_chat_thread_id: None,
-      suggested_prompts: vec![
-        format!("Help me clean up mail from {}.", sender),
-      ],
+      suggested_prompts: vec![format!("Help me clean up mail from {}.", sender)],
     })
     .collect::<Vec<_>>();
 
@@ -1126,17 +1182,29 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
 
   MobileAutopilotBrief {
     headline: if attention_count > 0 {
-      format!("{} thing{} likely need your attention", attention_count, if attention_count == 1 { "" } else { "s" })
+      format!(
+        "{} thing{} likely need your attention",
+        attention_count,
+        if attention_count == 1 { "" } else { "s" }
+      )
     } else {
       "Your workspace looks under control".to_string()
     },
     summary: format!(
       "Knapsack scanned your linked workspace{} and found {} section{} to keep your day moving.",
-      if session.email_connected { ", calendar, and recent email" } else { " and calendar" },
+      if session.email_connected {
+        ", calendar, and recent email"
+      } else {
+        " and calendar"
+      },
       sections.len(),
       if sections.len() == 1 { "" } else { "s" }
     ) + &if event_count > 0 {
-      format!(" You have {} upcoming calendar item{} in view.", event_count, if event_count == 1 { "" } else { "s" })
+      format!(
+        " You have {} upcoming calendar item{} in view.",
+        event_count,
+        if event_count == 1 { "" } else { "s" }
+      )
     } else {
       String::new()
     },
@@ -1488,7 +1556,11 @@ fn gateway_reply_from_result(result: &Value) -> Option<String> {
     .unwrap_or_default();
 
   let reply = reply.trim().to_string();
-  if reply.is_empty() { None } else { Some(reply) }
+  if reply.is_empty() {
+    None
+  } else {
+    Some(reply)
+  }
 }
 
 fn thread_message_preview(message: &Message) -> Option<String> {
@@ -1688,7 +1760,9 @@ pub async fn perform_mobile_autopilot_email_action(
       }
       .and_then(|_| mark_local_email_state(&email_uid, &action))
     }
-    "reply" => send_mobile_email_reply(&email_uid, payload.reply_body.as_deref().unwrap_or("")).await,
+    "reply" => {
+      send_mobile_email_reply(&email_uid, payload.reply_body.as_deref().unwrap_or("")).await
+    }
     _ => Err(Error::KSError(format!("Unsupported action: {}", action))),
   };
 
@@ -1749,10 +1823,7 @@ pub async fn get_mobile_gbrain_page(query: web::Query<MobileBrainPageQuery>) -> 
 
   match kn_brain_read_page(brain_root, rel_path.clone()) {
     Ok(content) => {
-      let fallback = rel_path
-        .split('/')
-        .last()
-        .unwrap_or("Brain page");
+      let fallback = rel_path.split('/').last().unwrap_or("Brain page");
       let title = crate::clawd::gbrain::markdown_title(&content, fallback);
 
       HttpResponse::Ok().json(json!({
@@ -2394,6 +2465,9 @@ mod tests {
       }
     });
 
-    assert_eq!(gateway_reply_from_result(&result).as_deref(), Some("A\n\nB"));
+    assert_eq!(
+      gateway_reply_from_result(&result).as_deref(),
+      Some("A\n\nB")
+    );
   }
 }

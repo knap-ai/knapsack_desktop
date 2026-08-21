@@ -1381,6 +1381,7 @@ fn should_retry_knapsack_before_fallback(err_lower: &str) -> bool {
 /// user seeing the draft first.
 #[derive(Clone)]
 struct PendingEmail {
+  owner_email: String,
   sender_email: String,
   to: String,
   cc: Option<String>,
@@ -5063,6 +5064,7 @@ pub async fn chat(
           }
         };
         match crate::clawd::gmail::send_gmail_email(
+          &draft.owner_email,
           &draft.sender_email,
           user_name,
           &draft.to,
@@ -5136,6 +5138,7 @@ pub async fn chat(
         store.insert(
           pid.clone(),
           PendingEmail {
+            owner_email: user_email.to_string(),
             sender_email: sender_email.clone(),
             to: to.clone(),
             cc: cc.clone(),

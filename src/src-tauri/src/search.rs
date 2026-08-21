@@ -503,6 +503,7 @@ pub async fn get_email_thread(path: web::Path<u64>) -> Result<HttpResponse> {
 #[serde(rename_all = "camelCase")]
 struct UpdateEmailRequest {
   email_uid: String,
+  account_email: Option<String>,
   subject: Option<String>,
   date: Option<u64>,
   sender: Option<String>,
@@ -517,7 +518,13 @@ struct UpdateEmailRequest {
 
 #[put("/api/knapsack/update_email")]
 pub async fn update_email(payload: Json<UpdateEmailRequest>) -> Result<HttpResponse> {
-  let email = match Email::find_by_uid(&payload.email_uid) {
+  let found_email = match payload.account_email.as_deref() {
+    Some(account_email) if !account_email.trim().is_empty() => {
+      Email::find_by_uid_and_account(&payload.email_uid, account_email)
+    }
+    _ => Email::find_by_uid(&payload.email_uid),
+  };
+  let email = match found_email {
     Ok(Some(email)) => email,
     Ok(None) => {
       return Ok(HttpResponse::NotFound().json(StandardResponse {

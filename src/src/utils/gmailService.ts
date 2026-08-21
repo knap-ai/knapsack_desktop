@@ -206,6 +206,7 @@ export const sendComposedEmail = async ({
   subject,
   body,
   threadId,
+  ownerEmail,
   userEmail,
   userName,
   attachments,
@@ -215,6 +216,7 @@ export const sendComposedEmail = async ({
   subject: string
   body: string
   threadId?: string
+  ownerEmail?: string
   userEmail: string
   userName?: string
   attachments?: Array<{
@@ -233,6 +235,8 @@ export const sendComposedEmail = async ({
       // Send both key styles so older and newer native handlers both bind correctly.
       threadId,
       thread_id: threadId,
+      ownerEmail,
+      owner_email: ownerEmail,
       userEmail,
       user_email: userEmail,
       userName,

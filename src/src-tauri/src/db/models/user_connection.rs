@@ -219,9 +219,11 @@ impl UserConnection {
     Self::find_by_user_email_scope_and_account(user_email, scope, calendar_account_email)
   }
 
-  /// Resolve an account-scoped connection regardless of which Desktop user
-  /// owns it. This is needed when an action names the sender account directly.
+  /// Resolve an account-scoped connection owned by the active Desktop user.
+  /// Account email alone is not an authorization boundary because signed-out
+  /// users can leave connection rows in the shared local database.
   pub fn find_by_scope_and_account_email(
+    owner_email: String,
     scope: String,
     account_email: String,
   ) -> Result<UserConnection, Error> {
@@ -239,10 +241,11 @@ impl UserConnection {
         user_connections.calendar_account_email
       FROM user_connections
       LEFT JOIN connections on connection_id = connections.id
-      WHERE scope = ?1 AND user_connections.calendar_account_email = ?2
+      LEFT JOIN users on user_connections.user_id = users.id
+      WHERE users.email = ?1 AND scope = ?2 AND user_connections.calendar_account_email = ?3
       LIMIT 1",
     )?;
-    let row = stmt.query_row(params![scope, account_email], |row| {
+    let row = stmt.query_row(params![owner_email, scope, account_email], |row| {
       Ok(UserConnection {
         id: Some(row.get(0)?),
         user_id: row.get(1)?,

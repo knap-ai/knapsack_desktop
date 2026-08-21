@@ -175,6 +175,7 @@ async fn kn_send_composed_email(
   subject: String,
   body: String,
   thread_id: Option<String>,
+  owner_email: Option<String>,
   user_email: String,
   user_name: Option<String>,
   attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
@@ -188,6 +189,7 @@ async fn kn_send_composed_email(
   }
 
   crate::clawd::gmail::send_gmail_email(
+    owner_email.as_deref().unwrap_or(&user_email),
     &user_email,
     user_name.as_deref().unwrap_or(""),
     &trimmed_to,

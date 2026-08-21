@@ -470,13 +470,6 @@ async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Re
       account_email.clone(),
     )
     .ok()
-    .or_else(|| {
-      UserConnection::find_by_scope_and_account_email(
-        String::from(GOOGLE_GMAIL_SCOPE),
-        account_email.clone(),
-      )
-      .ok()
-    })
   });
   let user_connection = precise_connection.or_else(|| {
     if payload.account_email.is_some() {

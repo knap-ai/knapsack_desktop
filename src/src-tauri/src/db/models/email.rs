@@ -70,7 +70,7 @@ impl Email {
             is_read = ?9, 
             is_archived = ?10 ,
             is_deleted =?12
-        WHERE email_uid = ?11",
+        WHERE email_uid = ?11 AND account_email = ?13",
       params![
         self.subject,
         self.date,
@@ -83,10 +83,26 @@ impl Email {
         self.is_read,
         self.is_archived,
         self.email_uid,
-        self.is_deleted
+        self.is_deleted,
+        self.account_email,
       ],
     )?;
     Ok(())
+  }
+
+  pub fn find_by_uid_and_account(
+    email_uid: &str,
+    account_email: &str,
+  ) -> Result<Option<Email>, Error> {
+    let connection = get_db_conn();
+    let email = connection
+      .query_row(
+        "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1 AND account_email = ?2",
+        params![email_uid, account_email],
+        Self::build_struct_from_row,
+      )
+      .optional()?;
+    Ok(email)
   }
 
   pub fn create(&mut self) -> Result<(), Error> {

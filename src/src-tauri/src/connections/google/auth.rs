@@ -807,14 +807,14 @@ async fn fetch_google_auth_token_api(
         account_email.clone(),
       )
       .ok()
-      .or_else(|| {
-        UserConnection::find_by_scope_and_account_email(params.scope.clone(), account_email.clone())
-          .ok()
-      })
     })
     .or_else(|| {
-      UserConnection::find_by_scope_and_account_email(params.scope.clone(), params.email.clone())
-        .ok()
+      UserConnection::find_by_scope_and_account_email(
+        params.email.clone(),
+        params.scope.clone(),
+        params.email.clone(),
+      )
+      .ok()
     })
     .or_else(|| {
       UserConnection::find_by_user_email_and_scope(params.email.clone(), params.scope.clone()).ok()

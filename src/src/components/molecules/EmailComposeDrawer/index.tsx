@@ -70,6 +70,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
         subject,
         body: bodyRef.current?.innerHTML || draft.body,
         threadId: draft.threadId,
+        ownerEmail: userEmail,
         userEmail: senderEmail,
         userName: senderName,
         attachments: draft.attachments,

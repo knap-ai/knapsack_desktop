@@ -406,7 +406,7 @@ export function useFeed(
     UNCLASSIFIED: 0,
   }
 
-  const lastEmailId = useRef<number | undefined>(undefined)
+  const lastEmailIdsByAccount = useRef<Record<string, number>>({})
 
   const selectEmailCategory = useCallback(() => {
     const getTabCount = (category: EmailImportance): number => {
@@ -777,16 +777,31 @@ export function useFeed(
         return
       }
 
-      let messages = []
-      if (lastEmailId.current) {
-        const lastEmailIndex = allMessages.findIndex(
-          message => message.documentId === lastEmailId.current,
-        )
-        messages = allMessages.slice(0, lastEmailIndex)
-      } else {
-        messages = allMessages
+      const messagesByAccount = new Map<string, EmailDocument[]>()
+      for (const message of allMessages) {
+        const account = message.accountEmail || userEmail
+        const accountMessages = messagesByAccount.get(account) ?? []
+        accountMessages.push(message)
+        messagesByAccount.set(account, accountMessages)
       }
-      lastEmailId.current = allMessages[0].documentId
+
+      const messages: EmailDocument[] = []
+      for (const [account, accountMessages] of messagesByAccount) {
+        const previousCursor = lastEmailIdsByAccount.current[account]
+        if (previousCursor == null) {
+          messages.push(...accountMessages)
+        } else {
+          const cursorIndex = accountMessages.findIndex(
+            message => message.documentId === previousCursor,
+          )
+          // If the previous marker has aged out of the seven-day window, avoid
+          // dropping newly synced messages from this account.
+          messages.push(...(cursorIndex >= 0 ? accountMessages.slice(0, cursorIndex) : accountMessages))
+        }
+        if (accountMessages[0]) {
+          lastEmailIdsByAccount.current[account] = accountMessages[0].documentId
+        }
+      }
 
       const emailThreadsSet = new Set<EmailDocument>()
 
