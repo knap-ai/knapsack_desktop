@@ -928,8 +928,8 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
     && ["account", "service", "capabilit"]
       .iter()
       .any(|needle| normalized.contains(needle));
-  let asks_access = normalized.contains("access")
-    && (normalized.contains('@') || normalized.contains("account"));
+  let asks_access =
+    normalized.contains("access") && (normalized.contains('@') || normalized.contains("account"));
   if !mentions_google_service || (!asks_inventory && !asks_access) {
     return None;
   }
