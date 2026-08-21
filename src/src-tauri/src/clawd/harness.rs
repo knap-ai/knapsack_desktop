@@ -10,7 +10,10 @@ use crate::clawd::gateway_client;
 
 const DEFAULT_HERMES_BASE_URL: &str = "http://127.0.0.1:8642/v1";
 const DEFAULT_HERMES_MODEL: &str = "hermes-agent";
-const HARNESS_TIMEOUT: Duration = Duration::from_secs(30);
+// Group rooms can spawn several independent agents and wait for synthesis.
+// Keep this aligned with the frontend agent-chat budget so the harness does
+// not abandon orchestration and silently fall back to a single direct model.
+const HARNESS_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentHarnessKind {

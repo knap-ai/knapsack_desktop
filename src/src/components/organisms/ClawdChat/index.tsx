@@ -5006,7 +5006,10 @@ ${actualText}`
         // Keep the frontend timeout longer than the backend request budget.
         // If the selected harness session is slow or unhealthy, the backend falls
         // back to direct chat so desktop users still get a timely answer.
-        let useDirectChat = usedNativeEmailCalendarContext
+        // Native context is an optimization for ordinary chats, but group
+        // rooms must still enter the harness so sessions_spawn/sessions_yield
+        // can collect each selected member's contribution.
+        let useDirectChat = usedNativeEmailCalendarContext && !chatId.startsWith('group-')
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
