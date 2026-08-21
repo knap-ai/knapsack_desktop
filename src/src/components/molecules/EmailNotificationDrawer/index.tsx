@@ -306,6 +306,7 @@ const EmailNotificationDrawer = ({
     actionTaken: AutopilotActions,
     emailUid: string,
     draftReply?: string,
+    accountEmail?: string,
   ) => {
     if (
       actionTaken === AutopilotActions.MARK_AS_READ ||
@@ -318,6 +319,8 @@ const EmailNotificationDrawer = ({
           emailUid,
           actionTaken,
           profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+          undefined,
+          accountEmail,
         )
         setRemovingEmailUid('')
       }, 300)
@@ -332,6 +335,7 @@ const EmailNotificationDrawer = ({
         actionTaken,
         profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
         draftReply,
+        accountEmail,
       )
     }
   }, [feed.takeEmailAction, profileProvider])
@@ -674,7 +678,8 @@ const EmailNotificationDrawer = ({
                         actionTaken: AutopilotActions,
                         emailUid: string,
                         draftReply?: string,
-                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply)}
+                        accountEmail?: string,
+                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply, accountEmail)}
                       userEmail={userEmail}
                       userName={userName}
                       profileProvider={profileProvider ? profileProvider : ''}

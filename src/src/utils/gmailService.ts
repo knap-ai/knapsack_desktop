@@ -9,6 +9,7 @@ interface SendEmailReplyParams {
   userName: string
   body: string
   threadId?: string
+  accountEmail?: string
 }
 
 async function getOriginalMessageId(threadId: string, accessToken: string): Promise<string> {
@@ -74,7 +75,9 @@ export const sendGmailReply = async ({
   userName,
   body,
   threadId,
+  accountEmail,
 }: SendEmailReplyParams): Promise<void> => {
+  const senderEmail = accountEmail || userEmail
   const recipientList = Array.isArray(previousEmail.message.recipients)
     ? previousEmail.message.recipients.flatMap(recipient =>
         typeof recipient === 'string' && recipient.includes(',')
@@ -88,7 +91,7 @@ export const sendGmailReply = async ({
         : []
 
   const recipients = [previousEmail.message.sender, ...recipientList]
-    .filter(recipient => !recipient.includes(userEmail))
+    .filter(recipient => !recipient.includes(senderEmail))
     .join(', ')
   console.log("RECIPIENTS: ", recipients)
   let to = recipients
@@ -104,10 +107,14 @@ export const sendGmailReply = async ({
     minute: '2-digit',
     hour12: true,
   })
-  let fullSender = `${userName} <${userEmail}>`
+  let fullSender = `${userName} <${senderEmail}>`
 
   try {
-    const accessToken = await getAccessToken(userEmail, ConnectionKeys.GOOGLE_GMAIL)
+    const accessToken = await getAccessToken(
+      userEmail,
+      ConnectionKeys.GOOGLE_GMAIL,
+      senderEmail,
+    )
 
     let originalMessageId: string | undefined
     if (threadId) {

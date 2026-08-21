@@ -177,6 +177,7 @@ export interface IFeed {
     action: AutopilotActions,
     userProvider: ConnectionKeys.MICROSOFT_PROFILE | ConnectionKeys.GOOGLE_PROFILE,
     draftReply?: string,
+    accountEmail?: string,
   ) => void
   createEmailAutoPilot: () => Promise<FeedItem>
   emailAutopilot: IEmailAutopilot
@@ -2039,19 +2040,26 @@ export function useFeed(
     action: AutopilotActions,
     userProvider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     draftedReply?: string,
+    accountEmail?: string,
   ) => {
     setClassifiedEmails(prevState => {
       const newState = { ...prevState }
+      let actionHandled = false
 
       // Search through all importance categories
       Object.keys(newState).forEach(importance => {
+        if (actionHandled) return
         const emails = newState[importance as EmailImportance]
         if (!emails) return
 
         // Find and update the matching email
-        const emailIndex = emails.findIndex(email => email.message.emailUid === emailUid)
+        const emailIndex = emails.findIndex(email =>
+          email.message.emailUid === emailUid
+          && (!accountEmail || (email.message.accountEmail || userEmail) === accountEmail),
+        )
 
         if (emailIndex !== -1) {
+          actionHandled = true
           const updatedEmail = { ...emails[emailIndex] }
           const dataFetcher = new DataFetcher()
           if (ignore_actions.includes(action)) {

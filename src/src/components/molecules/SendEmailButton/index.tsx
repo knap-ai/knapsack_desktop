@@ -22,6 +22,7 @@ const labelByValue: Record<AutopilotActions, string> = options.reduce((obj, opti
 interface SendEmailButtonProps {
   previousEmail: DisplayEmail,
   userEmail: string
+  accountEmail?: string
   userName: string
   body: string
   threadId?: string
@@ -37,6 +38,7 @@ interface SendEmailButtonProps {
 const SendEmailButton = ({
   previousEmail,
   userEmail,
+  accountEmail,
   userName,
   body,
   threadId,
@@ -98,7 +100,7 @@ const SendEmailButton = ({
     try {
       if (profileProvider === ConnectionKeys.MICROSOFT_PROFILE) {
         const dataFetcher = new DataFetcher()
-        await dataFetcher.postOutlookSendReply(userEmail, emailUid, body, previousEmail)
+        await dataFetcher.postOutlookSendReply(accountEmail || userEmail, emailUid, body, previousEmail)
       } else {
         await sendGmailReply({
           previousEmail,
@@ -106,6 +108,7 @@ const SendEmailButton = ({
           userName,
           body,
           threadId,
+          accountEmail,
         });
       }
       onSuccess?.();

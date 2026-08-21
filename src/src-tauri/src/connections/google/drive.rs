@@ -15,10 +15,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use url::Url;
+use uuid::Uuid;
 
 use crate::constants::EMBEDDING_BATCH_SIZE;
 use crate::db::models::{
@@ -212,9 +213,19 @@ fn resolve_google_drive_file_id(id_or_url: &str) -> Option<String> {
   None
 }
 
+fn drive_sync_temp_dir(home_dir: &Path, account_email: &str) -> PathBuf {
+  let safe_account = account_email
+    .chars()
+    .map(|character| if character.is_ascii_alphanumeric() { character } else { '_' })
+    .collect::<String>();
+  home_dir
+    .join("knapsack_temp")
+    .join(format!("{}-{}", safe_account, Uuid::new_v4()))
+}
+
 #[cfg(test)]
 mod tests {
-  use super::resolve_google_drive_file_id;
+  use super::{drive_sync_temp_dir, resolve_google_drive_file_id};
 
   #[test]
   fn extracts_drive_ids_from_google_urls_and_plain_ids() {
@@ -238,6 +249,19 @@ mod tests {
       resolve_google_drive_file_id("https://drive.google.com/open?id=1queryParamId789"),
       Some("1queryParamId789".to_string())
     );
+  }
+
+  #[test]
+  fn drive_sync_temp_directories_are_account_scoped_and_unique() {
+    let home = std::path::Path::new("/tmp/knapsack-drive-test");
+    let first = drive_sync_temp_dir(home, "first@example.com");
+    let second = drive_sync_temp_dir(home, "second@example.com");
+    let retry = drive_sync_temp_dir(home, "first@example.com");
+
+    assert_ne!(first, second);
+    assert_ne!(first, retry);
+    assert!(first.to_string_lossy().contains("first_example_com"));
+    assert!(second.to_string_lossy().contains("second_example_com"));
   }
 }
 
@@ -575,8 +599,8 @@ pub async fn fetch_drive(
     limit_date.format("%Y-%m-%dT%H:%M:%S")
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
-  let temp_dir = home_dir.join("knapsack_temp");
-  fs::create_dir_all(temp_dir.clone()).unwrap();
+  let temp_dir = drive_sync_temp_dir(&home_dir, &account_email);
+  fs::create_dir_all(temp_dir.clone())?;
   let mut all_documents =
     fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
   let shared_drives = list_accessible_shared_drives(&hub).await;

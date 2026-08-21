@@ -169,6 +169,7 @@ export const EmailAutopilot = ({
     actionTaken: AutopilotActions,
     emailUid: string,
     draftReply?: string,
+    accountEmail?: string,
   ) => {
     if (
       actionTaken === AutopilotActions.MARK_AS_READ ||
@@ -181,6 +182,8 @@ export const EmailAutopilot = ({
           emailUid,
           actionTaken,
           profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+          undefined,
+          accountEmail,
         )
         setRemovingEmailUid('')
       }, 300)
@@ -195,6 +198,7 @@ export const EmailAutopilot = ({
         actionTaken,
         profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
         draftReply,
+        accountEmail,
       )
     }
   }, [feed.takeEmailAction, profileProvider])

@@ -18,7 +18,12 @@ import { decodeEmailSubject } from 'src/utils/emails'
 interface EmailDraftCardProps {
   emailAutopilot: IEmailAutopilot
   email: DisplayEmail
-  onActionCallback: (actionTaken: AutopilotActions, emailUid: string, draftReply?: string) => void
+  onActionCallback: (
+    actionTaken: AutopilotActions,
+    emailUid: string,
+    draftReply?: string,
+    accountEmail?: string,
+  ) => void
   userEmail: string
   userName: string
   profileProvider: string
@@ -329,7 +334,12 @@ const EmailDraftCard = ({
               const newContent = draft.replace(/\n/g, '<br>')
               editor?.commands.setContent(newContent)
               setIsDraftEdited(false)
-              onActionCallback(AutopilotActions.GENERATE_DRAFT_REPLY, emailUid, newContent)
+              onActionCallback(
+                AutopilotActions.GENERATE_DRAFT_REPLY,
+                emailUid,
+                newContent,
+                senderAccountEmail,
+              )
             }}
             onError={error => {
               console.error('Failed to generate draft:', error)
@@ -345,7 +355,7 @@ const EmailDraftCard = ({
             KNAnalytics.trackEvent('email_ignored', {
               email_ignored: true,
             })
-            onActionCallback(actions.leftAction, emailUid)
+            onActionCallback(actions.leftAction, emailUid, undefined, senderAccountEmail)
           }}
           onError={error => {
             console.error('Failed to ignore:', error)
@@ -361,7 +371,8 @@ const EmailDraftCard = ({
         )}
         <SendEmailButton
           previousEmail={email}
-          userEmail={senderAccountEmail}
+          userEmail={userEmail}
+          accountEmail={senderAccountEmail}
           userName={userName}
           body={editor?.getText() || ''}
           threadId={email.message.threadId}
@@ -371,7 +382,7 @@ const EmailDraftCard = ({
               email_sent: true,
               draft_was_edited: isDraftEdited,
             })
-            onActionCallback(actions.rightAction, emailUid)
+            onActionCallback(actions.rightAction, emailUid, undefined, senderAccountEmail)
           }}
           onError={error => {
             logError(new Error('Failed to send email'), {
