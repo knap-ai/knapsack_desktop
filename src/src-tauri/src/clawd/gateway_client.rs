@@ -49,7 +49,9 @@ pub fn knapsack_agent_browser_profiles() -> Value {
     "agent-coach": {"cdpPort": 18813, "color": "#C14841"}
   });
   let custom_colors = ["#2563EB", "#7C3AED", "#0F766E", "#C2410C"];
-  let profile_map = profiles.as_object_mut().expect("browser profiles are an object");
+  let profile_map = profiles
+    .as_object_mut()
+    .expect("browser profiles are an object");
   for index in 0..64u16 {
     profile_map.insert(
       format!("agent-custom-{:02}", index + 1),
@@ -3302,6 +3304,29 @@ pub async fn agent_chat(
   let params = build_agent_chat_params(message, attachments, session_key, &idem);
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+/// Read the display-normalized chat history for a gateway session.
+///
+/// Group-room orchestration can intentionally end its first turn with
+/// `sessions_yield` while child agents finish. The final synthesis is then
+/// appended to the same session, so callers need a safe way to collect it.
+pub async fn chat_history(
+  session_key: &str,
+  token: Option<&str>,
+  limit: usize,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(
+    "chat.history",
+    Some(serde_json::json!({
+      "sessionKey": session_key,
+      "limit": limit.clamp(1, 1000),
+      "maxChars": 24_000,
+    })),
+    &t,
+  )
+  .await
 }
 
 fn build_agent_chat_params(

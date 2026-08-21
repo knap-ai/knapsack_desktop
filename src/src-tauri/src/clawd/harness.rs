@@ -205,7 +205,72 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   .await
   .map_err(|_| format!("OpenClaw timed out after {HARNESS_TIMEOUT:?}"))??;
 
-  parse_openclaw_reply(&result)
+  match parse_openclaw_reply(&result) {
+    Ok(reply) => Ok(reply),
+    Err(error) if error == "OpenClaw returned an empty reply" => {
+      wait_for_openclaw_followup(&session_key).await
+    }
+    Err(error) => Err(error),
+  }
+}
+
+const OPENCLAW_FOLLOWUP_TIMEOUT: Duration = Duration::from_secs(120);
+
+async fn wait_for_openclaw_followup(session_key: &str) -> Result<String, String> {
+  let deadline = tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT;
+  let mut delay = Duration::from_millis(250);
+
+  loop {
+    match gateway_client::chat_history(session_key, None, 100).await {
+      Ok(history) => {
+        if let Some(reply) = latest_assistant_after_last_user(&history) {
+          return Ok(reply);
+        }
+      }
+      Err(error) => {
+        eprintln!("[harness] Could not read yielded OpenClaw history yet: {error}");
+      }
+    }
+
+    if tokio::time::Instant::now() >= deadline {
+      return Err("OpenClaw group orchestration did not finish in time".to_string());
+    }
+    tokio::time::sleep(delay).await;
+    delay = (delay * 2).min(Duration::from_secs(2));
+  }
+}
+
+fn latest_assistant_after_last_user(history: &Value) -> Option<String> {
+  let messages = history.get("messages")?.as_array()?;
+  let last_user = messages
+    .iter()
+    .rposition(|message| message.get("role").and_then(Value::as_str) == Some("user"))?;
+
+  messages[last_user + 1..]
+    .iter()
+    .rev()
+    .find(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
+    .and_then(message_text)
+    .filter(|text| !text.trim().is_empty())
+}
+
+fn message_text(message: &Value) -> Option<String> {
+  if let Some(text) = message.get("text").and_then(Value::as_str) {
+    return Some(text.to_string());
+  }
+  if let Some(text) = message.get("content").and_then(Value::as_str) {
+    return Some(text.to_string());
+  }
+
+  let text = message
+    .get("content")
+    .and_then(Value::as_array)?
+    .iter()
+    .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+    .filter_map(|part| part.get("text").and_then(Value::as_str))
+    .collect::<Vec<_>>()
+    .join("\n\n");
+  Some(text)
 }
 
 fn hermes_config(settings: &StoredHarnessSettings) -> Result<HermesConfig, String> {
@@ -945,6 +1010,33 @@ mod tests {
       "summary": "The `web_search` tool has been disabled by policy"
     }))
     .is_err());
+  }
+
+  #[test]
+  fn yielded_openclaw_history_returns_only_a_new_assistant_reply() {
+    let history = json!({
+      "messages": [
+        {"role": "user", "content": [{"type": "text", "text": "old request"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "old reply"}]},
+        {"role": "user", "content": [{"type": "text", "text": "group request"}]},
+        {"role": "assistant", "content": [
+          {"type": "text", "text": "Scout and Polly agree"},
+          {"type": "text", "text": "with one caveat"}
+        ]}
+      ]
+    });
+    assert_eq!(
+      latest_assistant_after_last_user(&history).as_deref(),
+      Some("Scout and Polly agree\n\nwith one caveat")
+    );
+
+    let still_waiting = json!({
+      "messages": [
+        {"role": "assistant", "text": "stale reply"},
+        {"role": "user", "text": "new group request"}
+      ]
+    });
+    assert_eq!(latest_assistant_after_last_user(&still_waiting), None);
   }
 
   #[test]
