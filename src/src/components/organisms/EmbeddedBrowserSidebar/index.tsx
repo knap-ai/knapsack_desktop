@@ -106,6 +106,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const imageRef = useRef<HTMLImageElement>(null)
   const screenshotUrlRef = useRef('')
   const currentTargetIdRef = useRef('')
+  const knownTargetIdsRef = useRef(new Set<string>())
   const screenshotPendingRef = useRef(false)
   const navigationPendingRef = useRef(false)
   const addressEditingRef = useRef(false)
@@ -163,12 +164,19 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     )
     setTabs(pageTabs)
     if (!pageTabs.length) {
+      knownTargetIdsRef.current = new Set()
       currentTargetIdRef.current = ''
       setActiveTargetId('')
       return []
     }
 
-    let selected = pageTabs.find(tab => tab.targetId === currentTargetIdRef.current)
+    const previousIds = knownTargetIdsRef.current
+    const newlyOpened = pageTabs.filter(tab => !previousIds.has(tab.targetId))
+    knownTargetIdsRef.current = new Set(pageTabs.map(tab => tab.targetId))
+
+    let selected = newlyOpened.length
+      ? newlyOpened[newlyOpened.length - 1]
+      : pageTabs.find(tab => tab.targetId === currentTargetIdRef.current)
     if (!selected) {
       try {
         const saved = JSON.parse(localStorage.getItem(activeTabStorageKey) || '{}') as {
@@ -211,11 +219,23 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       setError('')
       setIsLoading(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      const targetWasNotAPage =
+        message.includes("'Page.enable' wasn't found") ||
+        message.includes('Command can only be executed on top-level targets')
+      if (targetWasNotAPage) {
+        // Dynamic sites can create workers between the tab and screenshot
+        // polls. Drop the stale selection and immediately resolve the current
+        // top-level page instead of surfacing a low-level CDP error.
+        currentTargetIdRef.current = ''
+        await refreshTabs().catch(() => undefined)
+      } else {
+        setError(message)
+      }
     } finally {
       screenshotPendingRef.current = false
     }
-  }, [browserProfile])
+  }, [browserProfile, refreshTabs])
 
   const navigate = useCallback(
     async (value: string) => {

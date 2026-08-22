@@ -11,6 +11,7 @@ const {
   providerSwitchAppliedButStillStarting,
   qaSetProviderTimeoutMs,
   setApiAuthStateDirForTest,
+  shouldPreserveExistingQaState,
 } = require("./qa-loop-runner.cjs");
 
 test.afterEach(() => setApiAuthStateDirForTest(null));
@@ -108,4 +109,20 @@ test("managed browser persistence accepts enabled password and payment storage",
     }).ok,
     false,
   );
+});
+
+test("existing isolated OAuth state is preserved unless explicitly disabled", () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "knapsack-qa-state-"));
+  fs.writeFileSync(path.join(stateDir, "tokens.json"), "{}\n");
+
+  assert.equal(shouldPreserveExistingQaState({}, stateDir), true);
+  assert.equal(
+    shouldPreserveExistingQaState({ KNAPSACK_QA_PRESERVE_STATE: "0" }, stateDir),
+    false,
+  );
+  assert.equal(
+    shouldPreserveExistingQaState({ KNAPSACK_QA_PRESERVE_STATE: "1" }, stateDir),
+    true,
+  );
+  fs.rmSync(stateDir, { recursive: true, force: true });
 });

@@ -1,6 +1,6 @@
 [package]
 name = "knapsack"
-version = "2.8.7"
+version = "2.9.2"
 description = "Knapsack"
 authors = ["you"]
 license = "AGPL-3.0"
@@ -22,6 +22,7 @@ serde = { version = "=1.0", features = ["derive"] }
 tauri = { version = "=1.8.1", features = [ "process-relaunch", "shell-sidecar", "shell-open", "os-all", "dialog-all", "window-all", "path-all", "os-all", "global-shortcut-all", "protocol-all", "notification-all", "fs-all", "http-all", "updater", "macos-private-api", "process-command-api", "devtools", "system-tray" ] }
 tauri-plugin-store = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 tauri-plugin-autostart = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
+tauri-plugin-deep-link = "=0.1.2"
 bitflags = "=2.6.0"
 dirs = "=5.0.1"
 reqwest = { version = "=0.11.26", features = ["multipart", "blocking", "json"] }

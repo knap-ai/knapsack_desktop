@@ -25,6 +25,12 @@ import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import { XAI_MODELS } from 'src/utils/xaiModels'
+import {
+  detectStudioConnectorSuggestion,
+  normalizeStudioConnectorCatalog,
+  type StudioConnector,
+  type StudioConnectorSuggestion,
+} from 'src/utils/studioConnectors'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -406,6 +412,13 @@ type ServiceHealth = {
   diagnostic_type?: string
 }
 
+type StudioConnectionsResponse = {
+  success: boolean
+  connected: string[]
+  available?: Array<Partial<StudioConnector>>
+  message?: string
+}
+
 const HEALTH_POLL_INTERVAL_MS = 3000
 const GATEWAY_HEADER_GRACE_POLLS = 5 // ~15s: soft status can say reconnecting
 const BROWSER_HEADER_GRACE_POLLS = 5 // ~15s: soft status can say browser starting
@@ -439,6 +452,7 @@ type ApiKeyStatus = {
   has_openrouter_key?: boolean
   has_trustedrouter_key?: boolean
   has_knapsack?: boolean
+  knapsack_auth_expired?: boolean
   knapsack_email?: string
   knapsack_model?: string
   openai_key_hint?: string
@@ -1586,20 +1600,22 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     clearInput()
   }
 
-  // Auto-resize textarea to fit content.
-  // Deferred to next animation frame to avoid synchronous layout reflow
-  // during the keystroke event handler (reduces input latency).
-  const resizeRaf = useRef(0)
+  // Auto-resize after a short idle window. Resetting height and reading
+  // scrollHeight forces layout; doing that in every keystroke frame made the
+  // composer feel sticky in long chats and while browser screenshots updated.
+  const resizeTimer = useRef<number>()
   const autoResize = useCallback(() => {
-    cancelAnimationFrame(resizeRaf.current)
-    resizeRaf.current = requestAnimationFrame(() => {
+    window.clearTimeout(resizeTimer.current)
+    resizeTimer.current = window.setTimeout(() => {
       const ta = textareaRef.current
       if (!ta) return
       ta.style.height = 'auto'
       const next = Math.min(ta.scrollHeight, 160) + 'px'
       if (ta.style.height !== next) ta.style.height = next
-    })
+    }, 48)
   }, [])
+
+  useEffect(() => () => window.clearTimeout(resizeTimer.current), [])
 
   // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
   // via the onSend callback directly — the parent calls onSend(text).
@@ -1992,8 +2008,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [chatFindQuery, setChatFindQuery] = useState('')
   const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [showCompactControls, setShowCompactControls] = useState(false)
+  const compactControlsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => { onBusyChange?.(busy) }, [busy, onBusyChange])
+
+  useEffect(() => {
+    if (!compact || !showCompactControls) return
+    const closeCompactControls = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return
+      if (
+        event instanceof MouseEvent
+        && compactControlsRef.current?.contains(event.target as Node)
+      ) {
+        return
+      }
+      setShowCompactControls(false)
+    }
+    document.addEventListener('mousedown', closeCompactControls)
+    document.addEventListener('keydown', closeCompactControls)
+    return () => {
+      document.removeEventListener('mousedown', closeCompactControls)
+      document.removeEventListener('keydown', closeCompactControls)
+    }
+  }, [compact, showCompactControls])
 
   // Queued messages — when user presses Enter while busy, queue messages to send after each request completes
   const queuedMessagesRef = useRef<QueuedDraft[]>([])
@@ -2050,6 +2088,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [knapsackEmail, setKnapsackEmail] = useState<string>('')
   const [isKnapsackConnecting, setIsKnapsackConnecting] = useState(false)
   const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
+  const [studioConnectedLabels, setStudioConnectedLabels] = useState<string[]>([])
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
     return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
   })
@@ -2189,6 +2228,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const skillSuggestionRef = useRef<SkillInfo | null>(null)
   const [dismissedSkillNames, setDismissedSkillNames] = useState<Set<string>>(new Set())
   const pendingSkillSuggestionRef = useRef<SkillInfo | null>(null)
+  const studioConnectedScopesRef = useRef<Set<string>>(new Set())
+  const studioAvailableConnectorsRef = useRef<StudioConnector[]>([])
+  const studioConnectionsLoadedRef = useRef(false)
+  const [studioConnectorSuggestion, setStudioConnectorSuggestion] = useState<StudioConnectorSuggestion | null>(null)
+  const studioConnectorSuggestionRef = useRef<StudioConnectorSuggestion | null>(null)
+  const pendingStudioConnectorSuggestionRef = useRef<StudioConnectorSuggestion | null>(null)
+  const dismissedStudioConnectorIdsRef = useRef<Set<string>>(new Set())
+  const knapsackEmailRef = useRef<string | null>(null)
 
   // Channels removed - gateway-based messaging not available in this version
 
@@ -2489,8 +2536,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           openrouter: !!keyStatus.has_openrouter_key,
           trustedrouter: !!keyStatus.has_trustedrouter_key,
         })
-        if (keyStatus.knapsack_email) {
-          setKnapsackEmail(keyStatus.knapsack_email)
+        setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+        if (keyStatus.knapsack_auth_expired) {
+          setKnapsackConnectError('Your Knapsack Studio session expired. Reconnect to use Studio integrations.')
+        } else if (keyStatus.has_knapsack) {
+          setKnapsackConnectError(null)
         }
         if (keyStatus.knapsack_model) {
           const knapsackModel = KNAPSACK_MODELS.some(model => model.id === keyStatus.knapsack_model) ? keyStatus.knapsack_model : 'auto'
@@ -3366,6 +3416,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           setKnapsackEmail(email)
           setIsKnapsackConnecting(false)
           setKnapsackConnectError(null)
+          setStudioConnectedLabels([])
           setSelectedProvider('knapsack')
           setConfirmedProvider('knapsack')
           localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'knapsack')
@@ -3855,6 +3906,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Separate counter for gateway_ok && !browser_ok polls so we can gate
         // the troubleshooting banner without conflating gateway-down polls.
         let browserNotReadyCount = 0
+        let browserRecoveryInFlight = false
         let lastHealthJson = ''
         let lastStatusJson = ''
         // Exponential backoff for the catch branch (HTTP backend itself unreachable).
@@ -3891,12 +3943,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               setTimeout(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
-              // Poll every 3s so we detect browser readiness quickly.
-              // (Backend sends a one-time /start nudge automatically.)
+              // Poll every 3s so we detect browser readiness quickly. The
+              // initial startup-ready request can finish before a slow gateway
+              // is ready to accept the browser /start command, so retry the
+              // readiness gate once the gateway is confirmed healthy.
               consecutiveDownPolls++
               browserNotReadyCount++
               setBrowserNotReadyPolls(browserNotReadyCount)
               setGatewayDownPolls(0)
+              if (
+                !browserRecoveryInFlight
+                && (browserNotReadyCount === 1 || browserNotReadyCount % 6 === 0)
+              ) {
+                browserRecoveryInFlight = true
+                fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready')
+                  .catch(() => undefined)
+                  .finally(() => {
+                    browserRecoveryInFlight = false
+                  })
+              }
               setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
             } else {
               // Gateway is down (reconnecting state).
@@ -3990,10 +4055,20 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => {
     const wasThinking = prevThinkingRef.current
     prevThinkingRef.current = thinkingMessage
-    if (wasThinking && !thinkingMessage && pendingSkillSuggestionRef.current) {
-      setSkillSuggestion(pendingSkillSuggestionRef.current)
-      skillSuggestionRef.current = pendingSkillSuggestionRef.current
-      pendingSkillSuggestionRef.current = null
+    if (wasThinking && !thinkingMessage) {
+      const connectorSuggestion = pendingStudioConnectorSuggestionRef.current
+      pendingStudioConnectorSuggestionRef.current = null
+      if (connectorSuggestion) {
+        setStudioConnectorSuggestion(connectorSuggestion)
+        studioConnectorSuggestionRef.current = connectorSuggestion
+        pendingSkillSuggestionRef.current = null
+        return
+      }
+      if (pendingSkillSuggestionRef.current) {
+        setSkillSuggestion(pendingSkillSuggestionRef.current)
+        skillSuggestionRef.current = pendingSkillSuggestionRef.current
+        pendingSkillSuggestionRef.current = null
+      }
     }
   }, [thinkingMessage])
 
@@ -4001,6 +4076,65 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   useEffect(() => {
     skillSuggestionRef.current = skillSuggestion
   }, [skillSuggestion])
+
+  useEffect(() => {
+    studioConnectorSuggestionRef.current = studioConnectorSuggestion
+  }, [studioConnectorSuggestion])
+
+  useEffect(() => {
+    knapsackEmailRef.current = knapsackEmail
+  }, [knapsackEmail])
+
+  const refreshStudioConnections = useCallback(async () => {
+    if (!knapsackEmail) {
+      studioConnectedScopesRef.current = new Set()
+      studioAvailableConnectorsRef.current = []
+      studioConnectionsLoadedRef.current = false
+      setStudioConnectedLabels([])
+      setStudioConnectorSuggestion(null)
+      return
+    }
+    try {
+      const response = await apiGet<StudioConnectionsResponse>('/api/clawd/service/studio-connections')
+      if (!response.success) {
+        studioConnectionsLoadedRef.current = false
+        setStudioConnectedLabels([])
+        setStudioConnectorSuggestion(null)
+        return
+      }
+      const connected = new Set(response.connected || [])
+      const available = normalizeStudioConnectorCatalog(response.available)
+      studioConnectedScopesRef.current = connected
+      studioAvailableConnectorsRef.current = available
+      studioConnectionsLoadedRef.current = true
+      const connectedLabels = available
+        .filter(connector => connected.has(connector.scope || connector.id))
+        .map(connector => connector.name)
+      const knownScopes = new Set(available.map(connector => connector.scope || connector.id))
+      for (const scope of connected) {
+        if (!knownScopes.has(scope)) {
+          connectedLabels.push(
+            scope.replace(/^google_/, '').replace(/_(read|modify)$/, '').replace(/_/g, ' '),
+          )
+        }
+      }
+      setStudioConnectedLabels([...new Set(connectedLabels)].sort())
+      setStudioConnectorSuggestion(current => {
+        if (!current) return null
+        const remaining = current.connectors.filter(connector => !connected.has(connector.scope || connector.id))
+        return remaining.length > 0 ? { ...current, connectors: remaining } : null
+      })
+    } catch {
+      studioConnectionsLoadedRef.current = false
+      setStudioConnectedLabels([])
+    }
+  }, [knapsackEmail])
+
+  useEffect(() => {
+    void refreshStudioConnections()
+    window.addEventListener('focus', refreshStudioConnections)
+    return () => window.removeEventListener('focus', refreshStudioConnections)
+  }, [refreshStudioConnections])
 
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
@@ -4160,10 +4294,21 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
+    pendingStudioConnectorSuggestionRef.current =
+      knapsackEmailRef.current && studioConnectionsLoadedRef.current
+        ? detectStudioConnectorSuggestion(
+            text,
+            studioConnectedScopesRef.current,
+            dismissedStudioConnectorIdsRef.current,
+            studioAvailableConnectorsRef.current,
+          )
+        : null
     // Detect a relevant not-yet-installed skill from the user's message.
     // Stored in a ref so the post-response effect can read the latest value.
     const allSkills = skills.length > 0 ? skills : FALLBACK_SKILLS
-    pendingSkillSuggestionRef.current = findRelevantSkill(text, allSkills, dismissedSkillNames)
+    pendingSkillSuggestionRef.current = pendingStudioConnectorSuggestionRef.current
+      ? null
+      : findRelevantSkill(text, allSkills, dismissedSkillNames)
   }
 
   // Stop current generation
@@ -4189,6 +4334,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const clearHistory = useCallback(() => {
     localStorage.removeItem(chatHistoryStorage)
     setMsgs(welcomeMessages)
+    setStudioConnectorSuggestion(null)
+    pendingStudioConnectorSuggestionRef.current = null
     autoTriggeredBriefingRef.current = false
   }, [chatHistoryStorage, welcomeMessages])
 
@@ -4244,6 +4391,18 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     return res.tabs || []
   }
 
+  const openStudioConnector = useCallback(async (connector: StudioConnector) => {
+    const studioBase = (import.meta.env.VITE_KN_STUDIO_SERVER || 'https://studio.knapsack.ai').replace(/\/$/, '')
+    const url = `${studioBase}/connections?connect=${encodeURIComponent(connector.id)}&source=desktop-chat`
+    setStudioConnectorSuggestion(null)
+    studioConnectorSuggestionRef.current = null
+    try {
+      await shellOpen(url)
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }, [])
+
   // Send with specific text (for prompt action clicks, example clicks, voice auto-send)
   // If the chat is busy (mid-inference), queue the message to send after completion.
   const handleSendWithText = useCallback(async (text: string, srcMsgId?: string) => {
@@ -4251,6 +4410,15 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     // If a skill nudge is showing and the user types a short affirmative, install it.
     const AFFIRMATIVES = new Set(['yes', 'yep', 'yeah', 'sure', 'ok', 'okay', 'do it', 'install it', 'install', 'go ahead', 'sounds good', 'yes please'])
+    const connectorSuggestion = studioConnectorSuggestionRef.current
+    if (
+      connectorSuggestion?.connectors.length === 1
+      && AFFIRMATIVES.has(text.trim().toLowerCase())
+    ) {
+      pushUser(text)
+      await openStudioConnector(connectorSuggestion.connectors[0])
+      return
+    }
     if (skillSuggestionRef.current && AFFIRMATIVES.has(text.trim().toLowerCase())) {
       const skill = skillSuggestionRef.current
       setSkillSuggestion(null)
@@ -4328,7 +4496,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
 
     await doSend(text.trim())
-  }, [])
+  }, [openStudioConnector])
 
   // Keep handleSendWithTextRef updated for the clawd-send-user event listener
   handleSendWithTextRef.current = handleSendWithText
@@ -5529,8 +5697,25 @@ ${actualText}`
             {/* Attribution moved to Settings */}
             <div className="ClawdChatStatus">{statusLine}</div>
           </div>
+          {compact && (
+            <button
+              type="button"
+              className="ClawdCompactControlsButton"
+              aria-label="Meeting chat settings"
+              aria-expanded={showCompactControls}
+              onMouseDown={event => event.stopPropagation()}
+              onClick={() => setShowCompactControls(prev => !prev)}
+            >
+              <span aria-hidden="true">•••</span>
+            </button>
+          )}
         </div>
-        <div className="ClawdChatActions">
+        <div
+          ref={compactControlsRef}
+          className={`ClawdChatActions ${compact ? 'ClawdChatActions--compact' : ''} ${showCompactControls ? 'ClawdChatActions--open' : ''}`}
+          onMouseDown={compact ? event => event.stopPropagation() : undefined}
+          onClick={compact ? () => setShowCompactControls(false) : undefined}
+        >
           <button
             disabled={busy}
             onClick={() => enableAssistant(!status?.running)}
@@ -6126,6 +6311,43 @@ ${actualText}`
           </svg>
           New messages
         </button>
+      )}
+
+      {studioConnectorSuggestion && (
+        <div className="ClawdSkillNudge ClawdStudioConnectorNudge">
+          <span className="ClawdSkillNudgeEmoji">🔌</span>
+          <div className="ClawdSkillNudgeBody">
+            <span className="ClawdSkillNudgeName">{studioConnectorSuggestion.label}</span>
+            <span className="ClawdSkillNudgeDesc">{studioConnectorSuggestion.description}</span>
+          </div>
+          <div className="ClawdStudioConnectorNudgeActions">
+            {studioConnectorSuggestion.connectors.map(connector => (
+              <button
+                key={connector.id}
+                className="ClawdSkillNudgeAction"
+                onClick={() => void openStudioConnector(connector)}
+                title={connector.description}
+              >
+                <span aria-hidden="true">{connector.icon}</span>
+                {connector.name}
+              </button>
+            ))}
+          </div>
+          <button
+            className="ClawdSkillNudgeDismiss"
+            onClick={() => {
+              const ids = studioConnectorSuggestion.connectors.map(connector => connector.id)
+              dismissedStudioConnectorIdsRef.current = new Set([
+                ...dismissedStudioConnectorIdsRef.current,
+                ...ids,
+              ])
+              setStudioConnectorSuggestion(null)
+            }}
+            title="Not now"
+          >
+            ×
+          </button>
+        </div>
       )}
 
       {/* Inline skill suggestion — appears after an AI response when a relevant
@@ -7661,6 +7883,7 @@ ${actualText}`
                                     localStorage.setItem(ACTIVE_PROVIDER_STORAGE, next)
                                   } catch {}
                                   setKnapsackEmail('')
+                                  setStudioConnectedLabels([])
                                   setKnapsackConnectError(null)
                                 }}
                                 disabled={savingKey}
@@ -7668,6 +7891,12 @@ ${actualText}`
                                 Disconnect
                               </button>
                             </div>
+                            <p style={{ margin: '10px 0 0', fontSize: 11, color: '#64748b' }}>
+                              Studio integrations:{' '}
+                              {studioConnectedLabels.length > 0
+                                ? studioConnectedLabels.join(', ')
+                                : 'No connected integrations found'}
+                            </p>
                           </>
                         ) : (
                           <>

@@ -33,6 +33,7 @@ pub struct FetchGoogleGmailResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FetchGoogleGmailParams {
   email: String,
+  account_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -340,6 +341,7 @@ pub async fn fetch_gmail(
 
 async fn start_gmail_data_fetching(
   email: String,
+  account_email: String,
   semantic_service: Arc<Mutex<Option<SemanticService>>>,
   connections_data: Arc<Mutex<ConnectionsData>>,
   app_handle: tauri::AppHandle,
@@ -351,14 +353,18 @@ async fn start_gmail_data_fetching(
     }
   };
 
-  let user_connection = match UserConnection::find_by_user_email_and_scope(
+  let user_connection = match UserConnection::find_by_user_email_scope_and_calendar_account(
     email.clone(),
     String::from(GOOGLE_GMAIL_SCOPE),
+    account_email.clone(),
   ) {
     Ok(connection) => connection,
     Err(error) => {
       log::error!("Failed to find user connection: {:?}", error);
-      let msg = format!("Failed to find user connection for user: {}", email);
+      let msg = format!(
+        "Failed to find Gmail connection for user {} / account {}",
+        email, account_email
+      );
       knap_log_error(msg, Some(error), None);
       return Err(Error::KSError("Fail to get user connection".to_string()));
     }
@@ -374,22 +380,16 @@ async fn start_gmail_data_fetching(
       return Err(Error::KSError("Fail to refresh access token".to_string()));
     }
   };
-  let account_email = user_connection.calendar_account_email.clone();
+  if !ConnectionsData::lock_and_try_begin_account_sync(
+    connections_data.clone(),
+    ConnectionsEnum::GoogleGmail,
+    &account_email,
+  )
+  .await
+  {
+    return Ok(());
+  }
   tauri::async_runtime::spawn(async move {
-    if ConnectionsData::lock_and_get_connection_is_syncing(
-      connections_data.clone(),
-      ConnectionsEnum::GoogleGmail,
-    )
-    .await
-    {
-      return;
-    }
-    ConnectionsData::lock_and_set_connection_is_syncing(
-      connections_data.clone(),
-      ConnectionsEnum::GoogleGmail,
-      true,
-    )
-    .await;
     let fetching_day_result = fetch_gmail(
       access_token.clone(),
       user_connection.clone(),
@@ -397,7 +397,7 @@ async fn start_gmail_data_fetching(
       3,
       3,
       true,
-      account_email,
+      account_email.clone(),
     )
     .await;
 
@@ -416,10 +416,10 @@ async fn start_gmail_data_fetching(
       }
     }
 
-    ConnectionsData::lock_and_set_connection_is_syncing(
+    ConnectionsData::lock_and_finish_account_sync(
       connections_data,
       ConnectionsEnum::GoogleGmail,
-      false,
+      &account_email,
     )
     .await;
   });
@@ -440,6 +440,7 @@ async fn fetch_google_gmail_api(
   let unwrapped_app_handle = app_handle.get_ref().clone();
   match start_gmail_data_fetching(
     params.email.clone(),
+    params.account_email.clone().unwrap_or(params.email.clone()),
     unwrapped_semantic_service,
     unwrapped_connections_data,
     unwrapped_app_handle,

@@ -76,8 +76,11 @@ export default defineConfig(async () => ({
     port: 1420,
     strictPort: true,
     watch: {
-      // 3. tell vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      // 3. ignore backend sources and the mutable browser/database state used
+      // by the isolated QA launcher. Chrome writes into this directory during
+      // normal operation; treating those writes as source changes repeatedly
+      // reloads the Tauri webview and can terminate an otherwise healthy run.
+      ignored: ["**/src-tauri/**", "**/.qa-dev-openclaw-state/**"],
     },
   },
 }));

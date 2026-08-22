@@ -115,7 +115,7 @@ fn windows_work_area() -> Option<(i32, i32, i32, i32)> {
   }
 }
 
-const NOTIF_HEIGHT: f64 = 180.0;
+const NOTIF_HEIGHT: f64 = 210.0;
 const NOTIF_WIDTH: f64 = 720.0;
 const NOTIF_Y_OFFSET: f64 = 50.0; // Push below macOS menu bar / notch
 const NOTIF_START_X_OFFSET: i32 = 500;
@@ -126,13 +126,13 @@ const NOTIF_FRAME_TIME: u64 = 8;
 #[cfg(target_os = "macos")]
 fn updater_temp_root_from_executable(executable_path: &std::path::Path) -> Option<PathBuf> {
   let executable_dir = executable_path.parent()?;
-  let app_root = if executable_dir.to_string_lossy().contains("Contents/MacOS") {
-    executable_dir.parent()?.parent()?.to_path_buf()
+  if executable_dir.to_string_lossy().contains("Contents/MacOS") {
+    let app_root = executable_dir.parent()?.parent()?;
+    let install_root = app_root.parent()?;
+    Some(install_root.join(".knapsack-updater-tmp"))
   } else {
-    executable_dir.to_path_buf()
-  };
-  let install_root = app_root.parent()?.to_path_buf();
-  Some(install_root.join(".knapsack-updater-tmp"))
+    Some(executable_dir.join(".knapsack-updater-tmp"))
+  }
 }
 
 #[tauri::command]
@@ -742,6 +742,7 @@ async fn show_notification_window(
   button_configs: Vec<ButtonConfig>,
   title: String,
   time: String,
+  brief: Option<String>,
 ) {
   if let Some(window) = app.get_window("notification") {
     if let Ok(monitor) = window.current_monitor() {
@@ -773,7 +774,18 @@ async fn show_notification_window(
           }))
           .unwrap();
 
-        window.emit("notification_event_id", json!({"event_id": event_id, "button_configs": button_configs, "title": title, "time": time})).unwrap();
+        window
+          .emit(
+            "notification_event_id",
+            json!({
+              "event_id": event_id,
+              "button_configs": button_configs,
+              "title": title,
+              "time": time,
+              "brief": brief,
+            }),
+          )
+          .unwrap();
 
         let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
 
@@ -834,74 +846,10 @@ fn activate_main_window(window: tauri::Window) {
 
 #[tauri::command]
 fn activate_main_window_from_notification(window: tauri::Window) {
-  let app = window.app_handle();
-
-  if let Some(main_window) = app.get_window("main") {
-    // Determine position and size from the notification window so the main
-    // window appears to "expand" from it.
-    if let Some(notification_window) = app.get_window("notification") {
-      if let Ok(notif_pos) = notification_window.outer_position() {
-        // On Windows, use the actual work area so we never overlap the taskbar.
-        #[cfg(target_os = "windows")]
-        {
-          if let Some((_wa_x, wa_y, _wa_w, wa_h)) = windows_work_area() {
-            let scale_factor = notification_window
-              .current_monitor()
-              .ok()
-              .flatten()
-              .map(|m| m.scale_factor())
-              .unwrap_or(1.0);
-            // Subtract frame overhead so the outer window fits in the work area
-            let frame_overhead_physical = main_window
-              .outer_size()
-              .ok()
-              .and_then(|outer| {
-                main_window
-                  .inner_size()
-                  .ok()
-                  .map(|inner| outer.height as i32 - inner.height as i32)
-              })
-              .unwrap_or(0);
-            let usable_h = (wa_h - frame_overhead_physical).max(400);
-            let wa_h_logical = usable_h as f64 / scale_factor;
-
-            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-              width: NOTIF_WIDTH,
-              height: wa_h_logical,
-            }));
-            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-              x: notif_pos.x,
-              y: wa_y,
-            }));
-          }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-          if let Ok(Some(monitor)) = notification_window.current_monitor() {
-            let screen_size = monitor.size();
-            let monitor_pos = monitor.position();
-            let scale_factor = monitor.scale_factor();
-
-            // macOS: ~25px for the menu bar at the top
-            let menu_bar_height: f64 = if cfg!(target_os = "macos") { 25.0 } else { 0.0 };
-            let logical_height = screen_size.height as f64 / scale_factor - menu_bar_height;
-
-            let _ = main_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-              width: NOTIF_WIDTH,
-              height: logical_height,
-            }));
-
-            let y = monitor_pos.y as f64 / scale_factor + menu_bar_height;
-            let _ = main_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-              x: notif_pos.x,
-              y: (y * scale_factor) as i32,
-            }));
-          }
-        }
-      }
-    }
-
+  if let Some(main_window) = window.app_handle().get_window("main") {
+    // MeetingNotesMode owns the right-side meeting layout. Keeping the
+    // pre-meeting bounds intact here lets it restore the user's original
+    // window after the meeting closes.
     let _ = main_window.unminimize();
     let _ = main_window.show();
     let _ = main_window.set_focus();
@@ -912,8 +860,47 @@ fn activate_main_window_from_notification(window: tauri::Window) {
 /// API / keyboard simulation. Copies the message to the clipboard, activates
 /// the meeting window, opens chat via platform-specific keyboard shortcut,
 /// pastes, and sends. Falls back to clipboard-only on non-macOS.
+fn google_meet_url_needle(meeting_url: Option<&str>) -> Option<String> {
+  meeting_url
+    .and_then(|value| url::Url::parse(value).ok())
+    .filter(|url| url.host_str() == Some("meet.google.com"))
+    .and_then(|url| {
+      url
+        .path_segments()
+        .and_then(|mut segments| segments.find(|segment| !segment.is_empty()))
+        .map(|code| format!("meet.google.com/{code}"))
+    })
+}
+
+#[cfg(test)]
+mod meeting_chat_target_tests {
+  use super::google_meet_url_needle;
+
+  #[test]
+  fn extracts_exact_google_meet_target() {
+    assert_eq!(
+      google_meet_url_needle(Some("https://meet.google.com/abc-defg-hij?authuser=1")),
+      Some("meet.google.com/abc-defg-hij".to_string())
+    );
+  }
+
+  #[test]
+  fn rejects_missing_or_non_meet_targets() {
+    assert_eq!(google_meet_url_needle(None), None);
+    assert_eq!(
+      google_meet_url_needle(Some("https://news.google.com/")),
+      None
+    );
+    assert_eq!(google_meet_url_needle(Some("not a url")), None);
+  }
+}
+
 #[tauri::command]
-async fn send_meeting_chat_message(platform: String, message: String) -> Result<bool, String> {
+async fn send_meeting_chat_message(
+  platform: String,
+  message: String,
+  meeting_url: Option<String>,
+) -> Result<bool, String> {
   #[cfg(target_os = "macos")]
   {
     use std::process::Command;
@@ -939,7 +926,7 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
         (
           "key code 4 using {command down, shift down}", // H
           "key code 4 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#,
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "zoom""#.to_string(),
         )
       }
       "teams" => {
@@ -947,24 +934,83 @@ async fn send_meeting_chat_message(platform: String, message: String) -> Result<
         (
           "key code 46 using {command down, shift down}", // M
           "key code 46 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#,
+          r#"tell application "System Events" to set targetApp to name of first application process whose name contains "Teams""#.to_string(),
         )
       }
-      _ => {
-        // Google Meet in browser: Cmd+Shift+C toggles chat
-        // We target the frontmost browser
+      "google_meet" => {
+        // Google Meet in a supported browser: Cmd+Shift+C toggles chat.
+        // Resolve the browser explicitly. The Knapsack meeting window is often
+        // frontmost, so targeting the frontmost process can paste this notice
+        // into Knapsack's own meeting-chat input.
+        let meeting_needle = google_meet_url_needle(meeting_url.as_deref());
+        let Some(meeting_needle) = meeting_needle else {
+          log::warn!("Cannot safely target Google Meet chat without a specific Meet URL");
+          return Ok(false);
+        };
+        let meeting_needle = meeting_needle.replace('\\', "\\\\").replace('"', "\\\"");
+        let target_script = format!(
+          r#"set meetingNeedle to "{meeting_needle}"
+          set targetApp to ""
+          tell application "System Events" to set runningBrowsers to name of every application process
+          set chromiumBrowsers to {{"Google Chrome", "Microsoft Edge", "Brave Browser"}}
+          repeat with browserName in chromiumBrowsers
+            set browserNameText to browserName as text
+            if runningBrowsers contains browserNameText then
+              try
+                using terms from application "Google Chrome"
+                  tell application browserNameText
+                    repeat with browserWindow in windows
+                      repeat with tabIndex from 1 to count of tabs of browserWindow
+                        if URL of tab tabIndex of browserWindow contains meetingNeedle then
+                          set active tab index of browserWindow to tabIndex
+                          set index of browserWindow to 1
+                          activate
+                          set targetApp to browserNameText
+                          exit repeat
+                        end if
+                      end repeat
+                      if targetApp is not "" then exit repeat
+                    end repeat
+                  end tell
+                end using terms from
+              end try
+            end if
+            if targetApp is not "" then exit repeat
+          end repeat
+          if targetApp is "" and runningBrowsers contains "Safari" then
+            try
+              tell application "Safari"
+                repeat with browserWindow in windows
+                  repeat with browserTab in tabs of browserWindow
+                    if URL of browserTab contains meetingNeedle then
+                      set current tab of browserWindow to browserTab
+                      set index of browserWindow to 1
+                      activate
+                      set targetApp to "Safari"
+                      exit repeat
+                    end if
+                  end repeat
+                  if targetApp is not "" then exit repeat
+                end repeat
+              end tell
+            end try
+          end if
+          if targetApp is "" then error "The Google Meet tab could not be located""#,
+          meeting_needle = meeting_needle,
+        );
         (
           "key code 8 using {command down, shift down}", // C
           "key code 8 using {command down, shift down}", // toggle off
-          r#"tell application "System Events" to set targetApp to name of first application process whose frontmost is true"#,
+          target_script,
         )
       }
+      _ => return Ok(false),
     };
 
     let script = format!(
       r#"
       {target_app}
-      tell application targetApp to activate
+      tell application "System Events" to set frontmost of application process targetApp to true
       delay 0.5
       tell application "System Events"
         tell process targetApp
@@ -1530,6 +1576,15 @@ fn create_data_dir() {
 
 // make the db path OS agnostic
 fn create_db_env_variable() {
+  // QA and self-hosted launches provide an explicit database path. Preserve
+  // it so a dev build cannot silently fall back to and mutate the user's
+  // production ~/.knapsack.db.
+  if std::env::var_os("DATABASE_URL")
+    .filter(|value| !value.is_empty())
+    .is_some()
+  {
+    return;
+  }
   let home_dir = dirs::home_dir().expect("Could not determine the home directory");
   let db_dir = home_dir.join(KNAPSACK_DB_FILENAME);
   let db_path = db_dir.as_path();
@@ -1685,6 +1740,15 @@ async fn main() {
     clawd::snowflake_mcp::run_stdio_server().await;
     std::process::exit(0);
   }
+  if std::env::args().any(|arg| arg == "--internal-mcp-studio") {
+    clawd::studio_mcp::run_stdio_server().await;
+    std::process::exit(0);
+  }
+
+  // Must run before any other setup so the knapsack:// scheme is claimed by
+  // this process. Carries the role a visitor picked on the website into
+  // onboarding; see www ThankYou page.
+  tauri_plugin_deep_link::prepare("ai.knap.knapsack");
 
   create_data_dir();
   create_db_env_variable();
@@ -1751,6 +1815,19 @@ async fn main() {
     .manage(semantic_service.clone())
     .manage(recording_state)
     .setup(move |app| {
+      {
+        let deep_link_handle = app.handle();
+        if let Err(err) = tauri_plugin_deep_link::register("knapsack", move |request| {
+          // Forwarded to the webview, which parses role/attr_id and preselects
+          // the matching agent during onboarding.
+          if let Err(emit_err) = deep_link_handle.emit_all("deep-link-received", request) {
+            log::error!("Failed to emit deep link to webview: {emit_err}");
+          }
+        }) {
+          log::error!("Failed to register knapsack:// deep link handler: {err}");
+        }
+      }
+
       #[cfg(not(debug_assertions))]
       {
         let mut missing = vec![];

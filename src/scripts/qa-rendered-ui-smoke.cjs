@@ -184,15 +184,27 @@ function renderedSmokeExpression() {
       chatInput.focus();
     }
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
-    if (setter) {
-      setter.call(chatInput, "QA rendered typing smoke");
-    } else {
-      chatInput.value = "QA rendered typing smoke";
+    const typingSample = "QA rendered typing latency smoke ".repeat(5);
+    const inputDurations = [];
+    const typingStartedAt = performance.now();
+    for (let index = 0; index < typingSample.length; index += 1) {
+      const value = typingSample.slice(0, index + 1);
+      const eventStartedAt = performance.now();
+      if (setter) setter.call(chatInput, value);
+      else chatInput.value = value;
+      chatInput.dispatchEvent(new Event("input", { bubbles: true }));
+      inputDurations.push(performance.now() - eventStartedAt);
     }
-    chatInput.dispatchEvent(new Event("input", { bubbles: true }));
     chatInput.dispatchEvent(new Event("change", { bubbles: true }));
-    if (chatInput.value !== "QA rendered typing smoke") {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const typingTotalMs = performance.now() - typingStartedAt;
+    const sortedDurations = [...inputDurations].sort((a, b) => a - b);
+    const typingP95Ms = sortedDurations[Math.floor(sortedDurations.length * 0.95)] || 0;
+    if (chatInput.value !== typingSample) {
       throw new Error("chat input did not accept typed text");
+    }
+    if (typingP95Ms > 8 || typingTotalMs > 400) {
+      throw new Error(`chat input latency exceeded budget (p95=${typingP95Ms.toFixed(1)}ms total=${typingTotalMs.toFixed(1)}ms)`);
     }
 
     const emailNavSelector = await clickAny(
@@ -235,8 +247,14 @@ function renderedSmokeExpression() {
       url: location.href,
       checks: {
         chatInputTyped: true,
+        chatInputLatencyWithinBudget: true,
         emailAutopilotRendered: true,
         gbrainRendered: true,
+      },
+      metrics: {
+        chatInputEventP95Ms: Number(typingP95Ms.toFixed(2)),
+        chatInputTotalMs: Number(typingTotalMs.toFixed(2)),
+        chatInputCharacters: typingSample.length,
       },
       selectors: {
         emailNav: emailNavSelector,

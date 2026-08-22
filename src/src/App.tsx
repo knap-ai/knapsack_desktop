@@ -25,6 +25,7 @@ import { useLLMBar } from 'src/hooks/feed/useLLMBar'
 import { getHasOnboarded, Onboarding } from 'src/pages/onboarding'
 import { KN_API_STOP_LLM_EXECUTION, KN_CHAT_MESSAGE_MAX_STREAM_READS } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
+import { initOnboardingIntent } from 'src/utils/onboardingIntent'
 
 import Home from './components/templates/Home/Home'
 import {
@@ -265,6 +266,27 @@ function App() {
   const reconnectDismissCheckDone = useRef(false)
 
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+
+  // The website opens knapsack://onboard?role=... after download, so the role a
+  // visitor chose there selects the right worker in onboarding.
+  useEffect(() => {
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+    initOnboardingIntent()
+      .then(fn => {
+        if (cancelled) fn()
+        else unlisten = fn
+      })
+      .catch(err =>
+        logError(err instanceof Error ? err : new Error(String(err)), {
+          additionalInfo: 'Failed to listen for onboarding deep links',
+        }),
+      )
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -559,12 +581,11 @@ function App() {
     const unlistenPromise = listen(
       'signin_success',
       async (event: Event<{ code: string; raw_scopes: string; state?: string }>) => {
-        const hasOnboarded = await getHasOnboarded()
-        if (!hasOnboarded) {
-          return
-        }
-
-        // Check if this is an "add account" flow (calendar / drive / gmail) triggered from settings.
+        // Add-account callbacks originate from Settings, so handle them before
+        // consulting the legacy onboarding marker. Existing installations and
+        // preserved QA profiles can be on the Home screen without that marker;
+        // returning early here silently discarded an otherwise valid OAuth
+        // callback before the token exchange ever ran.
         const pendingFlow =
           consumePendingAddAccountFlow() || parsePendingAddAccountState(event.payload.state)
         if (pendingFlow) {
@@ -590,6 +611,11 @@ function App() {
                 error,
               })
             })
+          return
+        }
+
+        const hasOnboarded = await getHasOnboarded()
+        if (!hasOnboarded) {
           return
         }
 
@@ -650,6 +676,18 @@ function App() {
             googlePermissions: updatedConnections,
           })
         })
+        setIsSignInDialogOpened(false)
+        cleanReconnectKeys()
+        reconnectDismissedRef.current = false
+        reconnectDismissCheckDone.current = false
+        KNLocalStorage.setItem(RECONNECT_DISMISSED_AT, undefined)
+      },
+    )
+    const unlistenGoogleAccountLinkedPromise = listen(
+      'google_account_linked',
+      async (event: Event<{ primary_email: string; account_email: string }>) => {
+        const updatedConnections = await fetchConnections(event.payload.primary_email)
+        syncConnections(event.payload.primary_email, updatedConnections)
         setIsSignInDialogOpened(false)
         cleanReconnectKeys()
         reconnectDismissedRef.current = false
@@ -755,6 +793,7 @@ function App() {
     return () => {
       unlistenPromise.then(unlisten => unlisten())
       unlistenMicrosoftPromise.then(unlisten => unlisten())
+      unlistenGoogleAccountLinkedPromise.then(unlisten => unlisten())
       unlistenFetchCalendarPromise.then(unlisten => unlisten())
       unlistenWindowFocusPromise.then(unlisten => unlisten())
       unlistenAutoOpenFeedItemPromise.then(unlisten => unlisten())

@@ -296,6 +296,19 @@ static BROWSER_START_NUDGED: AtomicBool = AtomicBool::new(false);
 static GATEWAY_LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
 static QA_DIRECT_GATEWAY_FIRST_SEEN_MS: AtomicU64 = AtomicU64::new(0);
 static GATEWAY_LAST_SELF_HEAL_MS: AtomicU64 = AtomicU64::new(0);
+/// Dev-mode (`cfg!(debug_assertions)`) only: `prepare_gateway_config` reinstalls
+/// bundled plugin runtime deps directly into the **source** `resources/clawdbot`
+/// tree (there is no copy step in dev — see `resolve_clawdbot_entry`). Every
+/// self-heal cycle calls `prepare_gateway_config`, and every such reinstall
+/// writes/touches thousands of files under a path `tauri dev`'s file watcher
+/// scans, which triggers a full app rebuild+relaunch. If the gateway is not yet
+/// reachable when the new process boots, self-heal fires again immediately —
+/// producing a restart loop that never lets the gateway finish starting.
+/// This flag makes the dev reinstall run at most once per process lifetime;
+/// subsequent self-heal cycles skip it, exactly like the release path already
+/// does unconditionally (see the `!cfg!(debug_assertions)` guard around the
+/// direct call in `run_gateway_self_heal_cycle`).
+static DEBUG_PLUGIN_RUNTIME_DEPS_INSTALLED_ONCE: AtomicBool = AtomicBool::new(false);
 const GATEWAY_PRE_BIND_STARTUP_GRACE_MS: u64 = 600_000;
 const GATEWAY_SELF_HEAL_COOLDOWN_MS: u64 = 15_000;
 const PLUGIN_RUNTIME_DEPS_LOCK_GRACE: std::time::Duration = std::time::Duration::from_secs(600);
@@ -795,9 +808,7 @@ pub async fn self_heal_gateway_conflict(token: &str) {
   tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
 
   if qa_direct_gateway_mode() {
-    eprintln!(
-      "[clawd/service] self-heal: waiting for QA direct gateway supervisor restart"
-    );
+    eprintln!("[clawd/service] self-heal: waiting for QA direct gateway supervisor restart");
     return;
   }
 
@@ -1140,6 +1151,7 @@ fn docker_session_sandbox_available() -> Result<(), String> {
 fn ensure_knapsack_session_isolation(
   cfg: &mut serde_json::Value,
   docker_sandbox_available: bool,
+  force_docker_mode: bool,
 ) -> bool {
   if !cfg.is_object() {
     return false;
@@ -1216,10 +1228,12 @@ fn ensure_knapsack_session_isolation(
     .pointer_mut("/agents/defaults/sandbox")
     .and_then(|value| value.as_object_mut())
   {
-    let expected_mode = if docker_sandbox_available {
-      "non-main"
-    } else {
+    let expected_mode = if !docker_sandbox_available {
       "off"
+    } else if force_docker_mode {
+      "all"
+    } else {
+      "non-main"
     };
     if sandbox.get("mode").and_then(|value| value.as_str()) != Some(expected_mode) {
       sandbox.insert("mode".to_string(), serde_json::json!(expected_mode));
@@ -1343,6 +1357,10 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
     "command": current_exe,
     "args": ["--internal-mcp-snowflake"],
     "cwd": clawdbot_home.to_string_lossy(),
+    // The MCP runtime sanitizes the inherited host environment. Pass the
+    // app-owned state path explicitly so the subprocess reads the same private
+    // token store as Desktop instead of falling back to ~/.openclaw.
+    "env": { "OPENCLAW_STATE_DIR": clawdbot_home.to_string_lossy() },
   });
   if let Some(servers) = cfg
     .pointer_mut("/mcp/servers")
@@ -1354,6 +1372,56 @@ fn ensure_knapsack_snowflake_mcp_server(cfg: &mut serde_json::Value, clawdbot_ho
     }
   }
 
+  patched
+}
+
+/// Register the generic Studio/Composio bridge. The bridge reads the Studio
+/// JWT from Desktop's private token store; no credential is written into the
+/// gateway configuration or exposed to the model.
+fn ensure_knapsack_studio_mcp_server(cfg: &mut serde_json::Value, clawdbot_home: &Path) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+  let current_exe = match std::env::current_exe() {
+    Ok(path) => path.to_string_lossy().into_owned(),
+    Err(_) => return false,
+  };
+  let mut patched = false;
+  if cfg.get("mcp").and_then(|value| value.as_object()).is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("mcp".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  if cfg
+    .pointer("/mcp/servers")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/mcp")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("servers".to_string(), serde_json::json!({}));
+    patched = true;
+  }
+  let expected = serde_json::json!({
+    "command": current_exe,
+    "args": ["--internal-mcp-studio"],
+    "cwd": clawdbot_home.to_string_lossy(),
+    "env": { "OPENCLAW_STATE_DIR": clawdbot_home.to_string_lossy() },
+  });
+  if let Some(servers) = cfg
+    .pointer_mut("/mcp/servers")
+    .and_then(|value| value.as_object_mut())
+  {
+    if servers.get("studio") != Some(&expected) {
+      servers.insert("studio".to_string(), expected);
+      patched = true;
+    }
+  }
   patched
 }
 
@@ -1373,6 +1441,7 @@ const SNOWFLAKE_MCP_TOOL_ALLOW_NAME: &str = "snowflake__snowflake_query";
 /// The bare tool name we mistakenly shipped first — cleaned up wherever
 /// found so it doesn't linger as a dead, gateway-rejected entry.
 const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
+const STUDIO_MCP_TOOLS_ALLOW: &str = "studio__*";
 
 /// MCP-provided tools that must always ride along with the base tools.allow
 /// / tools.sandbox.tools.allow lists below. Add new bundle-MCP tool names
@@ -1380,7 +1449,7 @@ const SNOWFLAKE_MCP_TOOL_ALLOW_NAME_STALE: &str = "snowflake_query";
 /// entry here is silent: the gateway just never mentions the tool to the
 /// model, which improvises something else (e.g. browsing to the product's
 /// website) instead of reporting an error.
-const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME];
+const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME, STUDIO_MCP_TOOLS_ALLOW];
 
 /// Canonical base `tools.allow` set for Knapsack-managed gateway sessions.
 ///
@@ -1622,6 +1691,174 @@ fn ensure_knapsack_tool_allow(cfg: &mut serde_json::Value) -> bool {
   patched
 }
 
+fn ensure_knapsack_studio_tool_allow(cfg: &mut serde_json::Value) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+  let mut patched = false;
+  if cfg.get("tools").is_none() {
+    cfg
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/allow")
+    .and_then(|value| value.as_array())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("allow".to_string(), serde_json::json!([]));
+  }
+  if cfg
+    .pointer("/tools/sandbox")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/sandbox/tools")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools/sandbox")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("tools".to_string(), serde_json::json!({}));
+  }
+  if cfg
+    .pointer("/tools/sandbox/tools/allow")
+    .and_then(|value| value.as_array())
+    .is_none()
+  {
+    cfg
+      .pointer_mut("/tools/sandbox/tools")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("allow".to_string(), serde_json::json!([]));
+  }
+  for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
+    if let Some(allow) = cfg
+      .pointer_mut(pointer)
+      .and_then(|value| value.as_array_mut())
+    {
+      if !allow
+        .iter()
+        .any(|item| item.as_str() == Some(STUDIO_MCP_TOOLS_ALLOW))
+      {
+        allow.push(serde_json::json!(STUDIO_MCP_TOOLS_ALLOW));
+        patched = true;
+      }
+    }
+  }
+  patched
+}
+
+/// Force-reset whatever section(s) the gateway's own `config.get` reported as
+/// invalid, directly on the config file on disk.
+///
+/// The gateway refuses `config.patch`/`config.set` outright whenever the
+/// *existing* on-disk config already fails schema validation — even for a
+/// patch to a completely unrelated section (see `config.patch`'s
+/// `if (!snapshot.valid)` guard in the vendored gateway). A narrowly-targeted
+/// fix (see `ensure_knapsack_progress_draft_labels_migration`) is only
+/// possible for issues Knapsack itself caused and already knows the shape of;
+/// this is the general fallback for any other invalid section, known or not:
+/// each issue's `path` (e.g. `"channels.whatsapp"`) names the JSON object
+/// that failed validation, so that whole object is reset to `{}` — safer than
+/// deleting the key outright (which could implicitly disable a channel whose
+/// enablement is presence-based) and it lets Knapsack's own default-filling
+/// migrations (`ensure_knapsack_channel_runtime_defaults`, etc.) repopulate it
+/// with sane values on the next config prep pass.
+///
+/// A timestamped backup of the untouched file is written alongside it first.
+/// Returns the list of dotted paths that were reset (empty if nothing to do
+/// or nothing was resettable).
+pub(crate) fn force_reset_invalid_gateway_config_sections(
+  config_snapshot: &serde_json::Value,
+) -> Result<Vec<String>, String> {
+  if config_snapshot.get("valid").and_then(serde_json::Value::as_bool) != Some(false) {
+    return Ok(vec![]);
+  }
+  let config_path = config_snapshot
+    .get("path")
+    .and_then(serde_json::Value::as_str)
+    .ok_or("config snapshot did not report a file path")?;
+
+  let mut reset_paths: Vec<String> = config_snapshot
+    .get("issues")
+    .and_then(serde_json::Value::as_array)
+    .map(|issues| {
+      issues
+        .iter()
+        .filter_map(|issue| issue.get("path").and_then(serde_json::Value::as_str))
+        .filter(|path| !path.is_empty())
+        .map(|path| path.to_string())
+        .collect::<Vec<_>>()
+    })
+    .unwrap_or_default();
+  reset_paths.sort();
+  reset_paths.dedup();
+  if reset_paths.is_empty() {
+    return Err(
+      "config is invalid but the gateway reported no resettable (non-root) issue path"
+        .to_string(),
+    );
+  }
+
+  let raw = std::fs::read_to_string(config_path)
+    .map_err(|error| format!("could not read {config_path}: {error}"))?;
+  let mut config: serde_json::Value = serde_json::from_str(&raw)
+    .map_err(|error| format!("could not parse {config_path} as JSON: {error}"))?;
+
+  let now_ms = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .map(|d| d.as_millis())
+    .unwrap_or(0);
+  let backup_path = format!("{config_path}.bak.{now_ms}");
+  std::fs::write(&backup_path, &raw)
+    .map_err(|error| format!("could not write backup {backup_path}: {error}"))?;
+
+  let mut actually_reset = Vec::new();
+  for dotted_path in &reset_paths {
+    let pointer = format!("/{}", dotted_path.replace('.', "/"));
+    if let Some(target) = config.pointer_mut(&pointer) {
+      *target = serde_json::json!({});
+      actually_reset.push(dotted_path.clone());
+    }
+  }
+
+  if actually_reset.is_empty() {
+    return Ok(vec![]);
+  }
+
+  let serialized = serde_json::to_string_pretty(&config)
+    .map_err(|error| format!("could not serialize repaired config: {error}"))?;
+  std::fs::write(config_path, serialized)
+    .map_err(|error| format!("could not write repaired {config_path}: {error}"))?;
+
+  eprintln!(
+    "[clawd/service] Force-reset invalid gateway config section(s) [{}] (backup: {})",
+    actually_reset.join(", "),
+    backup_path
+  );
+
+  Ok(actually_reset)
+}
+
 /// Word shown in chat while a turn is in flight (after the gateway's ~5s
 /// progress-draft delay), in place of its randomly-seeded default.
 pub(crate) const KNAPSACK_PROGRESS_DRAFT_LABEL: &str = "Thinking...";
@@ -1643,6 +1880,52 @@ pub(crate) const KNAPSACK_PROGRESS_DRAFT_LABEL: &str = "Thinking...";
 ///
 /// Only fills in a missing or `"auto"` value, so a deliberate choice is kept —
 /// including `label: false`, which hides the word entirely.
+///
+/// Only channels whose config schema actually declares a `streaming` field
+/// get touched. WhatsApp, Google Chat, Signal, and iMessage all validate their
+/// section with Zod's `.strict()` and have no `streaming` property (WhatsApp
+/// uses `blockStreaming`/`blockStreamingCoalesce` instead) — blindly inserting
+/// `streaming.progress.label` into any of them makes the whole config fail
+/// gateway-side schema validation with "must NOT have additional properties",
+/// which then blocks *every* subsequent `config.patch` (including unrelated
+/// ones, e.g. updating an allowlist) until the file is manually repaired.
+const KNAPSACK_STREAMING_PROGRESS_CHANNELS: &[&str] = &["slack", "telegram", "discord", "msteams"];
+
+/// Repair-in-place: remove a `streaming` key from any channel whose schema
+/// doesn't declare one. Older builds of `ensure_knapsack_progress_draft_labels`
+/// wrote it unconditionally, which permanently corrupted `channels.whatsapp`
+/// (and would corrupt `googlechat`/`signal`/`imessage` the same way) on disk —
+/// the gateway rejects `config.patch`/`config.set` outright while an
+/// already-invalid field is on disk, so simply not adding new ones doesn't
+/// self-heal an install that got the bad write before this fix shipped.
+fn ensure_knapsack_progress_draft_labels_migration(cfg: &mut serde_json::Value) -> bool {
+  let Some(channels) = cfg
+    .pointer_mut("/channels")
+    .and_then(|value| value.as_object_mut())
+  else {
+    return false;
+  };
+
+  let mut patched = false;
+  for (channel_id, entry) in channels.iter_mut() {
+    if KNAPSACK_STREAMING_PROGRESS_CHANNELS.contains(&channel_id.as_str()) {
+      continue;
+    }
+    let Some(entry) = entry.as_object_mut() else {
+      continue;
+    };
+    if entry.remove("streaming").is_some() {
+      eprintln!(
+        "[clawd/service] Removed unsupported channels.{}.streaming (schema has no such field)",
+        channel_id
+      );
+      patched = true;
+    }
+  }
+
+  patched
+}
+
 fn ensure_knapsack_progress_draft_labels(cfg: &mut serde_json::Value) -> bool {
   let Some(channels) = cfg
     .pointer_mut("/channels")
@@ -1653,6 +1936,9 @@ fn ensure_knapsack_progress_draft_labels(cfg: &mut serde_json::Value) -> bool {
 
   let mut patched = false;
   for (channel_id, entry) in channels.iter_mut() {
+    if !KNAPSACK_STREAMING_PROGRESS_CHANNELS.contains(&channel_id.as_str()) {
+      continue;
+    }
     // Skip `null`/`false` (disabled) and any non-object entry.
     let Some(entry) = entry.as_object_mut() else {
       continue;
@@ -1825,6 +2111,10 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
       );
       patched = true;
     }
+  }
+
+  if ensure_knapsack_progress_draft_labels_migration(cfg) {
+    patched = true;
   }
 
   if ensure_knapsack_progress_draft_labels(cfg) {
@@ -4155,6 +4445,26 @@ pub(crate) fn app_clawdbot_home(app_handle: &tauri::AppHandle) -> PathBuf {
     .join("clawdbot")
 }
 
+fn read_embedded_browser_preference_at(app_handle: &tauri::AppHandle) -> bool {
+  let home = app_clawdbot_home(app_handle);
+  let current = home.join("openclaw.json");
+  let legacy = home.join("clawdbot.json");
+  let path = if current.exists() || !legacy.exists() {
+    current
+  } else {
+    legacy
+  };
+  fs::read_to_string(path)
+    .ok()
+    .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+    .and_then(|config| {
+      config
+        .pointer("/browser/headless")
+        .and_then(|value| value.as_bool())
+    })
+    .unwrap_or(false)
+}
+
 fn knapsack_openclaw_workspace_path(clawdbot_home: &Path) -> PathBuf {
   clawdbot_home.join("workspace")
 }
@@ -5249,6 +5559,15 @@ struct StoredTokens {
   #[serde(default)]
   ollama_base_url: Option<String>,
 
+  /// When set, always run the OpenClaw session sandbox in Docker "all" mode
+  /// (every session, not just non-main ones) instead of the default
+  /// "non-main"/auto behaviour. Docker availability is still probed — this
+  /// never blocks startup when Docker isn't actually installed/running (see
+  /// `docker_session_sandbox_available`); it only changes the requested mode
+  /// once Docker is confirmed available.
+  #[serde(default)]
+  force_docker_mode: Option<bool>,
+
   /// Additional provider API keys (env_var_name -> key).
   /// These are passed as environment variables to the OpenClaw subprocess.
   /// e.g. {"MINIMAX_API_KEY": "...", "ZAI_API_KEY": "...", "HF_TOKEN": "..."}
@@ -5517,6 +5836,7 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
+    force_docker_mode: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
     knapsack_email: None,
@@ -6979,6 +7299,50 @@ fn gateway_log_channel_started_from_log(content: &str, channel_id: &str) -> bool
     .any(|marker| hay.contains(&marker.to_lowercase()))
 }
 
+/// Markers for the two failure lines the gateway logs when a sandboxed turn
+/// can't reach Docker or its image (see `docker_session_sandbox_available`/
+/// `try_build_knapsack_sandbox_image` for the Knapsack-side probe, and the
+/// vendored gateway's own `Sandbox image not found` / `Docker daemon` errors
+/// thrown at actual exec time — the two can disagree, e.g. the probe passes
+/// but the daemon isn't fully up yet when a turn actually runs).
+const DOCKER_SANDBOX_ERROR_MARKERS: &[&str] = &[
+  "sandbox image not found",
+  "docker daemon",
+  "cannot connect to the docker daemon",
+  "embedded agent failed before reply: sandbox",
+];
+
+/// Last Docker/sandbox-related error line seen in the gateway's own logs, for
+/// troubleshooting from the Settings UI — see `docker_mode_status`. These
+/// errors are always written to stderr in practice, but stdout is scanned too
+/// as a fallback; within a stream, the last match is the most recent one.
+/// Only scans the trailing ~200KB of each file so this stays cheap on a
+/// long-running install with a large log.
+pub(crate) fn last_docker_sandbox_error_from_logs() -> Option<String> {
+  const TAIL_BYTES: usize = 200_000;
+  let read_tail = |path: PathBuf| -> String {
+    let Ok(bytes) = std::fs::read(&path) else {
+      return String::new();
+    };
+    let start = bytes.len().saturating_sub(TAIL_BYTES);
+    String::from_utf8_lossy(&bytes[start..]).into_owned()
+  };
+  let last_match = |content: &str| -> Option<String> {
+    content
+      .lines()
+      .filter(|line| {
+        let lower = line.to_lowercase();
+        DOCKER_SANDBOX_ERROR_MARKERS
+          .iter()
+          .any(|marker| lower.contains(marker))
+      })
+      .last()
+      .map(|line| line.trim().to_string())
+  };
+
+  last_match(&read_tail(gateway_stderr_log())).or_else(|| last_match(&read_tail(gateway_stdout_log())))
+}
+
 pub(crate) fn gateway_ready_since_last_start() -> bool {
   let Ok(content) = std::fs::read_to_string(gateway_stdout_log()) else {
     return false;
@@ -7280,18 +7644,20 @@ async fn browser_control_rpc_ready(gateway_token: &str, timeout: std::time::Dura
 async fn browser_control_start_direct(
   gateway_token: &str,
   timeout: std::time::Duration,
+  headless: Option<bool>,
 ) -> Result<(), String> {
   let client = reqwest::Client::builder()
     .timeout(timeout)
     .build()
     .map_err(|e| e.to_string())?;
-  let resp = client
+  let mut request = client
     .post("http://127.0.0.1:18791/start")
     .query(&[("profile", "openclaw")])
-    .bearer_auth(gateway_token)
-    .send()
-    .await
-    .map_err(|e| e.to_string())?;
+    .bearer_auth(gateway_token);
+  if let Some(headless) = headless {
+    request = request.query(&[("headless", headless)]);
+  }
+  let resp = request.send().await.map_err(|e| e.to_string())?;
 
   if resp.status().is_success() {
     Ok(())
@@ -7321,8 +7687,12 @@ fn spawn_startup_browser_start_nudge(gateway_token: String) {
         return;
       }
 
-      match browser_control_start_direct(&gateway_token, std::time::Duration::from_millis(900))
-        .await
+      match browser_control_start_direct(
+        &gateway_token,
+        std::time::Duration::from_millis(900),
+        None,
+      )
+      .await
       {
         Ok(()) => {
           eprintln!("[clawd/service] startup-ready browser /start nudge succeeded");
@@ -7780,6 +8150,7 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
       let token = tokens.gateway_token.clone();
       let nudge_app_handle: tauri::AppHandle = app_handle.get_ref().clone();
       tokio::spawn(async move {
+        let embedded_browser = read_embedded_browser_preference_at(&nudge_app_handle);
         if qa_direct_runtime {
           #[cfg(target_os = "macos")]
           {
@@ -7819,7 +8190,11 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
         match tokio::time::timeout(
           std::time::Duration::from_secs(4),
-          browser_control_start_direct(&token, std::time::Duration::from_secs(3)),
+          browser_control_start_direct(
+            &token,
+            std::time::Duration::from_secs(3),
+            Some(embedded_browser),
+          ),
         )
         .await
         {
@@ -7840,7 +8215,10 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
           gateway_client::browser_request(
             "POST",
             "/start",
-            Some(serde_json::json!({"profile": "openclaw"})),
+            Some(serde_json::json!({
+              "profile": "openclaw",
+              "headless": embedded_browser,
+            })),
             None,
             None,
           ),
@@ -8280,6 +8658,7 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
         let _ = browser_control_start_direct(
           &tokens.gateway_token,
           std::time::Duration::from_millis(900),
+          Some(read_embedded_browser_preference_at(app_handle.get_ref())),
         )
         .await;
         probe =
@@ -8638,6 +9017,7 @@ pub struct ApiKeyStatusResponse {
   pub preferred_coding_agent: Option<String>,
   // Knapsack cloud inference
   pub has_knapsack: bool,
+  pub knapsack_auth_expired: bool,
   pub knapsack_email: Option<String>,
   pub knapsack_model: Option<String>,
 }
@@ -8654,10 +9034,26 @@ fn has_nonempty(value: Option<&String>) -> bool {
   value.map(|v| !v.trim().is_empty()).unwrap_or(false)
 }
 
+fn has_usable_knapsack_token(value: Option<&String>) -> bool {
+  value
+    .map(|token| token.trim())
+    .filter(|token| !token.is_empty())
+    .map(|token| !crate::clawd::browser::knapsack_token_is_expired(token))
+    .unwrap_or(false)
+}
+
 fn has_knapsack_runtime_auth(tokens: &StoredTokens) -> bool {
   has_nonempty(tokens.knapsack_email.as_ref())
-    && (has_nonempty(tokens.knapsack_access_token.as_ref())
-      || has_nonempty(tokens.knapsack_refresh_token.as_ref()))
+    && (has_usable_knapsack_token(tokens.knapsack_access_token.as_ref())
+      || has_usable_knapsack_token(tokens.knapsack_refresh_token.as_ref()))
+}
+
+fn knapsack_auth_is_expired(tokens: &StoredTokens) -> bool {
+  let has_stored_token = has_nonempty(tokens.knapsack_access_token.as_ref())
+    || has_nonempty(tokens.knapsack_refresh_token.as_ref());
+  has_nonempty(tokens.knapsack_email.as_ref())
+    && has_stored_token
+    && !has_knapsack_runtime_auth(tokens)
 }
 
 #[get("/api/clawd/service/api-key-status")]
@@ -8693,6 +9089,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         extra_providers: vec![],
         preferred_coding_agent: None,
         has_knapsack: false,
+        knapsack_auth_expired: false,
         knapsack_email: None,
         knapsack_model: None,
       })
@@ -8737,6 +9134,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
   let has_knapsack = has_knapsack_runtime_auth(&tokens);
+  let knapsack_auth_expired = knapsack_auth_is_expired(&tokens);
   let has_key = has_openai
     || has_anthropic
     || has_gemini
@@ -8862,6 +9260,7 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     extra_providers,
     preferred_coding_agent: tokens.preferred_coding_agent.clone(),
     has_knapsack,
+    knapsack_auth_expired,
     knapsack_email: tokens.knapsack_email.clone(),
     knapsack_model: tokens.knapsack_model.clone(),
   })
@@ -9721,9 +10120,7 @@ pub async fn set_api_key(
       } else {
         mark_gateway_self_heal_started();
         kill_process_on_port(18789);
-        eprintln!(
-          "[clawd/service] API key update requested a QA direct gateway restart"
-        );
+        eprintln!("[clawd/service] API key update requested a QA direct gateway restart");
       }
     }
   }
@@ -9792,7 +10189,11 @@ pub async fn set_session_capability_secret(
   };
 
   let secret = payload.secret.trim().to_string();
-  tokens.session_capability_secret = if secret.is_empty() { None } else { Some(secret) };
+  tokens.session_capability_secret = if secret.is_empty() {
+    None
+  } else {
+    Some(secret)
+  };
 
   if let Err(e) = save_tokens(&app_handle, &tokens) {
     return HttpResponse::InternalServerError().json(SetSessionCapabilitySecretResponse {
@@ -10261,6 +10662,95 @@ fn upsert_knapsack_local_provider_config(
   }
 
   patched
+}
+
+#[derive(Debug, Serialize)]
+pub struct DockerModeStatusResponse {
+  pub success: bool,
+  pub force_docker_mode: bool,
+  pub docker_sandbox_available: bool,
+  pub message: Option<String>,
+  /// Most recent Docker/sandbox failure line pulled from the gateway's own
+  /// logs (e.g. "Sandbox image not found: ..."), if any — see
+  /// `last_docker_sandbox_error_from_logs`. Surfaced so a live failure that
+  /// only happens mid-turn (the probe here can pass while a turn still fails)
+  /// is visible from Settings instead of only in the log files on disk.
+  pub last_gateway_error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DockerModeConfigureRequest {
+  pub enabled: bool,
+}
+
+/// Whether Docker is force-enabled ("all" sessions) rather than the default
+/// "non-main"/auto behaviour. Still gated by actual Docker availability —
+/// see `docker_session_sandbox_available` and CLAUDE.md's "never block
+/// startup" invariant.
+#[get("/api/clawd/service/docker-mode-status")]
+pub async fn docker_mode_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+        success: false,
+        force_docker_mode: false,
+        docker_sandbox_available: false,
+        message: Some(e),
+        last_gateway_error: None,
+      })
+    }
+  };
+  let docker_sandbox_status = docker_session_sandbox_available();
+  HttpResponse::Ok().json(DockerModeStatusResponse {
+    success: true,
+    force_docker_mode: tokens.force_docker_mode.unwrap_or(false),
+    docker_sandbox_available: docker_sandbox_status.is_ok(),
+    message: docker_sandbox_status.err(),
+    last_gateway_error: last_docker_sandbox_error_from_logs(),
+  })
+}
+
+/// Persist the "force Docker mode" preference. Takes effect on the next
+/// gateway config sync (`prepare_gateway_config` / the shared-channel patch
+/// path), which re-reads `tokens.force_docker_mode` each time it runs.
+#[post("/api/clawd/service/docker-mode-configure")]
+pub async fn docker_mode_configure(
+  app_handle: web::Data<tauri::AppHandle>,
+  payload: web::Json<DockerModeConfigureRequest>,
+) -> impl Responder {
+  let mut tokens = match load_or_create_tokens(&app_handle) {
+    Ok(t) => t,
+    Err(e) => {
+      return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+        success: false,
+        force_docker_mode: false,
+        docker_sandbox_available: false,
+        message: Some(e),
+        last_gateway_error: None,
+      })
+    }
+  };
+
+  tokens.force_docker_mode = Some(payload.enabled);
+  if let Err(e) = save_tokens(&app_handle, &tokens) {
+    return HttpResponse::InternalServerError().json(DockerModeStatusResponse {
+      success: false,
+      force_docker_mode: payload.enabled,
+      docker_sandbox_available: false,
+      message: Some(e),
+      last_gateway_error: None,
+    });
+  }
+
+  let docker_sandbox_status = docker_session_sandbox_available();
+  HttpResponse::Ok().json(DockerModeStatusResponse {
+    success: true,
+    force_docker_mode: payload.enabled,
+    docker_sandbox_available: docker_sandbox_status.is_ok(),
+    message: docker_sandbox_status.err(),
+    last_gateway_error: last_docker_sandbox_error_from_logs(),
+  })
 }
 
 fn sync_active_provider_for_ollama_toggle(tokens: &mut StoredTokens, enabled: bool) {
@@ -10754,6 +11244,34 @@ fn model_ref_has_key(model_ref: &str) -> bool {
   }
 }
 
+const RELEASE_NODE_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const DEFAULT_NODE_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+fn node_readiness_timeout_for(
+  debug_build: bool,
+  qa_mode: bool,
+  macos_build: bool,
+) -> std::time::Duration {
+  if debug_build || qa_mode {
+    std::time::Duration::from_secs(10)
+  } else if macos_build {
+    // The first invocation of a nested, notarized executable can spend several
+    // seconds in macOS Gatekeeper validation. Keep this above the observed
+    // cold-start validation time so a healthy bundled Node.js is not killed.
+    RELEASE_NODE_READINESS_TIMEOUT
+  } else {
+    DEFAULT_NODE_READINESS_TIMEOUT
+  }
+}
+
+fn node_readiness_timeout() -> std::time::Duration {
+  node_readiness_timeout_for(
+    cfg!(debug_assertions),
+    qa_direct_gateway_mode(),
+    cfg!(target_os = "macos"),
+  )
+}
+
 fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
   if !node_path.exists() {
     return Err(format!(
@@ -10793,11 +11311,7 @@ fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
     .map_err(|e| format!("Failed to run Node.js at {}: {}", node_path.display(), e))?;
 
   let started = std::time::Instant::now();
-  let timeout = if cfg!(debug_assertions) || qa_direct_gateway_mode() {
-    std::time::Duration::from_secs(10)
-  } else {
-    std::time::Duration::from_secs(3)
-  };
+  let timeout = node_readiness_timeout();
   loop {
     match child.try_wait() {
       Ok(Some(_)) => break,
@@ -10839,6 +11353,39 @@ fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
       node_path.display(),
       e
     )),
+  }
+}
+
+#[cfg(test)]
+mod node_readiness_tests {
+  use super::*;
+
+  #[test]
+  fn release_timeout_covers_notarized_macos_cold_start() {
+    assert_eq!(
+      node_readiness_timeout_for(false, false, true),
+      std::time::Duration::from_secs(30)
+    );
+  }
+
+  #[test]
+  fn non_macos_release_timeout_remains_fast() {
+    assert_eq!(
+      node_readiness_timeout_for(false, false, false),
+      std::time::Duration::from_secs(3)
+    );
+  }
+
+  #[test]
+  fn development_and_qa_timeout_remains_fast() {
+    assert_eq!(
+      node_readiness_timeout_for(true, false, true),
+      std::time::Duration::from_secs(10)
+    );
+    assert_eq!(
+      node_readiness_timeout_for(false, true, false),
+      std::time::Duration::from_secs(10)
+    );
   }
 }
 
@@ -10972,10 +11519,11 @@ async fn prepare_gateway_config(
   let workspace_path_default = knapsack_openclaw_workspace_path(&clawdbot_home);
   let docker_sandbox_status = docker_session_sandbox_available();
   let docker_sandbox_available = docker_sandbox_status.is_ok();
+  let force_docker_mode = tokens.force_docker_mode.unwrap_or(false);
   match &docker_sandbox_status {
     Ok(()) => eprintln!(
-      "[clawd/service] Docker session sandbox available ({})",
-      KNAPSACK_OPENCLAW_SANDBOX_IMAGE
+      "[clawd/service] Docker session sandbox available ({}); force_docker_mode={}",
+      KNAPSACK_OPENCLAW_SANDBOX_IMAGE, force_docker_mode
     ),
     Err(reason) => eprintln!(
       "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
@@ -11220,7 +11768,7 @@ async fn prepare_gateway_config(
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
           patched = true;
         }
-        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available) {
+        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available, force_docker_mode) {
           eprintln!(
             "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
             docker_sandbox_available
@@ -11234,7 +11782,14 @@ async fn prepare_gateway_config(
           eprintln!("[clawd/service] Patched mcp.servers.snowflake");
           patched = true;
         }
+        if ensure_knapsack_studio_mcp_server(&mut cfg_val, &clawdbot_home) {
+          eprintln!("[clawd/service] Patched mcp.servers.studio");
+          patched = true;
+        }
         if ensure_knapsack_tool_allow(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_studio_tool_allow(&mut cfg_val) {
           patched = true;
         }
         if ensure_knapsack_agent_defaults(&mut cfg_val, &clawdbot_home) {
@@ -12468,7 +13023,11 @@ async fn prepare_gateway_config(
   // Install runtime deps for bundled plugins (e.g. grammy for telegram).
   // Must happen AFTER resource files are in place (i.e. here, not in beforeDevCommand).
   if cfg!(debug_assertions) {
-    if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
+    if DEBUG_PLUGIN_RUNTIME_DEPS_INSTALLED_ONCE.swap(true, Ordering::Relaxed) {
+      eprintln!(
+        "[clawd/service] dev plugin runtime deps already installed this run — skipping to avoid a self-heal/file-watcher restart loop"
+      );
+    } else if let Some(plugin_filter) = configured_channel_plugin_filter(&config_path) {
       install_bundled_plugin_runtime_deps(&node_path, &bundled_plugins_dir, Some(&plugin_filter));
       ensure_plugin_runtime_deps_openclaw_links(&clawdbot_home);
     }
@@ -13304,13 +13863,14 @@ pub async fn set_service_enabled(
             }
             let docker_sandbox_status = docker_session_sandbox_available();
             let docker_sandbox_available = docker_sandbox_status.is_ok();
+            let force_docker_mode = tokens.force_docker_mode.unwrap_or(false);
             if let Err(reason) = &docker_sandbox_status {
               eprintln!(
                 "[clawd/service] WARNING: Docker session sandbox unavailable ({}); using host tools with per-peer context isolation",
                 reason
               );
             }
-            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available) {
+            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available, force_docker_mode) {
               eprintln!(
                 "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
                 docker_sandbox_available
@@ -13324,7 +13884,14 @@ pub async fn set_service_enabled(
               eprintln!("[clawd/service] Patched mcp.servers.snowflake");
               patched = true;
             }
+            if ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home) {
+              eprintln!("[clawd/service] Patched mcp.servers.studio");
+              patched = true;
+            }
             if ensure_knapsack_tool_allow(&mut cfg) {
+              patched = true;
+            }
+            if ensure_knapsack_studio_tool_allow(&mut cfg) {
               patched = true;
             }
             if ensure_knapsack_agent_defaults(&mut cfg, &clawdbot_home) {
@@ -15403,6 +15970,188 @@ pub async fn knapsack_disconnect(app_handle: web::Data<tauri::AppHandle>) -> imp
   HttpResponse::Ok().json(serde_json::json!({"ok": true, "fallback_provider": fallback}))
 }
 
+#[derive(Debug, Serialize)]
+pub struct StudioConnectionsResponse {
+  pub success: bool,
+  pub connected: Vec<String>,
+  pub available: Vec<serde_json::Value>,
+  pub message: Option<String>,
+}
+
+fn parse_studio_connector_catalog(
+  body: &serde_json::Value,
+) -> (Vec<String>, Vec<serde_json::Value>) {
+  let mut available = body
+    .get("connectors")
+    .and_then(|value| value.as_array())
+    .cloned()
+    .unwrap_or_default();
+  available.retain(|connector| {
+    connector
+      .get("id")
+      .and_then(|value| value.as_str())
+      .is_some()
+      && connector
+        .get("name")
+        .and_then(|value| value.as_str())
+        .is_some()
+  });
+  let mut connected = available
+    .iter()
+    .filter(|connector| connector.get("connected").and_then(|value| value.as_bool()) == Some(true))
+    .filter_map(|connector| connector.get("scope").and_then(|value| value.as_str()))
+    .map(ToOwned::to_owned)
+    .collect::<Vec<_>>();
+  connected.sort();
+  connected.dedup();
+  (connected, available)
+}
+
+async fn fetch_studio_connector_catalog(
+  token: &str,
+) -> Result<(Vec<String>, Vec<serde_json::Value>), String> {
+  let api_base = std::env::var("KNAPSACK_STUDIO_API_BASE")
+    .ok()
+    .filter(|value| !value.trim().is_empty())
+    .unwrap_or_else(|| {
+      option_env!("VITE_KN_API_SERVER")
+        .unwrap_or("https://api.knapsack.ai")
+        .to_string()
+    });
+  let response = reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+    .map_err(|error| error.to_string())?
+    .get(format!(
+      "{}/api/composio/auth/catalog",
+      api_base.trim_end_matches('/')
+    ))
+    .bearer_auth(token)
+    .send()
+    .await
+    .map_err(|error| error.to_string())?;
+  if response.status() == reqwest::StatusCode::NOT_FOUND {
+    let legacy = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_secs(15))
+      .build()
+      .map_err(|error| error.to_string())?
+      .get(format!(
+        "{}/api/connections/available_connections",
+        api_base.trim_end_matches('/')
+      ))
+      .bearer_auth(token)
+      .send()
+      .await
+      .map_err(|error| error.to_string())?;
+    if !legacy.status().is_success() {
+      return Err(format!("Studio returned {}", legacy.status()));
+    }
+    let body: serde_json::Value = legacy.json().await.map_err(|error| error.to_string())?;
+    let mut connected = body
+      .get("scopes")
+      .and_then(|value| value.as_array())
+      .into_iter()
+      .flatten()
+      .filter_map(|value| value.as_str())
+      .map(str::trim)
+      .filter(|value| !value.is_empty())
+      .map(ToOwned::to_owned)
+      .collect::<Vec<_>>();
+    connected.sort();
+    connected.dedup();
+    return Ok((connected, Vec::new()));
+  }
+  if !response.status().is_success() {
+    return Err(format!("Studio returned {}", response.status()));
+  }
+  let body: serde_json::Value = response.json().await.map_err(|error| error.to_string())?;
+  Ok(parse_studio_connector_catalog(&body))
+}
+
+/// Return the Studio integrations available to the account connected to the
+/// desktop app without exposing the stored Studio bearer token to the webview.
+#[get("/api/clawd/service/studio-connections")]
+pub async fn studio_connections(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+  let tokens = match load_or_create_tokens(&app_handle) {
+    Ok(tokens) => tokens,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(StudioConnectionsResponse {
+        success: false,
+        connected: Vec::new(),
+        available: Vec::new(),
+        message: Some(error),
+      });
+    }
+  };
+
+  if !has_knapsack_runtime_auth(&tokens) {
+    let expired = knapsack_auth_is_expired(&tokens);
+    return HttpResponse::Unauthorized().json(StudioConnectionsResponse {
+      success: false,
+      connected: Vec::new(),
+      available: Vec::new(),
+      message: Some(if expired {
+        "Knapsack Studio sign-in expired. Please reconnect.".to_string()
+      } else {
+        "Connect a Knapsack Studio account first.".to_string()
+      }),
+    });
+  }
+
+  let mut token = tokens
+    .knapsack_access_token
+    .as_deref()
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .map(ToOwned::to_owned);
+
+  if token.is_none() {
+    token = crate::clawd::browser::refresh_knapsack_access_token(Some(&app_handle)).await;
+  }
+
+  if let Some(current_token) = token {
+    match fetch_studio_connector_catalog(&current_token).await {
+      Ok((connected, available)) => {
+        return HttpResponse::Ok().json(StudioConnectionsResponse {
+          success: true,
+          connected,
+          available,
+          message: None,
+        });
+      }
+      Err(first_error) => {
+        if let Some(refreshed) =
+          crate::clawd::browser::refresh_knapsack_access_token(Some(&app_handle)).await
+        {
+          if refreshed != current_token {
+            if let Ok((connected, available)) = fetch_studio_connector_catalog(&refreshed).await {
+              return HttpResponse::Ok().json(StudioConnectionsResponse {
+                success: true,
+                connected,
+                available,
+                message: None,
+              });
+            }
+          }
+        }
+        return HttpResponse::BadGateway().json(StudioConnectionsResponse {
+          success: false,
+          connected: Vec::new(),
+          available: Vec::new(),
+          message: Some(first_error),
+        });
+      }
+    }
+  }
+
+  HttpResponse::Unauthorized().json(StudioConnectionsResponse {
+    success: false,
+    connected: Vec::new(),
+    available: Vec::new(),
+    message: Some("Knapsack Studio sign-in expired. Please reconnect.".to_string()),
+  })
+}
+
 async fn exchange_openrouter_code(code: &str) -> Result<String, String> {
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
@@ -17058,8 +17807,9 @@ mod knapsack_runtime_auth_tests {
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
     ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
-    ensure_knapsack_snowflake_mcp_server,
-    has_knapsack_runtime_auth, sync_active_provider_for_ollama_toggle, StoredTokens,
+    ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
+    ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
+    parse_studio_connector_catalog, sync_active_provider_for_ollama_toggle, StoredTokens,
     KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
   use std::path::PathBuf;
@@ -17088,6 +17838,7 @@ mod knapsack_runtime_auth_tests {
       ollama_enabled: None,
       ollama_model: None,
       ollama_base_url: None,
+      force_docker_mode: None,
       extra_provider_keys: None,
       preferred_coding_agent: None,
       knapsack_email: None,
@@ -17096,6 +17847,20 @@ mod knapsack_runtime_auth_tests {
       knapsack_refresh_token: None,
       session_capability_secret: None,
     }
+  }
+
+  #[test]
+  fn studio_connector_catalog_is_validated_and_connected_scopes_are_normalized() {
+    let body = serde_json::json!({
+      "connectors": [
+        {"id": "slack", "scope": "slack", "name": "Slack", "connected": true},
+        {"id": "future", "scope": "future", "name": "Future", "connected": false},
+        {"id": "broken", "connected": true}
+      ]
+    });
+    let (connected, available) = parse_studio_connector_catalog(&body);
+    assert_eq!(connected, vec!["slack".to_string()]);
+    assert_eq!(available.len(), 2);
   }
 
   #[test]
@@ -17148,6 +17913,18 @@ mod knapsack_runtime_auth_tests {
   }
 
   #[test]
+  fn knapsack_auth_rejects_expired_studio_tokens() {
+    let mut tokens = empty_tokens();
+    tokens.knapsack_email = Some("steve@cyanventures.com".to_string());
+    let expired = "e30.eyJleHAiOjF9.signature".to_string();
+    tokens.knapsack_access_token = Some(expired.clone());
+    tokens.knapsack_refresh_token = Some(expired);
+
+    assert!(!has_knapsack_runtime_auth(&tokens));
+    assert!(knapsack_auth_is_expired(&tokens));
+  }
+
+  #[test]
   fn enabling_ollama_does_not_override_existing_active_provider() {
     let mut tokens = empty_tokens();
     tokens.active_provider = Some("knapsack".to_string());
@@ -17195,7 +17972,7 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, false));
     assert_eq!(
       cfg
         .pointer("/session/scope")
@@ -17255,8 +18032,8 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, true));
-    assert!(!ensure_knapsack_session_isolation(&mut cfg, true));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, false));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, true, false));
   }
 
   #[test]
@@ -17278,7 +18055,7 @@ mod knapsack_runtime_auth_tests {
       }
     });
 
-    assert!(ensure_knapsack_session_isolation(&mut cfg, false));
+    assert!(ensure_knapsack_session_isolation(&mut cfg, false, false));
     assert_eq!(
       cfg
         .pointer("/agents/defaults/sandbox/mode")
@@ -17297,7 +18074,36 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("tree")
     );
-    assert!(!ensure_knapsack_session_isolation(&mut cfg, false));
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, false, false));
+  }
+
+  #[test]
+  fn shared_channel_session_isolation_forces_all_sessions_when_requested() {
+    let mut cfg = serde_json::json!({});
+
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, true));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("all")
+    );
+
+    // Docker being unavailable still wins over the force flag — never block
+    // startup when Docker genuinely isn't there (see the invariant comment
+    // on `docker_session_sandbox_available`).
+    let mut cfg_unavailable = serde_json::json!({});
+    assert!(ensure_knapsack_session_isolation(
+      &mut cfg_unavailable,
+      false,
+      true
+    ));
+    assert_eq!(
+      cfg_unavailable
+        .pointer("/agents/defaults/sandbox/mode")
+        .and_then(|value| value.as_str()),
+      Some("off")
+    );
   }
 
   /// Doesn't invoke Docker (this crate's Rust tests must run without macOS
@@ -17306,7 +18112,9 @@ mod knapsack_runtime_auth_tests {
   #[test]
   fn embedded_sandbox_dockerfile_matches_documented_defaults() {
     assert!(KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.starts_with("FROM debian:bookworm-slim"));
-    for expected in ["bash", "curl", "jq", "python3", "ripgrep", "useradd", "sandbox"] {
+    for expected in [
+      "bash", "curl", "jq", "python3", "ripgrep", "useradd", "sandbox",
+    ] {
       assert!(
         KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE.contains(expected),
         "embedded Dockerfile is missing expected content: {expected}"
@@ -17319,7 +18127,10 @@ mod knapsack_runtime_auth_tests {
     let mut cfg = serde_json::json!({});
     let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
 
-    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
     assert_eq!(
       cfg
         .pointer("/mcp/servers/snowflake/args")
@@ -17334,12 +18145,52 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_str()),
       Some("/tmp/knapsack-test-clawdbot-home")
     );
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/snowflake/env/OPENCLAW_STATE_DIR")
+        .and_then(|value| value.as_str()),
+      Some("/tmp/knapsack-test-clawdbot-home")
+    );
     assert!(cfg
       .pointer("/mcp/servers/snowflake/command")
       .and_then(|value| value.as_str())
       .is_some_and(|value| !value.is_empty()));
 
-    assert!(!ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(!ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
+  }
+
+  #[test]
+  fn studio_mcp_server_and_dynamic_tool_allow_are_registered() {
+    let mut cfg = serde_json::json!({});
+    let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
+
+    assert!(ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home));
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/studio/args/0")
+        .and_then(|value| value.as_str()),
+      Some("--internal-mcp-studio")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/mcp/servers/studio/env/OPENCLAW_STATE_DIR")
+        .and_then(|value| value.as_str()),
+      Some("/tmp/knapsack-test-clawdbot-home")
+    );
+    assert!(ensure_knapsack_studio_tool_allow(&mut cfg));
+    for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
+      assert!(cfg
+        .pointer(pointer)
+        .and_then(|value| value.as_array())
+        .is_some_and(|values| values
+          .iter()
+          .any(|value| value.as_str() == Some("studio__*"))));
+    }
+    assert!(!ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(!ensure_knapsack_studio_tool_allow(&mut cfg));
   }
 
   #[test]
@@ -17353,7 +18204,10 @@ mod knapsack_runtime_auth_tests {
     });
     let clawdbot_home = PathBuf::from("/tmp/knapsack-test-clawdbot-home");
 
-    assert!(ensure_knapsack_snowflake_mcp_server(&mut cfg, &clawdbot_home));
+    assert!(ensure_knapsack_snowflake_mcp_server(
+      &mut cfg,
+      &clawdbot_home
+    ));
     assert_ne!(
       cfg
         .pointer("/mcp/servers/snowflake/command")
@@ -17391,6 +18245,31 @@ mod knapsack_runtime_auth_tests {
 
     // Idempotent: a second pass changes nothing.
     assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+  }
+
+  /// Regression: WhatsApp/Google Chat/Signal/iMessage config schemas are
+  /// `.strict()` with no `streaming` field. Inserting one made the whole
+  /// config fail gateway-side validation ("must NOT have additional
+  /// properties"), which then blocked every subsequent `config.patch` —
+  /// including unrelated ones, like updating a different channel's allowlist.
+  #[test]
+  fn progress_label_skips_channels_without_a_streaming_field() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "whatsapp": { "dmPolicy": "pairing", "groupPolicy": "allowlist" },
+        "googlechat": { "dmPolicy": "pairing" },
+        "signal": { "dmPolicy": "pairing" },
+        "imessage": { "dmPolicy": "pairing" }
+      }
+    });
+
+    assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
+    for channel in ["whatsapp", "googlechat", "signal", "imessage"] {
+      assert!(
+        cfg.pointer(&format!("/channels/{channel}/streaming")).is_none(),
+        "{channel} must not get a streaming field injected"
+      );
+    }
   }
 
   #[test]

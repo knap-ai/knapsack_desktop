@@ -279,6 +279,13 @@ jobs:
             ditto "$INNER_APP" "$STAGE/Knapsack.app"
             codesign --verify --deep --strict --verbose=2 "$STAGE/Knapsack.app"
             spctl --assess --type open --context context:primary-signature --verbose=2 "$STAGE/Knapsack.app"
+            BUNDLED_NODE=$(find "$STAGE/Knapsack.app/Contents/Resources" -path "*/node/node" -type f | head -1)
+            if [ -z "$BUNDLED_NODE" ]; then
+              echo "ERROR: Bundled Node.js was not found in the staged app"
+              exit 1
+            fi
+            echo "=== Cold-starting bundled Node.js from the staged notarized app ==="
+            python3 -c 'import subprocess, sys, time; started = time.monotonic(); result = subprocess.run([sys.argv[1], "--version"], check=True, capture_output=True, text=True, timeout=30); elapsed = time.monotonic() - started; print(f"Bundled Node.js {result.stdout.strip()} became ready in {elapsed:.2f}s")' "$BUNDLED_NODE"
             rm -rf "$STAGE"
             STAGE=""
             hdiutil detach "$MOUNT_PT" -quiet

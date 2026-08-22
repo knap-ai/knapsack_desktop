@@ -21,7 +21,7 @@ use crate::utils::log::knap_log_error;
 pub struct GoogleUserInfoResponse {
   email: String,
   picture: Option<String>,
-  name: String,
+  name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -74,11 +74,11 @@ pub async fn fetch_google_profile(
   })
   .await;
 
+  let response = response?;
   let info = response
-    .unwrap()
     .json::<GoogleUserInfoResponse>()
     .await
-    .unwrap();
+    .map_err(FetchError::NetworkError)?;
   let user_uuid: Option<String> = match fetch_user_uuid(&info.email, refresh_internal).await {
     Ok(uuid) => Some(uuid),
     Err(err) => {
@@ -91,7 +91,7 @@ pub async fn fetch_google_profile(
     success: true,
     email: Some(info.email),
     profile_image: info.picture,
-    name: Some(info.name),
+    name: info.name,
     uuid: user_uuid,
     message: None,
   })

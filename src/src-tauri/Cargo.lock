@@ -3448,6 +3448,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "interprocess"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81f2533f3be42fffe3b5e63b71aeca416c1c3bc33e4e27be018521e76b1f38fb"
+dependencies = [
+ "cfg-if 1.0.4",
+ "libc",
+ "rustc_version",
+ "to_method",
+ "winapi",
+]
+
+[[package]]
 name = "io-surface"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3658,7 +3671,7 @@ dependencies = [
 
 [[package]]
 name = "knapsack"
-version = "2.8.7"
+version = "2.9.2"
 dependencies = [
  "actix-cors",
  "actix-multipart",
@@ -3730,6 +3743,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",
+ "tauri-plugin-deep-link",
  "tauri-plugin-store",
  "tempfile",
  "text-splitter",
@@ -4525,12 +4539,22 @@ checksum = "cdb91bdd390c7ce1a8607f35f3ca7151b65afc0ff5ff3b34fa350f7d7c7e4310"
 
 [[package]]
 name = "objc2"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "559c5a40fdd30eb5e344fbceacf7595a81e242529fb4e21cf5f43fb4f11ff98d"
+dependencies = [
+ "objc-sys",
+ "objc2-encode 3.0.0",
+]
+
+[[package]]
+name = "objc2"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46a785d4eeff09c14c487497c162e92766fbb3e4059a71840cecc03d9a50b804"
 dependencies = [
  "objc-sys",
- "objc2-encode",
+ "objc2-encode 4.1.0",
 ]
 
 [[package]]
@@ -4539,7 +4563,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a12a8ed07aefc768292f076dc3ac8c48f3781c8f2d5851dd3d98950e8c5a89f"
 dependencies = [
- "objc2-encode",
+ "objc2-encode 4.1.0",
 ]
 
 [[package]]
@@ -4618,6 +4642,12 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
 ]
+
+[[package]]
+name = "objc2-encode"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d079845b37af429bfe5dfa76e6d087d788031045b25cfc6fd898486fd9847666"
 
 [[package]]
 name = "objc2-encode"
@@ -7101,6 +7131,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-deep-link"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4536f5f6602e8fdfaa7b3b185076c2a0704f8eb7015f4e58461eb483ec3ed1f8"
+dependencies = [
+ "dirs 5.0.1",
+ "interprocess",
+ "log",
+ "objc2 0.4.1",
+ "once_cell",
+ "tauri-utils",
+ "windows-sys 0.48.0",
+ "winreg 0.50.0",
+]
+
+[[package]]
 name = "tauri-plugin-store"
 version = "0.0.0"
 source = "git+https://github.com/tauri-apps/plugins-workspace?branch=v1#1e407ed56455558cf751022fd68eca3b9e3713a0"
@@ -7378,6 +7424,12 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "to_method"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c4ceeeca15c8384bbc3e011dbd8fccb7f068a440b752b7d9b32ceb0ca0e2e8"
 
 [[package]]
 name = "tokio"

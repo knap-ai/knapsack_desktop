@@ -33,6 +33,7 @@ function NotificationWindow() {
   const [buttonConfigs, setButtonConfigs] = useState<ButtonConfig[]>([])
   const [title, setTitle] = useState<string>('')
   const [time, setTime] = useState<string>('')
+  const [brief, setBrief] = useState<string>('')
   const isProcessing = React.useRef(false)
 
   useEffect(() => {
@@ -43,6 +44,7 @@ function NotificationWindow() {
           event_id: string | undefined
           title: string
           time: string
+          brief?: string
           button_configs: ButtonConfig[]
         }
       }) => {
@@ -50,6 +52,7 @@ function NotificationWindow() {
         setButtonConfigs(event.payload.button_configs)
         setTitle(event.payload.title)
         setTime(event.payload.time)
+        setBrief(event.payload.brief || '')
       },
     )
 
@@ -119,7 +122,17 @@ function NotificationWindow() {
             {stripMarkdown(title)}
           </h3>
           {time && (
-            <p className="text-sm text-gray-600 line-clamp-4">{stripMarkdown(time)}</p>
+            <p className="text-xs font-medium text-gray-500 mt-0.5">{stripMarkdown(time)}</p>
+          )}
+          {brief && (
+            <div className="mt-2 border-l-2 border-lime-700 pl-2.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] font-semibold text-lime-800 mb-0.5">
+                Your brief
+              </div>
+              <p className="text-[12px] leading-[1.4] text-gray-700 line-clamp-3">
+                {stripMarkdown(brief)}
+              </p>
+            </div>
           )}
         </div>
 
