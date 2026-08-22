@@ -11202,6 +11202,23 @@ fn model_ref_has_key(model_ref: &str) -> bool {
   }
 }
 
+const RELEASE_NODE_READINESS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+fn node_readiness_timeout_for(debug_build: bool, qa_mode: bool) -> std::time::Duration {
+  if debug_build || qa_mode {
+    std::time::Duration::from_secs(10)
+  } else {
+    // The first invocation of a nested, notarized executable can spend several
+    // seconds in macOS Gatekeeper validation. Keep this above the observed
+    // cold-start validation time so a healthy bundled Node.js is not killed.
+    RELEASE_NODE_READINESS_TIMEOUT
+  }
+}
+
+fn node_readiness_timeout() -> std::time::Duration {
+  node_readiness_timeout_for(cfg!(debug_assertions), qa_direct_gateway_mode())
+}
+
 fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
   if !node_path.exists() {
     return Err(format!(
@@ -11241,11 +11258,7 @@ fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
     .map_err(|e| format!("Failed to run Node.js at {}: {}", node_path.display(), e))?;
 
   let started = std::time::Instant::now();
-  let timeout = if cfg!(debug_assertions) || qa_direct_gateway_mode() {
-    std::time::Duration::from_secs(10)
-  } else {
-    std::time::Duration::from_secs(3)
-  };
+  let timeout = node_readiness_timeout();
   loop {
     match child.try_wait() {
       Ok(Some(_)) => break,
@@ -11287,6 +11300,31 @@ fn ensure_node_binary_ready(node_path: &Path) -> Result<(), String> {
       node_path.display(),
       e
     )),
+  }
+}
+
+#[cfg(test)]
+mod node_readiness_tests {
+  use super::*;
+
+  #[test]
+  fn release_timeout_covers_notarized_macos_cold_start() {
+    assert_eq!(
+      node_readiness_timeout_for(false, false),
+      std::time::Duration::from_secs(30)
+    );
+  }
+
+  #[test]
+  fn development_and_qa_timeout_remains_fast() {
+    assert_eq!(
+      node_readiness_timeout_for(true, false),
+      std::time::Duration::from_secs(10)
+    );
+    assert_eq!(
+      node_readiness_timeout_for(false, true),
+      std::time::Duration::from_secs(10)
+    );
   }
 }
 
