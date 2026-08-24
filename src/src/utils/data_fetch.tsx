@@ -273,6 +273,7 @@ export default class DataFetcher {
   public async getRecentGmailMessages(
     days: number,
     maxMessages: number = 20,
+    throwOnFailure: boolean = false,
   ): Promise<EmailDocument[]> {
     const fromDatetime = KNDateUtils.nDaysAgo(days)
     const today = new Date()
@@ -292,9 +293,11 @@ export default class DataFetcher {
       }),
     })
 
-    // TODO: handle error
-    const data = await response.json()
-    if (!data || data['success'] !== true) {
+    const data = await response.json().catch(() => undefined)
+    if (!response.ok || !data || data['success'] !== true) {
+      if (throwOnFailure) {
+        throw new Error(data?.error || data?.message || `Email query failed (${response.status})`)
+      }
       return []
     }
 

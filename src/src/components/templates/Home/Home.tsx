@@ -4,37 +4,51 @@ import './Home.scss'
 
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { updateAutomationFeedbackAPI } from 'src/api/automations'
-import { HomeProps } from 'src/App'
 import {
-  KN_API_STOP_LLM_EXECUTION,
-  PRIVACY_POLICY_LINK,
-  TERMS_LINK,
-} from 'src/utils/constants'
+  getPrimaryScout,
+  loadTeamGroups,
+  loadTeamRoster,
+  TeamAgent,
+  TeamGroup,
+} from 'src/agents/teamRoster'
+import { updateAutomationFeedbackAPI } from 'src/api/automations'
+import { Workspace } from 'src/api/workspaces'
+import { HomeProps } from 'src/App'
+import { KN_API_STOP_LLM_EXECUTION, PRIVACY_POLICY_LINK, TERMS_LINK } from 'src/utils/constants'
+import { buildFollowUpEmailBody } from 'src/utils/emails'
 //import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { openMicrosoftAuthScreen } from 'src/utils/permissions/microsoft'
+import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
+import { ProviderSignInDialog } from './components/ProviderSignInDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { SignInDialog } from './components/SigninDialog'
-import { ProviderSignInDialog } from './components/ProviderSignInDialog'
 import { ButtonVariant } from 'src/components/atoms/button'
-import HeaderRecording from 'src/components/molecules/HeaderRecording'
 import AutomationLabModal from 'src/components/molecules/AutomationLabModal'
+import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
+import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
+import HeaderRecording from 'src/components/molecules/HeaderRecording'
+import ActivityPanel from 'src/components/organisms/ActivityPanel'
 import CenterWorkspace, { SubTabChoices } from 'src/components/organisms/CenterWorkspace'
+import ClawdChat from 'src/components/organisms/ClawdChat'
 import EmailTabView from 'src/components/organisms/EmailTabView'
+import EmbeddedBrowserSidebar from 'src/components/organisms/EmbeddedBrowserSidebar'
 import FeedSidebar from 'src/components/organisms/FeedSidebar'
-import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
+import GBrainView from 'src/components/organisms/GBrainView'
 import GoogleAuthPopup from 'src/components/organisms/GoogleAuthPopUp'
 import { Header } from 'src/components/organisms/Header'
+import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
 import MeetingsTabView from 'src/components/organisms/MeetingsTabView'
+import NotetakerSidebar from 'src/components/organisms/NotetakerSidebar'
+import WorkspacesList from 'src/components/organisms/WorkspacesList'
+import WorkspaceView from 'src/components/organisms/WorkspaceView'
 
+import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
 import { invoke } from '@tauri-apps/api/tauri'
-import { listen } from '@tauri-apps/api/event'
 import { getReleaseType } from 'src/api/app_info'
-import { safeInvoke } from 'src/utils/tauriIpcBridge'
 
 import {
   ConnectionKeys,
@@ -50,18 +64,6 @@ import NewAutomation from '../NewAutomation'
 import { ConnectionsDropdown } from './../../ConnectionsDropdown'
 import { SigninButton } from './../../SigninButton'
 import { TabChoices } from './../../TabBar'
-import ClawdChat from 'src/components/organisms/ClawdChat'
-import ActivityPanel from 'src/components/organisms/ActivityPanel'
-import EmailNotificationDrawer from 'src/components/molecules/EmailNotificationDrawer'
-import EmailComposeDrawer from 'src/components/molecules/EmailComposeDrawer'
-import EmbeddedBrowserSidebar from 'src/components/organisms/EmbeddedBrowserSidebar'
-import WorkspaceView from 'src/components/organisms/WorkspaceView'
-import WorkspacesList from 'src/components/organisms/WorkspacesList'
-import MCPMarketplace from 'src/components/organisms/MCPMarketplace'
-import GBrainView from 'src/components/organisms/GBrainView'
-import { Workspace } from 'src/api/workspaces'
-import { buildFollowUpEmailBody } from 'src/utils/emails'
-import { loadTeamRoster, TeamAgent } from 'src/agents/teamRoster'
 
 export interface ToastrState {
   message?: ReactElement
@@ -100,7 +102,9 @@ function Home({
   const [useLocalLLM, setUseLocalLLM] = useState<boolean>(false)
   const [isSettingsDialogOpened, setIsSettingsDialogOpened] = useState(false)
   const [isProviderSignInDialogOpened, setIsProviderSignInDialogOpened] = useState(false)
-  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter' | undefined>(undefined)
+  const [providerSignInInitialProvider, setProviderSignInInitialProvider] = useState<
+    'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter' | undefined
+  >(undefined)
   const [openProviderPanelTrigger, setOpenProviderPanelTrigger] = useState(0)
   const [connectionsDropdownOpened, setConnectionsDropdownOpened] = useState(false)
   const [showAutomationLabModal, setShowAutomationLabModal] = useState(false)
@@ -117,29 +121,78 @@ function Home({
   })
   const [embeddedBrowserUrl, setEmbeddedBrowserUrl] = useState('')
   const [embeddedBrowserProfile, setEmbeddedBrowserProfile] = useState('openclaw')
+  const [embeddedBrowserWidth, setEmbeddedBrowserWidth] = useState(() => {
+    const stored = Number(localStorage.getItem('knapsack.browser.sidebar.width'))
+    if (Number.isFinite(stored) && stored > 0) return Math.max(380, Math.min(960, stored))
+    return Math.max(440, Math.min(760, window.innerWidth * 0.48))
+  })
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [isChatProviderPanelOpen, setIsChatProviderPanelOpen] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
+  const [teamGroups, setTeamGroups] = useState<TeamGroup[]>(() => loadTeamGroups())
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
   const isResizingRef = useRef(false)
 
+  const primaryAgent = useMemo(() => getPrimaryScout(teamAgents), [teamAgents])
   const activeAgent = useMemo(
     () => teamAgents.find(agent => agent.id === activeAgentId) ?? null,
     [activeAgentId, teamAgents],
   )
-  const activeChatId = activeAgent ? `agent-${activeAgent.id}` : 'main'
-  const activeBrowserProfile = activeAgent?.browserProfile ?? 'openclaw'
-  const activeAgentContext = activeAgent
-    ? `You are ${activeAgent.name}, one member of the user's Knapsack team. ${activeAgent.soul}
+  const activeGroup = useMemo(
+    () => teamGroups.find(group => group.id === activeGroupId) ?? null,
+    [activeGroupId, teamGroups],
+  )
+  const activeGroupAgents = useMemo(
+    () =>
+      activeGroup?.agentIds
+        .map(id => teamAgents.find(agent => agent.id === id))
+        .filter((agent): agent is TeamAgent => Boolean(agent)) ?? [],
+    [activeGroup, teamAgents],
+  )
+  // Scout is Knapsack's primary product identity and intentionally runs on
+  // OpenClaw's stable `main` agent. Other team chats remain separately scoped
+  // personas, but selecting "Scout" must not create a competing runtime agent.
+  const chatAgent = activeGroup ? null : (activeAgent ?? primaryAgent)
+  const activeChatId = activeGroup
+    ? `group-${activeGroup.id}`
+    : activeAgent
+      ? `agent-${activeAgent.id}`
+      : 'main'
+  // Preserve the established main browser profile (and its cookies/logins)
+  // when presenting main as Scout. Only secondary agents get new profiles.
+  const activeBrowserProfile = activeGroup
+    ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
+    : (activeAgent?.browserProfile ?? 'openclaw')
+  const groupContext =
+    activeGroup && activeGroupAgents.length >= 2
+      ? `You are facilitating the Knapsack group chat "${activeGroup.name}". The participating agents are:
+${activeGroupAgents.map(agent => `- ${agent.emoji} ${agent.name} — ${agent.personality}. ${agent.soul}`).join('\n')}
 
-Stay within your role: ${activeAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeAgent.browserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
-    : undefined
+This is a collaborative room, not a single blended persona. For every substantive request, choose a lead agent and use native subagent orchestration: call sessions_spawn once for each relevant member with that member's name, role, instructions, and the user's request; use isolated child sessions without an agentId so this stays inside the room's private session tree; then use sessions_yield to receive their completed contributions. Do not use sessions_send or cross-agent session messaging. Compare the independent outputs, let the lead challenge conflicts when needed, and synthesize a clear answer. Preserve meaningful disagreements and label individual contributions when that helps the user. Do not invent agreement or impersonate members when delegation is available. Keep the user-facing answer concise unless they ask for the full discussion.
+
+This room has its own durable session. Browser work uses the lead member's isolated browser workspace. When any member uses the browser, always select browser profile "${activeBrowserProfile}". Never use or copy cookies, tabs, credentials, or private memory from any other agent's browser profile.`
+      : undefined
+  const activeAgentContext =
+    groupContext ??
+    (chatAgent
+    ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
+
+Stay within your role: ${chatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
+      : undefined)
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
+  const nativeEmailConnected = useMemo(
+    () =>
+      getGoogleGmailConnections(connections).length > 0 ||
+      Boolean(connections[ConnectionKeys.MICROSOFT_OUTLOOK]),
+    [connections],
+  )
   const userImage = auth.profile?.profile_image || '/assets/images/chat/no-pic-user-avatar-icon.svg'
 
   const stopLLMExecution = async () => {
@@ -202,8 +255,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
           setEmbeddedBrowserEnabled(enabled)
           localStorage.setItem('knapsack.browser.embedded.enabled', String(enabled))
           setShowEmbeddedBrowser(
-            enabled &&
-              localStorage.getItem('knapsack.browser.sidebar.open') !== 'false',
+            enabled && localStorage.getItem('knapsack.browser.sidebar.open') !== 'false',
           )
         })
         .catch(() => {
@@ -248,8 +300,13 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
 
   useEffect(() => {
     const refreshRoster = () => setTeamAgents(loadTeamRoster())
+    const refreshGroups = () => setTeamGroups(loadTeamGroups())
     window.addEventListener('knapsack:team-roster-changed', refreshRoster)
-    return () => window.removeEventListener('knapsack:team-roster-changed', refreshRoster)
+    window.addEventListener('knapsack:team-groups-changed', refreshGroups)
+    return () => {
+      window.removeEventListener('knapsack:team-roster-changed', refreshRoster)
+      window.removeEventListener('knapsack:team-groups-changed', refreshGroups)
+    }
   }, [])
 
   // Listen for /autopilot slash command to force-open the email drawer
@@ -366,7 +423,9 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
   )
 
   const handleGoogleMenuItemClick = (connectionKeys: ConnectionKeys[]) => {
-    const scopes = [...new Set(connectionKeys.flatMap(key => googleConnections[key].scopes))].join(' ')
+    const scopes = [...new Set(connectionKeys.flatMap(key => googleConnections[key].scopes))].join(
+      ' ',
+    )
     openGoogleAuthScreen(scopes)
   }
 
@@ -418,12 +477,15 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
     }
   }
 
-  const handleOpenProviderSignIn = useCallback((provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => {
+  const handleOpenProviderSignIn = useCallback(
+    (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => {
     // Close settings dialog and open the ClawdChat provider sidebar instead
     setIsSettingsDialogOpened(false)
     setProviderSignInInitialProvider(provider)
     setOpenProviderPanelTrigger(prev => prev + 1)
-  }, [])
+    },
+    [],
+  )
 
   const handleBackToHome = async () => {
     setCurrentTab(TabChoices.Work)
@@ -521,9 +583,24 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-ks-warm-grey-200 bg-white hover:bg-ks-warm-grey-50 text-ks-warm-grey-600 hover:text-ks-warm-grey-800 transition-colors cursor-pointer"
             title="Open Quick Chat overlay"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m7 15 5 5 5-5" />
+              <path d="m7 9 5-5 5 5" />
+            </svg>
             <span className="text-[10px] font-medium">Quick Chat</span>
-            <kbd className="text-[9px] font-mono bg-ks-warm-grey-100 text-ks-warm-grey-500 px-1 py-0.5 rounded border border-ks-warm-grey-200 leading-none">{navigator.platform?.includes('Mac') ? '\u2325Space' : 'Ctrl+Space'}</kbd>
+            <kbd className="text-[9px] font-mono bg-ks-warm-grey-100 text-ks-warm-grey-500 px-1 py-0.5 rounded border border-ks-warm-grey-200 leading-none">
+              {navigator.platform?.includes('Mac') ? '\u2325Space' : 'Ctrl+Space'}
+            </kbd>
           </button>
         }
         rightComponent={
@@ -547,11 +624,24 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                 className="flex items-center justify-center w-8 h-8 rounded-md border border-ks-warm-grey-300 bg-white hover:bg-ks-warm-grey-50 text-ks-warm-grey-700"
                 title="Settings"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
               </button>
               <SigninButton
                 onGoogleSignIn={handleSigninButtonClick}
-                onProviderSignIn={(provider) => handleOpenProviderSignIn(provider)}
+                onProviderSignIn={provider => handleOpenProviderSignIn(provider)}
               />
             </div>
           )
@@ -602,7 +692,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                 setMeetingSubView('meetings')
               }
             }}
-            onLibraryWorkspaceOpen={(ws) => {
+            onLibraryWorkspaceOpen={ws => {
               setCurrentTab(TabChoices.Library)
               setSelectedWorkspace(ws)
             }}
@@ -625,15 +715,29 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
             }
             recordingHandlers={recordingHandlers}
             teamAgents={teamAgents}
+            teamGroups={teamGroups}
             activeAgentId={activeAgentId}
+            activeGroupId={activeGroupId}
             onAgentSelect={agent => {
               setActiveAgentId(agent.id)
+              setActiveGroupId(null)
               setEmbeddedBrowserProfile(agent.browserProfile)
+              setCurrentTab(TabChoices.Openclaw)
+              setMeetingSubView('chat')
+            }}
+            onGroupSelect={group => {
+              setActiveAgentId(null)
+              setActiveGroupId(group.id)
+              const leadProfile = group.agentIds
+                .map(id => teamAgents.find(agent => agent.id === id)?.browserProfile)
+                .find(Boolean)
+              setEmbeddedBrowserProfile(leadProfile || 'openclaw')
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
             }}
             onTeamChatSelect={() => {
               setActiveAgentId(null)
+              setActiveGroupId(null)
               setEmbeddedBrowserProfile('openclaw')
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
@@ -649,7 +753,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                     feed={feed}
                     llmBar={llmBar}
                     userImg={userImage}
-                    onLibraryWorkspaceOpen={(ws) => {
+                    onLibraryWorkspaceOpen={ws => {
                       setCurrentTab(TabChoices.Library)
                       setSelectedWorkspace(ws)
                     }}
@@ -691,7 +795,9 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                 />
               )}
 
-              <div className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}>
+              <div
+                className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
+              >
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     <ClawdChat
                       key={activeChatId}
@@ -700,22 +806,48 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       onCloseActivity={() => setShowActivityPanel(false)}
                       userEmail={userEmail}
                       userName={userName}
+                      nativeEmailConnected={nativeEmailConnected}
                       onBusyChange={setIsChatBusy}
+                      onProviderPanelOpenChange={setIsChatProviderPanelOpen}
                       openProviderPanel={openProviderPanelTrigger}
                       chatId={activeChatId}
-                      sessionId={activeAgent ? `ui-agent-${activeAgent.id}` : 'ui'}
+                    sessionId={
+                      activeGroup
+                        ? `ui-group-${activeGroup.id}`
+                        : activeAgent
+                          ? `ui-agent-${activeAgent.id}`
+                          : 'ui'
+                    }
                       contextPrefix={activeAgentContext}
                       browserProfile={activeBrowserProfile}
-                      agentName={activeAgent?.name}
-                      agentPersonality={activeAgent?.personality}
-                      title={activeAgent ? `${activeAgent.emoji} ${activeAgent.name}` : 'Knapsack Chat'}
+                    agentName={activeGroup?.name ?? chatAgent?.name}
+                    agentPersonality={
+                      activeGroup
+                        ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
+                        : chatAgent?.personality
+                    }
+                    agentSuggestedPrompts={
+                      activeGroup
+                        ? [
+                            `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
+                            'Work together on this decision, surface disagreements, and recommend the best next step.',
+                          ]
+                        : chatAgent?.suggestedPrompts
+                    }
+                    title={
+                      activeGroup
+                        ? `${activeGroup.emoji} ${activeGroup.name}`
+                        : chatAgent
+                          ? `${chatAgent.emoji} ${chatAgent.name}`
+                          : 'Knapsack Chat'
+                    }
                     />
                   </div>
                   {!showEmbeddedBrowser && showActivityPanel && (
                     <>
                       <div
                         className="activity-resize-handle"
-                        onMouseDown={(e) => {
+                      onMouseDown={e => {
                           e.preventDefault()
                           isResizingRef.current = true
                           const startX = e.clientX
@@ -738,22 +870,91 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                           document.addEventListener('mouseup', onUp)
                         }}
                       />
-                      <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: activityPanelWidth, flexShrink: 0 }}>
+                    <div
+                      className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white"
+                      style={{ width: activityPanelWidth, flexShrink: 0 }}
+                    >
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
                   )}
                   {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
-                    <EmbeddedBrowserSidebar
-                      key={embeddedBrowserProfile}
-                      requestedUrl={embeddedBrowserUrl}
-                      browserProfile={embeddedBrowserProfile}
-                      onClose={() => {
-                        setShowEmbeddedBrowser(false)
-                        setEmbeddedBrowserUrl('')
-                        localStorage.setItem('knapsack.browser.sidebar.open', 'false')
-                      }}
-                    />
+                    <>
+                      <div
+                        className="activity-resize-handle embedded-browser-resize-handle"
+                        role="separator"
+                        aria-label="Resize embedded browser"
+                        aria-orientation="vertical"
+                        aria-valuemin={380}
+                        aria-valuemax={960}
+                        aria-valuenow={Math.round(embeddedBrowserWidth)}
+                        tabIndex={0}
+                      onKeyDown={event => {
+                          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                          event.preventDefault()
+                          const direction = event.key === 'ArrowLeft' ? 1 : -1
+                        const containerWidth =
+                          event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
+                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                        const renderedWidth =
+                          event.currentTarget.nextElementSibling?.getBoundingClientRect().width ??
+                          embeddedBrowserWidth
+                        const nextWidth = Math.max(
+                          380,
+                          Math.min(maxWidth, renderedWidth + direction * 24),
+                        )
+                          setEmbeddedBrowserWidth(nextWidth)
+                          localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                        }}
+                      onMouseDown={event => {
+                          event.preventDefault()
+                          isResizingRef.current = true
+                          const startX = event.clientX
+                        const startWidth =
+                          event.currentTarget.nextElementSibling?.getBoundingClientRect().width ??
+                          embeddedBrowserWidth
+                        const containerWidth =
+                          event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
+                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                          let nextWidth = startWidth
+                          const onMove = (moveEvent: MouseEvent) => {
+                            if (!isResizingRef.current) return
+                          nextWidth = Math.max(
+                            380,
+                            Math.min(maxWidth, startWidth + startX - moveEvent.clientX),
+                          )
+                            setEmbeddedBrowserWidth(nextWidth)
+                          }
+                          const onUp = () => {
+                            isResizingRef.current = false
+                            localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                            document.removeEventListener('mousemove', onMove)
+                            document.removeEventListener('mouseup', onUp)
+                            document.body.style.cursor = ''
+                            document.body.style.userSelect = ''
+                          }
+                          document.body.style.cursor = 'col-resize'
+                          document.body.style.userSelect = 'none'
+                          document.addEventListener('mousemove', onMove)
+                          document.addEventListener('mouseup', onUp)
+                        }}
+                      />
+                      <div
+                        className="embedded-browser-panel"
+                        style={{ width: embeddedBrowserWidth, flexBasis: embeddedBrowserWidth }}
+                      >
+                        <EmbeddedBrowserSidebar
+                          key={embeddedBrowserProfile}
+                          requestedUrl={embeddedBrowserUrl}
+                          browserProfile={embeddedBrowserProfile}
+                          onClose={() => {
+                            setShowEmbeddedBrowser(false)
+                            setEmbeddedBrowserUrl('')
+                            localStorage.setItem('knapsack.browser.sidebar.open', 'false')
+                          }}
+                        />
+                      </div>
+                    </>
                   )}
                   {!showEmbeddedBrowser && (feed.loggedEmailAutopilot || autopilotForceOpen) && (
                     <EmailNotificationDrawer
@@ -770,7 +971,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       isChatBusy={isChatBusy}
                     />
                   )}
-                  {embeddedBrowserEnabled && !showEmbeddedBrowser && (
+                  {embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen && (
                     <button
                       className="embedded-browser-launcher"
                       type="button"
@@ -819,7 +1020,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                   onBack={() => {
                     // Back from note view returns to sidebar
                   }}
-                  onLibraryWorkspaceOpen={(ws) => {
+                  onLibraryWorkspaceOpen={ws => {
                     setCurrentTab(TabChoices.Library)
                     setSelectedWorkspace(ws)
                   }}
@@ -832,7 +1033,9 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       .filter(p => p.email && p.email !== userEmail)
                       .map(p => p.email)
                       .join(', ')
-                    const subject = meeting?.title ? `Follow up: ${meeting.title}` : 'Meeting Follow Up'
+                    const subject = meeting?.title
+                      ? `Follow up: ${meeting.title}`
+                      : 'Meeting Follow Up'
                     const body = buildFollowUpEmailBody(
                       notesMarkdown,
                       meeting?.title,
@@ -862,7 +1065,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                     <>
                       <div
                         className="activity-resize-handle"
-                        onMouseDown={(e) => {
+                        onMouseDown={e => {
                           e.preventDefault()
                           isResizingRef.current = true
                           const startX = e.clientX
@@ -885,7 +1088,10 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                           document.addEventListener('mouseup', onUp)
                         }}
                       />
-                      <div className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white" style={{ width: activityPanelWidth, flexShrink: 0 }}>
+                      <div
+                        className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white"
+                        style={{ width: activityPanelWidth, flexShrink: 0 }}
+                      >
                         <ActivityPanel onClose={() => setShowActivityPanel(false)} />
                       </div>
                     </>
@@ -901,7 +1107,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       onBack={() => setSelectedWorkspace(null)}
                     />
                   ) : (
-                    <WorkspacesList onWorkspaceOpen={(ws) => setSelectedWorkspace(ws)} />
+                    <WorkspacesList onWorkspaceOpen={ws => setSelectedWorkspace(ws)} />
                   )}
                 </div>
               )}
@@ -920,7 +1126,7 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                       setCurrentTab(TabChoices.Meeting)
                       setMeetingSubView('meetings')
                     }}
-                    onOpenWorkspace={(ws) => {
+                    onOpenWorkspace={ws => {
                       setCurrentTab(TabChoices.Library)
                       setSelectedWorkspace(ws)
                     }}
@@ -936,7 +1142,6 @@ Stay within your role: ${activeAgent.personality}. Your durable chat session and
                   onDismiss={() => feed.setComposedEmailDraft(null)}
                 />
               )}
-
             </div>
           </div>
         </div>

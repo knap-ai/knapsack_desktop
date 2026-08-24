@@ -24,8 +24,22 @@ import { open } from '@tauri-apps/api/shell'
 
 const BACKEND = 'http://127.0.0.1:8897'
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
-const SCREENSHOT_INTERVAL_MS = 700
-const TABS_INTERVAL_MS = 900
+const SCREENSHOT_INTERVAL_MS = 1200
+const TABS_INTERVAL_MS = 1800
+const MIN_DESKTOP_VIEWPORT_WIDTH = 1100
+const MAX_DESKTOP_VIEWPORT_HEIGHT = 1600
+
+function desktopBrowserViewport(width: number, height: number) {
+  const roundedWidth = Math.round(width)
+  const roundedHeight = Math.round(height)
+  if (roundedWidth >= MIN_DESKTOP_VIEWPORT_WIDTH) return { width: roundedWidth, height: roundedHeight }
+
+  const scale = MIN_DESKTOP_VIEWPORT_WIDTH / Math.max(roundedWidth, 1)
+  return {
+    width: MIN_DESKTOP_VIEWPORT_WIDTH,
+    height: Math.min(MAX_DESKTOP_VIEWPORT_HEIGHT, Math.max(roundedHeight, Math.round(roundedHeight * scale))),
+  }
+}
 
 interface BrowserTab {
   targetId: string
@@ -60,6 +74,15 @@ function tabsFromEnvelope(envelope: TabsEnvelope): BrowserTab[] {
   return Array.isArray(envelope.data?.tabs) ? envelope.data.tabs : []
 }
 
+function tabLabel(tab: BrowserTab) {
+  if (tab.title?.trim()) return tab.title.trim()
+  try {
+    return new URL(tab.url || '').hostname || 'New tab'
+  } catch {
+    return 'New tab'
+  }
+}
+
 async function postBrowserAction(body: Record<string, unknown>, profile: string) {
   const response = await fetch(`${BACKEND}/api/clawd/browser/act`, {
     method: 'POST',
@@ -83,7 +106,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const imageRef = useRef<HTMLImageElement>(null)
   const screenshotUrlRef = useRef('')
   const currentTargetIdRef = useRef('')
-  const knownTargetIdsRef = useRef<Set<string>>(new Set())
+  const knownTargetIdsRef = useRef(new Set<string>())
   const screenshotPendingRef = useRef(false)
   const navigationPendingRef = useRef(false)
   const addressEditingRef = useRef(false)
@@ -92,26 +115,42 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const [address, setAddress] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentUrl, setCurrentUrl] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentTitle, setCurrentTitle] = useState('')
+  const [tabs, setTabs] = useState<BrowserTab[]>([])
+  const [activeTargetId, setActiveTargetId] = useState('')
   const [screenshotUrl, setScreenshotUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const selectTarget = useCallback((targetId: string) => {
-    if (currentTargetIdRef.current === targetId) return
+  const activeTabStorageKey = `knapsack.browser.active-tab.${browserProfile}`
+
+  const selectTarget = useCallback((targetId: string, tab?: BrowserTab) => {
+    const changed = currentTargetIdRef.current !== targetId
     currentTargetIdRef.current = targetId
+    setActiveTargetId(targetId)
+    if (tab?.url) {
+      setCurrentUrl(tab.url)
+      if (!addressEditingRef.current) setAddress(tab.url)
+    }
+    if (tab) setCurrentTitle(tab.title || '')
+    try {
+      localStorage.setItem(activeTabStorageKey, JSON.stringify({ targetId, url: tab?.url || '' }))
+    } catch {
+      // Persistence is best-effort (for example, private-mode storage can fail).
+    }
+    if (!changed) return
     const viewport = viewportRef.current
     if (viewport) {
       const { width, height } = viewport.getBoundingClientRect()
       if (width >= 320 && height >= 240) {
+        const browserViewport = desktopBrowserViewport(width, height)
         postBrowserAction({
           kind: 'resize',
           targetId,
-          width: Math.round(width),
-          height: Math.round(height),
+          ...browserViewport,
         }, browserProfile).catch(() => undefined)
       }
     }
-  }, [browserProfile])
+  }, [activeTabStorageKey, browserProfile])
 
   const refreshTabs = useCallback(async () => {
     const query = new URLSearchParams({ profile: browserProfile })
@@ -120,30 +159,44 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     })
     if (!response.ok) throw new Error('The shared browser is still starting')
     const envelope = (await response.json()) as TabsEnvelope
-    const tabs = tabsFromEnvelope(envelope).filter(
+    const pageTabs = tabsFromEnvelope(envelope).filter(
       tab => tab.targetId && (!tab.type || tab.type === 'page'),
     )
-    if (!tabs.length) return []
+    setTabs(pageTabs)
+    if (!pageTabs.length) {
+      knownTargetIdsRef.current = new Set()
+      currentTargetIdRef.current = ''
+      setActiveTargetId('')
+      return []
+    }
 
     const previousIds = knownTargetIdsRef.current
-    const newlyOpened = tabs.filter(tab => !previousIds.has(tab.targetId))
-    knownTargetIdsRef.current = new Set(tabs.map(tab => tab.targetId))
+    const newlyOpened = pageTabs.filter(tab => !previousIds.has(tab.targetId))
+    knownTargetIdsRef.current = new Set(pageTabs.map(tab => tab.targetId))
 
-    let selected = tabs.find(tab => tab.targetId === currentTargetIdRef.current)
-    if (newlyOpened.length) selected = newlyOpened[newlyOpened.length - 1]
-    if (!selected) selected = tabs[tabs.length - 1]
-
-    selectTarget(selected.targetId)
-    if (selected.url) {
-      setCurrentUrl(selected.url)
-      if (!addressEditingRef.current) setAddress(selected.url)
+    let selected = newlyOpened.length
+      ? newlyOpened[newlyOpened.length - 1]
+      : pageTabs.find(tab => tab.targetId === currentTargetIdRef.current)
+    if (!selected) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(activeTabStorageKey) || '{}') as {
+          targetId?: string
+          url?: string
+        }
+        selected = pageTabs.find(tab => tab.targetId === saved.targetId)
+          || pageTabs.find(tab => saved.url && tab.url === saved.url)
+      } catch {
+        // Ignore malformed legacy storage.
+      }
     }
-    setCurrentTitle(selected.title || '')
-    return tabs
-  }, [browserProfile, selectTarget])
+    if (!selected) selected = pageTabs[0]
+
+    selectTarget(selected.targetId, selected)
+    return pageTabs
+  }, [activeTabStorageKey, browserProfile, selectTarget])
 
   const refreshScreenshot = useCallback(async () => {
-    if (screenshotPendingRef.current || !currentTargetIdRef.current) return
+    if (document.hidden || screenshotPendingRef.current || !currentTargetIdRef.current) return
     screenshotPendingRef.current = true
     try {
       const query = new URLSearchParams({
@@ -227,6 +280,78 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     [browserProfile, refreshScreenshot, refreshTabs, selectTarget],
   )
 
+  const focusTab = async (tab: BrowserTab) => {
+    selectTarget(tab.targetId, tab)
+    setIsLoading(true)
+    setError('')
+    try {
+      const response = await fetch(`${BACKEND}/api/clawd/browser/focus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: tab.targetId, profile: browserProfile }),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      await refreshScreenshot()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const openNewTab = async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      // The browser service deliberately reuses an existing tab when the URL
+      // matches. Give explicit "New tab" actions a unique start URL so the +
+      // button creates a real tab instead of focusing the existing Google tab.
+      const newTabUrl = new URL(DEFAULT_BROWSER_URL)
+      newTabUrl.searchParams.set('knapsack_new_tab', `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      const query = new URLSearchParams({
+        url: newTabUrl.toString(),
+        embedded: 'true',
+        profile: browserProfile,
+      })
+      const response = await fetch(`${BACKEND}/api/clawd/browser/open?${query}`)
+      const result = (await response.json()) as OpenBrowserResponse
+      if (!response.ok || !result.success || !result.target_id) {
+        throw new Error(result.message || 'Could not open a new browser tab')
+      }
+      const tab = { targetId: result.target_id, title: 'New tab', url: newTabUrl.toString() }
+      selectTarget(tab.targetId, tab)
+      await refreshTabs()
+      await refreshScreenshot()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const closeTab = async (tab: BrowserTab) => {
+    const closingIndex = tabs.findIndex(candidate => candidate.targetId === tab.targetId)
+    const fallback = tabs[closingIndex + 1] || tabs[closingIndex - 1]
+    const closingActiveTab = tab.targetId === currentTargetIdRef.current
+    try {
+      const response = await fetch(`${BACKEND}/api/clawd/browser/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: tab.targetId, profile: browserProfile }),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      if (closingActiveTab) {
+        const previousScreenshotUrl = screenshotUrlRef.current
+        currentTargetIdRef.current = ''
+        screenshotUrlRef.current = ''
+        setScreenshotUrl('')
+        if (previousScreenshotUrl) URL.revokeObjectURL(previousScreenshotUrl)
+        if (fallback) selectTarget(fallback.targetId, fallback)
+      }
+      const remaining = await refreshTabs()
+      if (!remaining.length) await openNewTab()
+      else if (closingActiveTab && fallback) await focusTab(fallback)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   useEffect(() => {
     let cancelled = false
     const initializeBrowser = async () => {
@@ -290,11 +415,11 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       window.clearTimeout(resizeTimerRef.current)
       resizeTimerRef.current = window.setTimeout(() => {
         if (!currentTargetIdRef.current || width < 320 || height < 240) return
+        const browserViewport = desktopBrowserViewport(width, height)
         postBrowserAction({
           kind: 'resize',
           targetId: currentTargetIdRef.current,
-          width: Math.round(width),
-          height: Math.round(height),
+          ...browserViewport,
         }, browserProfile).catch(() => undefined)
       }, 180)
     })
@@ -489,6 +614,47 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
           onClick={onClose}
         >
           <XMarkIcon />
+        </button>
+      </div>
+
+      <div className="EmbeddedBrowserTabs" role="tablist" aria-label="Browser tabs">
+        <div className="EmbeddedBrowserTabsScroller">
+          {tabs.map(tab => (
+            <div
+              className={`EmbeddedBrowserTab${tab.targetId === activeTargetId ? ' is-active' : ''}`}
+              key={tab.targetId}
+            >
+              <button
+                className="EmbeddedBrowserTabSelect"
+                type="button"
+                role="tab"
+                aria-selected={tab.targetId === activeTargetId}
+                title={tab.title || tab.url || 'New tab'}
+                onClick={() => focusTab(tab)}
+              >
+                <GlobeAltIcon />
+                <span>{tabLabel(tab)}</span>
+              </button>
+              <button
+                className="EmbeddedBrowserTabClose"
+                type="button"
+                aria-label={`Close ${tabLabel(tab)}`}
+                title="Close tab"
+                onClick={() => closeTab(tab)}
+              >
+                <XMarkIcon />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          className="EmbeddedBrowserNewTab"
+          type="button"
+          aria-label="New tab"
+          title="New tab"
+          onClick={openNewTab}
+        >
+          +
         </button>
       </div>
 

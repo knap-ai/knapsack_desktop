@@ -42,12 +42,26 @@ static LAST_BROWSER_RPC_SUCCESS_MS: AtomicU64 = AtomicU64::new(0);
 /// launches these lazily, so the profiles do not consume a browser process
 /// until the agent actually needs one.
 pub fn knapsack_agent_browser_profiles() -> Value {
-  serde_json::json!({
+  let mut profiles = serde_json::json!({
     "agent-polly": {"cdpPort": 18810, "color": "#A855F7"},
     "agent-scout": {"cdpPort": 18811, "color": "#6474AC"},
     "agent-atlas": {"cdpPort": 18812, "color": "#0F766E"},
     "agent-coach": {"cdpPort": 18813, "color": "#C14841"}
-  })
+  });
+  let custom_colors = ["#2563EB", "#7C3AED", "#0F766E", "#C2410C"];
+  let profile_map = profiles
+    .as_object_mut()
+    .expect("browser profiles are an object");
+  for index in 0..64u16 {
+    profile_map.insert(
+      format!("agent-custom-{:02}", index + 1),
+      serde_json::json!({
+        "cdpPort": 18820 + index,
+        "color": custom_colors[index as usize % custom_colors.len()],
+      }),
+    );
+  }
+  profiles
 }
 
 fn next_request_id() -> String {
@@ -3324,7 +3338,7 @@ pub async fn agent_chat(
   message: &str,
   attachments: &[serde_json::Value],
   token: Option<&str>,
-  conversation_scope: Option<&str>,
+  _conversation_scope: Option<&str>,
   session_key: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
@@ -3335,45 +3349,72 @@ pub async fn agent_chat(
       .unwrap_or_default()
       .as_millis()
   );
-  let scope = conversation_scope
-    .unwrap_or("dm")
-    .trim()
-    .to_ascii_lowercase();
+  let params = build_agent_chat_params(message, attachments, session_key, &idem);
+  // 5 minute timeout — LLM tool loops can take a while
+  gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+/// Read the display-normalized chat history for a gateway session.
+///
+/// Group-room orchestration can intentionally end its first turn with
+/// `sessions_yield` while child agents finish. The final synthesis is then
+/// appended to the same session, so callers need a safe way to collect it.
+pub async fn chat_history(
+  session_key: &str,
+  token: Option<&str>,
+  limit: usize,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(
+    "chat.history",
+    Some(serde_json::json!({
+      "sessionKey": session_key,
+      "limit": limit.clamp(1, 1000),
+      "maxChars": 24_000,
+    })),
+    &t,
+  )
+  .await
+}
+
+pub async fn sessions_list(token: Option<&str>, limit: usize) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(
+    "sessions.list",
+    Some(serde_json::json!({
+      "limit": limit.clamp(1, 1000),
+      "includeGlobal": false,
+      "includeUnknown": false,
+    })),
+    &t,
+  )
+  .await
+}
+
+fn build_agent_chat_params(
+  message: &str,
+  attachments: &[serde_json::Value],
+  session_key: Option<&str>,
+  idempotency_key: &str,
+) -> serde_json::Value {
   let mut params = serde_json::json!({
     "message": message,
-    "idempotencyKey": idem,
+    "idempotencyKey": idempotency_key,
     "deliver": false,
     "channel": "webchat",
     "agentId": "main",
   });
-  if !scope.is_empty() {
-    params["conversationScope"] = serde_json::json!(scope);
-  }
+  // OpenClaw 2026.5.22 rejects `conversationScope` as an unexpected agent RPC
+  // property. The explicit session key already carries the `dm` scope, so do
+  // not send the obsolete field or interactive Scout chat falls back to the
+  // direct LLM path and loses its shared main-agent session.
   if let Some(key) = session_key.map(str::trim).filter(|key| !key.is_empty()) {
     params["sessionKey"] = serde_json::json!(key);
   }
   if !attachments.is_empty() {
     params["attachments"] = serde_json::Value::Array(attachments.to_vec());
   }
-  // 5 minute timeout — LLM tool loops can take a while. Older bundled
-  // OpenClaw runtimes do not yet accept `conversationScope`. Retry without
-  // that optional hint when the RPC schema rejects it so Desktop chat stays
-  // on the gateway/tool path instead of degrading to direct chat.
-  match gateway_request_agent("agent", Some(params.clone()), &t, 300).await {
-    Err(error)
-      if params.get("conversationScope").is_some()
-        && error.contains("unexpected property 'conversationScope'") =>
-    {
-      eprintln!(
-        "[gateway_client] bundled gateway rejected conversationScope; retrying compatible agent request"
-      );
-      if let Some(object) = params.as_object_mut() {
-        object.remove("conversationScope");
-      }
-      gateway_request_agent("agent", Some(params), &t, 300).await
-    }
-    result => result,
-  }
+  params
 }
 
 /// Send an automation agent run through the gateway's `agent` RPC method.
@@ -3459,7 +3500,7 @@ mod tests {
   fn starter_agent_browser_profiles_are_unique_and_lazy_managed_profiles() {
     let profiles = knapsack_agent_browser_profiles();
     let profiles = profiles.as_object().unwrap();
-    assert_eq!(profiles.len(), 4);
+    assert_eq!(profiles.len(), 68);
 
     let mut ports = profiles
       .values()
@@ -3467,7 +3508,7 @@ mod tests {
       .collect::<Vec<_>>();
     ports.sort_unstable();
     ports.dedup();
-    assert_eq!(ports.len(), 4);
+    assert_eq!(ports.len(), 68);
     assert!(profiles.keys().all(|name| name.starts_with("agent-")));
   }
 
@@ -3560,6 +3601,25 @@ mod tests {
   }
 
   #[test]
+  fn interactive_agent_chat_uses_main_session_without_obsolete_scope_field() {
+    let params = build_agent_chat_params(
+      "hello",
+      &[],
+      Some("agent:main:webchat:dm:ui"),
+      "test-idempotency-key",
+    );
+    assert_eq!(
+      params.get("agentId").and_then(|value| value.as_str()),
+      Some("main")
+    );
+    assert_eq!(
+      params.get("sessionKey").and_then(|value| value.as_str()),
+      Some("agent:main:webchat:dm:ui")
+    );
+    assert!(params.get("conversationScope").is_none());
+  }
+
+  #[test]
   fn resolve_default_model_rewrites_knapsack_auto_for_gateway_use() {
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "auto");
@@ -3627,7 +3687,8 @@ mod tests {
       "browser": {
         "enabled": true,
         "headless": false,
-        "defaultProfile": "openclaw"
+        "defaultProfile": "openclaw",
+        "profiles": knapsack_agent_browser_profiles()
       },
       "tools": {
         "deny": ["canvas", "nodes", "cron", "gateway"],

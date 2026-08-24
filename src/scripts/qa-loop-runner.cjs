@@ -432,7 +432,10 @@ function parseArgs() {
     chatRetries: 2,
     chatRetryDelayMs: 800,
     startupBudgetMs: 120_000,
-    functionalTimeoutMs: 90_000,
+    // Connected capability checks can each take up to 60 seconds. Keep the
+    // aggregate gate large enough to exercise all three plus meeting/browser
+    // coverage instead of timing out a healthy run midway through the suite.
+    functionalTimeoutMs: Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 240_000),
     readinessHealthTimeoutMs: 60_000,
     coreOnly: false,
     strictReadiness: false,
@@ -835,6 +838,58 @@ async function probeBrowserControl(timeoutMs = 1_200) {
     }
   }
   return false;
+}
+
+function evaluateBrowserPersistenceCapabilities({ commandLine = "", preferences = {} } = {}) {
+  const blockedFlags = ["--disable-sync", "--password-store=basic"]
+    .filter((flag) => commandLine.includes(flag));
+  const passwordSavingEnabled = preferences.credentials_enable_service !== false
+    && preferences.profile?.password_manager_enabled !== false;
+  const paymentSavingEnabled = preferences.autofill?.credit_card_enabled !== false;
+  return {
+    ok: blockedFlags.length === 0 && passwordSavingEnabled && paymentSavingEnabled,
+    blockedFlags,
+    passwordSavingEnabled,
+    paymentSavingEnabled,
+  };
+}
+
+function probeBrowserPersistenceCapabilities() {
+  const stateDir = apiAuthStateDir();
+  const userDataDir = stateDir
+    ? path.join(stateDir, "browser", "openclaw", "user-data")
+    : "";
+  let commandLine = "";
+  if (userDataDir && (process.platform === "darwin" || process.platform === "linux")) {
+    const processList = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
+    commandLine = String(processList.stdout || "")
+      .split(/\r?\n/)
+      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+  } else if (userDataDir && process.platform === "win32") {
+    const processList = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine",
+      ],
+      { encoding: "utf8" },
+    );
+    commandLine = String(processList.stdout || "")
+      .split(/\r?\n/)
+      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+  }
+  const preferences = userDataDir
+    ? readJsonFile(path.join(userDataDir, "Default", "Preferences")) || {}
+    : {};
+  const result = evaluateBrowserPersistenceCapabilities({ commandLine, preferences });
+  return {
+    ...result,
+    commandLineObserved: Boolean(commandLine),
+    profilePreferencesObserved: Object.keys(preferences).length > 0,
+    ok: result.ok && (!["darwin", "win32"].includes(process.platform) || Boolean(commandLine)),
+  };
 }
 
 function summarizeStartupState(payload) {
@@ -1457,7 +1512,12 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
-  const requestTimeoutMs = Number(process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS || 30_000);
+  // The backend deliberately waits up to 45s for gateway readiness and up to
+  // 120s for channel readiness after a provider switch. A 30s client timeout
+  // abandons the request while the restart continues, so the next provider
+  // switch overlaps it and creates a restart loop. Keep the client budget
+  // longer than the server's complete readiness budget.
+  const requestTimeoutMs = qaSetProviderTimeoutMs();
   const req = await fetchWithTimeout(`${API_BASE}/api/clawd/service/set-api-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1467,12 +1527,46 @@ async function setProviderAndModel(provider, model) {
       key: "",
     }),
   }, requestTimeoutMs);
+  if (providerSwitchAppliedButStillStarting(req.status, req.body)) {
+    // The provider/model is already persisted. Do not submit the switch again:
+    // that would trigger another full restart. Give the existing restart one
+    // recovery nudge and wait for stable health instead.
+    await ensureGatewayEnabledForQA(30_000);
+    const readiness = await waitForGatewayHealthReady({ budgetMs: 120_000 });
+    if (readiness.ok) {
+      return {
+        ok: true,
+        payload: req.body,
+        status: req.status,
+        recovered: true,
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+  }
   return {
     ok: Boolean(req.ok),
     payload: req.body,
     status: req.status,
     elapsedMs: Date.now() - startedAt,
   };
+}
+
+function qaSetProviderTimeoutMs(raw = process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS) {
+  const configured = Number(raw);
+  return Number.isFinite(configured) && configured > 0 ? configured : 150_000;
+}
+
+function providerSwitchAppliedButStillStarting(status, payload) {
+  if (Number(status) !== 503) return false;
+  const message = String(payload?.message || payload || "").toLowerCase();
+  return (
+    message.includes("provider switched, but gateway did not become ready") ||
+    message.includes("api key saved, but gateway did not become ready")
+  );
+}
+
+function lastSuccessfulChatCheck(chatChecks) {
+  return [...chatChecks].reverse().find((check) => check && check.ok && !check.skipped) ?? null;
 }
 
 async function runChatSmoke(provider, model, options = {}) {
@@ -1913,53 +2007,56 @@ async function checkInterfaceAccess(includeUi, startupState) {
     return result;
   };
 
-  const root = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const health = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const workspaces = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
-    4,
-    1_000,
-  );
-
-  const channels = await retryWithDelay(
-    () => fetchWithTimeout(
-      `${API_BASE}/api/clawd/channels/diagnostics`,
-      { method: "GET" },
-      Number(process.env.KNAPSACK_QA_CHANNELS_DIAGNOSTICS_TIMEOUT_MS || 5_000),
-    ),
-    3,
-    1_000,
-  );
-  const automations = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
-    3,
-    1_000,
-  );
-  const skills = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
-    4,
-    1_000,
-  );
-  const feed = await retryWithDelay(
-    () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
-    4,
-    1_000,
-  );
-  const ui = includeUi
-    ? await retryWithDelay(
-      () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
+  // These probes are independent. Running them serially made the aggregate QA
+  // deadline depend on the sum of every retry window during startup load.
+  const [root, health, workspaces, channels, automations, skills, feed, ui] = await Promise.all([
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
       4,
       1_000,
-    )
-    : { ok: true };
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(
+        `${API_BASE}/api/clawd/channels/diagnostics`,
+        { method: "GET" },
+        Number(process.env.KNAPSACK_QA_CHANNELS_DIAGNOSTICS_TIMEOUT_MS || 5_000),
+      ),
+      3,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
+      3,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
+      4,
+      1_000,
+    ),
+    retryWithDelay(
+      () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
+      4,
+      1_000,
+    ),
+    includeUi
+      ? retryWithDelay(
+        () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
+        4,
+        1_000,
+      )
+      : Promise.resolve({ ok: true }),
+  ]);
   const healthBrowserOk = Boolean(health?.body?.browser_ok);
   const browserControl = healthBrowserOk
     ? true
@@ -2028,6 +2125,10 @@ async function checkInterfaceAccess(includeUi, startupState) {
   if (includeUi && (!ui || !ui.ok)) failures.push("UI /home unreachable");
   const uiBrowserOk = browserControl || healthBrowserOk;
   if (!uiBrowserOk) failures.push("browser control not reachable");
+  const browserPersistence = uiBrowserOk
+    ? probeBrowserPersistenceCapabilities()
+    : { ok: false, commandLineObserved: false, profilePreferencesObserved: false };
+  if (!browserPersistence.ok) failures.push("browser password/payment persistence disabled");
   return {
     ok: failures.length === 0,
     failures,
@@ -2038,6 +2139,7 @@ async function checkInterfaceAccess(includeUi, startupState) {
       automationsApi: Boolean(automations?.ok && Array.isArray(automations.body?.data)),
       feedApi: Boolean(feed?.ok),
       browserControl: Boolean(uiBrowserOk),
+      browserPersistence,
       channelStates,
       configuredChannelsActive: configuredChannelStates.filter((state) => state.active).map((state) => state.channel),
       configuredChannelsDeferred: configuredChannelStates.filter((state) => state.deferred).map((state) => state.channel),
@@ -2272,21 +2374,14 @@ async function runMode(mode, opts = {}) {
       }
 
       functionalProgress.step = "agent capability checks";
-      const primaryAgentCheck = chatChecks.find((check) => check && check.ok && !check.skipped);
-      if (primaryAgentCheck) {
-        const restoreAgentProvider = await setProviderAndModel(
-          primaryAgentCheck.provider,
-          primaryAgentCheck.model,
-        );
-        if (!restoreAgentProvider.ok) {
-          return {
-            ok: false,
-            phase: "agent-capabilities",
-            message: `could not restore provider for agent capability checks: ${normalizeResult(restoreAgentProvider.payload?.message || restoreAgentProvider.payload)}`,
-            chatChecks,
-          };
-        }
-      }
+      // The final successful chat check already left its provider/model active.
+      // Restarting back to the first provider adds a fifth gateway restart and
+      // can exhaust readiness even though every requested provider passed.
+      // Continue capability checks on the active provider instead.
+      const activeAgentCheck = lastSuccessfulChatCheck(chatChecks);
+      functionalProgress.agentCapabilityProvider = activeAgentCheck
+        ? `${activeAgentCheck.provider}/${activeAgentCheck.model}`
+        : null;
       const agentCapabilityChecks = [
         {
           label: "weather-search",
@@ -2510,7 +2605,11 @@ if (require.main === module) {
 }
 
 module.exports = {
+  evaluateBrowserPersistenceCapabilities,
+  lastSuccessfulChatCheck,
   localApiHeaders,
+  providerSwitchAppliedButStillStarting,
+  qaSetProviderTimeoutMs,
   qaDevClawdbotDir,
   shouldPreserveExistingQaState,
   setApiAuthStateDirForTest(value) {

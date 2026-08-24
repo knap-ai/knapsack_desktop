@@ -1044,6 +1044,7 @@ function binaryNeedsRebuild() {
     latestMtimeMs(path.join(tauriDir, "src"), (file) => file.endsWith(".rs")),
     fs.statSync(path.join(tauriDir, "Cargo.toml")).mtimeMs,
     fs.statSync(path.join(tauriDir, "build.rs")).mtimeMs,
+    fs.statSync(path.join(tauriDir, "tauri.conf.json")).mtimeMs,
     fs.statSync(__filename).mtimeMs,
   );
   return rustSourceMtime > binaryMtime;

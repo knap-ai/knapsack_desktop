@@ -1,16 +1,27 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
-import dayjs from 'dayjs'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import dayjs from 'dayjs'
+import {
+  createTeamAgent,
+  createTeamGroup,
+  getPrimaryScout,
+  saveTeamGroups,
+  saveTeamRoster,
+  nextCustomAgentBrowserProfile,
+  TeamAgent,
+  TeamGroup,
+} from 'src/agents/teamRoster'
+import { Connection, hasCalendarCapability } from 'src/api/connections'
 import { FeedItem } from 'src/api/feed_items'
+import { ThreadType } from 'src/api/threads'
+import { listWorkspaces, Workspace } from 'src/api/workspaces'
 import { IFeed, STATIONARY_ITEMS } from 'src/hooks/feed/useFeed'
 import KNDateUtils from 'src/utils/KNDateUtils'
-import { ThreadType } from 'src/api/threads'
-import { getAppVersion } from 'src/utils/app'
-import { Connection, hasCalendarCapability } from 'src/api/connections'
-import { TabChoices } from 'src/components/TabBar'
-import { listWorkspaces, Workspace } from 'src/api/workspaces'
+
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
-import { TeamAgent } from 'src/agents/teamRoster'
+import { TabChoices } from 'src/components/TabBar'
+
+import { getAppVersion } from 'src/utils/app'
 
 import './style.scss'
 
@@ -26,9 +37,170 @@ interface NotetakerSidebarProps {
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   recordingHandlers?: RecordingContextProps
   teamAgents?: TeamAgent[]
+  teamGroups?: TeamGroup[]
   activeAgentId?: string | null
+  activeGroupId?: string | null
   onAgentSelect?: (agent: TeamAgent) => void
+  onGroupSelect?: (group: TeamGroup) => void
   onTeamChatSelect?: () => void
+}
+
+type TeamComposerMode = 'agent' | 'group'
+
+function TeamComposerDialog({
+  mode,
+  agents,
+  groups,
+  onClose,
+}: {
+  mode: TeamComposerMode
+  agents: TeamAgent[]
+  groups: TeamGroup[]
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState(mode === 'agent' ? '🤖' : '👥')
+  const [role, setRole] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
+  const canSave =
+    mode === 'agent'
+      ? name.trim().length > 0 && role.trim().length > 0
+      : name.trim().length > 0 && selectedAgentIds.length >= 2
+
+  const save = () => {
+    if (!canSave) return
+    if (mode === 'agent') {
+      const base = createTeamAgent({
+        name,
+        emoji,
+        personality: role,
+        soul:
+          instructions ||
+          `You are ${name}, ${role}. Help the user proactively and stay focused on your specialty.`,
+      })
+      let id = base.id
+      let suffix = 2
+      while (agents.some(agent => agent.id === id)) id = `${base.id}-${suffix++}`
+      saveTeamRoster([
+        ...agents,
+        { ...base, id, browserProfile: nextCustomAgentBrowserProfile(agents) },
+      ])
+    } else {
+      const base = createTeamGroup({ name, emoji, agentIds: selectedAgentIds })
+      let id = base.id
+      let suffix = 2
+      while (groups.some(group => group.id === id)) id = `${base.id}-${suffix++}`
+      saveTeamGroups([...groups, { ...base, id }])
+    }
+    onClose()
+  }
+
+  return (
+    <div className="notetaker-sidebar__composer-backdrop" role="presentation" onMouseDown={onClose}>
+      <div
+        className="notetaker-sidebar__composer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="team-composer-title"
+        onMouseDown={event => event.stopPropagation()}
+      >
+        <div className="notetaker-sidebar__composer-header">
+          <div>
+            <h2 id="team-composer-title">
+              {mode === 'agent' ? 'Create an agent' : 'Create a group chat'}
+            </h2>
+            <p>
+              {mode === 'agent'
+                ? 'Give your teammate a clear role and point of view.'
+                : 'Choose the agents who should collaborate in this room.'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <label className="notetaker-sidebar__composer-label">
+          {mode === 'agent' ? 'Agent name' : 'Group name'}
+          <div className="notetaker-sidebar__composer-name-row">
+            <input
+              className="notetaker-sidebar__composer-emoji"
+              value={emoji}
+              onChange={event => setEmoji(event.target.value.slice(0, 4))}
+              aria-label="Emoji"
+            />
+            <input
+              autoFocus
+              value={name}
+              onChange={event => setName(event.target.value)}
+              placeholder={mode === 'agent' ? 'e.g. Maya' : 'e.g. Launch team'}
+            />
+          </div>
+        </label>
+
+        {mode === 'agent' ? (
+          <>
+            <label className="notetaker-sidebar__composer-label">
+              Role
+              <input
+                value={role}
+                onChange={event => setRole(event.target.value)}
+                placeholder="e.g. Product strategist"
+              />
+            </label>
+            <label className="notetaker-sidebar__composer-label">
+              Working style and instructions <span>Optional</span>
+              <textarea
+                value={instructions}
+                onChange={event => setInstructions(event.target.value)}
+                placeholder="What should this agent own, prioritize, and sound like?"
+                rows={4}
+              />
+            </label>
+          </>
+        ) : (
+          <fieldset className="notetaker-sidebar__composer-members">
+            <legend>
+              Members <span>Select at least two</span>
+            </legend>
+            {agents.map(agent => {
+              const selected = selectedAgentIds.includes(agent.id)
+              return (
+                <button
+                  type="button"
+                  key={agent.id}
+                  className={selected ? 'is-selected' : ''}
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setSelectedAgentIds(current =>
+                      selected ? current.filter(id => id !== agent.id) : [...current, agent.id],
+                    )
+                  }
+                >
+                  <span>{agent.emoji}</span>
+                  <span>
+                    <strong>{agent.name}</strong>
+                    <small>{agent.personality}</small>
+                  </span>
+                  <span className="notetaker-sidebar__composer-check">{selected ? '✓' : ''}</span>
+                </button>
+              )
+            })}
+          </fieldset>
+        )}
+
+        <div className="notetaker-sidebar__composer-actions">
+          <button type="button" className="is-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="is-primary" disabled={!canSave} onClick={save}>
+            {mode === 'agent' ? 'Create agent' : 'Create group'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function NotetakerSidebar({
@@ -43,8 +215,11 @@ function NotetakerSidebar({
   onLibraryWorkspaceOpen,
   recordingHandlers,
   teamAgents = [],
+  teamGroups = [],
   activeAgentId,
+  activeGroupId,
   onAgentSelect,
+  onGroupSelect,
   onTeamChatSelect,
 }: NotetakerSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -52,11 +227,52 @@ function NotetakerSidebar({
   const [searchFocused, setSearchFocused] = useState(false)
   const [appVersion, setAppVersion] = useState<string>('')
   const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
+  const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
+  const [teamPaneHeight, setTeamPaneHeight] = useState(() => {
+    const stored = Number(localStorage.getItem('knapsack.sidebar.team-height'))
+    return Number.isFinite(stored) && stored > 0 ? stored : 286
+  })
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getAppVersion().then(v => setAppVersion(v))
   }, [])
+
+  const clampTeamPaneHeight = useCallback((height: number) => {
+    const available = contentRef.current?.clientHeight ?? window.innerHeight - 190
+    return Math.max(176, Math.min(Math.max(176, available - 150), height))
+  }, [])
+
+  const resizeTeamPane = useCallback(
+    (nextHeight: number) => {
+      const clamped = clampTeamPaneHeight(nextHeight)
+      setTeamPaneHeight(clamped)
+      localStorage.setItem('knapsack.sidebar.team-height', String(Math.round(clamped)))
+    },
+    [clampTeamPaneHeight],
+  )
+
+  const startTeamResize = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault()
+      const startY = event.clientY
+      const startHeight = teamPaneHeight
+      const onMove = (moveEvent: MouseEvent) =>
+        resizeTeamPane(startHeight + moveEvent.clientY - startY)
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+      document.body.style.cursor = 'row-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [resizeTeamPane, teamPaneHeight],
+  )
 
   useEffect(() => {
     const handleResize = () => {
@@ -106,7 +322,9 @@ function NotetakerSidebar({
   const getMeetingEndTime = useCallback((item: FeedItem) => {
     const start = item.timestamp.getTime()
     if (!item.calendarEvent?.end) return start + 30 * 60 * 1000
-    return item.calendarEvent.end < start / 100 ? item.calendarEvent.end * 1000 : item.calendarEvent.end
+    return item.calendarEvent.end < start / 100
+      ? item.calendarEvent.end * 1000
+      : item.calendarEvent.end
   }, [])
 
   const upcomingEvents = useMemo(() => {
@@ -118,7 +336,9 @@ function NotetakerSidebar({
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
         if (!item.calendarEvent) return
-        const dedupeKey = item.calendarEvent.event_id || `${item.title}_${Math.floor(item.timestamp.getTime() / 60000)}`
+        const dedupeKey =
+          item.calendarEvent.event_id ||
+          `${item.title}_${Math.floor(item.timestamp.getTime() / 60000)}`
         if (seenEventKeys.has(dedupeKey)) return
         if (getMeetingEndTime(item) >= now) {
           seenEventKeys.add(dedupeKey)
@@ -167,12 +387,15 @@ function NotetakerSidebar({
     return KNDateUtils.sortByTimestamp(keys, false).map(k => k.key)
   }, [pastNotes])
 
-  const isNowMeeting = useCallback((item: FeedItem) => {
+  const isNowMeeting = useCallback(
+    (item: FeedItem) => {
     const now = Date.now()
     const start = item.timestamp.getTime()
     const end = getMeetingEndTime(item)
     return start <= now && now <= end
-  }, [getMeetingEndTime])
+    },
+    [getMeetingEndTime],
+  )
 
   const formatTimeRange = useCallback((item: FeedItem) => {
     const start = dayjs(item.timestamp).format('h:mm A')
@@ -205,6 +428,8 @@ function NotetakerSidebar({
   const isEmailActive = currentTab === TabChoices.Email
   const isLibraryActive = currentTab === TabChoices.Library
   const isGBrainActive = currentTab === TabChoices.GBrain
+  const primaryAgent = getPrimaryScout(teamAgents)
+  const secondaryAgents = teamAgents.filter(agent => agent.id !== primaryAgent.id)
 
   const chatIcon = (
     <svg
@@ -411,28 +636,80 @@ function NotetakerSidebar({
         </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="notetaker-sidebar__content">
-        {teamAgents.length > 0 && (
+      {/* Independently sizable team and calendar/notes panes */}
+      <div className="notetaker-sidebar__content" ref={contentRef}>
+        <div
+          className="notetaker-sidebar__team-pane"
+          style={{ height: clampTeamPaneHeight(teamPaneHeight) }}
+        >
           <section className="notetaker-sidebar__team" aria-label="Your team">
             <div className="notetaker-sidebar__team-header">
               <h2 className="notetaker-sidebar__section-title">Your team</h2>
+              <div className="notetaker-sidebar__team-actions">
+                <button
+                  type="button"
+                  onClick={() => setComposerMode('group')}
+                  title="New group chat"
+                  aria-label="New group chat"
+                >
+                  👥+
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerMode('agent')}
+                  title="Create agent"
+                  aria-label="Create agent"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div className="notetaker-sidebar__team-list">
               <button
                 type="button"
-                className={`notetaker-sidebar__team-agent ${activeAgentId == null ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                className={`notetaker-sidebar__team-agent ${activeAgentId == null && activeGroupId == null ? 'notetaker-sidebar__team-agent--active' : ''}`}
                 onClick={onTeamChatSelect}
-                aria-pressed={activeAgentId == null}
+                aria-pressed={activeAgentId == null && activeGroupId == null}
               >
-                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">🧭</span>
-                <span className="notetaker-sidebar__team-copy">
-                  <span className="notetaker-sidebar__team-name">Knapsack</span>
-                  <span className="notetaker-sidebar__team-role">Coordinate your whole team</span>
+                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                  {primaryAgent.emoji}
                 </span>
-                <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+                <span className="notetaker-sidebar__team-copy">
+                  <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
+                  <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
+                </span>
+                <span className="notetaker-sidebar__team-chat" aria-hidden="true">
+                  ›
+                </span>
               </button>
-              {teamAgents.map(agent => (
+              {teamGroups.map(group => {
+                const members = group.agentIds
+                  .map(id => teamAgents.find(agent => agent.id === id))
+                  .filter((agent): agent is TeamAgent => Boolean(agent))
+                return (
+                  <button
+                    type="button"
+                    key={group.id}
+                    className={`notetaker-sidebar__team-agent notetaker-sidebar__team-agent--group ${activeGroupId === group.id ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                    onClick={() => onGroupSelect?.(group)}
+                    aria-pressed={activeGroupId === group.id}
+                  >
+                    <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                      {group.emoji}
+                    </span>
+                    <span className="notetaker-sidebar__team-copy">
+                      <span className="notetaker-sidebar__team-name">{group.name}</span>
+                      <span className="notetaker-sidebar__team-role">
+                        {members.map(agent => agent.name).join(', ')}
+                      </span>
+                    </span>
+                    <span className="notetaker-sidebar__team-chat" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                )
+              })}
+              {secondaryAgents.map(agent => (
                 <button
                   type="button"
                   key={agent.id}
@@ -448,13 +725,34 @@ function NotetakerSidebar({
                     <span className="notetaker-sidebar__team-name">{agent.name}</span>
                     <span className="notetaker-sidebar__team-role">{agent.personality}</span>
                   </span>
-                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">
+                    ›
+                  </span>
                 </button>
               ))}
             </div>
           </section>
-        )}
+        </div>
 
+        <div
+          className="notetaker-sidebar__team-resizer"
+          role="separator"
+          aria-label="Resize agents and calendar sections"
+          aria-orientation="horizontal"
+          aria-valuenow={Math.round(teamPaneHeight)}
+          tabIndex={0}
+          onMouseDown={startTeamResize}
+          onKeyDown={event => {
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+              event.preventDefault()
+              resizeTeamPane(teamPaneHeight + (event.key === 'ArrowDown' ? 24 : -24))
+            }
+          }}
+        >
+          <span />
+        </div>
+
+        <div className="notetaker-sidebar__meeting-pane">
         {/* Connect calendar prompt */}
         {!hasCalendarConnected && (
           <div className="notetaker-sidebar__connect-prompt">
@@ -481,10 +779,7 @@ function NotetakerSidebar({
             <div className="notetaker-sidebar__connect-prompt-desc">
               See upcoming meetings and take notes automatically
             </div>
-            <button
-              className="notetaker-sidebar__connect-prompt-btn"
-              onClick={onConnectCalendar}
-            >
+              <button className="notetaker-sidebar__connect-prompt-btn" onClick={onConnectCalendar}>
               Connect calendar
             </button>
           </div>
@@ -527,9 +822,13 @@ function NotetakerSidebar({
                             typeof item.getTitle === 'function'
                               ? item.getTitle()
                               : item.title || ''
-                          const isActivelyRecording = recordingHandlers != null &&
+                            const isActivelyRecording =
+                              recordingHandlers != null &&
                             item.threads?.some(
-                              t => t.threadType === ThreadType.MEETING_NOTES && t.id != null && recordingHandlers.isRecording(t.id)
+                                t =>
+                                  t.threadType === ThreadType.MEETING_NOTES &&
+                                  t.id != null &&
+                                  recordingHandlers.isRecording(t.id),
                             )
                           return (
                             <div
@@ -545,14 +844,18 @@ function NotetakerSidebar({
                                 onTabChange(TabChoices.Meeting, 'meetings')
                               }}
                             >
-                              <div className={`notetaker-sidebar__calendar-event-bar ${isActivelyRecording ? 'notetaker-sidebar__calendar-event-bar--recording' : ''}`} />
+                                <div
+                                  className={`notetaker-sidebar__calendar-event-bar ${isActivelyRecording ? 'notetaker-sidebar__calendar-event-bar--recording' : ''}`}
+                                />
                               <div className="notetaker-sidebar__calendar-event-content">
                                 <div className="notetaker-sidebar__calendar-event-title-row">
                                   <div className="notetaker-sidebar__calendar-event-title">
                                     {title}
                                   </div>
-                                  {!isActivelyRecording && item.threads?.some(
-                                    t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
+                                    {!isActivelyRecording &&
+                                      item.threads?.some(
+                                        t =>
+                                          t.threadType === ThreadType.MEETING_NOTES && t.recorded,
                                   ) && (
                                     <svg
                                       width="12"
@@ -587,7 +890,8 @@ function NotetakerSidebar({
                                   {!isActivelyRecording && formatTimeRange(item)}
                                   {isActivelyRecording && (
                                     <span className="notetaker-sidebar__recording-time">
-                                      {' '}&middot; {formatTimeRange(item)}
+                                        {' '}
+                                        &middot; {formatTimeRange(item)}
                                     </span>
                                   )}
                                 </div>
@@ -769,6 +1073,16 @@ function NotetakerSidebar({
           )
         })()}
       </div>
+      </div>
+
+      {composerMode && (
+        <TeamComposerDialog
+          mode={composerMode}
+          agents={teamAgents}
+          groups={teamGroups}
+          onClose={() => setComposerMode(null)}
+        />
+      )}
 
       {/* Bottom action bar */}
       <div className="notetaker-sidebar__bottom">
@@ -808,9 +1122,7 @@ function NotetakerSidebar({
             <span>GBrain</span>
           </button>
         </div>
-        {appVersion && (
-          <div className="notetaker-sidebar__version">Knapsack v{appVersion}</div>
-        )}
+        {appVersion && <div className="notetaker-sidebar__version">Knapsack v{appVersion}</div>}
       </div>
     </div>
   )

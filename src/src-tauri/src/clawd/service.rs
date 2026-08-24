@@ -1279,8 +1279,11 @@ fn ensure_knapsack_session_isolation(
     .pointer_mut("/tools/sessions")
     .and_then(|value| value.as_object_mut())
   {
-    if sessions.get("visibility").and_then(|value| value.as_str()) != Some("self") {
-      sessions.insert("visibility".to_string(), serde_json::json!("self"));
+    // Keep sessions private to the current conversation tree while allowing
+    // a group-chat facilitator to see and collect its own spawned teammates.
+    // `tree` never exposes sibling users or unrelated agent sessions.
+    if sessions.get("visibility").and_then(|value| value.as_str()) != Some("tree") {
+      sessions.insert("visibility".to_string(), serde_json::json!("tree"));
       patched = true;
     }
   }
@@ -1462,6 +1465,9 @@ const KNAPSACK_MCP_TOOLS_ALLOW: &[&str] = &[SNOWFLAKE_MCP_TOOL_ALLOW_NAME, STUDI
 const KNAPSACK_BASE_TOOLS_ALLOW: &[&str] = &[
   "message",
   "sessions_send",
+  "sessions_spawn",
+  "sessions_yield",
+  "subagents",
   "browser",
   "web_fetch",
   "web_search",
@@ -1483,6 +1489,8 @@ const KNAPSACK_BASE_SANDBOX_TOOLS_ALLOW: &[&str] = &[
   "sessions_history",
   "sessions_send",
   "sessions_spawn",
+  "sessions_yield",
+  "subagents",
   "session_status",
   "browser",
   "web_fetch",
@@ -1549,9 +1557,45 @@ mod knapsack_tools_allow_tests {
       assert!(allow.contains(base_tool), "missing base tool {base_tool:?}");
     }
   }
+
+  #[test]
+  fn group_chat_orchestration_tools_are_available_in_every_mode() {
+    let allow = knapsack_tools_allow();
+    let sandbox_allow = knapsack_sandbox_tools_allow();
+
+    for tool in ["sessions_spawn", "sessions_yield", "subagents"] {
+      assert!(allow.contains(&tool), "missing group-chat tool {tool:?}");
+      assert!(
+        sandbox_allow.contains(&tool),
+        "missing sandboxed group-chat tool {tool:?}"
+      );
+    }
+  }
+
+  #[test]
+  fn existing_configs_are_migrated_to_group_chat_orchestration_tools() {
+    let mut cfg = serde_json::json!({
+      "tools": {
+        "allow": ["message"],
+        "sandbox": { "tools": { "allow": ["message"] } }
+      }
+    });
+
+    assert!(ensure_knapsack_tool_allow(&mut cfg));
+    for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
+      let allow = cfg.pointer(pointer).and_then(|value| value.as_array()).unwrap();
+      for tool in ["sessions_spawn", "sessions_yield", "subagents"] {
+        assert!(
+          allow.iter().any(|item| item.as_str() == Some(tool)),
+          "{pointer} is missing {tool:?}"
+        );
+      }
+    }
+    assert!(!ensure_knapsack_tool_allow(&mut cfg));
+  }
 }
 
-fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
+fn ensure_knapsack_tool_allow(cfg: &mut serde_json::Value) -> bool {
   if !cfg.is_object() {
     return false;
   }
@@ -1574,12 +1618,11 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
     if allow.len() != before_len {
       patched = true;
     }
-    if !allow
-      .iter()
-      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
-    {
-      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
-      patched = true;
+    for tool in knapsack_tools_allow() {
+      if !allow.iter().any(|item| item.as_str() == Some(tool)) {
+        allow.push(serde_json::json!(tool));
+        patched = true;
+      }
     }
   } else {
     cfg
@@ -1589,7 +1632,7 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
       .unwrap()
       .insert(
         "allow".to_string(),
-        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
+        serde_json::json!(knapsack_tools_allow()),
       );
     patched = true;
   }
@@ -1620,12 +1663,11 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
     if allow.len() != before_len {
       patched = true;
     }
-    if !allow
-      .iter()
-      .any(|item| item.as_str() == Some(SNOWFLAKE_MCP_TOOL_ALLOW_NAME))
-    {
-      allow.push(serde_json::json!(SNOWFLAKE_MCP_TOOL_ALLOW_NAME));
-      patched = true;
+    for tool in knapsack_sandbox_tools_allow() {
+      if !allow.iter().any(|item| item.as_str() == Some(tool)) {
+        allow.push(serde_json::json!(tool));
+        patched = true;
+      }
     }
   } else {
     cfg
@@ -1635,15 +1677,14 @@ fn ensure_knapsack_snowflake_tool_allow(cfg: &mut serde_json::Value) -> bool {
       .unwrap()
       .insert(
         "allow".to_string(),
-        serde_json::json!([SNOWFLAKE_MCP_TOOL_ALLOW_NAME]),
+        serde_json::json!(knapsack_sandbox_tools_allow()),
       );
     patched = true;
   }
 
   if patched {
     eprintln!(
-      "[clawd/service] Added {} to tools.allow / tools.sandbox.tools.allow",
-      SNOWFLAKE_MCP_TOOL_ALLOW_NAME
+      "[clawd/service] Reconciled Knapsack tools.allow / tools.sandbox.tools.allow"
     );
   }
 
@@ -7710,7 +7751,6 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
     .arg("--no-default-browser-check")
     .arg("--disable-background-networking")
     .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
-    .arg("--disable-sync")
     .arg("--no-proxy-server")
     .arg("--no-startup-window")
     .stdin(Stdio::null())
@@ -7786,7 +7826,6 @@ fn start_openclaw_chrome_direct(app_handle: &tauri::AppHandle) -> Result<(), Str
     .arg("--no-default-browser-check")
     .arg("--disable-background-networking")
     .arg("--disable-features=Translate,OptimizationHints,MediaRouter")
-    .arg("--disable-sync")
     .arg("--no-proxy-server")
     .arg("--no-startup-window")
     .stdin(Stdio::null())
@@ -7934,6 +7973,9 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         }
         // Invalidate the pooled WebSocket connection — the old one is dead.
         gateway_client::invalidate();
+        // Warm the agent-owned browser as soon as the gateway becomes ready.
+        // The existing single-flight guard prevents duplicate Chrome launches.
+        spawn_startup_browser_start_nudge(tokens.gateway_token.clone());
       }
     } else if !gateway_transient_stall {
       GATEWAY_WAS_HEALTHY.store(false, Ordering::Relaxed);
@@ -11744,7 +11786,7 @@ async fn prepare_gateway_config(
           eprintln!("[clawd/service] Patched mcp.servers.studio");
           patched = true;
         }
-        if ensure_knapsack_snowflake_tool_allow(&mut cfg_val) {
+        if ensure_knapsack_tool_allow(&mut cfg_val) {
           patched = true;
         }
         if ensure_knapsack_studio_tool_allow(&mut cfg_val) {
@@ -13846,7 +13888,7 @@ pub async fn set_service_enabled(
               eprintln!("[clawd/service] Patched mcp.servers.studio");
               patched = true;
             }
-            if ensure_knapsack_snowflake_tool_allow(&mut cfg) {
+            if ensure_knapsack_tool_allow(&mut cfg) {
               patched = true;
             }
             if ensure_knapsack_studio_tool_allow(&mut cfg) {
@@ -17947,7 +17989,7 @@ mod knapsack_runtime_auth_tests {
       cfg
         .pointer("/tools/sessions/visibility")
         .and_then(|value| value.as_str()),
-      Some("self")
+      Some("tree")
     );
     assert_eq!(
       cfg
@@ -18030,7 +18072,7 @@ mod knapsack_runtime_auth_tests {
       cfg
         .pointer("/tools/sessions/visibility")
         .and_then(|value| value.as_str()),
-      Some("self")
+      Some("tree")
     );
     assert!(!ensure_knapsack_session_isolation(&mut cfg, false, false));
   }

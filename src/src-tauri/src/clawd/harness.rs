@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -10,7 +11,12 @@ use crate::clawd::gateway_client;
 
 const DEFAULT_HERMES_BASE_URL: &str = "http://127.0.0.1:8642/v1";
 const DEFAULT_HERMES_MODEL: &str = "hermes-agent";
-const HARNESS_TIMEOUT: Duration = Duration::from_secs(30);
+// Group rooms can spawn several independent agents and wait for synthesis.
+// Keep this aligned with the frontend agent-chat budget so the harness does
+// not abandon orchestration and silently fall back to a single direct model.
+// Leave a small transport/UI buffer inside the frontend's 300-second budget.
+// Every OpenClaw phase shares this one deadline.
+const HARNESS_TIMEOUT: Duration = Duration::from_secs(285);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentHarnessKind {
@@ -189,8 +195,10 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   }
 
   let session_key = openclaw_session_key(request.session_id);
+  let deadline = tokio::time::Instant::now() + HARNESS_TIMEOUT;
+  let existing_children = openclaw_child_session_keys(&session_key).await?;
   let result = tokio::time::timeout(
-    HARNESS_TIMEOUT,
+    remaining_until(deadline)?,
     gateway_client::agent_chat(
       request.message,
       request.attachments,
@@ -202,7 +210,169 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
   .await
   .map_err(|_| format!("OpenClaw timed out after {HARNESS_TIMEOUT:?}"))??;
 
+  match parse_openclaw_reply(&result) {
+    Ok(reply) => Ok(reply),
+    Err(error) if error == "OpenClaw returned an empty reply" => {
+      let contributions =
+        collect_openclaw_subagent_results(&session_key, &existing_children, deadline).await?;
+      synthesize_openclaw_group_reply(request, &session_key, &contributions, deadline).await
+    }
+    Err(error) => Err(error),
+  }
+}
+
+const OPENCLAW_FOLLOWUP_TIMEOUT: Duration = Duration::from_secs(120);
+
+fn remaining_until(deadline: tokio::time::Instant) -> Result<Duration, String> {
+  deadline
+    .checked_duration_since(tokio::time::Instant::now())
+    .filter(|remaining| !remaining.is_zero())
+    .ok_or_else(|| "OpenClaw orchestration exceeded its overall deadline".to_string())
+}
+
+async fn openclaw_child_session_keys(session_key: &str) -> Result<HashSet<String>, String> {
+  let sessions = gateway_client::sessions_list(None, 500).await?;
+  Ok(
+    sessions
+      .get("sessions")
+      .and_then(Value::as_array)
+      .into_iter()
+      .flatten()
+      .filter(|session| session.get("spawnedBy").and_then(Value::as_str) == Some(session_key))
+      .filter_map(|session| session.get("key").and_then(Value::as_str))
+      .map(str::to_string)
+      .collect(),
+  )
+}
+
+async fn collect_openclaw_subagent_results(
+  session_key: &str,
+  existing_children: &HashSet<String>,
+  overall_deadline: tokio::time::Instant,
+) -> Result<Vec<(String, String)>, String> {
+  let deadline = (tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT).min(overall_deadline);
+  let mut delay = Duration::from_millis(250);
+
+  loop {
+    match gateway_client::sessions_list(None, 500).await {
+      Ok(sessions) => {
+        let children = new_child_sessions(&sessions, session_key, existing_children);
+        if children.len() >= 2 && children.iter().all(|child| child.1 == "done") {
+          let mut contributions = Vec::with_capacity(children.len());
+          for (key, _) in children {
+            let history = gateway_client::chat_history(&key, None, 100).await?;
+            let reply = latest_assistant_after_last_user(&history)
+              .ok_or_else(|| format!("OpenClaw child session {key} completed without a reply"))?;
+            contributions.push((key, reply));
+          }
+          return Ok(contributions);
+        }
+      }
+      Err(error) => {
+        eprintln!("[harness] Could not inspect yielded OpenClaw children yet: {error}");
+      }
+    }
+
+    if tokio::time::Instant::now() >= deadline {
+      return Err("OpenClaw child agents did not finish in time".to_string());
+    }
+    tokio::time::sleep(delay).await;
+    delay = (delay * 2).min(Duration::from_secs(2));
+  }
+}
+
+fn new_child_sessions(
+  sessions: &Value,
+  parent_key: &str,
+  existing_children: &HashSet<String>,
+) -> Vec<(String, String)> {
+  sessions
+    .get("sessions")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter(|session| session.get("spawnedBy").and_then(Value::as_str) == Some(parent_key))
+    .filter_map(|session| {
+      let key = session.get("key")?.as_str()?;
+      if existing_children.contains(key) {
+        return None;
+      }
+      Some((
+        key.to_string(),
+        session
+          .get("status")
+          .and_then(Value::as_str)
+          .unwrap_or("unknown")
+          .to_string(),
+      ))
+    })
+    .collect()
+}
+
+async fn synthesize_openclaw_group_reply(
+  request: &HarnessRequest<'_>,
+  parent_session_key: &str,
+  contributions: &[(String, String)],
+  deadline: tokio::time::Instant,
+) -> Result<String, String> {
+  let contributions_text = contributions
+    .iter()
+    .enumerate()
+    .map(|(index, (_, reply))| {
+      let capped = if reply.chars().count() > 8_000 {
+        reply.chars().take(8_000).collect::<String>()
+      } else {
+        reply.clone()
+      };
+      format!("Contributor {}:\n{}", index + 1, capped)
+    })
+    .collect::<Vec<_>>()
+    .join("\n\n");
+  let prompt = format!(
+    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their independent work. Do not call tools or spawn more agents. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
+    request.message, contributions_text
+  );
+  let synthesis_key = format!("{parent_session_key}:synthesis");
+  let result = tokio::time::timeout(
+    remaining_until(deadline)?,
+    gateway_client::agent_chat(&prompt, &[], None, None, Some(&synthesis_key)),
+  )
+  .await
+  .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
   parse_openclaw_reply(&result)
+}
+
+fn latest_assistant_after_last_user(history: &Value) -> Option<String> {
+  let messages = history.get("messages")?.as_array()?;
+  let last_user = messages
+    .iter()
+    .rposition(|message| message.get("role").and_then(Value::as_str) == Some("user"))?;
+
+  messages[last_user + 1..]
+    .iter()
+    .rev()
+    .find(|message| message.get("role").and_then(Value::as_str) == Some("assistant"))
+    .and_then(message_text)
+    .filter(|text| !text.trim().is_empty())
+}
+
+fn message_text(message: &Value) -> Option<String> {
+  if let Some(text) = message.get("text").and_then(Value::as_str) {
+    return Some(text.to_string());
+  }
+  if let Some(text) = message.get("content").and_then(Value::as_str) {
+    return Some(text.to_string());
+  }
+
+  let text = message
+    .get("content")
+    .and_then(Value::as_array)?
+    .iter()
+    .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+    .filter_map(|part| part.get("text").and_then(Value::as_str))
+    .collect::<Vec<_>>()
+    .join("\n\n");
+  Some(text)
 }
 
 fn hermes_config(settings: &StoredHarnessSettings) -> Result<HermesConfig, String> {
@@ -942,6 +1112,55 @@ mod tests {
       "summary": "The `web_search` tool has been disabled by policy"
     }))
     .is_err());
+  }
+
+  #[test]
+  fn yielded_openclaw_history_returns_only_a_new_assistant_reply() {
+    let history = json!({
+      "messages": [
+        {"role": "user", "content": [{"type": "text", "text": "old request"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "old reply"}]},
+        {"role": "user", "content": [{"type": "text", "text": "group request"}]},
+        {"role": "assistant", "content": [
+          {"type": "text", "text": "Scout and Polly agree"},
+          {"type": "text", "text": "with one caveat"}
+        ]}
+      ]
+    });
+    assert_eq!(
+      latest_assistant_after_last_user(&history).as_deref(),
+      Some("Scout and Polly agree\n\nwith one caveat")
+    );
+
+    let still_waiting = json!({
+      "messages": [
+        {"role": "assistant", "text": "stale reply"},
+        {"role": "user", "text": "new group request"}
+      ]
+    });
+    assert_eq!(latest_assistant_after_last_user(&still_waiting), None);
+  }
+
+  #[test]
+  fn yielded_openclaw_collection_ignores_old_children_and_waits_for_all_new_ones() {
+    let sessions = json!({
+      "sessions": [
+        {"key": "old", "spawnedBy": "parent", "status": "done"},
+        {"key": "scout", "spawnedBy": "parent", "status": "done"},
+        {"key": "polly", "spawnedBy": "parent", "status": "running"},
+        {"key": "other", "spawnedBy": "another-parent", "status": "done"}
+      ]
+    });
+    let existing = HashSet::from(["old".to_string()]);
+    let children = new_child_sessions(&sessions, "parent", &existing);
+    assert_eq!(
+      children,
+      vec![
+        ("scout".to_string(), "done".to_string()),
+        ("polly".to_string(), "running".to_string())
+      ]
+    );
+    assert!(!children.iter().all(|child| child.1 == "done"));
   }
 
   #[test]

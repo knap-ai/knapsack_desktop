@@ -913,6 +913,7 @@ function capInlineChatContext(text: string): string {
     'Additional inline context omitted to keep the request within the model budget',
   )
 }
+const MAX_AGENT_PERSONA_CONTEXT_CHARS = 6_000
 const SLACK_GUIDED_SETUP_PROMPT = `Please set up the Slack integration for Knapsack for me using the browser.
 
 Goals:
@@ -1072,13 +1073,13 @@ const SLASH_COMMANDS: Record<string, string> = {
  * Returns a formatted context string, or empty string if no data is available.
  * This avoids browser emulation — data is fetched directly via authenticated APIs.
  */
-async function fetchEmailCalendarContext(): Promise<string> {
+async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<string> {
   const dataFetcher = new DataFetcher()
   const contextParts: string[] = []
 
   // Fetch recent emails (last 2 days, up to 15)
   try {
-    const emails = await dataFetcher.getRecentGmailMessages(2, 15)
+    const emails = await dataFetcher.getRecentGmailMessages(2, 15, nativeEmailConnected)
     if (emails?.length) {
       contextParts.push('## Recent Emails\n')
       for (const email of emails.slice(0, 10)) {
@@ -1088,9 +1089,20 @@ async function fetchEmailCalendarContext(): Promise<string> {
           `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
         )
       }
+    } else if (nativeEmailConnected) {
+      contextParts.push(`## Native Email Status
+
+- Knapsack's connected email query completed but returned no messages from the last 2 days.
+- Do not open Gmail in the browser or ask for a Google password. Report that the connected inbox returned no recent messages.`)
     }
   } catch (err) {
     console.warn('[ClawdChat] Failed to pre-fetch emails:', err)
+    if (nativeEmailConnected) {
+      contextParts.push(`## Native Email Status
+
+- A Gmail or Outlook account is connected, but Knapsack's native email query failed: ${err instanceof Error ? err.message : String(err)}
+- Do not open Gmail in the browser, ask for a password, or claim Google requested verification. Report this as a Knapsack connection/query error.`)
+    }
   }
 
   // Fetch today's calendar events
@@ -1455,7 +1467,7 @@ const ChatMessage = memo(function ChatMessage({
                   onClick={(e) => { e.stopPropagation(); onAction?.(action.prompt, m.id) }}
                 >
                   <span className="ClawdPromptActionNum">{i + 1}</span>
-                  {action.label}
+                  <span className="ClawdPromptActionLabel">{action.label}</span>
                 </button>
               )
             })}
@@ -1588,20 +1600,22 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     clearInput()
   }
 
-  // Auto-resize textarea to fit content.
-  // Deferred to next animation frame to avoid synchronous layout reflow
-  // during the keystroke event handler (reduces input latency).
-  const resizeRaf = useRef(0)
+  // Auto-resize after a short idle window. Resetting height and reading
+  // scrollHeight forces layout; doing that in every keystroke frame made the
+  // composer feel sticky in long chats and while browser screenshots updated.
+  const resizeTimer = useRef<number>()
   const autoResize = useCallback(() => {
-    cancelAnimationFrame(resizeRaf.current)
-    resizeRaf.current = requestAnimationFrame(() => {
+    window.clearTimeout(resizeTimer.current)
+    resizeTimer.current = window.setTimeout(() => {
       const ta = textareaRef.current
       if (!ta) return
       ta.style.height = 'auto'
       const next = Math.min(ta.scrollHeight, 160) + 'px'
       if (ta.style.height !== next) ta.style.height = next
-    })
+    }, 48)
   }, [])
+
+  useEffect(() => () => window.clearTimeout(resizeTimer.current), [])
 
   // Allow parent to trigger send with specific text (for prompt actions, voice, etc.)
   // via the onSend callback directly — the parent calls onSend(text).
@@ -1949,6 +1963,8 @@ interface ClawdChatProps {
   userEmail?: string
   userName?: string
   onBusyChange?: (busy: boolean) => void
+  onProviderPanelOpenChange?: (open: boolean) => void
+  nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
@@ -1966,9 +1982,10 @@ interface ClawdChatProps {
   browserProfile?: string
   agentName?: string
   agentPersonality?: string
+  agentSuggestedPrompts?: string[]
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts }: ClawdChatProps = {}) {
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -2034,6 +2051,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Onboarding state
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
+  useEffect(() => {
+    onProviderPanelOpenChange?.(showKeyPrompt)
+    return () => onProviderPanelOpenChange?.(false)
+  }, [onProviderPanelOpenChange, showKeyPrompt])
   const [apiKey, setApiKey] = useState('')
   const [editingProviderKey, setEditingProviderKey] = useState(false)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
@@ -2376,7 +2397,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           {
             id: 'welcome-1',
             role: 'assistant' as Role,
-            text: `Hi, I'm ${agentName} — ${agentPersonality || 'your AI teammate'}. This is our dedicated chat, and I have a separate browser workspace for the work you give me.`,
+            text: `Hi, I'm ${agentName} — ${agentPersonality || 'your AI teammate'}. This is our dedicated chat, and I can use the browser workspace attached to this chat for the work you give me.`,
             ts: Date.now(),
           },
           {
@@ -2385,8 +2406,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             text: 'What should we work on?',
             ts: Date.now() + 1,
             promptActions: [
-              { label: 'Help me plan my priorities', prompt: 'Help me plan my priorities for today.' },
-              { label: 'Review what needs attention', prompt: 'Review my connected information and tell me what needs my attention.' },
+              ...(agentSuggestedPrompts?.length ? agentSuggestedPrompts : [
+                `Review my connected information as ${agentName} and tell me what matters most.`,
+                `What is the highest-value action you can take for me today as ${agentName}?`,
+              ]).slice(0, 3).map(prompt => ({
+                label: prompt,
+                prompt,
+              })),
             ],
           },
         ]
@@ -2411,7 +2437,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         ],
       },
     ]},
-    [agentName, agentPersonality, onboardingAgentsData],
+    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -5043,7 +5069,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (isSmartPrompt) {
           try {
-            const context = await fetchEmailCalendarContext()
+            const context = await fetchEmailCalendarContext(nativeEmailConnected)
             if (context) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
               usedNativeEmailCalendarContext = true
@@ -5059,7 +5085,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
         if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(text)) {
           try {
-            const context = await fetchEmailCalendarContext()
+            const context = await fetchEmailCalendarContext(nativeEmailConnected)
             if (context) {
               usedNativeEmailCalendarContext = true
               actualText = `${text}
@@ -5074,7 +5100,12 @@ ${context}`
         }
 
         if (contextPrefix?.trim()) {
-          actualText = `${contextPrefix.trim()}
+          const personaContext = truncateWithNotice(
+            contextPrefix.trim(),
+            MAX_AGENT_PERSONA_CONTEXT_CHARS,
+            'Additional agent instructions omitted to preserve the user request',
+          )
+          actualText = `${personaContext}
 
 ---
 User message:
@@ -5149,7 +5180,11 @@ ${actualText}`
         // Keep the frontend timeout longer than the backend request budget.
         // If the selected harness session is slow or unhealthy, the backend falls
         // back to direct chat so desktop users still get a timely answer.
-        let useDirectChat = usedNativeEmailCalendarContext
+        // Native context is an optimization for ordinary chats, but group
+        // rooms must still enter the harness so sessions_spawn/sessions_yield
+        // can collect each selected member's contribution.
+        const requiresHarness = chatId.startsWith('group-')
+        let useDirectChat = usedNativeEmailCalendarContext && !requiresHarness
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
@@ -5173,6 +5208,7 @@ ${actualText}`
               model: selectedModelForProvider,
               text: requestBody.text,
               sessionId,
+              noFallback: requiresHarness,
               advancedMode,
               userEmail: userEmail || '',
               userName: userName || '',
@@ -5214,6 +5250,13 @@ ${actualText}`
               message: agentOut.message,
             })
             if (agentOut.ok && agentOut.reply) {
+              if (requiresHarness && !agentOut.gateway) {
+                const orchestrationError = new Error(
+                  'The team room could not reach its multi-agent runtime. Please try again in a moment.',
+                ) as Error & { noFallback?: boolean }
+                orchestrationError.noFallback = true
+                throw orchestrationError
+              }
               // Accept replies from both gateway and direct-chat fallback.
               // The backend already called open_first_url_in_reply, so the
               // browser should have opened if the reply contained a URL.
@@ -5270,11 +5313,18 @@ ${actualText}`
             }
           } else {
             console.warn('[chat] agent-chat HTTP error:', agentRes.status)
+            if (requiresHarness) {
+              const orchestrationError = new Error(
+                agentOut.message || 'The team room could not reach its multi-agent runtime.',
+              ) as Error & { noFallback?: boolean }
+              orchestrationError.noFallback = true
+              throw orchestrationError
+            }
             useDirectChat = true
           }
         } catch (agentErr: any) {
           if (agentTimerId) clearTimeout(agentTimerId)
-          if (agentErr.noFallback) throw agentErr
+          if (agentErr.noFallback || requiresHarness) throw agentErr
           // Only re-throw if this was the USER's abort (not our timeout)
           if (agentErr.name === 'AbortError' && controller.signal.aborted) throw agentErr
           // If this was our timeout abort, the gateway already has the user
@@ -6084,21 +6134,21 @@ ${actualText}`
                   onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">1</span>
-                  Diagnose the issue
+                  <span className="ClawdPromptActionLabel">Diagnose the issue</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_RESTART_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">2</span>
-                  Restart the gateway
+                  <span className="ClawdPromptActionLabel">Restart the gateway</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">3</span>
-                  View error logs
+                  <span className="ClawdPromptActionLabel">View error logs</span>
                 </button>
               </div>
             </div>
@@ -6119,14 +6169,14 @@ ${actualText}`
                   onClick={() => handleSendWithText(GATEWAY_DIAGNOSE_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">1</span>
-                  Diagnose the issue
+                  <span className="ClawdPromptActionLabel">Diagnose the issue</span>
                 </button>
                 <button
                   className="ClawdPromptAction"
                   onClick={() => handleSendWithText(GATEWAY_VIEW_LOGS_PROMPT)}
                 >
                   <span className="ClawdPromptActionNum">2</span>
-                  View error logs
+                  <span className="ClawdPromptActionLabel">View error logs</span>
                 </button>
               </div>
             </div>

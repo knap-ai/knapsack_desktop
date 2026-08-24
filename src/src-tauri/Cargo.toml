@@ -1,6 +1,6 @@
 [package]
 name = "knapsack"
-version = "2.8.7"
+version = "2.9.2"
 description = "Knapsack"
 authors = ["you"]
 license = "AGPL-3.0"
