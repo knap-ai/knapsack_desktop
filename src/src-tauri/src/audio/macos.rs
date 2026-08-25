@@ -12,7 +12,7 @@ use std::{mem, ptr};
 use tokio::time::{sleep, Duration, Instant};
 
 use super::encode::save_chunk;
-use super::transcribe::finalize_chunk;
+use super::transcribe::{begin_transcription_job, finalize_chunk};
 use crate::utils::log::knap_log_error;
 use flacenc::config::Encoder;
 use flacenc::error::Verify;
@@ -192,7 +192,11 @@ fn save_chunk_async(chunk: Vec<f32>, counter: u32) {
     semaphore
   };
 
+  // Register synchronously so stop_recording cannot observe zero pending jobs
+  // before this detached worker has started.
+  let transcription_job = begin_transcription_job();
   std::thread::spawn(move || {
+    let _transcription_job = transcription_job;
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
       let permit = semaphore.acquire().await.unwrap();

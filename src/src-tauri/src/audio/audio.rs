@@ -51,7 +51,10 @@ use crate::utils::log::knap_log_error;
 use crate::RecordingState;
 
 use super::encode::save_chunk;
-use super::transcribe::{finalize_chunk, generate_meeting_insight, unify_transcript};
+use super::transcribe::{
+  begin_transcription_job, finalize_chunk, generate_meeting_insight, unify_transcript,
+  wait_for_transcription_jobs,
+};
 use cpal::SizedSample;
 use hound::SampleFormat;
 use std::collections::HashMap;
@@ -178,7 +181,11 @@ fn write_audio_data<T, U>(
 
     let chunk_filename = format!("{}_{}.flac", input_filename, *chunk_counter);
     let transcript_filename = format!("{}.txt", input_filename);
+    // Register before spawning. A semaphore alone is not a completion barrier:
+    // stop_recording could acquire it before this worker even starts.
+    let transcription_job = begin_transcription_job();
     std::thread::spawn(move || {
+      let _transcription_job = transcription_job;
       let rt = match Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {
@@ -670,6 +677,28 @@ pub async fn stop_recording(
     }
   }
 
+  // Periodic 150-second chunks are transcribed on detached worker threads.
+  // Wait for every registered worker before merging; otherwise Stop can race
+  // ahead and generate notes from only the final chunk (usually the meeting's
+  // closing remarks).
+  // A single provider can spend up to four 120-second attempts plus retry
+  // backoff, and transcription can fall back to a second provider. Keep the
+  // barrier compatible with that worst-case budget so a slow but valid job is
+  // still finalized instead of becoming permanently unreachable after Stop.
+  if !wait_for_transcription_jobs(Duration::from_secs(18 * 60)).await {
+    let err_msg = "Timed out waiting for all meeting audio chunks to finish transcription";
+    log::error!("[recording] {}", err_msg);
+    knap_log_error(
+      format!("[recording_stop_transcription_timeout] {}", err_msg),
+      None,
+      Some(true),
+    );
+    return HttpResponse::InternalServerError().json(json!({
+      "error": err_msg,
+      "status": "error"
+    }));
+  }
+
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack/transcripts");
   let input_path = knapsack_data_dir.join(&format!("{}.txt", input_filename));
@@ -694,9 +723,7 @@ pub async fn stop_recording(
   };
   let transcript_path = knapsack_data_dir.join(&transcript.filename);
 
-  // Use a timeout so stop_recording doesn't hang indefinitely if background
-  // transcription threads are still holding the semaphore (e.g. due to network
-  // issues or rate-limiting from the transcription API).
+  // These permits now protect file access after the explicit job barrier above.
   let semaphore_timeout = Duration::from_secs(30);
   let _input_permit = match timeout(
     semaphore_timeout,
