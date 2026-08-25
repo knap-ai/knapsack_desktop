@@ -435,7 +435,7 @@ function parseArgs() {
     // Connected capability checks can each take up to 60 seconds. Keep the
     // aggregate gate large enough to exercise all three plus meeting/browser
     // coverage instead of timing out a healthy run midway through the suite.
-    functionalTimeoutMs: Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 240_000),
+    functionalTimeoutMs: Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 480_000),
     readinessHealthTimeoutMs: 60_000,
     coreOnly: false,
     strictReadiness: false,
@@ -1826,6 +1826,71 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
   };
 }
 
+function buildGroupChatQaRequest(sessionId = `qa-group-${Date.now()}`) {
+  return {
+    text: "Should we prioritize a customer interview or a product bug fix this afternoon? Give one recommended next step.",
+    sessionId,
+    noFallback: true,
+    teamMembers: [
+      {
+        id: "scout",
+        name: "Scout",
+        personality: "Analytical, evidence-led, and concise.",
+        soul: "Find the strongest signal and call out uncertainty.",
+        browserProfile: "agent-scout",
+      },
+      {
+        id: "atlas",
+        name: "Atlas",
+        personality: "Strategic, practical, and action-oriented.",
+        soul: "Turn the evidence into a clear next step.",
+        browserProfile: "agent-atlas",
+      },
+    ],
+  };
+}
+
+async function runGroupChatSmoke({ timeoutMs = 180_000 } = {}) {
+  const startedAt = Date.now();
+  let res;
+  try {
+    res = await fetchWithTimeout(`${API_BASE}/api/clawd/agent-chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildGroupChatQaRequest()),
+    }, timeoutMs);
+  } catch (error) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `group chat request failed: ${normalizeResult(error?.message || error)}`,
+    };
+  }
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `group chat failed (${res.status}) ${normalizeResult(res.body)}`,
+    };
+  }
+
+  const reply = extractAgentReply(res.body).trim();
+  if (!reply) {
+    return {
+      ok: false,
+      latencyMs: Date.now() - startedAt,
+      detail: `group chat returned no synthesized reply: ${normalizeResult(res.body)}`,
+    };
+  }
+
+  return {
+    ok: true,
+    latencyMs: Date.now() - startedAt,
+    replyPreview: reply.slice(0, 160),
+  };
+}
+
 async function createMockMeeting() {
   const timestamp = Date.now();
   const requestTimeoutMs = 30_000;
@@ -2299,7 +2364,7 @@ async function runMode(mode, opts = {}) {
 
   const functionalTimeoutMs = Number.isFinite(opts.functionalTimeoutMs)
     ? opts.functionalTimeoutMs
-    : Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 90_000);
+    : Number(process.env.KNAPSACK_QA_FUNCTIONAL_TIMEOUT_MS || 480_000);
   const readinessHealthTimeoutMs = Number(
     process.env.KNAPSACK_QA_READINESS_HEALTH_TIMEOUT_MS || 60_000,
   );
@@ -2408,6 +2473,18 @@ async function runMode(mode, opts = {}) {
           ok: false,
           phase: "agent-capabilities",
           message: `agent capability check failed: ${agentFailures.join(" | ")}`,
+          chatChecks,
+        };
+      }
+
+      functionalProgress.step = "multi-agent group chat";
+      const groupChat = await runGroupChatSmoke();
+      functionalProgress.groupChat = groupChat;
+      if (!groupChat.ok) {
+        return {
+          ok: false,
+          phase: "group-chat",
+          message: groupChat.detail,
           chatChecks,
         };
       }
@@ -2605,6 +2682,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   lastSuccessfulChatCheck,
   localApiHeaders,

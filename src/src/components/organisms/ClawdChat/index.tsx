@@ -1983,9 +1983,17 @@ interface ClawdChatProps {
   agentName?: string
   agentPersonality?: string
   agentSuggestedPrompts?: string[]
+  /** Structured members for deterministic multi-agent group orchestration. */
+  agentTeamMembers?: Array<{
+    id: string
+    name: string
+    personality: string
+    soul: string
+    browserProfile: string
+  }>
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -5181,8 +5189,8 @@ ${actualText}`
         // If the selected harness session is slow or unhealthy, the backend falls
         // back to direct chat so desktop users still get a timely answer.
         // Native context is an optimization for ordinary chats, but group
-        // rooms must still enter the harness so sessions_spawn/sessions_yield
-        // can collect each selected member's contribution.
+        // rooms must still enter the harness so the backend can run each
+        // selected member independently and synthesize their contributions.
         const requiresHarness = chatId.startsWith('group-')
         let useDirectChat = usedNativeEmailCalendarContext && !requiresHarness
 
@@ -5209,6 +5217,9 @@ ${actualText}`
               text: requestBody.text,
               sessionId,
               noFallback: requiresHarness,
+              ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {
+                teamMembers: agentTeamMembers,
+              }),
               advancedMode,
               userEmail: userEmail || '',
               userName: userName || '',

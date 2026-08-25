@@ -5,6 +5,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   lastSuccessfulChatCheck,
   localApiHeaders,
@@ -69,6 +70,18 @@ test("agent capabilities continue on the provider left active by the chat loop",
   ];
   assert.deepEqual(lastSuccessfulChatCheck(checks), checks[2]);
   assert.equal(lastSuccessfulChatCheck([{ ok: false }, { ok: true, skipped: true }]), null);
+});
+
+test("group chat QA uses structured members and never runtime agent ids", () => {
+  const request = buildGroupChatQaRequest("qa-group-regression");
+  assert.equal(request.sessionId, "qa-group-regression");
+  assert.equal(request.noFallback, true);
+  assert.deepEqual(request.teamMembers.map(({ id, name }) => ({ id, name })), [
+    { id: "scout", name: "Scout" },
+    { id: "atlas", name: "Atlas" },
+  ]);
+  assert.equal(JSON.stringify(request).includes("agentId"), false);
+  assert.equal(JSON.stringify(request).includes("sessions_spawn"), false);
 });
 
 test("managed browser persistence rejects sync and insecure password-store blockers", () => {
