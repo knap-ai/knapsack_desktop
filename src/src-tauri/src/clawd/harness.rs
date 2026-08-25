@@ -257,7 +257,7 @@ async fn run_openclaw_group(request: &HarnessRequest<'_>) -> Result<String, Stri
     async move {
       let result = tokio::time::timeout(
         remaining_until(deadline)?,
-        gateway_client::agent_chat(&prompt, &[], None, None, Some(&session_key)),
+        gateway_client::agent_chat(&prompt, request.attachments, None, None, Some(&session_key)),
       )
       .await
       .map_err(|_| format!("{} did not finish before the group deadline", member.name))??;
@@ -408,7 +408,13 @@ async fn synthesize_openclaw_group_reply(
   let synthesis_key = format!("{parent_session_key}:synthesis");
   let result = tokio::time::timeout(
     remaining_until(deadline)?,
-    gateway_client::agent_chat(&prompt, &[], None, None, Some(&synthesis_key)),
+    gateway_client::agent_chat(
+      &prompt,
+      request.attachments,
+      None,
+      None,
+      Some(&synthesis_key),
+    ),
   )
   .await
   .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
