@@ -368,21 +368,25 @@ async fn resolve_slack_email(
 /// using the root token against a sender from another workspace makes
 /// `users.info` fail and leaves the verified-identity directory empty.
 fn slack_bot_token_for_account<'a>(cfg: &'a Value, account_id: &str) -> Option<&'a str> {
-  let account_token = cfg
+  let account = cfg
     .pointer("/channels/slack/accounts")
-    .and_then(|accounts| accounts.get(account_id))
-    .and_then(|account| account.get("botToken"))
+    .and_then(|accounts| accounts.get(account_id));
+
+  if let Some(explicit_token) = account.and_then(|account| account.get("botToken")) {
+    // An explicit account credential always wins. In particular, do not fall
+    // through to a different workspace's root token when this is an unresolved
+    // SecretRef object; the identity verifier must fail closed instead.
+    return explicit_token
+      .as_str()
+      .map(str::trim)
+      .filter(|token| !token.is_empty());
+  }
+
+  cfg
+    .pointer("/channels/slack/botToken")
     .and_then(Value::as_str)
     .map(str::trim)
-    .filter(|token| !token.is_empty());
-
-  account_token.or_else(|| {
-    cfg
-      .pointer("/channels/slack/botToken")
-      .and_then(Value::as_str)
-      .map(str::trim)
-      .filter(|token| !token.is_empty())
-  })
+    .filter(|token| !token.is_empty())
 }
 
 async fn run_sandbox_recreate(
@@ -914,5 +918,31 @@ mod tests {
       Some("xoxb-default")
     );
     assert_eq!(slack_bot_token_for_account(&cfg, "missing"), None);
+  }
+
+  #[test]
+  fn slack_token_does_not_fall_back_past_an_account_secret_ref() {
+    let cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "botToken": "xoxb-root",
+          "accounts": {
+            "scout": {
+              "botToken": {
+                "source": "env",
+                "provider": "default",
+                "id": "BANKAYA_SLACK_BOT_TOKEN"
+              }
+            }
+          }
+        }
+      }
+    });
+
+    assert_eq!(slack_bot_token_for_account(&cfg, "scout"), None);
+    assert_eq!(
+      slack_bot_token_for_account(&cfg, "unknown"),
+      Some("xoxb-root")
+    );
   }
 }
