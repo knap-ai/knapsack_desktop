@@ -681,7 +681,11 @@ pub async fn stop_recording(
   // Wait for every registered worker before merging; otherwise Stop can race
   // ahead and generate notes from only the final chunk (usually the meeting's
   // closing remarks).
-  if !wait_for_transcription_jobs(Duration::from_secs(90)).await {
+  // A single provider can spend up to four 120-second attempts plus retry
+  // backoff, and transcription can fall back to a second provider. Keep the
+  // barrier compatible with that worst-case budget so a slow but valid job is
+  // still finalized instead of becoming permanently unreachable after Stop.
+  if !wait_for_transcription_jobs(Duration::from_secs(18 * 60)).await {
     let err_msg = "Timed out waiting for all meeting audio chunks to finish transcription";
     log::error!("[recording] {}", err_msg);
     knap_log_error(

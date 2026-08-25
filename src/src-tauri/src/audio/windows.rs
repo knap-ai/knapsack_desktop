@@ -1,5 +1,5 @@
 use super::encode::save_chunk;
-use super::transcribe::finalize_chunk;
+use super::transcribe::{begin_transcription_job, finalize_chunk};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
@@ -99,7 +99,11 @@ impl AudioRecorder {
               samples_to_save = captured_data.drain(..).collect();
             }
             if !self.is_paused.load(Ordering::SeqCst) {
+              // Register synchronously before spawning so Stop cannot observe
+              // zero pending work while this detached worker is starting.
+              let transcription_job = begin_transcription_job();
               std::thread::spawn(move || {
+                let _transcription_job = transcription_job;
                 let rt = Runtime::new().unwrap();
                 rt.block_on(async {
                   let permit = semaphore_clone.acquire().await.unwrap();
@@ -248,7 +252,11 @@ impl AudioRecorder {
       let mut captured_data = self.captured_data.lock().unwrap();
       std::mem::take(&mut *captured_data)
     };
+    // The final worker is detached too, so it must participate in the same
+    // completion barrier as periodic chunks.
+    let transcription_job = begin_transcription_job();
     std::thread::spawn(move || {
+      let _transcription_job = transcription_job;
       let rt = Runtime::new().unwrap();
       rt.block_on(async {
         let permit = semaphore.acquire().await.unwrap();

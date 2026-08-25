@@ -392,13 +392,19 @@ pub(crate) fn begin_transcription_job() -> TranscriptionJobGuard {
 pub(crate) async fn wait_for_transcription_jobs(max_wait: Duration) -> bool {
   let deadline = tokio::time::Instant::now() + max_wait;
   loop {
-    // Register the notification future before checking the count so a job
-    // cannot finish in the gap between those two operations.
+    // `Notify::notified()` is not registered until it is first polled. Enable
+    // the pinned future before reading the count so a worker cannot finish in
+    // the gap and leave Stop waiting until the deadline on a lost wakeup.
     let notified = PENDING_TRANSCRIPTION_NOTIFY.notified();
+    tokio::pin!(notified);
+    notified.as_mut().enable();
     if PENDING_TRANSCRIPTION_JOBS.load(Ordering::Acquire) == 0 {
       return true;
     }
-    if tokio::time::timeout_at(deadline, notified).await.is_err() {
+    if tokio::time::timeout_at(deadline, &mut notified)
+      .await
+      .is_err()
+    {
       return PENDING_TRANSCRIPTION_JOBS.load(Ordering::Acquire) == 0;
     }
   }
