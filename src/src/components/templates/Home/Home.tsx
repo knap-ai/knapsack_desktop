@@ -168,22 +168,12 @@ function Home({
   const activeBrowserProfile = activeGroup
     ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
     : (activeAgent?.browserProfile ?? 'openclaw')
-  const groupContext =
-    activeGroup && activeGroupAgents.length >= 2
-      ? `You are facilitating the Knapsack group chat "${activeGroup.name}". The participating agents are:
-${activeGroupAgents.map(agent => `- ${agent.emoji} ${agent.name} — ${agent.personality}. ${agent.soul}`).join('\n')}
-
-This is a collaborative room, not a single blended persona. For every substantive request, choose a lead agent and use native subagent orchestration: call sessions_spawn once for each relevant member with that member's name, role, instructions, and the user's request; use isolated child sessions without an agentId so this stays inside the room's private session tree; then use sessions_yield to receive their completed contributions. Do not use sessions_send or cross-agent session messaging. Compare the independent outputs, let the lead challenge conflicts when needed, and synthesize a clear answer. Preserve meaningful disagreements and label individual contributions when that helps the user. Do not invent agreement or impersonate members when delegation is available. Keep the user-facing answer concise unless they ask for the full discussion.
-
-This room has its own durable session. Browser work uses the lead member's isolated browser workspace. When any member uses the browser, always select browser profile "${activeBrowserProfile}". Never use or copy cookies, tabs, credentials, or private memory from any other agent's browser profile.`
-      : undefined
   const activeAgentContext =
-    groupContext ??
-    (chatAgent
+    !activeGroup && chatAgent
     ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
 
 Stay within your role: ${chatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
-      : undefined)
+      : undefined
 
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
@@ -811,36 +801,37 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                       onProviderPanelOpenChange={setIsChatProviderPanelOpen}
                       openProviderPanel={openProviderPanelTrigger}
                       chatId={activeChatId}
-                    sessionId={
-                      activeGroup
-                        ? `ui-group-${activeGroup.id}`
-                        : activeAgent
-                          ? `ui-agent-${activeAgent.id}`
-                          : 'ui'
-                    }
+                      sessionId={
+                        activeGroup
+                          ? `ui-group-${activeGroup.id}`
+                          : activeAgent
+                            ? `ui-agent-${activeAgent.id}`
+                            : 'ui'
+                      }
                       contextPrefix={activeAgentContext}
                       browserProfile={activeBrowserProfile}
-                    agentName={activeGroup?.name ?? chatAgent?.name}
-                    agentPersonality={
-                      activeGroup
-                        ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
-                        : chatAgent?.personality
-                    }
-                    agentSuggestedPrompts={
-                      activeGroup
-                        ? [
-                            `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
-                            'Work together on this decision, surface disagreements, and recommend the best next step.',
-                          ]
-                        : chatAgent?.suggestedPrompts
-                    }
-                    title={
-                      activeGroup
-                        ? `${activeGroup.emoji} ${activeGroup.name}`
-                        : chatAgent
-                          ? `${chatAgent.emoji} ${chatAgent.name}`
-                          : 'Knapsack Chat'
-                    }
+                      agentName={activeGroup?.name ?? chatAgent?.name}
+                      agentTeamMembers={activeGroup ? activeGroupAgents : undefined}
+                      agentPersonality={
+                        activeGroup
+                          ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
+                          : chatAgent?.personality
+                      }
+                      agentSuggestedPrompts={
+                        activeGroup
+                          ? [
+                              `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
+                              'Work together on this decision, surface disagreements, and recommend the best next step.',
+                            ]
+                          : chatAgent?.suggestedPrompts
+                      }
+                      title={
+                        activeGroup
+                          ? `${activeGroup.emoji} ${activeGroup.name}`
+                          : chatAgent
+                            ? `${chatAgent.emoji} ${chatAgent.name}`
+                            : 'Knapsack Chat'
+                      }
                     />
                   </div>
                   {!showEmbeddedBrowser && showActivityPanel && (

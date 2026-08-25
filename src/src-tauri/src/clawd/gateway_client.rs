@@ -3342,16 +3342,14 @@ pub async fn agent_chat(
   session_key: Option<&str>,
 ) -> Result<Value, String> {
   let t = resolve_token(token)?;
-  let idem = format!(
-    "knapsack-ui-{}",
-    std::time::SystemTime::now()
-      .duration_since(std::time::UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_millis()
-  );
+  let idem = next_agent_idempotency_key();
   let params = build_agent_chat_params(message, attachments, session_key, &idem);
   // 5 minute timeout — LLM tool loops can take a while
   gateway_request_agent("agent", Some(params), &t, 300).await
+}
+
+fn next_agent_idempotency_key() -> String {
+  format!("knapsack-ui-{}-{}", now_epoch_ms(), next_request_id())
 }
 
 /// Read the display-normalized chat history for a gateway session.
@@ -3617,6 +3615,15 @@ mod tests {
       Some("agent:main:webchat:dm:ui")
     );
     assert!(params.get("conversationScope").is_none());
+  }
+
+  #[test]
+  fn concurrent_agent_chats_receive_distinct_idempotency_keys() {
+    let first = next_agent_idempotency_key();
+    let second = next_agent_idempotency_key();
+    assert_ne!(first, second);
+    assert!(first.starts_with("knapsack-ui-"));
+    assert!(second.starts_with("knapsack-ui-"));
   }
 
   #[test]

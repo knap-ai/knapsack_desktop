@@ -1,4 +1,5 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
+use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -39,6 +40,20 @@ pub struct HarnessRequest<'a> {
   pub attachments: &'a [Value],
   pub conversation_scope: Option<&'a str>,
   pub session_id: &'a str,
+  pub team_members: &'a [TeamMember],
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamMember {
+  pub id: String,
+  pub name: String,
+  #[serde(default)]
+  pub personality: String,
+  #[serde(default)]
+  pub soul: String,
+  #[serde(default)]
+  pub browser_profile: String,
 }
 
 #[derive(Debug)]
@@ -194,6 +209,10 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
     return Err("OpenClaw gateway is not reachable".to_string());
   }
 
+  if request.team_members.len() >= 2 {
+    return run_openclaw_group(request).await;
+  }
+
   let session_key = openclaw_session_key(request.session_id);
   let deadline = tokio::time::Instant::now() + HARNESS_TIMEOUT;
   let existing_children = openclaw_child_session_keys(&session_key).await?;
@@ -219,6 +238,61 @@ async fn run_openclaw(request: &HarnessRequest<'_>) -> Result<String, String> {
     }
     Err(error) => Err(error),
   }
+}
+
+const MAX_GROUP_MEMBERS: usize = 8;
+
+async fn run_openclaw_group(request: &HarnessRequest<'_>) -> Result<String, String> {
+  let parent_session_key = openclaw_session_key(request.session_id);
+  let deadline = tokio::time::Instant::now() + HARNESS_TIMEOUT;
+  let members = request
+    .team_members
+    .iter()
+    .take(MAX_GROUP_MEMBERS)
+    .collect::<Vec<_>>();
+
+  let calls = members.iter().map(|member| {
+    let prompt = openclaw_group_member_prompt(member, request.message);
+    let session_key = openclaw_group_member_session_key(&parent_session_key, &member.id);
+    async move {
+      let result = tokio::time::timeout(
+        remaining_until(deadline)?,
+        gateway_client::agent_chat(&prompt, request.attachments, None, None, Some(&session_key)),
+      )
+      .await
+      .map_err(|_| format!("{} did not finish before the group deadline", member.name))??;
+      let reply = parse_openclaw_reply(&result)
+        .map_err(|error| format!("{} could not contribute: {error}", member.name))?;
+      Ok::<(String, String), String>((member.name.clone(), reply))
+    }
+  });
+
+  let contributions = try_join_all(calls).await?;
+
+  synthesize_openclaw_group_reply(request, &parent_session_key, &contributions, deadline).await
+}
+
+fn openclaw_group_member_session_key(parent_session_key: &str, member_id: &str) -> String {
+  format!("{parent_session_key}:member:{}", safe_session_id(member_id))
+}
+
+fn openclaw_group_member_prompt(member: &TeamMember, request: &str) -> String {
+  let browser_instruction = if member.browser_profile.trim().is_empty() {
+    String::new()
+  } else {
+    format!(
+      " When browser work is useful, use only browser profile {:?}.",
+      member.browser_profile.trim()
+    )
+  };
+  format!(
+    "You are {} in a Knapsack group room. Your role is: {}. {} Work independently and provide your own concise, evidence-based contribution to the user's request. Return that contribution as plain text even if another teammate will synthesize it later. Never answer with NO_REPLY. Do not spawn agents, call sessions_spawn, or yield this turn.{}\n\nUser request and trusted Knapsack context:\n{}",
+    member.name.trim(),
+    member.personality.trim(),
+    member.soul.trim(),
+    browser_instruction,
+    request
+  )
 }
 
 const OPENCLAW_FOLLOWUP_TIMEOUT: Duration = Duration::from_secs(120);
@@ -315,31 +389,44 @@ async fn synthesize_openclaw_group_reply(
   contributions: &[(String, String)],
   deadline: tokio::time::Instant,
 ) -> Result<String, String> {
+  let prompt = openclaw_group_synthesis_prompt(request.message, contributions);
+  let synthesis_key = format!("{parent_session_key}:synthesis");
+  let result = tokio::time::timeout(
+    remaining_until(deadline)?,
+    gateway_client::agent_chat(
+      &prompt,
+      request.attachments,
+      None,
+      None,
+      Some(&synthesis_key),
+    ),
+  )
+  .await
+  .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
+  parse_openclaw_reply(&result)
+}
+
+fn openclaw_group_synthesis_prompt(
+  original_request: &str,
+  contributions: &[(String, String)],
+) -> String {
   let contributions_text = contributions
     .iter()
-    .enumerate()
-    .map(|(index, (_, reply))| {
+    .map(|(name, reply)| {
       let capped = if reply.chars().count() > 8_000 {
         reply.chars().take(8_000).collect::<String>()
       } else {
         reply.clone()
       };
-      format!("Contributor {}:\n{}", index + 1, capped)
+      format!("{}:\n{}", name, capped)
     })
     .collect::<Vec<_>>()
     .join("\n\n");
   let prompt = format!(
-    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their independent work. Do not call tools or spawn more agents. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
-    request.message, contributions_text
+    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their one independent turn. This is the only synthesis pass: do not call tools, spawn more agents, ask contributors follow-up questions, or start another round. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
+    original_request, contributions_text
   );
-  let synthesis_key = format!("{parent_session_key}:synthesis");
-  let result = tokio::time::timeout(
-    remaining_until(deadline)?,
-    gateway_client::agent_chat(&prompt, &[], None, None, Some(&synthesis_key)),
-  )
-  .await
-  .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
-  parse_openclaw_reply(&result)
+  prompt
 }
 
 fn latest_assistant_after_last_user(history: &Value) -> Option<String> {
@@ -944,6 +1031,7 @@ mod tests {
       attachments,
       conversation_scope: None,
       session_id: "ui / primary",
+      team_members: &[],
     }
   }
 
@@ -1181,6 +1269,49 @@ mod tests {
       openclaw_session_key("ui-agent-scout"),
       openclaw_session_key("ui-agent-operator")
     );
+  }
+
+  #[test]
+  fn group_members_use_stable_main_agent_sessions_without_runtime_agent_ids() {
+    let member = TeamMember {
+      id: "Atlas / Relationships".to_string(),
+      name: "Atlas".to_string(),
+      personality: "Relationship strategist".to_string(),
+      soul: "Find the human context behind the request.".to_string(),
+      browser_profile: "agent-atlas".to_string(),
+    };
+    let prompt = openclaw_group_member_prompt(&member, "How is my relationship with Mauricio?");
+
+    assert!(prompt.contains("You are Atlas"));
+    assert!(prompt.contains("Relationship strategist"));
+    assert!(prompt.contains("agent-atlas"));
+    assert!(prompt.contains("How is my relationship with Mauricio?"));
+    assert!(prompt.contains("Do not spawn agents"));
+    assert!(prompt.contains("Never answer with NO_REPLY"));
+    assert!(!prompt.contains("agentId"));
+    assert_eq!(
+      openclaw_group_member_session_key("agent:main:webchat:dm:group", &member.id),
+      "agent:main:webchat:dm:group:member:Atlas---Relationships"
+    );
+  }
+
+  #[test]
+  fn group_chat_is_one_bounded_round_followed_by_one_synthesis() {
+    let prompt = openclaw_group_synthesis_prompt(
+      "Choose the best next step",
+      &[
+        ("Scout".to_string(), "Inspect the evidence.".to_string()),
+        ("Atlas".to_string(), "Make a decision.".to_string()),
+      ],
+    );
+
+    assert_eq!(MAX_GROUP_MEMBERS, 8);
+    assert!(prompt.contains("one independent turn"));
+    assert!(prompt.contains("only synthesis pass"));
+    assert!(prompt.contains("do not call tools, spawn more agents"));
+    assert!(prompt.contains("ask contributors follow-up questions"));
+    assert!(prompt.contains("Scout:\nInspect the evidence."));
+    assert!(prompt.contains("Atlas:\nMake a decision."));
   }
 
   #[tokio::test]

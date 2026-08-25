@@ -3110,6 +3110,11 @@ pub async fn agent_chat(
     .get("noFallback")
     .and_then(JsonValue::as_bool)
     .unwrap_or(false);
+  let team_members = body
+    .get("teamMembers")
+    .cloned()
+    .and_then(|value| serde_json::from_value::<Vec<harness::TeamMember>>(value).ok())
+    .unwrap_or_default();
   eprintln!(
     "[clawd/agent-chat] Sending to selected harness: {:?} (attachments: {})",
     &text_with_attachments[..text_with_attachments.len().min(100)],
@@ -3140,6 +3145,7 @@ pub async fn agent_chat(
       attachments: &image_attachments,
       conversation_scope,
       session_id,
+      team_members: &team_members,
     },
   )
   .await
