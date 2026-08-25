@@ -389,22 +389,7 @@ async fn synthesize_openclaw_group_reply(
   contributions: &[(String, String)],
   deadline: tokio::time::Instant,
 ) -> Result<String, String> {
-  let contributions_text = contributions
-    .iter()
-    .map(|(name, reply)| {
-      let capped = if reply.chars().count() > 8_000 {
-        reply.chars().take(8_000).collect::<String>()
-      } else {
-        reply.clone()
-      };
-      format!("{}:\n{}", name, capped)
-    })
-    .collect::<Vec<_>>()
-    .join("\n\n");
-  let prompt = format!(
-    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their independent work. Do not call tools or spawn more agents. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
-    request.message, contributions_text
-  );
+  let prompt = openclaw_group_synthesis_prompt(request.message, contributions);
   let synthesis_key = format!("{parent_session_key}:synthesis");
   let result = tokio::time::timeout(
     remaining_until(deadline)?,
@@ -419,6 +404,29 @@ async fn synthesize_openclaw_group_reply(
   .await
   .map_err(|_| "OpenClaw synthesis exceeded the overall orchestration deadline".to_string())??;
   parse_openclaw_reply(&result)
+}
+
+fn openclaw_group_synthesis_prompt(
+  original_request: &str,
+  contributions: &[(String, String)],
+) -> String {
+  let contributions_text = contributions
+    .iter()
+    .map(|(name, reply)| {
+      let capped = if reply.chars().count() > 8_000 {
+        reply.chars().take(8_000).collect::<String>()
+      } else {
+        reply.clone()
+      };
+      format!("{}:\n{}", name, capped)
+    })
+    .collect::<Vec<_>>()
+    .join("\n\n");
+  let prompt = format!(
+    "You are the lead agent for a Knapsack group room. The selected child agents have already completed their one independent turn. This is the only synthesis pass: do not call tools, spawn more agents, ask contributors follow-up questions, or start another round. Synthesize their contributions into one concise, user-facing answer that directly answers the original request. Preserve meaningful disagreements and do not mention internal orchestration.\n\nOriginal request:\n{}\n\nContributions:\n{}",
+    original_request, contributions_text
+  );
+  prompt
 }
 
 fn latest_assistant_after_last_user(history: &Value) -> Option<String> {
@@ -1285,6 +1293,25 @@ mod tests {
       openclaw_group_member_session_key("agent:main:webchat:dm:group", &member.id),
       "agent:main:webchat:dm:group:member:Atlas---Relationships"
     );
+  }
+
+  #[test]
+  fn group_chat_is_one_bounded_round_followed_by_one_synthesis() {
+    let prompt = openclaw_group_synthesis_prompt(
+      "Choose the best next step",
+      &[
+        ("Scout".to_string(), "Inspect the evidence.".to_string()),
+        ("Atlas".to_string(), "Make a decision.".to_string()),
+      ],
+    );
+
+    assert_eq!(MAX_GROUP_MEMBERS, 8);
+    assert!(prompt.contains("one independent turn"));
+    assert!(prompt.contains("only synthesis pass"));
+    assert!(prompt.contains("do not call tools, spawn more agents"));
+    assert!(prompt.contains("ask contributors follow-up questions"));
+    assert!(prompt.contains("Scout:\nInspect the evidence."));
+    assert!(prompt.contains("Atlas:\nMake a decision."));
   }
 
   #[tokio::test]
