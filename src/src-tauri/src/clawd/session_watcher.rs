@@ -63,7 +63,13 @@ fn identity_path(clawdbot_home: &Path, session_id: &str) -> Result<PathBuf, Stri
 fn sanitize_session_id(session_id: &str) -> String {
   session_id
     .chars()
-    .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':' { c } else { '_' })
+    .map(|c| {
+      if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':' {
+        c
+      } else {
+        '_'
+      }
+    })
     .collect()
 }
 
@@ -76,14 +82,20 @@ struct IdentityRecord {
   scope_key: String,
 }
 
-fn write_identity(clawdbot_home: &Path, session_id: &str, email: &str, scope_key: &str) -> Result<(), String> {
+fn write_identity(
+  clawdbot_home: &Path,
+  session_id: &str,
+  email: &str,
+  scope_key: &str,
+) -> Result<(), String> {
   let path = identity_path(clawdbot_home, session_id)?;
   let record = IdentityRecord {
     email: email.to_string(),
     scope_key: scope_key.to_string(),
   };
   let json = serde_json::to_string(&record).map_err(|error| error.to_string())?;
-  std::fs::write(&path, json).map_err(|error| format!("Unable to write {}: {error}", path.display()))
+  std::fs::write(&path, json)
+    .map_err(|error| format!("Unable to write {}: {error}", path.display()))
 }
 
 fn remove_identity(clawdbot_home: &Path, session_id: &str) {
@@ -246,18 +258,22 @@ pub(crate) fn resolve_authorized_session(
 
   // Single identity: use its most recently verified session, so the JWT's
   // session_id claim describes the freshest record rather than a stale one.
-  let newest = identities
-    .last()
-    .expect("non-empty checked above");
+  let newest = identities.last().expect("non-empty checked above");
   Ok((newest.email.clone(), newest.scope_key.clone()))
 }
 
 fn extract_str<'a>(row: &'a Value, keys: &[&str]) -> Option<&'a str> {
-  keys.iter().find_map(|key| row.get(key)).and_then(|v| v.as_str())
+  keys
+    .iter()
+    .find_map(|key| row.get(key))
+    .and_then(|v| v.as_str())
 }
 
 fn extract_bool(row: &Value, keys: &[&str]) -> Option<bool> {
-  keys.iter().find_map(|key| row.get(key)).and_then(|v| v.as_bool())
+  keys
+    .iter()
+    .find_map(|key| row.get(key))
+    .and_then(|v| v.as_bool())
 }
 
 /// `origin.from` is provider-prefixed (e.g. `"slack:U0BPJ321V9P"`), not a
@@ -286,7 +302,8 @@ fn extract_slack_sender(row: &Value) -> Option<(String, String)> {
   }
   let origin = row.get("origin")?;
   let account_id = extract_str(origin, &["accountId"]).unwrap_or("");
-  let slack_user_id = extract_str(origin, &["nativeDirectUserId", "from"]).map(strip_provider_prefix)?;
+  let slack_user_id =
+    extract_str(origin, &["nativeDirectUserId", "from"]).map(strip_provider_prefix)?;
   if slack_user_id.is_empty() {
     return None;
   }
@@ -311,13 +328,9 @@ async fn resolve_slack_email(
     .map_err(|error| format!("Unable to read {}: {error}", config_path.display()))?;
   let cfg: Value = serde_json::from_str(&raw)
     .map_err(|error| format!("Unable to parse {}: {error}", config_path.display()))?;
-  // ASSUMPTION FLAGGED: single-workspace Slack config at /channels/slack/botToken.
-  // If multiple Slack accounts are configured, this needs to key off account_id.
-  let bot_token = cfg
-    .pointer("/channels/slack/botToken")
-    .and_then(|v| v.as_str())
-    .ok_or("No Slack bot token configured; cannot resolve sender email")?;
-  let _ = account_id; // reserved for multi-workspace lookup, see assumption above
+  let bot_token = slack_bot_token_for_account(&cfg, account_id).ok_or_else(|| {
+    format!("No Slack bot token configured for account {account_id}; cannot resolve sender email")
+  })?;
 
   let client = reqwest::Client::builder()
     .timeout(Duration::from_secs(10))
@@ -337,7 +350,10 @@ async fn resolve_slack_email(
   if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
     return Err(format!(
       "Slack users.info failed: {}",
-      body.get("error").and_then(|v| v.as_str()).unwrap_or("unknown")
+      body
+        .get("error")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
     ));
   }
   body
@@ -347,7 +363,33 @@ async fn resolve_slack_email(
     .ok_or_else(|| "Slack profile has no email on file".to_string())
 }
 
-async fn run_sandbox_recreate(openclaw_bin: &std::path::Path, node_bin: Option<&std::path::Path>, scope_key: &str) {
+/// Select the token that belongs to the gateway session's Slack account.
+/// Multi-account configurations keep tokens under `channels.slack.accounts`;
+/// using the root token against a sender from another workspace makes
+/// `users.info` fail and leaves the verified-identity directory empty.
+fn slack_bot_token_for_account<'a>(cfg: &'a Value, account_id: &str) -> Option<&'a str> {
+  let account_token = cfg
+    .pointer("/channels/slack/accounts")
+    .and_then(|accounts| accounts.get(account_id))
+    .and_then(|account| account.get("botToken"))
+    .and_then(Value::as_str)
+    .map(str::trim)
+    .filter(|token| !token.is_empty());
+
+  account_token.or_else(|| {
+    cfg
+      .pointer("/channels/slack/botToken")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|token| !token.is_empty())
+  })
+}
+
+async fn run_sandbox_recreate(
+  openclaw_bin: &std::path::Path,
+  node_bin: Option<&std::path::Path>,
+  scope_key: &str,
+) {
   // `openclaw sandbox recreate --session <scopeKey>` — documented CLI escape
   // hatch (docs/gateway/sandboxing.md), wraps removeSandboxContainer(). Shell
   // out to the bundled openclaw.mjs rather than reimplementing container
@@ -392,7 +434,11 @@ async fn run_sandbox_recreate(openclaw_bin: &std::path::Path, node_bin: Option<&
 /// reusing the exact same `resolveSandboxContext` path the agent runner uses
 /// internally — no new backend logic on the OpenClaw side, just a CLI entry
 /// point onto the existing one.
-async fn run_sandbox_create(openclaw_bin: &std::path::Path, node_bin: Option<&std::path::Path>, scope_key: &str) -> Result<(), String> {
+async fn run_sandbox_create(
+  openclaw_bin: &std::path::Path,
+  node_bin: Option<&std::path::Path>,
+  scope_key: &str,
+) -> Result<(), String> {
   let mut command = match node_bin {
     Some(node_bin) if node_bin.exists() => tokio::process::Command::new(node_bin),
     _ => tokio::process::Command::new("node"), // fall back to a system node in dev builds
@@ -429,14 +475,23 @@ async fn run_sandbox_create(openclaw_bin: &std::path::Path, node_bin: Option<&st
 /// `docker exec` had.
 #[allow(dead_code)]
 pub(crate) async fn ensure_sandbox_session_headless(scope_key: &str) -> Result<(), String> {
-  let exe = std::env::current_exe().map_err(|error| format!("unable to resolve current_exe: {error}"))?;
+  let exe =
+    std::env::current_exe().map_err(|error| format!("unable to resolve current_exe: {error}"))?;
   // macOS .app bundle layout: Contents/MacOS/<exe> -> Contents/Resources/<rel>
   let resources_dir = exe
     .parent()
     .and_then(|p| p.parent())
     .map(|p| p.join("Resources"))
-    .ok_or_else(|| format!("unable to resolve bundle Resources dir from {}", exe.display()))?;
-  let openclaw_bin = resources_dir.join("resources").join("clawdbot").join("openclaw.mjs");
+    .ok_or_else(|| {
+      format!(
+        "unable to resolve bundle Resources dir from {}",
+        exe.display()
+      )
+    })?;
+  let openclaw_bin = resources_dir
+    .join("resources")
+    .join("clawdbot")
+    .join("openclaw.mjs");
   let node_bin = resources_dir.join("resources").join("node").join("node");
   run_sandbox_create(&openclaw_bin, Some(node_bin.as_path()), scope_key).await
 }
@@ -476,11 +531,21 @@ pub(crate) async fn recreate_sandbox_session_headless(scope_key: &str) {
     return;
   };
   // macOS .app bundle layout: Contents/MacOS/<exe> -> Contents/Resources/<rel>
-  let Some(resources_dir) = exe.parent().and_then(|p| p.parent()).map(|p| p.join("Resources")) else {
-    eprintln!("[session_watcher] unable to resolve bundle Resources dir from {}", exe.display());
+  let Some(resources_dir) = exe
+    .parent()
+    .and_then(|p| p.parent())
+    .map(|p| p.join("Resources"))
+  else {
+    eprintln!(
+      "[session_watcher] unable to resolve bundle Resources dir from {}",
+      exe.display()
+    );
     return;
   };
-  let openclaw_bin = resources_dir.join("resources").join("clawdbot").join("openclaw.mjs");
+  let openclaw_bin = resources_dir
+    .join("resources")
+    .join("clawdbot")
+    .join("openclaw.mjs");
   let node_bin = resources_dir.join("resources").join("node").join("node");
   run_sandbox_recreate(&openclaw_bin, Some(node_bin.as_path()), scope_key).await;
 }
@@ -531,11 +596,8 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
     let previously_tracked = seen.get(&session_id).cloned();
 
     // Re-assert the identity whenever the record is missing, not just the
-    // first time a session is seen. The end-of-turn teardown below deletes
-    // the record, and `seen` still holds the session afterwards — so a
-    // first-sight-only write meant the identity was gone for every turn
-    // after the first one and never came back, permanently breaking
-    // Snowflake access for that session.
+    // first time a session is seen. This self-heals deleted/corrupt local
+    // state while the independently verified gateway session remains live.
     let identity_missing = identity_path(&clawdbot_home, &session_id)
       .map(|path| !path.exists())
       .unwrap_or(true);
@@ -550,17 +612,25 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
             }
           }
           Err(error) => {
-            eprintln!("[session_watcher] failed to resolve Slack email for session {session_id}: {error}");
+            eprintln!(
+              "[session_watcher] failed to resolve Slack email for session {session_id}: {error}"
+            );
           }
         }
       }
     }
 
-    let was_active = previously_tracked.as_ref().map(|t| t.has_active_run).unwrap_or(false);
+    let was_active = previously_tracked
+      .as_ref()
+      .map(|t| t.has_active_run)
+      .unwrap_or(false);
     if was_active && (!has_active_run || ended_at) {
-      if let Some(scope_key) = scope_key.clone().or_else(|| previously_tracked.as_ref().and_then(|t| t.scope_key.clone())) {
+      if let Some(scope_key) = scope_key.clone().or_else(|| {
+        previously_tracked
+          .as_ref()
+          .and_then(|t| t.scope_key.clone())
+      }) {
         recreate_sandbox_session(app_handle, &scope_key).await;
-        remove_identity(&clawdbot_home, &session_id);
       }
     }
 
@@ -633,7 +703,13 @@ mod tests {
   }
 
   fn seed_identity(home: &Path, session_id: &str, email: &str) {
-    write_identity(home, session_id, email, "agent:main:slack:default:direct:u1").unwrap();
+    write_identity(
+      home,
+      session_id,
+      email,
+      "agent:main:slack:default:direct:u1",
+    )
+    .unwrap();
   }
 
   #[test]
@@ -661,7 +737,10 @@ mod tests {
     assert_eq!(scope_key, "agent:main:slack:default:direct:u1");
 
     // Also works with no hint at all.
-    assert_eq!(resolve_authorized_session(None).unwrap().0, "rogelio@bankaya.com.mx");
+    assert_eq!(
+      resolve_authorized_session(None).unwrap().0,
+      "rogelio@bankaya.com.mx"
+    );
   }
 
   #[test]
@@ -682,8 +761,14 @@ mod tests {
     seed_identity(tempdir.path(), "session-b", "b@bankaya.com.mx");
 
     let error = resolve_authorized_session(Some("not-a-real-id")).unwrap_err();
-    assert!(error.contains("Refusing rather than guessing"), "got: {error}");
-    assert!(error.contains("a@bankaya.com.mx"), "should name the users: {error}");
+    assert!(
+      error.contains("Refusing rather than guessing"),
+      "got: {error}"
+    );
+    assert!(
+      error.contains("a@bankaya.com.mx"),
+      "should name the users: {error}"
+    );
   }
 
   /// Regression test for 2026-08-12: one person with several sessions (a
@@ -766,9 +851,8 @@ mod tests {
   #[test]
   fn extract_slack_sender_matches_real_gateway_row_shape() {
     let row = real_slack_direct_session_row();
-    let (account_id, slack_user_id) = extract_slack_sender(&row).expect(
-      "a real Slack direct-message sessions.list row must be recognized as a Slack sender",
-    );
+    let (account_id, slack_user_id) = extract_slack_sender(&row)
+      .expect("a real Slack direct-message sessions.list row must be recognized as a Slack sender");
     assert_eq!(account_id, "default");
     assert_eq!(slack_user_id, "U0BPJ321V9P");
   }
@@ -788,5 +872,47 @@ mod tests {
     let mut row = real_slack_direct_session_row();
     row["origin"]["from"] = serde_json::json!("slack:");
     assert!(extract_slack_sender(&row).is_none());
+  }
+
+  #[test]
+  fn slack_token_uses_the_session_account_before_root_fallback() {
+    let cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "botToken": "xoxb-root",
+          "accounts": {
+            "scout": { "botToken": "xoxb-bankaya" }
+          }
+        }
+      }
+    });
+
+    assert_eq!(
+      slack_bot_token_for_account(&cfg, "scout"),
+      Some("xoxb-bankaya")
+    );
+    assert_eq!(
+      slack_bot_token_for_account(&cfg, "unknown"),
+      Some("xoxb-root")
+    );
+  }
+
+  #[test]
+  fn slack_token_supports_account_only_configurations() {
+    let cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "accounts": {
+            "default": { "botToken": "xoxb-default" }
+          }
+        }
+      }
+    });
+
+    assert_eq!(
+      slack_bot_token_for_account(&cfg, "default"),
+      Some("xoxb-default")
+    );
+    assert_eq!(slack_bot_token_for_account(&cfg, "missing"), None);
   }
 }

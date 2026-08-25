@@ -50,6 +50,8 @@ const SNOWFLAKE_ACCOUNT: &str = "XLA65836.us-east-1";
 /// Snowflake requires a non-empty User-Agent on SQL API requests.
 const SNOWFLAKE_USER_AGENT: &str = "knapsack-desktop/1.0";
 const JWT_TTL_SECS: u64 = 60;
+const IDENTITY_WAIT_ATTEMPTS: usize = 12;
+const IDENTITY_WAIT_INTERVAL: Duration = Duration::from_millis(500);
 
 /// DEVELOPMENT OVERRIDE — broker every request as this one fixed identity,
 /// whichever verified Slack sender actually triggered it.
@@ -291,8 +293,30 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
     .and_then(|v| v.as_str())
     .ok_or("Missing required argument: query")?;
 
-  let (email, scope_key) = resolve_authorized_session(session_id)
-    .map_err(|error| format!("Cannot authorize this session for Snowflake access: {error}"))?;
+  // The watcher polls the gateway, so a brand-new Slack DM session can reach
+  // this tool a few seconds before its independently verified identity file is
+  // written. Wait only for the "not yet present" case; ambiguity and corrupt
+  // records still fail closed immediately.
+  let mut authorized = None;
+  let mut last_error = String::new();
+  for attempt in 0..IDENTITY_WAIT_ATTEMPTS {
+    match resolve_authorized_session(session_id) {
+      Ok(identity) => {
+        authorized = Some(identity);
+        break;
+      }
+      Err(error) => {
+        let retryable = error.contains("No verified Slack session on record");
+        last_error = error;
+        if !retryable || attempt + 1 == IDENTITY_WAIT_ATTEMPTS {
+          break;
+        }
+        tokio::time::sleep(IDENTITY_WAIT_INTERVAL).await;
+      }
+    }
+  }
+  let (email, scope_key) = authorized
+    .ok_or_else(|| format!("Cannot authorize this session for Snowflake access: {last_error}"))?;
 
   let secret = read_session_capability_secret_headless()?;
   // One value drives both the `sub` claim and the broker URL — see
@@ -431,9 +455,7 @@ pub async fn run_stdio_server() {
         continue;
       };
       serialized.push('\n');
-      if stdout.write_all(serialized.as_bytes()).await.is_err()
-        || stdout.flush().await.is_err()
-      {
+      if stdout.write_all(serialized.as_bytes()).await.is_err() || stdout.flush().await.is_err() {
         break;
       }
     }
@@ -522,7 +544,10 @@ mod tests {
   #[test]
   fn env_var_overrides_the_compiled_dev_identity() {
     std::env::set_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL", "someone.else@ckl.io");
-    assert_eq!(forced_broker_email().as_deref(), Some("someone.else@ckl.io"));
+    assert_eq!(
+      forced_broker_email().as_deref(),
+      Some("someone.else@ckl.io")
+    );
     std::env::remove_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL");
   }
 
@@ -568,7 +593,10 @@ mod tests {
     let error = handle_snowflake_query(&json!({ "query": "select 1" }))
       .await
       .unwrap_err();
-    assert!(error.contains("Cannot authorize"), "unexpected error: {error}");
+    assert!(
+      error.contains("Cannot authorize"),
+      "unexpected error: {error}"
+    );
   }
 
   #[tokio::test]
@@ -614,7 +642,10 @@ mod tests {
     let init = handle_request(json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" }))
       .await
       .unwrap();
-    assert_eq!(init["result"]["serverInfo"]["name"], "knapsack-snowflake-mcp");
+    assert_eq!(
+      init["result"]["serverInfo"]["name"],
+      "knapsack-snowflake-mcp"
+    );
 
     let list = handle_request(json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }))
       .await
@@ -624,7 +655,8 @@ mod tests {
 
   #[tokio::test]
   async fn notifications_get_no_response() {
-    let response = handle_request(json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).await;
+    let response =
+      handle_request(json!({ "jsonrpc": "2.0", "method": "notifications/initialized" })).await;
     assert!(response.is_none());
   }
 
@@ -669,17 +701,23 @@ mod tests {
       .await
       .unwrap();
     assert_eq!(token, "snow-tok");
-    server.await.expect("mock server task panicked (assertion failed)");
+    server
+      .await
+      .expect("mock server task panicked (assertion failed)");
   }
 
   #[tokio::test]
   async fn broker_forbidden_status_is_a_clear_error() {
-    let (base_url, server) =
-      serve_one("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n", |_request| {});
+    let (base_url, server) = serve_one(
+      "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n",
+      |_request| {},
+    );
     let error = fetch_broker_token_at(&base_url, "someone@bankaya.com.mx", "test-jwt")
       .await
       .unwrap_err();
     assert!(error.contains("did not match"));
-    server.await.expect("mock server task panicked (assertion failed)");
+    server
+      .await
+      .expect("mock server task panicked (assertion failed)");
   }
 }
