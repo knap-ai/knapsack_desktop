@@ -9,6 +9,9 @@ use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use tokio::sync::Notify;
 
 /// A resolved speech-to-text provider (only OpenAI and Groq support Whisper STT).
 struct SttProvider {
@@ -127,8 +130,6 @@ async fn speech_to_text(
   language: Option<&str>,
   temperature: Option<f32>,
 ) -> Result<String, Error> {
-  use std::time::Duration;
-
   if !audio_file.exists() {
     return Err(LLMError::ChatCompletionFailed("Audio file does not exist".to_string()).into());
   }
@@ -362,6 +363,43 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
     }
     Err(e) => {
       log::error!("Failed to transcribe audio: {:?}", e);
+    }
+  }
+}
+
+lazy_static! {
+  static ref PENDING_TRANSCRIPTION_NOTIFY: Notify = Notify::new();
+}
+static PENDING_TRANSCRIPTION_JOBS: AtomicUsize = AtomicUsize::new(0);
+
+/// Registers a detached chunk transcription before its worker thread starts.
+/// Stop-recording uses this as a real completion barrier before reading and
+/// merging transcript files.
+pub(crate) struct TranscriptionJobGuard;
+
+impl Drop for TranscriptionJobGuard {
+  fn drop(&mut self) {
+    PENDING_TRANSCRIPTION_JOBS.fetch_sub(1, Ordering::AcqRel);
+    PENDING_TRANSCRIPTION_NOTIFY.notify_waiters();
+  }
+}
+
+pub(crate) fn begin_transcription_job() -> TranscriptionJobGuard {
+  PENDING_TRANSCRIPTION_JOBS.fetch_add(1, Ordering::AcqRel);
+  TranscriptionJobGuard
+}
+
+pub(crate) async fn wait_for_transcription_jobs(max_wait: Duration) -> bool {
+  let deadline = tokio::time::Instant::now() + max_wait;
+  loop {
+    // Register the notification future before checking the count so a job
+    // cannot finish in the gap between those two operations.
+    let notified = PENDING_TRANSCRIPTION_NOTIFY.notified();
+    if PENDING_TRANSCRIPTION_JOBS.load(Ordering::Acquire) == 0 {
+      return true;
+    }
+    if tokio::time::timeout_at(deadline, notified).await.is_err() {
+      return PENDING_TRANSCRIPTION_JOBS.load(Ordering::Acquire) == 0;
     }
   }
 }
@@ -767,5 +805,17 @@ mod tests {
     // Should return Ok with empty string, not an error
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "");
+  }
+
+  #[tokio::test]
+  async fn transcription_barrier_waits_for_registered_detached_job() {
+    let job = begin_transcription_job();
+    let worker = tokio::spawn(async move {
+      tokio::time::sleep(Duration::from_millis(25)).await;
+      drop(job);
+    });
+
+    assert!(wait_for_transcription_jobs(Duration::from_secs(1)).await);
+    worker.await.unwrap();
   }
 }
