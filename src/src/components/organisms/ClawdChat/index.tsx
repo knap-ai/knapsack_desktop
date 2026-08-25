@@ -5965,7 +5965,10 @@ ${actualText}`
 
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
-      <div className="ClawdChatBody" ref={el => { chatBodyRef.current = el }}>
+      <div
+        className={`ClawdChatBody ${msgs.every(m => m.id.startsWith('welcome-')) ? 'ClawdChatBody--welcome-only' : ''}`}
+        ref={el => { chatBodyRef.current = el }}
+      >
         {chatFindOpen && (
           <div className="ClawdChatFindBar" role="search" aria-label="Search chat history">
             <input
