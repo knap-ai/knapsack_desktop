@@ -41,6 +41,7 @@ interface NotetakerSidebarProps {
   activeAgentId?: string | null
   activeGroupId?: string | null
   onAgentSelect?: (agent: TeamAgent) => void
+  onAgentRemove?: (agent: TeamAgent) => void
   onGroupSelect?: (group: TeamGroup) => void
   onTeamChatSelect?: () => void
 }
@@ -219,6 +220,7 @@ function NotetakerSidebar({
   activeAgentId,
   activeGroupId,
   onAgentSelect,
+  onAgentRemove,
   onGroupSelect,
   onTeamChatSelect,
 }: NotetakerSidebarProps) {
@@ -228,6 +230,7 @@ function NotetakerSidebar({
   const [appVersion, setAppVersion] = useState<string>('')
   const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
   const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
+  const [agentPendingRemoval, setAgentPendingRemoval] = useState<TeamAgent | null>(null)
   const [teamPaneHeight, setTeamPaneHeight] = useState(() => {
     const stored = Number(localStorage.getItem('knapsack.sidebar.team-height'))
     return Number.isFinite(stored) && stored > 0 ? stored : 286
@@ -665,23 +668,34 @@ function NotetakerSidebar({
               </div>
             </div>
             <div className="notetaker-sidebar__team-list">
-              <button
-                type="button"
+              <div
                 className={`notetaker-sidebar__team-agent ${activeAgentId == null && activeGroupId == null ? 'notetaker-sidebar__team-agent--active' : ''}`}
-                onClick={onTeamChatSelect}
-                aria-pressed={activeAgentId == null && activeGroupId == null}
               >
-                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
-                  {primaryAgent.emoji}
-                </span>
-                <span className="notetaker-sidebar__team-copy">
-                  <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
-                  <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
-                </span>
-                <span className="notetaker-sidebar__team-chat" aria-hidden="true">
-                  ›
-                </span>
-              </button>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__team-agent-select"
+                  onClick={onTeamChatSelect}
+                  aria-pressed={activeAgentId == null && activeGroupId == null}
+                >
+                  <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                    {primaryAgent.emoji}
+                  </span>
+                  <span className="notetaker-sidebar__team-copy">
+                    <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
+                    <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
+                  </span>
+                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+                </button>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__team-remove"
+                  onClick={() => setAgentPendingRemoval(primaryAgent)}
+                  aria-label={`Remove ${primaryAgent.name}`}
+                  title={`Remove ${primaryAgent.name}`}
+                >
+                  ×
+                </button>
+              </div>
               {teamGroups.map(group => {
                 const members = group.agentIds
                   .map(id => teamAgents.find(agent => agent.id === id))
@@ -710,25 +724,36 @@ function NotetakerSidebar({
                 )
               })}
               {secondaryAgents.map(agent => (
-                <button
-                  type="button"
+                <div
                   key={agent.id}
                   className={`notetaker-sidebar__team-agent ${activeAgentId === agent.id ? 'notetaker-sidebar__team-agent--active' : ''}`}
-                  onClick={() => onAgentSelect?.(agent)}
-                  aria-pressed={activeAgentId === agent.id}
                 >
-                  <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
-                    {agent.emoji}
-                    <span className="notetaker-sidebar__team-presence" />
-                  </span>
-                  <span className="notetaker-sidebar__team-copy">
-                    <span className="notetaker-sidebar__team-name">{agent.name}</span>
-                    <span className="notetaker-sidebar__team-role">{agent.personality}</span>
-                  </span>
-                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    className="notetaker-sidebar__team-agent-select"
+                    onClick={() => onAgentSelect?.(agent)}
+                    aria-pressed={activeAgentId === agent.id}
+                  >
+                    <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                      {agent.emoji}
+                      <span className="notetaker-sidebar__team-presence" />
+                    </span>
+                    <span className="notetaker-sidebar__team-copy">
+                      <span className="notetaker-sidebar__team-name">{agent.name}</span>
+                      <span className="notetaker-sidebar__team-role">{agent.personality}</span>
+                    </span>
+                    <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="notetaker-sidebar__team-remove"
+                    onClick={() => setAgentPendingRemoval(agent)}
+                    aria-label={`Remove ${agent.name}`}
+                    title={`Remove ${agent.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
           </section>
@@ -1073,6 +1098,47 @@ function NotetakerSidebar({
           )
         })()}
       </div>
+
+      {agentPendingRemoval && (
+        <div
+          className="notetaker-sidebar__composer-backdrop"
+          role="presentation"
+          onMouseDown={() => setAgentPendingRemoval(null)}
+        >
+          <div
+            className="notetaker-sidebar__remove-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-agent-title"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <h2 id="remove-agent-title">Remove {agentPendingRemoval.name}?</h2>
+            <p>
+              Their chat will disappear from Your Team. Existing browser data remains stored in
+              that agent profile.
+            </p>
+            {teamAgents.length === 1 && (
+              <p className="notetaker-sidebar__remove-warning">
+                Create another agent first. Your team must always have at least one agent.
+              </p>
+            )}
+            <div className="notetaker-sidebar__remove-actions">
+              <button type="button" onClick={() => setAgentPendingRemoval(null)}>Cancel</button>
+              <button
+                type="button"
+                className="notetaker-sidebar__remove-confirm"
+                disabled={teamAgents.length === 1}
+                onClick={() => {
+                  onAgentRemove?.(agentPendingRemoval)
+                  setAgentPendingRemoval(null)
+                }}
+              >
+                Remove agent
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {composerMode && (

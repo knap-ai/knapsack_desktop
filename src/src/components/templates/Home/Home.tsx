@@ -8,6 +8,8 @@ import {
   getPrimaryScout,
   loadTeamGroups,
   loadTeamRoster,
+  saveTeamGroups,
+  saveTeamRoster,
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
@@ -714,6 +716,26 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               setEmbeddedBrowserProfile(agent.browserProfile)
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
+            }}
+            onAgentRemove={agent => {
+              if (teamAgents.length <= 1) return
+              const remainingAgents = teamAgents.filter(candidate => candidate.id !== agent.id)
+              const remainingGroups = teamGroups
+                .map(group => ({
+                  ...group,
+                  agentIds: group.agentIds.filter(id => id !== agent.id),
+                }))
+                .filter(group => group.agentIds.length >= 2)
+              saveTeamRoster(remainingAgents)
+              saveTeamGroups(remainingGroups)
+              if (activeAgentId === agent.id) {
+                setActiveAgentId(null)
+                setActiveGroupId(null)
+                setEmbeddedBrowserProfile('openclaw')
+              }
+              if (activeGroupId && !remainingGroups.some(group => group.id === activeGroupId)) {
+                setActiveGroupId(null)
+              }
             }}
             onGroupSelect={group => {
               setActiveAgentId(null)
