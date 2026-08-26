@@ -519,14 +519,30 @@ export function useBackgroundNotifications({
 
         try {
           const participantSet = new Set(addresses.map(email => email.toLowerCase()))
-          const recentMeetings = await dataFetcher.getRecentCalendarEvents()
-          const relatedMeetings = (recentMeetings || []).filter(event =>
-            event.title !== meeting.title
-            && event.participants.some(participant => participantSet.has(participant.email.toLowerCase())),
+          const meetingStartSeconds = Math.floor(meeting.start.getTime() / 1000)
+          const lookbackStartSeconds = meetingStartSeconds - 180 * 24 * 60 * 60
+          const historicalEvents = await getCalendarEvents(
+            lookbackStartSeconds,
+            meetingStartSeconds - 1,
           )
+          const relatedMeetings = ((historicalEvents || []) as CalendarEvents[])
+            .filter((event: CalendarEvents) => {
+              if (event.title === meeting.title || event.start >= meetingStartSeconds) return false
+              try {
+                const attendees = JSON.parse(event.attendees_json || '[]') as Array<{
+                  email?: string
+                }>
+                return attendees.some(attendee =>
+                  attendee.email && participantSet.has(attendee.email.toLowerCase()),
+                )
+              } catch {
+                return false
+              }
+            })
+            .sort((left: CalendarEvents, right: CalendarEvents) => right.start - left.start)
           if (relatedMeetings.length) {
             contextParts.push('\n## Recent Related Meetings\n')
-            relatedMeetings.slice(0, 3).forEach(event => {
+            relatedMeetings.slice(0, 3).forEach((event: CalendarEvents) => {
               contextParts.push(`- **${event.title}**${event.description ? `: ${event.description.slice(0, 240)}` : ''}`)
             })
           }

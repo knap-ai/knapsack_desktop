@@ -43,17 +43,19 @@ const applyMeetingLayout = async () => {
   const monitor = await currentMonitor()
   if (!monitor) return
 
+  // Native macOS fullscreen owns an entire Space. Resizing a fullscreen window
+  // only shrinks its webview, leaving the rest of that Space black. Exit the
+  // Space before reading the underlying normal window frame or applying the
+  // Granola-style right-side meeting layout.
+  const fullscreen = await appWindow.isFullscreen()
+  if (fullscreen) await appWindow.setFullscreen(false)
   savedWindowBounds = {
     position: await appWindow.outerPosition(),
     size: await appWindow.outerSize(),
     maximized: await appWindow.isMaximized(),
-    fullscreen: await appWindow.isFullscreen(),
+    fullscreen,
   }
 
-  // Native macOS fullscreen owns an entire Space. Resizing a fullscreen window
-  // only shrinks its webview, leaving the rest of that Space black. Exit the
-  // Space before applying the Granola-style right-side meeting layout.
-  if (savedWindowBounds.fullscreen) await appWindow.setFullscreen(false)
   if (savedWindowBounds.maximized) await appWindow.unmaximize()
   const isMac = navigator.userAgent.includes('Mac')
   const isWindows = navigator.userAgent.includes('Windows')

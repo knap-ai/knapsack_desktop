@@ -4324,6 +4324,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
+    const connectIntent = isStudioConnectIntent(text)
     const connectorSuggestion =
       knapsackEmailRef.current && studioConnectionsLoadedRef.current
         ? detectStudioConnectorSuggestion(
@@ -4331,13 +4332,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             studioConnectedScopesRef.current,
             dismissedStudioConnectorIdsRef.current,
             studioAvailableConnectorsRef.current,
+            connectIntent,
           )
         : null
     pendingStudioConnectorSuggestionRef.current = connectorSuggestion
     // Explicit "connect/reconnect" requests should show the OAuth action
     // immediately. The user should never need to wait for the model to explain
     // that connections live in Settings.
-    if (connectorSuggestion && isStudioConnectIntent(text)) {
+    if (connectorSuggestion && connectIntent) {
       setStudioConnectorSuggestion(connectorSuggestion)
       studioConnectorSuggestionRef.current = connectorSuggestion
       pendingStudioConnectorSuggestionRef.current = null
