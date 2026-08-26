@@ -186,6 +186,16 @@ const includesKeyword = (text: string, keyword: string) => {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text)
 }
 
+/** True when the user is explicitly asking to start or repair a connection. */
+export function isStudioConnectIntent(text: string): boolean {
+  return /\b(connect|reconnect|link|authorize|authenticate|sign[ -]?in|set[ -]?up)\b/i.test(text)
+}
+
+/** True when an agent response says the requested integration is unavailable. */
+export function reportsMissingStudioConnector(text: string): boolean {
+  return /\b(not (?:currently )?connected|isn't connected|is not available|unavailable|need(?:s)? to connect|connect .+ first|reconnect studio|sign[ -]?in expired)\b/i.test(text)
+}
+
 export function detectStudioConnectorSuggestion(
   text: string,
   connectedIds: Iterable<string>,

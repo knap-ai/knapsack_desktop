@@ -4,6 +4,7 @@ import dayjs from 'dayjs'
 import { insertFeedItemAPI } from 'src/api/feed_items'
 import { insertSystemMessage } from 'src/api/automations'
 import { getTranscript } from 'src/api/transcripts'
+import { getDocumentInfos, getDriveDocumentsIds } from 'src/api/data_source'
 import { createThread, ThreadType } from 'src/api/threads'
 import {
   MORNING_BRIEFING_PROMPT,
@@ -24,6 +25,7 @@ import { arePushNotificationsOSEnabledAndWantedByUser } from 'src/utils/permissi
 import { ButtonConfig } from 'src/components/molecules/MeetingNotification'
 import { LLMParams } from 'src/App'
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { KNFileType } from 'src/utils/KNSearchFilters'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import {
   getWhatsAppStatus,
@@ -472,8 +474,8 @@ export function useBackgroundNotifications({
 
       // Fetch recent emails from meeting participants for context
       if (meeting.participants?.length) {
+        const addresses = meeting.participants.map(p => p.email).filter(Boolean)
         try {
-          const addresses = meeting.participants.map(p => p.email)
           const participantEmails =
             await dataFetcher.getGmailSearchResultsByAddresses(addresses)
           if (participantEmails?.length) {
@@ -488,6 +490,48 @@ export function useBackgroundNotifications({
           }
         } catch (err) {
           console.warn('Failed to fetch participant emails:', err)
+        }
+
+        // Include the documents those attendees have shared with the user. The
+        // notification body is intentionally short, but this context lets it
+        // name the actual project/deck/open item instead of restating the title.
+        if (userEmail) {
+          try {
+            const driveIds = await getDriveDocumentsIds(addresses, userEmail)
+            const docs = driveIds.length
+              ? await getDocumentInfos(
+                  driveIds.slice(0, 8),
+                  driveIds.slice(0, 8).map(() => KNFileType.DRIVE_FILE),
+                  userEmail,
+                )
+              : []
+            if (docs.length) {
+              contextParts.push('\n## Relevant Drive Documents\n')
+              docs.slice(0, 5).forEach(doc => {
+                const detail = (doc.summary || '').slice(0, 240)
+                contextParts.push(`- **${doc.title}**${detail ? `: ${detail}` : ''}`)
+              })
+            }
+          } catch (err) {
+            console.warn('Failed to fetch meeting Drive context:', err)
+          }
+        }
+
+        try {
+          const participantSet = new Set(addresses.map(email => email.toLowerCase()))
+          const recentMeetings = await dataFetcher.getRecentCalendarEvents()
+          const relatedMeetings = (recentMeetings || []).filter(event =>
+            event.title !== meeting.title
+            && event.participants.some(participant => participantSet.has(participant.email.toLowerCase())),
+          )
+          if (relatedMeetings.length) {
+            contextParts.push('\n## Recent Related Meetings\n')
+            relatedMeetings.slice(0, 3).forEach(event => {
+              contextParts.push(`- **${event.title}**${event.description ? `: ${event.description.slice(0, 240)}` : ''}`)
+            })
+          }
+        } catch (err) {
+          console.warn('Failed to fetch related meeting context:', err)
         }
       }
 

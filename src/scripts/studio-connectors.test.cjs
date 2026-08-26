@@ -59,3 +59,17 @@ test('respects dismissed suggestions and ignores unrelated chat', async () => {
   assert.equal(detectStudioConnectorSuggestion('Use Confluence', [], ['confluence']), null)
   assert.equal(detectStudioConnectorSuggestion('Write a birthday poem', [], []), null)
 })
+
+test('recognizes explicit inline connection requests', async () => {
+  const { isStudioConnectIntent } = await loadConnectorModule()
+  assert.equal(isStudioConnectIntent('connect to clickup'), true)
+  assert.equal(isStudioConnectIntent('please reconnect Studio'), true)
+  assert.equal(isStudioConnectIntent('show my ClickUp tasks'), false)
+})
+
+test('recognizes agent responses reporting a missing connector', async () => {
+  const { reportsMissingStudioConnector } = await loadConnectorModule()
+  assert.equal(reportsMissingStudioConnector('The ClickUp connector is not currently connected.'), true)
+  assert.equal(reportsMissingStudioConnector('Connect ClickUp first, then I can create it.'), true)
+  assert.equal(reportsMissingStudioConnector('I created the ClickUp task.'), false)
+})
