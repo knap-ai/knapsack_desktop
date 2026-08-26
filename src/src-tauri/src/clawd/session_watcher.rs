@@ -17,6 +17,7 @@
 //! response before relying on the sandbox-teardown path in production.
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -71,6 +72,44 @@ fn sanitize_session_id(session_id: &str) -> String {
       }
     })
     .collect()
+}
+
+/// Mirrors OpenClaw's `slugifySessionKey` for a session-scoped sandbox
+/// workspace (`agents/sandbox/shared.ts`). The model cannot see the opaque
+/// gateway session id, but it can see its own sandbox workspace basename,
+/// e.g. `agent-main-slack-default-direct--55a06add`. Matching that basename
+/// back to a Slack-verified scope key gives the MCP subprocess a request-local
+/// identity without ever accepting an email address supplied by the model.
+fn sandbox_workspace_slug(scope_key: &str) -> String {
+  let trimmed = scope_key.trim();
+  let value = if trimmed.is_empty() {
+    "session"
+  } else {
+    trimmed
+  };
+  let hash = format!("{:x}", Sha256::digest(value.as_bytes()));
+  let normalized: String = value
+    .to_ascii_lowercase()
+    .chars()
+    .map(|ch| {
+      if ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '.' | '_' | '-') {
+        ch
+      } else {
+        '-'
+      }
+    })
+    .collect();
+  let normalized = normalized.trim_matches('-');
+  let prefix: String = normalized.chars().take(32).collect();
+  format!(
+    "{}-{}",
+    if prefix.is_empty() {
+      "session"
+    } else {
+      &prefix
+    },
+    &hash[..8]
+  )
 }
 
 /// Written by the watcher when a new session appears; read by
@@ -294,13 +333,40 @@ pub(crate) fn resolve_authorized_session(
   let identities = list_identities(&clawdbot_home)?;
   if identities.is_empty() {
     if let Some(message) = latest_identity_failure(&clawdbot_home) {
-      return Err(format!("Slack sender verification failed: {message}"));
+      return Err(format!(
+        "No verified Slack session on record. Slack sender verification failed: {message}"
+      ));
     }
     return Err(
       "No verified Slack session on record. Message the bot from Slack first so Knapsack can \
        verify the sender via the Slack API, then retry."
         .to_string(),
     );
+  }
+
+  // The stdio MCP runtime does not forward the gateway session id, but the
+  // model does know its request-scoped sandbox workspace basename. Resolve
+  // that basename only against independently verified scope keys. Refuse a
+  // collision rather than selecting one user.
+  if let Some(hint) = supplied.map(str::trim).filter(|hint| !hint.is_empty()) {
+    let basename = Path::new(hint)
+      .file_name()
+      .and_then(|name| name.to_str())
+      .unwrap_or(hint);
+    let matches: Vec<&StoredIdentity> = identities
+      .iter()
+      .filter(|identity| sandbox_workspace_slug(&identity.scope_key) == basename)
+      .collect();
+    if matches.len() == 1 {
+      let matched = matches[0];
+      return Ok((matched.email.clone(), matched.scope_key.clone()));
+    }
+    if matches.len() > 1 {
+      return Err(
+        "Cannot authorize this session: the sandbox workspace matched more than one verified Slack identity. Refusing rather than guessing."
+          .to_string(),
+      );
+    }
   }
 
   // Ambiguity is about *who*, not about how many records happen to be lying
@@ -820,6 +886,40 @@ mod tests {
 
     let (email, _) = resolve_authorized_session(Some("real-session")).unwrap();
     assert_eq!(email, "exact@bankaya.com.mx");
+  }
+
+  #[test]
+  fn sandbox_workspace_slug_matches_openclaw_format() {
+    assert_eq!(
+      sandbox_workspace_slug("agent:main:slack:default:direct:u0asedsqp8f"),
+      "agent-main-slack-default-direct--55a06add"
+    );
+  }
+
+  #[test]
+  fn resolve_uses_request_sandbox_to_disambiguate_verified_users() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity(
+      tempdir.path(),
+      "session-mark",
+      "mark@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+    write_identity(
+      tempdir.path(),
+      "session-rogelio",
+      "rogelio@bankaya.com.mx",
+      "agent:main:slack:default:direct:utsp386jg",
+    )
+    .unwrap();
+
+    let (email, scope_key) =
+      resolve_authorized_session(Some("/workspace/agent-main-slack-default-direct--55a06add"))
+        .unwrap();
+    assert_eq!(email, "mark@bankaya.com.mx");
+    assert_eq!(scope_key, "agent:main:slack:default:direct:u0asedsqp8f");
   }
 
   /// The production failure mode: the hint is wrong (the model guessed its
