@@ -8,6 +8,8 @@ import {
   getPrimaryScout,
   loadTeamGroups,
   loadTeamRoster,
+  saveTeamGroups,
+  saveTeamRoster,
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
@@ -170,7 +172,7 @@ function Home({
     : (activeAgent?.browserProfile ?? 'openclaw')
   const activeAgentContext =
     !activeGroup && chatAgent
-    ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
+      ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
 
 Stay within your role: ${chatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
       : undefined
@@ -469,10 +471,10 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
 
   const handleOpenProviderSignIn = useCallback(
     (provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter') => {
-    // Close settings dialog and open the ClawdChat provider sidebar instead
-    setIsSettingsDialogOpened(false)
-    setProviderSignInInitialProvider(provider)
-    setOpenProviderPanelTrigger(prev => prev + 1)
+      // Close settings dialog and open the ClawdChat provider sidebar instead
+      setIsSettingsDialogOpened(false)
+      setProviderSignInInitialProvider(provider)
+      setOpenProviderPanelTrigger(prev => prev + 1)
     },
     [],
   )
@@ -715,6 +717,26 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
             }}
+            onAgentRemove={agent => {
+              if (teamAgents.length <= 1) return
+              const remainingAgents = teamAgents.filter(candidate => candidate.id !== agent.id)
+              const remainingGroups = teamGroups
+                .map(group => ({
+                  ...group,
+                  agentIds: group.agentIds.filter(id => id !== agent.id),
+                }))
+                .filter(group => group.agentIds.length >= 2)
+              saveTeamRoster(remainingAgents)
+              saveTeamGroups(remainingGroups)
+              if (activeAgentId === agent.id) {
+                setActiveAgentId(null)
+                setActiveGroupId(null)
+                setEmbeddedBrowserProfile('openclaw')
+              }
+              if (activeGroupId && !remainingGroups.some(group => group.id === activeGroupId)) {
+                setActiveGroupId(null)
+              }
+            }}
             onGroupSelect={group => {
               setActiveAgentId(null)
               setActiveGroupId(group.id)
@@ -788,105 +810,105 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               <div
                 className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
               >
-                  <div className="overflow-hidden flex-1 h-full min-w-0">
-                    <ClawdChat
-                      key={activeChatId}
-                      showActivityPanel={showActivityPanel}
-                      onToggleActivity={() => setShowActivityPanel(prev => !prev)}
-                      onCloseActivity={() => setShowActivityPanel(false)}
-                      userEmail={userEmail}
-                      userName={userName}
-                      nativeEmailConnected={nativeEmailConnected}
-                      onBusyChange={setIsChatBusy}
-                      onProviderPanelOpenChange={setIsChatProviderPanelOpen}
-                      openProviderPanel={openProviderPanelTrigger}
-                      chatId={activeChatId}
-                      sessionId={
-                        activeGroup
-                          ? `ui-group-${activeGroup.id}`
-                          : activeAgent
-                            ? `ui-agent-${activeAgent.id}`
-                            : 'ui'
-                      }
-                      contextPrefix={activeAgentContext}
-                      browserProfile={activeBrowserProfile}
-                      agentName={activeGroup?.name ?? chatAgent?.name}
-                      agentTeamMembers={activeGroup ? activeGroupAgents : undefined}
-                      agentPersonality={
-                        activeGroup
-                          ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
-                          : chatAgent?.personality
-                      }
-                      agentSuggestedPrompts={
-                        activeGroup
-                          ? [
-                              `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
-                              'Work together on this decision, surface disagreements, and recommend the best next step.',
-                            ]
-                          : chatAgent?.suggestedPrompts
-                      }
-                      title={
-                        activeGroup
-                          ? `${activeGroup.emoji} ${activeGroup.name}`
-                          : chatAgent
-                            ? `${chatAgent.emoji} ${chatAgent.name}`
-                            : 'Knapsack Chat'
-                      }
-                    />
-                  </div>
-                  {!showEmbeddedBrowser && showActivityPanel && (
-                    <>
-                      <div
-                        className="activity-resize-handle"
+                <div className="overflow-hidden flex-1 h-full min-w-0">
+                  <ClawdChat
+                    key={activeChatId}
+                    showActivityPanel={showActivityPanel}
+                    onToggleActivity={() => setShowActivityPanel(prev => !prev)}
+                    onCloseActivity={() => setShowActivityPanel(false)}
+                    userEmail={userEmail}
+                    userName={userName}
+                    nativeEmailConnected={nativeEmailConnected}
+                    onBusyChange={setIsChatBusy}
+                    onProviderPanelOpenChange={setIsChatProviderPanelOpen}
+                    openProviderPanel={openProviderPanelTrigger}
+                    chatId={activeChatId}
+                    sessionId={
+                      activeGroup
+                        ? `ui-group-${activeGroup.id}`
+                        : activeAgent
+                          ? `ui-agent-${activeAgent.id}`
+                          : 'ui'
+                    }
+                    contextPrefix={activeAgentContext}
+                    browserProfile={activeBrowserProfile}
+                    agentName={activeGroup?.name ?? chatAgent?.name}
+                    agentTeamMembers={activeGroup ? activeGroupAgents : undefined}
+                    agentPersonality={
+                      activeGroup
+                        ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
+                        : chatAgent?.personality
+                    }
+                    agentSuggestedPrompts={
+                      activeGroup
+                        ? [
+                            `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
+                            'Work together on this decision, surface disagreements, and recommend the best next step.',
+                          ]
+                        : chatAgent?.suggestedPrompts
+                    }
+                    title={
+                      activeGroup
+                        ? `${activeGroup.emoji} ${activeGroup.name}`
+                        : chatAgent
+                          ? `${chatAgent.emoji} ${chatAgent.name}`
+                          : 'Knapsack Chat'
+                    }
+                  />
+                </div>
+                {!showEmbeddedBrowser && showActivityPanel && (
+                  <>
+                    <div
+                      className="activity-resize-handle"
                       onMouseDown={e => {
-                          e.preventDefault()
-                          isResizingRef.current = true
-                          const startX = e.clientX
-                          const startWidth = activityPanelWidth
-                          const onMove = (ev: MouseEvent) => {
-                            if (!isResizingRef.current) return
-                            const delta = startX - ev.clientX
-                            setActivityPanelWidth(Math.max(280, Math.min(800, startWidth + delta)))
-                          }
-                          const onUp = () => {
-                            isResizingRef.current = false
-                            document.removeEventListener('mousemove', onMove)
-                            document.removeEventListener('mouseup', onUp)
-                            document.body.style.cursor = ''
-                            document.body.style.userSelect = ''
-                          }
-                          document.body.style.cursor = 'col-resize'
-                          document.body.style.userSelect = 'none'
-                          document.addEventListener('mousemove', onMove)
-                          document.addEventListener('mouseup', onUp)
-                        }}
-                      />
+                        e.preventDefault()
+                        isResizingRef.current = true
+                        const startX = e.clientX
+                        const startWidth = activityPanelWidth
+                        const onMove = (ev: MouseEvent) => {
+                          if (!isResizingRef.current) return
+                          const delta = startX - ev.clientX
+                          setActivityPanelWidth(Math.max(280, Math.min(800, startWidth + delta)))
+                        }
+                        const onUp = () => {
+                          isResizingRef.current = false
+                          document.removeEventListener('mousemove', onMove)
+                          document.removeEventListener('mouseup', onUp)
+                          document.body.style.cursor = ''
+                          document.body.style.userSelect = ''
+                        }
+                        document.body.style.cursor = 'col-resize'
+                        document.body.style.userSelect = 'none'
+                        document.addEventListener('mousemove', onMove)
+                        document.addEventListener('mouseup', onUp)
+                      }}
+                    />
                     <div
                       className="overflow-hidden h-full border-l border-ks-warm-grey-200 bg-white"
                       style={{ width: activityPanelWidth, flexShrink: 0 }}
                     >
-                        <ActivityPanel onClose={() => setShowActivityPanel(false)} />
-                      </div>
-                    </>
-                  )}
-                  {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
-                    <>
-                      <div
-                        className="activity-resize-handle embedded-browser-resize-handle"
-                        role="separator"
-                        aria-label="Resize embedded browser"
-                        aria-orientation="vertical"
-                        aria-valuemin={380}
-                        aria-valuemax={960}
-                        aria-valuenow={Math.round(embeddedBrowserWidth)}
-                        tabIndex={0}
+                      <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+                    </div>
+                  </>
+                )}
+                {showEmbeddedBrowser && currentTab === TabChoices.Openclaw && (
+                  <>
+                    <div
+                      className="activity-resize-handle embedded-browser-resize-handle"
+                      role="separator"
+                      aria-label="Resize embedded browser"
+                      aria-orientation="vertical"
+                      aria-valuemin={380}
+                      aria-valuemax={960}
+                      aria-valuenow={Math.round(embeddedBrowserWidth)}
+                      tabIndex={0}
                       onKeyDown={event => {
-                          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-                          event.preventDefault()
-                          const direction = event.key === 'ArrowLeft' ? 1 : -1
+                        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                        event.preventDefault()
+                        const direction = event.key === 'ArrowLeft' ? 1 : -1
                         const containerWidth =
                           event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
-                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                        const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
                         const renderedWidth =
                           event.currentTarget.nextElementSibling?.getBoundingClientRect().width ??
                           embeddedBrowserWidth
@@ -894,91 +916,91 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
                           380,
                           Math.min(maxWidth, renderedWidth + direction * 24),
                         )
-                          setEmbeddedBrowserWidth(nextWidth)
-                          localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
-                        }}
+                        setEmbeddedBrowserWidth(nextWidth)
+                        localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                      }}
                       onMouseDown={event => {
-                          event.preventDefault()
-                          isResizingRef.current = true
-                          const startX = event.clientX
+                        event.preventDefault()
+                        isResizingRef.current = true
+                        const startX = event.clientX
                         const startWidth =
                           event.currentTarget.nextElementSibling?.getBoundingClientRect().width ??
                           embeddedBrowserWidth
                         const containerWidth =
                           event.currentTarget.parentElement?.clientWidth ?? window.innerWidth
-                          const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
-                          let nextWidth = startWidth
-                          const onMove = (moveEvent: MouseEvent) => {
-                            if (!isResizingRef.current) return
+                        const maxWidth = Math.max(380, Math.min(960, containerWidth - 365))
+                        let nextWidth = startWidth
+                        const onMove = (moveEvent: MouseEvent) => {
+                          if (!isResizingRef.current) return
                           nextWidth = Math.max(
                             380,
                             Math.min(maxWidth, startWidth + startX - moveEvent.clientX),
                           )
-                            setEmbeddedBrowserWidth(nextWidth)
-                          }
-                          const onUp = () => {
-                            isResizingRef.current = false
-                            localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
-                            document.removeEventListener('mousemove', onMove)
-                            document.removeEventListener('mouseup', onUp)
-                            document.body.style.cursor = ''
-                            document.body.style.userSelect = ''
-                          }
-                          document.body.style.cursor = 'col-resize'
-                          document.body.style.userSelect = 'none'
-                          document.addEventListener('mousemove', onMove)
-                          document.addEventListener('mouseup', onUp)
+                          setEmbeddedBrowserWidth(nextWidth)
+                        }
+                        const onUp = () => {
+                          isResizingRef.current = false
+                          localStorage.setItem('knapsack.browser.sidebar.width', String(nextWidth))
+                          document.removeEventListener('mousemove', onMove)
+                          document.removeEventListener('mouseup', onUp)
+                          document.body.style.cursor = ''
+                          document.body.style.userSelect = ''
+                        }
+                        document.body.style.cursor = 'col-resize'
+                        document.body.style.userSelect = 'none'
+                        document.addEventListener('mousemove', onMove)
+                        document.addEventListener('mouseup', onUp)
+                      }}
+                    />
+                    <div
+                      className="embedded-browser-panel"
+                      style={{ width: embeddedBrowserWidth, flexBasis: embeddedBrowserWidth }}
+                    >
+                      <EmbeddedBrowserSidebar
+                        key={embeddedBrowserProfile}
+                        requestedUrl={embeddedBrowserUrl}
+                        browserProfile={embeddedBrowserProfile}
+                        onClose={() => {
+                          setShowEmbeddedBrowser(false)
+                          setEmbeddedBrowserUrl('')
+                          localStorage.setItem('knapsack.browser.sidebar.open', 'false')
                         }}
                       />
-                      <div
-                        className="embedded-browser-panel"
-                        style={{ width: embeddedBrowserWidth, flexBasis: embeddedBrowserWidth }}
-                      >
-                        <EmbeddedBrowserSidebar
-                          key={embeddedBrowserProfile}
-                          requestedUrl={embeddedBrowserUrl}
-                          browserProfile={embeddedBrowserProfile}
-                          onClose={() => {
-                            setShowEmbeddedBrowser(false)
-                            setEmbeddedBrowserUrl('')
-                            localStorage.setItem('knapsack.browser.sidebar.open', 'false')
-                          }}
-                        />
-                      </div>
-                    </>
-                  )}
-                  {!showEmbeddedBrowser && (feed.loggedEmailAutopilot || autopilotForceOpen) && (
-                    <EmailNotificationDrawer
-                      feed={feed}
-                      onGoToEmail={() => {
-                        feed.selectEmailCategory()
-                        setCurrentTab(TabChoices.Email)
-                      }}
-                      userEmail={userEmail}
-                      userName={userName}
-                      profileProvider={auth.profile?.provider}
-                      forceOpen={autopilotForceOpen}
-                      onForceOpenHandled={() => setAutopilotForceOpen(false)}
-                      isChatBusy={isChatBusy}
-                    />
-                  )}
-                  {embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen && (
-                    <button
-                      className="embedded-browser-launcher"
-                      type="button"
-                      title="Open browser"
-                      aria-label="Open browser"
-                      onClick={() => {
-                        setShowActivityPanel(false)
-                        setEmbeddedBrowserProfile(activeBrowserProfile)
-                        setShowEmbeddedBrowser(true)
-                        localStorage.setItem('knapsack.browser.sidebar.open', 'true')
-                      }}
-                    >
-                      Browser
-                    </button>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
+                {!showEmbeddedBrowser && (feed.loggedEmailAutopilot || autopilotForceOpen) && (
+                  <EmailNotificationDrawer
+                    feed={feed}
+                    onGoToEmail={() => {
+                      feed.selectEmailCategory()
+                      setCurrentTab(TabChoices.Email)
+                    }}
+                    userEmail={userEmail}
+                    userName={userName}
+                    profileProvider={auth.profile?.provider}
+                    forceOpen={autopilotForceOpen}
+                    onForceOpenHandled={() => setAutopilotForceOpen(false)}
+                    isChatBusy={isChatBusy}
+                  />
+                )}
+                {embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen && (
+                  <button
+                    className="embedded-browser-launcher"
+                    type="button"
+                    title="Open browser"
+                    aria-label="Open browser"
+                    onClick={() => {
+                      setShowActivityPanel(false)
+                      setEmbeddedBrowserProfile(activeBrowserProfile)
+                      setShowEmbeddedBrowser(true)
+                      localStorage.setItem('knapsack.browser.sidebar.open', 'true')
+                    }}
+                  >
+                    Browser
+                  </button>
+                )}
+              </div>
 
               {currentTab === TabChoices.Email && (
                 <EmailTabView
