@@ -80,9 +80,9 @@ export function createTeamAgent(agent: {
     suggestedPrompts: customSuggestedPrompts?.length
       ? customSuggestedPrompts
       : BUILT_IN_SUGGESTED_PROMPTS[id] || [
-          `Review my connected information as ${agent.name}, ${agent.personality}, and tell me what matters most.`,
-          `What is the highest-value action you can take for me today as ${agent.name}?`,
-        ],
+        `Review my connected information as ${agent.name}, ${agent.personality}, and tell me what matters most.`,
+        `What is the highest-value action you can take for me today as ${agent.name}?`,
+      ],
   }
 }
 
@@ -93,11 +93,10 @@ function normalizeTeamBrowserProfiles(agents: TeamAgent[]): TeamAgent[] {
       used.add(agent.browserProfile)
       return agent
     }
-    const preserved =
-      CUSTOM_AGENT_BROWSER_PROFILES.includes(agent.browserProfile) &&
-      !used.has(agent.browserProfile)
-        ? agent.browserProfile
-        : CUSTOM_AGENT_BROWSER_PROFILES.find(profile => !used.has(profile))
+    const preserved = CUSTOM_AGENT_BROWSER_PROFILES.includes(agent.browserProfile)
+      && !used.has(agent.browserProfile)
+      ? agent.browserProfile
+      : CUSTOM_AGENT_BROWSER_PROFILES.find(profile => !used.has(profile))
     const browserProfile = preserved || 'openclaw'
     used.add(browserProfile)
     return { ...agent, browserProfile }
@@ -133,16 +132,15 @@ export function defaultTeamRoster(): TeamAgent[] {
 }
 
 export function getPrimaryScout(agents: TeamAgent[]): TeamAgent {
-  const scout = agents.find(agent => agent.id === 'scout') ?? agents[0]
+  const scout =
+    agents.find(agent => agent.id === 'scout') ??
+    defaultTeamRoster().find(agent => agent.id === 'scout')
 
-  if (!scout) throw new Error('A Knapsack team must contain at least one agent')
+  if (!scout) throw new Error('Scout is missing from the default team roster')
   return scout
 }
 
 export function saveTeamRoster(agents: TeamAgent[]) {
-  if (agents.length === 0) {
-    throw new Error('Create another agent before removing your last teammate.')
-  }
   localStorage.setItem(TEAM_ROSTER_STORAGE, JSON.stringify(normalizeTeamBrowserProfiles(agents)))
   window.dispatchEvent(new CustomEvent('knapsack:team-roster-changed'))
 }

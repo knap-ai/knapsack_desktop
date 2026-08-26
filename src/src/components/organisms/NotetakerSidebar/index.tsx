@@ -5,9 +5,9 @@ import {
   createTeamAgent,
   createTeamGroup,
   getPrimaryScout,
-  nextCustomAgentBrowserProfile,
   saveTeamGroups,
   saveTeamRoster,
+  nextCustomAgentBrowserProfile,
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
@@ -41,7 +41,6 @@ interface NotetakerSidebarProps {
   activeAgentId?: string | null
   activeGroupId?: string | null
   onAgentSelect?: (agent: TeamAgent) => void
-  onAgentRemove?: (agent: TeamAgent) => void
   onGroupSelect?: (group: TeamGroup) => void
   onTeamChatSelect?: () => void
 }
@@ -220,7 +219,6 @@ function NotetakerSidebar({
   activeAgentId,
   activeGroupId,
   onAgentSelect,
-  onAgentRemove,
   onGroupSelect,
   onTeamChatSelect,
 }: NotetakerSidebarProps) {
@@ -230,7 +228,6 @@ function NotetakerSidebar({
   const [appVersion, setAppVersion] = useState<string>('')
   const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
   const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
-  const [agentPendingRemoval, setAgentPendingRemoval] = useState<TeamAgent | null>(null)
   const [teamPaneHeight, setTeamPaneHeight] = useState(() => {
     const stored = Number(localStorage.getItem('knapsack.sidebar.team-height'))
     return Number.isFinite(stored) && stored > 0 ? stored : 286
@@ -392,10 +389,10 @@ function NotetakerSidebar({
 
   const isNowMeeting = useCallback(
     (item: FeedItem) => {
-      const now = Date.now()
-      const start = item.timestamp.getTime()
-      const end = getMeetingEndTime(item)
-      return start <= now && now <= end
+    const now = Date.now()
+    const start = item.timestamp.getTime()
+    const end = getMeetingEndTime(item)
+    return start <= now && now <= end
     },
     [getMeetingEndTime],
   )
@@ -668,36 +665,23 @@ function NotetakerSidebar({
               </div>
             </div>
             <div className="notetaker-sidebar__team-list">
-              <div
+              <button
+                type="button"
                 className={`notetaker-sidebar__team-agent ${activeAgentId == null && activeGroupId == null ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                onClick={onTeamChatSelect}
+                aria-pressed={activeAgentId == null && activeGroupId == null}
               >
-                <button
-                  type="button"
-                  className="notetaker-sidebar__team-agent-select"
-                  onClick={onTeamChatSelect}
-                  aria-pressed={activeAgentId == null && activeGroupId == null}
-                >
-                  <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
-                    {primaryAgent.emoji}
-                  </span>
-                  <span className="notetaker-sidebar__team-copy">
-                    <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
-                    <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
-                  </span>
-                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">
-                    ›
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="notetaker-sidebar__team-remove"
-                  onClick={() => setAgentPendingRemoval(primaryAgent)}
-                  aria-label={`Remove ${primaryAgent.name}`}
-                  title={`Remove ${primaryAgent.name}`}
-                >
-                  ×
-                </button>
-              </div>
+                <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                  {primaryAgent.emoji}
+                </span>
+                <span className="notetaker-sidebar__team-copy">
+                  <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
+                  <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
+                </span>
+                <span className="notetaker-sidebar__team-chat" aria-hidden="true">
+                  ›
+                </span>
+              </button>
               {teamGroups.map(group => {
                 const members = group.agentIds
                   .map(id => teamAgents.find(agent => agent.id === id))
@@ -726,38 +710,25 @@ function NotetakerSidebar({
                 )
               })}
               {secondaryAgents.map(agent => (
-                <div
+                <button
+                  type="button"
                   key={agent.id}
                   className={`notetaker-sidebar__team-agent ${activeAgentId === agent.id ? 'notetaker-sidebar__team-agent--active' : ''}`}
+                  onClick={() => onAgentSelect?.(agent)}
+                  aria-pressed={activeAgentId === agent.id}
                 >
-                  <button
-                    type="button"
-                    className="notetaker-sidebar__team-agent-select"
-                    onClick={() => onAgentSelect?.(agent)}
-                    aria-pressed={activeAgentId === agent.id}
-                  >
-                    <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
-                      {agent.emoji}
-                      <span className="notetaker-sidebar__team-presence" />
-                    </span>
-                    <span className="notetaker-sidebar__team-copy">
-                      <span className="notetaker-sidebar__team-name">{agent.name}</span>
-                      <span className="notetaker-sidebar__team-role">{agent.personality}</span>
-                    </span>
-                    <span className="notetaker-sidebar__team-chat" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="notetaker-sidebar__team-remove"
-                    onClick={() => setAgentPendingRemoval(agent)}
-                    aria-label={`Remove ${agent.name}`}
-                    title={`Remove ${agent.name}`}
-                  >
-                    ×
-                  </button>
-                </div>
+                  <span className="notetaker-sidebar__team-avatar" aria-hidden="true">
+                    {agent.emoji}
+                    <span className="notetaker-sidebar__team-presence" />
+                  </span>
+                  <span className="notetaker-sidebar__team-copy">
+                    <span className="notetaker-sidebar__team-name">{agent.name}</span>
+                    <span className="notetaker-sidebar__team-role">{agent.personality}</span>
+                  </span>
+                  <span className="notetaker-sidebar__team-chat" aria-hidden="true">
+                    ›
+                  </span>
+                </button>
               ))}
             </div>
           </section>
@@ -782,369 +753,326 @@ function NotetakerSidebar({
         </div>
 
         <div className="notetaker-sidebar__meeting-pane">
-          {/* Connect calendar prompt */}
-          {!hasCalendarConnected && (
-            <div className="notetaker-sidebar__connect-prompt">
-              <div className="notetaker-sidebar__connect-prompt-icon">
-                <svg
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                  <line x1="12" y1="14" x2="12" y2="18" />
-                  <line x1="10" y1="16" x2="14" y2="16" />
-                </svg>
-              </div>
-              <div className="notetaker-sidebar__connect-prompt-title">Connect your calendar</div>
-              <div className="notetaker-sidebar__connect-prompt-desc">
-                See upcoming meetings and take notes automatically
-              </div>
-              <button className="notetaker-sidebar__connect-prompt-btn" onClick={onConnectCalendar}>
-                Connect calendar
-              </button>
+        {/* Connect calendar prompt */}
+        {!hasCalendarConnected && (
+          <div className="notetaker-sidebar__connect-prompt">
+            <div className="notetaker-sidebar__connect-prompt-icon">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <line x1="12" y1="14" x2="12" y2="18" />
+                <line x1="10" y1="16" x2="14" y2="16" />
+              </svg>
             </div>
-          )}
+            <div className="notetaker-sidebar__connect-prompt-title">Connect your calendar</div>
+            <div className="notetaker-sidebar__connect-prompt-desc">
+              See upcoming meetings and take notes automatically
+            </div>
+              <button className="notetaker-sidebar__connect-prompt-btn" onClick={onConnectCalendar}>
+              Connect calendar
+            </button>
+          </div>
+        )}
 
-          {/* Coming Up calendar widget */}
-          {hasCalendarConnected && Object.keys(upcomingEvents).length > 0 && (
-            <div className="notetaker-sidebar__coming-up">
-              <h2 className="notetaker-sidebar__section-title">Coming up</h2>
-              <div className="notetaker-sidebar__calendar-card">
-                {Object.entries(upcomingEvents)
-                  .slice(0, 5)
-                  .map(([dateStr, events]) => {
-                    const date = dayjs(dateStr)
-                    const isToday = date.isSame(dayjs(), 'day')
-                    const filteredEvents = isToday
-                      ? filterBySearch(events)
-                      : filterBySearch(events).slice(0, 4)
-                    if (filteredEvents.length === 0) return null
-                    return (
-                      <div key={dateStr} className="notetaker-sidebar__calendar-day">
-                        <div className="notetaker-sidebar__calendar-date">
-                          <span className="notetaker-sidebar__calendar-date-num">
-                            {date.format('D')}
+        {/* Coming Up calendar widget */}
+        {hasCalendarConnected && Object.keys(upcomingEvents).length > 0 && (
+          <div className="notetaker-sidebar__coming-up">
+            <h2 className="notetaker-sidebar__section-title">Coming up</h2>
+            <div className="notetaker-sidebar__calendar-card">
+              {Object.entries(upcomingEvents)
+                .slice(0, 5)
+                .map(([dateStr, events]) => {
+                  const date = dayjs(dateStr)
+                  const isToday = date.isSame(dayjs(), 'day')
+                  const filteredEvents = isToday
+                    ? filterBySearch(events)
+                    : filterBySearch(events).slice(0, 4)
+                  if (filteredEvents.length === 0) return null
+                  return (
+                    <div key={dateStr} className="notetaker-sidebar__calendar-day">
+                      <div className="notetaker-sidebar__calendar-date">
+                        <span className="notetaker-sidebar__calendar-date-num">
+                          {date.format('D')}
+                        </span>
+                        <div className="notetaker-sidebar__calendar-date-meta">
+                          <span className="notetaker-sidebar__calendar-month">
+                            {date.format('MMMM')}
                           </span>
-                          <div className="notetaker-sidebar__calendar-date-meta">
-                            <span className="notetaker-sidebar__calendar-month">
-                              {date.format('MMMM')}
-                            </span>
-                            {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
-                            <span className="notetaker-sidebar__calendar-day-name">
-                              {date.format('ddd')}
-                            </span>
-                          </div>
+                          {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
+                          <span className="notetaker-sidebar__calendar-day-name">
+                            {date.format('ddd')}
+                          </span>
                         </div>
-                        <div className="notetaker-sidebar__calendar-events">
-                          {filteredEvents.map(({ item, key }) => {
-                            const isNow = isNowMeeting(item)
-                            const title =
-                              typeof item.getTitle === 'function'
-                                ? item.getTitle()
-                                : item.title || ''
+                      </div>
+                      <div className="notetaker-sidebar__calendar-events">
+                        {filteredEvents.map(({ item, key }) => {
+                          const isNow = isNowMeeting(item)
+                          const title =
+                            typeof item.getTitle === 'function'
+                              ? item.getTitle()
+                              : item.title || ''
                             const isActivelyRecording =
                               recordingHandlers != null &&
-                              item.threads?.some(
+                            item.threads?.some(
                                 t =>
                                   t.threadType === ThreadType.MEETING_NOTES &&
                                   t.id != null &&
                                   recordingHandlers.isRecording(t.id),
-                              )
-                            return (
-                              <div
-                                key={item.id ?? `cal-${item.calendarEvent?.id ?? title}`}
-                                className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''} ${isActivelyRecording ? 'notetaker-sidebar__calendar-event--recording' : ''}`}
-                                onClick={() => {
-                                  if (item.id != null) {
-                                    feed.selectFeedItem(key, item.id)
-                                  } else if (item.calendarEvent) {
-                                    feed.openCalendarEvent(item.calendarEvent)
-                                  }
-                                  onMeetingSelect?.()
-                                  onTabChange(TabChoices.Meeting, 'meetings')
-                                }}
-                              >
+                            )
+                          return (
+                            <div
+                              key={item.id ?? `cal-${item.calendarEvent?.id ?? title}`}
+                              className={`notetaker-sidebar__calendar-event ${isNow ? 'notetaker-sidebar__calendar-event--now' : ''} ${isActivelyRecording ? 'notetaker-sidebar__calendar-event--recording' : ''}`}
+                              onClick={() => {
+                                if (item.id != null) {
+                                  feed.selectFeedItem(key, item.id)
+                                } else if (item.calendarEvent) {
+                                  feed.openCalendarEvent(item.calendarEvent)
+                                }
+                                onMeetingSelect?.()
+                                onTabChange(TabChoices.Meeting, 'meetings')
+                              }}
+                            >
                                 <div
                                   className={`notetaker-sidebar__calendar-event-bar ${isActivelyRecording ? 'notetaker-sidebar__calendar-event-bar--recording' : ''}`}
                                 />
-                                <div className="notetaker-sidebar__calendar-event-content">
-                                  <div className="notetaker-sidebar__calendar-event-title-row">
-                                    <div className="notetaker-sidebar__calendar-event-title">
-                                      {title}
-                                    </div>
+                              <div className="notetaker-sidebar__calendar-event-content">
+                                <div className="notetaker-sidebar__calendar-event-title-row">
+                                  <div className="notetaker-sidebar__calendar-event-title">
+                                    {title}
+                                  </div>
                                     {!isActivelyRecording &&
                                       item.threads?.some(
                                         t =>
                                           t.threadType === ThreadType.MEETING_NOTES && t.recorded,
-                                      ) && (
-                                        <svg
-                                          width="12"
-                                          height="12"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="#6474AC"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          className="notetaker-sidebar__note-has-notes"
-                                          aria-label="Has meeting notes"
-                                        >
-                                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                          <polyline points="14 2 14 8 20 8" />
-                                          <line x1="16" y1="13" x2="8" y2="13" />
-                                          <line x1="16" y1="17" x2="8" y2="17" />
-                                        </svg>
-                                      )}
-                                  </div>
-                                  <div className="notetaker-sidebar__calendar-event-time">
-                                    {isActivelyRecording ? (
-                                      <span className="notetaker-sidebar__recording-label">
-                                        <span className="notetaker-sidebar__recording-dot-pulse" />
-                                        Recording
-                                      </span>
-                                    ) : isNow ? (
-                                      <span className="notetaker-sidebar__now-label">
-                                        Now &middot;{' '}
-                                      </span>
-                                    ) : null}
-                                    {!isActivelyRecording && formatTimeRange(item)}
-                                    {isActivelyRecording && (
-                                      <span className="notetaker-sidebar__recording-time">
-                                        {' '}
-                                        &middot; {formatTimeRange(item)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {isNow && !isActivelyRecording && (
-                                    <button
-                                      className="notetaker-sidebar__start-now-btn"
-                                      onClick={async e => {
-                                        e.stopPropagation()
-                                        await feed.startCalendarMeeting(item)
-                                        onMeetingSelect?.()
-                                        onTabChange(TabChoices.Meeting, 'meetings')
-                                      }}
+                                  ) && (
+                                    <svg
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="#6474AC"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="notetaker-sidebar__note-has-notes"
+                                      aria-label="Has meeting notes"
                                     >
-                                      Start now
-                                    </button>
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                    </svg>
                                   )}
                                 </div>
+                                <div className="notetaker-sidebar__calendar-event-time">
+                                  {isActivelyRecording ? (
+                                    <span className="notetaker-sidebar__recording-label">
+                                      <span className="notetaker-sidebar__recording-dot-pulse" />
+                                      Recording
+                                    </span>
+                                  ) : isNow ? (
+                                    <span className="notetaker-sidebar__now-label">
+                                      Now &middot;{' '}
+                                    </span>
+                                  ) : null}
+                                  {!isActivelyRecording && formatTimeRange(item)}
+                                  {isActivelyRecording && (
+                                    <span className="notetaker-sidebar__recording-time">
+                                        {' '}
+                                        &middot; {formatTimeRange(item)}
+                                    </span>
+                                  )}
+                                </div>
+                                {isNow && !isActivelyRecording && (
+                                  <button
+                                    className="notetaker-sidebar__start-now-btn"
+                                    onClick={async e => {
+                                      e.stopPropagation()
+                                      await feed.startCalendarMeeting(item)
+                                      onMeetingSelect?.()
+                                      onTabChange(TabChoices.Meeting, 'meetings')
+                                    }}
+                                  >
+                                    Start now
+                                  </button>
+                                )}
                               </div>
-                            )
-                          })}
-                        </div>
+                            </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-              </div>
+                    </div>
+                  )
+                })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Library search results */}
-          {searchQuery.trim() && libraryResults.length > 0 && (
-            <div className="notetaker-sidebar__notes-group">
-              <div className="notetaker-sidebar__notes-date">Library</div>
-              {libraryResults.map(ws => (
-                <div
-                  key={ws.uuid}
-                  className="notetaker-sidebar__note-card"
-                  onClick={() => {
-                    onTabChange(TabChoices.Library)
-                    onLibraryWorkspaceOpen?.(ws)
-                  }}
-                >
-                  <div className="notetaker-sidebar__note-avatar notetaker-sidebar__note-avatar--library">
-                    {libraryIcon}
-                  </div>
-                  <div className="notetaker-sidebar__note-info">
-                    <div className="notetaker-sidebar__note-title">{ws.name}</div>
-                    {ws.description && (
-                      <div className="notetaker-sidebar__note-subtitle">{ws.description}</div>
-                    )}
-                  </div>
+        {/* Library search results */}
+        {searchQuery.trim() && libraryResults.length > 0 && (
+          <div className="notetaker-sidebar__notes-group">
+            <div className="notetaker-sidebar__notes-date">Library</div>
+            {libraryResults.map(ws => (
+              <div
+                key={ws.uuid}
+                className="notetaker-sidebar__note-card"
+                onClick={() => {
+                  onTabChange(TabChoices.Library)
+                  onLibraryWorkspaceOpen?.(ws)
+                }}
+              >
+                <div className="notetaker-sidebar__note-avatar notetaker-sidebar__note-avatar--library">
+                  {libraryIcon}
                 </div>
-              ))}
-            </div>
-          )}
+                <div className="notetaker-sidebar__note-info">
+                  <div className="notetaker-sidebar__note-title">{ws.name}</div>
+                  {ws.description && (
+                    <div className="notetaker-sidebar__note-subtitle">{ws.description}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-          {/* Past notes */}
-          {orderedPastKeys.map(dateKey => {
-            const items = filterBySearch(pastNotes[dateKey])
-            if (!items || items.length === 0) return null
-            if (!feed.isRecentDate(dateKey, true, false)) return null
-            return (
-              <div key={dateKey} className="notetaker-sidebar__notes-group">
-                <div className="notetaker-sidebar__notes-date">{dateKey}</div>
-                {items.map(({ item, key }) => {
-                  const isSelected = currentFeedItem?.id === item.id
-                  const title =
-                    typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
-                  const subtitle = item.getSubtitle?.() || ''
-                  const time = dayjs(item.timestamp).format('h:mm A')
-                  return (
-                    <div
-                      key={item.id ?? `note-${title}`}
-                      className={`notetaker-sidebar__note-card ${isSelected ? 'notetaker-sidebar__note-card--selected' : ''}`}
-                      onClick={() => {
-                        if (item.id != null) {
-                          feed.selectFeedItem(key, item.id)
-                          onMeetingSelect?.()
-                          onTabChange(TabChoices.Meeting, 'meetings')
-                        }
-                      }}
-                    >
-                      <div className="notetaker-sidebar__note-avatar">
-                        {title.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="notetaker-sidebar__note-info">
-                        <div className="notetaker-sidebar__note-title">{title}</div>
-                        {subtitle && (
-                          <div className="notetaker-sidebar__note-subtitle">{subtitle}</div>
-                        )}
-                      </div>
-                      <div className="notetaker-sidebar__note-meta">
-                        {item.threads?.some(
-                          t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
-                        ) && (
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="#6474AC"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="notetaker-sidebar__note-has-notes"
-                            aria-label="Has meeting notes"
-                          >
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="16" y1="13" x2="8" y2="13" />
-                            <line x1="16" y1="17" x2="8" y2="17" />
-                          </svg>
-                        )}
+        {/* Past notes */}
+        {orderedPastKeys.map(dateKey => {
+          const items = filterBySearch(pastNotes[dateKey])
+          if (!items || items.length === 0) return null
+          if (!feed.isRecentDate(dateKey, true, false)) return null
+          return (
+            <div key={dateKey} className="notetaker-sidebar__notes-group">
+              <div className="notetaker-sidebar__notes-date">{dateKey}</div>
+              {items.map(({ item, key }) => {
+                const isSelected = currentFeedItem?.id === item.id
+                const title =
+                  typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
+                const subtitle = item.getSubtitle?.() || ''
+                const time = dayjs(item.timestamp).format('h:mm A')
+                return (
+                  <div
+                    key={item.id ?? `note-${title}`}
+                    className={`notetaker-sidebar__note-card ${isSelected ? 'notetaker-sidebar__note-card--selected' : ''}`}
+                    onClick={() => {
+                      if (item.id != null) {
+                        feed.selectFeedItem(key, item.id)
+                        onMeetingSelect?.()
+                        onTabChange(TabChoices.Meeting, 'meetings')
+                      }
+                    }}
+                  >
+                    <div className="notetaker-sidebar__note-avatar">
+                      {title.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="notetaker-sidebar__note-info">
+                      <div className="notetaker-sidebar__note-title">{title}</div>
+                      {subtitle && (
+                        <div className="notetaker-sidebar__note-subtitle">{subtitle}</div>
+                      )}
+                    </div>
+                    <div className="notetaker-sidebar__note-meta">
+                      {item.threads?.some(
+                        t => t.threadType === ThreadType.MEETING_NOTES && t.recorded,
+                      ) && (
                         <svg
                           width="12"
                           height="12"
                           viewBox="0 0 24 24"
                           fill="none"
-                          stroke="currentColor"
+                          stroke="#6474AC"
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          className="notetaker-sidebar__note-lock"
+                          className="notetaker-sidebar__note-has-notes"
+                          aria-label="Has meeting notes"
                         >
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="16" y1="13" x2="8" y2="13" />
+                          <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
-                        <span className="notetaker-sidebar__note-time">{time}</span>
-                      </div>
+                      )}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="notetaker-sidebar__note-lock"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      <span className="notetaker-sidebar__note-time">{time}</span>
                     </div>
-                  )
-                })}
-              </div>
-            )
-          })}
-
-          {/* Today's notes without meeting threads */}
-          {(() => {
-            const todayKey = Object.keys(feed.feedContent || {}).find(k => k.includes('Today'))
-            if (!todayKey || !feed.feedContent[todayKey]) return null
-            const todayItems = filterBySearch(
-              feed.feedContent[todayKey]
-                .filter(item => !item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES))
-                .map(item => ({ item, key: todayKey })),
-            )
-            if (todayItems.length === 0) return null
-            return (
-              <div className="notetaker-sidebar__notes-group">
-                <div className="notetaker-sidebar__notes-date">Today</div>
-                {todayItems.map(({ item }) => {
-                  const isSelected = currentFeedItem?.id === item.id
-                  const title =
-                    typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
-                  const time = dayjs(item.timestamp).format('h:mm A')
-                  return (
-                    <div
-                      key={item.id}
-                      className={`notetaker-sidebar__note-card ${isSelected ? 'notetaker-sidebar__note-card--selected' : ''}`}
-                      onClick={() => {
-                        if (item.id != null) {
-                          feed.selectFeedItem(todayKey, item.id)
-                          onMeetingSelect?.()
-                          onTabChange(TabChoices.Meeting, 'meetings')
-                        }
-                      }}
-                    >
-                      <div className="notetaker-sidebar__note-avatar">
-                        {title.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="notetaker-sidebar__note-info">
-                        <div className="notetaker-sidebar__note-title">{title}</div>
-                      </div>
-                      <div className="notetaker-sidebar__note-meta">
-                        <span className="notetaker-sidebar__note-time">{time}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
-        </div>
-
-        {agentPendingRemoval && (
-          <div
-            className="notetaker-sidebar__composer-backdrop"
-            role="presentation"
-            onMouseDown={() => setAgentPendingRemoval(null)}
-          >
-            <div
-              className="notetaker-sidebar__remove-dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="remove-agent-title"
-              onMouseDown={event => event.stopPropagation()}
-            >
-              <h2 id="remove-agent-title">Remove {agentPendingRemoval.name}?</h2>
-              <p>
-                Their chat will disappear from Your Team. Existing browser data remains stored in
-                that agent profile.
-              </p>
-              {teamAgents.length === 1 && (
-                <p className="notetaker-sidebar__remove-warning">
-                  Create another agent first. Your team must always have at least one agent.
-                </p>
-              )}
-              <div className="notetaker-sidebar__remove-actions">
-                <button type="button" onClick={() => setAgentPendingRemoval(null)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="notetaker-sidebar__remove-confirm"
-                  disabled={teamAgents.length === 1}
-                  onClick={() => {
-                    onAgentRemove?.(agentPendingRemoval)
-                    setAgentPendingRemoval(null)
-                  }}
-                >
-                  Remove agent
-                </button>
-              </div>
+                  </div>
+                )
+              })}
             </div>
-          </div>
-        )}
+          )
+        })}
+
+        {/* Today's notes without meeting threads */}
+        {(() => {
+          const todayKey = Object.keys(feed.feedContent || {}).find(k => k.includes('Today'))
+          if (!todayKey || !feed.feedContent[todayKey]) return null
+          const todayItems = filterBySearch(
+            feed.feedContent[todayKey]
+              .filter(item => !item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES))
+              .map(item => ({ item, key: todayKey })),
+          )
+          if (todayItems.length === 0) return null
+          return (
+            <div className="notetaker-sidebar__notes-group">
+              <div className="notetaker-sidebar__notes-date">Today</div>
+              {todayItems.map(({ item }) => {
+                const isSelected = currentFeedItem?.id === item.id
+                const title =
+                  typeof item.getTitle === 'function' ? item.getTitle() : item.title || ''
+                const time = dayjs(item.timestamp).format('h:mm A')
+                return (
+                  <div
+                    key={item.id}
+                    className={`notetaker-sidebar__note-card ${isSelected ? 'notetaker-sidebar__note-card--selected' : ''}`}
+                    onClick={() => {
+                      if (item.id != null) {
+                        feed.selectFeedItem(todayKey, item.id)
+                        onMeetingSelect?.()
+                        onTabChange(TabChoices.Meeting, 'meetings')
+                      }
+                    }}
+                  >
+                    <div className="notetaker-sidebar__note-avatar">
+                      {title.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="notetaker-sidebar__note-info">
+                      <div className="notetaker-sidebar__note-title">{title}</div>
+                    </div>
+                    <div className="notetaker-sidebar__note-meta">
+                      <span className="notetaker-sidebar__note-time">{time}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+      </div>
       </div>
 
       {composerMode && (
