@@ -953,6 +953,7 @@ Required Slack settings:
   - reactions:write
   - usergroups:read
   - users:read
+  - users:read.email
 - Optional if available: chat:write.customize
 
 When finished:

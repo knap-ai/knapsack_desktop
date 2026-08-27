@@ -17,6 +17,7 @@
 //! response before relying on the sandbox-teardown path in production.
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -73,6 +74,44 @@ fn sanitize_session_id(session_id: &str) -> String {
     .collect()
 }
 
+/// Mirrors OpenClaw's `slugifySessionKey` for a session-scoped sandbox
+/// workspace (`agents/sandbox/shared.ts`). The model cannot see the opaque
+/// gateway session id, but it can see its own sandbox workspace basename,
+/// e.g. `agent-main-slack-default-direct--55a06add`. Matching that basename
+/// back to a Slack-verified scope key gives the MCP subprocess a request-local
+/// identity without ever accepting an email address supplied by the model.
+fn sandbox_workspace_slug(scope_key: &str) -> String {
+  let trimmed = scope_key.trim();
+  let value = if trimmed.is_empty() {
+    "session"
+  } else {
+    trimmed
+  };
+  let hash = format!("{:x}", Sha256::digest(value.as_bytes()));
+  let normalized: String = value
+    .to_ascii_lowercase()
+    .chars()
+    .map(|ch| {
+      if ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '.' | '_' | '-') {
+        ch
+      } else {
+        '-'
+      }
+    })
+    .collect();
+  let normalized = normalized.trim_matches('-');
+  let prefix: String = normalized.chars().take(32).collect();
+  format!(
+    "{}-{}",
+    if prefix.is_empty() {
+      "session"
+    } else {
+      &prefix
+    },
+    &hash[..8]
+  )
+}
+
 /// Written by the watcher when a new session appears; read by
 /// `snowflake_mcp.rs` on every tool call. Never written to inside the
 /// sandboxed workspace, never touches `dist/` or openclaw.json.
@@ -80,6 +119,58 @@ fn sanitize_session_id(session_id: &str) -> String {
 struct IdentityRecord {
   email: String,
   scope_key: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct IdentityFailureRecord {
+  message: String,
+}
+
+fn identity_failures_dir(clawdbot_home: &Path) -> Result<PathBuf, String> {
+  let dir = clawdbot_home.join("snowflake-identity-errors");
+  std::fs::create_dir_all(&dir)
+    .map_err(|error| format!("Unable to create snowflake-identity-errors dir: {error}"))?;
+  Ok(dir)
+}
+
+fn identity_failure_path(clawdbot_home: &Path, session_id: &str) -> Result<PathBuf, String> {
+  Ok(
+    identity_failures_dir(clawdbot_home)?.join(format!("{}.json", sanitize_session_id(session_id))),
+  )
+}
+
+fn write_identity_failure(
+  clawdbot_home: &Path,
+  session_id: &str,
+  message: &str,
+) -> Result<(), String> {
+  let path = identity_failure_path(clawdbot_home, session_id)?;
+  let json = serde_json::to_string(&IdentityFailureRecord {
+    message: message.to_string(),
+  })
+  .map_err(|error| error.to_string())?;
+  std::fs::write(&path, json)
+    .map_err(|error| format!("Unable to write {}: {error}", path.display()))
+}
+
+fn remove_identity_failure(clawdbot_home: &Path, session_id: &str) {
+  if let Ok(path) = identity_failure_path(clawdbot_home, session_id) {
+    let _ = std::fs::remove_file(path);
+  }
+}
+
+fn latest_identity_failure(clawdbot_home: &Path) -> Option<String> {
+  let entries = std::fs::read_dir(identity_failures_dir(clawdbot_home).ok()?).ok()?;
+  entries
+    .flatten()
+    .filter_map(|entry| {
+      let modified = entry.metadata().ok()?.modified().ok()?;
+      let raw = std::fs::read_to_string(entry.path()).ok()?;
+      let record: IdentityFailureRecord = serde_json::from_str(&raw).ok()?;
+      Some((modified, record.message))
+    })
+    .max_by_key(|(modified, _)| *modified)
+    .map(|(_, message)| message)
 }
 
 fn write_identity(
@@ -184,6 +275,20 @@ fn prune_stale_identities(clawdbot_home: &Path, live_session_ids: &HashSet<Strin
       }
     }
   }
+
+  if let Ok(dir) = identity_failures_dir(clawdbot_home) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+      for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+          continue;
+        };
+        if !live_stems.contains(stem) {
+          let _ = std::fs::remove_file(path);
+        }
+      }
+    }
+  }
 }
 
 /// Exact-key read. Kept for callers that genuinely hold a real gateway
@@ -227,11 +332,41 @@ pub(crate) fn resolve_authorized_session(
 
   let identities = list_identities(&clawdbot_home)?;
   if identities.is_empty() {
+    if let Some(message) = latest_identity_failure(&clawdbot_home) {
+      return Err(format!(
+        "No verified Slack session on record. Slack sender verification failed: {message}"
+      ));
+    }
     return Err(
       "No verified Slack session on record. Message the bot from Slack first so Knapsack can \
        verify the sender via the Slack API, then retry."
         .to_string(),
     );
+  }
+
+  // The stdio MCP runtime does not forward the gateway session id, but the
+  // model does know its request-scoped sandbox workspace basename. Resolve
+  // that basename only against independently verified scope keys. Refuse a
+  // collision rather than selecting one user.
+  if let Some(hint) = supplied.map(str::trim).filter(|hint| !hint.is_empty()) {
+    let basename = Path::new(hint)
+      .file_name()
+      .and_then(|name| name.to_str())
+      .unwrap_or(hint);
+    let matches: Vec<&StoredIdentity> = identities
+      .iter()
+      .filter(|identity| sandbox_workspace_slug(&identity.scope_key) == basename)
+      .collect();
+    if matches.len() == 1 {
+      let matched = matches[0];
+      return Ok((matched.email.clone(), matched.scope_key.clone()));
+    }
+    if matches.len() > 1 {
+      return Err(
+        "Cannot authorize this session: the sandbox workspace matched more than one verified Slack identity. Refusing rather than guessing."
+          .to_string(),
+      );
+    }
   }
 
   // Ambiguity is about *who*, not about how many records happen to be lying
@@ -302,9 +437,15 @@ fn extract_slack_sender(row: &Value) -> Option<(String, String)> {
   }
   let origin = row.get("origin")?;
   let account_id = extract_str(origin, &["accountId"]).unwrap_or("");
-  let slack_user_id =
-    extract_str(origin, &["nativeDirectUserId", "from"]).map(strip_provider_prefix)?;
-  if slack_user_id.is_empty() {
+  let raw_sender = extract_str(origin, &["nativeDirectUserId", "from"])?;
+  // Channel rows identify the channel in `origin.from`, not the human who
+  // sent the message. Treating C... as a user id both fails users.info and,
+  // more importantly, cannot prove which person initiated the request.
+  if raw_sender.to_ascii_lowercase().contains(":channel:") {
+    return None;
+  }
+  let slack_user_id = strip_provider_prefix(raw_sender);
+  if !matches!(slack_user_id.chars().next(), Some('U' | 'W')) {
     return None;
   }
   Some((account_id.to_string(), slack_user_id.to_string()))
@@ -348,19 +489,32 @@ async fn resolve_slack_email(
     .await
     .map_err(|error| format!("Invalid Slack users.info response: {error}"))?;
   if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
-    return Err(format!(
-      "Slack users.info failed: {}",
-      body
-        .get("error")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-    ));
+    return Err(slack_users_info_error(&body));
   }
   body
     .pointer("/user/profile/email")
     .and_then(|v| v.as_str())
     .map(|s| s.to_string())
     .ok_or_else(|| "Slack profile has no email on file".to_string())
+}
+
+fn slack_users_info_error(body: &Value) -> String {
+  if body.get("error").and_then(Value::as_str) == Some("missing_scope") {
+    let needed = body
+      .get("needed")
+      .and_then(Value::as_str)
+      .unwrap_or("users:read");
+    return format!(
+      "the Slack app is missing required bot scope {needed}. Add users:read and users:read.email under OAuth & Permissions, reinstall the app to the workspace, then message the bot again"
+    );
+  }
+  format!(
+    "Slack users.info failed: {}",
+    body
+      .get("error")
+      .and_then(Value::as_str)
+      .unwrap_or("unknown")
+  )
 }
 
 /// Select the token that belongs to the gateway session's Slack account.
@@ -612,10 +766,17 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
             if let Some(scope_key) = &scope_key {
               if let Err(error) = write_identity(&clawdbot_home, &session_id, &email, scope_key) {
                 eprintln!("[session_watcher] failed to write identity for {session_id}: {error}");
+              } else {
+                remove_identity_failure(&clawdbot_home, &session_id);
               }
             }
           }
           Err(error) => {
+            if let Err(write_error) = write_identity_failure(&clawdbot_home, &session_id, &error) {
+              eprintln!(
+                "[session_watcher] failed to persist Slack verification error for {session_id}: {write_error}"
+              );
+            }
             eprintln!(
               "[session_watcher] failed to resolve Slack email for session {session_id}: {error}"
             );
@@ -725,6 +886,40 @@ mod tests {
 
     let (email, _) = resolve_authorized_session(Some("real-session")).unwrap();
     assert_eq!(email, "exact@bankaya.com.mx");
+  }
+
+  #[test]
+  fn sandbox_workspace_slug_matches_openclaw_format() {
+    assert_eq!(
+      sandbox_workspace_slug("agent:main:slack:default:direct:u0asedsqp8f"),
+      "agent-main-slack-default-direct--55a06add"
+    );
+  }
+
+  #[test]
+  fn resolve_uses_request_sandbox_to_disambiguate_verified_users() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity(
+      tempdir.path(),
+      "session-mark",
+      "mark@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+    write_identity(
+      tempdir.path(),
+      "session-rogelio",
+      "rogelio@bankaya.com.mx",
+      "agent:main:slack:default:direct:utsp386jg",
+    )
+    .unwrap();
+
+    let (email, scope_key) =
+      resolve_authorized_session(Some("/workspace/agent-main-slack-default-direct--55a06add"))
+        .unwrap();
+    assert_eq!(email, "mark@bankaya.com.mx");
+    assert_eq!(scope_key, "agent:main:slack:default:direct:u0asedsqp8f");
   }
 
   /// The production failure mode: the hint is wrong (the model guessed its
@@ -876,6 +1071,49 @@ mod tests {
     let mut row = real_slack_direct_session_row();
     row["origin"]["from"] = serde_json::json!("slack:");
     assert!(extract_slack_sender(&row).is_none());
+  }
+
+  #[test]
+  fn extract_slack_sender_rejects_channel_rows() {
+    let row = serde_json::json!({
+      "key": "agent:main:slack:channel:c0b28r1jtum",
+      "sessionId": "channel-session",
+      "lastChannel": "slack",
+      "origin": {
+        "accountId": "scout",
+        "from": "slack:channel:C0B28R1JTUM"
+      }
+    });
+    assert!(extract_slack_sender(&row).is_none());
+  }
+
+  #[test]
+  fn resolve_surfaces_latest_slack_verification_failure() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity_failure(
+      tempdir.path(),
+      "failed-session",
+      "the Slack app is missing required bot scope users:read",
+    )
+    .unwrap();
+
+    let error = resolve_authorized_session(None).unwrap_err();
+    assert!(
+      error.contains("missing required bot scope users:read"),
+      "got: {error}"
+    );
+  }
+
+  #[test]
+  fn missing_slack_scope_error_is_actionable() {
+    let error = slack_users_info_error(&serde_json::json!({
+      "ok": false,
+      "error": "missing_scope",
+      "needed": "users:read"
+    }));
+    assert!(error.contains("users:read.email"));
+    assert!(error.contains("reinstall the app"));
   }
 
   #[test]
