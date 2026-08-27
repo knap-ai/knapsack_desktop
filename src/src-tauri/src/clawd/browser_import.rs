@@ -252,6 +252,44 @@ fn command_has_exact_argument(command: &str, argument: &str) -> bool {
   })
 }
 
+fn managed_browser_process_running_in_ps(commands: &str, target_root: &Path) -> bool {
+  let profile_arg = format!("--user-data-dir={}", target_root.to_string_lossy());
+  commands
+    .lines()
+    .any(|line| command_has_exact_argument(line, &profile_arg))
+}
+
+fn managed_browser_is_google_chrome_in_ps(
+  commands: &str,
+  target_root: &Path,
+  executable: &Path,
+) -> bool {
+  let profile_arg = format!("--user-data-dir={}", target_root.to_string_lossy());
+  let executable = executable.to_string_lossy();
+  commands.lines().any(|line| {
+    command_has_exact_argument(line, &profile_arg)
+      && command_has_exact_argument(line, executable.as_ref())
+  })
+}
+
+fn running_managed_browser_process(target_root: &Path) -> bool {
+  #[cfg(target_os = "macos")]
+  {
+    let Ok(output) = std::process::Command::new("ps")
+      .args(["-axo", "command="])
+      .output()
+    else {
+      return false;
+    };
+    return managed_browser_process_running_in_ps(
+      &String::from_utf8_lossy(&output.stdout),
+      target_root,
+    );
+  }
+  #[allow(unreachable_code)]
+  false
+}
+
 fn running_managed_browser_is_google_chrome(target_root: &Path, executable: &Path) -> bool {
   #[cfg(target_os = "macos")]
   {
@@ -261,13 +299,11 @@ fn running_managed_browser_is_google_chrome(target_root: &Path, executable: &Pat
     let Ok(output) = output else {
       return false;
     };
-    let commands = String::from_utf8_lossy(&output.stdout);
-    let profile_arg = format!("--user-data-dir={}", target_root.to_string_lossy());
-    let executable = executable.to_string_lossy();
-    return commands.lines().any(|line| {
-      command_has_exact_argument(line, &profile_arg)
-        && command_has_exact_argument(line, executable.as_ref())
-    });
+    return managed_browser_is_google_chrome_in_ps(
+      &String::from_utf8_lossy(&output.stdout),
+      target_root,
+      executable,
+    );
   }
   #[allow(unreachable_code)]
   false
@@ -280,6 +316,15 @@ fn can_safely_pin_google_chrome(
 ) -> Result<bool, String> {
   if !target_has_browser_secrets(target_root) {
     return Ok(true);
+  }
+  // The live process is authoritative whenever one owns this profile. A
+  // delayed config reload can leave disk pinned to Chrome while Brave/Edge is
+  // still running with secrets encrypted for that browser.
+  if running_managed_browser_process(target_root) {
+    return Ok(running_managed_browser_is_google_chrome(
+      target_root,
+      executable,
+    ));
   }
   match configured_managed_browser_executable(config_path)? {
     Some(configured) => Ok(configured == executable),
@@ -1158,6 +1203,25 @@ mod tests {
     assert!(command_has_exact_argument(&exact, chrome));
     assert!(command_has_exact_argument(&exact, profile));
     assert!(!command_has_exact_argument(&backup, profile));
+  }
+
+  #[test]
+  fn live_managed_browser_identity_overrides_persisted_config_assumptions() {
+    let target = Path::new("/tmp/Knapsack QA/browser/openclaw/user-data");
+    let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    let brave = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data";
+    assert!(managed_browser_process_running_in_ps(brave, target));
+    assert!(!managed_browser_is_google_chrome_in_ps(
+      brave, target, chrome
+    ));
+
+    let chrome_process = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data";
+    assert!(managed_browser_process_running_in_ps(chrome_process, target));
+    assert!(managed_browser_is_google_chrome_in_ps(
+      chrome_process,
+      target,
+      chrome
+    ));
   }
 
   #[test]
