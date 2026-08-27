@@ -1,18 +1,25 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
+use once_cell::sync::Lazy;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 
 use crate::clawd::{browser, gateway_client, service};
 
 const IMPORT_MARKER: &str = "chrome-import.json";
 static CHROME_IMPORT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static BROWSER_OPERATION_LOCK: Lazy<Arc<RwLock<()>>> =
+  Lazy::new(|| Arc::new(RwLock::new(())));
 
-struct ChromeImportGuard;
+struct ChromeImportGuard {
+  _permit: OwnedRwLockWriteGuard<()>,
+}
 
 impl Drop for ChromeImportGuard {
   fn drop(&mut self) {
@@ -20,15 +27,20 @@ impl Drop for ChromeImportGuard {
   }
 }
 
-fn begin_chrome_import() -> Result<ChromeImportGuard, String> {
+async fn begin_chrome_import() -> Result<ChromeImportGuard, String> {
   CHROME_IMPORT_IN_PROGRESS
     .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-    .map(|_| ChromeImportGuard)
-    .map_err(|_| "A Chrome import is already in progress".to_string())
+    .map_err(|_| "A Chrome import is already in progress".to_string())?;
+  let permit = BROWSER_OPERATION_LOCK.clone().write_owned().await;
+  Ok(ChromeImportGuard { _permit: permit })
 }
 
 pub(crate) fn chrome_import_in_progress() -> bool {
   CHROME_IMPORT_IN_PROGRESS.load(Ordering::Acquire)
+}
+
+pub(crate) async fn browser_operation_permit() -> OwnedRwLockReadGuard<()> {
+  BROWSER_OPERATION_LOCK.clone().read_owned().await
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -728,7 +740,7 @@ pub async fn import_chrome_data(
       message: "Google Chrome is not installed".to_string(),
     });
   };
-  let _import_guard = match begin_chrome_import() {
+  let _import_guard = match begin_chrome_import().await {
     Ok(guard) => guard,
     Err(message) => {
       return HttpResponse::Conflict().json(ChromeImportResponse {
@@ -779,15 +791,28 @@ pub async fn import_chrome_data(
   let profile_id = payload.profile_id.clone();
   let profile_query = serde_json::json!({"profile": "openclaw"});
   let _ =
-    gateway_client::browser_request("POST", "/stop", Some(profile_query.clone()), None, None).await;
+    gateway_client::browser_request_unlocked(
+      "POST",
+      "/stop",
+      Some(profile_query.clone()),
+      None,
+      None,
+    )
+    .await;
   let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
   tokio::time::sleep(Duration::from_millis(150)).await;
 
   let import_result =
     web::block(move || perform_import(&source_root, &target_root, &profile_id)).await;
   let start_query = serde_json::json!({"profile": "openclaw", "headless": embedded});
-  let restart_result =
-    gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await;
+  let restart_result = gateway_client::browser_request_unlocked(
+    "POST",
+    "/start",
+    Some(start_query),
+    None,
+    None,
+  )
+  .await;
 
   match import_result {
     Ok(Ok(marker)) => {
@@ -852,14 +877,21 @@ mod tests {
     assert!(!is_safe_profile_id("Guest Profile"));
   }
 
-  #[test]
-  fn chrome_import_guard_is_exclusive_and_releases_on_drop() {
-    let guard = begin_chrome_import().unwrap();
+  #[tokio::test]
+  async fn chrome_import_guard_is_exclusive_and_releases_on_drop() {
+    let guard = begin_chrome_import().await.unwrap();
     assert!(chrome_import_in_progress());
-    assert!(begin_chrome_import().is_err());
+    assert!(begin_chrome_import().await.is_err());
+    let waiting = tokio::spawn(async {
+      let _permit = browser_operation_permit().await;
+      true
+    });
+    tokio::task::yield_now().await;
+    assert!(!waiting.is_finished());
     drop(guard);
+    assert!(waiting.await.unwrap());
     assert!(!chrome_import_in_progress());
-    assert!(begin_chrome_import().is_ok());
+    assert!(begin_chrome_import().await.is_ok());
   }
 
   #[test]
