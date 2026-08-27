@@ -4,11 +4,32 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::clawd::{browser, gateway_client, service};
 
 const IMPORT_MARKER: &str = "chrome-import.json";
+static CHROME_IMPORT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+struct ChromeImportGuard;
+
+impl Drop for ChromeImportGuard {
+  fn drop(&mut self) {
+    CHROME_IMPORT_IN_PROGRESS.store(false, Ordering::Release);
+  }
+}
+
+fn begin_chrome_import() -> Result<ChromeImportGuard, String> {
+  CHROME_IMPORT_IN_PROGRESS
+    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+    .map(|_| ChromeImportGuard)
+    .map_err(|_| "A Chrome import is already in progress".to_string())
+}
+
+pub(crate) fn chrome_import_in_progress() -> bool {
+  CHROME_IMPORT_IN_PROGRESS.load(Ordering::Acquire)
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +181,95 @@ fn pin_managed_browser_to_google_chrome(
       .map_err(|error| format!("Could not encode browser configuration: {error}"))?,
   )
   .map_err(|error| format!("Could not select Google Chrome for the built-in browser: {error}"))
+}
+
+fn configured_managed_browser_executable(config_path: &Path) -> Result<Option<PathBuf>, String> {
+  if !config_path.exists() {
+    return Ok(None);
+  }
+  let raw = fs::read_to_string(config_path)
+    .map_err(|error| format!("Could not read browser configuration: {error}"))?;
+  let config: JsonValue = serde_json::from_str(&raw)
+    .map_err(|error| format!("Could not parse browser configuration: {error}"))?;
+  Ok(
+    config
+      .pointer("/browser/profiles/openclaw/executablePath")
+      .and_then(JsonValue::as_str)
+      .or_else(|| {
+        config
+          .pointer("/browser/executablePath")
+          .and_then(JsonValue::as_str)
+      })
+      .map(PathBuf::from),
+  )
+}
+
+fn target_has_browser_secrets(target_root: &Path) -> bool {
+  let profile = target_root.join("Default");
+  [
+    profile.join("Login Data"),
+    profile.join("Cookies"),
+    profile.join("Network").join("Cookies"),
+  ]
+  .iter()
+  .any(|path| path.is_file())
+}
+
+fn command_has_exact_argument(command: &str, argument: &str) -> bool {
+  command.match_indices(argument).any(|(start, _)| {
+    let before_is_boundary = start == 0
+      || command[..start]
+        .chars()
+        .next_back()
+        .is_some_and(char::is_whitespace);
+    let end = start + argument.len();
+    let after_is_boundary = end == command.len()
+      || command[end..]
+        .chars()
+        .next()
+        .is_some_and(char::is_whitespace);
+    before_is_boundary && after_is_boundary
+  })
+}
+
+fn running_managed_browser_is_google_chrome(target_root: &Path, executable: &Path) -> bool {
+  #[cfg(target_os = "macos")]
+  {
+    let output = std::process::Command::new("ps")
+      .args(["-axo", "command="])
+      .output();
+    let Ok(output) = output else {
+      return false;
+    };
+    let commands = String::from_utf8_lossy(&output.stdout);
+    let profile_arg = format!("--user-data-dir={}", target_root.to_string_lossy());
+    let executable = executable.to_string_lossy();
+    return commands
+      .lines()
+      .any(|line| {
+        command_has_exact_argument(line, &profile_arg)
+          && command_has_exact_argument(line, executable.as_ref())
+      });
+  }
+  #[allow(unreachable_code)]
+  false
+}
+
+fn can_safely_pin_google_chrome(
+  config_path: &Path,
+  target_root: &Path,
+  executable: &Path,
+) -> Result<bool, String> {
+  if !target_has_browser_secrets(target_root) {
+    return Ok(true);
+  }
+  match configured_managed_browser_executable(config_path)? {
+    Some(configured) => Ok(configured == executable),
+    None => Ok(running_managed_browser_is_google_chrome(
+      target_root,
+      executable,
+    )),
+  }
 }
 
 fn is_safe_profile_id(value: &str) -> bool {
@@ -618,10 +728,44 @@ pub async fn import_chrome_data(
       message: "Google Chrome is not installed".to_string(),
     });
   };
-  if let Err(message) = pin_managed_browser_to_google_chrome(
-    &browser::browser_config_path(&app_handle),
-    &chrome_executable,
-  ) {
+  let _import_guard = match begin_chrome_import() {
+    Ok(guard) => guard,
+    Err(message) => {
+      return HttpResponse::Conflict().json(ChromeImportResponse {
+        success: false,
+        passwords_imported: 0,
+        cookies_imported: 0,
+        imported_at: None,
+        message,
+      })
+    }
+  };
+  let target_root = browser::openclaw_user_data_dir(&app_handle);
+  let config_path = browser::browser_config_path(&app_handle);
+  match can_safely_pin_google_chrome(&config_path, &target_root, &chrome_executable) {
+    Ok(true) => {}
+    Ok(false) => {
+      return HttpResponse::Conflict().json(ChromeImportResponse {
+        success: false,
+        passwords_imported: 0,
+        cookies_imported: 0,
+        imported_at: None,
+        message: "The built-in browser already has saved sessions from another browser. Chrome import was stopped to preserve them. Clear or migrate that browser profile before importing Chrome data.".to_string(),
+      })
+    }
+    Err(message) => {
+      return HttpResponse::BadRequest().json(ChromeImportResponse {
+        success: false,
+        passwords_imported: 0,
+        cookies_imported: 0,
+        imported_at: None,
+        message,
+      })
+    }
+  }
+  if let Err(message) =
+    pin_managed_browser_to_google_chrome(&config_path, &chrome_executable)
+  {
     return HttpResponse::BadRequest().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
@@ -630,7 +774,6 @@ pub async fn import_chrome_data(
       message,
     });
   }
-  let target_root = browser::openclaw_user_data_dir(&app_handle);
   let managed_user_data_dir = target_root.clone();
   let embedded = browser::read_embedded_browser_preference(&app_handle);
   let profile_id = payload.profile_id.clone();
@@ -710,6 +853,16 @@ mod tests {
   }
 
   #[test]
+  fn chrome_import_guard_is_exclusive_and_releases_on_drop() {
+    let guard = begin_chrome_import().unwrap();
+    assert!(chrome_import_in_progress());
+    assert!(begin_chrome_import().is_err());
+    drop(guard);
+    assert!(!chrome_import_in_progress());
+    assert!(begin_chrome_import().is_ok());
+  }
+
+  #[test]
   fn supports_both_chrome_cookie_database_layouts() {
     let temp = tempfile::tempdir().unwrap();
     let legacy = temp.path().join("Cookies");
@@ -774,6 +927,46 @@ mod tests {
       config.pointer("/agents/defaults/model").and_then(JsonValue::as_str),
       Some("google/gemini-2.5-flash")
     );
+  }
+
+  #[test]
+  fn refuses_to_switch_an_existing_alternate_browser_profile() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("openclaw.json");
+    let target_root = temp.path().join("browser/openclaw/user-data");
+    fs::create_dir_all(target_root.join("Default/Network")).unwrap();
+    fs::write(target_root.join("Default/Network/Cookies"), []).unwrap();
+    fs::write(
+      &config_path,
+      serde_json::to_vec_pretty(&serde_json::json!({
+        "browser": {
+          "profiles": {
+            "openclaw": {
+              "executablePath": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+            }
+          }
+        }
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+    let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+
+    assert!(!can_safely_pin_google_chrome(&config_path, &target_root, chrome).unwrap());
+    fs::remove_file(target_root.join("Default/Network/Cookies")).unwrap();
+    assert!(can_safely_pin_google_chrome(&config_path, &target_root, chrome).unwrap());
+  }
+
+  #[test]
+  fn managed_browser_detection_requires_exact_process_arguments() {
+    let profile = "--user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data";
+    let chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    let exact = format!("{chrome} {profile} --remote-debugging-port=18800");
+    let backup = format!("{chrome} {profile}-backup --remote-debugging-port=18800");
+
+    assert!(command_has_exact_argument(&exact, chrome));
+    assert!(command_has_exact_argument(&exact, profile));
+    assert!(!command_has_exact_argument(&backup, profile));
   }
 
   #[test]

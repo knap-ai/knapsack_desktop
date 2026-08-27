@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::clawd::chat_agent;
+use crate::clawd::browser_import;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -287,6 +288,15 @@ fn desktop_browser_profile(profile: Option<&str>, chrome: Option<bool>) -> Resul
   } else {
     Err("profile must be openclaw or a valid agent-* profile".to_string())
   }
+}
+
+fn browser_import_conflict(profile: &str) -> Option<HttpResponse> {
+  (profile == "openclaw" && browser_import::chrome_import_in_progress()).then(|| {
+    HttpResponse::Conflict().json(serde_json::json!({
+      "success": false,
+      "message": "Chrome data is being imported. Browser controls will resume when the import finishes."
+    }))
+  })
 }
 
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
@@ -2203,6 +2213,9 @@ pub async fn open_browser(
       })
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
 
   // Try browser control via gateway RPC first
   let rpc_query = serde_json::json!({"profile": profile});
@@ -2310,6 +2323,9 @@ pub async fn navigate_browser(payload: web::Json<NavigateBrowserRequest>) -> imp
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
 
   match gateway_client::browser_request(
     "POST",
@@ -2428,6 +2444,9 @@ pub async fn set_browser_presentation(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<BrowserPresentationRequest>,
 ) -> impl Responder {
+  if let Some(response) = browser_import_conflict("openclaw") {
+    return response;
+  }
   let path = browser_config_path(&app_handle);
   if let Some(parent) = path.parent() {
     if let Err(error) = ensure_dir(parent) {
@@ -2589,6 +2608,9 @@ pub async fn focus_tab(
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2624,6 +2646,9 @@ pub async fn close_tab(
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2737,6 +2762,9 @@ pub async fn act(
     Ok(profile) => profile,
     Err(message) => return HttpResponse::BadRequest().body(message),
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let rpc_query = serde_json::json!({"profile": profile});
 
   // Forward body (minus chrome) to the gateway browser control.

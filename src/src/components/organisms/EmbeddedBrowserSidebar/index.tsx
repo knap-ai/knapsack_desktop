@@ -220,7 +220,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     }
     if (!changed) return
     const viewport = viewportRef.current
-    if (viewport) {
+    if (viewport && !chromeImportBusyRef.current) {
       const { width, height } = viewport.getBoundingClientRect()
       if (width >= 320 && height >= 240) {
         const browserViewport = desktopBrowserViewport(width, height)
@@ -327,7 +327,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
 
   const navigate = useCallback(
     async (value: string) => {
-      if (navigationPendingRef.current) return
+      if (chromeImportBusyRef.current || navigationPendingRef.current) return
       navigationPendingRef.current = true
       const url = normalizeBrowserUrl(value)
       setAddress(url)
@@ -369,6 +369,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   )
 
   const focusTab = async (tab: BrowserTab) => {
+    if (chromeImportBusyRef.current) return
     selectTarget(tab.targetId, tab)
     setIsLoading(true)
     setError('')
@@ -386,6 +387,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }
 
   const openNewTab = async () => {
+    if (chromeImportBusyRef.current) return
     setIsLoading(true)
     setError('')
     try {
@@ -414,6 +416,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }
 
   const closeTab = async (tab: BrowserTab) => {
+    if (chromeImportBusyRef.current) return
     const closingIndex = tabs.findIndex(candidate => candidate.targetId === tab.targetId)
     const fallback = tabs[closingIndex + 1] || tabs[closingIndex - 1]
     const closingActiveTab = tab.targetId === currentTargetIdRef.current
@@ -504,7 +507,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       const { width, height } = entries[0].contentRect
       window.clearTimeout(resizeTimerRef.current)
       resizeTimerRef.current = window.setTimeout(() => {
-        if (!currentTargetIdRef.current || width < 320 || height < 240) return
+        if (chromeImportBusyRef.current || !currentTargetIdRef.current || width < 320 || height < 240) return
         const browserViewport = desktopBrowserViewport(width, height)
         postBrowserAction({
           kind: 'resize',
@@ -527,7 +530,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }
 
   const runHistoryAction = async (action: 'back' | 'forward' | 'reload') => {
-    if (!currentTargetIdRef.current) return
+    if (chromeImportBusyRef.current || !currentTargetIdRef.current) return
     setIsLoading(true)
     const fn =
       action === 'back'
@@ -552,7 +555,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
 
   const handleViewportClick = async (event: MouseEvent<HTMLImageElement>) => {
     const image = imageRef.current
-    if (!image || !currentTargetIdRef.current) return
+    if (chromeImportBusyRef.current || !image || !currentTargetIdRef.current) return
     const rect = image.getBoundingClientRect()
     const naturalWidth = image.naturalWidth
     const naturalHeight = image.naturalHeight
@@ -579,7 +582,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }
 
   const handleViewportKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!currentTargetIdRef.current) return
+    if (chromeImportBusyRef.current || !currentTargetIdRef.current) return
     const allowedNamedKeys = new Set([
       'Backspace',
       'Delete',
@@ -617,7 +620,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }
 
   const handleViewportWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!currentTargetIdRef.current || wheelPendingRef.current) return
+    if (chromeImportBusyRef.current || !currentTargetIdRef.current || wheelPendingRef.current) return
     event.preventDefault()
     wheelPendingRef.current = true
     postBrowserAction({
@@ -645,6 +648,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
             aria-label="Back"
             title="Back"
             onClick={() => runHistoryAction('back')}
+            disabled={chromeImportBusy}
           >
             <ArrowLeftIcon />
           </button>
@@ -653,6 +657,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
             aria-label="Forward"
             title="Forward"
             onClick={() => runHistoryAction('forward')}
+            disabled={chromeImportBusy}
           >
             <ArrowRightIcon />
           </button>
@@ -661,6 +666,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
             aria-label="Reload"
             title="Reload"
             onClick={() => runHistoryAction('reload')}
+            disabled={chromeImportBusy}
           >
             <ArrowPathIcon className={isLoading ? 'is-spinning' : ''} />
           </button>
@@ -684,6 +690,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
               setAddress(currentUrl)
             }}
             spellCheck={false}
+            disabled={chromeImportBusy}
           />
         </form>
 
@@ -721,6 +728,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
                 aria-selected={tab.targetId === activeTargetId}
                 title={tab.title || tab.url || 'New tab'}
                 onClick={() => focusTab(tab)}
+                disabled={chromeImportBusy}
               >
                 <GlobeAltIcon />
                 <span>{tabLabel(tab)}</span>
@@ -731,6 +739,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
                 aria-label={`Close ${tabLabel(tab)}`}
                 title="Close tab"
                 onClick={() => closeTab(tab)}
+                disabled={chromeImportBusy}
               >
                 <XMarkIcon />
               </button>
@@ -743,6 +752,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
           aria-label="New tab"
           title="New tab"
           onClick={openNewTab}
+          disabled={chromeImportBusy}
         >
           +
         </button>
