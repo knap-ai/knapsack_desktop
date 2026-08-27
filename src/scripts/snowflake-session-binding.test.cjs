@@ -103,6 +103,21 @@ test("Snowflake call fails closed without gateway session context", async () => 
   );
 });
 
+test("identity-sensitive tools are omitted from runtimes without trusted scope", async () => {
+  const {
+    hasTrustedKnapsackSessionContext,
+    isKnapsackIdentitySensitiveTool,
+  } = await loadBinding();
+  assert.equal(hasTrustedKnapsackSessionContext(fakeRuntime()), true);
+  assert.equal(hasTrustedKnapsackSessionContext(fakeRuntime({ sessionKey: undefined })), false);
+  assert.equal(hasTrustedKnapsackSessionContext({ sessionId: "generated-id" }), false);
+  assert.equal(isKnapsackIdentitySensitiveTool("snowflake", "snowflake_query"), true);
+  assert.equal(isKnapsackIdentitySensitiveTool("studio", "list_connector_tools"), true);
+  assert.equal(isKnapsackIdentitySensitiveTool("studio", "call_connector_tool"), true);
+  assert.equal(isKnapsackIdentitySensitiveTool("studio", "other_tool"), false);
+  assert.equal(isKnapsackIdentitySensitiveTool("other", "snowflake_query"), false);
+});
+
 for (const toolName of ["list_connector_tools", "call_connector_tool"]) {
   test(`Studio ${toolName} is bound to trusted gateway session and scope`, async () => {
     const { bindKnapsackSessionContext } = await loadBinding();

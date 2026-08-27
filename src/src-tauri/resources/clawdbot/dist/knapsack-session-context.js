@@ -3,18 +3,29 @@
  * executing the current turn. These values are applied after model argument
  * generation, so model output cannot select or override another session.
  */
+export function isKnapsackIdentitySensitiveTool(serverName, toolName) {
+  return (serverName === "snowflake" && toolName === "snowflake_query") ||
+    (serverName === "studio" &&
+      (toolName === "list_connector_tools" || toolName === "call_connector_tool"));
+}
+
+export function hasTrustedKnapsackSessionContext(runtime) {
+  return Boolean(
+    typeof runtime?.sessionId === "string" && runtime.sessionId.trim() &&
+    typeof runtime?.sessionKey === "string" && runtime.sessionKey.trim(),
+  );
+}
+
 export function bindKnapsackSessionContext(params) {
   const input = params.input !== null && typeof params.input === "object" && !Array.isArray(params.input)
     ? params.input
     : {};
-  const requiresBinding =
-    (params.serverName === "snowflake" && params.toolName === "snowflake_query") ||
-    (params.serverName === "studio" &&
-      (params.toolName === "list_connector_tools" || params.toolName === "call_connector_tool"));
-  if (!requiresBinding) return input;
+  if (!isKnapsackIdentitySensitiveTool(params.serverName, params.toolName)) return input;
+  if (!hasTrustedKnapsackSessionContext(params.runtime)) {
+    throw new Error("Knapsack tool requires trusted gateway session context");
+  }
   const sessionId = typeof params.runtime.sessionId === "string" ? params.runtime.sessionId.trim() : "";
   const sessionKey = typeof params.runtime.sessionKey === "string" ? params.runtime.sessionKey.trim() : "";
-  if (!sessionId || !sessionKey) throw new Error("Knapsack tool requires trusted gateway session context");
   const bound = {
     ...input,
     _knapsack_session_id: sessionId,

@@ -4,7 +4,7 @@ import { o as setPluginToolMeta } from "./tools-KpflAzxD.js";
 import { n as normalizeReservedToolNames, t as buildSafeToolName } from "./pi-bundle-mcp-names-Dkhn57WY.js";
 import { t as normalizeToolParameterSchema } from "./pi-tools-parameter-schema-BAwZxS_A.js";
 import crypto from "node:crypto";
-import { bindKnapsackSessionContext } from "./knapsack-session-context.js";
+import { bindKnapsackSessionContext, hasTrustedKnapsackSessionContext, isKnapsackIdentitySensitiveTool } from "./knapsack-session-context.js";
 //#region src/agents/pi-bundle-mcp-materialize.ts
 function toAgentToolResult(params) {
 	const content = Array.isArray(params.result.content) ? params.result.content : [];
@@ -53,6 +53,7 @@ async function materializeBundleMcpToolsForRun(params) {
 	for (const tool of sortedCatalogTools) {
 		const originalName = tool.toolName.trim();
 		if (!originalName) continue;
+		if (isKnapsackIdentitySensitiveTool(tool.serverName, tool.toolName) && !hasTrustedKnapsackSessionContext(params.runtime)) continue;
 		const safeToolName = buildSafeToolName({
 			serverName: tool.safeServerName,
 			toolName: originalName,

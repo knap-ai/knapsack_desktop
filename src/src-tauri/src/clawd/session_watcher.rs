@@ -335,6 +335,19 @@ pub(crate) async fn resolve_bound_authorized_session_with_slack_context(
     .map(str::trim)
     .filter(|value| !value.is_empty())
   else {
+    // A shared Slack thread can be reused by several people. Its persisted
+    // identity is only an audit record for the most recent sender-aware call,
+    // never authorization for a background/continuation turn that lacks the
+    // current event sender.
+    if scope_key
+      .to_ascii_lowercase()
+      .contains(":slack:channel:")
+    {
+      return Err(
+        "Cannot authorize shared Slack request: missing trusted current event sender"
+          .to_string(),
+      );
+    }
     return resolve_bound_authorized_session(session_id, scope_key);
   };
   let workspace_id = workspace_id
@@ -1295,6 +1308,25 @@ mod tests {
     );
     let error = verified_slack_email_from_response(&body, Some("TOTHER")).unwrap_err();
     assert!(error.contains("refusing cross-workspace authorization"));
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn shared_slack_scope_never_reuses_a_stale_sender_without_event_context() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    let scope = "agent:main:slack:channel:c0blhtjkd2p:thread:1787861309.855509";
+    write_identity(tempdir.path(), "shared-session", "other@bankaya.com.mx", scope).unwrap();
+
+    let error = resolve_bound_authorized_session_with_slack_context(
+      "shared-session",
+      scope,
+      Some("default"),
+      None,
+      Some("TPWGB3059"),
+    )
+    .await
+    .unwrap_err();
+    assert!(error.contains("missing trusted current event sender"));
   }
 
   #[test]
