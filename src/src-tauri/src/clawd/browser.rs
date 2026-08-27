@@ -2447,6 +2447,14 @@ pub async fn set_browser_presentation(
   if let Some(response) = browser_import_conflict("openclaw") {
     return response;
   }
+  // Keep the presentation config write and its matching browser restart in
+  // one shared operation. Chrome import takes the exclusive side of this
+  // lock, so neither flow can overwrite the other's executable/headless
+  // settings between the check above and the restart below.
+  let _browser_operation = browser_import::browser_operation_permit().await;
+  if let Some(response) = browser_import_conflict("openclaw") {
+    return response;
+  }
   let path = browser_config_path(&app_handle);
   if let Some(parent) = path.parent() {
     if let Err(error) = ensure_dir(parent) {
@@ -2480,14 +2488,26 @@ pub async fn set_browser_presentation(
   harden_file_permissions(&path);
 
   let profile_query = serde_json::json!({"profile": "openclaw"});
-  let _ =
-    gateway_client::browser_request("POST", "/stop", Some(profile_query.clone()), None, None).await;
+  let _ = gateway_client::browser_request_unlocked(
+    "POST",
+    "/stop",
+    Some(profile_query.clone()),
+    None,
+    None,
+  )
+  .await;
   let start_query = serde_json::json!({
     "profile": "openclaw",
     "headless": payload.embedded,
   });
-  if let Err(error) =
-    gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await
+  if let Err(error) = gateway_client::browser_request_unlocked(
+    "POST",
+    "/start",
+    Some(start_query),
+    None,
+    None,
+  )
+  .await
   {
     if gateway_client::is_transient_browser_error(&error) {
       return HttpResponse::Accepted().json(BrowserPresentationResponse {

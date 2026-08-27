@@ -3220,8 +3220,8 @@ pub async fn browser_request(
 }
 
 /// Execute a browser RPC without taking the shared operation permit.
-/// Only Chrome import may call this while it already holds the exclusive
-/// browser-operation permit for its stop/copy/restart transaction.
+/// Callers must already hold either side of the browser-operation lock for
+/// their complete config/RPC transaction.
 pub(crate) async fn browser_request_unlocked(
   http_method: &str,
   path: &str,
