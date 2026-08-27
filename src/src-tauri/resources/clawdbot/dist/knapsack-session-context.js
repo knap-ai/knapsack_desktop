@@ -20,6 +20,12 @@ export function bindKnapsackSessionContext(params) {
     _knapsack_session_id: sessionId,
     _knapsack_scope_key: sessionKey,
   };
+  // Never preserve model-supplied Slack identity fields. A non-Slack turn has
+  // no trusted event sender to overwrite them with, so leaving them in place
+  // would let model output manufacture Slack authorization context.
+  delete bound._knapsack_slack_user_id;
+  delete bound._knapsack_slack_account_id;
+  delete bound._knapsack_slack_workspace_id;
   const slackUserId = typeof params.slackUserId === "string" ? params.slackUserId.trim() : "";
   const slackAccountId = typeof params.slackAccountId === "string" ? params.slackAccountId.trim() : "";
   const slackWorkspaceId = typeof params.slackWorkspaceId === "string" ? params.slackWorkspaceId.trim() : "";

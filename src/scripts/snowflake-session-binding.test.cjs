@@ -69,6 +69,26 @@ test("shared-channel call is bound to the exact trusted Slack event sender", asy
   assert.equal(bound._knapsack_slack_workspace_id, "TPWGB3059");
 });
 
+test("non-Slack calls strip model-supplied Slack identity fields", async () => {
+  const { bindKnapsackSessionContext } = await loadBinding();
+  const bound = bindKnapsackSessionContext({
+    serverName: "snowflake",
+    toolName: "snowflake_query",
+    runtime: fakeRuntime({ sessionId: "local-session", sessionKey: "agent:main:main" }),
+    input: {
+      query: "SELECT CURRENT_VERSION();",
+      _knapsack_slack_user_id: "UATTACKER",
+      _knapsack_slack_account_id: "attacker",
+      _knapsack_slack_workspace_id: "TATTACKER",
+    },
+  });
+  assert.equal(bound._knapsack_session_id, "local-session");
+  assert.equal(bound._knapsack_scope_key, "agent:main:main");
+  assert.equal(Object.hasOwn(bound, "_knapsack_slack_user_id"), false);
+  assert.equal(Object.hasOwn(bound, "_knapsack_slack_account_id"), false);
+  assert.equal(Object.hasOwn(bound, "_knapsack_slack_workspace_id"), false);
+});
+
 test("Snowflake call fails closed without gateway session context", async () => {
   const { bindKnapsackSessionContext } = await loadBinding();
   const runtime = fakeRuntime({ sessionKey: undefined });
