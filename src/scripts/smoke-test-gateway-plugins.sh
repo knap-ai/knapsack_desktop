@@ -21,13 +21,31 @@ STATE_DIR=""
 LOG_FILE=""
 GW_PID=""
 
+remove_temp_path() {
+  local path="$1"
+  local attempt
+
+  [[ -z "$path" ]] && return 0
+
+  # Gateway child processes can finish flushing state just after the parent
+  # exits. macOS rm may report ENOTEMPTY during that narrow race, so retry the
+  # best-effort cleanup without turning a successful smoke test into a failure.
+  for attempt in 1 2 3 4 5; do
+    rm -rf "$path" 2>/dev/null && return 0
+    sleep 0.2
+  done
+
+  echo "[smoke-test] WARN: could not remove temporary path: $path" >&2
+  return 0
+}
+
 cleanup() {
   if [[ -n "$GW_PID" ]]; then
     kill "$GW_PID" 2>/dev/null || true
     wait "$GW_PID" 2>/dev/null || true
   fi
-  [[ -n "$STATE_DIR" ]] && rm -rf "$STATE_DIR"
-  [[ -n "$LOG_FILE"  ]] && rm -f  "$LOG_FILE"
+  remove_temp_path "$STATE_DIR"
+  remove_temp_path "$LOG_FILE"
 }
 trap cleanup EXIT
 
