@@ -14,8 +14,7 @@ use crate::clawd::{browser, gateway_client, service};
 
 const IMPORT_MARKER: &str = "chrome-import.json";
 static CHROME_IMPORT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
-static BROWSER_OPERATION_LOCK: Lazy<Arc<RwLock<()>>> =
-  Lazy::new(|| Arc::new(RwLock::new(())));
+static BROWSER_OPERATION_LOCK: Lazy<Arc<RwLock<()>>> = Lazy::new(|| Arc::new(RwLock::new(())));
 
 struct ChromeImportGuard {
   _permit: OwnedRwLockWriteGuard<()>,
@@ -179,6 +178,15 @@ fn pin_managed_browser_to_google_chrome(
     .or_insert_with(|| serde_json::json!({}))
     .as_object_mut()
     .ok_or_else(|| "The openclaw browser profile must contain a JSON object".to_string())?;
+  // A named OpenClaw browser profile is not valid with only an executable.
+  // Keep existing decorations/ports and supply the required defaults when
+  // Chrome import creates the profile for the first time.
+  openclaw
+    .entry("cdpPort".to_string())
+    .or_insert_with(|| serde_json::json!(18800));
+  openclaw
+    .entry("color".to_string())
+    .or_insert_with(|| serde_json::json!("#FF4500"));
   openclaw.insert(
     "executablePath".to_string(),
     JsonValue::String(executable.to_string_lossy().to_string()),
@@ -256,12 +264,10 @@ fn running_managed_browser_is_google_chrome(target_root: &Path, executable: &Pat
     let commands = String::from_utf8_lossy(&output.stdout);
     let profile_arg = format!("--user-data-dir={}", target_root.to_string_lossy());
     let executable = executable.to_string_lossy();
-    return commands
-      .lines()
-      .any(|line| {
-        command_has_exact_argument(line, &profile_arg)
-          && command_has_exact_argument(line, executable.as_ref())
-      });
+    return commands.lines().any(|line| {
+      command_has_exact_argument(line, &profile_arg)
+        && command_has_exact_argument(line, executable.as_ref())
+    });
   }
   #[allow(unreachable_code)]
   false
@@ -282,6 +288,60 @@ fn can_safely_pin_google_chrome(
       executable,
     )),
   }
+}
+
+fn managed_chrome_runtime_patch(executable: &Path) -> JsonValue {
+  let executable = executable.to_string_lossy().to_string();
+  serde_json::json!({
+    "browser": {
+      "executablePath": executable,
+      "profiles": {
+        "openclaw": {
+          "cdpPort": 18800,
+          "color": "#FF4500",
+          "executablePath": executable
+        }
+      }
+    }
+  })
+}
+
+async fn request_managed_chrome_runtime(executable: &Path) -> Result<(), String> {
+  let snapshot = gateway_client::config_get(None)
+    .await
+    .map_err(|error| format!("Could not read the active browser configuration: {error}"))?;
+  let base_hash = snapshot
+    .pointer("/hash")
+    .or_else(|| snapshot.pointer("/baseHash"))
+    .and_then(JsonValue::as_str)
+    .filter(|value| !value.trim().is_empty())
+    .ok_or_else(|| {
+      "The active browser configuration did not include a revision hash".to_string()
+    })?;
+  let raw = managed_chrome_runtime_patch(executable).to_string();
+  let patch_result = gateway_client::config_patch(&raw, base_hash, None).await;
+  // An accepted config.patch can close the connection before returning while
+  // the gateway restarts. Invalidate either way and rely on the executable
+  // preflight below as the source of truth before any database is touched.
+  gateway_client::invalidate();
+  if let Err(error) = patch_result {
+    eprintln!(
+      "[browser_import] runtime Chrome config patch ended during reload: {}",
+      error
+    );
+  }
+  tokio::time::sleep(Duration::from_millis(750)).await;
+  Ok(())
+}
+
+async fn wait_for_managed_google_chrome(target_root: &Path, executable: &Path) -> bool {
+  for _ in 0..20 {
+    if running_managed_browser_is_google_chrome(target_root, executable) {
+      return true;
+    }
+    tokio::time::sleep(Duration::from_millis(250)).await;
+  }
+  false
 }
 
 fn is_safe_profile_id(value: &str) -> bool {
@@ -775,9 +835,7 @@ pub async fn import_chrome_data(
       })
     }
   }
-  if let Err(message) =
-    pin_managed_browser_to_google_chrome(&config_path, &chrome_executable)
-  {
+  if let Err(message) = pin_managed_browser_to_google_chrome(&config_path, &chrome_executable) {
     return HttpResponse::BadRequest().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
@@ -790,29 +848,62 @@ pub async fn import_chrome_data(
   let embedded = browser::read_embedded_browser_preference(&app_handle);
   let profile_id = payload.profile_id.clone();
   let profile_query = serde_json::json!({"profile": "openclaw"});
-  let _ =
-    gateway_client::browser_request_unlocked(
-      "POST",
-      "/stop",
-      Some(profile_query.clone()),
-      None,
-      None,
-    )
-    .await;
-  let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
-  tokio::time::sleep(Duration::from_millis(150)).await;
-
-  let import_result =
-    web::block(move || perform_import(&source_root, &target_root, &profile_id)).await;
-  let start_query = serde_json::json!({"profile": "openclaw", "headless": embedded});
-  let restart_result = gateway_client::browser_request_unlocked(
+  let _ = gateway_client::browser_request_unlocked(
     "POST",
-    "/start",
-    Some(start_query),
+    "/stop",
+    Some(profile_query.clone()),
     None,
     None,
   )
   .await;
+  let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
+  tokio::time::sleep(Duration::from_millis(150)).await;
+
+  if let Err(message) = request_managed_chrome_runtime(&chrome_executable).await {
+    return HttpResponse::ServiceUnavailable().json(ChromeImportResponse {
+      success: false,
+      passwords_imported: 0,
+      cookies_imported: 0,
+      imported_at: None,
+      message,
+    });
+  }
+  let start_query = serde_json::json!({"profile": "openclaw", "headless": embedded});
+  let preflight_start = gateway_client::browser_request_unlocked(
+    "POST",
+    "/start",
+    Some(start_query.clone()),
+    None,
+    None,
+  )
+  .await;
+  let chrome_verified = preflight_start.is_ok()
+    && wait_for_managed_google_chrome(&target_root, &chrome_executable).await;
+  let _ = gateway_client::browser_request_unlocked(
+    "POST",
+    "/stop",
+    Some(profile_query.clone()),
+    None,
+    None,
+  )
+  .await;
+  let managed_user_data_dir = target_root.clone();
+  let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
+  if !chrome_verified {
+    return HttpResponse::ServiceUnavailable().json(ChromeImportResponse {
+      success: false,
+      passwords_imported: 0,
+      cookies_imported: 0,
+      imported_at: None,
+      message: "Google Chrome could not be activated for the built-in browser. No Chrome data was imported; restart Knapsack and try again.".to_string(),
+    });
+  }
+  tokio::time::sleep(Duration::from_millis(150)).await;
+
+  let import_result =
+    web::block(move || perform_import(&source_root, &target_root, &profile_id)).await;
+  let restart_result =
+    gateway_client::browser_request_unlocked("POST", "/start", Some(start_query), None, None).await;
 
   match import_result {
     Ok(Ok(marker)) => {
@@ -933,14 +1024,17 @@ mod tests {
 
     pin_managed_browser_to_google_chrome(&config_path, chrome).unwrap();
 
-    let config: JsonValue =
-      serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    let config: JsonValue = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
     assert_eq!(
-      config.pointer("/browser/executablePath").and_then(JsonValue::as_str),
+      config
+        .pointer("/browser/executablePath")
+        .and_then(JsonValue::as_str),
       chrome.to_str()
     );
     assert_eq!(
-      config.pointer("/browser/headless").and_then(JsonValue::as_bool),
+      config
+        .pointer("/browser/headless")
+        .and_then(JsonValue::as_bool),
       Some(true)
     );
     assert_eq!(
@@ -956,8 +1050,40 @@ mod tests {
       Some("#CC4B4B")
     );
     assert_eq!(
-      config.pointer("/agents/defaults/model").and_then(JsonValue::as_str),
+      config
+        .pointer("/browser/profiles/openclaw/cdpPort")
+        .and_then(JsonValue::as_u64),
+      Some(18800)
+    );
+    assert_eq!(
+      config
+        .pointer("/agents/defaults/model")
+        .and_then(JsonValue::as_str),
       Some("google/gemini-2.5-flash")
+    );
+  }
+
+  #[test]
+  fn creates_a_schema_complete_openclaw_profile_when_pinning_chrome() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("openclaw.json");
+    fs::write(&config_path, b"{}").unwrap();
+    let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+
+    pin_managed_browser_to_google_chrome(&config_path, chrome).unwrap();
+
+    let config: JsonValue = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    assert_eq!(
+      config
+        .pointer("/browser/profiles/openclaw/cdpPort")
+        .and_then(JsonValue::as_u64),
+      Some(18800)
+    );
+    assert_eq!(
+      config
+        .pointer("/browser/profiles/openclaw/color")
+        .and_then(JsonValue::as_str),
+      Some("#FF4500")
     );
   }
 
@@ -987,6 +1113,36 @@ mod tests {
     assert!(!can_safely_pin_google_chrome(&config_path, &target_root, chrome).unwrap());
     fs::remove_file(target_root.join("Default/Network/Cookies")).unwrap();
     assert!(can_safely_pin_google_chrome(&config_path, &target_root, chrome).unwrap());
+  }
+
+  #[test]
+  fn runtime_patch_pins_global_and_openclaw_profile_executables() {
+    let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    let patch = managed_chrome_runtime_patch(chrome);
+    assert_eq!(
+      patch
+        .pointer("/browser/executablePath")
+        .and_then(JsonValue::as_str),
+      chrome.to_str()
+    );
+    assert_eq!(
+      patch
+        .pointer("/browser/profiles/openclaw/executablePath")
+        .and_then(JsonValue::as_str),
+      chrome.to_str()
+    );
+    assert_eq!(
+      patch
+        .pointer("/browser/profiles/openclaw/cdpPort")
+        .and_then(JsonValue::as_u64),
+      Some(18800)
+    );
+    assert_eq!(
+      patch
+        .pointer("/browser/profiles/openclaw/color")
+        .and_then(JsonValue::as_str),
+      Some("#FF4500")
+    );
   }
 
   #[test]
