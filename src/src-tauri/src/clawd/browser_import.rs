@@ -389,6 +389,23 @@ async fn wait_for_managed_google_chrome(target_root: &Path, executable: &Path) -
   false
 }
 
+async fn restart_managed_browser_after_failed_import(start_query: &JsonValue) {
+  if let Err(error) = gateway_client::browser_request_unlocked(
+    "POST",
+    "/start",
+    Some(start_query.clone()),
+    None,
+    None,
+  )
+  .await
+  {
+    eprintln!(
+      "[browser_import] could not restore the managed browser after a failed import: {}",
+      error
+    );
+  }
+}
+
 fn is_safe_profile_id(value: &str) -> bool {
   value == "Default"
     || value
@@ -884,6 +901,7 @@ pub async fn import_chrome_data(
   let embedded = browser::read_embedded_browser_preference(&app_handle);
   let profile_id = payload.profile_id.clone();
   let profile_query = serde_json::json!({"profile": "openclaw"});
+  let start_query = serde_json::json!({"profile": "openclaw", "headless": embedded});
   let _ = gateway_client::browser_request_unlocked(
     "POST",
     "/stop",
@@ -896,6 +914,7 @@ pub async fn import_chrome_data(
   tokio::time::sleep(Duration::from_millis(150)).await;
 
   if let Err(message) = request_managed_chrome_runtime(&chrome_executable).await {
+    restart_managed_browser_after_failed_import(&start_query).await;
     return HttpResponse::ServiceUnavailable().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
@@ -908,6 +927,7 @@ pub async fn import_chrome_data(
   // before config.patch would make the patch appear unchanged and could leave
   // a previously-running alternate Chromium executable active until restart.
   if let Err(message) = pin_managed_browser_to_google_chrome(&config_path, &chrome_executable) {
+    restart_managed_browser_after_failed_import(&start_query).await;
     return HttpResponse::BadRequest().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
@@ -916,7 +936,6 @@ pub async fn import_chrome_data(
       message,
     });
   }
-  let start_query = serde_json::json!({"profile": "openclaw", "headless": embedded});
   let preflight_start = gateway_client::browser_request_unlocked(
     "POST",
     "/start",
@@ -938,6 +957,7 @@ pub async fn import_chrome_data(
   let managed_user_data_dir = target_root.clone();
   let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
   if !chrome_verified {
+    restart_managed_browser_after_failed_import(&start_query).await;
     return HttpResponse::ServiceUnavailable().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
@@ -1216,7 +1236,10 @@ mod tests {
     ));
 
     let chrome_process = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data";
-    assert!(managed_browser_process_running_in_ps(chrome_process, target));
+    assert!(managed_browser_process_running_in_ps(
+      chrome_process,
+      target
+    ));
     assert!(managed_browser_is_google_chrome_in_ps(
       chrome_process,
       target,
