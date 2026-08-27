@@ -90,6 +90,64 @@ fn chrome_user_data_dir() -> Option<PathBuf> {
   None
 }
 
+fn google_chrome_executable() -> Option<PathBuf> {
+  #[cfg(target_os = "macos")]
+  {
+    let mut candidates = vec![PathBuf::from(
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    )];
+    if let Some(home) = dirs::home_dir() {
+      candidates.push(
+        home
+          .join("Applications")
+          .join("Google Chrome.app")
+          .join("Contents")
+          .join("MacOS")
+          .join("Google Chrome"),
+      );
+    }
+    return candidates.into_iter().find(|candidate| candidate.is_file());
+  }
+  #[allow(unreachable_code)]
+  None
+}
+
+fn pin_managed_browser_to_google_chrome(
+  config_path: &Path,
+  executable: &Path,
+) -> Result<(), String> {
+  let mut config = if config_path.exists() {
+    let raw = fs::read_to_string(config_path)
+      .map_err(|error| format!("Could not read browser configuration: {error}"))?;
+    serde_json::from_str::<JsonValue>(&raw)
+      .map_err(|error| format!("Could not parse browser configuration: {error}"))?
+  } else {
+    serde_json::json!({})
+  };
+  let root = config
+    .as_object_mut()
+    .ok_or_else(|| "Browser configuration must contain a JSON object".to_string())?;
+  let browser = root
+    .entry("browser".to_string())
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut()
+    .ok_or_else(|| "Browser configuration must contain a browser object".to_string())?;
+  browser.insert(
+    "executablePath".to_string(),
+    JsonValue::String(executable.to_string_lossy().to_string()),
+  );
+  if let Some(parent) = config_path.parent() {
+    fs::create_dir_all(parent)
+      .map_err(|error| format!("Could not prepare browser configuration: {error}"))?;
+  }
+  fs::write(
+    config_path,
+    serde_json::to_vec_pretty(&config)
+      .map_err(|error| format!("Could not encode browser configuration: {error}"))?,
+  )
+  .map_err(|error| format!("Could not select Google Chrome for the built-in browser: {error}"))
+}
+
 fn is_safe_profile_id(value: &str) -> bool {
   value == "Default"
     || value
@@ -500,6 +558,15 @@ pub async fn chrome_import_status(app_handle: web::Data<tauri::AppHandle>) -> im
       message: Some("Chrome import is not supported on this platform yet".to_string()),
     });
   };
+  if google_chrome_executable().is_none() {
+    return HttpResponse::Ok().json(ChromeImportStatus {
+      available: false,
+      supported: false,
+      profiles: Vec::new(),
+      imported_at,
+      message: Some("Google Chrome is not installed".to_string()),
+    });
+  }
   let profiles = chrome_profiles(&root);
   HttpResponse::Ok().json(ChromeImportStatus {
     available: !profiles.is_empty(),
@@ -528,6 +595,27 @@ pub async fn import_chrome_data(
       message: "Chrome import is not supported on this platform yet".to_string(),
     });
   };
+  let Some(chrome_executable) = google_chrome_executable() else {
+    return HttpResponse::NotImplemented().json(ChromeImportResponse {
+      success: false,
+      passwords_imported: 0,
+      cookies_imported: 0,
+      imported_at: None,
+      message: "Google Chrome is not installed".to_string(),
+    });
+  };
+  if let Err(message) = pin_managed_browser_to_google_chrome(
+    &browser::browser_config_path(&app_handle),
+    &chrome_executable,
+  ) {
+    return HttpResponse::BadRequest().json(ChromeImportResponse {
+      success: false,
+      passwords_imported: 0,
+      cookies_imported: 0,
+      imported_at: None,
+      message,
+    });
+  }
   let target_root = browser::openclaw_user_data_dir(&app_handle);
   let managed_user_data_dir = target_root.clone();
   let embedded = browser::read_embedded_browser_preference(&app_handle);
@@ -618,6 +706,42 @@ mod tests {
     fs::create_dir_all(network.parent().unwrap()).unwrap();
     fs::write(&network, []).unwrap();
     assert_eq!(cookie_database(temp.path()), network);
+  }
+
+  #[test]
+  fn pins_the_managed_browser_to_google_chrome_without_losing_browser_settings() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_path = temp.path().join("openclaw.json");
+    fs::write(
+      &config_path,
+      serde_json::to_vec_pretty(&serde_json::json!({
+        "browser": {
+          "headless": true,
+          "executablePath": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+        },
+        "agents": {"defaults": {"model": "google/gemini-2.5-flash"}}
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+    let chrome = Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+
+    pin_managed_browser_to_google_chrome(&config_path, chrome).unwrap();
+
+    let config: JsonValue =
+      serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    assert_eq!(
+      config.pointer("/browser/executablePath").and_then(JsonValue::as_str),
+      chrome.to_str()
+    );
+    assert_eq!(
+      config.pointer("/browser/headless").and_then(JsonValue::as_bool),
+      Some(true)
+    );
+    assert_eq!(
+      config.pointer("/agents/defaults/model").and_then(JsonValue::as_str),
+      Some("google/gemini-2.5-flash")
+    );
   }
 
   #[test]

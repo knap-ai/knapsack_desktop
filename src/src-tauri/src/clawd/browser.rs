@@ -2344,7 +2344,7 @@ pub struct BrowserPresentationRequest {
   pub embedded: bool,
 }
 
-fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
+pub(crate) fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
   let home = app_clawdbot_home(app_handle);
   let current = home.join("openclaw.json");
   let legacy = home.join("clawdbot.json");
