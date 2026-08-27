@@ -136,6 +136,20 @@ fn pin_managed_browser_to_google_chrome(
     "executablePath".to_string(),
     JsonValue::String(executable.to_string_lossy().to_string()),
   );
+  let profiles = browser
+    .entry("profiles".to_string())
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut()
+    .ok_or_else(|| "Browser configuration profiles must contain a JSON object".to_string())?;
+  let openclaw = profiles
+    .entry("openclaw".to_string())
+    .or_insert_with(|| serde_json::json!({}))
+    .as_object_mut()
+    .ok_or_else(|| "The openclaw browser profile must contain a JSON object".to_string())?;
+  openclaw.insert(
+    "executablePath".to_string(),
+    JsonValue::String(executable.to_string_lossy().to_string()),
+  );
   if let Some(parent) = config_path.parent() {
     fs::create_dir_all(parent)
       .map_err(|error| format!("Could not prepare browser configuration: {error}"))?;
@@ -717,7 +731,13 @@ mod tests {
       serde_json::to_vec_pretty(&serde_json::json!({
         "browser": {
           "headless": true,
-          "executablePath": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+          "executablePath": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+          "profiles": {
+            "openclaw": {
+              "executablePath": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+              "color": "#CC4B4B"
+            }
+          }
         },
         "agents": {"defaults": {"model": "google/gemini-2.5-flash"}}
       }))
@@ -737,6 +757,18 @@ mod tests {
     assert_eq!(
       config.pointer("/browser/headless").and_then(JsonValue::as_bool),
       Some(true)
+    );
+    assert_eq!(
+      config
+        .pointer("/browser/profiles/openclaw/executablePath")
+        .and_then(JsonValue::as_str),
+      chrome.to_str()
+    );
+    assert_eq!(
+      config
+        .pointer("/browser/profiles/openclaw/color")
+        .and_then(JsonValue::as_str),
+      Some("#CC4B4B")
     );
     assert_eq!(
       config.pointer("/agents/defaults/model").and_then(JsonValue::as_str),
