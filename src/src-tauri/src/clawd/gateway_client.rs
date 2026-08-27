@@ -22,7 +22,7 @@ use tokio_tungstenite::{
   tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
 };
 
-use crate::clawd::gateway_supervisor;
+use crate::clawd::{browser_import, gateway_supervisor};
 
 const GATEWAY_WS_URL: &str = "ws://127.0.0.1:18789";
 const PROTOCOL_VERSION: u32 = 4;
@@ -3209,6 +3209,20 @@ fn browser_request_can_retry(http_method: &str, path: &str) -> bool {
 /// This handles the common case where Chrome is still starting up after
 /// a gateway restart.
 pub async fn browser_request(
+  http_method: &str,
+  path: &str,
+  query: Option<Value>,
+  body: Option<Value>,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let _permit = browser_import::browser_operation_permit().await;
+  browser_request_unlocked(http_method, path, query, body, token).await
+}
+
+/// Execute a browser RPC without taking the shared operation permit.
+/// Callers must already hold either side of the browser-operation lock for
+/// their complete config/RPC transaction.
+pub(crate) async fn browser_request_unlocked(
   http_method: &str,
   path: &str,
   query: Option<Value>,

@@ -252,6 +252,92 @@
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
 }
 
+.EmbeddedBrowserChromeImport {
+  min-height: 68px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  color: #3f3f46;
+  background: #fff;
+  border-bottom: 1px solid rgba(24, 24, 27, 0.09);
+}
+
+.EmbeddedBrowserChromeLogo {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #4285f4 0 31%, #fff 32% 37%, transparent 38%),
+    conic-gradient(#ea4335 0 33%, #fbbc05 0 66%, #34a853 0);
+}
+
+.EmbeddedBrowserChromeImportCopy {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  > span {
+    color: #71717a;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  select {
+    width: min(220px, 100%);
+    margin-top: 3px;
+    padding: 3px 6px;
+    border: 1px solid rgba(24, 24, 27, 0.12);
+    border-radius: 6px;
+    color: #3f3f46;
+    background: #fafafa;
+    font-size: 10px;
+  }
+
+  .EmbeddedBrowserChromeImportMessage {
+    margin-top: 2px;
+    color: #b45309;
+  }
+}
+
+.EmbeddedBrowserChromeImportButton {
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: #27272a;
+  background: #f4f4f5;
+  font-size: 11px;
+  font-weight: 600;
+
+  &:hover:not(:disabled) { background: #e4e4e7; }
+  &:disabled { opacity: 0.55; }
+}
+
+.EmbeddedBrowserChromeImportDismiss {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  color: #a1a1aa;
+  background: transparent;
+
+  &:hover:not(:disabled) { color: #52525b; background: #f4f4f5; }
+  svg { width: 15px; height: 15px; }
+}
+
 .EmbeddedBrowserPageTitle {
   min-width: 0;
   overflow: hidden;

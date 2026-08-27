@@ -224,6 +224,10 @@ export const sendComposedEmail = async ({
     encoding?: 'utf8' | 'base64'
   }>
 }): Promise<void> => {
+  const senderEmail = userEmail?.trim()
+  if (!senderEmail) {
+    throw new Error('No connected sender email was found. Reconnect Gmail and try again.')
+  }
   try {
     await invoke('kn_send_composed_email', {
       to,
@@ -233,8 +237,8 @@ export const sendComposedEmail = async ({
       // Send both key styles so older and newer native handlers both bind correctly.
       threadId,
       thread_id: threadId,
-      userEmail,
-      user_email: userEmail,
+      userEmail: senderEmail,
+      user_email: senderEmail,
       userName,
       user_name: userName,
       attachments,

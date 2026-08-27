@@ -5,7 +5,7 @@ import { sendComposedEmail } from 'src/utils/gmailService'
 
 interface EmailComposeDrawerProps {
   draft: ComposedEmailDraft
-  userEmail: string
+  userEmail?: string
   userName?: string
   onDismiss: () => void
 }
@@ -24,7 +24,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const attachments = draft.attachments ?? []
-  const senderEmail = draft.senderEmail?.trim() || draft.userEmail?.trim() || userEmail.trim()
+  const senderEmail = draft.senderEmail?.trim() || draft.userEmail?.trim() || userEmail?.trim() || ''
 
   // Set initial body HTML (can't combine contentEditable + dangerouslySetInnerHTML)
   useEffect(() => {

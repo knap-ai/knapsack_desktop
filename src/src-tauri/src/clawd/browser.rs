@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use crate::clawd::chat_agent;
+use crate::clawd::browser_import;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -289,10 +290,19 @@ fn desktop_browser_profile(profile: Option<&str>, chrome: Option<bool>) -> Resul
   }
 }
 
+fn browser_import_conflict(profile: &str) -> Option<HttpResponse> {
+  (profile == "openclaw" && browser_import::chrome_import_in_progress()).then(|| {
+    HttpResponse::Conflict().json(serde_json::json!({
+      "success": false,
+      "message": "Chrome data is being imported. Browser controls will resume when the import finishes."
+    }))
+  })
+}
+
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
 /// This keeps the fallback browser aligned with the gateway-managed profile
 /// instead of opening a second legacy profile under ~/.openclaw.
-fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
+pub(crate) fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
   app_clawdbot_home(app_handle)
     .join("browser")
     .join("openclaw")
@@ -2203,6 +2213,9 @@ pub async fn open_browser(
       })
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
 
   // Try browser control via gateway RPC first
   let rpc_query = serde_json::json!({"profile": profile});
@@ -2310,6 +2323,9 @@ pub async fn navigate_browser(payload: web::Json<NavigateBrowserRequest>) -> imp
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
 
   match gateway_client::browser_request(
     "POST",
@@ -2344,7 +2360,7 @@ pub struct BrowserPresentationRequest {
   pub embedded: bool,
 }
 
-fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
+pub(crate) fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
   let home = app_clawdbot_home(app_handle);
   let current = home.join("openclaw.json");
   let legacy = home.join("clawdbot.json");
@@ -2355,7 +2371,7 @@ fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
   }
 }
 
-fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
+pub(crate) fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
   read_embedded_browser_preference_at(&browser_config_path(app_handle))
 }
 
@@ -2428,6 +2444,17 @@ pub async fn set_browser_presentation(
   app_handle: web::Data<tauri::AppHandle>,
   payload: web::Json<BrowserPresentationRequest>,
 ) -> impl Responder {
+  if let Some(response) = browser_import_conflict("openclaw") {
+    return response;
+  }
+  // Keep the presentation config write and its matching browser restart in
+  // one shared operation. Chrome import takes the exclusive side of this
+  // lock, so neither flow can overwrite the other's executable/headless
+  // settings between the check above and the restart below.
+  let _browser_operation = browser_import::browser_operation_permit().await;
+  if let Some(response) = browser_import_conflict("openclaw") {
+    return response;
+  }
   let path = browser_config_path(&app_handle);
   if let Some(parent) = path.parent() {
     if let Err(error) = ensure_dir(parent) {
@@ -2461,14 +2488,26 @@ pub async fn set_browser_presentation(
   harden_file_permissions(&path);
 
   let profile_query = serde_json::json!({"profile": "openclaw"});
-  let _ =
-    gateway_client::browser_request("POST", "/stop", Some(profile_query.clone()), None, None).await;
+  let _ = gateway_client::browser_request_unlocked(
+    "POST",
+    "/stop",
+    Some(profile_query.clone()),
+    None,
+    None,
+  )
+  .await;
   let start_query = serde_json::json!({
     "profile": "openclaw",
     "headless": payload.embedded,
   });
-  if let Err(error) =
-    gateway_client::browser_request("POST", "/start", Some(start_query), None, None).await
+  if let Err(error) = gateway_client::browser_request_unlocked(
+    "POST",
+    "/start",
+    Some(start_query),
+    None,
+    None,
+  )
+  .await
   {
     if gateway_client::is_transient_browser_error(&error) {
       return HttpResponse::Accepted().json(BrowserPresentationResponse {
@@ -2589,6 +2628,9 @@ pub async fn focus_tab(
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2624,6 +2666,9 @@ pub async fn close_tab(
         .json(serde_json::json!({"success": false, "message": message}))
     }
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let target_id = payload.target_id.trim().to_string();
   if target_id.is_empty() {
     return HttpResponse::BadRequest()
@@ -2737,6 +2782,9 @@ pub async fn act(
     Ok(profile) => profile,
     Err(message) => return HttpResponse::BadRequest().body(message),
   };
+  if let Some(response) = browser_import_conflict(&profile) {
+    return response;
+  }
   let rpc_query = serde_json::json!({"profile": profile});
 
   // Forward body (minus chrome) to the gateway browser control.
@@ -7815,8 +7863,7 @@ mod tests {
     load_seed_history_from_request, local_file_request_requires_inspection,
     provider_compaction_limits, provider_context_recovery_limits,
     read_embedded_browser_preference_at, retain_top_level_page_tabs,
-    should_attempt_fallback_for_provider_error,
-    write_embedded_browser_preference,
+    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};

@@ -1,5 +1,6 @@
 pub mod agent_team;
 pub mod browser;
+pub mod browser_import;
 pub mod channels;
 pub mod chat_agent;
 pub mod context_aggregator;

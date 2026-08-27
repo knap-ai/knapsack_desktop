@@ -103,6 +103,8 @@ function buildDiagnosticText(params: {
 export async function buildSupportDiagnosticsDraft(params: {
   issueSummary: string
   activeModel: string
+  senderEmail?: string
+  senderName?: string
 }): Promise<ComposedEmailDraft> {
   const generatedAt = new Date().toISOString()
   const [
@@ -161,6 +163,13 @@ export async function buildSupportDiagnosticsDraft(params: {
       `<p><strong>Issue summary:</strong> ${sanitizedIssueSummary}</p>`,
       '<p>Thank you.</p>',
     ].join(''),
+    // The Knapsack login can differ from the Gmail account connected to the
+    // desktop app. Leave sender selection to the compose host, which resolves
+    // the active native Gmail connection; retain the login only as diagnostic
+    // user context.
+    senderEmail: undefined,
+    userEmail: params.senderEmail?.trim() || undefined,
+    userName: params.senderName?.trim() || undefined,
     attachments: [attachment],
   }
 }
