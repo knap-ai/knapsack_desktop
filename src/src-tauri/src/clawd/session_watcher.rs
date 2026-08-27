@@ -298,6 +298,25 @@ pub(crate) fn lookup_authorized_session(session_id: &str) -> Result<(String, Str
   read_identity_at(&clawdbot_home, session_id)
 }
 
+/// Resolve only the exact gateway session bound to the current MCP tool call.
+/// Both values are injected by the gateway after the model has produced its
+/// arguments, so neither can be selected or overridden by model output.
+pub(crate) fn resolve_bound_authorized_session(
+  session_id: &str,
+  scope_key: &str,
+) -> Result<(String, String), String> {
+  let clawdbot_home = clawdbot_home_headless()?;
+  let (email, verified_scope_key) = read_identity_at(&clawdbot_home, session_id).map_err(|_| {
+    format!("No verified Slack session on record for gateway session {session_id}")
+  })?;
+  if verified_scope_key != scope_key {
+    return Err(format!(
+      "Verified Slack session scope mismatch for gateway session {session_id}; refusing rather than guessing"
+    ));
+  }
+  Ok((email, verified_scope_key))
+}
+
 /// Public read side used by `snowflake_mcp.rs`, which has no `AppHandle` —
 /// resolves clawdbot home headlessly via `OPENCLAW_STATE_DIR`/`OPENCLAW_HOME`
 /// (or the platform default; see `default_clawdbot_home_from_env`).
@@ -886,6 +905,81 @@ mod tests {
 
     let (email, _) = resolve_authorized_session(Some("real-session")).unwrap();
     assert_eq!(email, "exact@bankaya.com.mx");
+  }
+
+  #[test]
+  fn bound_session_selects_the_originating_user_with_multiple_active_users() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity(
+      tempdir.path(),
+      "session-mark",
+      "mark@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+    write_identity(
+      tempdir.path(),
+      "session-other",
+      "other@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0000000000",
+    )
+    .unwrap();
+
+    let (email, scope_key) = resolve_bound_authorized_session(
+      "session-mark",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+    assert_eq!(email, "mark@bankaya.com.mx");
+    assert_eq!(scope_key, "agent:main:slack:default:direct:u0asedsqp8f");
+  }
+
+  #[test]
+  fn bound_session_rejects_scope_mismatch() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity(
+      tempdir.path(),
+      "session-mark",
+      "mark@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+
+    let error = resolve_bound_authorized_session(
+      "session-mark",
+      "agent:main:slack:default:direct:u0000000000",
+    )
+    .unwrap_err();
+    assert!(error.contains("scope mismatch"), "got: {error}");
+  }
+
+  #[test]
+  fn bound_session_never_falls_back_across_multiple_active_users() {
+    let tempdir = tempfile::tempdir().unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
+    write_identity(
+      tempdir.path(),
+      "session-mark",
+      "mark@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap();
+    write_identity(
+      tempdir.path(),
+      "session-other",
+      "other@bankaya.com.mx",
+      "agent:main:slack:default:direct:u0000000000",
+    )
+    .unwrap();
+
+    let error = resolve_bound_authorized_session(
+      "session-not-present",
+      "agent:main:slack:default:direct:u0asedsqp8f",
+    )
+    .unwrap_err();
+    assert!(error.contains("No verified Slack session"), "got: {error}");
   }
 
   #[test]
