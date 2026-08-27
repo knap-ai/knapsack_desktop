@@ -283,7 +283,21 @@ fn managed_browser_pids_from_ps(
       let split_at = trimmed.find(char::is_whitespace)?;
       let pid = trimmed[..split_at].parse::<i32>().ok()?;
       let command = trimmed[split_at..].trim_start();
-      (pid > 0 && pid as u32 != current_pid && command.contains(&marker)).then_some(pid)
+      let exact_profile_arg = command.match_indices(&marker).any(|(start, _)| {
+        let before_is_boundary = start == 0
+          || command[..start]
+            .chars()
+            .next_back()
+            .is_some_and(char::is_whitespace);
+        let end = start + marker.len();
+        let after_is_boundary = end == command.len()
+          || command[end..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace);
+        before_is_boundary && after_is_boundary
+      });
+      (pid > 0 && pid as u32 != current_pid && exact_profile_arg).then_some(pid)
     })
     .collect::<Vec<_>>();
   pids.sort_unstable();
@@ -18587,7 +18601,8 @@ mod service_status_message_tests {
     let output = "\
       810 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data --no-startup-window\n\
       811 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/Users/mark/Library/Application Support/Google/Chrome\n\
-      812 helper --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data\n";
+      812 helper --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data\n\
+      813 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data-backup\n";
 
     assert_eq!(managed_browser_pids_from_ps(output, profile, 812), vec![810]);
   }
