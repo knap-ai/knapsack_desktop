@@ -439,12 +439,13 @@ pub async fn import_chrome_data(
     });
   };
   let target_root = browser::openclaw_user_data_dir(&app_handle);
+  let managed_user_data_dir = target_root.clone();
   let embedded = browser::read_embedded_browser_preference(&app_handle);
   let profile_id = payload.profile_id.clone();
   let profile_query = serde_json::json!({"profile": "openclaw"});
   let _ =
     gateway_client::browser_request("POST", "/stop", Some(profile_query.clone()), None, None).await;
-  let _ = web::block(service::force_stop_managed_browser).await;
+  let _ = web::block(move || service::force_stop_managed_browser(&managed_user_data_dir)).await;
   tokio::time::sleep(Duration::from_millis(150)).await;
 
   let import_result =

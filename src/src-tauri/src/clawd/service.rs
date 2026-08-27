@@ -269,10 +269,63 @@ fn kill_process_on_port(port: u16) {
   );
 }
 
+#[cfg(any(not(target_os = "windows"), test))]
+fn managed_browser_pids_from_ps(
+  output: &str,
+  user_data_dir: &Path,
+  current_pid: u32,
+) -> Vec<i32> {
+  let marker = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
+  let mut pids = output
+    .lines()
+    .filter_map(|line| {
+      let trimmed = line.trim();
+      let split_at = trimmed.find(char::is_whitespace)?;
+      let pid = trimmed[..split_at].parse::<i32>().ok()?;
+      let command = trimmed[split_at..].trim_start();
+      (pid > 0 && pid as u32 != current_pid && command.contains(&marker)).then_some(pid)
+    })
+    .collect::<Vec<_>>();
+  pids.sort_unstable();
+  pids.dedup();
+  pids
+}
+
 /// Force-stop the managed browser process when an operation needs exclusive
-/// access to its isolated profile. The port is reserved for Knapsack's
-/// `openclaw` browser profile.
-pub(crate) fn force_stop_managed_browser() {
+/// access to its isolated profile. Process matching covers the short startup
+/// window before Chrome begins listening on the reserved CDP port.
+pub(crate) fn force_stop_managed_browser(user_data_dir: &Path) {
+  #[cfg(not(target_os = "windows"))]
+  {
+    if let Ok(output) = std::process::Command::new("ps")
+      .args(["-axo", "pid=,command="])
+      .output()
+    {
+      let process_list = String::from_utf8_lossy(&output.stdout);
+      let pids = managed_browser_pids_from_ps(&process_list, user_data_dir, std::process::id());
+      for pid in &pids {
+        eprintln!(
+          "[clawd/service] stopping managed browser profile process (pid {})",
+          pid
+        );
+        unsafe {
+          libc::kill(*pid, libc::SIGTERM);
+        }
+      }
+      if !pids.is_empty() {
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        for pid in pids {
+          let still_running = unsafe { libc::kill(pid, 0) == 0 };
+          if still_running {
+            unsafe {
+              libc::kill(pid, libc::SIGKILL);
+            }
+          }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+      }
+    }
+  }
   kill_process_on_port(18800);
 }
 
@@ -18501,8 +18554,8 @@ mod knapsack_runtime_auth_tests {
 mod service_status_message_tests {
   use super::{
     external_port_holder_pids, is_noisy_browser_probe_error, is_transient_browser_probe_error,
-    lsof_listener_args, mac_service_status_summary, parse_browser_control_status_body,
-    should_restart_gateway_via_launchd, BrowserControlProbe,
+    lsof_listener_args, mac_service_status_summary, managed_browser_pids_from_ps,
+    parse_browser_control_status_body, should_restart_gateway_via_launchd, BrowserControlProbe,
   };
 
   #[test]
@@ -18527,6 +18580,17 @@ mod service_status_message_tests {
       lsof_listener_args(18789),
       vec!["-nP", "-iTCP:18789", "-sTCP:LISTEN", "-t"]
     );
+  }
+
+  #[test]
+  fn managed_browser_cleanup_matches_profile_before_cdp_listens() {
+    let profile = std::path::Path::new("/tmp/Knapsack QA/browser/openclaw/user-data");
+    let output = "\
+      810 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data --no-startup-window\n\
+      811 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/Users/mark/Library/Application Support/Google/Chrome\n\
+      812 helper --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data\n";
+
+    assert_eq!(managed_browser_pids_from_ps(output, profile, 812), vec![810]);
   }
 
   #[test]
