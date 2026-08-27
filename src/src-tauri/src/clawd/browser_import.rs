@@ -114,6 +114,28 @@ fn cookie_database(profile: &Path) -> PathBuf {
   }
 }
 
+fn import_cookie_database_paths(
+  source_profile: &Path,
+  target_profile: &Path,
+) -> (PathBuf, PathBuf) {
+  let source = cookie_database(source_profile);
+  let target_network = target_profile.join("Network").join("Cookies");
+  let target_legacy = target_profile.join("Cookies");
+  let target = if target_network.is_file() {
+    target_network
+  } else if target_legacy.is_file() {
+    target_legacy
+  } else if source == source_profile.join("Network").join("Cookies") {
+    // Modern Chromium reads cookies from Network/Cookies. A fresh Knapsack
+    // profile has neither target database yet, so preserve the source layout
+    // instead of silently creating the legacy path that Chrome will ignore.
+    target_network
+  } else {
+    target_legacy
+  };
+  (source, target)
+}
+
 fn chrome_profiles(root: &Path) -> Vec<ChromeProfile> {
   let local_state = fs::read_to_string(root.join("Local State"))
     .ok()
@@ -419,9 +441,11 @@ fn perform_import(
     &backup_dir,
   )
   .map_err(ImportFailure::before_changes)?;
+  let (source_cookies, target_cookies) =
+    import_cookie_database_paths(&source_profile, &target_profile);
   let cookies_imported = merge_table(
-    &cookie_database(&source_profile),
-    &cookie_database(&target_profile),
+    &source_cookies,
+    &target_cookies,
     "cookies",
     &backup_dir,
   )
@@ -594,6 +618,20 @@ mod tests {
     fs::create_dir_all(network.parent().unwrap()).unwrap();
     fs::write(&network, []).unwrap();
     assert_eq!(cookie_database(temp.path()), network);
+  }
+
+  #[test]
+  fn preserves_modern_cookie_layout_for_a_fresh_target_profile() {
+    let temp = tempfile::tempdir().unwrap();
+    let source_profile = temp.path().join("chrome/Default");
+    let target_profile = temp.path().join("knapsack/Default");
+    let source_network = source_profile.join("Network/Cookies");
+    fs::create_dir_all(source_network.parent().unwrap()).unwrap();
+    fs::write(&source_network, []).unwrap();
+
+    let (source, target) = import_cookie_database_paths(&source_profile, &target_profile);
+    assert_eq!(source, source_network);
+    assert_eq!(target, target_profile.join("Network/Cookies"));
   }
 
   #[test]
