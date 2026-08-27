@@ -835,15 +835,6 @@ pub async fn import_chrome_data(
       })
     }
   }
-  if let Err(message) = pin_managed_browser_to_google_chrome(&config_path, &chrome_executable) {
-    return HttpResponse::BadRequest().json(ChromeImportResponse {
-      success: false,
-      passwords_imported: 0,
-      cookies_imported: 0,
-      imported_at: None,
-      message,
-    });
-  }
   let managed_user_data_dir = target_root.clone();
   let embedded = browser::read_embedded_browser_preference(&app_handle);
   let profile_id = payload.profile_id.clone();
@@ -861,6 +852,18 @@ pub async fn import_chrome_data(
 
   if let Err(message) = request_managed_chrome_runtime(&chrome_executable).await {
     return HttpResponse::ServiceUnavailable().json(ChromeImportResponse {
+      success: false,
+      passwords_imported: 0,
+      cookies_imported: 0,
+      imported_at: None,
+      message,
+    });
+  }
+  // Ask the live gateway to switch first. Writing the same values to disk
+  // before config.patch would make the patch appear unchanged and could leave
+  // a previously-running alternate Chromium executable active until restart.
+  if let Err(message) = pin_managed_browser_to_google_chrome(&config_path, &chrome_executable) {
+    return HttpResponse::BadRequest().json(ChromeImportResponse {
       success: false,
       passwords_imported: 0,
       cookies_imported: 0,
