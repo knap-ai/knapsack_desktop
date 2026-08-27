@@ -64,16 +64,11 @@ fn chrome_user_data_dir() -> Option<PathBuf> {
         .join("Chrome")
     });
   }
-  #[cfg(target_os = "windows")]
-  {
-    return std::env::var_os("LOCALAPPDATA")
-      .map(PathBuf::from)
-      .map(|root| root.join("Google").join("Chrome").join("User Data"));
-  }
-  #[cfg(target_os = "linux")]
-  {
-    return dirs::home_dir().map(|home| home.join(".config").join("google-chrome"));
-  }
+  // Chrome secrets on Windows are encrypted against the source user-data
+  // directory's Local State key. Copying those rows into Knapsack's isolated
+  // profile would report success while leaving unusable credentials. Keep the
+  // importer macOS-only until the Windows path can decrypt and re-encrypt each
+  // secret for the target profile.
   #[allow(unreachable_code)]
   None
 }
@@ -323,7 +318,10 @@ fn merge_table(
   let imported_columns = table_columns(&connection, "imported", table)?;
   let columns: Vec<String> = target_columns
     .into_iter()
-    .filter(|column| imported_columns.contains(column))
+    // Chromium allocates these row ids independently in every profile. Let the
+    // target database allocate fresh ids so an imported row can never replace
+    // an unrelated password already saved in Knapsack's browser.
+    .filter(|column| column != "id" && imported_columns.contains(column))
     .collect();
   if columns.is_empty() {
     return Err(format!(
@@ -336,7 +334,7 @@ fn merge_table(
     .collect::<Vec<_>>()
     .join(", ");
   let sql = format!(
-    "INSERT OR REPLACE INTO main.{table} ({quoted}) SELECT {quoted} FROM imported.{table}",
+    "INSERT OR IGNORE INTO main.{table} ({quoted}) SELECT {quoted} FROM imported.{table}",
     table = quote_identifier(table),
     quoted = quoted,
   );
@@ -521,7 +519,7 @@ mod tests {
   }
 
   #[test]
-  fn merges_matching_columns_without_discarding_existing_rows() {
+  fn remaps_source_ids_without_discarding_existing_rows() {
     let temp = tempfile::tempdir().unwrap();
     let source = temp.path().join("source.sqlite");
     let target = temp.path().join("target.sqlite");
@@ -534,7 +532,7 @@ mod tests {
       .unwrap();
     source_db
       .execute(
-        "INSERT INTO logins VALUES (2, 'chrome', 'ignored by old target')",
+        "INSERT INTO logins VALUES (1, 'chrome', 'ignored by old target')",
         [],
       )
       .unwrap();
@@ -558,6 +556,20 @@ mod tests {
       .query_row("SELECT COUNT(*) FROM logins", [], |row| row.get(0))
       .unwrap();
     assert_eq!(count, 2);
+    let original: String = merged
+      .query_row("SELECT username FROM logins WHERE id = 1", [], |row| {
+        row.get(0)
+      })
+      .unwrap();
+    assert_eq!(original, "knapsack");
+    let imported_id: usize = merged
+      .query_row(
+        "SELECT id FROM logins WHERE username = 'chrome'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_ne!(imported_id, 1);
   }
 
   #[test]
