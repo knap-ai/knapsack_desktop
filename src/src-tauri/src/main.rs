@@ -175,7 +175,7 @@ async fn kn_send_composed_email(
   subject: String,
   body: String,
   thread_id: Option<String>,
-  user_email: String,
+  user_email: Option<String>,
   user_name: Option<String>,
   attachments: Option<Vec<crate::clawd::gmail::EmailAttachment>>,
 ) -> Result<String, String> {
@@ -186,9 +186,16 @@ async fn kn_send_composed_email(
   if trimmed_to.is_empty() || trimmed_subject.is_empty() || trimmed_body.is_empty() {
     return Err("To, subject, and body are required".to_string());
   }
+  let sender_email = user_email
+    .as_deref()
+    .map(str::trim)
+    .filter(|email| !email.is_empty())
+    .ok_or_else(|| {
+      "No connected sender email was found. Reconnect Gmail and try again.".to_string()
+    })?;
 
   crate::clawd::gmail::send_gmail_email(
-    &user_email,
+    sender_email,
     user_name.as_deref().unwrap_or(""),
     &trimmed_to,
     cc.as_deref(),

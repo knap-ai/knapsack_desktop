@@ -269,6 +269,13 @@ fn kill_process_on_port(port: u16) {
   );
 }
 
+/// Force-stop the managed browser process when an operation needs exclusive
+/// access to its isolated profile. The port is reserved for Knapsack's
+/// `openclaw` browser profile.
+pub(crate) fn force_stop_managed_browser() {
+  kill_process_on_port(18800);
+}
+
 /// Check if a process with the given PID is still running (Windows).
 #[cfg(target_os = "windows")]
 fn is_pid_alive(pid: u32) -> bool {

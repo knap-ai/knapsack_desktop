@@ -4491,6 +4491,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         const draft = await buildSupportDiagnosticsDraft({
           issueSummary,
           activeModel: getActiveModelLabel(),
+          senderEmail: userEmail,
+          senderName: userName,
         })
         if (srcMsgId) {
           setMsgs(prev => prev.map(m =>

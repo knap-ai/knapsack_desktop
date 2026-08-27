@@ -63,7 +63,7 @@ walkdir = "=2.5.0"
 open = "=5"
 regex = "=1.11.1"
 mailparse = "0.15.0"
-rusqlite = { version = "0.32.0", features = ["bundled"] }
+rusqlite = { version = "0.32.0", features = ["backup", "bundled"] }
 difference = "2.0.0"
 sha256 = "1.5.0"
 priority-queue = "2.0.3"

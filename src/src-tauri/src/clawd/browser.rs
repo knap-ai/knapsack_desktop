@@ -292,7 +292,7 @@ fn desktop_browser_profile(profile: Option<&str>, chrome: Option<bool>) -> Resul
 /// Determine the user-data-dir for the isolated "openclaw" browser profile.
 /// This keeps the fallback browser aligned with the gateway-managed profile
 /// instead of opening a second legacy profile under ~/.openclaw.
-fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
+pub(crate) fn openclaw_user_data_dir(app_handle: &tauri::AppHandle) -> PathBuf {
   app_clawdbot_home(app_handle)
     .join("browser")
     .join("openclaw")
@@ -2355,7 +2355,7 @@ fn browser_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
   }
 }
 
-fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
+pub(crate) fn read_embedded_browser_preference(app_handle: &tauri::AppHandle) -> bool {
   read_embedded_browser_preference_at(&browser_config_path(app_handle))
 }
 
@@ -7815,8 +7815,7 @@ mod tests {
     load_seed_history_from_request, local_file_request_requires_inspection,
     provider_compaction_limits, provider_context_recovery_limits,
     read_embedded_browser_preference_at, retain_top_level_page_tabs,
-    should_attempt_fallback_for_provider_error,
-    write_embedded_browser_preference,
+    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};

@@ -59,6 +59,28 @@ interface OpenBrowserResponse {
   message?: string
 }
 
+interface ChromeImportProfile {
+  id: string
+  name: string
+  accountEmail?: string
+}
+
+interface ChromeImportStatus {
+  available: boolean
+  supported: boolean
+  profiles: ChromeImportProfile[]
+  importedAt?: string
+  message?: string
+}
+
+interface ChromeImportResponse {
+  success: boolean
+  passwordsImported: number
+  cookiesImported: number
+  importedAt?: string
+  message: string
+}
+
 function normalizeBrowserUrl(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return DEFAULT_BROWSER_URL
@@ -112,6 +134,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const addressEditingRef = useRef(false)
   const resizeTimerRef = useRef<number>()
   const wheelPendingRef = useRef(false)
+  const chromeImportBusyRef = useRef(false)
   const [address, setAddress] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentUrl, setCurrentUrl] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentTitle, setCurrentTitle] = useState('')
@@ -120,8 +143,66 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const [screenshotUrl, setScreenshotUrl] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [chromeImport, setChromeImport] = useState<ChromeImportStatus | null>(null)
+  const [chromeProfileId, setChromeProfileId] = useState('')
+  const [chromeImportBusy, setChromeImportBusy] = useState(false)
+  const [chromeImportMessage, setChromeImportMessage] = useState('')
+  const [chromeImportDismissed, setChromeImportDismissed] = useState(
+    () => localStorage.getItem('knapsack.browser.chrome-import-dismissed') === 'true',
+  )
 
   const activeTabStorageKey = `knapsack.browser.active-tab.${browserProfile}`
+
+  useEffect(() => {
+    if (browserProfile !== 'openclaw' || chromeImportDismissed) return
+    fetch(`${BACKEND}/api/clawd/browser/import/chrome`, { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error(await response.text())
+        return response.json() as Promise<ChromeImportStatus>
+      })
+      .then(status => {
+        setChromeImport(status)
+        setChromeProfileId(current => current || status.profiles[0]?.id || '')
+      })
+      .catch(() => {
+        // Import availability is an enhancement and must never block browsing.
+      })
+  }, [browserProfile, chromeImportDismissed])
+
+  const dismissChromeImport = () => {
+    localStorage.setItem('knapsack.browser.chrome-import-dismissed', 'true')
+    setChromeImportDismissed(true)
+  }
+
+  const importChromeData = async () => {
+    if (!chromeProfileId || chromeImportBusy) return
+    chromeImportBusyRef.current = true
+    setChromeImportBusy(true)
+    currentTargetIdRef.current = ''
+    setActiveTargetId('')
+    setChromeImportMessage('')
+    try {
+      const response = await fetch(`${BACKEND}/api/clawd/browser/import/chrome`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: chromeProfileId }),
+      })
+      const result = (await response.json()) as ChromeImportResponse
+      if (!response.ok || !result.success) throw new Error(result.message || 'Chrome import failed')
+      setChromeImportMessage(result.message)
+      setChromeImport(current => current ? { ...current, importedAt: result.importedAt } : current)
+      window.setTimeout(dismissChromeImport, 2600)
+      window.setTimeout(() => {
+        refreshTabs().catch(() => undefined)
+        refreshScreenshot().catch(() => undefined)
+      }, 1200)
+    } catch (err) {
+      setChromeImportMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      chromeImportBusyRef.current = false
+      setChromeImportBusy(false)
+    }
+  }
 
   const selectTarget = useCallback((targetId: string, tab?: BrowserTab) => {
     const changed = currentTargetIdRef.current !== targetId
@@ -153,12 +234,14 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }, [activeTabStorageKey, browserProfile])
 
   const refreshTabs = useCallback(async () => {
+    if (chromeImportBusyRef.current) return []
     const query = new URLSearchParams({ profile: browserProfile })
     const response = await fetch(`${BACKEND}/api/clawd/browser/tabs?${query}`, {
       cache: 'no-store',
     })
     if (!response.ok) throw new Error('The shared browser is still starting')
     const envelope = (await response.json()) as TabsEnvelope
+    if (chromeImportBusyRef.current) return []
     const pageTabs = tabsFromEnvelope(envelope).filter(
       tab => tab.targetId && (!tab.type || tab.type === 'page'),
     )
@@ -196,7 +279,12 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }, [activeTabStorageKey, browserProfile, selectTarget])
 
   const refreshScreenshot = useCallback(async () => {
-    if (document.hidden || screenshotPendingRef.current || !currentTargetIdRef.current) return
+    if (
+      document.hidden
+      || chromeImportBusyRef.current
+      || screenshotPendingRef.current
+      || !currentTargetIdRef.current
+    ) return
     screenshotPendingRef.current = true
     try {
       const query = new URLSearchParams({
@@ -379,6 +467,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
 
   useEffect(() => {
     const retryTimer = window.setInterval(() => {
+      if (chromeImportBusyRef.current) return
       if (!currentTargetIdRef.current) {
         refreshTabs()
           .then(tabs => {
@@ -392,6 +481,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
 
   useEffect(() => {
     const tabsTimer = window.setInterval(() => {
+      if (chromeImportBusyRef.current) return
       refreshTabs()
         .then(tabs => {
           if (tabs.length) setError('')
@@ -663,6 +753,48 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
         Shared with your assistant
         {currentTitle && <span className="EmbeddedBrowserPageTitle">· {currentTitle}</span>}
       </div>
+
+      {browserProfile === 'openclaw' && chromeImport?.available && !chromeImportDismissed && (!chromeImport.importedAt || chromeImportMessage) && (
+        <div className="EmbeddedBrowserChromeImport" role="region" aria-label="Import data from Chrome">
+          <span className="EmbeddedBrowserChromeLogo" aria-hidden="true" />
+          <div className="EmbeddedBrowserChromeImportCopy">
+            <strong>Import data from Chrome</strong>
+            <span>Bring over your saved passwords and cookies to the built-in browser.</span>
+            {chromeImport.profiles.length > 1 && (
+              <select
+                aria-label="Chrome profile"
+                value={chromeProfileId}
+                onChange={event => setChromeProfileId(event.target.value)}
+                disabled={chromeImportBusy}
+              >
+                {chromeImport.profiles.map(profile => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.accountEmail || profile.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {chromeImportMessage && <span className="EmbeddedBrowserChromeImportMessage">{chromeImportMessage}</span>}
+          </div>
+          <button
+            className="EmbeddedBrowserChromeImportButton"
+            type="button"
+            onClick={importChromeData}
+            disabled={chromeImportBusy || !chromeProfileId}
+          >
+            {chromeImportBusy ? 'Importing…' : 'Import'}
+          </button>
+          <button
+            className="EmbeddedBrowserChromeImportDismiss"
+            type="button"
+            aria-label="Dismiss Chrome import"
+            onClick={dismissChromeImport}
+            disabled={chromeImportBusy}
+          >
+            <XMarkIcon />
+          </button>
+        </div>
+      )}
 
       <div
         className="EmbeddedBrowserViewport"
