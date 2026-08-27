@@ -71,7 +71,10 @@ async function materializeBundleMcpToolsForRun(params) {
 					serverName: tool.serverName,
 					toolName: tool.toolName,
 					input,
-					runtime: params.runtime
+					runtime: params.runtime,
+					slackUserId: params.slackUserId,
+					slackAccountId: params.slackAccountId,
+					slackWorkspaceId: params.slackWorkspaceId
 				}));
 				return toAgentToolResult({
 					serverName: tool.serverName,

@@ -13397,6 +13397,9 @@ async function runEmbeddedAttempt(params) {
 		}) : void 0;
 		const bundleMcpRuntime = bundleMcpSessionRuntime ? await materializeBundleMcpToolsForRun({
 			runtime: bundleMcpSessionRuntime,
+			slackUserId: params.senderId,
+			slackAccountId: params.agentAccountId,
+			slackWorkspaceId: params.groupSpace,
 			reservedToolNames: [...tools.map((tool) => tool.name), ...clientTools?.map((tool) => tool.function.name) ?? []]
 		}) : void 0;
 		const bundleLspRuntime = shouldCreateBundleLspRuntimeForAttempt({

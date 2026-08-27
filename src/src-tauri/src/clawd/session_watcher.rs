@@ -317,6 +317,49 @@ pub(crate) fn resolve_bound_authorized_session(
   Ok((email, verified_scope_key))
 }
 
+/// Resolve the exact sender attached by the Slack gateway to the current
+/// turn. Shared channel rows in `sessions.list` identify only the channel,
+/// never the human sender, so the background watcher cannot create their
+/// identity record. The tool runtime supplies this context after model
+/// argument generation; verify it independently with Slack on every call so
+/// two people using the same channel thread can never inherit one another's
+/// identity.
+pub(crate) async fn resolve_bound_authorized_session_with_slack_context(
+  session_id: &str,
+  scope_key: &str,
+  account_id: Option<&str>,
+  slack_user_id: Option<&str>,
+  workspace_id: Option<&str>,
+) -> Result<(String, String), String> {
+  let Some(slack_user_id) = slack_user_id
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+  else {
+    return resolve_bound_authorized_session(session_id, scope_key);
+  };
+  let workspace_id = workspace_id
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| {
+      "Cannot authorize Slack request: missing trusted Slack workspace context".to_string()
+    })?;
+  let account_id = account_id
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .unwrap_or("default");
+  let clawdbot_home = clawdbot_home_headless()?;
+  let email = resolve_slack_email_for_workspace(
+    &clawdbot_home,
+    account_id,
+    slack_user_id,
+    Some(workspace_id),
+  )
+  .await?;
+  write_identity(&clawdbot_home, session_id, &email, scope_key)?;
+  remove_identity_failure(&clawdbot_home, session_id);
+  Ok((email, scope_key.to_string()))
+}
+
 /// Public read side used by `snowflake_mcp.rs`, which has no `AppHandle` —
 /// resolves clawdbot home headlessly via `OPENCLAW_STATE_DIR`/`OPENCLAW_HOME`
 /// (or the platform default; see `default_clawdbot_home_from_env`).
@@ -475,6 +518,15 @@ async fn resolve_slack_email(
   account_id: &str,
   slack_user_id: &str,
 ) -> Result<String, String> {
+  resolve_slack_email_for_workspace(clawdbot_home, account_id, slack_user_id, None).await
+}
+
+async fn resolve_slack_email_for_workspace(
+  clawdbot_home: &Path,
+  account_id: &str,
+  slack_user_id: &str,
+  expected_workspace_id: Option<&str>,
+) -> Result<String, String> {
   // Deliberately reads openclaw.json directly rather than going through the
   // `config.get` WS RPC: the gateway redacts secret fields (confirmed live —
   // `config.get`'s "channels.slack.botToken" comes back as the literal
@@ -509,6 +561,24 @@ async fn resolve_slack_email(
     .map_err(|error| format!("Invalid Slack users.info response: {error}"))?;
   if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
     return Err(slack_users_info_error(&body));
+  }
+  verified_slack_email_from_response(&body, expected_workspace_id)
+}
+
+fn verified_slack_email_from_response(
+  body: &Value,
+  expected_workspace_id: Option<&str>,
+) -> Result<String, String> {
+  if let Some(expected_workspace_id) = expected_workspace_id {
+    let actual_workspace_id = body
+      .pointer("/user/team_id")
+      .and_then(Value::as_str)
+      .unwrap_or("");
+    if !actual_workspace_id.eq_ignore_ascii_case(expected_workspace_id) {
+      return Err(format!(
+        "Slack users.info returned workspace {actual_workspace_id}, expected {expected_workspace_id}; refusing cross-workspace authorization"
+      ));
+    }
   }
   body
     .pointer("/user/profile/email")
@@ -1208,6 +1278,23 @@ mod tests {
     }));
     assert!(error.contains("users:read.email"));
     assert!(error.contains("reinstall the app"));
+  }
+
+  #[test]
+  fn verified_slack_response_requires_the_originating_workspace() {
+    let body = serde_json::json!({
+      "ok": true,
+      "user": {
+        "team_id": "TPWGB3059",
+        "profile": { "email": "mark@bankaya.com.mx" }
+      }
+    });
+    assert_eq!(
+      verified_slack_email_from_response(&body, Some("TPWGB3059")).unwrap(),
+      "mark@bankaya.com.mx"
+    );
+    let error = verified_slack_email_from_response(&body, Some("TOTHER")).unwrap_err();
+    assert!(error.contains("refusing cross-workspace authorization"));
   }
 
   #[test]

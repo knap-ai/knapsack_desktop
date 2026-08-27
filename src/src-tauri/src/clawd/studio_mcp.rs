@@ -15,7 +15,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::clawdbot_home_headless;
-use super::session_watcher::resolve_authorized_session;
+use super::session_watcher::resolve_bound_authorized_session_with_slack_context;
 
 const LIST_TOOL: &str = "list_connector_tools";
 const CALL_TOOL: &str = "call_connector_tool";
@@ -168,19 +168,79 @@ async fn request_studio(
   Err("Knapsack Studio sign-in expired. Reconnect Studio in Settings.".to_string())
 }
 
-fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
+fn is_local_desktop_scope(scope_key: &str) -> bool {
+  scope_key == "agent:main:main"
+    || scope_key.starts_with("agent:main:webchat:")
+    || scope_key.starts_with("agent:main:knapsack:")
+}
+
+fn email_domain(email: &str) -> Option<&str> {
+  email.rsplit_once('@').map(|(_, domain)| domain)
+}
+
+async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
   let tokens = read_tokens()?;
   let owner = nonempty(tokens.knapsack_email)
     .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?;
-  let session_id = arguments.get("session_id").and_then(Value::as_str);
-  match resolve_authorized_session(session_id) {
-    Ok((sender, _)) if sender.eq_ignore_ascii_case(&owner) => Ok(()),
-    Ok((sender, _)) => Err(format!(
-      "This shared chat is authenticated as {sender}, not the connected Studio owner. Refusing to use the owner's connectors."
-    )),
-    // Desktop's first-party chat has no Slack identity record. Its local app
-    // process owns the private token store, so it remains the trusted path.
-    Err(error) if error.starts_with("No verified Slack session on record") => Ok(()),
+  let session_id = arguments
+    .get("_knapsack_session_id")
+    .and_then(Value::as_str)
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| "Cannot authorize Studio connector access: missing trusted gateway session context".to_string())?;
+  let scope_key = arguments
+    .get("_knapsack_scope_key")
+    .and_then(Value::as_str)
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .ok_or_else(|| "Cannot authorize Studio connector access: missing trusted gateway session scope".to_string())?;
+
+  let slack_user_id = arguments
+    .get("_knapsack_slack_user_id")
+    .and_then(Value::as_str);
+  let slack_account_id = arguments
+    .get("_knapsack_slack_account_id")
+    .and_then(Value::as_str);
+  let slack_workspace_id = arguments
+    .get("_knapsack_slack_workspace_id")
+    .and_then(Value::as_str);
+
+  match resolve_bound_authorized_session_with_slack_context(
+    session_id,
+    scope_key,
+    slack_account_id,
+    slack_user_id,
+    slack_workspace_id,
+  )
+  .await
+  {
+    Ok((sender, _)) => {
+      // Studio credentials belong to the Desktop/Scout service identity, not
+      // to whichever Slack user originated this request. The exact verified
+      // sender still gates and audits access; it must not be compared to the
+      // configured connector owner or selected from other active sessions.
+      // Restrict service-account sharing to the owner's email domain so a
+      // second Slack workspace cannot inherit another tenant's connectors.
+      if !sender.eq_ignore_ascii_case(&owner)
+        && email_domain(&sender)
+          .zip(email_domain(&owner))
+          .map(|(sender_domain, owner_domain)| {
+            !sender_domain.eq_ignore_ascii_case(owner_domain)
+          })
+          .unwrap_or(true)
+      {
+        return Err(format!(
+          "The verified Slack sender {sender} is outside the connected Studio owner's organization. Refusing connector access."
+        ));
+      }
+      eprintln!(
+        "[studio_mcp] authorized gateway session {session_id} scope {scope_key} as {sender} to use Studio owner {owner}"
+      );
+      Ok(())
+    }
+    // Desktop's first-party chat has no Slack identity record. Its trusted
+    // gateway scope and local process own the private Studio token store.
+    Err(_) if is_local_desktop_scope(scope_key) => Ok(()),
     Err(error) => Err(format!("Cannot authorize Studio connector access: {error}")),
   }
 }
@@ -202,7 +262,7 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 }
 
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
-  authorize_studio_request(arguments)?;
+  authorize_studio_request(arguments).await?;
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -221,7 +281,7 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
 }
 
 async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
-  authorize_studio_request(arguments)?;
+  authorize_studio_request(arguments).await?;
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -396,6 +456,28 @@ pub async fn run_stdio_server() {
 mod tests {
   use super::*;
 
+  static TEST_ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+  fn seed_studio_owner_and_identity(
+    home: &std::path::Path,
+    session_id: &str,
+    sender: &str,
+    scope_key: &str,
+  ) {
+    std::fs::write(
+      home.join("tokens.json"),
+      r#"{"knapsack_email":"scout@bankaya.com.mx"}"#,
+    )
+    .unwrap();
+    let identities = home.join("snowflake-identities");
+    std::fs::create_dir_all(&identities).unwrap();
+    std::fs::write(
+      identities.join(format!("{session_id}.json")),
+      serde_json::to_vec(&json!({ "email": sender, "scope_key": scope_key })).unwrap(),
+    )
+    .unwrap();
+  }
+
   #[test]
   fn connector_catalog_describes_connectors_without_freezing_an_enum_or_secrets() {
     let tools = tool_schemas(
@@ -417,5 +499,89 @@ mod tests {
     assert!(serialized.contains("mark@knap.ai"));
     assert!(!serialized.contains("\"enum\""));
     assert!(!serialized.contains("access_token"));
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn exact_verified_slack_sender_can_use_scout_service_connectors() {
+    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let scope = "agent:main:slack:default:direct:u0asedsqp8f";
+    seed_studio_owner_and_identity(home.path(), "session-mark", "mark@bankaya.com.mx", scope);
+    std::env::set_var("OPENCLAW_STATE_DIR", home.path());
+
+    authorize_studio_request(&json!({
+      "_knapsack_session_id": "session-mark",
+      "_knapsack_scope_key": scope
+    }))
+    .await
+    .unwrap();
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn unknown_or_scope_mismatched_slack_session_fails_closed() {
+    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let scope = "agent:main:slack:default:direct:u0asedsqp8f";
+    seed_studio_owner_and_identity(home.path(), "session-mark", "mark@bankaya.com.mx", scope);
+    std::env::set_var("OPENCLAW_STATE_DIR", home.path());
+
+    let unknown = authorize_studio_request(&json!({
+      "_knapsack_session_id": "session-other",
+      "_knapsack_scope_key": "agent:main:slack:default:direct:u0bpj321v9p"
+    }))
+    .await
+    .unwrap_err();
+    assert!(unknown.contains("Cannot authorize"));
+
+    let mismatch = authorize_studio_request(&json!({
+      "_knapsack_session_id": "session-mark",
+      "_knapsack_scope_key": "agent:main:slack:default:direct:u0bpj321v9p"
+    }))
+    .await
+    .unwrap_err();
+    assert!(mismatch.contains("scope mismatch"));
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn verified_sender_outside_the_service_account_domain_fails_closed() {
+    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let scope = "agent:main:slack:default:direct:uexternal";
+    seed_studio_owner_and_identity(home.path(), "session-external", "person@example.com", scope);
+    std::env::set_var("OPENCLAW_STATE_DIR", home.path());
+
+    let error = authorize_studio_request(&json!({
+      "_knapsack_session_id": "session-external",
+      "_knapsack_scope_key": scope
+    }))
+    .await
+    .unwrap_err();
+    assert!(error.contains("outside the connected Studio owner's organization"));
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn local_desktop_scope_remains_authorized_without_a_slack_identity() {
+    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(
+      home.path().join("tokens.json"),
+      r#"{"knapsack_email":"scout@bankaya.com.mx"}"#,
+    )
+    .unwrap();
+    std::env::set_var("OPENCLAW_STATE_DIR", home.path());
+
+    authorize_studio_request(&json!({
+      "_knapsack_session_id": "ui-agent-scout",
+      "_knapsack_scope_key": "agent:main:webchat:dm:ui-agent-scout"
+    }))
+    .await
+    .unwrap();
+
+    authorize_studio_request(&json!({
+      "_knapsack_session_id": "main",
+      "_knapsack_scope_key": "agent:main:main"
+    }))
+    .await
+    .unwrap();
   }
 }

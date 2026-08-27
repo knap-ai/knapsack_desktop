@@ -675,6 +675,65 @@ fn ensure_browser_config_at(config_path: &std::path::Path) -> bool {
     patched = true;
   }
 
+  // Scout runs channel turns in Docker sandboxes, but its managed browser
+  // profile lives on the Desktop host so it can retain interactive sign-ins.
+  // Expose only the browser control surface; filesystem/process isolation is
+  // unchanged.
+  let host_browser_allowed = cfg
+    .pointer("/agents/defaults/sandbox/browser/allowHostControl")
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false);
+  if !host_browser_allowed {
+    let mut sandbox = cfg
+      .pointer("/agents/defaults/sandbox")
+      .cloned()
+      .filter(|value| value.is_object())
+      .unwrap_or_else(|| serde_json::json!({}));
+    let mut browser = sandbox
+      .get("browser")
+      .cloned()
+      .filter(|value| value.is_object())
+      .unwrap_or_else(|| serde_json::json!({}));
+    browser
+      .as_object_mut()
+      .unwrap()
+      .insert("allowHostControl".into(), serde_json::json!(true));
+    sandbox
+      .as_object_mut()
+      .unwrap()
+      .insert("browser".into(), browser);
+    if cfg
+      .pointer("/agents/defaults")
+      .and_then(|value| value.as_object())
+      .is_none()
+    {
+      if cfg
+        .get("agents")
+        .and_then(|value| value.as_object())
+        .is_none()
+      {
+        cfg
+          .as_object_mut()
+          .unwrap()
+          .insert("agents".into(), serde_json::json!({}));
+      }
+      cfg
+        .pointer_mut("/agents")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("defaults".into(), serde_json::json!({}));
+    }
+    cfg
+      .pointer_mut("/agents/defaults")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("sandbox".into(), sandbox);
+    eprintln!("[gateway_client] Allowed sandboxed Scout sessions to use the managed host browser");
+    patched = true;
+  }
+
   // browser.defaultProfile = "openclaw"  (managed, isolated)
   let profile = cfg
     .pointer("/browser/defaultProfile")
@@ -3711,7 +3770,10 @@ mod tests {
       },
       "agents": {
         "defaults": {
-          "model": model
+          "model": model,
+          "sandbox": {
+            "browser": { "allowHostControl": true }
+          }
         }
       }
     })
