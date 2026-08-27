@@ -35,6 +35,19 @@ test('does not suggest a named connector that is already connected', async () =>
   assert.equal(suggestion, null)
 })
 
+test('allows an explicit reconnect action for an already connected connector', async () => {
+  const { detectStudioConnectorSuggestion } = await loadConnectorModule()
+  const suggestion = detectStudioConnectorSuggestion(
+    'Reconnect Jira',
+    ['jira'],
+    [],
+    undefined,
+    true,
+  )
+  assert.equal(suggestion?.connectors[0]?.id, 'jira')
+  assert.equal(suggestion?.label, 'Reconnect Jira?')
+})
+
 test('uses connectors delivered dynamically by Studio', async () => {
   const { detectStudioConnectorSuggestion, normalizeStudioConnectorCatalog } = await loadConnectorModule()
   const catalog = normalizeStudioConnectorCatalog([{
@@ -58,4 +71,20 @@ test('respects dismissed suggestions and ignores unrelated chat', async () => {
   const { detectStudioConnectorSuggestion } = await loadConnectorModule()
   assert.equal(detectStudioConnectorSuggestion('Use Confluence', [], ['confluence']), null)
   assert.equal(detectStudioConnectorSuggestion('Write a birthday poem', [], []), null)
+})
+
+test('recognizes explicit inline connection requests', async () => {
+  const { isStudioConnectIntent } = await loadConnectorModule()
+  assert.equal(isStudioConnectIntent('connect to clickup'), true)
+  assert.equal(isStudioConnectIntent('please reconnect Studio'), true)
+  assert.equal(isStudioConnectIntent('show my ClickUp tasks'), false)
+})
+
+test('recognizes agent responses reporting a missing connector', async () => {
+  const { reportsMissingStudioConnector } = await loadConnectorModule()
+  assert.equal(reportsMissingStudioConnector('The ClickUp connector is not currently connected.'), true)
+  assert.equal(reportsMissingStudioConnector('Connect ClickUp first, then I can create it.'), true)
+  assert.equal(reportsMissingStudioConnector('The meeting transcript is not available.'), false)
+  assert.equal(reportsMissingStudioConnector('The ClickUp connector is unavailable.'), true)
+  assert.equal(reportsMissingStudioConnector('I created the ClickUp task.'), false)
 })

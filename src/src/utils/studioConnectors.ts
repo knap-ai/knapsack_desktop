@@ -186,11 +186,25 @@ const includesKeyword = (text: string, keyword: string) => {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text)
 }
 
+/** True when the user is explicitly asking to start or repair a connection. */
+export function isStudioConnectIntent(text: string): boolean {
+  return /\b(connect|reconnect|link|authorize|authenticate|sign[ -]?in|set[ -]?up)\b/i.test(text)
+}
+
+/** True when an agent response says the requested integration is unavailable. */
+export function reportsMissingStudioConnector(text: string): boolean {
+  if (/\b(not (?:currently )?connected|isn't connected|need(?:s)? to connect|connect .+ first|reconnect studio|sign[ -]?in expired)\b/i.test(text)) {
+    return true
+  }
+  return /\b(connector|integration|studio connection|oauth connection|account connection)\b.{0,100}\b(is not available|unavailable)\b|\b(is not available|unavailable)\b.{0,100}\b(connector|integration|studio connection|oauth connection|account connection)\b/i.test(text)
+}
+
 export function detectStudioConnectorSuggestion(
   text: string,
   connectedIds: Iterable<string>,
   dismissedIds: Iterable<string>,
   catalog: StudioConnector[] = FALLBACK_COMPOSIO_CONNECTORS,
+  allowConnectedExplicit = false,
 ): StudioConnectorSuggestion | null {
   const normalized = text.toLowerCase()
   const connected = new Set(connectedIds)
@@ -201,15 +215,20 @@ export function detectStudioConnectorSuggestion(
       && !connected.has(connector.scope || connector.id)
       && !dismissed.has(connector.id),
     )
+  const explicitAvailable = (connector: StudioConnector): boolean =>
+    !dismissed.has(connector.id)
+    && (allowConnectedExplicit || !connected.has(connector.scope || connector.id))
 
   const explicit = catalog.find(connector =>
     [connector.name, connector.id, ...(connector.keywords || [])]
       .some(keyword => includesKeyword(normalized, keyword.replace(/_/g, ' '))),
   )
   if (explicit) {
-    if (!available(explicit)) return null
+    if (!explicitAvailable(explicit)) return null
     return {
-      label: `Connect ${explicit.name}?`,
+      label: connected.has(explicit.scope || explicit.id)
+        ? `Reconnect ${explicit.name}?`
+        : `Connect ${explicit.name}?`,
       description: explicit.description,
       connectors: [explicit],
     }

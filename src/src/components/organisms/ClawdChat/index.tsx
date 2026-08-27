@@ -27,7 +27,9 @@ import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRoute
 import { XAI_MODELS } from 'src/utils/xaiModels'
 import {
   detectStudioConnectorSuggestion,
+  isStudioConnectIntent,
   normalizeStudioConnectorCatalog,
+  reportsMissingStudioConnector,
   type StudioConnector,
   type StudioConnectorSuggestion,
 } from 'src/utils/studioConnectors'
@@ -4203,6 +4205,26 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }
 
   const pushAssistant = useCallback(async (text: string) => {
+    // The model may discover a missing connector only after attempting the
+    // task. Surface the same lightweight OAuth action inline instead of
+    // sending the user to the full Settings panel.
+    if (
+      reportsMissingStudioConnector(text)
+      && knapsackEmailRef.current
+      && studioConnectionsLoadedRef.current
+    ) {
+      const suggestion = detectStudioConnectorSuggestion(
+        text,
+        studioConnectedScopesRef.current,
+        dismissedStudioConnectorIdsRef.current,
+        studioAvailableConnectorsRef.current,
+      )
+      if (suggestion) {
+        setStudioConnectorSuggestion(suggestion)
+        studioConnectorSuggestionRef.current = suggestion
+        pendingStudioConnectorSuggestionRef.current = null
+      }
+    }
     setMsgs(prev => [
       ...prev,
       { id: crypto.randomUUID(), role: 'assistant', text, ts: Date.now() },
@@ -4303,19 +4325,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
-    pendingStudioConnectorSuggestionRef.current =
+    const connectIntent = isStudioConnectIntent(text)
+    const connectorSuggestion =
       knapsackEmailRef.current && studioConnectionsLoadedRef.current
         ? detectStudioConnectorSuggestion(
             text,
             studioConnectedScopesRef.current,
             dismissedStudioConnectorIdsRef.current,
             studioAvailableConnectorsRef.current,
+            connectIntent,
           )
         : null
+    pendingStudioConnectorSuggestionRef.current = connectorSuggestion
+    // Explicit "connect/reconnect" requests should show the OAuth action
+    // immediately. The user should never need to wait for the model to explain
+    // that connections live in Settings.
+    if (connectorSuggestion && connectIntent) {
+      setStudioConnectorSuggestion(connectorSuggestion)
+      studioConnectorSuggestionRef.current = connectorSuggestion
+      pendingStudioConnectorSuggestionRef.current = null
+    }
     // Detect a relevant not-yet-installed skill from the user's message.
     // Stored in a ref so the post-response effect can read the latest value.
     const allSkills = skills.length > 0 ? skills : FALLBACK_SKILLS
-    pendingSkillSuggestionRef.current = pendingStudioConnectorSuggestionRef.current
+    pendingSkillSuggestionRef.current = connectorSuggestion
       ? null
       : findRelevantSkill(text, allSkills, dismissedSkillNames)
   }

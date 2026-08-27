@@ -308,7 +308,7 @@ $ks-red: #c14841;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 9px 10px;
+    padding: 0;
     border: none;
     border-bottom: 1px solid $ks-border;
     background: transparent;
@@ -330,10 +330,55 @@ $ks-red: #c14841;
     }
 
     &--group {
+      padding: 9px 10px;
+
       .notetaker-sidebar__team-avatar {
         background: #f2effa;
       }
     }
+  }
+
+  &__team-agent-select {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  &__team-remove {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    margin-right: 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: $ks-text-muted;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+
+    &:hover,
+    &:focus-visible {
+      background: #fff0ee;
+      color: #c84943;
+      opacity: 1;
+    }
+  }
+
+  &__team-agent:hover &__team-remove,
+  &__team-agent:focus-within &__team-remove {
+    opacity: 1;
   }
 
   &__team-resizer {
@@ -460,6 +505,49 @@ $ks-red: #c14841;
     background: white;
     box-shadow: 0 24px 80px rgba(31, 36, 48, 0.24);
     user-select: text;
+  }
+
+  &__remove-dialog {
+    width: min(390px, calc(100vw - 48px));
+    padding: 24px;
+    border-radius: 18px;
+    background: white;
+    box-shadow: 0 24px 80px rgba(31, 36, 48, 0.24);
+
+    h2 { margin: 0 0 8px; color: $ks-text; font-size: 20px; }
+    p { margin: 0; color: $ks-text-muted; font-size: 14px; line-height: 1.5; }
+  }
+
+  &__remove-warning { margin-top: 12px !important; color: #a4423c !important; }
+
+  &__remove-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+
+    button {
+      padding: 9px 14px;
+      border: 1px solid $ks-border;
+      border-radius: 10px;
+      background: white;
+      color: $ks-text;
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  &__remove-confirm {
+    border-color: #c84943 !important;
+    background: #c84943 !important;
+    color: white !important;
+
+    &:disabled {
+      border-color: $ks-border !important;
+      background: $ks-bg-hover !important;
+      color: $ks-text-muted !important;
+      cursor: not-allowed;
+    }
   }
 
   &__composer-header {

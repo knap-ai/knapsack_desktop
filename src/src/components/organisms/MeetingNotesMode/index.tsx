@@ -239,11 +239,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       .join(', ') || 'Unknown'
     const lines = [
       'You are answering from the inline meeting chat. Answer from the meeting brief, notes, transcript, and details below before using broader memory.',
-      'Do not open a browser, navigate to a linked agenda, or use an external integration unless the user explicitly asks you to. If the meeting context is incomplete, say what is missing instead of attempting a login.',
+      'You have the same browser, web search, native integrations, and Knapsack Studio connector tools as the main chat. Use them when they materially improve the answer or when the user asks you to look something up.',
+      'For transcript or note questions, use the local meeting tools with the thread id below if the embedded snapshot is incomplete. If a required Studio connector is disconnected, explain which one is needed so the chat can offer its inline Connect action.',
       `The user is ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''}. Address the user directly and do not confuse them with external attendees.`,
       '',
       'Meeting details:',
       `- Title: ${meeting?.title || thread.subtitle || 'Meeting'}`,
+      `- Meeting thread id: ${thread.id}`,
       `- Participants: ${participantList}`,
       meeting?.start ? `- Start: ${dayjs.unix(meeting.start).format('MMM D, YYYY h:mm A')}` : '',
       meeting?.end ? `- End: ${dayjs.unix(meeting.end).format('MMM D, YYYY h:mm A')}` : '',
