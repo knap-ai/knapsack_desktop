@@ -339,9 +339,9 @@ pub(crate) async fn resolve_bound_authorized_session_with_slack_context(
     // identity is only an audit record for the most recent sender-aware call,
     // never authorization for a background/continuation turn that lacks the
     // current event sender.
-    if scope_key
-      .to_ascii_lowercase()
-      .contains(":slack:channel:")
+    let normalized_scope = scope_key.to_ascii_lowercase();
+    if normalized_scope.contains(":slack:channel:")
+      || normalized_scope.contains(":slack:group:")
     {
       return Err(
         "Cannot authorize shared Slack request: missing trusted current event sender"
@@ -1311,22 +1311,26 @@ mod tests {
   }
 
   #[tokio::test(flavor = "current_thread")]
-  async fn shared_slack_scope_never_reuses_a_stale_sender_without_event_context() {
+  async fn shared_slack_scopes_never_reuse_a_stale_sender_without_event_context() {
     let tempdir = tempfile::tempdir().unwrap();
     std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
-    let scope = "agent:main:slack:channel:c0blhtjkd2p:thread:1787861309.855509";
-    write_identity(tempdir.path(), "shared-session", "other@bankaya.com.mx", scope).unwrap();
+    for scope in [
+      "agent:main:slack:channel:c0blhtjkd2p:thread:1787861309.855509",
+      "agent:main:slack:group:g0example:thread:1787861309.855509",
+    ] {
+      write_identity(tempdir.path(), "shared-session", "other@bankaya.com.mx", scope).unwrap();
 
-    let error = resolve_bound_authorized_session_with_slack_context(
-      "shared-session",
-      scope,
-      Some("default"),
-      None,
-      Some("TPWGB3059"),
-    )
-    .await
-    .unwrap_err();
-    assert!(error.contains("missing trusted current event sender"));
+      let error = resolve_bound_authorized_session_with_slack_context(
+        "shared-session",
+        scope,
+        Some("default"),
+        None,
+        Some("TPWGB3059"),
+      )
+      .await
+      .unwrap_err();
+      assert!(error.contains("missing trusted current event sender"));
+    }
   }
 
   #[test]
