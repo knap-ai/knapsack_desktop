@@ -333,11 +333,34 @@ fn merge_table(
     .map(|column| quote_identifier(column))
     .collect::<Vec<_>>()
     .join(", ");
-  let sql = format!(
-    "INSERT OR IGNORE INTO main.{table} ({quoted}) SELECT {quoted} FROM imported.{table}",
-    table = quote_identifier(table),
-    quoted = quoted,
-  );
+  let sql = if table == "cookies" {
+    // A Chrome import is an explicit request to bring the selected profile's
+    // current sessions into Knapsack. When a cookie's natural Chromium key
+    // already exists, refresh it from Chrome instead of retaining a stale
+    // target value. The surrogate `id` remains excluded above, so unrelated
+    // rows can never be replaced merely because their ids collide.
+    let assignments = columns
+      .iter()
+      .map(|column| {
+        let quoted_column = quote_identifier(column);
+        format!("{quoted_column} = excluded.{quoted_column}")
+      })
+      .collect::<Vec<_>>()
+      .join(", ");
+    format!(
+      "INSERT INTO main.{table} ({quoted}) SELECT {quoted} FROM imported.{table} WHERE 1 \
+       ON CONFLICT DO UPDATE SET {assignments}",
+      table = quote_identifier(table),
+      quoted = quoted,
+      assignments = assignments,
+    )
+  } else {
+    format!(
+      "INSERT OR IGNORE INTO main.{table} ({quoted}) SELECT {quoted} FROM imported.{table}",
+      table = quote_identifier(table),
+      quoted = quoted,
+    )
+  };
   let transaction = connection
     .transaction()
     .map_err(|error| error.to_string())?;
@@ -571,6 +594,65 @@ mod tests {
       )
       .unwrap();
     assert_ne!(imported_id, 1);
+  }
+
+  #[test]
+  fn refreshes_existing_cookies_without_reusing_source_ids() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source.sqlite");
+    let target = temp.path().join("target.sqlite");
+    let schema = "CREATE TABLE cookies (\
+      id INTEGER PRIMARY KEY, \
+      host_key TEXT, \
+      name TEXT, \
+      path TEXT, \
+      value TEXT, \
+      expires_utc INTEGER, \
+      UNIQUE(host_key, name, path)\
+    )";
+    let source_db = Connection::open(&source).unwrap();
+    source_db.execute(schema, []).unwrap();
+    source_db
+      .execute(
+        "INSERT INTO cookies VALUES (1, '.example.com', 'session', '/', 'fresh', 200)",
+        [],
+      )
+      .unwrap();
+    source_db
+      .execute(
+        "INSERT INTO cookies VALUES (2, '.example.com', 'new', '/', 'added', 300)",
+        [],
+      )
+      .unwrap();
+    drop(source_db);
+
+    let target_db = Connection::open(&target).unwrap();
+    target_db.execute(schema, []).unwrap();
+    target_db
+      .execute(
+        "INSERT INTO cookies VALUES (7, '.example.com', 'session', '/', 'stale', 100)",
+        [],
+      )
+      .unwrap();
+    drop(target_db);
+
+    let imported = merge_table(&source, &target, "cookies", &temp.path().join("backup")).unwrap();
+    assert_eq!(imported, 2);
+    let merged = Connection::open(&target).unwrap();
+    let refreshed: (usize, String, usize) = merged
+      .query_row(
+        "SELECT id, value, expires_utc FROM cookies WHERE name = 'session'",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+      )
+      .unwrap();
+    assert_eq!(refreshed, (7, "fresh".to_string(), 200));
+    let added_id: usize = merged
+      .query_row("SELECT id FROM cookies WHERE name = 'new'", [], |row| {
+        row.get(0)
+      })
+      .unwrap();
+    assert_ne!(added_id, 2);
   }
 
   #[test]
