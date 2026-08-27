@@ -4,6 +4,7 @@ import { o as setPluginToolMeta } from "./tools-KpflAzxD.js";
 import { n as normalizeReservedToolNames, t as buildSafeToolName } from "./pi-bundle-mcp-names-Dkhn57WY.js";
 import { t as normalizeToolParameterSchema } from "./pi-tools-parameter-schema-BAwZxS_A.js";
 import crypto from "node:crypto";
+import { bindKnapsackSessionContext } from "./knapsack-session-context.js";
 //#region src/agents/pi-bundle-mcp-materialize.ts
 function toAgentToolResult(params) {
 	const content = Array.isArray(params.result.content) ? params.result.content : [];
@@ -66,7 +67,12 @@ async function materializeBundleMcpToolsForRun(params) {
 			parameters: normalizeToolParameterSchema(tool.inputSchema),
 			execute: async (_toolCallId, input) => {
 				params.runtime.markUsed();
-				const result = await params.runtime.callTool(tool.serverName, tool.toolName, input);
+				const result = await params.runtime.callTool(tool.serverName, tool.toolName, bindKnapsackSessionContext({
+					serverName: tool.serverName,
+					toolName: tool.toolName,
+					input,
+					runtime: params.runtime
+				}));
 				return toAgentToolResult({
 					serverName: tool.serverName,
 					toolName: tool.toolName,

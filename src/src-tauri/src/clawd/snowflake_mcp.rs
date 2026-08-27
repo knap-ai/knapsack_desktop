@@ -6,10 +6,11 @@
 //! Invoked as: `knapsack --internal-mcp-snowflake` (see `main.rs`).
 //!
 //! Security model (see the approved plan for full rationale):
-//! - The model-supplied tool argument is `session_id`, never `email`. The
-//!   authorized email is looked up from `session_watcher`'s identity index,
-//!   which Rust populated itself after independently verifying the Slack
-//!   sender via the Slack Web API — never trusted from the LLM.
+//! - The gateway injects its trusted session id and session key only after
+//!   model argument generation. The authorized email is looked up from
+//!   `session_watcher`'s identity index, which Rust populated itself after
+//!   independently verifying the Slack sender via the Slack Web API — neither
+//!   the session binding nor the email is trusted from the LLM.
 //! - `SESSION_CAPABILITY_SECRET` is read directly from `tokens.json` by this
 //!   process and never leaves it: it's used only to sign the short-lived
 //!   capability JWT sent to the broker.
@@ -20,15 +21,8 @@
 //!   container — see `run_snowflake_statement` for why that path could never
 //!   work and bought no additional protection.)
 //!
-//! DEVELOPMENT OVERRIDE (2026-08-11): every request is currently brokered as
-//! a single fixed identity — see `DEV_FORCED_BROKER_EMAIL`. The verified-sender
-//! gate above still applies, but the brokered identity does not vary per user,
-//! so there is no per-user Snowflake isolation until that constant is `None`.
-//!
-//! ASSUMPTION FLAGGED: the broker's response shape (`{"token": "..."}`) and
-//! the Snowflake account identifier (currently a placeholder constant) are
-//! not yet confirmed against a live broker/Snowflake account — see the
-//! `SNOWFLAKE_ACCOUNT` constant and `parse_broker_response` below.
+//! A local development-only broker identity override remains available through
+//! `KNAPSACK_SNOWFLAKE_BROKER_EMAIL`, but production has no compiled override.
 
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Serialize;
@@ -38,7 +32,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::read_session_capability_secret_headless;
-use super::session_watcher::resolve_authorized_session;
+use super::session_watcher::resolve_bound_authorized_session;
 
 const BROKER_BASE_URL: &str = "https://scout-oauth-web-ye3kc3evha-uk.a.run.app";
 const TENANT_ID: &str = "bankaya";
@@ -163,6 +157,10 @@ async fn fetch_broker_token_at(base_url: &str, email: &str, jwt: &str) -> Result
     .await
     .map_err(|error| format!("Unable to reach Snowflake token broker: {error}"))?;
   let status = response.status();
+  let body = response
+    .text()
+    .await
+    .map_err(|error| format!("Unable to read Snowflake token broker response: {error}"))?;
   if status == reqwest::StatusCode::FORBIDDEN {
     return Err("Broker rejected the request: sub did not match the requested email".to_string());
   }
@@ -170,11 +168,18 @@ async fn fetch_broker_token_at(base_url: &str, email: &str, jwt: &str) -> Result
     return Err("Broker rejected the request: capability JWT expired or already used".to_string());
   }
   if !status.is_success() {
-    return Err(format!("Snowflake token broker returned status {status}"));
+    let detail = serde_json::from_str::<Value>(&body)
+      .ok()
+      .and_then(|value| value.get("detail").and_then(Value::as_str).map(str::to_string))
+      .unwrap_or_else(|| body.trim().chars().take(300).collect::<String>());
+    let suffix = if detail.is_empty() {
+      String::new()
+    } else {
+      format!(": {detail}")
+    };
+    return Err(format!("Snowflake token broker returned status {status}{suffix}"));
   }
-  let body: Value = response
-    .json()
-    .await
+  let body: Value = serde_json::from_str(&body)
     .map_err(|error| format!("Invalid broker response: {error}"))?;
   parse_broker_response(&body)
 }
@@ -283,16 +288,25 @@ async fn run_snowflake_statement(oauth_token: &str, sql: &str) -> Result<Value, 
 }
 
 async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
-  // `session_id` is an optional hint only — see `resolve_authorized_session`.
-  // Requiring it made every call fail: the model cannot know its own gateway
-  // session id (it is never in its context) so it guessed its sandbox
-  // directory name and was rejected every time.
-  let session_id = args.get("session_id").and_then(|v| v.as_str());
   let query = args
     .get("query")
     .and_then(|v| v.as_str())
     .ok_or("Missing required argument: query")?;
-
+  // These fields are injected by the gateway after model argument generation.
+  // Model-supplied values are overwritten at that boundary, so authorization
+  // is bound to the real gateway session instead of inferred from global state.
+  let session_id = args
+    .get("_knapsack_session_id")
+    .and_then(|v| v.as_str())
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .ok_or("Missing trusted gateway session context")?;
+  let trusted_scope_key = args
+    .get("_knapsack_scope_key")
+    .and_then(|v| v.as_str())
+    .map(str::trim)
+    .filter(|value| !value.is_empty())
+    .ok_or("Missing trusted gateway session scope")?;
   // The watcher polls the gateway, so a brand-new Slack DM session can reach
   // this tool a few seconds before its independently verified identity file is
   // written. Wait only for the "not yet present" case; ambiguity and corrupt
@@ -300,7 +314,7 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
   let mut authorized = None;
   let mut last_error = String::new();
   for attempt in 0..IDENTITY_WAIT_ATTEMPTS {
-    match resolve_authorized_session(session_id) {
+    match resolve_bound_authorized_session(session_id, trusted_scope_key) {
       Ok(identity) => {
         authorized = Some(identity);
         break;
@@ -318,6 +332,10 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
   let (email, scope_key) = authorized
     .ok_or_else(|| format!("Cannot authorize this session for Snowflake access: {last_error}"))?;
 
+  eprintln!(
+    "[snowflake_mcp] authorized gateway session {session_id} scope {scope_key} as {email}"
+  );
+
   let secret = read_session_capability_secret_headless()?;
   // One value drives both the `sub` claim and the broker URL — see
   // `resolve_broker_email`.
@@ -328,10 +346,14 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
       "[snowflake_mcp] dev override active: verified sender {email} brokered as {broker_email}"
     );
   }
-  // Sign the RESOLVED scope key, never the model-supplied hint — the claim
-  // must describe the session Knapsack actually verified.
-  let jwt = mint_capability_jwt(&secret, broker_email, &scope_key)?;
+  // Sign the exact gateway session id. It came from the gateway runtime, not
+  // model output, and the scope match above proves that the persisted Slack
+  // identity belongs to this same request session.
+  let jwt = mint_capability_jwt(&secret, broker_email, session_id)?;
   let oauth_token = fetch_broker_token(broker_email, &jwt).await?;
+  eprintln!(
+    "[snowflake_mcp] broker granted Snowflake token for gateway session {session_id} as {broker_email}"
+  );
 
   // No sandbox-container teardown here any more: the token is never placed in
   // a container (see `run_snowflake_statement`), and the teardown this used to
@@ -339,7 +361,15 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
   // two reasons the container path could never work. Removing a live sandbox
   // out from under a running session is a side effect a read-only query has no
   // business having. `session_watcher` still does its own end-of-turn teardown.
-  run_snowflake_statement(&oauth_token, query).await
+  let result = run_snowflake_statement(&oauth_token, query).await?;
+  let statement_handle = result
+    .get("statementHandle")
+    .and_then(Value::as_str)
+    .unwrap_or("unavailable");
+  eprintln!(
+    "[snowflake_mcp] Snowflake SQL API succeeded for gateway session {session_id} statement {statement_handle}"
+  );
+  Ok(result)
 }
 
 // ── minimal MCP-over-stdio JSON-RPC framing ─────────────────────────────
@@ -357,7 +387,6 @@ fn tool_schema() -> Value {
       "type": "object",
       "properties": {
         "query": { "type": "string", "description": "The SQL statement to run." },
-        "session_id": { "type": "string", "description": "Optional. Ignore unless you were explicitly given a Knapsack session id; it is only a hint and is never required." }
       },
       "required": ["query"]
     }
@@ -533,11 +562,11 @@ mod tests {
   }
 
   #[test]
-  fn dev_override_is_currently_the_fixed_development_identity() {
+  fn production_uses_the_verified_sender_without_a_compiled_override() {
     std::env::remove_var("KNAPSACK_SNOWFLAKE_BROKER_EMAIL");
     assert_eq!(
       forced_broker_email().as_deref(),
-      Some("rogelio@bankaya.com.mx")
+      None
     );
   }
 
@@ -584,13 +613,16 @@ mod tests {
     assert!(error.contains("query"), "unexpected error: {error}");
   }
 
-  /// `session_id` is deliberately NOT required any more (the model cannot
-  /// know it), but with no verified identity on record the call must still be
-  /// refused rather than falling back to some default identity.
+  /// Even trusted gateway context cannot authorize a session until the Slack
+  /// API verification record exists.
   #[tokio::test]
   async fn rejects_tool_call_when_no_verified_identity_exists() {
     std::env::set_var("OPENCLAW_STATE_DIR", tempfile::tempdir().unwrap().path());
-    let error = handle_snowflake_query(&json!({ "query": "select 1" }))
+    let error = handle_snowflake_query(&json!({
+      "query": "select 1",
+      "_knapsack_session_id": "session-mark",
+      "_knapsack_scope_key": "agent:main:slack:default:direct:u0asedsqp8f"
+    }))
       .await
       .unwrap_err();
     assert!(
@@ -602,19 +634,20 @@ mod tests {
   #[tokio::test]
   async fn rejects_tool_call_for_unknown_session() {
     std::env::set_var("OPENCLAW_STATE_DIR", tempfile::tempdir().unwrap().path());
-    let error = handle_snowflake_query(&json!({ "session_id": "never-seen", "query": "select 1" }))
+    let error = handle_snowflake_query(&json!({
+      "_knapsack_session_id": "never-seen",
+      "_knapsack_scope_key": "agent:main:slack:default:direct:u0asedsqp8f",
+      "query": "select 1"
+    }))
       .await
       .unwrap_err();
     assert!(error.contains("Cannot authorize"));
   }
 
-  /// The exact shape that failed in production on 2026-08-11: the model
-  /// passed its sandbox workspace directory name as `session_id` because the
-  /// real session id is not in its context. With one verified identity on
-  /// record this must now succeed at the authorization step instead of
-  /// dead-ending on "No verified identity on record".
+  /// A model attempt to select another session is ignored because the gateway
+  /// overwrites the hidden binding fields after argument generation.
   #[tokio::test]
-  async fn wrong_model_supplied_session_id_still_authorizes_against_the_verified_record() {
+  async fn trusted_gateway_binding_authorizes_the_exact_verified_record() {
     let tempdir = tempfile::tempdir().unwrap();
     std::env::set_var("OPENCLAW_STATE_DIR", tempdir.path());
     let dir = tempdir.path().join("snowflake-identities");
@@ -626,7 +659,9 @@ mod tests {
     .unwrap();
 
     let error = handle_snowflake_query(&json!({
-      "session_id": "agent-main-slack-default-direct--b1096950",
+      "session_id": "attacker-selected-session",
+      "_knapsack_session_id": "f2abdfc8-real-session-id",
+      "_knapsack_scope_key": "agent:main:slack:default:direct:u0bpj321v9p",
       "query": "select 1"
     }))
     .await
@@ -716,6 +751,26 @@ mod tests {
       .await
       .unwrap_err();
     assert!(error.contains("did not match"));
+    server
+      .await
+      .expect("mock server task panicked (assertion failed)");
+  }
+
+  #[tokio::test]
+  async fn broker_bad_request_surfaces_safe_actionable_detail() {
+    let body = r#"{"detail":"The verified email has no mapped Snowflake identity"}"#;
+    let response = format!(
+      "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+      body.len(),
+      body
+    );
+    let response: &'static str = Box::leak(response.into_boxed_str());
+    let (base_url, server) = serve_one(response, |_request| {});
+    let error = fetch_broker_token_at(&base_url, "someone@bankaya.com.mx", "test-jwt")
+      .await
+      .unwrap_err();
+    assert!(error.contains("400 Bad Request"));
+    assert!(error.contains("no mapped Snowflake identity"));
     server
       .await
       .expect("mock server task panicked (assertion failed)");
