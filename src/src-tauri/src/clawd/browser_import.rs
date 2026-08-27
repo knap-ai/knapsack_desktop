@@ -53,6 +53,23 @@ struct ImportMarker {
   cookies_imported: usize,
 }
 
+#[derive(Debug)]
+struct ImportFailure {
+  message: String,
+  passwords_imported: usize,
+  cookies_imported: usize,
+}
+
+impl ImportFailure {
+  fn before_changes(message: String) -> Self {
+    Self {
+      message,
+      passwords_imported: 0,
+      cookies_imported: 0,
+    }
+  }
+}
+
 fn chrome_user_data_dir() -> Option<PathBuf> {
   #[cfg(target_os = "macos")]
   {
@@ -375,18 +392,22 @@ fn perform_import(
   source_root: &Path,
   target_root: &Path,
   profile_id: &str,
-) -> Result<ImportMarker, String> {
+) -> Result<ImportMarker, ImportFailure> {
   if !is_safe_profile_id(profile_id) {
-    return Err("Choose a valid Chrome profile".to_string());
+    return Err(ImportFailure::before_changes(
+      "Choose a valid Chrome profile".to_string(),
+    ));
   }
   let source_profile = source_root.join(profile_id);
   if !source_profile.is_dir() {
-    return Err("The selected Chrome profile is no longer available".to_string());
+    return Err(ImportFailure::before_changes(
+      "The selected Chrome profile is no longer available".to_string(),
+    ));
   }
   let target_profile = target_root.join("Default");
   let now = SystemTime::now()
     .duration_since(UNIX_EPOCH)
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| ImportFailure::before_changes(error.to_string()))?;
   let imported_at = chrono::Utc::now().to_rfc3339();
   let backup_dir = target_root
     .join("import-backups")
@@ -396,15 +417,29 @@ fn perform_import(
     &target_profile.join("Login Data"),
     "logins",
     &backup_dir,
-  )?;
+  )
+  .map_err(ImportFailure::before_changes)?;
   let cookies_imported = merge_table(
     &cookie_database(&source_profile),
     &cookie_database(&target_profile),
     "cookies",
     &backup_dir,
-  )?;
+  )
+  .map_err(|message| ImportFailure {
+    message: if passwords_imported > 0 {
+      format!(
+        "Imported {passwords_imported} saved passwords, but cookies could not be imported: {message}"
+      )
+    } else {
+      message
+    },
+    passwords_imported,
+    cookies_imported: 0,
+  })?;
   if passwords_imported == 0 && cookies_imported == 0 {
-    return Err("No saved passwords or cookies were found in that Chrome profile".to_string());
+    return Err(ImportFailure::before_changes(
+      "No saved passwords or cookies were found in that Chrome profile".to_string(),
+    ));
   }
   let marker = ImportMarker {
     profile_id: profile_id.to_string(),
@@ -414,9 +449,17 @@ fn perform_import(
   };
   fs::write(
     marker_path(target_root),
-    serde_json::to_vec_pretty(&marker).map_err(|error| error.to_string())?,
+    serde_json::to_vec_pretty(&marker).map_err(|error| ImportFailure {
+      message: error.to_string(),
+      passwords_imported,
+      cookies_imported,
+    })?,
   )
-  .map_err(|error| format!("Chrome data imported, but completion could not be saved: {error}"))?;
+  .map_err(|error| ImportFailure {
+    message: format!("Chrome data imported, but completion could not be saved: {error}"),
+    passwords_imported,
+    cookies_imported,
+  })?;
   Ok(marker)
 }
 
@@ -495,16 +538,27 @@ pub async fn import_chrome_data(
         ),
       })
     }
-    Ok(Err(message)) => HttpResponse::BadRequest().json(ChromeImportResponse {
+    Ok(Err(failure)) => HttpResponse::BadRequest().json(ChromeImportResponse {
       success: false,
-      passwords_imported: 0,
-      cookies_imported: 0,
+      passwords_imported: failure.passwords_imported,
+      cookies_imported: failure.cookies_imported,
       imported_at: None,
-      message: if message.to_ascii_lowercase().contains("database is locked") {
-        "The built-in browser is still saving data. Wait a moment, then try the import again."
-          .to_string()
+      message: if failure
+        .message
+        .to_ascii_lowercase()
+        .contains("database is locked")
+      {
+        if failure.passwords_imported > 0 {
+          format!(
+            "Imported {} saved passwords, but the cookie database is still locked. Wait a moment, then import again to finish.",
+            failure.passwords_imported
+          )
+        } else {
+          "The built-in browser is still saving data. Wait a moment, then try the import again."
+            .to_string()
+        }
       } else {
-        message
+        failure.message
       },
     }),
     Err(error) => HttpResponse::InternalServerError().json(ChromeImportResponse {
@@ -680,5 +734,38 @@ mod tests {
       .query_row("SELECT COUNT(*) FROM cookies", [], |row| row.get(0))
       .unwrap();
     assert_eq!(count, 1);
+  }
+
+  #[test]
+  fn reports_passwords_imported_before_a_cookie_failure() {
+    let temp = tempfile::tempdir().unwrap();
+    let source_root = temp.path().join("chrome");
+    let source_profile = source_root.join("Default");
+    let target_root = temp.path().join("knapsack");
+    fs::create_dir_all(source_profile.join("Network")).unwrap();
+
+    let login_db = Connection::open(source_profile.join("Login Data")).unwrap();
+    login_db
+      .execute(
+        "CREATE TABLE logins (id INTEGER PRIMARY KEY, username TEXT UNIQUE)",
+        [],
+      )
+      .unwrap();
+    login_db
+      .execute("INSERT INTO logins VALUES (1, 'imported')", [])
+      .unwrap();
+    drop(login_db);
+
+    let cookie_db = Connection::open(source_profile.join("Network/Cookies")).unwrap();
+    cookie_db
+      .execute("CREATE TABLE not_cookies (value TEXT)", [])
+      .unwrap();
+    drop(cookie_db);
+
+    let failure = perform_import(&source_root, &target_root, "Default").unwrap_err();
+    assert_eq!(failure.passwords_imported, 1);
+    assert_eq!(failure.cookies_imported, 0);
+    assert!(failure.message.contains("Imported 1 saved passwords"));
+    assert!(target_root.join("Default/Login Data").is_file());
   }
 }

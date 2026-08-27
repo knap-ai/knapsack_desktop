@@ -326,7 +326,6 @@ pub(crate) fn force_stop_managed_browser(user_data_dir: &Path) {
       }
     }
   }
-  kill_process_on_port(18800);
 }
 
 /// Check if a process with the given PID is still running (Windows).
