@@ -22,6 +22,7 @@
     "preqa:dev": "node scripts/fix-rollup-native.cjs",
     "qa:loop": "node scripts/qa-loop-runner.cjs",
     "test:qa-loop": "node --test scripts/qa-loop-runner.test.cjs",
+    "test:app-update": "node --test scripts/app-update.test.cjs",
     "test:studio-connectors": "node --test scripts/studio-connectors.test.cjs",
     "test:snowflake-session-binding": "node --test scripts/snowflake-session-binding.test.cjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
