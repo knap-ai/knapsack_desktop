@@ -1498,6 +1498,63 @@ fn ensure_knapsack_studio_mcp_server(cfg: &mut serde_json::Value, clawdbot_home:
   patched
 }
 
+fn ensure_knapsack_sandbox_browser_host_control(cfg: &mut serde_json::Value) -> bool {
+  if cfg
+    .pointer("/agents/defaults/sandbox/browser/allowHostControl")
+    .and_then(|value| value.as_bool())
+    == Some(true)
+  {
+    return false;
+  }
+  let mut sandbox = cfg
+    .pointer("/agents/defaults/sandbox")
+    .cloned()
+    .filter(|value| value.is_object())
+    .unwrap_or_else(|| serde_json::json!({}));
+  let mut browser = sandbox
+    .get("browser")
+    .cloned()
+    .filter(|value| value.is_object())
+    .unwrap_or_else(|| serde_json::json!({}));
+  browser
+    .as_object_mut()
+    .unwrap()
+    .insert("allowHostControl".to_string(), serde_json::json!(true));
+  sandbox
+    .as_object_mut()
+    .unwrap()
+    .insert("browser".to_string(), browser);
+  if cfg
+    .pointer("/agents/defaults")
+    .and_then(|value| value.as_object())
+    .is_none()
+  {
+    if cfg
+      .get("agents")
+      .and_then(|value| value.as_object())
+      .is_none()
+    {
+      cfg
+        .as_object_mut()
+        .unwrap()
+        .insert("agents".to_string(), serde_json::json!({}));
+    }
+    cfg
+      .pointer_mut("/agents")
+      .unwrap()
+      .as_object_mut()
+      .unwrap()
+      .insert("defaults".to_string(), serde_json::json!({}));
+  }
+  cfg
+    .pointer_mut("/agents/defaults")
+    .unwrap()
+    .as_object_mut()
+    .unwrap()
+    .insert("sandbox".to_string(), sandbox);
+  true
+}
+
 /// Registering `mcp.servers.snowflake` (above) makes the gateway spawn the
 /// MCP subprocess, but the gateway also enforces `tools.allow` as a strict
 /// allowlist. Bundle-MCP tools aren't registered under their own schema
@@ -11848,6 +11905,10 @@ async fn prepare_gateway_config(
           );
           patched = true;
         }
+        if ensure_knapsack_sandbox_browser_host_control(&mut cfg_val) {
+          eprintln!("[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser");
+          patched = true;
+        }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
           patched = true;
         }
@@ -13948,6 +14009,10 @@ pub async fn set_service_enabled(
                 "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
                 docker_sandbox_available
               );
+              patched = true;
+            }
+            if ensure_knapsack_sandbox_browser_host_control(&mut cfg) {
+              eprintln!("[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser");
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
@@ -17880,6 +17945,7 @@ mod knapsack_runtime_auth_tests {
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
     ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
+    ensure_knapsack_sandbox_browser_host_control,
     ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
     ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
     parse_studio_connector_catalog, sync_active_provider_for_ollama_toggle, StoredTokens,
@@ -18107,6 +18173,33 @@ mod knapsack_runtime_auth_tests {
 
     assert!(ensure_knapsack_session_isolation(&mut cfg, true, false));
     assert!(!ensure_knapsack_session_isolation(&mut cfg, true, false));
+  }
+
+  #[test]
+  fn sandboxed_scout_sessions_can_use_the_managed_host_browser() {
+    let mut cfg = serde_json::json!({
+      "agents": { "defaults": { "sandbox": {
+        "mode": "all",
+        "backend": "docker",
+        "scope": "session",
+        "workspaceAccess": "none"
+      } } }
+    });
+
+    assert!(ensure_knapsack_sandbox_browser_host_control(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/browser/allowHostControl")
+        .and_then(|value| value.as_bool()),
+      Some(true)
+    );
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/sandbox/workspaceAccess")
+        .and_then(|value| value.as_str()),
+      Some("none")
+    );
+    assert!(!ensure_knapsack_sandbox_browser_host_control(&mut cfg));
   }
 
   #[test]

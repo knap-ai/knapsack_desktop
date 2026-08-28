@@ -32,7 +32,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::read_session_capability_secret_headless;
-use super::session_watcher::resolve_bound_authorized_session;
+use super::session_watcher::resolve_bound_authorized_session_with_slack_context;
 
 const BROKER_BASE_URL: &str = "https://scout-oauth-web-ye3kc3evha-uk.a.run.app";
 const TENANT_ID: &str = "bankaya";
@@ -307,6 +307,15 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or("Missing trusted gateway session scope")?;
+  let slack_user_id = args
+    .get("_knapsack_slack_user_id")
+    .and_then(Value::as_str);
+  let slack_account_id = args
+    .get("_knapsack_slack_account_id")
+    .and_then(Value::as_str);
+  let slack_workspace_id = args
+    .get("_knapsack_slack_workspace_id")
+    .and_then(Value::as_str);
   // The watcher polls the gateway, so a brand-new Slack DM session can reach
   // this tool a few seconds before its independently verified identity file is
   // written. Wait only for the "not yet present" case; ambiguity and corrupt
@@ -314,7 +323,15 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
   let mut authorized = None;
   let mut last_error = String::new();
   for attempt in 0..IDENTITY_WAIT_ATTEMPTS {
-    match resolve_bound_authorized_session(session_id, trusted_scope_key) {
+    match resolve_bound_authorized_session_with_slack_context(
+      session_id,
+      trusted_scope_key,
+      slack_account_id,
+      slack_user_id,
+      slack_workspace_id,
+    )
+    .await
+    {
       Ok(identity) => {
         authorized = Some(identity);
         break;
