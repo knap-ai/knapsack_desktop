@@ -854,6 +854,13 @@ function evaluateBrowserPersistenceCapabilities({ commandLine = "", preferences 
   };
 }
 
+function findManagedBrowserCommandLine(processOutput, userDataDir = "") {
+  const lines = String(processOutput || "").split(/\r?\n/).filter(Boolean);
+  return lines.find((line) => userDataDir && line.includes(`--user-data-dir=${userDataDir}`))
+    || lines.find((line) => line.includes("--remote-debugging-port=18800"))
+    || "";
+}
+
 function probeBrowserPersistenceCapabilities() {
   const stateDir = apiAuthStateDir();
   const userDataDir = stateDir
@@ -862,9 +869,7 @@ function probeBrowserPersistenceCapabilities() {
   let commandLine = "";
   if (userDataDir && (process.platform === "darwin" || process.platform === "linux")) {
     const processList = spawnSync("ps", ["-axo", "command="], { encoding: "utf8" });
-    commandLine = String(processList.stdout || "")
-      .split(/\r?\n/)
-      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+    commandLine = findManagedBrowserCommandLine(processList.stdout, userDataDir);
   } else if (userDataDir && process.platform === "win32") {
     const processList = spawnSync(
       "powershell.exe",
@@ -876,9 +881,7 @@ function probeBrowserPersistenceCapabilities() {
       ],
       { encoding: "utf8" },
     );
-    commandLine = String(processList.stdout || "")
-      .split(/\r?\n/)
-      .find((line) => line.includes(`--user-data-dir=${userDataDir}`)) || "";
+    commandLine = findManagedBrowserCommandLine(processList.stdout, userDataDir);
   }
   const preferences = userDataDir
     ? readJsonFile(path.join(userDataDir, "Default", "Preferences")) || {}
@@ -1512,7 +1515,7 @@ async function ensureGatewayEnabledForQA(timeoutMs = 12_000) {
 
 async function setProviderAndModel(provider, model) {
   const startedAt = Date.now();
-  // The backend deliberately waits up to 45s for gateway readiness and up to
+  // The backend deliberately waits up to 90s for gateway readiness and up to
   // 120s for channel readiness after a provider switch. A 30s client timeout
   // abandons the request while the restart continues, so the next provider
   // switch overlaps it and creates a restart loop. Keep the client budget
@@ -1553,7 +1556,7 @@ async function setProviderAndModel(provider, model) {
 
 function qaSetProviderTimeoutMs(raw = process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS) {
   const configured = Number(raw);
-  return Number.isFinite(configured) && configured > 0 ? configured : 150_000;
+  return Number.isFinite(configured) && configured > 0 ? configured : 240_000;
 }
 
 function providerSwitchAppliedButStillStarting(status, payload) {
@@ -2684,6 +2687,7 @@ if (require.main === module) {
 module.exports = {
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
+  findManagedBrowserCommandLine,
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,

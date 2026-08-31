@@ -7,6 +7,7 @@ const test = require("node:test");
 const {
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
+  findManagedBrowserCommandLine,
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,
@@ -40,9 +41,9 @@ test("non-local requests never receive the desktop API token", () => {
 });
 
 test("provider switching waits longer than the backend restart budget", () => {
-  assert.equal(qaSetProviderTimeoutMs(undefined), 150_000);
+  assert.equal(qaSetProviderTimeoutMs(undefined), 240_000);
   assert.equal(qaSetProviderTimeoutMs("180000"), 180_000);
-  assert.equal(qaSetProviderTimeoutMs("invalid"), 150_000);
+  assert.equal(qaSetProviderTimeoutMs("invalid"), 240_000);
 });
 
 test("an applied provider switch can recover readiness without switching again", () => {
@@ -121,6 +122,18 @@ test("managed browser persistence accepts enabled password and payment storage",
       preferences: { autofill: { credit_card_enabled: false } },
     }).ok,
     false,
+  );
+});
+
+test("managed browser command line falls back to the dedicated debugging port", () => {
+  const output = [
+    "chrome --user-data-dir=/Users/mark/Library/Application Support/Google/Chrome",
+    "chrome --remote-debugging-port=18800 --user-data-dir=/tmp/managed-browser",
+  ].join("\n");
+
+  assert.equal(
+    findManagedBrowserCommandLine(output, "/tmp/profile-not-visible-in-process-list"),
+    "chrome --remote-debugging-port=18800 --user-data-dir=/tmp/managed-browser",
   );
 });
 
