@@ -832,7 +832,7 @@ function NotetakerSidebar({
                         </span>
                         <div className="notetaker-sidebar__calendar-date-meta">
                           <span className="notetaker-sidebar__calendar-month">
-                            {date.format('MMMM')}
+                            {date.format('MMM')}
                           </span>
                           {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
                           <span className="notetaker-sidebar__calendar-day-name">

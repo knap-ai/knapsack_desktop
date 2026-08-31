@@ -1235,18 +1235,17 @@ export function useFeed(
         })
 
         const nowSeconds = Date.now() / 1000
-        // Only show meetings through end of tomorrow
-        const endOfTomorrow = new Date()
-        endOfTomorrow.setDate(endOfTomorrow.getDate() + 2)
-        endOfTomorrow.setHours(0, 0, 0, 0)
-        const endOfTomorrowSeconds = endOfTomorrow.getTime() / 1000
+        // Keep the feed and sidebar aligned with useCalendar's one-week fetch
+        // window. Limiting this to tomorrow made later events look as though
+        // connected calendars had failed to sync.
+        const endOfUpcomingWindowSeconds = nowSeconds + 7 * 24 * 60 * 60
 
         const seenMeetingKeys = new Set<string>()
         Object.entries(meetings).forEach(([_id, meeting]) => {
           const meetingKey = `${meeting.title}_${Math.floor(meeting.start / 60)}`
           if (
             meeting.end > nowSeconds &&
-            meeting.start < endOfTomorrowSeconds &&
+            meeting.start <= endOfUpcomingWindowSeconds &&
             !existingEventIds.has(meeting.event_id) &&
             !existingMeetingKeys.has(meetingKey) &&
             !seenMeetingKeys.has(meetingKey)
