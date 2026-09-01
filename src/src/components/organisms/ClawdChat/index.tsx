@@ -1945,6 +1945,8 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 }
 
 interface ClawdChatProps {
+  /** Whether this mounted chat currently owns global shortcuts and app events. */
+  active?: boolean
   showActivityPanel?: boolean
   onToggleActivity?: () => void
   onCloseActivity?: () => void
@@ -1982,7 +1984,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -3604,6 +3606,12 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     }
   }, [])
 
+  // Persisted chats remain mounted so background requests can finish. Refresh
+  // the global provider/model selection whenever one becomes active again.
+  useEffect(() => {
+    if (active) void syncProviderSelectionFromBackend()
+  }, [active, syncProviderSelectionFromBackend])
+
   const recoverProviderSwitchFromBackend = useCallback(async (expectedProvider: Provider) => {
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', { timeoutMs: 4000 })
@@ -4276,13 +4284,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Uses pushAssistantRef (not pushAssistant) to avoid re-subscribing on every
   // render, which causes typing latency in the input box.
   useEffect(() => {
+    if (!active) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) pushAssistantRef.current?.(text)
     }
     window.addEventListener('clawd-push-assistant', handler)
     return () => window.removeEventListener('clawd-push-assistant', handler)
-  }, [])
+  }, [active])
 
   // Listen for suggested action triggers from notification handlers.
   // When the user clicks the primary action button on a notification,
@@ -4293,22 +4302,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   busyRef.current = busy
   const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
+    if (!active) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) handleSendWithTextRef.current?.(text)
     }
     window.addEventListener('clawd-send-user', handler)
     return () => window.removeEventListener('clawd-send-user', handler)
-  }, [])
+  }, [active])
 
   // Listen for requests to open the developer panel from chat intent detection
   useEffect(() => {
+    if (!active) return
     const handler = () => {
       if (developerMode) setShowDevPanel(true)
     }
     window.addEventListener('clawd-open-dev-panel', handler)
     return () => window.removeEventListener('clawd-open-dev-panel', handler)
-  }, [developerMode])
+  }, [active, developerMode])
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
@@ -5525,6 +5536,7 @@ ${actualText}`
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
   useEffect(() => {
+    if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
       if (e.key === 'Escape') {
@@ -5554,10 +5566,11 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [chatFindOpen])
+  }, [active, chatFindOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
+    if (!active) return
     const handleBannerKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       // Don't intercept when user is typing in an input/textarea
@@ -5584,7 +5597,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleBannerKey)
     return () => window.removeEventListener('keydown', handleBannerKey)
-  }, [health, channelStatus.gatewayStarting])
+  }, [active, health, channelStatus.gatewayStarting])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput

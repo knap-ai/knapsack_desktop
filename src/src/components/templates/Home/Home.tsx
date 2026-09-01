@@ -862,6 +862,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                           aria-hidden={!isActiveChat}
                         >
                           <ClawdChat
+                            active={isActiveChat}
                             showActivityPanel={isActiveChat && showActivityPanel}
                             onToggleActivity={
                               isActiveChat ? () => setShowActivityPanel(prev => !prev) : undefined
