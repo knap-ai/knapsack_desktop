@@ -226,7 +226,7 @@ export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/${escapeSingleQuotes(
 `
 }
 
-const GEMINI_MODEL_ID_PATTERN = /\bgemini-\d+(?:\.\d+)?-(?:flash-lite|flash|pro)(?:-preview)?\b/gi
+const GEMINI_MODEL_ID_PATTERN = /\bgemini-\d+(?:\.\d+)?-(?:flash-lite|flash|pro)(?:-preview)?(?![\da-z-])/gi
 
 function geminiVersionParts(modelId) {
   const match = modelId.match(/^gemini-(\d+(?:\.\d+)?)-/)

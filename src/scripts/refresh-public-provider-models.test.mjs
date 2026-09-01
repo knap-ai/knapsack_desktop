@@ -38,3 +38,14 @@ test('generated Gemini catalog exposes 3.7 Flash and provider summary', () => {
   assert.match(source, /name: 'Gemini 3\.7 Flash'/)
   assert.match(source, /GEMINI_PROVIDER_DESCRIPTION = 'Gemini 3\.7 Flash, 3\.1 Pro, 2\.5 Flash'/)
 })
+
+test('specialized Gemini ids cannot create nonexistent text-model entries', () => {
+  const ids = canonicalGeminiModelIdsFromHtml(`
+    gemini-3.8-flash-image
+    gemini-3.9-flash-live-preview
+    gemini-4.0-pro-preview-tts
+    gemini-3.7-flash
+  `)
+
+  assert.deepEqual(ids, ['gemini-3.7-flash'])
+})
