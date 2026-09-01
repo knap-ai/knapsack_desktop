@@ -16,6 +16,7 @@ test('Gmail API responses retain mailbox identity and account-scope threads', ()
   assert.match(search, /account_email: email\.account_email/)
   assert.match(search, /get_last_email_by_thread_id_for_account\([\s\S]*?&email\.account_email/)
   assert.match(emailModel, /WHERE thread_id = \?1 AND account_email = \?2/)
+  assert.match(emailModel, /WHERE email_uid = \?11 AND account_email = \?13/)
   assert.match(emailModel, /get_last_email_by_thread_id_for_account/)
   assert.match(emailModel, /LOWER\(account_email\) IN/)
 })
@@ -60,6 +61,7 @@ test('notification drawer preserves mailbox identity for actions', () => {
   assert.match(drawer, /accountEmail\?: string/)
   assert.match(drawer, /handleEmailActionTaken\(actionTaken, emailUid, draftReply, accountEmail\)/)
   assert.match(drawer, /feed\.takeEmailAction\([\s\S]*?accountEmail/)
+  assert.match(drawer, /setSessionDismissedIds\([\s\S]*?drawerEmailKey\(pendingEmail, userEmail\)/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {

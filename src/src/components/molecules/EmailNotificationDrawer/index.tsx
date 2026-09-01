@@ -400,14 +400,17 @@ const EmailNotificationDrawer = ({
   const handleNoResponseNeeded = useCallback(() => {
     if (!pendingEmail) return
     const uid = pendingEmail.message.emailUid
+    const accountEmail = pendingEmail.message.accountEmail || userEmail
     // Mark as read (ignored) — feeds back that this email didn't need a response
     feed.takeEmailAction(
       uid,
       AutopilotActions.MARK_AS_READ,
       profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+      undefined,
+      accountEmail,
     )
     // Session-dismiss so it doesn't reappear
-    setSessionDismissedIds(prev => new Set(prev).add(uid))
+    setSessionDismissedIds(prev => new Set(prev).add(drawerEmailKey(pendingEmail, userEmail)))
     // Animate the drawer out
     setIsAnimatingOut(true)
     setIsExpanded(false)
@@ -415,7 +418,7 @@ const EmailNotificationDrawer = ({
       setIsVisible(false)
       setIsAnimatingOut(false)
     }, 300)
-  }, [pendingEmail, feed.takeEmailAction, profileProvider])
+  }, [pendingEmail, feed.takeEmailAction, profileProvider, userEmail])
 
 
   // Resize drag handler — user drags the top-left corner to grow/shrink the drawer

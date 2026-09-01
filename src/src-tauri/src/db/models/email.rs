@@ -70,7 +70,7 @@ impl Email {
             is_read = ?9, 
             is_archived = ?10 ,
             is_deleted =?12
-        WHERE email_uid = ?11",
+        WHERE email_uid = ?11 AND account_email = ?13",
       params![
         self.subject,
         self.date,
@@ -83,7 +83,8 @@ impl Email {
         self.is_read,
         self.is_archived,
         self.email_uid,
-        self.is_deleted
+        self.is_deleted,
+        self.account_email
       ],
     )?;
     Ok(())
@@ -131,7 +132,9 @@ impl Email {
       .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1 AND account_email = ?2")
       .expect("could not prepare account-scoped email query");
     let email = stmt
-      .query_row(params![uid, account_email], |row| Email::build_struct_from_row(row))
+      .query_row(params![uid, account_email], |row| {
+        Email::build_struct_from_row(row)
+      })
       .optional()?;
     Ok(email)
   }
@@ -295,7 +298,10 @@ impl Email {
           .enumerate()
           .map(|(index, _)| format!("?{}", first_param_index + index))
           .collect::<Vec<_>>();
-        where_queries.push(format!("LOWER(account_email) IN ({})", placeholders.join(", ")));
+        where_queries.push(format!(
+          "LOWER(account_email) IN ({})",
+          placeholders.join(", ")
+        ));
         params.extend(account_emails);
       }
     }
@@ -452,7 +458,9 @@ impl Email {
         .expect("could not prepare account-scoped query emails by thread_id");
 
     let emails = stmt
-      .query_map(params![thread_id, account_email], |row| Email::build_struct_from_row(row))
+      .query_map(params![thread_id, account_email], |row| {
+        Email::build_struct_from_row(row)
+      })
       .map_err(Error::from)?
       .filter_map(|r| r.ok())
       .collect();
