@@ -101,6 +101,45 @@ The upgrade must not reintroduce manual edits to generated `dist` chunks.
 | Docker create/remove diagnostic fixes | Unknown until regression test | Compare 2.0 sandbox behavior and retain only failing cases. |
 | Bundled Slack, WhatsApp and Telegram dependency staging | Still Knapsack packaging | Reconcile with 2.0's official plugin packages and signed-bundle constraints. |
 
+### Verified requester-aware MCP seam
+
+OpenClaw `2026.8.2` exposes
+`api.registerMcpServerConnectionResolver(...)`. Its resolver receives only
+host-provided identity fields:
+
+- `requesterSenderId` (required);
+- `agentAccountId` (optional); and
+- `messageChannel` (optional).
+
+The runtime omits requester-scoped servers when the sender id is absent, calls
+the resolver with the trusted Slack sender/account/channel when it is present,
+redacts resolved URLs and headers, and revalidates an active connection at
+least every five minutes. An isolated runtime test confirmed that an empty
+sender fails closed and `U0ASEDSQP8F`/`bankaya`/`slack` reaches the resolver
+unchanged.
+
+This is the supported replacement direction for Knapsack's compiled
+`_knapsack_session_id` and Slack-identity tool-argument injection. It is not a
+drop-in replacement yet:
+
+1. The resolver returns an HTTP URL and headers, while Knapsack's current
+   Studio and Snowflake bridges are local stdio subprocesses.
+2. It does not expose OpenClaw's internal session id, scope key, or Slack
+   workspace id. The local broker must authorize the trusted tuple
+   `(messageChannel, agentAccountId, requesterSenderId)` directly and map the
+   configured account to its workspace without guessing among active users.
+3. Registering a resolver makes that server requester-scoped for every turn.
+   The Desktop/webchat path must be proven to receive a trusted synthetic
+   requester identity, or Knapsack must expose a separate explicitly local
+   transport without weakening the channel path.
+
+The implementation PR should therefore add a loopback HTTP MCP bridge owned by
+Tauri and a bundled Knapsack plugin that resolves `studio` and `snowflake` to
+that bridge with a short-lived, app-authenticated capability. Tests must cover
+two simultaneous Slack users, two Slack workspaces with colliding user ids,
+Desktop chat, missing identity, revoked identity, header redaction, and runtime
+revalidation before the compiled patches are removed.
+
 ## New capabilities that align with Knapsack
 
 These should be adopted only after the compatibility runtime is stable:
