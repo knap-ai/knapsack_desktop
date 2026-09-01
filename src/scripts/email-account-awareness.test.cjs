@@ -43,9 +43,23 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /wasSentByMailboxOwner/)
   assert.match(feed, /if \(allMessages\.length === 0\)/)
   assert.doesNotMatch(feed, /lastEmailId/)
+  assert.match(feed, /successfullyClassifiedMessageKeys/)
+  assert.match(feed, /importance === EmailImportance\.UNCLASSIFIED/)
   assert.match(feed, /accountEmail\?: string/)
   assert.match(feed, /email\.message\.accountEmail \|\| userEmail/)
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
+})
+
+test('notification drawer preserves mailbox identity for actions', () => {
+  const drawer = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/molecules/EmailNotificationDrawer/index.tsx'),
+    'utf8',
+  )
+
+  assert.match(drawer, /const drawerEmailKey/)
+  assert.match(drawer, /accountEmail\?: string/)
+  assert.match(drawer, /handleEmailActionTaken\(actionTaken, emailUid, draftReply, accountEmail\)/)
+  assert.match(drawer, /feed\.takeEmailAction\([\s\S]*?accountEmail/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {

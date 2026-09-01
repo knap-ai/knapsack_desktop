@@ -789,10 +789,26 @@ export function useFeed(
         return
       }
 
-      // Always reconsider the unread/starred set. Some messages may have been
-      // fetched previously but left UNCLASSIFIED after a transient model error.
-      // A document-id cursor would permanently skip those messages on retry.
-      const messages = allMessages
+      // Reconsider messages that are new or previously failed classification,
+      // while preserving successful classifications and generated drafts.
+      // This avoids both a brittle document cursor and repeated LLM work.
+      const successfullyClassifiedMessageKeys = new Set(
+        Object.entries(classifiedEmails).flatMap(([importance, emails]) =>
+          importance === EmailImportance.UNCLASSIFIED
+            ? []
+            : (emails || [])
+                .filter(email => email.classification)
+                .map(email => emailMessageKey(email.message)),
+        ),
+      )
+      const messages = allMessages.filter(
+        message => !successfullyClassifiedMessageKeys.has(emailMessageKey(message)),
+      )
+
+      if (messages.length === 0) {
+        setEmailAutopilotStatus({ status: 'complete' })
+        return
+      }
 
       const emailThreadsSet = new Set<EmailDocument>()
 

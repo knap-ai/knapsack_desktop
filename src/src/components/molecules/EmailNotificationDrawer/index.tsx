@@ -29,6 +29,9 @@ interface EmailNotificationDrawerProps {
   isChatBusy?: boolean
 }
 
+const drawerEmailKey = (email: DisplayEmail, fallbackUserEmail: string) =>
+  `${(email.message.accountEmail || fallbackUserEmail).trim().toLowerCase()}::${email.message.emailUid}`
+
 const EmailNotificationDrawer = ({
   feed,
   onGoToEmail,
@@ -50,7 +53,7 @@ const EmailNotificationDrawer = ({
   const [sendingReplyUid] = useState<string>('')
   const [removingEmailUid, setRemovingEmailUid] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
-  const [currentEmailUid, setCurrentEmailUid] = useState<string | null>(null)
+  const [currentEmailKey, setCurrentEmailKey] = useState<string | null>(null)
   const [caughtUpDismissing, setCaughtUpDismissing] = useState(false)
 
   const [drawerWidth, setDrawerWidth] = useState(540)
@@ -91,7 +94,10 @@ const EmailNotificationDrawer = ({
   useEffect(() => {
     if (forceOpen) {
       if (forceEmailUid) {
-        setCurrentEmailUid(forceEmailUid)
+        const forcedEmail = (feed.classifiedEmails?.[EmailImportance.IMPORTANT] || []).find(
+          email => email.message.emailUid === forceEmailUid,
+        )
+        setCurrentEmailKey(forcedEmail ? drawerEmailKey(forcedEmail, userEmail) : null)
       }
       setPermanentlyDismissed(false)
       setIsVisible(true)
@@ -99,7 +105,7 @@ const EmailNotificationDrawer = ({
       setIsAnimatingOut(false)
       onForceOpenHandled?.()
     }
-  }, [forceOpen, forceEmailUid, onForceOpenHandled])
+  }, [forceOpen, forceEmailUid, onForceOpenHandled, feed.classifiedEmails, userEmail])
 
   // Get IMPORTANT emails that need a response (drawer only shows this category)
   const emailsForCategory = useMemo(() => {
@@ -107,21 +113,22 @@ const EmailNotificationDrawer = ({
     const emails = feed?.classifiedEmails?.[EmailImportance.IMPORTANT] || []
 
     return emails.filter(email => {
-      if (uniqueEmailIds.has(email.message.emailUid)) return false
+      const emailKey = drawerEmailKey(email, userEmail)
+      if (uniqueEmailIds.has(emailKey)) return false
       if (!email.wasIgnored && !email.wasReplySent && email.message.body) {
-        uniqueEmailIds.add(email.message.emailUid)
+        uniqueEmailIds.add(emailKey)
         return true
       }
       return false
     })
-  }, [feed.feedContent, feed.classifiedEmails])
+  }, [feed.feedContent, feed.classifiedEmails, userEmail])
 
   // Resolve current email by UID (stable across list re-sorts)
   const currentEmailIndex = useMemo(() => {
-    if (!currentEmailUid) return 0
-    const idx = emailsForCategory.findIndex(e => e.message.emailUid === currentEmailUid)
+    if (!currentEmailKey) return 0
+    const idx = emailsForCategory.findIndex(e => drawerEmailKey(e, userEmail) === currentEmailKey)
     return idx >= 0 ? idx : 0
-  }, [emailsForCategory, currentEmailUid])
+  }, [emailsForCategory, currentEmailKey, userEmail])
 
   // When the editor is active, freeze the displayed email so background updates
   // don't yank it away mid-edit.
@@ -129,7 +136,8 @@ const EmailNotificationDrawer = ({
     if (isEditorActive && frozenEmailRef.current) {
       // Keep showing the frozen email while user is editing, but update draft if available
       const fresh = emailsForCategory.find(
-        e => e.message.emailUid === frozenEmailRef.current!.message.emailUid,
+        e =>
+          drawerEmailKey(e, userEmail) === drawerEmailKey(frozenEmailRef.current!, userEmail),
       )
       if (fresh?.draftedReply && !frozenEmailRef.current.draftedReply) {
         frozenEmailRef.current = { ...frozenEmailRef.current, draftedReply: fresh.draftedReply }
@@ -139,21 +147,23 @@ const EmailNotificationDrawer = ({
     const email = emailsForCategory[currentEmailIndex] || null
     frozenEmailRef.current = email
     return email
-  }, [emailsForCategory, currentEmailIndex, isEditorActive])
+  }, [emailsForCategory, currentEmailIndex, isEditorActive, userEmail])
 
   // Auto-select first email UID when list populates and nothing is selected
   useEffect(() => {
-    if (!currentEmailUid && emailsForCategory.length > 0) {
-      setCurrentEmailUid(emailsForCategory[0].message.emailUid)
+    if (!currentEmailKey && emailsForCategory.length > 0) {
+      setCurrentEmailKey(drawerEmailKey(emailsForCategory[0], userEmail))
     }
     // If the tracked UID is no longer in the list (e.g. after action), reset
-    if (currentEmailUid && !isEditorActive) {
-      const stillExists = emailsForCategory.some(e => e.message.emailUid === currentEmailUid)
+    if (currentEmailKey && !isEditorActive) {
+      const stillExists = emailsForCategory.some(
+        e => drawerEmailKey(e, userEmail) === currentEmailKey,
+      )
       if (!stillExists && emailsForCategory.length > 0) {
-        setCurrentEmailUid(emailsForCategory[0].message.emailUid)
+        setCurrentEmailKey(drawerEmailKey(emailsForCategory[0], userEmail))
       }
     }
-  }, [emailsForCategory, currentEmailUid, isEditorActive])
+  }, [emailsForCategory, currentEmailKey, isEditorActive, userEmail])
 
   // Auto-trigger draft generation when the current email has no draft
   useEffect(() => {
@@ -189,11 +199,11 @@ const EmailNotificationDrawer = ({
         !email.wasIgnored &&
         !email.wasReplySent &&
         email.message.body &&
-        !sessionDismissedIds.has(email.message.emailUid),
+        !sessionDismissedIds.has(drawerEmailKey(email, userEmail)),
     )
 
     return activeEmails.length > 0 ? activeEmails[0] : null
-  }, [feed.classifiedEmails, permanentlyDismissed, sessionDismissedIds])
+  }, [feed.classifiedEmails, permanentlyDismissed, sessionDismissedIds, userEmail])
 
   // Total count of active important emails
   const totalPendingCount = useMemo(() => {
@@ -254,19 +264,20 @@ const EmailNotificationDrawer = ({
     if (!isChatBusy || !pendingEmail || initialLoadRef.current) return
 
     // Skip emails already shown this session
-    if (shownEmailUidsRef.current.has(pendingEmail.message.emailUid)) return
+    const pendingEmailKey = drawerEmailKey(pendingEmail, userEmail)
+    if (shownEmailUidsRef.current.has(pendingEmailKey)) return
 
     const timer = setTimeout(() => {
       // Re-check: still busy and same email?
       if (chatBusyStartRef.current && pendingEmail) {
-        shownEmailUidsRef.current.add(pendingEmail.message.emailUid)
+        shownEmailUidsRef.current.add(pendingEmailKey)
         setIsVisible(true)
         setIsAnimatingOut(false)
       }
     }, BUSY_DELAY_MS)
 
     return () => clearTimeout(timer)
-  }, [isChatBusy, pendingEmail?.message.emailUid, permanentlyDismissed])
+  }, [isChatBusy, pendingEmail, permanentlyDismissed, userEmail])
 
   const isLoading =
     feed.emailAutopilotStatus.status === 'fetching-emails' ||
@@ -306,6 +317,7 @@ const EmailNotificationDrawer = ({
     actionTaken: AutopilotActions,
     emailUid: string,
     draftReply?: string,
+    accountEmail?: string,
   ) => {
     if (
       actionTaken === AutopilotActions.MARK_AS_READ ||
@@ -318,6 +330,8 @@ const EmailNotificationDrawer = ({
           emailUid,
           actionTaken,
           profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+          undefined,
+          accountEmail,
         )
         setRemovingEmailUid('')
       }, 300)
@@ -332,13 +346,14 @@ const EmailNotificationDrawer = ({
         actionTaken,
         profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
         draftReply,
+        accountEmail,
       )
     }
   }, [feed.takeEmailAction, profileProvider])
 
   const handleDismiss = useCallback(() => {
     if (pendingEmail) {
-      setSessionDismissedIds(prev => new Set(prev).add(pendingEmail.message.emailUid))
+      setSessionDismissedIds(prev => new Set(prev).add(drawerEmailKey(pendingEmail, userEmail)))
     }
     setIsAnimatingOut(true)
     setIsExpanded(false)
@@ -346,7 +361,7 @@ const EmailNotificationDrawer = ({
       setIsVisible(false)
       setIsAnimatingOut(false)
     }, 300)
-  }, [pendingEmail])
+  }, [pendingEmail, userEmail])
 
   const handleDismissForever = useCallback(async () => {
     await KNLocalStorage.setItem(EMAIL_NOTIFICATION_DRAWER_DISMISSED, true)
@@ -372,11 +387,11 @@ const EmailNotificationDrawer = ({
   const handleExpand = useCallback(() => {
     // Sync expanded view to the same email shown in the collapsed preview
     if (pendingEmail) {
-      setCurrentEmailUid(pendingEmail.message.emailUid)
+      setCurrentEmailKey(drawerEmailKey(pendingEmail, userEmail))
     }
     setIsExpanded(true)
     KNAnalytics.trackEvent('email_drawer_expanded', {})
-  }, [pendingEmail])
+  }, [pendingEmail, userEmail])
 
   const handleCollapse = useCallback(() => {
     setIsExpanded(false)
@@ -632,7 +647,7 @@ const EmailNotificationDrawer = ({
                       <button
                         onClick={() => {
                           const prevIdx = Math.max(0, currentEmailIndex - 1)
-                          setCurrentEmailUid(emailsForCategory[prevIdx].message.emailUid)
+                          setCurrentEmailKey(drawerEmailKey(emailsForCategory[prevIdx], userEmail))
                         }}
                         disabled={currentEmailIndex === 0}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
@@ -648,7 +663,7 @@ const EmailNotificationDrawer = ({
                       <button
                         onClick={() => {
                           const nextIdx = Math.min(emailsForCategory.length - 1, currentEmailIndex + 1)
-                          setCurrentEmailUid(emailsForCategory[nextIdx].message.emailUid)
+                          setCurrentEmailKey(drawerEmailKey(emailsForCategory[nextIdx], userEmail))
                         }}
                         disabled={currentEmailIndex === emailsForCategory.length - 1}
                         className="flex items-center gap-1 text-xs font-medium font-InterTight text-ks-warm-grey-700 hover:text-black disabled:text-ks-warm-grey-300 disabled:cursor-default transition-colors"
@@ -674,7 +689,8 @@ const EmailNotificationDrawer = ({
                         actionTaken: AutopilotActions,
                         emailUid: string,
                         draftReply?: string,
-                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply)}
+                        accountEmail?: string,
+                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply, accountEmail)}
                       userEmail={userEmail}
                       userName={userName}
                       profileProvider={profileProvider ? profileProvider : ''}
