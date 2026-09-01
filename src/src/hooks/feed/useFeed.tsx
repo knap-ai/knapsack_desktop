@@ -99,7 +99,9 @@ const emailMessageKey = (email: EmailDocument): string =>
 
 const wasSentByMailboxOwner = (email: EmailDocument, fallbackUserEmail?: string): boolean => {
   const sender = email.sender.toLowerCase()
-  const mailbox = email.accountEmail?.trim().toLowerCase()
+  const mailbox = email.accountEmail
+    ? emailAccountAddress(email.accountEmail.trim().toLowerCase())
+    : undefined
   const fallback = fallbackUserEmail?.trim().toLowerCase()
   return Boolean(
     (mailbox && sender.includes(mailbox)) || (!mailbox && fallback && sender.includes(fallback)),
@@ -298,7 +300,7 @@ export function useFeed(
         )
         .map(connection =>
           connection.key === ConnectionKeys.GOOGLE_GMAIL
-            ? connection.calendarAccountEmail?.trim().toLowerCase()
+            ? (connection.calendarAccountEmail || connection.ownerEmail)?.trim().toLowerCase()
             : connection.ownerEmail
               ? `microsoft:${connection.ownerEmail.trim().toLowerCase()}`
               : undefined,

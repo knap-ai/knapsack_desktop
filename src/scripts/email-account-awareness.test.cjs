@@ -54,7 +54,20 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
   assert.match(feed, /const connectedEmailAccountEmails = useMemo/)
   assert.match(feed, /connection\.key === ConnectionKeys\.MICROSOFT_OUTLOOK/)
+  assert.match(feed, /connection\.calendarAccountEmail \|\| connection\.ownerEmail/)
+  assert.match(feed, /emailAccountAddress\(email\.accountEmail\.trim\(\)\.toLowerCase\(\)\)/)
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
+})
+
+test('full Email Autopilot preserves each message provider for actions', () => {
+  const autopilot = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/molecules/EmailAutopilot/index.tsx'),
+    'utf8',
+  )
+
+  assert.match(autopilot, /sourceProvider\?: ConnectionKeys\.GOOGLE_PROFILE/)
+  assert.match(autopilot, /const provider = sourceProvider \|\|/)
+  assert.match(autopilot, /profileProvider=\{email\.provider\}/)
 })
 
 test('account-awareness does not delete legacy unscoped email history', () => {

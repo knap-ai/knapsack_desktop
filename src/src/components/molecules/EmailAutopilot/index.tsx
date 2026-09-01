@@ -198,7 +198,11 @@ export const EmailAutopilot = ({
       emailUid: string,
       draftReply?: string,
       accountEmail?: string,
+      sourceProvider?: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     ) => {
+      const provider = sourceProvider || (profileProvider as
+        | ConnectionKeys.GOOGLE_PROFILE
+        | ConnectionKeys.MICROSOFT_PROFILE)
       if (
         actionTaken === AutopilotActions.MARK_AS_READ ||
         actionTaken === AutopilotActions.DELETE ||
@@ -210,7 +214,7 @@ export const EmailAutopilot = ({
           feed.takeEmailAction(
             emailUid,
             actionTaken,
-            profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+            provider,
             undefined,
             accountEmail,
           )
@@ -225,7 +229,7 @@ export const EmailAutopilot = ({
         feed.takeEmailAction(
           emailUid,
           actionTaken,
-          profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+          provider,
           draftReply,
           accountEmail,
         )
@@ -478,7 +482,7 @@ export const EmailAutopilot = ({
                     onActionCallback={handleEmailActionTaken}
                     userEmail={userEmail}
                     userName={userName}
-                    profileProvider={profileProvider ? profileProvider : ''}
+                    profileProvider={email.provider}
                     selected={isSelected(emailKey)}
                     isGeneratingDraft={generatingDraftKey === emailKey}
                     shouldSendReply={sendingReplyKey === emailKey}
