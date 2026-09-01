@@ -1321,6 +1321,7 @@ function getMimeTypeFromExt(ext: string): string {
 // only re-render this small component instead of the entire chat body.
 type ChatInputBarProps = {
   busy: boolean
+  providerReady: boolean
   hasQueuedMessage: boolean
   isRecording: boolean
   isTranscribing: boolean
@@ -1539,7 +1540,7 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
@@ -1714,15 +1715,15 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 }
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
-            disabled={isRecording}
+            placeholder={!providerReady ? 'Refreshing your selected AI provider...' : isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            disabled={isRecording || !providerReady}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
             onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
-            disabled={busy || isTranscribing}
+            disabled={busy || isTranscribing || !providerReady}
             title={
               !voiceEnabled
                 ? 'Enable voice mode'
@@ -1757,7 +1758,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             </button>
           </>
         ) : (
-          <button disabled={!hasInput && attachedFiles.length === 0} onClick={handleSend}>
+          <button disabled={!providerReady || (!hasInput && attachedFiles.length === 0)} onClick={handleSend}>
             Send
           </button>
         )}
@@ -2012,6 +2013,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [chatFindQuery, setChatFindQuery] = useState('')
   const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [providerSelectionRefreshing, setProviderSelectionRefreshing] = useState(active)
+  const providerSelectionRefreshRef = useRef<Promise<void> | null>(null)
   const [showCompactControls, setShowCompactControls] = useState(false)
   const compactControlsRef = useRef<HTMLDivElement | null>(null)
 
@@ -3633,7 +3636,17 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // Persisted chats remain mounted so background requests can finish. Refresh
   // the global provider/model selection whenever one becomes active again.
   useEffect(() => {
-    if (active) void syncProviderSelectionFromBackend()
+    if (!active) return
+    let cancelled = false
+    setProviderSelectionRefreshing(true)
+    const refresh = syncProviderSelectionFromBackend().finally(() => {
+      if (providerSelectionRefreshRef.current === refresh) {
+        providerSelectionRefreshRef.current = null
+      }
+      if (!cancelled) setProviderSelectionRefreshing(false)
+    })
+    providerSelectionRefreshRef.current = refresh
+    return () => { cancelled = true }
   }, [active, syncProviderSelectionFromBackend])
 
   const recoverProviderSwitchFromBackend = useCallback(async (expectedProvider: Provider) => {
@@ -4700,6 +4713,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
 
+    // A persisted background chat may have stale provider/model state until it
+    // becomes active. Wait for that activation refresh before snapshotting the
+    // provider so fast clicks and programmatic sends cannot use the old model.
+    if (providerSelectionRefreshRef.current) {
+      await providerSelectionRefreshRef.current
+    }
+
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
     if (runInTerminalTimerRef.current) {
@@ -5371,6 +5391,7 @@ ${actualText}`
                       (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
                   },
                 ])
+                onAssistantMessage?.(chatId)
               }
             } else {
               if (agentOut.noFallback) {
@@ -5445,6 +5466,7 @@ ${actualText}`
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+              onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)
             } else {
@@ -6478,6 +6500,7 @@ ${actualText}`
 
       <ChatInputBar
         busy={busy}
+        providerReady={!providerSelectionRefreshing}
         hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
         isTranscribing={isTranscribing}
