@@ -2760,10 +2760,19 @@ pub async fn slack_account_disconnect(path: web::Path<String>) -> impl Responder
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let has_legacy_credentials = has_slack_legacy_credentials(&slack);
   let is_legacy_default = account_id == "default" && has_legacy_credentials;
-  let named_account_count = slack
+  let named_accounts = slack
     .get("accounts")
-    .and_then(serde_json::Value::as_object)
-    .map_or(0, serde_json::Map::len);
+    .and_then(serde_json::Value::as_object);
+  let named_account_count = named_accounts.map_or(0, serde_json::Map::len);
+  let named_account_exists = named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
+  if !is_legacy_default && !named_account_exists {
+    return HttpResponse::NotFound().json(GenericResponse {
+      success: false,
+      message: Some(format!("Slack workspace {} is not configured.", account_id)),
+      configured: None,
+      linked: None,
+    });
+  }
   if is_legacy_default && named_account_count == 0 {
     return disconnect_channel("slack", "default").await;
   }

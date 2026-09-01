@@ -9,6 +9,7 @@ import {
   disconnectSlackAccount,
   getAgentBotStatuses,
   getGenericChannelStatus,
+  getSlackAccounts,
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
@@ -147,11 +148,17 @@ function SlackWorkspaceCard({
   const handleDisconnect = async () => {
     onChange({ errorMessage: '' })
     try {
-      const response = await disconnectSlackAccount('default')
+      const inventory = await getSlackAccounts()
+      const legacyDefault = inventory.accounts.find(account => account.id === 'default' && account.legacy)
+      const target = legacyDefault ?? (inventory.accounts.length === 1 ? inventory.accounts[0] : null)
+      if (!target) {
+        throw new Error('Manage multiple Slack workspaces individually in Channels settings.')
+      }
+      const response = await disconnectSlackAccount(target.id)
       if (!response.success) throw new Error(response.message || 'Disconnect failed')
       onChange({ phase: 'idle', workspaceLabel: '', errorMessage: '' })
-    } catch {
-      onChange({ errorMessage: 'Could not disconnect Slack right now.' })
+    } catch (error) {
+      onChange({ errorMessage: error instanceof Error ? error.message : 'Could not disconnect Slack right now.' })
     }
   }
 
