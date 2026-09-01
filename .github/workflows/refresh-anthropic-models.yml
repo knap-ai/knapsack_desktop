@@ -25,7 +25,7 @@ jobs:
         run: npm run models:refresh:public
 
       - name: Create pull request if catalog changed
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
           token: ${{ secrets.MODEL_CATALOG_REFRESH_TOKEN }}
           commit-message: 'Refresh public provider model catalogs'
