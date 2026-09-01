@@ -27,6 +27,7 @@ jobs:
       - name: Create pull request if catalog changed
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ secrets.MODEL_CATALOG_REFRESH_TOKEN }}
           commit-message: 'Refresh public provider model catalogs'
           title: 'Refresh public provider model catalogs'
           body: |
