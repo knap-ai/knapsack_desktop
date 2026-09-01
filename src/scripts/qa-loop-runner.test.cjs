@@ -42,7 +42,8 @@ test("non-local requests never receive the desktop API token", () => {
 
 test("provider switching waits longer than the backend restart budget", () => {
   assert.equal(qaSetProviderTimeoutMs(undefined), 240_000);
-  assert.equal(qaSetProviderTimeoutMs("180000"), 180_000);
+  assert.equal(qaSetProviderTimeoutMs("180000"), 240_000);
+  assert.equal(qaSetProviderTimeoutMs("300000"), 300_000);
   assert.equal(qaSetProviderTimeoutMs("invalid"), 240_000);
 });
 

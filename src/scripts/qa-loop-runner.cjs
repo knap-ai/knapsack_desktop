@@ -1556,7 +1556,7 @@ async function setProviderAndModel(provider, model) {
 
 function qaSetProviderTimeoutMs(raw = process.env.KNAPSACK_QA_SET_PROVIDER_TIMEOUT_MS) {
   const configured = Number(raw);
-  return Number.isFinite(configured) && configured > 0 ? configured : 240_000;
+  return Number.isFinite(configured) && configured > 0 ? Math.max(configured, 240_000) : 240_000;
 }
 
 function providerSwitchAppliedButStillStarting(status, payload) {
