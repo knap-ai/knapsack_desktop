@@ -24,7 +24,7 @@ export interface RecordingContextProps {
     isStart?: boolean,
   ) => Promise<void>
   stopRecording: (
-    fetchNotes: () => Promise<void>,
+    fetchNotes: () => Promise<string | null>,
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     synthesizeContent: (
       threadId: number,
@@ -254,7 +254,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   }, [setHasSynthesized, setIsRecording])
 
   const stopRecording = useCallback(async (
-    fetchNotes: () => Promise<void>,
+    fetchNotes: () => Promise<string | null>,
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     synthesizeContent: (
       threadId: number,
@@ -276,10 +276,12 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     const wasRecording = isRecording(threadId)
     setLoadingState(threadId, true)
     let stopSucceeded = false
+    let backendConfirmedStop = false
     try {
       await stopRecord(threadId, saveTranscript, eventId)
       console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
       KNAnalytics.trackEvent('recording_stopped', { thread_id: threadId, save_transcript: saveTranscript })
+      backendConfirmedStop = true
       stopSucceeded = true
     } catch (err: any) {
       // If backend says "no recording in progress", that's OK — state was out of sync
@@ -305,8 +307,23 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     setFeedIsRecording(false)
     setIsRecording(threadId, false)
 
-    if (wasRecording && stopSucceeded) {
-      await generateNotes(threadId, synthesizeContent, saveNotes, notesMarkdown, meeting)
+    // Automatic stop first opens the meeting and then emits the stop event. On
+    // that freshly mounted view, the React recording-state refresh can still be
+    // pending even though the backend just stopped and finalized the transcript.
+    // A successful backend stop is authoritative and must always queue synthesis;
+    // otherwise the transcript is saved but the meeting remains permanently blank.
+    if (stopSucceeded && (wasRecording || backendConfirmedStop)) {
+      // Reload persisted notes before synthesis. Automatic stop can arrive while
+      // the newly mounted meeting view still has an empty notesMarkdown state;
+      // using that stale value would drop autosaved user notes from the prompt.
+      const persistedNotes = await fetchNotes()
+      await generateNotes(
+        threadId,
+        synthesizeContent,
+        saveNotes,
+        persistedNotes ?? notesMarkdown,
+        meeting,
+      )
     }
 
     await fetchNotes()

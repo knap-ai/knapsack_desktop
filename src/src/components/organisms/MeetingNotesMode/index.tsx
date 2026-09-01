@@ -168,6 +168,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
   const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefPrepTriggeredRef = useRef(false)
+  const missingNotesRecoveryTriggeredRef = useRef(false)
+
+  useEffect(() => {
+    missingNotesRecoveryTriggeredRef.current = false
+  }, [thread.id])
 
   useEffect(() => {
     listWorkspaces().then(res => {
@@ -788,7 +793,7 @@ Be specific, compact, and useful while the user is joining the call.`,
     return {}
   }
 
-  const fetchNotes = async () => {
+  const fetchNotes = async (): Promise<string | null> => {
     try {
       const response = await fetch(`${KN_API_NOTES}/${thread.id}`, {
         method: 'GET',
@@ -799,14 +804,38 @@ Be specific, compact, and useful while the user is joining the call.`,
 
       if (response.ok) {
         const data = await response.json()
-        if (data && data.data && data.data.notes) {
-          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes)
+        const notesExist = data?.data?.exists === true
+        if (notesExist) {
+          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
           setNotesMarkdown(normalizedNotes)
           const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
           editor?.commands.setContent(parsedNotes || normalizedNotes)
+          return normalizedNotes
         } else {
           setMarkdown('')
           editor?.commands.setContent('')
+          // A successful automatic stop can finish while the newly opened
+          // meeting view is still restoring its recording state. Older builds
+          // could therefore save the transcript without ever queuing synthesis.
+          // Recover those meetings once when they are opened instead of leaving
+          // a permanently blank summary.
+          if (
+            thread.recorded &&
+            thread.savedTranscript &&
+            !recordingHandlers.isLoadingNotes(thread.id) &&
+            !isLLMLoading &&
+            !missingNotesRecoveryTriggeredRef.current
+          ) {
+            missingNotesRecoveryTriggeredRef.current = true
+            void recordingHandlers.generateNotes(
+              thread.id,
+              synthesizeContent,
+              saveNotes,
+              '',
+              meeting,
+            )
+          }
+          return null
         }
       }
     } catch (error) {
@@ -824,6 +853,7 @@ Be specific, compact, and useful while the user is joining the call.`,
     } finally {
       setIsInitialLoading(false)
     }
+    return null
   }
 
   const checkTranscriptSaved = async () => {

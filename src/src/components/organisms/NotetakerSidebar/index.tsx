@@ -816,7 +816,6 @@ function NotetakerSidebar({
             <h2 className="notetaker-sidebar__section-title">Coming up</h2>
             <div className="notetaker-sidebar__calendar-card">
               {Object.entries(upcomingEvents)
-                .slice(0, 5)
                 .map(([dateStr, events]) => {
                   const date = dayjs(dateStr)
                   const isToday = date.isSame(dayjs(), 'day')
@@ -832,7 +831,7 @@ function NotetakerSidebar({
                         </span>
                         <div className="notetaker-sidebar__calendar-date-meta">
                           <span className="notetaker-sidebar__calendar-month">
-                            {date.format('MMMM')}
+                            {date.format('MMM')}
                           </span>
                           {isToday && <span className="notetaker-sidebar__calendar-today-dot" />}
                           <span className="notetaker-sidebar__calendar-day-name">
