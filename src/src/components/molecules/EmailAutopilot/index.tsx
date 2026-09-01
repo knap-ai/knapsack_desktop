@@ -68,11 +68,12 @@ export const EmailAutopilot = ({
     const filterUniqueEmails = (emails: DisplayEmail[] | undefined) => {
       if (!emails) return []
       return emails.filter(email => {
-        if (uniqueEmailIds.has(email.message.emailUid)) {
+        const emailKey = `${email.message.accountEmail || 'unknown'}:${email.message.emailUid}`
+        if (uniqueEmailIds.has(emailKey)) {
           return false
         }
         if (!email.wasIgnored && !email.wasReplySent && email.message.body) {
-          uniqueEmailIds.add(email.message.emailUid)
+          uniqueEmailIds.add(emailKey)
         }
         return !email.wasIgnored && !email.wasReplySent && email.message.body
       })
@@ -95,6 +96,8 @@ export const EmailAutopilot = ({
     }
     return primaryEmails
   }, [feed.feedContent, feed.classifiedEmails, selectedCategory])
+
+  const unclassifiedCount = feed.classifiedEmails?.[EmailImportance.UNCLASSIFIED]?.length || 0
 
   const actions = useMemo(() => {
     const actions = feed.classificationActions[selectedCategory]
@@ -374,6 +377,19 @@ export const EmailAutopilot = ({
             <Typography className="mt-4 text-gray-500">
               {getLoadingText(feed.emailAutopilotStatus.status)}
             </Typography>
+          </div>
+        ) : unclassifiedCount > 0 && (!emailsCategory || emailsCategory.length === 0) ? (
+          <div className="flex flex-col items-center text-center text-gray-500 mt-4 gap-2">
+            <span>
+              {unclassifiedCount} {unclassifiedCount === 1 ? 'email needs' : 'emails need'} another
+              classification attempt.
+            </span>
+            <button
+              className="text-ks-red-500 hover:underline"
+              onClick={() => feed.runEmailAutopilot()}
+            >
+              Try again
+            </button>
           </div>
         ) : (
           selectedCategory &&

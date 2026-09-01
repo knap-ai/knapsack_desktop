@@ -5216,7 +5216,8 @@ pub async fn chat(
       // When replying to an existing thread, look up the actual sender from the local DB
       // so we don't rely on the LLM guessing the recipient's email address.
       if let Some(ref tid) = thread_id {
-        if let Ok(thread_emails) = crate::db::models::email::Email::get_last_email_by_thread_id(tid)
+        if let Ok(thread_emails) =
+          crate::db::models::email::Email::get_last_email_by_thread_id_unambiguous(tid)
         {
           if let Some(most_recent) = thread_emails.first() {
             let db_sender = most_recent.sender.trim().to_string();

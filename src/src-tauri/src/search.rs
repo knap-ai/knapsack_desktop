@@ -61,6 +61,7 @@ struct ListEmailsWithinTimestampsRequest {
   top: usize,
   from_timestamp: i64,
   to_timestamp: i64,
+  account_emails: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +117,7 @@ pub struct GmailSearchResponseDoc {
   pub is_read: Option<bool>,
   pub is_archived: Option<bool>,
   pub is_deleted: Option<bool>,
+  pub account_email: String,
 }
 
 #[derive(Serialize)]
@@ -269,6 +271,7 @@ async fn build_filter_emails_by_addresses_response(
     maybe_email_addresses,
     Some(ten_days_ago_timestamp),
     None,
+    None,
   );
   for email in recent_emails {
     match build_gmail_response_doc_from_email_row(email) {
@@ -320,6 +323,7 @@ pub async fn list_emails_within_timestamps(
     None,
     Some(payload.from_timestamp.clone()),
     Some(payload.to_timestamp.clone()),
+    payload.account_emails.clone(),
   );
 
   for email in recent_emails {
@@ -421,6 +425,7 @@ fn build_gmail_response_doc_from_email_row(email: Email) -> Option<GmailSearchRe
     is_read: email.is_read,
     is_archived: email.is_archived,
     is_deleted: email.is_deleted,
+    account_email: email.account_email,
   };
   return Some(doc);
 }
@@ -473,8 +478,10 @@ pub async fn get_email_thread(path: web::Path<u64>) -> Result<HttpResponse> {
     }
   };
 
-  let thread_emails = match Email::get_last_email_by_thread_id(&email.thread_id.unwrap_or_default())
-  {
+  let thread_emails = match Email::get_last_email_by_thread_id(
+    &email.thread_id.unwrap_or_default(),
+    &email.account_email,
+  ) {
     Ok(emails) => emails,
     Err(e) => {
       return Ok(HttpResponse::InternalServerError().json(StandardResponse {
@@ -501,6 +508,7 @@ pub async fn get_email_thread(path: web::Path<u64>) -> Result<HttpResponse> {
 #[serde(rename_all = "camelCase")]
 struct UpdateEmailRequest {
   email_uid: String,
+  account_email: Option<String>,
   subject: Option<String>,
   date: Option<u64>,
   sender: Option<String>,
@@ -515,7 +523,11 @@ struct UpdateEmailRequest {
 
 #[put("/api/knapsack/update_email")]
 pub async fn update_email(payload: Json<UpdateEmailRequest>) -> Result<HttpResponse> {
-  let email = match Email::find_by_uid(&payload.email_uid) {
+  let email_result = match payload.account_email.as_deref() {
+    Some(account_email) => Email::find_by_uid_and_account(&payload.email_uid, account_email),
+    None => Email::find_by_uid(&payload.email_uid),
+  };
+  let email = match email_result {
     Ok(Some(email)) => email,
     Ok(None) => {
       return Ok(HttpResponse::NotFound().json(StandardResponse {

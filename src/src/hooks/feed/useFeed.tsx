@@ -75,6 +75,24 @@ const reply_actions = [
 
 const MAX_RETRIES = 5
 export const STATIONARY_ITEMS = 'stationary'
+
+const emailThreadKey = (email: EmailDocument): string | undefined =>
+  email.threadId
+    ? `${(email.accountEmail || 'unknown').toLowerCase()}:${email.threadId}`
+    : undefined
+
+const emailMessageKey = (email: EmailDocument): string =>
+  `${(email.accountEmail || 'unknown').toLowerCase()}:${email.emailUid}`
+
+const wasSentByMailboxOwner = (email: EmailDocument, fallbackUserEmail?: string): boolean => {
+  const sender = email.sender.toLowerCase()
+  const mailbox = email.accountEmail?.trim().toLowerCase()
+  const fallback = fallbackUserEmail?.trim().toLowerCase()
+  return Boolean(
+    (mailbox && sender.includes(mailbox)) || (!mailbox && fallback && sender.includes(fallback)),
+  )
+}
+
 export interface IFeed {
   updateFeedItemTitle?: (key: string, itemId: number, newTitle: string) => void
   deleteFeedItemFromState?: (itemId: number) => Promise<void>
@@ -565,7 +583,9 @@ export function useFeed(
       const newState = { ...prevState }
 
       const newThreadIds = new Set(
-        displayEmails.map(email => email?.message.threadId).filter(Boolean),
+        displayEmails
+          .map(email => (email ? emailThreadKey(email.message) : undefined))
+          .filter(Boolean),
       )
 
       const filteredState: Partial<Record<EmailImportance, DisplayEmail[]>> = {}
@@ -574,7 +594,7 @@ export function useFeed(
         const emails = newState[key as EmailImportance]
         if (emails) {
           filteredState[key as EmailImportance] = emails.filter(
-            (email: DisplayEmail) => !newThreadIds.has(email.message.threadId),
+            (email: DisplayEmail) => !newThreadIds.has(emailThreadKey(email.message)),
           )
         }
       })
@@ -681,8 +701,9 @@ export function useFeed(
       // Identify threads where the user has sent a message (i.e. already replied)
       const repliedThreadIds = new Set<string>()
       allMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          repliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          repliedThreadIds.add(threadKey)
         }
       })
 
@@ -702,7 +723,7 @@ export function useFeed(
                 // or fall back to the read/archived/deleted heuristic.
                 const userRepliedInThread =
                   updatedMessage.threadId != null &&
-                  repliedThreadIds.has(updatedMessage.threadId)
+                  repliedThreadIds.has(emailThreadKey(updatedMessage) || '')
 
                 return {
                   ...displayEmail,
@@ -754,8 +775,9 @@ export function useFeed(
       // replied to (sent messages are read, so the filter below would drop them).
       const userRepliedThreadIds = new Set<string>()
       allMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          userRepliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          userRepliedThreadIds.add(threadKey)
         }
       })
 
@@ -763,12 +785,17 @@ export function useFeed(
         message => message.isStarred || (!message.isRead && !message.isArchived),
       )
 
+      if (allMessages.length === 0) {
+        setEmailAutopilotStatus({ status: 'complete' })
+        return
+      }
+
       let messages = []
       if (lastEmailId.current) {
         const lastEmailIndex = allMessages.findIndex(
           message => message.documentId === lastEmailId.current,
         )
-        messages = allMessages.slice(0, lastEmailIndex)
+        messages = lastEmailIndex >= 0 ? allMessages.slice(0, lastEmailIndex) : allMessages
       } else {
         messages = allMessages
       }
@@ -800,26 +827,28 @@ export function useFeed(
       // Also check thread messages for user replies (now that the backend
       // returns the full thread instead of only the latest message).
       allThreadMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          userRepliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          userRepliedThreadIds.add(threadKey)
         }
       })
 
       let newMessages = allThreadMessages.filter(
         message =>
-          !message.sender.includes(userEmail) &&
-          !(message.threadId && userRepliedThreadIds.has(message.threadId)),
+          !wasSentByMailboxOwner(message, userEmail) &&
+          !(emailThreadKey(message) && userRepliedThreadIds.has(emailThreadKey(message)!)),
       )
 
       const uniqueUuids: Record<string, number> = {}
 
       newMessages = newMessages.reduce((finalEmails, message) => {
-        if (uniqueUuids[message.emailUid]) {
-          const index = uniqueUuids[message.emailUid]
+        const messageKey = emailMessageKey(message)
+        if (uniqueUuids[messageKey] !== undefined) {
+          const index = uniqueUuids[messageKey]
           finalEmails[index] = finalEmails[index].date > message.date ? finalEmails[index] : message
         } else {
           const pos = finalEmails.push(message)
-          uniqueUuids[message.emailUid] = pos - 1
+          uniqueUuids[messageKey] = pos - 1
         }
         return finalEmails
       }, [] as EmailDocument[])

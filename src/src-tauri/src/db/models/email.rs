@@ -125,6 +125,17 @@ impl Email {
     Ok(email)
   }
 
+  pub fn find_by_uid_and_account(uid: &str, account_email: &str) -> Result<Option<Email>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1 AND account_email = ?2")
+      .expect("could not prepare account-scoped email query");
+    let email = stmt
+      .query_row(params![uid, account_email], |row| Email::build_struct_from_row(row))
+      .optional()?;
+    Ok(email)
+  }
+
   pub fn get_recent_emails_with(sender_or_recipient: &str, limit: usize) -> Vec<Email> {
     let connection = get_db_conn();
     let sender_or_recipient_query_string = format!("%{}%", sender_or_recipient).clone().to_string();
@@ -243,6 +254,7 @@ impl Email {
     maybe_email_address: Option<Vec<String>>,
     maybe_minimum_timestamp: Option<i64>,
     maybe_maximum_timestamp: Option<i64>,
+    maybe_account_emails: Option<Vec<String>>,
   ) -> Vec<Email> {
     let connection = get_db_conn();
     let mut where_queries = Vec::new();
@@ -268,6 +280,24 @@ impl Email {
     if let Some(maximum_timestamp) = maybe_maximum_timestamp {
       where_queries.push(format!("date <= ?{}", params.len() + 1));
       params.push(maximum_timestamp.to_string());
+    }
+
+    if let Some(account_emails) = maybe_account_emails {
+      let account_emails = account_emails
+        .into_iter()
+        .map(|email| email.trim().to_ascii_lowercase())
+        .filter(|email| !email.is_empty())
+        .collect::<Vec<_>>();
+      if !account_emails.is_empty() {
+        let first_param_index = params.len() + 1;
+        let placeholders = account_emails
+          .iter()
+          .enumerate()
+          .map(|(index, _)| format!("?{}", first_param_index + index))
+          .collect::<Vec<_>>();
+        where_queries.push(format!("LOWER(account_email) IN ({})", placeholders.join(", ")));
+        params.extend(account_emails);
+      }
     }
 
     let mut where_query = "".to_string();
@@ -397,17 +427,43 @@ impl Email {
     ])
   }
 
-  pub fn get_last_email_by_thread_id(thread_id: &str) -> Result<Vec<Email>, Error> {
+  pub fn get_last_email_by_thread_id(thread_id: &str, account_email: &str) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 AND account_email = ?2 ORDER BY date DESC")
         .expect("could not prepare query emails by thread_id");
 
     let emails = stmt
-      .query_map([thread_id], |row| Email::build_struct_from_row(row))
+      .query_map(params![thread_id, account_email], |row| Email::build_struct_from_row(row))
       .map_err(Error::from)?
       .filter_map(|r| r.ok())
       .collect();
+
+    Ok(emails)
+  }
+
+  pub fn get_last_email_by_thread_id_unambiguous(thread_id: &str) -> Result<Vec<Email>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
+        .expect("could not prepare unambiguous query emails by thread_id");
+
+    let emails: Vec<Email> = stmt
+      .query_map(params![thread_id], |row| Email::build_struct_from_row(row))
+      .map_err(Error::from)?
+      .filter_map(|r| r.ok())
+      .collect();
+    let account_email = emails.first().map(|email| email.account_email.as_str());
+    if account_email.is_some()
+      && emails
+        .iter()
+        .any(|email| Some(email.account_email.as_str()) != account_email)
+    {
+      return Err(Error::KSError(
+        "Email thread exists in more than one connected mailbox; specify the mailbox first"
+          .to_string(),
+      ));
+    }
 
     Ok(emails)
   }
