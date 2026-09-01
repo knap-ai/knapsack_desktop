@@ -7167,7 +7167,7 @@ ${actualText}`
                     ) : (
                       <div className="ClawdChannelCardStatus">Not connected</div>
                     )}
-                    {hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
+                    {(hasChannelSavedConfig(channelStatus.genericChannels.slack) || slackAccounts.length > 0) && (
                       <button
                         className="ClawdChannelCardAction"
                         disabled={channelBusy === 'slack'}

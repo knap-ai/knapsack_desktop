@@ -2478,6 +2478,22 @@ fn slack_default_account_state(slack: &serde_json::Value) -> (bool, bool) {
   )
 }
 
+fn merged_slack_account_config(
+  slack: &serde_json::Value,
+  account: &serde_json::Value,
+) -> serde_json::Value {
+  let mut merged = slack.clone();
+  if let Some(merged_object) = merged.as_object_mut() {
+    merged_object.remove("accounts");
+    if let Some(account_object) = account.as_object() {
+      for (key, value) in account_object {
+        merged_object.insert(key.clone(), value.clone());
+      }
+    }
+  }
+  merged
+}
+
 /// Return configured Slack accounts without ever returning credential values.
 #[get("/api/clawd/channels/slack/accounts")]
 pub async fn slack_accounts() -> impl Responder {
@@ -2485,8 +2501,10 @@ pub async fn slack_accounts() -> impl Responder {
   let mut accounts = Vec::new();
   let (default_configured, environment_default) = slack_default_account_state(&slack);
   let channel_enabled = slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true);
+  let named_accounts = slack.get("accounts").and_then(|value| value.as_object());
+  let has_named_default = named_accounts.is_some_and(|accounts| accounts.contains_key("default"));
 
-  if default_configured {
+  if default_configured && !has_named_default {
     accounts.push(SlackAccountSummary {
       id: "default".to_string(),
       enabled: channel_enabled,
@@ -2495,17 +2513,20 @@ pub async fn slack_accounts() -> impl Responder {
     });
   }
 
-  if let Some(named) = slack.get("accounts").and_then(|value| value.as_object()) {
+  if let Some(named) = named_accounts {
     for (id, account) in named {
-      if id == "default" && accounts.iter().any(|entry| entry.id == "default") {
-        continue;
-      }
+      let managed_by_environment = if id == "default" {
+        let merged = merged_slack_account_config(&slack, account);
+        slack_default_account_state(&merged).1
+      } else {
+        false
+      };
       accounts.push(SlackAccountSummary {
         id: id.clone(),
         enabled: channel_enabled
           && account.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
         legacy: false,
-        managed_by_environment: false,
+        managed_by_environment,
       });
     }
   }
@@ -2804,7 +2825,15 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let has_legacy_credentials = has_slack_legacy_credentials(&slack);
   let (default_configured, environment_default) = slack_default_account_state(&slack);
-  if account_id == "default" && environment_default {
+  let named_accounts = slack
+    .get("accounts")
+    .and_then(serde_json::Value::as_object);
+  let named_account_count = named_accounts.map_or(0, serde_json::Map::len);
+  let named_account_exists = named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
+  let is_legacy_default = account_id == "default"
+    && has_legacy_credentials
+    && !named_account_exists;
+  if account_id == "default" && environment_default && !named_account_exists {
     return HttpResponse::BadRequest().json(GenericResponse {
       success: false,
       message: Some("The default Slack workspace is managed by environment variables and cannot be removed here.".to_string()),
@@ -2812,12 +2841,6 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
       linked: None,
     });
   }
-  let is_legacy_default = account_id == "default" && has_legacy_credentials;
-  let named_accounts = slack
-    .get("accounts")
-    .and_then(serde_json::Value::as_object);
-  let named_account_count = named_accounts.map_or(0, serde_json::Map::len);
-  let named_account_exists = named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
   if !is_legacy_default && !named_account_exists {
     return HttpResponse::NotFound().json(GenericResponse {
       success: false,
