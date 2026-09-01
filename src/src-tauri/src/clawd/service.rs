@@ -417,6 +417,14 @@ static GATEWAY_UNREACHABLE_SINCE_MS: AtomicU64 = AtomicU64::new(0);
 const GATEWAY_HEALTH_SELF_HEAL_GRACE_MS: u64 = 180_000;
 const GATEWAY_POST_BIND_STARTUP_GRACE_MS: u64 = 300_000;
 const GATEWAY_TRANSIENT_FAILURE_GRACE_MS: u64 = 30_000;
+// A production gateway with the browser plus Slack/Telegram enabled can take
+// just over 50 seconds to bind while channel plugins initialize.  Keep the
+// user-facing startup/provider-switch gates above that measured cold-start
+// time so we do not kill a healthy launch a few seconds before it is ready.
+const STARTUP_READY_BUDGET_MS: u64 = 90_000;
+const GATEWAY_READY_BUDGET_MS: u64 = 87_000;
+const PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS: u64 = 90_000;
+const PROVIDER_RESTART_CHANNEL_READY_BUDGET_MS: u64 = 120_000;
 const BROWSER_START_NUDGE_COOLDOWN_MS: u64 = 45_000;
 const BROWSER_TRANSIENT_FAILURE_GRACE_MS: u64 = 15_000;
 const BROWSER_STARTUP_GRACE_MS: u64 = 20_000;
@@ -8635,9 +8643,6 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
   use crate::clawd::{gateway_supervisor, gateway_ws};
 
-  const STARTUP_READY_BUDGET_MS: u64 = 45_000;
-  const GATEWAY_READY_BUDGET_MS: u64 = 42_000;
-
   let tokens = match load_or_create_tokens(&app_handle) {
     Ok(t) => t,
     Err(e) => {
@@ -8855,7 +8860,10 @@ pub async fn service_startup_ready(app_handle: web::Data<tauri::AppHandle>) -> i
     } else if ready {
       "Gateway is ready; browser and channels are still starting up".to_string()
     } else {
-      "Gateway did not become ready within 45s".to_string()
+      format!(
+        "Gateway did not become ready within {}s",
+        STARTUP_READY_BUDGET_MS / 1000
+      )
     },
     diagnostic_type: None,
   })
@@ -9922,12 +9930,19 @@ pub async fn set_api_key(
         }
       }
     }
-    let (gateway_ready, channel_ready, fallback_ready) =
-      gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
+    let (gateway_ready, channel_ready, fallback_ready) = gateway_ready_with_fallback(
+      &tokens.gateway_token,
+      PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS,
+      PROVIDER_RESTART_CHANNEL_READY_BUDGET_MS,
+    )
+    .await;
     if !gateway_ready {
       return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
         success: false,
-        message: "Provider switched, but gateway did not become ready within 45s".to_string(),
+        message: format!(
+          "Provider switched, but gateway did not become ready within {}s",
+          PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS / 1000
+        ),
       });
     }
     if !channel_ready {
@@ -10255,12 +10270,19 @@ pub async fn set_api_key(
     }
   }
 
-  let (gateway_ready, channel_ready, fallback_ready) =
-    gateway_ready_with_fallback(&tokens.gateway_token, 45_000, 120_000).await;
+  let (gateway_ready, channel_ready, fallback_ready) = gateway_ready_with_fallback(
+    &tokens.gateway_token,
+    PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS,
+    PROVIDER_RESTART_CHANNEL_READY_BUDGET_MS,
+  )
+  .await;
   if !gateway_ready {
     return HttpResponse::ServiceUnavailable().json(SetApiKeyResponse {
       success: false,
-      message: "API key saved, but gateway did not become ready within 45s".to_string(),
+      message: format!(
+        "API key saved, but gateway did not become ready within {}s",
+        PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS / 1000
+      ),
     });
   }
   if !channel_ready {
@@ -18662,7 +18684,18 @@ mod service_status_message_tests {
     external_port_holder_pids, is_noisy_browser_probe_error, is_transient_browser_probe_error,
     lsof_listener_args, mac_service_status_summary, managed_browser_pids_from_ps,
     parse_browser_control_status_body, should_restart_gateway_via_launchd, BrowserControlProbe,
+    GATEWAY_READY_BUDGET_MS, PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS, STARTUP_READY_BUDGET_MS,
   };
+
+  #[test]
+  fn gateway_readiness_budgets_cover_observed_plugin_cold_starts() {
+    const MINIMUM_COLD_START_BUDGET_MS: u64 = 60_000;
+
+    assert!(GATEWAY_READY_BUDGET_MS >= MINIMUM_COLD_START_BUDGET_MS);
+    assert!(STARTUP_READY_BUDGET_MS >= MINIMUM_COLD_START_BUDGET_MS);
+    assert!(PROVIDER_RESTART_GATEWAY_READY_BUDGET_MS >= MINIMUM_COLD_START_BUDGET_MS);
+    assert!(STARTUP_READY_BUDGET_MS > GATEWAY_READY_BUDGET_MS);
+  }
 
   #[test]
   fn port_cleanup_never_targets_current_process() {
