@@ -1337,6 +1337,7 @@ type ChatInputBarProps = {
   replyToMsg?: Msg | null
   onCancelReply?: () => void
   initialValue?: string
+  inputElementRef?: React.MutableRefObject<HTMLTextAreaElement | null>
 }
 
 // ── Memoized single-message renderer ──────────────────────────────────
@@ -1542,6 +1543,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
+    inputElementRef,
   } = props
   // Keep the draft in the native textarea instead of React state. This leaves
   // keystrokes on the browser's fast path; React only needs to render when the
@@ -1676,7 +1678,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         </button>
         <div className="ClawdInputWrapper">
           <textarea
-            ref={textareaRef}
+            ref={element => {
+              textareaRef.current = element
+              if (inputElementRef) inputElementRef.current = element
+            }}
             data-testid="qa-clawd-chat-input"
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
@@ -3277,6 +3282,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // forward file data through the browser's drop event, so we handle drops
   // via Tauri's event system to actually attach the files.
   useEffect(() => {
+    if (!active) return
     let cancelled = false
     const cleanups: Array<() => void> = []
 
@@ -3359,7 +3365,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       cancelled = true
       cleanups.forEach(fn => fn())
     }
-  }, [])
+  }, [active])
 
   // Listen for Claude Code started/exited events to auto-open Activity Panel
   // and show an indicator in the chat while it's running.
@@ -5553,6 +5559,7 @@ ${actualText}`
   clearHistoryRef.current = clearHistory
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
+  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
   useEffect(() => {
     if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -5579,7 +5586,7 @@ ${actualText}`
       // Cmd/Ctrl+L — focus chat input
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
-        document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
+        chatInputElementRef.current?.focus()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -6487,6 +6494,7 @@ ${actualText}`
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
         initialValue={initialInput}
+        inputElementRef={chatInputElementRef}
       />
       </div>
       </div>{/* end ClawdChatContent */}

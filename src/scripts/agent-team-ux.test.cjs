@@ -39,6 +39,10 @@ test('background agent replies produce unread indicators until selected', () => 
   assert.match(chat, /onAssistantMessage\?\.\(chatId\)/)
   assert.match(chat, /if \(!active\) return/)
   assert.match(chat, /if \(active\) void syncProviderSelectionFromBackend\(\)/)
+  assert.match(chat, /tauri:\/\/file-drop/)
+  assert.match(chat, /useEffect\(\(\) => \{\s*if \(!active\) return\s*let cancelled = false/)
+  assert.match(chat, /chatInputElementRef\.current\?\.focus\(\)/)
+  assert.doesNotMatch(chat, /document\.querySelector<HTMLTextAreaElement>\('\.ClawdChatInput textarea'\)/)
 })
 
 test('browser launcher reserves header space instead of overlapping controls', () => {
