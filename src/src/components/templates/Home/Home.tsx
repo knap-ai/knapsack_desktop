@@ -878,7 +878,10 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                               isActiveChat ? setIsChatProviderPanelOpen : undefined
                             }
                             onAssistantMessage={respondingChatId => {
-                              if (respondingChatId === activeChatIdRef.current) return
+                              if (
+                                respondingChatId === activeChatIdRef.current
+                                && currentTab === TabChoices.Openclaw
+                              ) return
                               setUnreadChatIds(current => new Set(current).add(respondingChatId))
                             }}
                             openProviderPanel={isActiveChat ? openProviderPanelTrigger : 0}

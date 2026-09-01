@@ -28,7 +28,7 @@ test('background agent replies produce unread indicators until selected', () => 
   )
 
   assert.match(home, /const \[unreadChatIds, setUnreadChatIds\]/)
-  assert.match(home, /respondingChatId === activeChatIdRef\.current/)
+  assert.match(home, /respondingChatId === activeChatIdRef\.current[\s\S]*?currentTab === TabChoices\.Openclaw/)
   assert.match(home, /const \[mountedChatIds, setMountedChatIds\]/)
   assert.match(home, /Array\.from\(mountedChatIds\)\.map/)
   assert.match(home, /active=\{isActiveChat\}/)
@@ -43,6 +43,9 @@ test('background agent replies produce unread indicators until selected', () => 
   assert.match(chat, /providerReady=\{!providerSelectionRefreshing\}/)
   assert.match(chat, /disabled=\{isRecording \|\| !providerReady\}/)
   assert.ok((chat.match(/onAssistantMessage\?\.\(chatId\)/g) || []).length >= 3)
+  assert.match(chat, /const advancedModeAtSend = localStorage\.getItem\(ADVANCED_MODE_STORAGE\) === 'true'/)
+  assert.match(chat, /advancedMode: advancedModeAtSend/)
+  assert.match(chat, /cancelled \|\| !activeRef\.current/)
   assert.match(chat, /tauri:\/\/file-drop/)
   assert.match(chat, /useEffect\(\(\) => \{\s*if \(!active\) return\s*let cancelled = false/)
   assert.match(chat, /chatInputElementRef\.current\?\.focus\(\)/)

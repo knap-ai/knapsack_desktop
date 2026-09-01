@@ -1991,6 +1991,8 @@ interface ClawdChatProps {
 }
 
 export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+  const activeRef = useRef(active)
+  activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -2190,6 +2192,19 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   })
   const [showDeveloperWarning, setShowDeveloperWarning] = useState(false)
   const [showDevPanel, setShowDevPanel] = useState(false)
+
+  // These preferences are global even though retained chats keep their local
+  // UI state. Re-read them whenever this instance becomes visible.
+  useEffect(() => {
+    if (!active) return
+    const storedAutonomy = localStorage.getItem(AUTONOMY_MODE_STORAGE)
+    setAutonomyMode(storedAutonomy === 'assist' || storedAutonomy === 'autonomous' ? storedAutonomy : 'autonomous')
+    setAdvancedMode(localStorage.getItem(ADVANCED_MODE_STORAGE) === 'true')
+    setDeveloperMode(localStorage.getItem(DEVELOPER_MODE_STORAGE) === 'true')
+    setSelectedTone(localStorage.getItem(TONE_STORAGE) || 'snarky')
+    const storedProactive = localStorage.getItem(PROACTIVE_MODE_STORAGE)
+    setProactiveMode(storedProactive === null ? false : storedProactive === 'true')
+  }, [active])
 
   // Activity panel is now controlled by parent via props
 
@@ -3437,7 +3452,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const unlistenKnapsackConnected = await tauriListen<{ email: string }>(
         'knapsack-connected',
         (event) => {
-          if (cancelled) return
+          if (cancelled || !activeRef.current) return
           const { email } = event.payload
           setKnapsackEmail(email)
           setIsKnapsackConnecting(false)
@@ -3455,7 +3470,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const unlistenKnapsackError = await tauriListen<{ error: string }>(
         'knapsack-auth-error',
         (event) => {
-          if (cancelled) return
+          if (cancelled || !activeRef.current) return
           setIsKnapsackConnecting(false)
           setKnapsackConnectError(event.payload.error || 'Connection failed')
         },
@@ -4720,6 +4735,18 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       await providerSelectionRefreshRef.current
     }
 
+    // Execution modes and tone are global preferences. Snapshot localStorage
+    // at send time so a retained chat can never use permissions disabled in a
+    // different chat before this instance re-rendered.
+    const advancedModeAtSend = localStorage.getItem(ADVANCED_MODE_STORAGE) === 'true'
+    const developerModeAtSend = localStorage.getItem(DEVELOPER_MODE_STORAGE) === 'true'
+    const storedAutonomyMode = localStorage.getItem(AUTONOMY_MODE_STORAGE)
+    const autonomyModeAtSend: AutonomyMode =
+      storedAutonomyMode === 'assist' || storedAutonomyMode === 'autonomous'
+        ? storedAutonomyMode
+        : 'autonomous'
+    const selectedToneAtSend = localStorage.getItem(TONE_STORAGE) || 'snarky'
+
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
     if (runInTerminalTimerRef.current) {
@@ -4766,7 +4793,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     pushUser(text + attachmentSummary, currentReplyTo?.id)
 
     // --- Developer mode intent detection ---
-    if (!developerMode && detectBuildIntent(text)) {
+    if (!developerModeAtSend && detectBuildIntent(text)) {
       // User is talking about building but dev mode is off — suggest it
       setTimeout(() => {
         pushAssistantRef.current?.(
@@ -4777,7 +4804,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           '[Enable Developer Mode](knapsack://prompt/__ENABLE_DEV_MODE__)'
         )
       }, 500)
-    } else if (developerMode && detectBuildIntent(text)) {
+    } else if (developerModeAtSend && detectBuildIntent(text)) {
       // Dev mode is on — populate the panel with this description
       dispatchDevPopulate(extractProjectDescription(text))
       dispatchOpenDevPanel()
@@ -4957,7 +4984,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       // If it's not a known command, treat it as natural language and let the agent handle it.
 
       // Suggest advanced mode if the prompt looks like it needs shell/system access
-      if (!advancedMode) {
+      if (!advancedModeAtSend) {
         const lower = text.toLowerCase()
         const advancedPatterns = [
           // Install / package management
@@ -5137,7 +5164,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       try {
         // Get the current tone's system prompt addition
-        const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
+        const currentTone = TONE_OPTIONS.find(t => t.id === selectedToneAtSend)
         const tonePrompt = currentTone?.systemPromptAddition || ''
 
         // For the smart prompt, pre-fetch email/calendar data from Knapsack's APIs
@@ -5200,7 +5227,7 @@ ${actualText}`
 
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
-        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedMode, developerMode)) {
+        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedModeAtSend, developerModeAtSend)) {
           try {
             const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
             if (termRes.ok) {
@@ -5241,12 +5268,12 @@ ${actualText}`
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId,
-          tone: selectedTone,
+          tone: selectedToneAtSend,
           tonePrompt,
           voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
-          autonomyMode, // 'assist' or 'autonomous' - controls how independent the agent is
-          advancedMode, // When true, enables run_command tool for shell execution
-          developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
+          autonomyMode: autonomyModeAtSend, // 'assist' or 'autonomous' - controls how independent the agent is
+          advancedMode: advancedModeAtSend, // When true, enables run_command tool for shell execution
+          developerMode: developerModeAtSend, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
           memoryNotes: trimMemoryNotes(getAgentMemory(`knapsack-chat:${chatId}`)), // Persistent per-agent context
@@ -5298,7 +5325,7 @@ ${actualText}`
               ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {
                 teamMembers: agentTeamMembers,
               }),
-              advancedMode,
+              advancedMode: advancedModeAtSend,
               userEmail: userEmail || '',
               userName: userName || '',
               ...(currentAttachments.length > 0 && {
