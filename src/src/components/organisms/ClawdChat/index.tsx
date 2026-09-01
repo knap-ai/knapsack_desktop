@@ -7185,7 +7185,9 @@ ${actualText}`
                           <span style={{ fontSize: 11, color: account.enabled ? '#16a34a' : '#94a3b8' }}>
                             {account.enabled ? 'Configured' : 'Disabled'}
                           </span>
-                          <button
+                          {account.managedByEnvironment ? (
+                            <span style={{ fontSize: 11, color: '#64748b' }}>Managed by environment</span>
+                          ) : <button
                             className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
                             disabled={channelBusy === `slack-${account.id}`}
                             onClick={async () => {
@@ -7204,7 +7206,7 @@ ${actualText}`
                             }}
                           >
                             {channelBusy === `slack-${account.id}` ? 'Removing...' : 'Remove'}
-                          </button>
+                          </button>}
                         </div>
                       ))}
                     </div>

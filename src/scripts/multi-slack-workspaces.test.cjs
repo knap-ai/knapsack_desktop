@@ -21,6 +21,8 @@ test('Slack configuration uses named accounts and preserves sibling workspaces',
   assert.match(channels, /is_legacy_default && named_account_count == 0/)
   assert.match(channels, /Some\(serde_json::Value::Object\(secret_ref\)\)/)
   assert.match(channels, /!is_legacy_default && !named_account_exists/)
+  assert.match(channels, /has_slack_environment_default/)
+  assert.match(channels, /managed_by_environment: environment_default/)
 })
 
 test('Slack UI can add and remove workspaces independently', () => {
@@ -37,9 +39,11 @@ test('Slack UI can add and remove workspaces independently', () => {
   assert.match(chat, /Add another Slack workspace/)
   assert.match(chat, /accountId: workspaceId/)
   assert.match(chat, /disconnectSlackAccount\(account\.id\)/)
+  assert.match(chat, /Managed by environment/)
   assert.match(chat, /slackAccounts\.length === 0 \|\| showSlackAdd/)
   assert.match(api, /getSlackAccounts/)
   assert.match(api, /disconnectSlackAccount/)
+  assert.match(api, /accounts\/disconnect', \{ accountId \}/)
   assert.match(onboarding, /getSlackAccounts\(\)/)
   assert.match(onboarding, /disconnectSlackAccount\(target\.id\)/)
   assert.doesNotMatch(onboarding, /disconnectGenericChannel\('slack'\)/)

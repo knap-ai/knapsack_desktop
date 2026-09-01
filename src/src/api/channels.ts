@@ -201,6 +201,7 @@ export interface SlackAccountSummary {
   id: string
   enabled: boolean
   legacy: boolean
+  managedByEnvironment: boolean
 }
 
 export interface SlackAccountsResponse {
@@ -214,10 +215,7 @@ export const getSlackAccounts = () =>
 
 /** Disconnect one Slack workspace while leaving the others online. */
 export const disconnectSlackAccount = (accountId: string) =>
-  post<GenericResponse>(
-    `/api/clawd/channels/slack/accounts/${encodeURIComponent(accountId)}/disconnect`,
-    {},
-  )
+  post<GenericResponse>('/api/clawd/channels/slack/accounts/disconnect', { accountId })
 
 // ── Snowflake identity broker ────────────────────────────────
 

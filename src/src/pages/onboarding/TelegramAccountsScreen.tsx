@@ -149,8 +149,9 @@ function SlackWorkspaceCard({
     onChange({ errorMessage: '' })
     try {
       const inventory = await getSlackAccounts()
-      const legacyDefault = inventory.accounts.find(account => account.id === 'default' && account.legacy)
-      const target = legacyDefault ?? (inventory.accounts.length === 1 ? inventory.accounts[0] : null)
+      const removableAccounts = inventory.accounts.filter(account => !account.managedByEnvironment)
+      const legacyDefault = removableAccounts.find(account => account.id === 'default' && account.legacy)
+      const target = legacyDefault ?? (removableAccounts.length === 1 ? removableAccounts[0] : null)
       if (!target) {
         throw new Error('Manage multiple Slack workspaces individually in Channels settings.')
       }
