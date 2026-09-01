@@ -7,11 +7,9 @@ const GOOGLE_ANTIGRAVITY_PROVIDER_ID = "google-antigravity";
 const GEMINI_2_5_PRO_PREFIX = "gemini-2.5-pro";
 const GEMINI_2_5_FLASH_LITE_PREFIX = "gemini-2.5-flash-lite";
 const GEMINI_2_5_FLASH_PREFIX = "gemini-2.5-flash";
-const GEMINI_3_1_PRO_PREFIX = "gemini-3.1-pro";
-const GEMINI_3_1_FLASH_LITE_PREFIX = "gemini-3.1-flash-lite";
-const GEMINI_3_1_FLASH_PREFIX = "gemini-3.1-flash";
-const GEMINI_3_FLASH_LITE_PREFIX = "gemini-3-flash-lite";
-const GEMINI_3_FLASH_PREFIX = "gemini-3-flash";
+const GEMINI_3_PRO_RE = /^gemini-3(?:\.\d+)?-pro(?:-|$)/;
+const GEMINI_3_FLASH_LITE_RE = /^gemini-3(?:\.\d+)?-flash-lite(?:-|$)/;
+const GEMINI_3_FLASH_RE = /^gemini-3(?:\.\d+)?-flash(?:-|$)/;
 const GEMINI_PRO_LATEST_ID = "gemini-pro-latest";
 const GEMINI_FLASH_LATEST_ID = "gemini-flash-latest";
 const GEMINI_FLASH_LITE_LATEST_ID = "gemini-flash-lite-latest";
@@ -97,19 +95,19 @@ function resolveGoogleGeminiForwardCompatModel(params) {
 		cliTemplateIds: GEMINI_3_1_FLASH_TEMPLATE_IDS,
 		preferExternalFirstForCli: true
 	};
-	else if (lower.startsWith(GEMINI_3_1_PRO_PREFIX) || lower === GEMINI_PRO_LATEST_ID) {
+	else if (GEMINI_3_PRO_RE.test(lower) || lower === GEMINI_PRO_LATEST_ID) {
 		family = {
 			googleTemplateIds: GEMINI_3_1_PRO_TEMPLATE_IDS,
 			cliTemplateIds: GEMINI_3_1_PRO_TEMPLATE_IDS,
 			antigravityTemplateIds: GEMINI_3_PRO_ANTIGRAVITY_TEMPLATE_IDS
 		};
 		if (params.providerId === "google" || params.providerId === GOOGLE_GEMINI_CLI_PROVIDER_ID) patch = { reasoning: true };
-	} else if (lower.startsWith(GEMINI_3_1_FLASH_LITE_PREFIX) || lower.startsWith(GEMINI_3_FLASH_LITE_PREFIX) || lower === GEMINI_FLASH_LITE_LATEST_ID) family = {
+	} else if (GEMINI_3_FLASH_LITE_RE.test(lower) || lower === GEMINI_FLASH_LITE_LATEST_ID) family = {
 		googleTemplateIds: GEMINI_3_1_FLASH_LITE_TEMPLATE_IDS,
 		cliTemplateIds: GEMINI_3_1_FLASH_LITE_TEMPLATE_IDS,
 		antigravityTemplateIds: GEMINI_3_FLASH_ANTIGRAVITY_TEMPLATE_IDS
 	};
-	else if (lower.startsWith(GEMINI_3_1_FLASH_PREFIX) || lower.startsWith(GEMINI_3_FLASH_PREFIX) || lower === GEMINI_FLASH_LATEST_ID) family = {
+	else if (GEMINI_3_FLASH_RE.test(lower) || lower === GEMINI_FLASH_LATEST_ID) family = {
 		googleTemplateIds: GEMINI_3_1_FLASH_TEMPLATE_IDS,
 		cliTemplateIds: GEMINI_3_1_FLASH_TEMPLATE_IDS,
 		antigravityTemplateIds: GEMINI_3_FLASH_ANTIGRAVITY_TEMPLATE_IDS
