@@ -793,7 +793,7 @@ Be specific, compact, and useful while the user is joining the call.`,
     return {}
   }
 
-  const fetchNotes = async () => {
+  const fetchNotes = async (): Promise<string | null> => {
     try {
       const response = await fetch(`${KN_API_NOTES}/${thread.id}`, {
         method: 'GET',
@@ -804,11 +804,13 @@ Be specific, compact, and useful while the user is joining the call.`,
 
       if (response.ok) {
         const data = await response.json()
-        if (data && data.data && data.data.notes) {
-          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes)
+        const notesExist = data?.data?.exists === true
+        if (notesExist) {
+          const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
           setNotesMarkdown(normalizedNotes)
           const parsedNotes = editor?.storage.markdown.parser.parse(normalizedNotes)
           editor?.commands.setContent(parsedNotes || normalizedNotes)
+          return normalizedNotes
         } else {
           setMarkdown('')
           editor?.commands.setContent('')
@@ -833,6 +835,7 @@ Be specific, compact, and useful while the user is joining the call.`,
               meeting,
             )
           }
+          return null
         }
       }
     } catch (error) {
@@ -850,6 +853,7 @@ Be specific, compact, and useful while the user is joining the call.`,
     } finally {
       setIsInitialLoading(false)
     }
+    return null
   }
 
   const checkTranscriptSaved = async () => {

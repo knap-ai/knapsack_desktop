@@ -13,6 +13,7 @@ const meetingNotesModePath = path.resolve(
   '..',
   'src/components/organisms/MeetingNotesMode/index.tsx',
 )
+const notesApiPath = path.resolve(__dirname, '..', 'src-tauri/src/api/notes.rs')
 
 test('a backend-confirmed automatic stop queues meeting-note synthesis', () => {
   const source = fs.readFileSync(recordingContextPath, 'utf8')
@@ -20,13 +21,14 @@ test('a backend-confirmed automatic stop queues meeting-note synthesis', () => {
   assert.match(source, /let backendConfirmedStop = false/)
   assert.match(
     source,
-    /await stopRecord\([\s\S]*?backendConfirmedStop = true[\s\S]*?if \(stopSucceeded && \(wasRecording \|\| backendConfirmedStop\)\) \{\s*await generateNotes/,
+    /await stopRecord\([\s\S]*?backendConfirmedStop = true[\s\S]*?if \(stopSucceeded && \(wasRecording \|\| backendConfirmedStop\)\) \{[\s\S]*?const persistedNotes = await fetchNotes\(\)[\s\S]*?persistedNotes \?\? notesMarkdown/,
   )
   assert.doesNotMatch(source, /if \(wasRecording && stopSucceeded\) \{\s*await generateNotes/)
 })
 
 test('recorded meetings with a saved transcript recover missing notes once', () => {
   const source = fs.readFileSync(meetingNotesModePath, 'utf8')
+  const notesApiSource = fs.readFileSync(notesApiPath, 'utf8')
 
   assert.match(source, /const missingNotesRecoveryTriggeredRef = useRef\(false\)/)
   assert.match(
@@ -35,6 +37,8 @@ test('recorded meetings with a saved transcript recover missing notes once', () 
   )
   assert.match(
     source,
-    /thread\.recorded &&[\s\S]*?thread\.savedTranscript &&[\s\S]*?!missingNotesRecoveryTriggeredRef\.current[\s\S]*?missingNotesRecoveryTriggeredRef\.current = true[\s\S]*?recordingHandlers\.generateNotes\(/,
+    /const notesExist = data\?\.data\?\.exists === true[\s\S]*?if \(notesExist\)[\s\S]*?thread\.recorded &&[\s\S]*?thread\.savedTranscript &&[\s\S]*?!missingNotesRecoveryTriggeredRef\.current[\s\S]*?missingNotesRecoveryTriggeredRef\.current = true[\s\S]*?recordingHandlers\.generateNotes\(/,
   )
+  assert.match(notesApiSource, /struct GetNotesResponse \{[\s\S]*?exists: bool/)
+  assert.match(notesApiSource, /let exists = notes\.is_some\(\)/)
 })

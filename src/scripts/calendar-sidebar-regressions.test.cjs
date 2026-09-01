@@ -23,5 +23,6 @@ test('sidebar uses an abbreviated month inside a non-wrapping date label', () =>
   )
 
   assert.match(component, /date\.format\('MMM'\)/)
+  assert.doesNotMatch(component, /Object\.entries\(upcomingEvents\)\s*\.slice\(0, 5\)/)
   assert.match(styles, /&__calendar-date-meta\s*\{[^}]*white-space:\s*nowrap;/s)
 })

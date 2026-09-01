@@ -24,7 +24,7 @@ export interface RecordingContextProps {
     isStart?: boolean,
   ) => Promise<void>
   stopRecording: (
-    fetchNotes: () => Promise<void>,
+    fetchNotes: () => Promise<string | null>,
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     synthesizeContent: (
       threadId: number,
@@ -254,7 +254,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   }, [setHasSynthesized, setIsRecording])
 
   const stopRecording = useCallback(async (
-    fetchNotes: () => Promise<void>,
+    fetchNotes: () => Promise<string | null>,
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
     synthesizeContent: (
       threadId: number,
@@ -313,7 +313,17 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     // A successful backend stop is authoritative and must always queue synthesis;
     // otherwise the transcript is saved but the meeting remains permanently blank.
     if (stopSucceeded && (wasRecording || backendConfirmedStop)) {
-      await generateNotes(threadId, synthesizeContent, saveNotes, notesMarkdown, meeting)
+      // Reload persisted notes before synthesis. Automatic stop can arrive while
+      // the newly mounted meeting view still has an empty notesMarkdown state;
+      // using that stale value would drop autosaved user notes from the prompt.
+      const persistedNotes = await fetchNotes()
+      await generateNotes(
+        threadId,
+        synthesizeContent,
+        saveNotes,
+        persistedNotes ?? notesMarkdown,
+        meeting,
+      )
     }
 
     await fetchNotes()

@@ -81,6 +81,7 @@ async fn save_notes(data: Json<SaveNotesRequest>) -> impl Responder {
 #[derive(Serialize)]
 struct GetNotesResponse {
   notes: Option<String>,
+  exists: bool,
 }
 
 fn check_if_legacy_notes_exists(thread_id: u64) -> Result<Option<String>, Error> {
@@ -149,9 +150,11 @@ async fn get_notes(path: web::Path<u64>) -> impl Responder {
     legacy_notes
   };
 
+  let exists = notes.is_some();
+
   HttpResponse::Ok().json(json!({
     "success": true,
-    "data": GetNotesResponse { notes }
+    "data": GetNotesResponse { notes, exists }
   }))
 }
 
