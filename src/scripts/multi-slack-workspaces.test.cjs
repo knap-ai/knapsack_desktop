@@ -19,6 +19,7 @@ test('Slack configuration uses named accounts and preserves sibling workspaces',
   assert.match(channels, /"slack": null/)
   assert.match(channels, /"signingSecret": null/)
   assert.match(channels, /is_legacy_default && named_account_count == 0/)
+  assert.match(channels, /Some\(serde_json::Value::Object\(secret_ref\)\)/)
 })
 
 test('Slack UI can add and remove workspaces independently', () => {
@@ -27,6 +28,10 @@ test('Slack UI can add and remove workspaces independently', () => {
     'utf8',
   )
   const api = fs.readFileSync(path.join(sourceRoot, 'src/api/channels.ts'), 'utf8')
+  const onboarding = fs.readFileSync(
+    path.join(sourceRoot, 'src/pages/onboarding/TelegramAccountsScreen.tsx'),
+    'utf8',
+  )
 
   assert.match(chat, /Add another Slack workspace/)
   assert.match(chat, /accountId: workspaceId/)
@@ -34,6 +39,8 @@ test('Slack UI can add and remove workspaces independently', () => {
   assert.match(chat, /slackAccounts\.length === 0 \|\| showSlackAdd/)
   assert.match(api, /getSlackAccounts/)
   assert.match(api, /disconnectSlackAccount/)
+  assert.match(onboarding, /disconnectSlackAccount\('default'\)/)
+  assert.doesNotMatch(onboarding, /disconnectGenericChannel\('slack'\)/)
 })
 
 test('Slack account inventory never serializes credential fields', () => {

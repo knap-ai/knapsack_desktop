@@ -6,7 +6,7 @@ import cn from 'classnames'
 import {
   configureAgentBot,
   configureGenericChannel,
-  disconnectGenericChannel,
+  disconnectSlackAccount,
   getAgentBotStatuses,
   getGenericChannelStatus,
 } from 'src/api/channels'
@@ -147,7 +147,8 @@ function SlackWorkspaceCard({
   const handleDisconnect = async () => {
     onChange({ errorMessage: '' })
     try {
-      await disconnectGenericChannel('slack')
+      const response = await disconnectSlackAccount('default')
+      if (!response.success) throw new Error(response.message || 'Disconnect failed')
       onChange({ phase: 'idle', workspaceLabel: '', errorMessage: '' })
     } catch {
       onChange({ errorMessage: 'Could not disconnect Slack right now.' })

@@ -2434,13 +2434,27 @@ fn valid_channel_account_id(value: &str) -> bool {
       .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
 }
 
+fn configured_secret_present(value: Option<&serde_json::Value>) -> bool {
+  match value {
+    Some(serde_json::Value::String(secret)) => !secret.trim().is_empty(),
+    Some(serde_json::Value::Object(secret_ref)) => !secret_ref.is_empty(),
+    _ => false,
+  }
+}
+
+fn has_slack_legacy_credentials(slack: &serde_json::Value) -> bool {
+  ["botToken", "appToken", "signingSecret", "userToken"]
+    .iter()
+    .any(|field| configured_secret_present(slack.get(field)))
+}
+
 /// Return configured Slack accounts without ever returning credential values.
 #[get("/api/clawd/channels/slack/accounts")]
 pub async fn slack_accounts() -> impl Responder {
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let mut accounts = Vec::new();
 
-  if slack.get("botToken").is_some() || slack.get("appToken").is_some() {
+  if has_slack_legacy_credentials(&slack) {
     accounts.push(SlackAccountSummary {
       id: "default".to_string(),
       enabled: slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
@@ -2744,14 +2758,7 @@ pub async fn slack_account_disconnect(path: web::Path<String>) -> impl Responder
   }
 
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
-  let has_legacy_credentials = slack
-    .get("botToken")
-    .and_then(serde_json::Value::as_str)
-    .is_some_and(|token| !token.trim().is_empty())
-    || slack
-      .get("appToken")
-      .and_then(serde_json::Value::as_str)
-      .is_some_and(|token| !token.trim().is_empty());
+  let has_legacy_credentials = has_slack_legacy_credentials(&slack);
   let is_legacy_default = account_id == "default" && has_legacy_credentials;
   let named_account_count = slack
     .get("accounts")
