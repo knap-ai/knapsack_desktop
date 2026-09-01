@@ -276,6 +276,15 @@ export function useFeed(
   const [classifiedEmails, setClassifiedEmails] = useState<
     Partial<Record<EmailImportance, DisplayEmail[]>>
   >({})
+  const connectedGmailAccountEmails = useMemo(
+    () => Array.from(new Set(
+      Object.values(connections)
+        .filter(connection => connection.key === ConnectionKeys.GOOGLE_GMAIL)
+        .map(connection => connection.calendarAccountEmail?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    )),
+    [connections],
+  )
   const [classificationActions, setClassificationActions] = useState<
     Partial<Record<EmailImportance, EmailAction>>
   >({
@@ -694,7 +703,12 @@ export function useFeed(
     try {
       const dataFetcher = new DataFetcher()
 
-      const allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
+      const allMessages = await dataFetcher.getRecentGmailMessages(
+        7,
+        5000,
+        false,
+        connectedGmailAccountEmails.length > 0 ? connectedGmailAccountEmails : undefined,
+      )
 
       if (allMessages.length === 0) {
         return
@@ -752,7 +766,7 @@ export function useFeed(
         error: error instanceof Error ? error.toString() : String(error),
       })
     }
-  }, [classifiedEmails])
+  }, [classifiedEmails, connectedGmailAccountEmails])
 
   const runEmailAutopilot = async () => {
     const dataFetcher = new DataFetcher()
@@ -766,7 +780,12 @@ export function useFeed(
       setEmailAutopilotStatus({ status: 'fetching-emails' })
       // Fetch 7 days so starred / unread emails older than 24h are still
       // picked up.  The unread+starred filter below keeps the set manageable.
-      let allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
+      let allMessages = await dataFetcher.getRecentGmailMessages(
+        7,
+        5000,
+        false,
+        connectedGmailAccountEmails.length > 0 ? connectedGmailAccountEmails : undefined,
+      )
 
       if (allMessages.length === 0) {
         setEmailAutopilotStatus({ status: 'complete' })

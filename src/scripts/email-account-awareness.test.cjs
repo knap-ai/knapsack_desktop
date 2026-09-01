@@ -52,6 +52,8 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /accountEmail\?: string/)
   assert.match(feed, /email\.message\.accountEmail \|\| userEmail/)
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
+  assert.match(feed, /const connectedGmailAccountEmails = useMemo/)
+  assert.ok((feed.match(/connectedGmailAccountEmails\.length > 0 \? connectedGmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
 test('account-awareness does not delete legacy unscoped email history', () => {
