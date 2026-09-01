@@ -2764,7 +2764,18 @@ pub struct SlackAccountDisconnectRequest {
 
 #[post("/api/clawd/channels/slack/accounts/disconnect")]
 pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequest>) -> impl Responder {
-  let account_id = body.account_id.trim().to_string();
+  // Preserve the exact configured key. Existing OpenClaw account IDs may
+  // legitimately contain whitespace or punctuation even though Knapsack's
+  // new-workspace UI generates conservative slugs.
+  let account_id = body.account_id.clone();
+  if account_id.is_empty() {
+    return HttpResponse::BadRequest().json(GenericResponse {
+      success: false,
+      message: Some("Slack workspace identifier is required.".to_string()),
+      configured: None,
+      linked: None,
+    });
+  }
 
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let has_legacy_credentials = has_slack_legacy_credentials(&slack);

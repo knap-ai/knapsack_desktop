@@ -23,6 +23,7 @@ test('Slack configuration uses named accounts and preserves sibling workspaces',
   assert.match(channels, /!is_legacy_default && !named_account_exists/)
   assert.match(channels, /has_slack_environment_default/)
   assert.match(channels, /managed_by_environment: environment_default/)
+  assert.match(channels, /let account_id = body\.account_id\.clone\(\)/)
 })
 
 test('Slack UI can add and remove workspaces independently', () => {
