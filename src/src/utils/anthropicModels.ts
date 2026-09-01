@@ -24,7 +24,11 @@ export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', description: 'Best balance of speed and intelligence for most everyday work', vision: true },
   { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
   { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
+  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
+  { id: 'claude-sonnet-3-7', name: 'Claude Sonnet 3.7', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
+  { id: 'claude-sonnet-3-5', name: 'Claude Sonnet 3.5', description: 'Earlier Sonnet release, strong for balanced coding and reasoning', vision: true },
   { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', description: 'Fastest and most affordable Anthropic model', vision: true },
+  { id: 'claude-haiku-3-5', name: 'Claude Haiku 3.5', description: 'Earlier Haiku release, optimized for low-latency affordable tasks', vision: true },
 ]
 
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-4-8'

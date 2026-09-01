@@ -16,6 +16,7 @@
     "clawdbot:gateway-live": "node scripts/smoke-test-gateway-live.cjs",
     "models:refresh:public": "node scripts/refresh-public-provider-models.mjs --write",
     "models:check:public": "node scripts/refresh-public-provider-models.mjs --check",
+    "test:model-catalogs": "node --test scripts/refresh-public-provider-models.test.mjs scripts/gemini-forward-compat.test.mjs",
     "models:refresh:anthropic": "node scripts/refresh-anthropic-models.mjs --write",
     "models:check:anthropic": "node scripts/refresh-anthropic-models.mjs --check",
     "qa:dev": "node scripts/qa-dev-run.cjs",

@@ -25,12 +25,13 @@ jobs:
         run: npm run models:refresh:public
 
       - name: Create pull request if catalog changed
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8.1.1
         with:
+          token: ${{ secrets.MODEL_CATALOG_REFRESH_TOKEN }}
           commit-message: 'Refresh public provider model catalogs'
           title: 'Refresh public provider model catalogs'
           body: |
-            Weekly refresh of shared public-provider model catalogs from official public docs and APIs.
+            Weekly refresh of shared public-provider model catalogs, including Google Gemini, from official public docs and APIs.
 
             This updates the model choices shown in Knapsack provider settings and chat model pickers.
           branch: codex/refresh-public-provider-model-catalogs
