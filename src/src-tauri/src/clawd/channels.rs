@@ -2753,14 +2753,13 @@ pub async fn slack_account_disconnect(path: web::Path<String>) -> impl Responder
       .and_then(serde_json::Value::as_str)
       .is_some_and(|token| !token.trim().is_empty());
   let is_legacy_default = account_id == "default" && has_legacy_credentials;
-  if is_legacy_default {
-    return disconnect_channel("slack", "default").await;
-  }
-
   let named_account_count = slack
     .get("accounts")
     .and_then(serde_json::Value::as_object)
     .map_or(0, serde_json::Map::len);
+  if is_legacy_default && named_account_count == 0 {
+    return disconnect_channel("slack", "default").await;
+  }
   let removing_last_workspace = named_account_count <= 1 && !has_legacy_credentials;
 
   let logout_params = serde_json::json!({ "channel": "slack", "accountId": account_id });
@@ -2773,12 +2772,25 @@ pub async fn slack_account_disconnect(path: web::Path<String>) -> impl Responder
       tokio::time::sleep(Duration::from_millis(300 * attempt as u64)).await;
     }
     if let Ok(snapshot) = gateway_client::config_get(None).await {
-      let mut patch = if removing_last_workspace {
+      let mut patch = if is_legacy_default {
+        // Flat credentials are the legacy default account. Remove only its
+        // authentication material so named accounts and shared policy survive.
+        serde_json::json!({
+          "channels": {
+            "slack": {
+              "botToken": null,
+              "appToken": null,
+              "signingSecret": null,
+              "userToken": null
+            }
+          }
+        })
+      } else if removing_last_workspace {
         serde_json::json!({ "channels": { "slack": null } })
       } else {
         serde_json::json!({ "channels": { "slack": { "accounts": {} } } })
       };
-      if !removing_last_workspace {
+      if !is_legacy_default && !removing_last_workspace {
         patch["channels"]["slack"]["accounts"][&account_id] = serde_json::Value::Null;
       }
       let patch_json = serde_json::to_string(&patch).unwrap();

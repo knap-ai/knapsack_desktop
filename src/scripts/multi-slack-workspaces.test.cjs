@@ -17,6 +17,8 @@ test('Slack configuration uses named accounts and preserves sibling workspaces',
   assert.match(channels, /accounts\"\]\[&account_id\] = serde_json::Value::Null/)
   assert.match(channels, /removing_last_workspace/)
   assert.match(channels, /"slack": null/)
+  assert.match(channels, /"signingSecret": null/)
+  assert.match(channels, /is_legacy_default && named_account_count == 0/)
 })
 
 test('Slack UI can add and remove workspaces independently', () => {
