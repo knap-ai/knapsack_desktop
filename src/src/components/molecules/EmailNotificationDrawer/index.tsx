@@ -318,7 +318,11 @@ const EmailNotificationDrawer = ({
     emailUid: string,
     draftReply?: string,
     accountEmail?: string,
+    sourceProvider?: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
   ) => {
+    const actionProvider = sourceProvider || profileProvider as
+      | ConnectionKeys.GOOGLE_PROFILE
+      | ConnectionKeys.MICROSOFT_PROFILE
     if (
       actionTaken === AutopilotActions.MARK_AS_READ ||
       actionTaken === AutopilotActions.DELETE ||
@@ -329,7 +333,7 @@ const EmailNotificationDrawer = ({
         feed.takeEmailAction(
           emailUid,
           actionTaken,
-          profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+          actionProvider,
           undefined,
           accountEmail,
         )
@@ -344,7 +348,7 @@ const EmailNotificationDrawer = ({
       feed.takeEmailAction(
         emailUid,
         actionTaken,
-        profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+        actionProvider,
         draftReply,
         accountEmail,
       )
@@ -405,7 +409,7 @@ const EmailNotificationDrawer = ({
     feed.takeEmailAction(
       uid,
       AutopilotActions.MARK_AS_READ,
-      profileProvider as ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+      pendingEmail.provider,
       undefined,
       accountEmail,
     )
@@ -693,10 +697,17 @@ const EmailNotificationDrawer = ({
                         emailUid: string,
                         draftReply?: string,
                         accountEmail?: string,
-                      ) => handleEmailActionTaken(actionTaken, emailUid, draftReply, accountEmail)}
+                        sourceProvider?: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
+                      ) => handleEmailActionTaken(
+                        actionTaken,
+                        emailUid,
+                        draftReply,
+                        accountEmail,
+                        sourceProvider,
+                      )}
                       userEmail={userEmail}
                       userName={userName}
-                      profileProvider={profileProvider ? profileProvider : ''}
+                      profileProvider={currentEmail.provider}
                       selected={true}
                       isGeneratingDraft={
                         generatingDraftKey === drawerEmailKey(currentEmail, userEmail)

@@ -3,6 +3,7 @@ import React, { Fragment, useCallback, useEffect, useRef, useState } from 'react
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { ConnectionKeys } from 'src/api/connections'
 import { AutopilotActions, IEmailAutopilot } from 'src/hooks/dataSources/useEmailAutopilot'
 import { DisplayEmail, EmailAction } from 'src/hooks/feed/useFeed'
 import { logError } from 'src/utils/errorHandling'
@@ -23,6 +24,7 @@ interface EmailDraftCardProps {
     emailUid: string,
     draftReply?: string,
     accountEmail?: string,
+    provider?: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
   ) => void
   userEmail: string
   userName: string
@@ -61,7 +63,10 @@ const EmailDraftCard = ({
   const ccInputRef = useRef<HTMLInputElement>(null)
   const subtitle = decodeEmailSubject(email.message.subject)
   const emailUid = email.message.emailUid
-  const senderAccountEmail = email.message.accountEmail || userEmail
+  const storageAccountEmail = email.message.accountEmail || userEmail
+  const senderAccountEmail = storageAccountEmail.toLowerCase().startsWith('microsoft:')
+    ? storageAccountEmail.slice('microsoft:'.length)
+    : storageAccountEmail
   const emailBody = email.message.body
   const emailSummary: string[] | undefined = email.classification?.summary
   const emailDraftReply = email.draftedReply ? email.draftedReply : ''
@@ -340,7 +345,8 @@ const EmailDraftCard = ({
                 AutopilotActions.GENERATE_DRAFT_REPLY,
                 emailUid,
                 newContent,
-                senderAccountEmail,
+                storageAccountEmail,
+                email.provider,
               )
               onDraftGenerationComplete?.()
             }}
@@ -359,7 +365,13 @@ const EmailDraftCard = ({
             KNAnalytics.trackEvent('email_ignored', {
               email_ignored: true,
             })
-            onActionCallback(actions.leftAction, emailUid, undefined, senderAccountEmail)
+            onActionCallback(
+              actions.leftAction,
+              emailUid,
+              undefined,
+              storageAccountEmail,
+              email.provider,
+            )
           }}
           onError={error => {
             console.error('Failed to ignore:', error)
@@ -386,7 +398,13 @@ const EmailDraftCard = ({
               email_sent: true,
               draft_was_edited: isDraftEdited,
             })
-            onActionCallback(actions.rightAction, emailUid, undefined, senderAccountEmail)
+            onActionCallback(
+              actions.rightAction,
+              emailUid,
+              undefined,
+              storageAccountEmail,
+              email.provider,
+            )
           }}
           onError={error => {
             logError(new Error('Failed to send email'), {

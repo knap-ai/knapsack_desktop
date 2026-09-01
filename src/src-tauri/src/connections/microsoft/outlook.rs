@@ -250,6 +250,7 @@ pub async fn fetch_outlook_emails(
   days: u16,
   flag_update: bool,
 ) -> Result<(), Error> {
+  let account_key = format!("microsoft:{}", email.trim().to_ascii_lowercase());
   let client = Client::new();
   let mut older_date = Utc::now();
   let limit_date = Utc::now() - Duration::days(days.into());
@@ -291,7 +292,13 @@ pub async fn fetch_outlook_emails(
       all_email_uuids.push(email_data.id.clone());
       let email_documents_clone = email_documents.clone();
       let email_record =
-        match upsert_email_by_uid(email_data, archive_folder_id.clone(), flag_update, &email).await
+        match upsert_email_by_uid(
+          email_data,
+          archive_folder_id.clone(),
+          flag_update,
+          &account_key,
+        )
+        .await
         {
           Ok(email) => email,
           Err(e) => {
@@ -317,7 +324,7 @@ pub async fn fetch_outlook_emails(
     }
   }
 
-  Email::mark_deleted_emails(&all_email_uuids, i64::from(days), &email).await?;
+  Email::mark_deleted_emails(&all_email_uuids, i64::from(days), &account_key).await?;
 
   Ok(())
 }

@@ -56,10 +56,23 @@ import useCalendar, { Meeting } from '../dataSources/useCalendar'
 export interface DisplayEmail {
   message: EmailDocument
   classification: EmailClassification | null
+  provider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE
   wasIgnored?: boolean
   wasReplySent?: boolean
   draftedReply?: string
 }
+
+const emailProvider = (
+  email: EmailDocument,
+): ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE =>
+  email.accountEmail?.toLowerCase().startsWith('microsoft:')
+    ? ConnectionKeys.MICROSOFT_PROFILE
+    : ConnectionKeys.GOOGLE_PROFILE
+
+const emailAccountAddress = (accountEmail: string): string =>
+  accountEmail.toLowerCase().startsWith('microsoft:')
+    ? accountEmail.slice('microsoft:'.length)
+    : accountEmail
 
 const ignore_actions = [
   AutopilotActions.MARK_AS_READ,
@@ -286,7 +299,9 @@ export function useFeed(
         .map(connection =>
           connection.key === ConnectionKeys.GOOGLE_GMAIL
             ? connection.calendarAccountEmail?.trim().toLowerCase()
-            : connection.ownerEmail?.trim().toLowerCase(),
+            : connection.ownerEmail
+              ? `microsoft:${connection.ownerEmail.trim().toLowerCase()}`
+              : undefined,
         )
         .filter((email): email is string => Boolean(email)),
     )),
@@ -587,6 +602,7 @@ export function useFeed(
           const displayEmail: DisplayEmail = {
             message: email,
             classification: classification,
+            provider: emailProvider(email),
           }
           return displayEmail
         }
@@ -671,6 +687,7 @@ export function useFeed(
         ...emails.map(message => ({
           message: message,
           classification: null,
+          provider: emailProvider(message),
         })),
       ]
       return newState
@@ -2103,7 +2120,7 @@ export function useFeed(
           const dataFetcher = new DataFetcher()
           const actionOwnerEmail =
             userProvider === ConnectionKeys.MICROSOFT_PROFILE
-              ? updatedEmail.message.accountEmail || userEmail
+              ? emailAccountAddress(updatedEmail.message.accountEmail || userEmail)
               : userEmail
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true

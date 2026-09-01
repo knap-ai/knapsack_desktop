@@ -84,7 +84,9 @@ test('notification drawer preserves mailbox identity for actions', () => {
   assert.match(drawer, /setGeneratingDraftKey\(drawerEmailKey\(currentEmail, userEmail\)\)/)
   assert.match(drawer, /onDraftGenerationComplete=\{\(\) => setGeneratingDraftKey\(''\)\}/)
   assert.match(drawer, /accountEmail\?: string/)
-  assert.match(drawer, /handleEmailActionTaken\(actionTaken, emailUid, draftReply, accountEmail\)/)
+  assert.match(drawer, /sourceProvider\?: ConnectionKeys\.GOOGLE_PROFILE/)
+  assert.match(drawer, /handleEmailActionTaken\([\s\S]*?sourceProvider/)
+  assert.match(drawer, /profileProvider=\{currentEmail\.provider\}/)
   assert.match(drawer, /feed\.takeEmailAction\([\s\S]*?accountEmail/)
   assert.match(drawer, /setSessionDismissedIds\([\s\S]*?drawerEmailKey\(pendingEmail, userEmail\)/)
 })
@@ -98,7 +100,8 @@ test('Outlook cache rows are mailbox-scoped for mixed-provider Autopilot', () =>
   assert.match(outlook, /Email::find_by_uid_and_account\(&email_data\.id, account_email\)/)
   assert.match(outlook, /account_email: account_email\.to_string\(\)/)
   assert.match(outlook, /fetch_outlook_emails\(email\.clone\(\), update_user_connection\.token\.clone\(\), 7, true\)/)
-  assert.match(outlook, /Email::mark_deleted_emails\(&all_email_uuids, i64::from\(days\), &email\)/)
+  assert.match(outlook, /format!\("microsoft:\{\}", email\.trim\(\)\.to_ascii_lowercase\(\)\)/)
+  assert.match(outlook, /Email::mark_deleted_emails\(&all_email_uuids, i64::from\(days\), &account_key\)/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {
