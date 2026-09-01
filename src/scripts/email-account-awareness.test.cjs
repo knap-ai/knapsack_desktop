@@ -54,17 +54,20 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
 })
 
-test('legacy unscoped Gmail cache rows are removed before account-aware actions', () => {
-  const migration = fs.readFileSync(
-    path.join(
-      sourceRoot,
-      'src-tauri/src/migrations/2026-09-01-000001_cleanup_unscoped_emails/up.sql',
-    ),
-    'utf8',
-  )
+test('account-awareness does not delete legacy unscoped email history', () => {
+  const migrationsRoot = path.join(sourceRoot, 'src-tauri/src/migrations')
+  const migrationSql = fs
+    .readdirSync(migrationsRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => ['up.sql', 'down.sql'].map(file => path.join(migrationsRoot, entry.name, file)))
+    .filter(file => fs.existsSync(file))
+    .map(file => fs.readFileSync(file, 'utf8'))
+    .join('\n')
 
-  assert.match(migration, /DELETE FROM emails/)
-  assert.match(migration, /TRIM\(account_email\) = ''/)
+  assert.doesNotMatch(
+    migrationSql,
+    /DELETE\s+FROM\s+emails[\s\S]*?TRIM\(account_email\)\s*=\s*''/i,
+  )
 })
 
 test('notification drawer preserves mailbox identity for actions', () => {
@@ -74,6 +77,7 @@ test('notification drawer preserves mailbox identity for actions', () => {
   )
 
   assert.match(drawer, /const drawerEmailKey/)
+  assert.match(drawer, /key=\{drawerEmailKey\(currentEmail, userEmail\)\}/)
   assert.match(drawer, /accountEmail\?: string/)
   assert.match(drawer, /handleEmailActionTaken\(actionTaken, emailUid, draftReply, accountEmail\)/)
   assert.match(drawer, /feed\.takeEmailAction\([\s\S]*?accountEmail/)

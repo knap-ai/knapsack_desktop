@@ -680,7 +680,7 @@ const EmailNotificationDrawer = ({
                   )}
 
                   <div
-                    key={currentEmail.message.emailUid}
+                    key={drawerEmailKey(currentEmail, userEmail)}
                     className={`transition-opacity duration-300 ease-out ${
                       removingEmailUid === currentEmail.message.emailUid ? 'opacity-0' : 'opacity-100'
                     }`}
