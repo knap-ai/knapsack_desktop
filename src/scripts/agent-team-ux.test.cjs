@@ -28,7 +28,8 @@ test('background agent replies produce unread indicators until selected', () => 
   )
 
   assert.match(home, /const \[unreadChatIds, setUnreadChatIds\]/)
-  assert.match(home, /respondingChatId === activeChatIdRef\.current[\s\S]*?currentTab === TabChoices\.Openclaw/)
+  assert.match(home, /const currentTabRef = useRef\(currentTab\)/)
+  assert.match(home, /respondingChatId === activeChatIdRef\.current[\s\S]*?currentTabRef\.current === TabChoices\.Openclaw/)
   assert.match(home, /const \[mountedChatIds, setMountedChatIds\]/)
   assert.match(home, /Array\.from\(mountedChatIds\)\.map/)
   assert.match(home, /active=\{isActiveChat\}/)

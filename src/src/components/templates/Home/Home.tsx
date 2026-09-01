@@ -165,6 +165,8 @@ function Home({
       : 'main'
   const activeChatIdRef = useRef(activeChatId)
   activeChatIdRef.current = activeChatId
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
   // Preserve the established main browser profile (and its cookies/logins)
   // when presenting main as Scout. Only secondary agents get new profiles.
   const activeBrowserProfile = activeGroup
@@ -880,7 +882,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                             onAssistantMessage={respondingChatId => {
                               if (
                                 respondingChatId === activeChatIdRef.current
-                                && currentTab === TabChoices.Openclaw
+                                && currentTabRef.current === TabChoices.Openclaw
                               ) return
                               setUnreadChatIds(current => new Set(current).add(respondingChatId))
                             }}
