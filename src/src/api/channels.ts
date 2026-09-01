@@ -197,6 +197,28 @@ export const configureGenericChannel = (channel: string, config: Record<string, 
 export const disconnectGenericChannel = (channel: string) =>
   post<GenericResponse>(`/api/clawd/channels/generic/${channel}/disconnect`, {})
 
+export interface SlackAccountSummary {
+  id: string
+  enabled: boolean
+  legacy: boolean
+}
+
+export interface SlackAccountsResponse {
+  success: boolean
+  accounts: SlackAccountSummary[]
+}
+
+/** List configured Slack workspaces without exposing their tokens. */
+export const getSlackAccounts = () =>
+  get<SlackAccountsResponse>('/api/clawd/channels/slack/accounts')
+
+/** Disconnect one Slack workspace while leaving the others online. */
+export const disconnectSlackAccount = (accountId: string) =>
+  post<GenericResponse>(
+    `/api/clawd/channels/slack/accounts/${encodeURIComponent(accountId)}/disconnect`,
+    {},
+  )
+
 // ── Snowflake identity broker ────────────────────────────────
 
 interface SessionCapabilitySecretStatusResponse {
