@@ -12,7 +12,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import WorkspacePicker from '../../molecules/WorkspacePicker'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import type { ChannelStatus } from 'src/api/channels'
-import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist } from 'src/api/channels'
+import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist, getSlackAccounts, disconnectSlackAccount, type SlackAccountSummary } from 'src/api/channels'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
@@ -23,6 +23,7 @@ import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEven
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
+import { GEMINI_MODELS, GEMINI_PROVIDER_DESCRIPTION } from 'src/utils/geminiModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import { XAI_MODELS } from 'src/utils/xaiModels'
 import {
@@ -506,28 +507,12 @@ const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
   { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: ANTHROPIC_PROVIDER_DESCRIPTION, keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: 'Gemini 3.1 Pro, 3.5 Flash, 3 Flash, 2.5 Pro', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'gemini', name: 'Google', description: GEMINI_PROVIDER_DESCRIPTION, keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
   { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
   { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
   { id: 'trustedrouter', name: 'TrustedRouter', description: 'OpenAI-compatible attested routing through TrustedRouter', keyPrefix: 'sk-tr-', helpUrl: 'https://trustedrouter.com/console/api-keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
-]
-
-type GeminiModelOption = {
-  id: string
-  name: string
-  description: string
-  vision?: boolean
-}
-
-const GEMINI_MODELS: GeminiModelOption[] = [
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', description: 'Most intelligent, state-of-the-art reasoning', vision: true },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast, broadly capable default for general work', vision: true },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', description: 'Fast frontier-class performance', vision: true },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', description: 'Cost-efficient for high-volume tasks', vision: true },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, excellent reasoning and coding', vision: true },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient with thinking', vision: true },
 ]
 
 type GroqModelOption = {
@@ -2210,6 +2195,9 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Generic channel credential inputs
   const [slackBotToken, setSlackBotToken] = useState('')
   const [slackAppToken, setSlackAppToken] = useState('')
+  const [slackWorkspaceName, setSlackWorkspaceName] = useState('')
+  const [slackAccounts, setSlackAccounts] = useState<SlackAccountSummary[]>([])
+  const [showSlackAdd, setShowSlackAdd] = useState(false)
   const [discordBotToken, setDiscordBotToken] = useState('')
   const [signalPhoneNumber, setSignalPhoneNumber] = useState('')
   const [signalCliStatus, setSignalCliStatus] = useState<SignalCliStatus | null>(null)
@@ -2232,6 +2220,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [gatewayDownPolls, setGatewayDownPolls] = useState(0)
   const [ircConfig, setIrcConfig] = useState({ server: '', nick: '', channel: '' })
   const [googleChatWebhook, setGoogleChatWebhook] = useState('')
+
+  const refreshSlackAccounts = useCallback(async () => {
+    try {
+      const response = await getSlackAccounts()
+      if (response.success) setSlackAccounts(response.accounts)
+    } catch {
+      // The overall channel status still presents gateway/config failures.
+    }
+  }, [])
+
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [skillsError, setSkillsError] = useState<string | null>(null)
@@ -2300,6 +2298,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   // Gateway service state — channel connection status
   const channelStatus = useChannelStatus(true, 15_000)
+  useEffect(() => {
+    if (expandedChannel === 'slack' || channelStatus.genericChannels.slack?.configured) {
+      void refreshSlackAccounts()
+    }
+  }, [expandedChannel, channelStatus.genericChannels.slack?.configured, refreshSlackAccounts])
   const hasAnyChannel = !!(
     isChannelRuntimeConnected(channelStatus.whatsapp) ||
     isChannelRuntimeConnected(channelStatus.imessage) ||
@@ -7164,25 +7167,55 @@ ${actualText}`
                     ) : (
                       <div className="ClawdChannelCardStatus">Not connected</div>
                     )}
-                    {hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
+                    {(hasChannelSavedConfig(channelStatus.genericChannels.slack) || slackAccounts.length > 0) && (
                       <button
-                        className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                        className="ClawdChannelCardAction"
                         disabled={channelBusy === 'slack'}
-                        onClick={async () => {
-                          setChannelBusy('slack')
-                          setChannelError(null)
-                          try { await channelStatus.disconnectGenericChannel('slack') }
-                          catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
-                          finally { setChannelBusy(null) }
-                        }}
+                        onClick={() => setShowSlackAdd(value => !value)}
                       >
-                        {channelBusy === 'slack' ? 'Working...' : 'Disconnect'}
+                        {showSlackAdd ? 'Cancel' : 'Add workspace'}
                       </button>
                     )}
                   </div>
-                  {!hasChannelSavedConfig(channelStatus.genericChannels.slack) && (
+                  {slackAccounts.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0' }}>
+                      {slackAccounts.map(account => (
+                        <div key={account.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                          <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{account.id}</span>
+                          <span style={{ fontSize: 11, color: account.enabled ? '#16a34a' : '#94a3b8' }}>
+                            {account.enabled ? 'Configured' : 'Disabled'}
+                          </span>
+                          {account.managedByEnvironment ? (
+                            <span style={{ fontSize: 11, color: '#64748b' }}>Managed by environment</span>
+                          ) : <button
+                            className="ClawdChannelCardAction ClawdChannelCardAction--disconnect"
+                            disabled={channelBusy === `slack-${account.id}`}
+                            onClick={async () => {
+                              setChannelBusy(`slack-${account.id}`)
+                              setChannelError(null)
+                              try {
+                                const response = await disconnectSlackAccount(account.id)
+                                if (!response.success) throw new Error(response.message || 'Disconnect failed')
+                                await refreshSlackAccounts()
+                                await channelStatus.refresh()
+                              } catch (err: any) {
+                                setChannelError(`Slack: ${err?.message || err}`)
+                              } finally {
+                                setChannelBusy(null)
+                              }
+                            }}
+                          >
+                            {channelBusy === `slack-${account.id}` ? 'Removing...' : 'Remove'}
+                          </button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(slackAccounts.length === 0 || showSlackAdd) && (
                     <div className="ClawdChannelGuide">
-                      <div className="ClawdChannelGuideTitle">Connect Scout on Slack</div>
+                      <div className="ClawdChannelGuideTitle">
+                        {slackAccounts.length > 0 ? 'Add another Slack workspace' : 'Connect Scout on Slack'}
+                      </div>
                       <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
                         Use Slack when you want one shared <strong>Scout</strong> workspace assistant. Slack requires both a <strong>Bot Token</strong> and an <strong>App-Level Token</strong>.
                       </div>
@@ -7201,12 +7234,17 @@ ${actualText}`
                       {(() => {
                         const botTrimmed = slackBotToken.trim()
                         const appTrimmed = slackAppToken.trim()
+                        const workspaceId = slackWorkspaceName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
                         const botValid = !botTrimmed || botTrimmed.startsWith('xoxb-')
                         const appValid = !appTrimmed || appTrimmed.startsWith('xapp-')
-                        const canSave = botTrimmed && appTrimmed && botValid && appValid
+                        const canSave = workspaceId && botTrimmed && appTrimmed && botValid && appValid && !slackAccounts.some(account => account.id === workspaceId)
                         return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Or enter the tokens manually:</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Workspace</label>
+                          <input type="text" value={slackWorkspaceName} onChange={e => setSlackWorkspaceName(e.target.value)} placeholder="e.g. Bankaya" style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #ccc' }} />
+                        </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <label style={{ fontSize: 11, color: '#64748b', width: 70, flexShrink: 0 }}>Bot Token</label>
                           <input type="text" value={slackBotToken} onChange={e => setSlackBotToken(e.target.value)} placeholder="xoxb-..." style={{ flex: 1, padding: '4px 8px', fontSize: 12, borderRadius: 4, border: botTrimmed && !botValid ? '1px solid #ef4444' : '1px solid #ccc' }} />
@@ -7227,9 +7265,12 @@ ${actualText}`
                             setChannelBusy('slack')
                             setChannelError(null)
                             try {
-                              await channelStatus.connectGenericChannel('slack', { botToken: botTrimmed, appToken: appTrimmed })
+                              await channelStatus.connectGenericChannel('slack', { accountId: workspaceId, botToken: botTrimmed, appToken: appTrimmed })
+                              setSlackWorkspaceName('')
                               setSlackBotToken('')
                               setSlackAppToken('')
+                              setShowSlackAdd(false)
+                              await refreshSlackAccounts()
                             } catch (err: any) { setChannelError(`Slack: ${err?.message || err}`) }
                             finally { setChannelBusy(null) }
                           }}

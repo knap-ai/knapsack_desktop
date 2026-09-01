@@ -49,7 +49,10 @@ export function UpdateBanner() {
         )}
 
         {state.status === 'downloading' && (
-          <span>Installing update…</span>
+          <span>
+            Downloading and installing update… This can take several minutes. Knapsack will restart
+            when it finishes.
+          </span>
         )}
 
         {state.status === 'error' && (
