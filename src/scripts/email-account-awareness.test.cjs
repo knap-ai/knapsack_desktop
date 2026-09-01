@@ -14,9 +14,9 @@ test('Gmail API responses retain mailbox identity and account-scope threads', ()
 
   assert.match(search, /pub account_email: String/)
   assert.match(search, /account_email: email\.account_email/)
-  assert.match(search, /get_last_email_by_thread_id\([\s\S]*?&email\.account_email/)
+  assert.match(search, /get_last_email_by_thread_id_for_account\([\s\S]*?&email\.account_email/)
   assert.match(emailModel, /WHERE thread_id = \?1 AND account_email = \?2/)
-  assert.match(emailModel, /get_last_email_by_thread_id_unambiguous/)
+  assert.match(emailModel, /get_last_email_by_thread_id_for_account/)
   assert.match(emailModel, /LOWER\(account_email\) IN/)
 })
 

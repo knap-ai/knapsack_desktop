@@ -478,7 +478,7 @@ pub async fn get_email_thread(path: web::Path<u64>) -> Result<HttpResponse> {
     }
   };
 
-  let thread_emails = match Email::get_last_email_by_thread_id(
+  let thread_emails = match Email::get_last_email_by_thread_id_for_account(
     &email.thread_id.unwrap_or_default(),
     &email.account_email,
   ) {

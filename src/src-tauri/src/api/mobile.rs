@@ -638,7 +638,7 @@ fn build_mobile_autopilot_email_detail(email_uid: &str) -> Result<MobileAutopilo
   let provider = detect_mobile_email_provider(&email.account_email)?;
 
   let mut messages = if let Some(thread_id) = email.thread_id.clone() {
-    Email::get_last_email_by_thread_id(&thread_id, &email.account_email)?
+    Email::get_last_email_by_thread_id(&thread_id)?
   } else {
     vec![email.clone()]
   };

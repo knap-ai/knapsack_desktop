@@ -427,14 +427,14 @@ impl Email {
     ])
   }
 
-  pub fn get_last_email_by_thread_id(thread_id: &str, account_email: &str) -> Result<Vec<Email>, Error> {
+  pub fn get_last_email_by_thread_id(thread_id: &str) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 AND account_email = ?2 ORDER BY date DESC")
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
         .expect("could not prepare query emails by thread_id");
 
     let emails = stmt
-      .query_map(params![thread_id, account_email], |row| Email::build_struct_from_row(row))
+      .query_map([thread_id], |row| Email::build_struct_from_row(row))
       .map_err(Error::from)?
       .filter_map(|r| r.ok())
       .collect();
@@ -442,28 +442,20 @@ impl Email {
     Ok(emails)
   }
 
-  pub fn get_last_email_by_thread_id_unambiguous(thread_id: &str) -> Result<Vec<Email>, Error> {
+  pub fn get_last_email_by_thread_id_for_account(
+    thread_id: &str,
+    account_email: &str,
+  ) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
-        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 ORDER BY date DESC")
-        .expect("could not prepare unambiguous query emails by thread_id");
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 AND account_email = ?2 ORDER BY date DESC")
+        .expect("could not prepare account-scoped query emails by thread_id");
 
-    let emails: Vec<Email> = stmt
-      .query_map(params![thread_id], |row| Email::build_struct_from_row(row))
+    let emails = stmt
+      .query_map(params![thread_id, account_email], |row| Email::build_struct_from_row(row))
       .map_err(Error::from)?
       .filter_map(|r| r.ok())
       .collect();
-    let account_email = emails.first().map(|email| email.account_email.as_str());
-    if account_email.is_some()
-      && emails
-        .iter()
-        .any(|email| Some(email.account_email.as_str()) != account_email)
-    {
-      return Err(Error::KSError(
-        "Email thread exists in more than one connected mailbox; specify the mailbox first"
-          .to_string(),
-      ));
-    }
 
     Ok(emails)
   }
