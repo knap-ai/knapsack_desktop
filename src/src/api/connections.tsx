@@ -562,8 +562,10 @@ export async function signout() {
   return await response.json()
 }
 
-export async function getAccessToken(userEmail: string, scope: string) {
-  const response = await fetch(`${KN_API_GOOGLE_ACCESS_TOKEN}?email=${userEmail}&scope=${scope}`, {
+export async function getAccessToken(userEmail: string, scope: string, accountEmail?: string) {
+  const query = new URLSearchParams({ email: userEmail, scope })
+  if (accountEmail) query.set('account_email', accountEmail)
+  const response = await fetch(`${KN_API_GOOGLE_ACCESS_TOKEN}?${query.toString()}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

@@ -18,13 +18,18 @@ import { decodeEmailSubject } from 'src/utils/emails'
 interface EmailDraftCardProps {
   emailAutopilot: IEmailAutopilot
   email: DisplayEmail
-  onActionCallback: (actionTaken: AutopilotActions, emailUid: string, draftReply?: string) => void
+  onActionCallback: (
+    actionTaken: AutopilotActions,
+    emailUid: string,
+    draftReply?: string,
+    accountEmail?: string,
+  ) => void
   userEmail: string
   userName: string
   profileProvider: string
   selected: boolean
-  generatingDraftUid: string
-  sendingReplyUid: string
+  isGeneratingDraft: boolean
+  shouldSendReply: boolean
   actions: EmailAction
   updateAction: (actionSide: 'LEFT' | 'RIGHT', action: AutopilotActions) => void
   setIsEditorActive: (isActive: boolean) => void
@@ -39,8 +44,8 @@ const EmailDraftCard = ({
   userName,
   profileProvider,
   selected,
-  generatingDraftUid,
-  sendingReplyUid,
+  isGeneratingDraft,
+  shouldSendReply,
   actions,
   updateAction,
   setIsEditorActive,
@@ -54,6 +59,7 @@ const EmailDraftCard = ({
   const ccInputRef = useRef<HTMLInputElement>(null)
   const subtitle = decodeEmailSubject(email.message.subject)
   const emailUid = email.message.emailUid
+  const senderAccountEmail = email.message.accountEmail || userEmail
   const emailBody = email.message.body
   const emailSummary: string[] | undefined = email.classification?.summary
   const emailDraftReply = email.draftedReply ? email.draftedReply : ''
@@ -322,18 +328,23 @@ const EmailDraftCard = ({
             emailAutopilot={emailAutopilot}
             email={email.message}
             isRegenerate={editor?.getText() !== ''}
-            userEmail={userEmail}
+            userEmail={senderAccountEmail}
             userName={userName}
             onSuccess={(draft: string) => {
               const newContent = draft.replace(/\n/g, '<br>')
               editor?.commands.setContent(newContent)
               setIsDraftEdited(false)
-              onActionCallback(AutopilotActions.GENERATE_DRAFT_REPLY, emailUid, newContent)
+              onActionCallback(
+                AutopilotActions.GENERATE_DRAFT_REPLY,
+                emailUid,
+                newContent,
+                senderAccountEmail,
+              )
             }}
             onError={error => {
               console.error('Failed to generate draft:', error)
             }}
-            isGeneratingDraft={generatingDraftUid === emailUid}
+            isGeneratingDraft={isGeneratingDraft}
           />
         </div>
       </div>
@@ -344,7 +355,7 @@ const EmailDraftCard = ({
             KNAnalytics.trackEvent('email_ignored', {
               email_ignored: true,
             })
-            onActionCallback(actions.leftAction, emailUid)
+            onActionCallback(actions.leftAction, emailUid, undefined, senderAccountEmail)
           }}
           onError={error => {
             console.error('Failed to ignore:', error)
@@ -361,6 +372,7 @@ const EmailDraftCard = ({
         <SendEmailButton
           previousEmail={email}
           userEmail={userEmail}
+          accountEmail={senderAccountEmail}
           userName={userName}
           body={editor?.getText() || ''}
           threadId={email.message.threadId}
@@ -370,7 +382,7 @@ const EmailDraftCard = ({
               email_sent: true,
               draft_was_edited: isDraftEdited,
             })
-            onActionCallback(actions.rightAction, emailUid)
+            onActionCallback(actions.rightAction, emailUid, undefined, senderAccountEmail)
           }}
           onError={error => {
             logError(new Error('Failed to send email'), {
@@ -379,7 +391,7 @@ const EmailDraftCard = ({
             })
           }}
           profileProvider={profileProvider}
-          shouldSend={sendingReplyUid === emailUid}
+          shouldSend={shouldSendReply}
           action={actions.rightAction}
           updateAction={updateAction}
         />

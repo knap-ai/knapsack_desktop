@@ -1,4 +1,4 @@
-import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
 
 import { insertAutomationRun } from 'src/api/automations'
 import {
@@ -194,6 +194,7 @@ export interface IFeed {
     action: AutopilotActions,
     userProvider: ConnectionKeys.MICROSOFT_PROFILE | ConnectionKeys.GOOGLE_PROFILE,
     draftReply?: string,
+    accountEmail?: string,
   ) => void
   createEmailAutoPilot: () => Promise<FeedItem>
   emailAutopilot: IEmailAutopilot
@@ -422,8 +423,6 @@ export function useFeed(
     UNIMPORTANT: 1,
     UNCLASSIFIED: 0,
   }
-
-  const lastEmailId = useRef<number | undefined>(undefined)
 
   const selectEmailCategory = useCallback(() => {
     const getTabCount = (category: EmailImportance): number => {
@@ -790,16 +789,10 @@ export function useFeed(
         return
       }
 
-      let messages = []
-      if (lastEmailId.current) {
-        const lastEmailIndex = allMessages.findIndex(
-          message => message.documentId === lastEmailId.current,
-        )
-        messages = lastEmailIndex >= 0 ? allMessages.slice(0, lastEmailIndex) : allMessages
-      } else {
-        messages = allMessages
-      }
-      lastEmailId.current = allMessages[0].documentId
+      // Always reconsider the unread/starred set. Some messages may have been
+      // fetched previously but left UNCLASSIFIED after a transient model error.
+      // A document-id cursor would permanently skip those messages on retry.
+      const messages = allMessages
 
       const emailThreadsSet = new Set<EmailDocument>()
 
@@ -2037,32 +2030,59 @@ export function useFeed(
     action: AutopilotActions,
     userProvider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     draftedReply?: string,
+    accountEmail?: string,
   ) => {
     setClassifiedEmails(prevState => {
       const newState = { ...prevState }
+      let actionHandled = false
 
       // Search through all importance categories
       Object.keys(newState).forEach(importance => {
+        if (actionHandled) return
         const emails = newState[importance as EmailImportance]
         if (!emails) return
 
-        // Find and update the matching email
-        const emailIndex = emails.findIndex(email => email.message.emailUid === emailUid)
+        // Gmail message IDs are only unique inside a mailbox. Match both the
+        // message and its connected account so an action cannot affect another
+        // mailbox that happens to expose the same ID.
+        const normalizedAccount = (accountEmail || userEmail).trim().toLowerCase()
+        const emailIndex = emails.findIndex(
+          email =>
+            email.message.emailUid === emailUid &&
+            (email.message.accountEmail || userEmail).trim().toLowerCase() === normalizedAccount,
+        )
 
         if (emailIndex !== -1) {
+          actionHandled = true
           const updatedEmail = { ...emails[emailIndex] }
           const dataFetcher = new DataFetcher()
+          const actionOwnerEmail =
+            userProvider === ConnectionKeys.MICROSOFT_PROFILE
+              ? updatedEmail.message.accountEmail || userEmail
+              : userEmail
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                actionOwnerEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })
           } else if (reply_actions.includes(action)) {
             updatedEmail.wasReplySent = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                actionOwnerEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })

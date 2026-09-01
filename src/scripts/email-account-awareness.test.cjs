@@ -42,6 +42,10 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /email\.accountEmail \|\| 'unknown'/)
   assert.match(feed, /wasSentByMailboxOwner/)
   assert.match(feed, /if \(allMessages\.length === 0\)/)
+  assert.doesNotMatch(feed, /lastEmailId/)
+  assert.match(feed, /accountEmail\?: string/)
+  assert.match(feed, /email\.message\.accountEmail \|\| userEmail/)
+  assert.match(feed, /updatedEmail\.message\.accountEmail/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {
@@ -52,5 +56,30 @@ test('settings group Google capabilities by the actual connected account', () =>
 
   assert.match(settings, /Connected Google accounts/)
   assert.match(settings, /googleAccounts\.map\(account =>/)
+  assert.match(settings, /item\.calendarAccountEmail \|\| item\.ownerEmail/)
   assert.doesNotMatch(settings, /return ` via \$\{item\.ownerEmail\}`/)
+})
+
+test('Gmail actions and replies select the precise connected account', () => {
+  const connectionsApi = fs.readFileSync(
+    path.join(sourceRoot, 'src/api/connections.tsx'),
+    'utf8',
+  )
+  const gmailService = fs.readFileSync(path.join(sourceRoot, 'src/utils/gmailService.ts'), 'utf8')
+  const gmailBackend = fs.readFileSync(
+    path.join(sourceRoot, 'src-tauri/src/connections/google/gmail.rs'),
+    'utf8',
+  )
+  const authBackend = fs.readFileSync(
+    path.join(sourceRoot, 'src-tauri/src/connections/google/auth.rs'),
+    'utf8',
+  )
+
+  assert.match(connectionsApi, /accountEmail\?: string/)
+  assert.match(connectionsApi, /query\.set\('account_email', accountEmail\)/)
+  assert.match(gmailService, /ConnectionKeys\.GOOGLE_GMAIL,[\s\S]*?senderEmail/)
+  assert.match(gmailBackend, /account_email: Option<String>/)
+  assert.match(gmailBackend, /find_by_user_email_scope_and_calendar_account/)
+  assert.match(authBackend, /account_email: Option<String>/)
+  assert.match(authBackend, /find_by_user_email_scope_and_calendar_account/)
 })

@@ -100,6 +100,7 @@ pub struct GoogleTokenExchangeResponse {
 pub struct FetchAccessTokenParams {
   email: String,
   scope: String,
+  account_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -881,9 +882,25 @@ async fn fetch_google_auth_token_api(
 ) -> impl Responder {
   let params =
     actix_web::web::Query::<FetchAccessTokenParams>::from_query(req.query_string()).unwrap();
-  let user_connection =
-    UserConnection::find_by_user_email_and_scope(params.email.clone(), params.scope.clone())
-      .unwrap();
+  let user_connection = match params.account_email.clone() {
+    Some(account_email) => UserConnection::find_by_user_email_scope_and_calendar_account(
+      params.email.clone(),
+      params.scope.clone(),
+      account_email,
+    ),
+    None => {
+      UserConnection::find_by_user_email_and_scope(params.email.clone(), params.scope.clone())
+    }
+  };
+  let user_connection = match user_connection {
+    Ok(connection) => connection,
+    Err(_) => {
+      return HttpResponse::BadRequest().json(AccessTokenResponse {
+        success: false,
+        access_token: None,
+      })
+    }
+  };
   match refresh_connection_token(params.email.clone(), user_connection.clone()).await {
     Ok(access_token) => HttpResponse::Ok().json(AccessTokenResponse {
       success: true,

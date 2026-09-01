@@ -773,7 +773,8 @@ export const SettingsDialog = ({
   }, [requireGooglePrimaryEmail])
 
   const getGoogleAccountLabel = useCallback(
-    (item: Connection) => item.calendarAccountEmail || googlePrimaryEmail || 'unknown account',
+    (item: Connection) =>
+      item.calendarAccountEmail || item.ownerEmail || googlePrimaryEmail || 'unknown account',
     [googlePrimaryEmail],
   )
 

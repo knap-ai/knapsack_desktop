@@ -679,8 +679,8 @@ const EmailNotificationDrawer = ({
                       userName={userName}
                       profileProvider={profileProvider ? profileProvider : ''}
                       selected={true}
-                      generatingDraftUid={generatingDraftUid}
-                      sendingReplyUid={sendingReplyUid}
+                      isGeneratingDraft={generatingDraftUid === currentEmail.message.emailUid}
+                      shouldSendReply={sendingReplyUid === currentEmail.message.emailUid}
                       actions={actions}
                       updateAction={updateAction}
                       setIsEditorActive={setIsEditorActive}
