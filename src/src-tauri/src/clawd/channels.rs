@@ -2450,10 +2450,32 @@ fn has_slack_legacy_credentials(slack: &serde_json::Value) -> bool {
     .any(|field| configured_secret_present(slack.get(field)))
 }
 
-fn has_slack_environment_default() -> bool {
-  ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_SIGNING_SECRET"]
-    .iter()
-    .any(|name| std::env::var(name).is_ok_and(|value| !value.trim().is_empty()))
+fn configured_environment_value(name: &str) -> bool {
+  std::env::var(name).is_ok_and(|value| !value.trim().is_empty())
+}
+
+/// Mirror OpenClaw's Slack `hasImplicitDefaultAccount` predicate and also
+/// report whether that usable default depends on environment credentials.
+fn slack_default_account_state(slack: &serde_json::Value) -> (bool, bool) {
+  let config_bot = configured_secret_present(slack.get("botToken"));
+  let environment_bot = configured_environment_value("SLACK_BOT_TOKEN");
+  let has_bot = config_bot || environment_bot;
+  if !has_bot {
+    return (false, false);
+  }
+
+  if slack.get("mode").and_then(serde_json::Value::as_str) == Some("http") {
+    let has_signing_secret = configured_secret_present(slack.get("signingSecret"));
+    return (has_signing_secret, has_signing_secret && !config_bot && environment_bot);
+  }
+
+  let config_app = configured_secret_present(slack.get("appToken"));
+  let environment_app = configured_environment_value("SLACK_APP_TOKEN");
+  let has_app = config_app || environment_app;
+  (
+    has_app,
+    has_app && ((!config_bot && environment_bot) || (!config_app && environment_app)),
+  )
 }
 
 /// Return configured Slack accounts without ever returning credential values.
@@ -2461,9 +2483,9 @@ fn has_slack_environment_default() -> bool {
 pub async fn slack_accounts() -> impl Responder {
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let mut accounts = Vec::new();
-  let environment_default = has_slack_environment_default();
+  let (default_configured, environment_default) = slack_default_account_state(&slack);
 
-  if has_slack_legacy_credentials(&slack) || environment_default {
+  if default_configured {
     accounts.push(SlackAccountSummary {
       id: "default".to_string(),
       enabled: slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
@@ -2779,7 +2801,7 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
 
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let has_legacy_credentials = has_slack_legacy_credentials(&slack);
-  let environment_default = has_slack_environment_default();
+  let (default_configured, environment_default) = slack_default_account_state(&slack);
   if account_id == "default" && environment_default {
     return HttpResponse::BadRequest().json(GenericResponse {
       success: false,
@@ -2806,8 +2828,7 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
     return disconnect_channel("slack", "default").await;
   }
   let removing_last_workspace = named_account_count <= 1
-    && !has_legacy_credentials
-    && !environment_default;
+    && !default_configured;
 
   let logout_params = serde_json::json!({ "channel": "slack", "accountId": account_id });
   let _ = gateway_client::call_channel_method("channel.logout", Some(logout_params), None).await;
