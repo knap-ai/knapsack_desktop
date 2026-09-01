@@ -1952,6 +1952,7 @@ interface ClawdChatProps {
   userName?: string
   onBusyChange?: (busy: boolean) => void
   onProviderPanelOpenChange?: (open: boolean) => void
+  onAssistantMessage?: (chatId: string) => void
   nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
@@ -1981,7 +1982,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -4214,6 +4215,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       ...prev,
       { id: crypto.randomUUID(), role: 'assistant', text, ts: Date.now() },
     ])
+    onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
     if (voiceEnabled) {
       // Stop any currently playing audio first
@@ -4265,7 +4267,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           })
       }
     }
-  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice])
+  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant

@@ -44,9 +44,15 @@ interface NotetakerSidebarProps {
   onAgentRemove?: (agent: TeamAgent) => void
   onGroupSelect?: (group: TeamGroup) => void
   onTeamChatSelect?: () => void
+  unreadChatIds?: Set<string>
 }
 
 type TeamComposerMode = 'agent' | 'group'
+
+const TEAM_EMOJI_OPTIONS = [
+  '🤖', '🧠', '🎯', '🚀', '💡', '🔍', '📬', '🤝',
+  '📊', '🛠️', '✍️', '🧭', '🦉', '🦞', '🌟', '👥',
+]
 
 function TeamComposerDialog({
   mode,
@@ -139,6 +145,23 @@ function TeamComposerDialog({
             />
           </div>
         </label>
+        <fieldset className="notetaker-sidebar__composer-emoji-picker">
+          <legend>Choose an emoji</legend>
+          <div>
+            {TEAM_EMOJI_OPTIONS.map(option => (
+              <button
+                type="button"
+                key={option}
+                className={emoji === option ? 'is-selected' : ''}
+                aria-label={`Use ${option}`}
+                aria-pressed={emoji === option}
+                onClick={() => setEmoji(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </fieldset>
 
         {mode === 'agent' ? (
           <>
@@ -223,6 +246,7 @@ function NotetakerSidebar({
   onAgentRemove,
   onGroupSelect,
   onTeamChatSelect,
+  unreadChatIds = new Set<string>(),
 }: NotetakerSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -684,6 +708,9 @@ function NotetakerSidebar({
                     <span className="notetaker-sidebar__team-name">{primaryAgent.name}</span>
                     <span className="notetaker-sidebar__team-role">{primaryAgent.personality}</span>
                   </span>
+                  {unreadChatIds.has('main') && (
+                    <span className="notetaker-sidebar__team-unread" aria-label="New response" />
+                  )}
                   <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
                 </button>
                 <button
@@ -717,6 +744,9 @@ function NotetakerSidebar({
                         {members.map(agent => agent.name).join(', ')}
                       </span>
                     </span>
+                    {unreadChatIds.has(`group-${group.id}`) && (
+                      <span className="notetaker-sidebar__team-unread" aria-label="New response" />
+                    )}
                     <span className="notetaker-sidebar__team-chat" aria-hidden="true">
                       ›
                     </span>
@@ -742,6 +772,9 @@ function NotetakerSidebar({
                       <span className="notetaker-sidebar__team-name">{agent.name}</span>
                       <span className="notetaker-sidebar__team-role">{agent.personality}</span>
                     </span>
+                    {unreadChatIds.has(`agent-${agent.id}`) && (
+                      <span className="notetaker-sidebar__team-unread" aria-label="New response" />
+                    )}
                     <span className="notetaker-sidebar__team-chat" aria-hidden="true">›</span>
                   </button>
                   <button
