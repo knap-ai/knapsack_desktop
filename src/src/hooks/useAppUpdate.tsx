@@ -1,16 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
-import { invoke } from '@tauri-apps/api'
-import { platform } from '@tauri-apps/api/os'
-import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
-import { relaunch } from '@tauri-apps/api/process'
-
 import KNAnalytics from 'src/utils/KNAnalytics'
-import { getAppVersion } from 'src/utils/app'
 import {
   getAutoInstallAppUpdatesEnabled,
   setAutoInstallAppUpdatesEnabled,
 } from 'src/utils/settings'
+
+import { invoke } from '@tauri-apps/api'
+import { platform } from '@tauri-apps/api/os'
+import { relaunch } from '@tauri-apps/api/process'
+import { checkUpdate, installUpdate, onUpdaterEvent } from '@tauri-apps/api/updater'
+import { getAppVersion } from 'src/utils/app'
+import { installAppUpdate } from 'src/utils/appUpdate'
 
 export type UpdateStatus =
   | { status: 'idle' }
@@ -34,7 +35,6 @@ type AppUpdateContextValue = {
 }
 
 const AUTO_INSTALL_COUNTDOWN_SEC = 60
-const INSTALL_TIMEOUT_MS = 90_000
 const AUTO_INSTALL_RETRY_COOLDOWN_MS = 30 * 60 * 1000
 const AUTO_INSTALL_SNOOZE_KEY = 'kn_auto_install_update_snooze'
 
@@ -77,7 +77,10 @@ function readAutoInstallSnooze(): { version: string; until: number } | null {
   return null
 }
 
-function writeAutoInstallSnooze(version: string, until = Date.now() + AUTO_INSTALL_RETRY_COOLDOWN_MS) {
+function writeAutoInstallSnooze(
+  version: string,
+  until = Date.now() + AUTO_INSTALL_RETRY_COOLDOWN_MS,
+) {
   if (typeof window === 'undefined') {
     return
   }
@@ -182,14 +185,15 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       const msg = String(err)
-      const friendlyMsg = msg.includes('fetch') || msg.includes('release JSON') || msg.includes('network')
-        ? 'Could not reach the update server. Check your connection and try again.'
-        : msg
+      const friendlyMsg =
+        msg.includes('fetch') || msg.includes('release JSON') || msg.includes('network')
+          ? 'Could not reach the update server. Check your connection and try again.'
+          : msg
       setState({ status: 'error', message: friendlyMsg })
     }
   }, [])
 
-  const runInstallWithTimeout = useCallback(async (targetVersion?: string) => {
+  const runInstall = useCallback(async (targetVersion?: string) => {
     if (installInFlightRef.current) {
       return
     }
@@ -198,15 +202,12 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
     setState({ status: 'downloading' })
 
     try {
-      await prepareNativeUpdateInstall()
-      await Promise.race([
-        installUpdate(),
-        new Promise<never>((_, reject) => {
-          window.setTimeout(() => {
-            reject(new Error('Update install timed out. Knapsack will pause auto-install for this version; please try again from Settings when your connection is stable.'))
-          }, INSTALL_TIMEOUT_MS)
-        }),
-      ])
+      // Do not impose a JavaScript timeout here. Tauri's native updater cannot
+      // be cancelled by abandoning this promise, and large signed macOS builds
+      // can legitimately take several minutes to download, verify, and replace.
+      // A timeout would leave the native install running while skipping the
+      // relaunch below, so the old version would remain open indefinitely.
+      await installAppUpdate(prepareNativeUpdateInstall, installUpdate)
     } catch (err) {
       if (targetVersion) {
         writeAutoInstallSnooze(targetVersion)
@@ -221,13 +222,13 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
   const startInstall = useCallback(async () => {
     try {
       const targetVersion = state.status === 'available' ? state.version : undefined
-      await runInstallWithTimeout(targetVersion)
+      await runInstall(targetVersion)
       clearAutoInstallSnooze()
       setState({ status: 'ready' })
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
-  }, [runInstallWithTimeout, state])
+  }, [runInstall, state])
 
   // restartApp installs (if not already done) and immediately relaunches.
   // installUpdate() replaces the binary on disk — calling relaunch() after any
@@ -241,13 +242,13 @@ export function AppUpdateProvider({ children }: { children: React.ReactNode }) {
       timestamp: new Date().toISOString(),
     })
     try {
-      await runInstallWithTimeout(targetVersion)
+      await runInstall(targetVersion)
       clearAutoInstallSnooze()
       await relaunch()
     } catch (err) {
       setState({ status: 'error', message: String(err) })
     }
-  }, [runInstallWithTimeout, state])
+  }, [runInstall, state])
 
   const setAutoInstallEnabled = useCallback(async (enabled: boolean) => {
     setAutoInstallEnabledState(enabled)
