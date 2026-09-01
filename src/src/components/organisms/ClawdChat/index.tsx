@@ -2487,6 +2487,32 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     // Check backend for a valid key (single source of truth)
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      setHasCompletedOnboarding(Boolean(keyStatus.has_key))
+      setKeyHints({
+        openai: keyStatus.openai_key_hint,
+        anthropic: keyStatus.anthropic_key_hint,
+        gemini: keyStatus.gemini_key_hint,
+        groq: keyStatus.groq_key_hint,
+        xai: keyStatus.xai_key_hint,
+        openrouter: keyStatus.openrouter_key_hint,
+        trustedrouter: keyStatus.trustedrouter_key_hint,
+      })
+      setSavedProviderKeys({
+        knapsack: Boolean(keyStatus.has_knapsack),
+        openai: Boolean(keyStatus.has_openai_key),
+        anthropic: Boolean(keyStatus.has_anthropic_key),
+        gemini: Boolean(keyStatus.has_gemini_key),
+        groq: Boolean(keyStatus.has_groq_key),
+        xai: Boolean(keyStatus.has_xai_key),
+        openrouter: Boolean(keyStatus.has_openrouter_key),
+        trustedrouter: Boolean(keyStatus.has_trustedrouter_key),
+      })
+      setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+      if (keyStatus.knapsack_auth_expired) {
+        setKnapsackConnectError('Your Knapsack Studio session expired. Reconnect to use Studio integrations.')
+      } else {
+        setKnapsackConnectError(null)
+      }
         if (keyStatus.has_key) {
           setHasCompletedOnboarding(true)
         if (keyStatus.model && keyStatus.active_provider) {
@@ -3301,6 +3327,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // via Tauri's event system to actually attach the files.
   useEffect(() => {
     if (!active) return
+    setVoiceEnabled(localStorage.getItem(VOICE_MODE_STORAGE) === 'true')
     let cancelled = false
     const cleanups: Array<() => void> = []
 
@@ -4746,6 +4773,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         ? storedAutonomyMode
         : 'autonomous'
     const selectedToneAtSend = localStorage.getItem(TONE_STORAGE) || 'snarky'
+    const voiceEnabledAtSend = localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
 
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
@@ -4816,27 +4844,30 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
     setBusy(true)
 
-    // Snapshot the active model label from React state at request time so error
-    // messages reflect the model that was actually selected when sent, not the
-    // model in localStorage (which can lag behind UI state changes).
-    const providerAtSend = confirmedProvider
+    // Provider synchronization writes the backend-confirmed selection to
+    // localStorage before React state commits. Read that authoritative snapshot
+    // after awaiting the refresh so an immediate send cannot use a stale render.
+    const providerAtSend =
+      (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider | null) || confirmedProvider
     const activeModelAtSend = (() => {
-      if (providerAtSend === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      if (providerAtSend === 'knapsack') {
+        return `knapsack/${localStorage.getItem(KNAPSACK_MODEL_STORAGE) || selectedKnapsackModel}`
+      }
       const m = providerAtSend === 'ollama'
-        ? selectedOllamaModel
+        ? localStorage.getItem(OLLAMA_MODEL_STORAGE) || selectedOllamaModel
         : providerAtSend === 'anthropic'
-        ? selectedAnthropicModel
+        ? localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || selectedAnthropicModel
         : providerAtSend === 'gemini'
-        ? selectedGeminiModel
+        ? localStorage.getItem(GEMINI_MODEL_STORAGE) || selectedGeminiModel
         : providerAtSend === 'groq'
-        ? selectedGroqModel
+        ? localStorage.getItem(GROQ_MODEL_STORAGE) || selectedGroqModel
         : providerAtSend === 'xai'
-        ? selectedXaiModel
+        ? localStorage.getItem(XAI_MODEL_STORAGE) || selectedXaiModel
         : providerAtSend === 'openrouter'
-        ? selectedOpenRouterModel
+        ? localStorage.getItem(OPENROUTER_MODEL_STORAGE) || selectedOpenRouterModel
         : providerAtSend === 'trustedrouter'
-        ? selectedTrustedRouterModel
-        : selectedModel
+        ? localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || selectedTrustedRouterModel
+        : localStorage.getItem(OPENAI_MODEL_STORAGE) || selectedModel
       return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
     const selectedModelForProvider = activeModelAtSend.includes('/')
@@ -5270,7 +5301,7 @@ ${actualText}`
           sessionId,
           tone: selectedToneAtSend,
           tonePrompt,
-          voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
+          voiceMode: voiceEnabledAtSend, // Signal backend to be more concise for voice output
           autonomyMode: autonomyModeAtSend, // 'assist' or 'autonomous' - controls how independent the agent is
           advancedMode: advancedModeAtSend, // When true, enables run_command tool for shell execution
           developerMode: developerModeAtSend, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
