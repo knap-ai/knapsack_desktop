@@ -276,10 +276,12 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     const wasRecording = isRecording(threadId)
     setLoadingState(threadId, true)
     let stopSucceeded = false
+    let backendConfirmedStop = false
     try {
       await stopRecord(threadId, saveTranscript, eventId)
       console.info(`[Recording] stopRecord succeeded for threadId=${threadId}`)
       KNAnalytics.trackEvent('recording_stopped', { thread_id: threadId, save_transcript: saveTranscript })
+      backendConfirmedStop = true
       stopSucceeded = true
     } catch (err: any) {
       // If backend says "no recording in progress", that's OK — state was out of sync
@@ -305,7 +307,12 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     setFeedIsRecording(false)
     setIsRecording(threadId, false)
 
-    if (wasRecording && stopSucceeded) {
+    // Automatic stop first opens the meeting and then emits the stop event. On
+    // that freshly mounted view, the React recording-state refresh can still be
+    // pending even though the backend just stopped and finalized the transcript.
+    // A successful backend stop is authoritative and must always queue synthesis;
+    // otherwise the transcript is saved but the meeting remains permanently blank.
+    if (stopSucceeded && (wasRecording || backendConfirmedStop)) {
       await generateNotes(threadId, synthesizeContent, saveNotes, notesMarkdown, meeting)
     }
 
