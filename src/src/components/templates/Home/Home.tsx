@@ -167,6 +167,16 @@ function Home({
   activeChatIdRef.current = activeChatId
   const currentTabRef = useRef(currentTab)
   currentTabRef.current = currentTab
+
+  useEffect(() => {
+    if (currentTab !== TabChoices.Openclaw) return
+    setUnreadChatIds(current => {
+      if (!current.has(activeChatId)) return current
+      const next = new Set(current)
+      next.delete(activeChatId)
+      return next
+    })
+  }, [activeChatId, currentTab])
   // Preserve the established main browser profile (and its cookies/logins)
   // when presenting main as Scout. Only secondary agents get new profiles.
   const activeBrowserProfile = activeGroup

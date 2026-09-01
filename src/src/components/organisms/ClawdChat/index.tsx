@@ -3619,6 +3619,32 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const syncProviderSelectionFromBackend = useCallback(async () => {
     try {
       const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      setHasCompletedOnboarding(Boolean(keyStatus.has_key))
+      setKeyHints({
+        openai: keyStatus.openai_key_hint,
+        anthropic: keyStatus.anthropic_key_hint,
+        gemini: keyStatus.gemini_key_hint,
+        groq: keyStatus.groq_key_hint,
+        xai: keyStatus.xai_key_hint,
+        openrouter: keyStatus.openrouter_key_hint,
+        trustedrouter: keyStatus.trustedrouter_key_hint,
+      })
+      setSavedProviderKeys({
+        knapsack: Boolean(keyStatus.has_knapsack),
+        openai: Boolean(keyStatus.has_openai_key),
+        anthropic: Boolean(keyStatus.has_anthropic_key),
+        gemini: Boolean(keyStatus.has_gemini_key),
+        groq: Boolean(keyStatus.has_groq_key),
+        xai: Boolean(keyStatus.has_xai_key),
+        openrouter: Boolean(keyStatus.has_openrouter_key),
+        trustedrouter: Boolean(keyStatus.has_trustedrouter_key),
+      })
+      setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+      setKnapsackConnectError(
+        keyStatus.knapsack_auth_expired
+          ? 'Your Knapsack Studio session expired. Reconnect to use Studio integrations.'
+          : null,
+      )
       const activeProvider = keyStatus.active_provider as Provider | undefined
       if (activeProvider) {
         setSelectedProvider(activeProvider)
