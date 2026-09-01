@@ -250,26 +250,39 @@ function geminiFamily(modelId) {
   return 'pro'
 }
 
-function geminiVersionNumber(modelId) {
+function geminiVersionAtLeast(modelId, minimumMajor, minimumMinor) {
   const [major = 0, minor = 0] = geminiVersionParts(modelId)
-  return major + minor / 10
+  return major > minimumMajor || (major === minimumMajor && minor >= minimumMinor)
 }
 
 export function canonicalGeminiModelIdsFromHtml(html) {
   const discovered = new Set([...html.matchAll(GEMINI_MODEL_ID_PATTERN)].map((match) => match[0].toLowerCase()))
 
   const flash = [...discovered]
-    .filter((id) => geminiFamily(id) === 'flash' && !id.endsWith('-preview') && geminiVersionNumber(id) >= 3.5)
+    .filter(
+      (id) =>
+        geminiFamily(id) === 'flash' &&
+        !id.endsWith('-preview') &&
+        geminiVersionAtLeast(id, 3, 5),
+    )
     .sort(compareGeminiVersions)
     .slice(0, 3)
   const flashLite = [...discovered]
-    .filter((id) => geminiFamily(id) === 'flash-lite' && !id.endsWith('-preview') && geminiVersionNumber(id) >= 3.1)
+    .filter(
+      (id) =>
+        geminiFamily(id) === 'flash-lite' &&
+        !id.endsWith('-preview') &&
+        geminiVersionAtLeast(id, 3, 1),
+    )
     .sort(compareGeminiVersions)
     .slice(0, 2)
 
   const proByVersion = new Map()
   for (const id of [...discovered]
-    .filter((candidate) => geminiFamily(candidate) === 'pro' && geminiVersionNumber(candidate) >= 3.1)
+    .filter(
+      (candidate) =>
+        geminiFamily(candidate) === 'pro' && geminiVersionAtLeast(candidate, 3, 1),
+    )
     .sort(compareGeminiVersions)) {
     const version = geminiVersionParts(id).join('.')
     const existing = proByVersion.get(version)
@@ -294,7 +307,9 @@ function geminiDescription(modelId, rankWithinFamily) {
   if (family === 'flash-lite') return rankWithinFamily === 0
     ? 'Latest cost-efficient Gemini model for high-volume tasks'
     : 'Earlier efficient Gemini model for high-volume tasks'
-  if (geminiVersionNumber(modelId) === 2.5) return 'Stable, fast, and efficient with thinking'
+  if (geminiVersionParts(modelId).join('.') === '2.5') {
+    return 'Stable, fast, and efficient with thinking'
+  }
   return rankWithinFamily === 0
     ? 'Latest fast Gemini model for general work and agent tasks'
     : 'Recent fast Gemini model for general work and agent tasks'
