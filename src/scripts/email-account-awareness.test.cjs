@@ -52,8 +52,9 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /accountEmail\?: string/)
   assert.match(feed, /email\.message\.accountEmail \|\| userEmail/)
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
-  assert.match(feed, /const connectedGmailAccountEmails = useMemo/)
-  assert.ok((feed.match(/connectedGmailAccountEmails\.length > 0 \? connectedGmailAccountEmails : undefined/g) || []).length >= 2)
+  assert.match(feed, /const connectedEmailAccountEmails = useMemo/)
+  assert.match(feed, /connection\.key === ConnectionKeys\.MICROSOFT_OUTLOOK/)
+  assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
 test('account-awareness does not delete legacy unscoped email history', () => {
@@ -80,10 +81,24 @@ test('notification drawer preserves mailbox identity for actions', () => {
 
   assert.match(drawer, /const drawerEmailKey/)
   assert.match(drawer, /key=\{drawerEmailKey\(currentEmail, userEmail\)\}/)
+  assert.match(drawer, /setGeneratingDraftKey\(drawerEmailKey\(currentEmail, userEmail\)\)/)
+  assert.match(drawer, /onDraftGenerationComplete=\{\(\) => setGeneratingDraftKey\(''\)\}/)
   assert.match(drawer, /accountEmail\?: string/)
   assert.match(drawer, /handleEmailActionTaken\(actionTaken, emailUid, draftReply, accountEmail\)/)
   assert.match(drawer, /feed\.takeEmailAction\([\s\S]*?accountEmail/)
   assert.match(drawer, /setSessionDismissedIds\([\s\S]*?drawerEmailKey\(pendingEmail, userEmail\)/)
+})
+
+test('Outlook cache rows are mailbox-scoped for mixed-provider Autopilot', () => {
+  const outlook = fs.readFileSync(
+    path.join(sourceRoot, 'src-tauri/src/connections/microsoft/outlook.rs'),
+    'utf8',
+  )
+
+  assert.match(outlook, /Email::find_by_uid_and_account\(&email_data\.id, account_email\)/)
+  assert.match(outlook, /account_email: account_email\.to_string\(\)/)
+  assert.match(outlook, /fetch_outlook_emails\(email\.clone\(\), update_user_connection\.token\.clone\(\), 7, true\)/)
+  assert.match(outlook, /Email::mark_deleted_emails\(&all_email_uuids, i64::from\(days\), &email\)/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {

@@ -103,8 +103,9 @@ async fn upsert_email_by_uid(
   email_data: EmailData,
   archive_folder_id: String,
   flag_update: bool,
+  account_email: &str,
 ) -> Result<Email, Error> {
-  if let Ok(Some(email)) = Email::find_by_uid(&email_data.id) {
+  if let Ok(Some(email)) = Email::find_by_uid_and_account(&email_data.id, account_email) {
     if !flag_update {
       return Ok(email);
     }
@@ -151,7 +152,7 @@ async fn upsert_email_by_uid(
     is_read: Some(email_data.isRead),
     is_archived: Some(is_archived),
     is_deleted: Some(false),
-    account_email: String::new(),
+    account_email: account_email.to_string(),
   };
 
   email_entry.create();
@@ -224,7 +225,9 @@ async fn start_outlook_data_fetching(
     true,
   )
   .await;
-  fetch_outlook_emails(email.clone(), update_user_connection.token.clone(), 3, true).await;
+  // Keep the same seven-day horizon as Email Autopilot and persist the owning
+  // mailbox so Outlook rows remain distinguishable from legacy unscoped Gmail.
+  fetch_outlook_emails(email.clone(), update_user_connection.token.clone(), 7, true).await;
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit(
     "finish_fetch_email",
@@ -288,7 +291,7 @@ pub async fn fetch_outlook_emails(
       all_email_uuids.push(email_data.id.clone());
       let email_documents_clone = email_documents.clone();
       let email_record =
-        match upsert_email_by_uid(email_data, archive_folder_id.clone(), flag_update.clone()).await
+        match upsert_email_by_uid(email_data, archive_folder_id.clone(), flag_update, &email).await
         {
           Ok(email) => email,
           Err(e) => {
@@ -314,7 +317,7 @@ pub async fn fetch_outlook_emails(
     }
   }
 
-  Email::mark_deleted_emails(&all_email_uuids, 3, "").await?;
+  Email::mark_deleted_emails(&all_email_uuids, i64::from(days), &email).await?;
 
   Ok(())
 }

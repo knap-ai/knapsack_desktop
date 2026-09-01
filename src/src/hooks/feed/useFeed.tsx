@@ -276,11 +276,18 @@ export function useFeed(
   const [classifiedEmails, setClassifiedEmails] = useState<
     Partial<Record<EmailImportance, DisplayEmail[]>>
   >({})
-  const connectedGmailAccountEmails = useMemo(
+  const connectedEmailAccountEmails = useMemo(
     () => Array.from(new Set(
       Object.values(connections)
-        .filter(connection => connection.key === ConnectionKeys.GOOGLE_GMAIL)
-        .map(connection => connection.calendarAccountEmail?.trim().toLowerCase())
+        .filter(connection =>
+          connection.key === ConnectionKeys.GOOGLE_GMAIL ||
+          connection.key === ConnectionKeys.MICROSOFT_OUTLOOK,
+        )
+        .map(connection =>
+          connection.key === ConnectionKeys.GOOGLE_GMAIL
+            ? connection.calendarAccountEmail?.trim().toLowerCase()
+            : connection.ownerEmail?.trim().toLowerCase(),
+        )
         .filter((email): email is string => Boolean(email)),
     )),
     [connections],
@@ -707,7 +714,7 @@ export function useFeed(
         7,
         5000,
         false,
-        connectedGmailAccountEmails.length > 0 ? connectedGmailAccountEmails : undefined,
+        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
       )
 
       if (allMessages.length === 0) {
@@ -766,7 +773,7 @@ export function useFeed(
         error: error instanceof Error ? error.toString() : String(error),
       })
     }
-  }, [classifiedEmails, connectedGmailAccountEmails])
+  }, [classifiedEmails, connectedEmailAccountEmails])
 
   const runEmailAutopilot = async () => {
     const dataFetcher = new DataFetcher()
@@ -784,7 +791,7 @@ export function useFeed(
         7,
         5000,
         false,
-        connectedGmailAccountEmails.length > 0 ? connectedGmailAccountEmails : undefined,
+        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
       )
 
       if (allMessages.length === 0) {

@@ -33,6 +33,7 @@ interface EmailDraftCardProps {
   actions: EmailAction
   updateAction: (actionSide: 'LEFT' | 'RIGHT', action: AutopilotActions) => void
   setIsEditorActive: (isActive: boolean) => void
+  onDraftGenerationComplete?: () => void
   onCcChange?: (cc: string[]) => void
 }
 
@@ -49,6 +50,7 @@ const EmailDraftCard = ({
   actions,
   updateAction,
   setIsEditorActive,
+  onDraftGenerationComplete,
   onCcChange,
 }: EmailDraftCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -340,9 +342,11 @@ const EmailDraftCard = ({
                 newContent,
                 senderAccountEmail,
               )
+              onDraftGenerationComplete?.()
             }}
             onError={error => {
               console.error('Failed to generate draft:', error)
+              onDraftGenerationComplete?.()
             }}
             isGeneratingDraft={isGeneratingDraft}
           />
