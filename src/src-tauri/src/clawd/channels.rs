@@ -2413,6 +2413,128 @@ pub struct GenericChannelConfigRequest {
   config: serde_json::Value,
 }
 
+#[derive(Serialize)]
+struct SlackAccountSummary {
+  id: String,
+  enabled: bool,
+  legacy: bool,
+  #[serde(rename = "managedByEnvironment")]
+  managed_by_environment: bool,
+}
+
+#[derive(Serialize)]
+struct SlackAccountsResponse {
+  success: bool,
+  accounts: Vec<SlackAccountSummary>,
+}
+
+fn valid_channel_account_id(value: &str) -> bool {
+  !value.is_empty()
+    && value.len() <= 64
+    && value
+      .chars()
+      .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+}
+
+fn configured_secret_present(value: Option<&serde_json::Value>) -> bool {
+  match value {
+    Some(serde_json::Value::String(secret)) => !secret.trim().is_empty(),
+    Some(serde_json::Value::Object(secret_ref)) => !secret_ref.is_empty(),
+    _ => false,
+  }
+}
+
+fn has_slack_legacy_credentials(slack: &serde_json::Value) -> bool {
+  ["botToken", "appToken", "signingSecret", "userToken"]
+    .iter()
+    .any(|field| configured_secret_present(slack.get(field)))
+}
+
+fn configured_environment_value(name: &str) -> bool {
+  std::env::var(name).is_ok_and(|value| !value.trim().is_empty())
+}
+
+/// Mirror OpenClaw's Slack `hasImplicitDefaultAccount` predicate and also
+/// report whether that usable default depends on environment credentials.
+fn slack_default_account_state(slack: &serde_json::Value) -> (bool, bool) {
+  let config_bot = configured_secret_present(slack.get("botToken"));
+  let environment_bot = configured_environment_value("SLACK_BOT_TOKEN");
+  let has_bot = config_bot || environment_bot;
+  if !has_bot {
+    return (false, false);
+  }
+
+  if slack.get("mode").and_then(serde_json::Value::as_str) == Some("http") {
+    let has_signing_secret = configured_secret_present(slack.get("signingSecret"));
+    return (has_signing_secret, has_signing_secret && !config_bot && environment_bot);
+  }
+
+  let config_app = configured_secret_present(slack.get("appToken"));
+  let environment_app = configured_environment_value("SLACK_APP_TOKEN");
+  let has_app = config_app || environment_app;
+  (
+    has_app,
+    has_app && ((!config_bot && environment_bot) || (!config_app && environment_app)),
+  )
+}
+
+fn merged_slack_account_config(
+  slack: &serde_json::Value,
+  account: &serde_json::Value,
+) -> serde_json::Value {
+  let mut merged = slack.clone();
+  if let Some(merged_object) = merged.as_object_mut() {
+    merged_object.remove("accounts");
+    if let Some(account_object) = account.as_object() {
+      for (key, value) in account_object {
+        merged_object.insert(key.clone(), value.clone());
+      }
+    }
+  }
+  merged
+}
+
+/// Return configured Slack accounts without ever returning credential values.
+#[get("/api/clawd/channels/slack/accounts")]
+pub async fn slack_accounts() -> impl Responder {
+  let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
+  let mut accounts = Vec::new();
+  let (default_configured, environment_default) = slack_default_account_state(&slack);
+  let channel_enabled = slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true);
+  let named_accounts = slack.get("accounts").and_then(|value| value.as_object());
+  let has_named_default = named_accounts.is_some_and(|accounts| accounts.contains_key("default"));
+
+  if default_configured && !has_named_default {
+    accounts.push(SlackAccountSummary {
+      id: "default".to_string(),
+      enabled: channel_enabled,
+      legacy: true,
+      managed_by_environment: environment_default,
+    });
+  }
+
+  if let Some(named) = named_accounts {
+    for (id, account) in named {
+      let managed_by_environment = if id == "default" {
+        let merged = merged_slack_account_config(&slack, account);
+        slack_default_account_state(&merged).1
+      } else {
+        false
+      };
+      accounts.push(SlackAccountSummary {
+        id: id.clone(),
+        enabled: channel_enabled
+          && account.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
+        legacy: false,
+        managed_by_environment,
+      });
+    }
+  }
+
+  accounts.sort_by(|left, right| left.id.cmp(&right.id));
+  HttpResponse::Ok().json(SlackAccountsResponse { success: true, accounts })
+}
+
 /// Configure a generic channel by patching gateway config.
 #[post("/api/clawd/channels/generic/{channel}/configure")]
 pub async fn generic_channel_configure(
@@ -2473,6 +2595,24 @@ pub async fn generic_channel_configure(
 
   // All schemas are .strict() so unrecognized keys cause validation errors.
   let mut channel_config = body.config.clone();
+  let slack_account_id = if channel == "slack" {
+    channel_config
+      .as_object_mut()
+      .and_then(|obj| obj.remove("accountId"))
+      .and_then(|value| value.as_str().map(str::to_string))
+  } else {
+    None
+  };
+  if let Some(account_id) = slack_account_id.as_deref() {
+    if !valid_channel_account_id(account_id) {
+      return HttpResponse::BadRequest().json(GenericResponse {
+        success: false,
+        message: Some("Workspace name must use only letters, numbers, dashes, or underscores.".to_string()),
+        configured: None,
+        linked: None,
+      });
+    }
+  }
   if let Some(obj) = channel_config.as_object_mut() {
     // Always ensure the channel is enabled
     if !obj.contains_key("enabled") {
@@ -2559,6 +2699,15 @@ pub async fn generic_channel_configure(
         }
       }
     }
+  }
+
+  if let Some(account_id) = slack_account_id {
+    let account_config = channel_config;
+    channel_config = serde_json::json!({
+      "enabled": true,
+      "accounts": {}
+    });
+    channel_config["accounts"][account_id] = account_config;
   }
 
   let config_result = gateway_client::config_get(None).await;
@@ -2649,6 +2798,127 @@ pub async fn generic_channel_disconnect(
   }
 
   disconnect_channel(&channel, "default").await
+}
+
+/// Disconnect one named Slack workspace without affecting other workspaces.
+#[derive(Deserialize)]
+pub struct SlackAccountDisconnectRequest {
+  #[serde(rename = "accountId")]
+  account_id: String,
+}
+
+#[post("/api/clawd/channels/slack/accounts/disconnect")]
+pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequest>) -> impl Responder {
+  // Preserve the exact configured key. Existing OpenClaw account IDs may
+  // legitimately contain whitespace or punctuation even though Knapsack's
+  // new-workspace UI generates conservative slugs.
+  let account_id = body.account_id.clone();
+  if account_id.is_empty() {
+    return HttpResponse::BadRequest().json(GenericResponse {
+      success: false,
+      message: Some("Slack workspace identifier is required.".to_string()),
+      configured: None,
+      linked: None,
+    });
+  }
+
+  let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
+  let has_legacy_credentials = has_slack_legacy_credentials(&slack);
+  let (default_configured, environment_default) = slack_default_account_state(&slack);
+  let named_accounts = slack
+    .get("accounts")
+    .and_then(serde_json::Value::as_object);
+  let named_account_count = named_accounts.map_or(0, serde_json::Map::len);
+  let named_account_exists = named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
+  let is_legacy_default = account_id == "default"
+    && has_legacy_credentials
+    && !named_account_exists;
+  if account_id == "default" && environment_default && !named_account_exists {
+    return HttpResponse::BadRequest().json(GenericResponse {
+      success: false,
+      message: Some("The default Slack workspace is managed by environment variables and cannot be removed here.".to_string()),
+      configured: None,
+      linked: None,
+    });
+  }
+  if !is_legacy_default && !named_account_exists {
+    return HttpResponse::NotFound().json(GenericResponse {
+      success: false,
+      message: Some(format!("Slack workspace {} is not configured.", account_id)),
+      configured: None,
+      linked: None,
+    });
+  }
+  if is_legacy_default && named_account_count == 0 {
+    return disconnect_channel("slack", "default").await;
+  }
+  let removing_last_workspace = named_account_count <= 1
+    && !default_configured;
+
+  if !gateway_reachable().await {
+    gateway_client::ensure_gateway_and_wait().await;
+    if !gateway_reachable().await {
+      return HttpResponse::Ok().json(GenericResponse {
+        success: false,
+        message: Some(
+          "Gateway not reachable — the background service may need to be restarted.".to_string(),
+        ),
+        configured: None,
+        linked: None,
+      });
+    }
+  }
+
+  let logout_params = serde_json::json!({ "channel": "slack", "accountId": account_id });
+  let _ = gateway_client::call_channel_method("channel.logout", Some(logout_params), None).await;
+  tokio::time::sleep(Duration::from_millis(300)).await;
+
+  for attempt in 0..3 {
+    if attempt > 0 {
+      gateway_client::invalidate();
+      tokio::time::sleep(Duration::from_millis(300 * attempt as u64)).await;
+    }
+    if let Ok(snapshot) = gateway_client::config_get(None).await {
+      let mut patch = if is_legacy_default {
+        // Flat credentials are the legacy default account. Remove only its
+        // authentication material so named accounts and shared policy survive.
+        serde_json::json!({
+          "channels": {
+            "slack": {
+              "botToken": null,
+              "appToken": null,
+              "signingSecret": null,
+              "userToken": null
+            }
+          }
+        })
+      } else if removing_last_workspace {
+        serde_json::json!({ "channels": { "slack": null } })
+      } else {
+        serde_json::json!({ "channels": { "slack": { "accounts": {} } } })
+      };
+      if !is_legacy_default && !removing_last_workspace {
+        patch["channels"]["slack"]["accounts"][&account_id] = serde_json::Value::Null;
+      }
+      let patch_json = serde_json::to_string(&patch).unwrap();
+      if config_patch_with_reconnect(&snapshot, move |_| patch_json.clone()).await.is_ok() {
+        gateway_client::invalidate();
+        return HttpResponse::Ok().json(GenericResponse {
+          success: true,
+          message: Some(format!("Slack workspace {} disconnected", account_id)),
+          configured: None,
+          linked: None,
+        });
+      }
+    }
+  }
+
+  HttpResponse::Ok().json(GenericResponse {
+    success: false,
+    message: Some("Failed to disconnect the Slack workspace.".to_string()),
+    configured: None,
+    linked: None,
+  })
 }
 
 // ── Signal CLI install endpoints ──────────────────────────────────────────
