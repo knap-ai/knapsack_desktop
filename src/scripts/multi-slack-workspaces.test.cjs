@@ -26,6 +26,8 @@ test('Slack configuration uses named accounts and preserves sibling workspaces',
   assert.match(channels, /SLACK_BOT_TOKEN/)
   assert.match(channels, /SLACK_APP_TOKEN/)
   assert.match(channels, /managed_by_environment: environment_default/)
+  assert.match(channels, /enabled: channel_enabled\s*&&/)
+  assert.match(channels, /gateway_client::ensure_gateway_and_wait\(\)\.await/)
   assert.match(channels, /let account_id = body\.account_id\.clone\(\)/)
 })
 

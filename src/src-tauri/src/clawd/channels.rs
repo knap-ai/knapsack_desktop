@@ -2484,11 +2484,12 @@ pub async fn slack_accounts() -> impl Responder {
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let mut accounts = Vec::new();
   let (default_configured, environment_default) = slack_default_account_state(&slack);
+  let channel_enabled = slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true);
 
   if default_configured {
     accounts.push(SlackAccountSummary {
       id: "default".to_string(),
-      enabled: slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
+      enabled: channel_enabled,
       legacy: true,
       managed_by_environment: environment_default,
     });
@@ -2501,7 +2502,8 @@ pub async fn slack_accounts() -> impl Responder {
       }
       accounts.push(SlackAccountSummary {
         id: id.clone(),
-        enabled: account.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
+        enabled: channel_enabled
+          && account.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
         legacy: false,
         managed_by_environment: false,
       });
@@ -2829,6 +2831,20 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
   }
   let removing_last_workspace = named_account_count <= 1
     && !default_configured;
+
+  if !gateway_reachable().await {
+    gateway_client::ensure_gateway_and_wait().await;
+    if !gateway_reachable().await {
+      return HttpResponse::Ok().json(GenericResponse {
+        success: false,
+        message: Some(
+          "Gateway not reachable — the background service may need to be restarted.".to_string(),
+        ),
+        configured: None,
+        linked: None,
+      });
+    }
+  }
 
   let logout_params = serde_json::json!({ "channel": "slack", "accountId": account_id });
   let _ = gateway_client::call_channel_method("channel.logout", Some(logout_params), None).await;
