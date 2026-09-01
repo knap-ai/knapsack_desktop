@@ -115,10 +115,20 @@ export function useEmailAutopilot(
     ) => void,
     handleFailMessagesClassified: (emails: EmailDocument[]) => void,
   ) => {
+    const nonStarredEmails = emails.filter(email => !email.isStarred)
     const messageStreamCallback = () => null
     const messageFinishCallback = async (message: string) => {
       try {
         const classifications = parseEmailClassificationResponse(message)
+        const expectedDocumentIds = new Set(nonStarredEmails.map(email => email.documentId))
+        const returnedDocumentIds = new Set(classifications.map(item => item.documentId))
+        if (
+          classifications.length !== expectedDocumentIds.size ||
+          returnedDocumentIds.size !== expectedDocumentIds.size ||
+          !Array.from(expectedDocumentIds).every(id => returnedDocumentIds.has(id))
+        ) {
+          throw new Error('Email classifier omitted or duplicated one or more messages')
+        }
         const starredEmails = emails.filter(email => email.isStarred)
         const starredClassifications = starredEmails.map(email => ({
           documentId: email.documentId,
@@ -153,8 +163,6 @@ export function useEmailAutopilot(
       })
       handleFailMessagesClassified(emails)
     }
-
-    const nonStarredEmails = emails.filter(email => !email.isStarred)
 
     const additionalDocuments = nonStarredEmails.map(email => ({
       title: email.subject,

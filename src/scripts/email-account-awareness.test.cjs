@@ -40,15 +40,31 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(classifier, /export function parseEmailClassificationResponse/)
   assert.match(classifier, /const candidates = \[/)
   assert.match(classifier, /item\.responseDeadline \?\? item\.response_deadline/)
+  assert.match(classifier, /Email classifier omitted or duplicated one or more messages/)
   assert.match(feed, /email\.accountEmail \|\| 'unknown'/)
   assert.match(feed, /wasSentByMailboxOwner/)
   assert.match(feed, /if \(allMessages\.length === 0\)/)
   assert.doesNotMatch(feed, /lastEmailId/)
   assert.match(feed, /successfullyClassifiedMessageKeys/)
   assert.match(feed, /importance === EmailImportance\.UNCLASSIFIED/)
+  assert.match(feed, /failedMessageKeys/)
+  assert.match(feed, /!failedMessageKeys\.has\(emailMessageKey\(email\.message\)\)/)
   assert.match(feed, /accountEmail\?: string/)
   assert.match(feed, /email\.message\.accountEmail \|\| userEmail/)
   assert.match(feed, /updatedEmail\.message\.accountEmail/)
+})
+
+test('legacy unscoped Gmail cache rows are removed before account-aware actions', () => {
+  const migration = fs.readFileSync(
+    path.join(
+      sourceRoot,
+      'src-tauri/src/migrations/2026-09-01-000001_cleanup_unscoped_emails/up.sql',
+    ),
+    'utf8',
+  )
+
+  assert.match(migration, /DELETE FROM emails/)
+  assert.match(migration, /TRIM\(account_email\) = ''/)
 })
 
 test('notification drawer preserves mailbox identity for actions', () => {

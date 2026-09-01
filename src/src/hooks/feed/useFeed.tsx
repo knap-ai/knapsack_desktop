@@ -647,8 +647,11 @@ export function useFeed(
 
     setClassifiedEmails(prevState => {
       const newState = { ...prevState }
+      const failedMessageKeys = new Set(emails.map(emailMessageKey))
       newState['UNCLASSIFIED'] = [
-        ...(newState['UNCLASSIFIED'] || []),
+        ...(newState['UNCLASSIFIED'] || []).filter(
+          email => !failedMessageKeys.has(emailMessageKey(email.message)),
+        ),
         ...emails.map(message => ({
           message: message,
           classification: null,
