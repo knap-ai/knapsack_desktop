@@ -384,9 +384,7 @@ fn shape_connector_tools(mut value: Value, query: Option<&str>, limit: usize) ->
     let mut ranked = tools
       .iter()
       .enumerate()
-      .filter_map(|(index, tool)| {
-        score_tool_for_query(tool, query, &query_terms).map(|score| (score, index, tool))
-      })
+      .map(|(index, tool)| (score_tool_for_query(tool, query, &query_terms), index, tool))
       .collect::<Vec<_>>();
     ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
     let mut matches = Vec::new();
@@ -409,17 +407,21 @@ fn shape_connector_tools(mut value: Value, query: Option<&str>, limit: usize) ->
   }
 
   if total > LARGE_CONNECTOR_TOOL_COUNT {
-    value["tools"] = Value::Array(
-      tools
-        .iter()
-        .filter_map(|tool| {
-          tool
-            .get("name")
-            .and_then(Value::as_str)
-            .map(|name| json!({ "name": name }))
-        })
-        .collect(),
-    );
+    let mut index = Vec::new();
+    let mut response_bytes = 0;
+    for name in tools
+      .iter()
+      .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+    {
+      let entry = json!({ "name": name });
+      let entry_bytes = serde_json::to_vec(&entry).map_or(0, |serialized| serialized.len());
+      if !index.is_empty() && response_bytes + entry_bytes > MAX_SEARCH_RESULT_BYTES {
+        break;
+      }
+      response_bytes += entry_bytes;
+      index.push(entry);
+    }
+    value["tools"] = Value::Array(index);
     value["totalTools"] = json!(total);
     value["requiresQuery"] = json!(true);
     value["message"] = json!(
@@ -429,7 +431,7 @@ fn shape_connector_tools(mut value: Value, query: Option<&str>, limit: usize) ->
   value
 }
 
-fn score_tool_for_query(tool: &Value, query: &str, query_terms: &[&str]) -> Option<u32> {
+fn score_tool_for_query(tool: &Value, query: &str, query_terms: &[&str]) -> u32 {
   let name = tool
     .get("name")
     .and_then(Value::as_str)
@@ -441,13 +443,6 @@ fn score_tool_for_query(tool: &Value, query: &str, query_terms: &[&str]) -> Opti
     .and_then(Value::as_str)
     .unwrap_or("")
     .to_ascii_lowercase();
-  if !query_terms
-    .iter()
-    .all(|term| normalized_name.contains(term) || description.contains(term))
-  {
-    return None;
-  }
-
   let mut score = 0;
   if normalized_name.contains(query) {
     score += 100;
@@ -463,7 +458,7 @@ fn score_tool_for_query(tool: &Value, query: &str, query_terms: &[&str]) -> Opti
       score += 1;
     }
   }
-  Some(score)
+  score
 }
 
 async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
@@ -737,6 +732,40 @@ mod tests {
     assert_eq!(matches[0]["name"], "github_list_repositories");
     assert!(matches[0].get("inputSchema").is_some());
     assert_eq!(shaped.get("totalTools").and_then(Value::as_u64), Some(3));
+  }
+
+  #[test]
+  fn connector_search_preserves_semantic_server_matches() {
+    let shaped = shape_connector_tools(
+      json!({
+        "connector": "github",
+        "query": "find repositories",
+        "tools": [
+          { "name": "github_list_repositories", "description": "List repositories", "inputSchema": { "type": "object" } }
+        ]
+      }),
+      Some("find repositories"),
+      5,
+    );
+
+    assert_eq!(shaped["tools"].as_array().unwrap().len(), 1);
+    assert_eq!(shaped["tools"][0]["name"], "github_list_repositories");
+  }
+
+  #[test]
+  fn compact_connector_index_respects_gateway_byte_budget() {
+    let tools = (0..200)
+      .map(|index| json!({ "name": format!("github_{}_{}", "x".repeat(200), index) }))
+      .collect::<Vec<_>>();
+    let shaped = shape_connector_tools(
+      json!({ "connector": "github", "tools": tools }),
+      None,
+      DEFAULT_SEARCH_RESULT_LIMIT,
+    );
+
+    assert!(shaped["tools"].as_array().unwrap().len() < 200);
+    assert!(serde_json::to_vec(&shaped["tools"]).unwrap().len() < MAX_SEARCH_RESULT_BYTES + 512);
+    assert_eq!(shaped["requiresQuery"], true);
   }
 
   #[tokio::test(flavor = "current_thread")]
