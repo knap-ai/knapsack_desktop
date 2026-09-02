@@ -88,3 +88,24 @@ test('recognizes agent responses reporting a missing connector', async () => {
   assert.equal(reportsMissingStudioConnector('The ClickUp connector is unavailable.'), true)
   assert.equal(reportsMissingStudioConnector('I created the ClickUp task.'), false)
 })
+
+test('chat applies account-wide connector context and inline recovery to gateway replies', async () => {
+  const chatSource = await fs.readFile(
+    new URL('../src/components/organisms/ClawdChat/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(chatSource, /trusted account-wide connector inventory/)
+  assert.match(chatSource, /surfaceMissingStudioConnector\(displayText\)/)
+  assert.match(chatSource, /studioAvailableConnectorsRef\.current,\s*true,/)
+})
+
+test('embedded browser polling is serialized instead of overlapping intervals', async () => {
+  const browserSource = await fs.readFile(
+    new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(browserSource, /tabsPendingRef/)
+  assert.match(browserSource, /window\.setTimeout\(poll,/)
+  assert.doesNotMatch(browserSource, /window\.setInterval\(refreshScreenshot/)
+  assert.doesNotMatch(browserSource, /const tabsTimer = window\.setInterval/)
+})

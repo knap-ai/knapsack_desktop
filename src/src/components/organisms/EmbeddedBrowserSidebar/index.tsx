@@ -129,7 +129,9 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const screenshotUrlRef = useRef('')
   const currentTargetIdRef = useRef('')
   const knownTargetIdsRef = useRef(new Set<string>())
+  const tabsRef = useRef<BrowserTab[]>([])
   const screenshotPendingRef = useRef(false)
+  const tabsPendingRef = useRef(false)
   const navigationPendingRef = useRef(false)
   const addressEditingRef = useRef(false)
   const resizeTimerRef = useRef<number>()
@@ -234,48 +236,54 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }, [activeTabStorageKey, browserProfile])
 
   const refreshTabs = useCallback(async () => {
-    if (chromeImportBusyRef.current) return []
-    const query = new URLSearchParams({ profile: browserProfile })
-    const response = await fetch(`${BACKEND}/api/clawd/browser/tabs?${query}`, {
-      cache: 'no-store',
-    })
-    if (!response.ok) throw new Error('The shared browser is still starting')
-    const envelope = (await response.json()) as TabsEnvelope
-    if (chromeImportBusyRef.current) return []
-    const pageTabs = tabsFromEnvelope(envelope).filter(
-      tab => tab.targetId && (!tab.type || tab.type === 'page'),
-    )
-    setTabs(pageTabs)
-    if (!pageTabs.length) {
-      knownTargetIdsRef.current = new Set()
-      currentTargetIdRef.current = ''
-      setActiveTargetId('')
-      return []
-    }
-
-    const previousIds = knownTargetIdsRef.current
-    const newlyOpened = pageTabs.filter(tab => !previousIds.has(tab.targetId))
-    knownTargetIdsRef.current = new Set(pageTabs.map(tab => tab.targetId))
-
-    let selected = newlyOpened.length
-      ? newlyOpened[newlyOpened.length - 1]
-      : pageTabs.find(tab => tab.targetId === currentTargetIdRef.current)
-    if (!selected) {
-      try {
-        const saved = JSON.parse(localStorage.getItem(activeTabStorageKey) || '{}') as {
-          targetId?: string
-          url?: string
-        }
-        selected = pageTabs.find(tab => tab.targetId === saved.targetId)
-          || pageTabs.find(tab => saved.url && tab.url === saved.url)
-      } catch {
-        // Ignore malformed legacy storage.
+    if (chromeImportBusyRef.current || tabsPendingRef.current) return tabsRef.current
+    tabsPendingRef.current = true
+    try {
+      const query = new URLSearchParams({ profile: browserProfile })
+      const response = await fetch(`${BACKEND}/api/clawd/browser/tabs?${query}`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error('The shared browser is still starting')
+      const envelope = (await response.json()) as TabsEnvelope
+      if (chromeImportBusyRef.current) return []
+      const pageTabs = tabsFromEnvelope(envelope).filter(
+        tab => tab.targetId && (!tab.type || tab.type === 'page'),
+      )
+      tabsRef.current = pageTabs
+      setTabs(pageTabs)
+      if (!pageTabs.length) {
+        knownTargetIdsRef.current = new Set()
+        currentTargetIdRef.current = ''
+        setActiveTargetId('')
+        return []
       }
-    }
-    if (!selected) selected = pageTabs[0]
 
-    selectTarget(selected.targetId, selected)
-    return pageTabs
+      const previousIds = knownTargetIdsRef.current
+      const newlyOpened = pageTabs.filter(tab => !previousIds.has(tab.targetId))
+      knownTargetIdsRef.current = new Set(pageTabs.map(tab => tab.targetId))
+
+      let selected = newlyOpened.length
+        ? newlyOpened[newlyOpened.length - 1]
+        : pageTabs.find(tab => tab.targetId === currentTargetIdRef.current)
+      if (!selected) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(activeTabStorageKey) || '{}') as {
+            targetId?: string
+            url?: string
+          }
+          selected = pageTabs.find(tab => tab.targetId === saved.targetId)
+            || pageTabs.find(tab => saved.url && tab.url === saved.url)
+        } catch {
+          // Ignore malformed legacy storage.
+        }
+      }
+      if (!selected) selected = pageTabs[0]
+
+      selectTarget(selected.targetId, selected)
+      return pageTabs
+    } finally {
+      tabsPendingRef.current = false
+    }
   }, [activeTabStorageKey, browserProfile, selectTarget])
 
   const refreshScreenshot = useCallback(async () => {
@@ -469,36 +477,38 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   }, [navigate, refreshScreenshot, refreshTabs, requestedUrl])
 
   useEffect(() => {
-    const retryTimer = window.setInterval(() => {
-      if (chromeImportBusyRef.current) return
-      if (!currentTargetIdRef.current) {
-        refreshTabs()
-          .then(tabs => {
-            if (!tabs.length) navigate(requestedUrl || DEFAULT_BROWSER_URL)
-          })
-          .catch(err => setError(err instanceof Error ? err.message : String(err)))
+    let cancelled = false
+    let timer: number | undefined
+    const schedule = () => {
+      if (!cancelled) timer = window.setTimeout(poll, Math.max(TABS_INTERVAL_MS, SCREENSHOT_INTERVAL_MS))
+    }
+    const poll = async () => {
+      if (cancelled || chromeImportBusyRef.current) return schedule()
+      if (tabsPendingRef.current || screenshotPendingRef.current || navigationPendingRef.current) {
+        return schedule()
       }
-    }, 2000)
-    return () => window.clearInterval(retryTimer)
-  }, [navigate, refreshTabs, requestedUrl])
-
-  useEffect(() => {
-    const tabsTimer = window.setInterval(() => {
-      if (chromeImportBusyRef.current) return
-      refreshTabs()
-        .then(tabs => {
-          if (tabs.length) setError('')
-        })
-        .catch(err => setError(err instanceof Error ? err.message : String(err)))
-    }, TABS_INTERVAL_MS)
-    const screenshotTimer = window.setInterval(refreshScreenshot, SCREENSHOT_INTERVAL_MS)
+      try {
+        const currentTabs = await refreshTabs()
+        if (cancelled) return
+        if (!currentTabs.length && !currentTargetIdRef.current) {
+          await navigate(requestedUrl || DEFAULT_BROWSER_URL)
+        } else {
+          if (currentTabs.length) setError('')
+          await refreshScreenshot()
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      }
+      schedule()
+    }
+    schedule()
 
     return () => {
-      window.clearInterval(tabsTimer)
-      window.clearInterval(screenshotTimer)
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
       if (screenshotUrlRef.current) URL.revokeObjectURL(screenshotUrlRef.current)
     }
-  }, [refreshScreenshot, refreshTabs])
+  }, [navigate, refreshScreenshot, refreshTabs, requestedUrl])
 
   useEffect(() => {
     const viewport = viewportRef.current

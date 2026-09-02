@@ -908,7 +908,18 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                             contextPrefix={mountedContext}
                             browserProfile={mountedBrowserProfile}
                             agentName={mountedGroup?.name ?? mountedChatAgent?.name}
-                            agentTeamMembers={mountedGroup ? mountedGroupAgents : undefined}
+                            agentTeamMembers={
+                              mountedGroup
+                                ? mountedGroupAgents.map(agent => ({
+                                    ...agent,
+                                    // A team room has one visible browser workspace. Give every
+                                    // contributor that shared profile so secondary agents do not
+                                    // fail against empty private profiles while the user is signed
+                                    // into the lead agent's visible browser.
+                                    browserProfile: mountedBrowserProfile,
+                                  }))
+                                : undefined
+                            }
                             agentPersonality={
                               mountedGroup
                                 ? `${mountedGroupAgents.map(agent => agent.name).join(', ')} collaborating`
