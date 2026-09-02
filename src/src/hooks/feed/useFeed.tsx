@@ -667,9 +667,9 @@ export function useFeed(
         setEmailAutopilotStatus(prev => ({ ...prev, status: 'complete' }))
   }, [emailAutopilotStatus])
 
-  const handleFailMessagesClassified = (emails: EmailDocument[], retry: number = 0) => {
+  const handleFailMessagesClassified = async (emails: EmailDocument[], retry: number = 0) => {
     if (retry < MAX_RETRIES) {
-      executeClassification(emails, retry + 1)
+      await executeClassification(emails, retry + 1)
       return
     }
 
@@ -717,7 +717,7 @@ export function useFeed(
 
   const executeClassification = async (batch: EmailDocument[], retry: number = 0) => {
     try {
-      emailAutopilot.classifyEmails(batch, handleSuccessMessagesClassified, emails =>
+      await emailAutopilot.classifyEmails(batch, handleSuccessMessagesClassified, emails =>
         handleFailMessagesClassified(emails, retry),
       )
     } catch (error: any) {
@@ -725,7 +725,7 @@ export function useFeed(
         additionalInfo: '',
         error: error.toString(),
       })
-      handleFailMessagesClassified(batch, retry)
+      await handleFailMessagesClassified(batch, retry)
       console.error('Error classifying emails:', error)
     }
   }
@@ -940,7 +940,7 @@ export function useFeed(
       const BATCH_SIZE = 3
       for (let i = 0; i < newMessages.length; i += BATCH_SIZE) {
         const batch = newMessages.slice(i, i + BATCH_SIZE)
-        executeClassification(batch)
+        await executeClassification(batch)
 
         await new Promise(resolve => setTimeout(resolve, 1000))
       }

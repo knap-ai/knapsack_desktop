@@ -45,6 +45,9 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(classifier, /const candidates = \[/)
   assert.match(classifier, /item\.responseDeadline \?\? item\.response_deadline/)
   assert.match(classifier, /Email classifier omitted or duplicated one or more messages/)
+  assert.match(classifier, /\): Promise<void> => new Promise\(resolve => \{/)
+  assert.match(classifier, /await handleSuccessMessagesClassified/)
+  assert.match(classifier, /await handleFailMessagesClassified/)
   assert.match(feed, /email\.accountEmail \|\| 'unknown'/)
   assert.match(feed, /wasSentByMailboxOwner/)
   assert.match(feed, /if \(allMessages\.length === 0\)/)
@@ -68,6 +71,8 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /do \{[\s\S]*?await runEmailAutopilotOnce\(\)[\s\S]*?\} while \(emailAutopilotRerunPendingRef\.current\)/)
   assert.match(feed, /emailAutopilotCycleMessageKeysRef\.current\.has\(emailMessageKey\(message\)\)/)
   assert.match(feed, /emailAutopilotCycleMessageKeysRef\.current\.clear\(\)/)
+  assert.match(feed, /await emailAutopilot\.classifyEmails/)
+  assert.match(feed, /await executeClassification\(batch\)/)
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 

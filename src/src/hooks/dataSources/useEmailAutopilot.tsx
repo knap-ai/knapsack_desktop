@@ -96,9 +96,9 @@ export interface IEmailAutopilot {
     handleSuccessMessagesClassified: (
       emails: EmailDocument[],
       emailClassification: EmailClassification[],
-    ) => void,
-    handleFailMessagesClassified: (emails: EmailDocument[]) => void,
-  ) => void
+    ) => void | Promise<void>,
+    handleFailMessagesClassified: (emails: EmailDocument[]) => void | Promise<void>,
+  ) => Promise<void>
   draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string, tone?: DraftTone, toneLevel?: number) => Promise<string>
 }
 
@@ -107,14 +107,14 @@ export function useEmailAutopilot(
   userEmail?: string,
   userName?: string,
 ) {
-  const classifyEmails = async (
+  const classifyEmails = (
     emails: EmailDocument[],
     handleSuccessMessagesClassified: (
       emails: EmailDocument[],
       emailClassification: EmailClassification[],
-    ) => void,
-    handleFailMessagesClassified: (emails: EmailDocument[]) => void,
-  ) => {
+    ) => void | Promise<void>,
+    handleFailMessagesClassified: (emails: EmailDocument[]) => void | Promise<void>,
+  ): Promise<void> => new Promise(resolve => {
     const nonStarredEmails = emails.filter(email => !email.isStarred)
     const messageStreamCallback = () => null
     const messageFinishCallback = async (message: string) => {
@@ -141,7 +141,7 @@ export function useEmailAutopilot(
           actionRequired: 'Review starred email',
         }))
 
-        handleSuccessMessagesClassified(emails, [
+        await handleSuccessMessagesClassified(emails, [
           ...starredClassifications,
           ...classifications,
         ])
@@ -151,17 +151,20 @@ export function useEmailAutopilot(
           additionalInfo: 'Email Autopilot accepts raw JSON and fenced JSON responses',
           error: error instanceof Error ? error.message : 'Could not classify',
         })
-        handleFailMessagesClassified(emails)
+        await handleFailMessagesClassified(emails)
+      } finally {
+        resolve()
       }
     }
 
-    const errorCallbackFollowUp = (error: Error) => {
+    const errorCallbackFollowUp = async (error: Error) => {
       console.error(error)
       logError(error, {
         additionalInfo: 'Email classification request failed',
         error: error.message,
       })
-      handleFailMessagesClassified(emails)
+      await handleFailMessagesClassified(emails)
+      resolve()
     }
 
     const additionalDocuments = nonStarredEmails.map(email => ({
@@ -188,7 +191,8 @@ isStarred: ${email.isStarred}`,
         keywords: ['starred'],
         actionRequired: 'Review starred email',
       }))
-      handleSuccessMessagesClassified(emails, starredClassifications)
+      void Promise.resolve(handleSuccessMessagesClassified(emails, starredClassifications))
+        .finally(resolve)
       return
     }
 
@@ -197,17 +201,23 @@ isStarred: ${email.isStarred}`,
       userEmail || '',
     ).replace(/\{userName\}/g, userName || '')
 
-    addToLLMQueue({
-      documents: nonStarredEmails.map(email => email.documentId),
-      additionalDocuments: additionalDocuments,
-      semanticSearchQuery: undefined,
-      prompt: emailClassificationPrompt,
-      threadId: undefined,
-      messageStreamCallback,
-      messageFinishCallback,
-      errorCallback: errorCallbackFollowUp,
-    })
-  }
+    try {
+      addToLLMQueue({
+        documents: nonStarredEmails.map(email => email.documentId),
+        additionalDocuments: additionalDocuments,
+        semanticSearchQuery: undefined,
+        prompt: emailClassificationPrompt,
+        threadId: undefined,
+        messageStreamCallback,
+        messageFinishCallback,
+        errorCallback: errorCallbackFollowUp,
+      })
+    } catch (error) {
+      void errorCallbackFollowUp(
+        error instanceof Error ? error : new Error('Email classification queue failed'),
+      )
+    }
+  })
 
   // Shared DataFetcher instance — email drafts call the LLM directly
   // instead of going through the global serial LLM queue, so multiple
