@@ -390,16 +390,26 @@ fn shape_connector_tools(mut value: Value, query: Option<&str>, limit: usize) ->
       .collect::<Vec<_>>();
     ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
     let mut matches = Vec::new();
+    let mut oversized_tools = Vec::new();
     let mut response_bytes = 0;
     for (_, _, tool) in ranked.into_iter().take(limit) {
       let tool_bytes = serde_json::to_vec(tool).map_or(0, |serialized| serialized.len());
-      if !matches.is_empty() && response_bytes + tool_bytes > MAX_SEARCH_RESULT_BYTES {
-        break;
+      if response_bytes + tool_bytes > MAX_SEARCH_RESULT_BYTES {
+        if let Some(name) = tool.get("name").and_then(Value::as_str) {
+          oversized_tools.push(json!({ "name": name, "schemaOmitted": true }));
+        }
+        if !matches.is_empty() {
+          break;
+        }
+        continue;
       }
       response_bytes += tool_bytes;
       matches.push(tool.clone());
     }
     value["tools"] = Value::Array(matches);
+    if !oversized_tools.is_empty() {
+      value["oversizedTools"] = Value::Array(oversized_tools);
+    }
     value["totalTools"] = json!(total);
     value["query"] = json!(query);
     value["message"] = json!(
@@ -752,6 +762,30 @@ mod tests {
 
     assert_eq!(shaped["tools"].as_array().unwrap().len(), 1);
     assert_eq!(shaped["tools"][0]["name"], "github_list_repositories");
+  }
+
+  #[test]
+  fn connector_search_does_not_return_an_oversized_first_schema() {
+    let shaped = shape_connector_tools(
+      json!({
+        "connector": "github",
+        "tools": [{
+          "name": "github_oversized_action",
+          "description": "An action whose schema cannot fit through the gateway",
+          "inputSchema": { "type": "object", "description": "x".repeat(MAX_SEARCH_RESULT_BYTES) }
+        }]
+      }),
+      Some("oversized action"),
+      1,
+    );
+
+    assert!(shaped["tools"].as_array().unwrap().is_empty());
+    assert_eq!(
+      shaped["oversizedTools"][0]["name"],
+      "github_oversized_action"
+    );
+    assert_eq!(shaped["oversizedTools"][0]["schemaOmitted"], true);
+    assert!(serde_json::to_vec(&shaped).unwrap().len() < MAX_SEARCH_RESULT_BYTES);
   }
 
   #[test]
