@@ -405,7 +405,9 @@ export function useFeed(
           ) {
             const draftedReply = await emailAutopilot.draftEmailReply(
               email.message,
-              userEmail,
+              email.message.accountEmail
+                ? emailAccountAddress(email.message.accountEmail)
+                : userEmail,
               userName,
             )
 
@@ -892,6 +894,7 @@ export function useFeed(
 
       let newMessages = allThreadMessages.filter(
         message =>
+          !successfullyClassifiedMessageKeys.has(emailMessageKey(message)) &&
           !wasSentByMailboxOwner(message, userEmail) &&
           !(emailThreadKey(message) && userRepliedThreadIds.has(emailThreadKey(message)!)),
       )

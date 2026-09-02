@@ -56,6 +56,8 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /connection\.key === ConnectionKeys\.MICROSOFT_OUTLOOK/)
   assert.match(feed, /connection\.calendarAccountEmail \|\| connection\.ownerEmail/)
   assert.match(feed, /emailAccountAddress\(email\.accountEmail\.trim\(\)\.toLowerCase\(\)\)/)
+  assert.match(feed, /draftEmailReply\([\s\S]*?emailAccountAddress\(email\.message\.accountEmail\)/)
+  assert.match(feed, /let newMessages = allThreadMessages\.filter\([\s\S]*?!successfullyClassifiedMessageKeys\.has\(emailMessageKey\(message\)\)/)
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
