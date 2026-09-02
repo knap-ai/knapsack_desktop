@@ -337,8 +337,10 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   let cached = CONNECTOR_TOOLS_CACHE
     .lock()
     .ok()
-    .and_then(|cache| cache.get(&cache_key).cloned())
-    .filter(|entry| entry.fetched_at.elapsed() < CONNECTOR_TOOLS_CACHE_TTL)
+    .and_then(|mut cache| {
+      cache.retain(|_, entry| entry.fetched_at.elapsed() < CONNECTOR_TOOLS_CACHE_TTL);
+      cache.get(&cache_key).cloned()
+    })
     .map(|entry| entry.value);
   let value = match cached {
     Some(value) => value,
