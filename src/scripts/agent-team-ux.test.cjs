@@ -41,6 +41,8 @@ test('background agent replies produce unread indicators until selected', () => 
   assert.match(chat, /onAssistantMessage\?\.\(chatId\)/)
   assert.match(chat, /if \(!active\) return/)
   assert.match(chat, /providerSelectionRefreshRef\.current = refresh/)
+  assert.match(chat, /const syncProviderSelectionFromBackend[\s\S]*?timeoutMs: 4000/)
+  assert.match(chat, /useChannelStatus\(active, 15_000\)/)
   assert.match(chat, /const syncProviderSelectionFromBackend[\s\S]*?setKnapsackEmail\(keyStatus\.has_knapsack/)
   assert.match(chat, /const syncProviderSelectionFromBackend[\s\S]*?setKnapsackConnectError\(/)
   assert.match(chat, /setSavedProviderKeys\(\{/)

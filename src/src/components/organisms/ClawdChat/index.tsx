@@ -2323,12 +2323,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   thinkingMessageRef.current = thinkingMessage
 
   // Gateway service state — channel connection status
-  const channelStatus = useChannelStatus(true, 15_000)
+  const channelStatus = useChannelStatus(active, 15_000)
   useEffect(() => {
+    if (!active) return
     if (expandedChannel === 'slack' || channelStatus.genericChannels.slack?.configured) {
       void refreshSlackAccounts()
     }
-  }, [expandedChannel, channelStatus.genericChannels.slack?.configured, refreshSlackAccounts])
+  }, [active, expandedChannel, channelStatus.genericChannels.slack?.configured, refreshSlackAccounts])
   const hasAnyChannel = !!(
     isChannelRuntimeConnected(channelStatus.whatsapp) ||
     isChannelRuntimeConnected(channelStatus.imessage) ||
@@ -2486,7 +2487,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
     // Check backend for a valid key (single source of truth)
     try {
-      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
+        timeoutMs: 4000,
+      })
       setHasCompletedOnboarding(Boolean(keyStatus.has_key))
       setKeyHints({
         openai: keyStatus.openai_key_hint,
