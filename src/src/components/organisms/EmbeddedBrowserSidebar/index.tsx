@@ -480,11 +480,11 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     let cancelled = false
     let timer: number | undefined
     const schedule = () => {
-      if (!cancelled) timer = window.setTimeout(poll, Math.max(TABS_INTERVAL_MS, SCREENSHOT_INTERVAL_MS))
+      if (!cancelled) timer = window.setTimeout(pollTabs, TABS_INTERVAL_MS)
     }
-    const poll = async () => {
+    const pollTabs = async () => {
       if (cancelled || chromeImportBusyRef.current) return schedule()
-      if (tabsPendingRef.current || screenshotPendingRef.current || navigationPendingRef.current) {
+      if (tabsPendingRef.current || navigationPendingRef.current) {
         return schedule()
       }
       try {
@@ -492,10 +492,31 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
         if (cancelled) return
         if (!currentTabs.length && !currentTargetIdRef.current) {
           await navigate(requestedUrl || DEFAULT_BROWSER_URL)
-        } else {
-          if (currentTabs.length) setError('')
-          await refreshScreenshot()
-        }
+        } else if (currentTabs.length) setError('')
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      }
+      schedule()
+    }
+    schedule()
+
+    return () => {
+      cancelled = true
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [navigate, refreshTabs, requestedUrl])
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: number | undefined
+    const schedule = () => {
+      if (!cancelled) timer = window.setTimeout(pollScreenshot, SCREENSHOT_INTERVAL_MS)
+    }
+    const pollScreenshot = async () => {
+      if (cancelled || chromeImportBusyRef.current) return schedule()
+      if (screenshotPendingRef.current || navigationPendingRef.current) return schedule()
+      try {
+        await refreshScreenshot()
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
       }
@@ -508,7 +529,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       if (timer) window.clearTimeout(timer)
       if (screenshotUrlRef.current) URL.revokeObjectURL(screenshotUrlRef.current)
     }
-  }, [navigate, refreshScreenshot, refreshTabs, requestedUrl])
+  }, [refreshScreenshot])
 
   useEffect(() => {
     const viewport = viewportRef.current

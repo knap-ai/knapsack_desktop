@@ -100,13 +100,22 @@ test('chat applies account-wide connector context and inline recovery to gateway
   assert.match(chatSource, /studioAvailableConnectorsRef\.current,\s*true,/)
 })
 
-test('embedded browser polling is serialized instead of overlapping intervals', async () => {
+test('embedded browser tab and screenshot polling are independently serialized', async () => {
   const browserSource = await fs.readFile(
     new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),
     'utf8',
   )
   assert.match(browserSource, /tabsPendingRef/)
-  assert.match(browserSource, /window\.setTimeout\(poll,/)
+  assert.match(browserSource, /window\.setTimeout\(pollTabs, TABS_INTERVAL_MS\)/)
+  assert.match(browserSource, /window\.setTimeout\(pollScreenshot, SCREENSHOT_INTERVAL_MS\)/)
+  const tabPoller = browserSource.slice(browserSource.indexOf('const pollTabs'), browserSource.indexOf('const pollScreenshot'))
+  const screenshotPollerStart = browserSource.indexOf('const pollScreenshot')
+  const screenshotPoller = browserSource.slice(
+    screenshotPollerStart,
+    browserSource.indexOf('}, [refreshScreenshot])', screenshotPollerStart),
+  )
+  assert.doesNotMatch(tabPoller, /refreshScreenshot/)
+  assert.doesNotMatch(screenshotPoller, /refreshTabs/)
   assert.doesNotMatch(browserSource, /window\.setInterval\(refreshScreenshot/)
   assert.doesNotMatch(browserSource, /const tabsTimer = window\.setInterval/)
 })
