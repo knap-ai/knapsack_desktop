@@ -3421,6 +3421,25 @@ pub async fn agent_chat(
   gateway_request_agent("agent", Some(params), &t, 300).await
 }
 
+/// Abort any active agent run for a gateway session.
+///
+/// Group-room member calls have a shorter local deadline than the gateway's
+/// five-minute agent budget. When that local deadline wins, explicitly abort
+/// the matching session so the abandoned run cannot keep using tools or the
+/// shared browser while synthesis is already underway.
+pub async fn abort_chat_session(
+  session_key: &str,
+  token: Option<&str>,
+) -> Result<Value, String> {
+  let t = resolve_token(token)?;
+  gateway_request_pooled(
+    "chat.abort",
+    Some(serde_json::json!({ "sessionKey": session_key })),
+    &t,
+  )
+  .await
+}
+
 fn next_agent_idempotency_key() -> String {
   format!("knapsack-ui-{}-{}", now_epoch_ms(), next_request_id())
 }

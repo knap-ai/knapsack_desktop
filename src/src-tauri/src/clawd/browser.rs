@@ -990,6 +990,13 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
   ))
 }
 
+fn is_group_agent_request(body: &JsonValue) -> bool {
+  body
+    .get("teamMembers")
+    .and_then(JsonValue::as_array)
+    .is_some_and(|members| members.len() >= 2)
+}
+
 fn normalize_provider_model(provider: &str, model: &str) -> String {
   let model = model.trim();
   if model.is_empty() {
@@ -3062,6 +3069,11 @@ pub async fn agent_chat(
     .unwrap_or("")
     .trim()
     .to_string();
+  let user_text = body
+    .get("userText")
+    .and_then(|v| v.as_str())
+    .unwrap_or(&text)
+    .trim();
 
   if text.is_empty() {
     return HttpResponse::BadRequest()
@@ -3075,16 +3087,22 @@ pub async fn agent_chat(
     .filter(|email| !email.is_empty())
     .map(str::to_string)
     .or_else(|| knapsack_user_email(app_handle.get_ref()));
-  if let Some(reply) = native_connection_owner
-    .as_deref()
-    .and_then(|email| google_capability_reply(email, &text))
-  {
-    return HttpResponse::Ok().json(serde_json::json!({
-      "ok": true,
-      "reply": reply,
-      "harness": "native",
-      "gateway": false,
-    }));
+  // Group rooms must always reach the orchestration harness. A prompt that
+  // mentions Gmail, Calendar, or Drive can otherwise be consumed by the
+  // single-agent capability shortcut and returned as a non-gateway response,
+  // which the group UI correctly rejects as a runtime failure.
+  if !is_group_agent_request(&body) {
+    if let Some(reply) = native_connection_owner
+      .as_deref()
+      .and_then(|email| google_capability_reply(email, user_text))
+    {
+      return HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": reply,
+        "harness": "native",
+        "gateway": false,
+      }));
+    }
   }
 
   // Split attachments: images go to the selected harness; non-images are
@@ -7858,7 +7876,7 @@ mod tests {
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
     compact_messages_for_provider, fallback_failure_message, filter_top_level_page_tabs,
-    incorrectly_denies_local_file_access, is_context_window_error,
+    incorrectly_denies_local_file_access, is_context_window_error, is_group_agent_request,
     is_transient_or_internal_provider_error, jwt_expiry_unix, knapsack_token_is_expired,
     load_seed_history_from_request, local_file_request_requires_inspection,
     provider_compaction_limits, provider_context_recovery_limits,
@@ -7899,6 +7917,20 @@ mod tests {
       .filter_map(|tab| tab["targetId"].as_str())
       .collect::<Vec<_>>();
     assert_eq!(ids, vec!["page-1", "legacy-page"]);
+  }
+
+  #[test]
+  fn group_agent_requests_are_not_consumed_by_single_agent_shortcuts() {
+    assert!(is_group_agent_request(&json!({
+      "teamMembers": [
+        {"agentId": "agent-polly", "displayName": "Polly"},
+        {"agentId": "agent-scout", "displayName": "Scout"}
+      ]
+    })));
+    assert!(!is_group_agent_request(&json!({
+      "teamMembers": [{"agentId": "agent-polly", "displayName": "Polly"}]
+    })));
+    assert!(!is_group_agent_request(&json!({})));
   }
 
   #[test]

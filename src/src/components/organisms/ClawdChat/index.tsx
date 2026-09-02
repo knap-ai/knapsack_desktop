@@ -4351,7 +4351,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     }
   }
 
-  const pushAssistant = useCallback(async (text: string) => {
+  const surfaceMissingStudioConnector = useCallback((text: string) => {
     // The model may discover a missing connector only after attempting the
     // task. Surface the same lightweight OAuth action inline instead of
     // sending the user to the full Settings panel.
@@ -4365,6 +4365,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         studioConnectedScopesRef.current,
         dismissedStudioConnectorIdsRef.current,
         studioAvailableConnectorsRef.current,
+        true,
       )
       if (suggestion) {
         setStudioConnectorSuggestion(suggestion)
@@ -4372,6 +4373,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pendingStudioConnectorSuggestionRef.current = null
       }
     }
+  }, [])
+
+  const pushAssistant = useCallback(async (text: string) => {
+    surfaceMissingStudioConnector(text)
     setMsgs(prev => [
       ...prev,
       { id: crypto.randomUUID(), role: 'assistant', text, ts: Date.now() },
@@ -4428,7 +4433,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           })
       }
     }
-  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId])
+  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId, surfaceMissingStudioConnector])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
@@ -5330,6 +5335,14 @@ User message:
 ${actualText}`
         }
 
+        if (studioConnectionsLoadedRef.current && studioConnectedLabels.length > 0) {
+          actualText = `<knapsack_studio_context>
+This trusted account-wide connector inventory is supplied by Knapsack Desktop and applies to every agent chat. Connected now: ${studioConnectedLabels.join(', ')}. Use the Studio connector tools when relevant. Do not claim one of these is disconnected unless a tool call returns an authorization error.
+</knapsack_studio_context>
+
+${actualText}`
+        }
+
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
         if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedModeAtSend, developerModeAtSend)) {
@@ -5425,6 +5438,10 @@ ${actualText}`
               provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
+              // Keep the user's unaugmented message separate from trusted
+              // connector/persona context so backend intent shortcuts do not
+              // mistake context inventory entries for the user's request.
+              userText: text,
               sessionId,
               noFallback: requiresHarness,
               ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {
@@ -5511,6 +5528,7 @@ ${actualText}`
                     )
                   }
                 }
+                surfaceMissingStudioConnector(displayText)
                 setMsgs(prev => [
                   ...prev,
                   {

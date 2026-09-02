@@ -88,3 +88,53 @@ test('recognizes agent responses reporting a missing connector', async () => {
   assert.equal(reportsMissingStudioConnector('The ClickUp connector is unavailable.'), true)
   assert.equal(reportsMissingStudioConnector('I created the ClickUp task.'), false)
 })
+
+test('chat applies account-wide connector context and inline recovery to gateway replies', async () => {
+  const chatSource = await fs.readFile(
+    new URL('../src/components/organisms/ClawdChat/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(chatSource, /trusted account-wide connector inventory/)
+  assert.match(chatSource, /userText: text/)
+  assert.match(chatSource, /surfaceMissingStudioConnector\(displayText\)/)
+  assert.match(chatSource, /studioAvailableConnectorsRef\.current,\s*true,/)
+})
+
+test('embedded browser tab and screenshot polling are independently serialized', async () => {
+  const browserSource = await fs.readFile(
+    new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(browserSource, /tabsPendingRef/)
+  assert.match(browserSource, /window\.setTimeout\(pollTabs, TABS_INTERVAL_MS\)/)
+  assert.match(browserSource, /window\.setTimeout\(pollScreenshot, SCREENSHOT_INTERVAL_MS\)/)
+  const tabPoller = browserSource.slice(browserSource.indexOf('const pollTabs'), browserSource.indexOf('const pollScreenshot'))
+  const screenshotPollerStart = browserSource.indexOf('const pollScreenshot')
+  const screenshotPoller = browserSource.slice(
+    screenshotPollerStart,
+    browserSource.indexOf('}, [refreshScreenshot])', screenshotPollerStart),
+  )
+  assert.doesNotMatch(tabPoller, /refreshScreenshot/)
+  assert.doesNotMatch(screenshotPoller, /refreshTabs/)
+  assert.doesNotMatch(browserSource, /window\.setInterval\(refreshScreenshot/)
+  assert.doesNotMatch(browserSource, /const tabsTimer = window\.setInterval/)
+})
+
+test('group runtime bypasses single-agent shortcuts and aborts timed-out members', async () => {
+  const browserBackendSource = await fs.readFile(
+    new URL('../src-tauri/src/clawd/browser.rs', `file://${__filename}`),
+    'utf8',
+  )
+  const harnessSource = await fs.readFile(
+    new URL('../src-tauri/src/clawd/harness.rs', `file://${__filename}`),
+    'utf8',
+  )
+  const gatewaySource = await fs.readFile(
+    new URL('../src-tauri/src/clawd/gateway_client.rs', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(browserBackendSource, /if !is_group_agent_request\(&body\)/)
+  assert.match(browserBackendSource, /google_capability_reply\(email, user_text\)/)
+  assert.match(harnessSource, /abort_chat_session\(&session_key, None\)/)
+  assert.match(gatewaySource, /"chat\.abort"/)
+})

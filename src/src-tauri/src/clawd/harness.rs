@@ -1,5 +1,5 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
-use futures::future::try_join_all;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -18,6 +18,10 @@ const DEFAULT_HERMES_MODEL: &str = "hermes-agent";
 // Leave a small transport/UI buffer inside the frontend's 300-second budget.
 // Every OpenClaw phase shares this one deadline.
 const HARNESS_TIMEOUT: Duration = Duration::from_secs(285);
+// Leave enough of the overall request budget for the final synthesis even when
+// one member gets stuck in a tool loop. Members run concurrently, so this caps
+// the slowest contribution without penalizing teammates that already finished.
+const GROUP_MEMBER_TIMEOUT: Duration = Duration::from_secs(180);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentHarnessKind {
@@ -255,21 +259,72 @@ async fn run_openclaw_group(request: &HarnessRequest<'_>) -> Result<String, Stri
     let prompt = openclaw_group_member_prompt(member, request.message);
     let session_key = openclaw_group_member_session_key(&parent_session_key, &member.id);
     async move {
-      let result = tokio::time::timeout(
-        remaining_until(deadline)?,
+      let result = match tokio::time::timeout(
+        remaining_until(deadline)?.min(GROUP_MEMBER_TIMEOUT),
         gateway_client::agent_chat(&prompt, request.attachments, None, None, Some(&session_key)),
       )
       .await
-      .map_err(|_| format!("{} did not finish before the group deadline", member.name))??;
+      {
+        Ok(result) => result?,
+        Err(_) => {
+          match tokio::time::timeout(
+            Duration::from_secs(10),
+            gateway_client::abort_chat_session(&session_key, None),
+          )
+          .await
+          {
+            Ok(Ok(_)) => eprintln!(
+              "[clawd-harness] aborted timed-out group member session {session_key}"
+            ),
+            Ok(Err(error)) => eprintln!(
+              "[clawd-harness] failed to abort timed-out group member session {session_key}: {error}"
+            ),
+            Err(_) => eprintln!(
+              "[clawd-harness] timed out aborting group member session {session_key}"
+            ),
+          }
+          return Err(format!(
+            "{} did not finish before the group deadline",
+            member.name
+          ));
+        }
+      };
       let reply = parse_openclaw_reply(&result)
         .map_err(|error| format!("{} could not contribute: {error}", member.name))?;
       Ok::<(String, String), String>((member.name.clone(), reply))
     }
   });
 
-  let contributions = try_join_all(calls).await?;
+  let results = join_all(calls).await;
+  let (contributions, failures) = partition_group_results(results);
+  if contributions.is_empty() {
+    return Err(format!(
+      "No team member completed successfully: {}",
+      failures.join("; ")
+    ));
+  }
+  if !failures.is_empty() {
+    eprintln!(
+      "[clawd-harness] continuing group synthesis after member failures: {}",
+      failures.join("; ")
+    );
+  }
 
   synthesize_openclaw_group_reply(request, &parent_session_key, &contributions, deadline).await
+}
+
+fn partition_group_results(
+  results: Vec<Result<(String, String), String>>,
+) -> (Vec<(String, String)>, Vec<String>) {
+  let mut contributions = Vec::new();
+  let mut failures = Vec::new();
+  for result in results {
+    match result {
+      Ok(contribution) => contributions.push(contribution),
+      Err(error) => failures.push(error),
+    }
+  }
+  (contributions, failures)
 }
 
 fn openclaw_group_member_session_key(parent_session_key: &str, member_id: &str) -> String {
@@ -1312,6 +1367,21 @@ mod tests {
     assert!(prompt.contains("ask contributors follow-up questions"));
     assert!(prompt.contains("Scout:\nInspect the evidence."));
     assert!(prompt.contains("Atlas:\nMake a decision."));
+  }
+
+  #[test]
+  fn group_chat_keeps_successful_contributions_when_a_teammate_fails() {
+    let (contributions, failures) = partition_group_results(vec![
+      Ok(("Scout".to_string(), "Found the relevant email.".to_string())),
+      Err("Atlas timed out while using the browser".to_string()),
+    ]);
+
+    assert_eq!(
+      contributions,
+      vec![("Scout".to_string(), "Found the relevant email.".to_string())]
+    );
+    assert_eq!(failures, vec!["Atlas timed out while using the browser"]);
+    assert!(GROUP_MEMBER_TIMEOUT < HARNESS_TIMEOUT);
   }
 
   #[tokio::test]
