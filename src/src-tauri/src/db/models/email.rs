@@ -465,7 +465,11 @@ impl Email {
     account_email: &str,
   ) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
-    if let Some(mailbox) = account_email.strip_prefix("microsoft:") {
+    let mailbox = account_email
+      .strip_prefix("microsoft:")
+      .unwrap_or(account_email)
+      .trim();
+    if !mailbox.is_empty() {
       let mailbox_pattern = format!("%{}%", mailbox.to_ascii_lowercase());
       connection.execute(
         "UPDATE emails SET account_email = ?2 WHERE thread_id = ?1 AND TRIM(account_email) = '' AND (LOWER(sender) LIKE ?3 OR LOWER(recipient) LIKE ?3 OR LOWER(cc) LIKE ?3) AND NOT EXISTS (SELECT 1 FROM emails scoped WHERE scoped.email_uid = emails.email_uid AND scoped.account_email = ?2)",
