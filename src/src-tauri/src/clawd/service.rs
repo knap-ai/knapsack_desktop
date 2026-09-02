@@ -9803,6 +9803,27 @@ pub async fn set_api_key(
       std::env::set_var("GEMINI_API_KEY", k);
       std::env::set_var("GOOGLE_API_KEY", k);
     }
+    if let Some(m) = &tokens.openai_model {
+      std::env::set_var("KNAPSACK_OPENAI_MODEL", m);
+    }
+    if let Some(m) = &tokens.anthropic_model {
+      std::env::set_var("KNAPSACK_ANTHROPIC_MODEL", m);
+    }
+    if let Some(m) = &tokens.gemini_model {
+      std::env::set_var("KNAPSACK_GEMINI_MODEL", m);
+    }
+    if let Some(m) = &tokens.groq_model {
+      std::env::set_var("KNAPSACK_GROQ_MODEL", m);
+    }
+    if let Some(m) = &tokens.xai_model {
+      std::env::set_var("KNAPSACK_XAI_MODEL", m);
+    }
+    if let Some(m) = &tokens.openrouter_model {
+      std::env::set_var("KNAPSACK_OPENROUTER_MODEL", m);
+    }
+    if let Some(m) = &tokens.trustedrouter_model {
+      std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", m);
+    }
     if let Some(k) = &tokens.groq_api_key {
       std::env::set_var("GROQ_API_KEY", k);
     }

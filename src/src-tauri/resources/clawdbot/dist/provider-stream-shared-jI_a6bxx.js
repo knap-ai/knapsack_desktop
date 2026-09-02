@@ -232,6 +232,11 @@ function isGoogleGemini3FlashModel(modelId) {
 	const normalized = normalizeLowercaseStringOrEmpty(modelId);
 	return /(?:^|\/)gemini-(?:3(?:\.\d+)?-flash|flash(?:-lite)?-latest)(?:-|$)/.test(normalized);
 }
+function isGoogleGemini37OrNewerFlashModel(modelId) {
+	const normalized = normalizeLowercaseStringOrEmpty(modelId);
+	const match = normalized.match(/(?:^|\/)gemini-3\.(\d+)-flash(?:-|$)/);
+	return match ? Number(match[1]) >= 7 : false;
+}
 /** @deprecated Google provider-owned stream helper; do not use from third-party plugins. */
 function isGoogleGemini3ThinkingLevelModel(modelId) {
 	return isGoogleGemini3ProModel(modelId) || isGoogleGemini3FlashModel(modelId);
@@ -258,9 +263,10 @@ function resolveGoogleGemini3ThinkingLevel(params) {
 		return;
 	}
 	if (!isGoogleGemini3FlashModel(params.modelId)) return;
+	const lowIsMinimum = isGoogleGemini37OrNewerFlashModel(params.modelId);
 	switch (params.thinkingLevel) {
-		case "off":
-		case "minimal": return "MINIMAL";
+		case "off": return lowIsMinimum ? void 0 : "MINIMAL";
+		case "minimal": return lowIsMinimum ? "LOW" : "MINIMAL";
 		case "low": return "LOW";
 		case "medium": return "MEDIUM";
 		case "high":
@@ -271,7 +277,7 @@ function resolveGoogleGemini3ThinkingLevel(params) {
 	}
 	if (typeof params.thinkingBudget !== "number") return;
 	if (params.thinkingBudget < 0) return;
-	if (params.thinkingBudget <= 0) return "MINIMAL";
+	if (params.thinkingBudget <= 0) return lowIsMinimum ? void 0 : "MINIMAL";
 	if (params.thinkingBudget <= 2048) return "LOW";
 	if (params.thinkingBudget <= 8192) return "MEDIUM";
 	return "HIGH";
@@ -393,4 +399,4 @@ function createGoogleThinkingStreamWrapper(ctx) {
 	return createGoogleThinkingPayloadWrapper(ctx.streamFn, ctx.thinkingLevel);
 }
 //#endregion
-export { stripInvalidGoogleThinkingBudget as _, createGoogleThinkingStreamWrapper as a, createZaiToolStreamWrapper as b, defaultToolStreamExtraParams as c, isGoogleGemini3ProModel as d, isGoogleGemini3ThinkingLevelModel as f, sanitizeGoogleThinkingPayload as g, resolveGoogleGemini3ThinkingLevel as h, createGoogleThinkingPayloadWrapper as i, isGoogleGemini25ThinkingBudgetModel as l, isOpenAICompatibleThinkingEnabled as m, createAnthropicThinkingPrefillPayloadWrapper as n, createPayloadPatchStreamWrapper as o, isGoogleThinkingRequiredModel as p, createDeepSeekV4OpenAICompatibleThinkingWrapper as r, createThinkingOnlyFinalTextWrapper as s, composeProviderStreamWrappers as t, isGoogleGemini3FlashModel as u, stripTrailingAnthropicAssistantPrefillWhenThinking as v, createToolStreamWrapper as y };
+export { stripInvalidGoogleThinkingBudget as _, createGoogleThinkingStreamWrapper as a, createZaiToolStreamWrapper as b, defaultToolStreamExtraParams as c, isGoogleGemini3ProModel as d, isGoogleGemini3ThinkingLevelModel as f, sanitizeGoogleThinkingPayload as g, resolveGoogleGemini3ThinkingLevel as h, createGoogleThinkingPayloadWrapper as i, isGoogleGemini25ThinkingBudgetModel as l, isOpenAICompatibleThinkingEnabled as m, createAnthropicThinkingPrefillPayloadWrapper as n, createPayloadPatchStreamWrapper as o, isGoogleThinkingRequiredModel as p, createDeepSeekV4OpenAICompatibleThinkingWrapper as r, createThinkingOnlyFinalTextWrapper as s, composeProviderStreamWrappers as t, isGoogleGemini3FlashModel as u, stripTrailingAnthropicAssistantPrefillWhenThinking as v, isGoogleGemini37OrNewerFlashModel as w, createToolStreamWrapper as y };

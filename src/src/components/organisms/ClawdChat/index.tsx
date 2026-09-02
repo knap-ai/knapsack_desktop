@@ -1686,6 +1686,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             data-testid="qa-clawd-chat-input"
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
+              window.dispatchEvent(new Event('knapsack:chat-input-activity'))
               const nextInput = e.currentTarget.value
               inputRef.current = nextInput
               const nextHasInput = nextInput.trim().length > 0
@@ -1961,6 +1962,7 @@ interface ClawdChatProps {
   onBusyChange?: (busy: boolean) => void
   onProviderPanelOpenChange?: (open: boolean) => void
   onAssistantMessage?: (chatId: string) => void
+  onOpenBrowser?: () => void
   nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
@@ -1990,7 +1992,23 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+function collapseExactRepeatedReply(text: string): string {
+  const trimmed = text.trim()
+  if (trimmed.length < 40) return text
+  for (let separatorLength = 0; separatorLength <= 2; separatorLength += 1) {
+    const contentLength = trimmed.length - separatorLength
+    if (contentLength <= 0 || contentLength % 2 !== 0) continue
+    const midpoint = contentLength / 2
+    const separator = trimmed.slice(midpoint, midpoint + separatorLength)
+    if (separator.trim()) continue
+    const first = trimmed.slice(0, midpoint)
+    const second = trimmed.slice(midpoint + separatorLength)
+    if (first === second) return first
+  }
+  return text
+}
+
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -5502,7 +5520,7 @@ ${actualText}`
               // (e.g. "401 Missing Authentication header"), fall back to direct chat
               // so friendlyError can surface a helpful message instead.
               // No length cap — verbose gateway errors (>250 chars) must also be caught.
-              const rawReply = agentOut.reply.trim()
+              const rawReply = collapseExactRepeatedReply(agentOut.reply).trim()
               const httpErrorMatch = /^([345]\d{2}) /.test(rawReply)
               const degradedCapabilityReply = isBrokenAgentCapabilityReply(rawReply)
               if (agentOut.gateway && (httpErrorMatch || degradedCapabilityReply)) {
@@ -5516,7 +5534,7 @@ ${actualText}`
                   harness: agentOut.harness,
                   gateway: agentOut.gateway,
                 })
-                let displayText = agentOut.reply!
+                let displayText = rawReply
                 // When the gateway surfaces an error (rate limit, auth, key), enrich the message
                 if (agentOut.gateway) {
                   const lowerReply = displayText.toLowerCase()
@@ -5612,13 +5630,14 @@ ${actualText}`
 
             const out = await res.json() as { ok?: boolean; reply?: string; error?: string; message?: string; model?: string; usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number } }
             if (out.reply) {
+              const reply = collapseExactRepeatedReply(out.reply)
               setMsgs(prev => [
                 ...prev,
-                { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
+                { id: crypto.randomUUID(), role: 'assistant', text: reply, ts: Date.now(), model: out.model },
               ])
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
-              saveAgentMemory('knapsack-chat', out.reply)
+              saveAgentMemory('knapsack-chat', reply)
             } else {
               pushAssistant(
                 appendSupportDiagnosticsAction(
@@ -6063,6 +6082,11 @@ ${actualText}`
           <button disabled={busy} onClick={clearHistory} title="Clear chat history and start fresh">
             Clear
           </button>
+          {onOpenBrowser && (
+            <button onClick={onOpenBrowser} title="Open embedded browser">
+              Browser
+            </button>
+          )}
           {voiceEnabled && (
             <button
               className="voice-enabled"
