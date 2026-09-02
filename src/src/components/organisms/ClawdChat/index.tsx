@@ -3969,6 +3969,25 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [recoverProviderSwitchFromBackend, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    const timers = new Set<ReturnType<typeof setTimeout>>()
+    const schedule = (callback: () => void | Promise<void>, delayMs: number) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        if (!cancelled) void callback()
+      }, delayMs)
+      timers.add(timer)
+    }
+    const delay = (delayMs: number) =>
+      new Promise<void>(resolve => {
+        const timer = setTimeout(() => {
+          timers.delete(timer)
+          if (!cancelled) resolve()
+        }, delayMs)
+        timers.add(timer)
+      })
+
     const init = async () => {
       // Only show welcome messages if no chat history exists
       if (msgs.length === 0) {
@@ -3988,7 +4007,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             break
           } catch {
             // Backend not ready yet — wait and retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+            await delay(1000 * (attempt + 1))
           }
         }
         if (!s) {
@@ -4003,7 +4022,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             await apiPost('/api/clawd/service/enable', { enabled: true })
           } catch {
             // First enable attempt failed — wait and retry
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            await delay(2000)
             await apiPost('/api/clawd/service/enable', { enabled: true })
           }
           // Wait for gateway to become healthy (with exponential backoff on backend).
@@ -4012,7 +4031,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             await fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready')
           } catch {
             // Backend might not be reachable yet — fall back to a short delay
-            await new Promise(resolve => setTimeout(resolve, 4000))
+            await delay(4000)
           }
         }
 
@@ -4035,8 +4054,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         // Starts at 1s, doubles each failure up to 15s max.
         let catchBackoffMs = 1000
         const pollGateway = async () => {
+          if (cancelled) return
           try {
             const h = await apiGet<ServiceHealth>('/api/clawd/service/health', { timeoutMs: 6500 })
+            if (cancelled) return
             const hJson = JSON.stringify(h)
             if (hJson !== lastHealthJson) {
               lastHealthJson = hJson
@@ -4044,6 +4065,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             }
             // Also refresh service status periodically
             const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status', { timeoutMs: 6500 })
+            if (cancelled) return
             const s2Json = JSON.stringify(s2)
             if (s2Json !== lastStatusJson) {
               lastStatusJson = s2Json
@@ -4062,7 +4084,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
               browserNotReadyCount = 0
               setBrowserNotReadyPolls(0)
               setGatewayDownPolls(0)
-              setTimeout(pollGateway, 5000)
+              schedule(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
               // Poll every 3s so we detect browser readiness quickly. The
@@ -4084,7 +4106,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
                     browserRecoveryInFlight = false
                   })
               }
-              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
+              schedule(pollGateway, HEALTH_POLL_INTERVAL_MS)
             } else {
               // Gateway is down (reconnecting state).
               // Health-check-driven reconnect: poll every 3s so the UI transitions
@@ -4113,7 +4135,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
 
-              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
+              schedule(pollGateway, HEALTH_POLL_INTERVAL_MS)
             }
           } catch {
             // HTTP backend itself is unreachable — back off exponentially (1s→15s)
@@ -4130,29 +4152,34 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
                 setHealth(downHealth)
               }
             }
-            setTimeout(pollGateway, catchBackoffMs)
+            schedule(pollGateway, catchBackoffMs)
             catchBackoffMs = Math.min(catchBackoffMs * 2, 15000)
           }
         }
         // Start polling after 500ms — gives the gateway a moment to start
         // before the first check (handles the startup race condition).
-        setTimeout(pollGateway, 500)
+        schedule(pollGateway, 500)
       } catch (e) {
         console.error('Failed to auto-enable service:', e)
       }
 
       // Check for API key after a short delay to let status load
-      setTimeout(() => {
+      schedule(() => {
         checkAndPromptForKey()
       }, 500)
 
       // Fetch skills status after gateway has time to connect
-      setTimeout(() => {
+      schedule(() => {
         fetchSkills()
       }, 6000)
     }
-    init()
-  }, [])
+    void init()
+    return () => {
+      cancelled = true
+      timers.forEach(timer => clearTimeout(timer))
+      timers.clear()
+    }
+  }, [active])
 
   // Track whether user is near the bottom of the chat
   const handleChatScroll = useCallback(() => {
