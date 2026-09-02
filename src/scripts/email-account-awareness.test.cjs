@@ -86,6 +86,7 @@ test('full Email Autopilot preserves each message provider for actions', () => {
   assert.match(autopilot, /sourceProvider\?: ConnectionKeys\.GOOGLE_PROFILE/)
   assert.match(autopilot, /const provider = sourceProvider \|\|/)
   assert.match(autopilot, /profileProvider=\{email\.provider\}/)
+  assert.match(autopilot, /onDraftGenerationComplete=\{\(\) => setGeneratingDraftKey\(''\)\}/)
   assert.match(autopilot, /selectedProvider[\s\S]*?selectedEmail\.accountEmail,[\s\S]*?selectedProvider/)
 })
 

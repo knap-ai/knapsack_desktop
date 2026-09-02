@@ -493,6 +493,7 @@ export const EmailAutopilot = ({
                     profileProvider={email.provider}
                     selected={isSelected(emailKey)}
                     isGeneratingDraft={generatingDraftKey === emailKey}
+                    onDraftGenerationComplete={() => setGeneratingDraftKey('')}
                     shouldSendReply={sendingReplyKey === emailKey}
                     actions={actions}
                     updateAction={updateAction}
