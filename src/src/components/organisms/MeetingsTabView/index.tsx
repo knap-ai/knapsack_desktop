@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 
 import { IThread, ThreadType } from 'src/api/threads'
 import {
   Connection,
+  getConnectedIdentityEmails,
   hasCalendarCapability,
   hasEmailCapability,
 } from 'src/api/connections'
@@ -80,6 +81,10 @@ const MeetingsTabView = ({
   userEmail,
   userName,
 }: MeetingsTabViewProps) => {
+  const userEmails = useMemo(
+    () => getConnectedIdentityEmails(connections, userEmail),
+    [connections, userEmail],
+  )
   const [micPermission, setMicPermission] = useState(localStorage.getItem('micPermissionGranted') === 'true')
   const [screenPermission, setScreenPermission] = useState(localStorage.getItem('screenPermissionGranted') === 'true')
   const [permissionsDismissed, setPermissionsDismissed] = useState(
@@ -395,6 +400,7 @@ const MeetingsTabView = ({
                       hasEmailContext={!!connections && hasEmailCapability(connections)}
                       onConnectEmail={onConnectEmail}
                       userEmail={userEmail}
+                      userEmails={userEmails}
                       userName={userName}
                     />
                   ) : null

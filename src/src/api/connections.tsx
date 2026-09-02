@@ -83,6 +83,19 @@ export const hasCalendarCapability = (connections: Record<string, Connection>): 
 export const hasEmailCapability = (connections: Record<string, Connection>): boolean =>
   hasGoogleGmail(connections) || !!connections[ConnectionKeys.MICROSOFT_OUTLOOK]
 
+/** Every email address Knapsack already knows belongs to the signed-in user. */
+export const getConnectedIdentityEmails = (
+  connections: Record<string, Connection> | undefined,
+  primaryEmail?: string,
+): string[] => Array.from(new Set([
+  primaryEmail,
+  ...Object.values(connections ?? {}).flatMap(connection => [
+    connection.calendarAccountEmail,
+    connection.ownerEmail,
+  ]),
+].filter((email): email is string => !!email && email.includes('@'))
+  .map(email => email.trim().toLowerCase())))
+
 export const isConnectionReadyToSync = (connection?: Connection) => {
   return connection?.state && connection.state !== ConnectionStates.SYNCING
 }

@@ -54,6 +54,7 @@ import { getReleaseType } from 'src/api/app_info'
 
 import {
   ConnectionKeys,
+  getConnectedIdentityEmails,
   getGoogleGmailConnections,
   googleConnections,
   microsoftConnections,
@@ -182,6 +183,10 @@ function Home({
     ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
     : (activeAgent?.browserProfile ?? 'openclaw')
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
+  const userEmails = useMemo(
+    () => getConnectedIdentityEmails(connections, userEmail),
+    [connections, userEmail],
+  )
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
   const nativeEmailConnected = useMemo(
     () =>
@@ -809,6 +814,7 @@ function Home({
                     handleAutomationPreview={handleAutomationPreview}
                     addToLLMQueue={addToLLMQueue}
                     userEmail={userEmail}
+                    userEmails={userEmails}
                     userName={userName}
                     onConnectAccountClick={onConnectAccountClick}
                     profileProvider={auth.profile?.provider}

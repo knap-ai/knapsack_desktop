@@ -116,6 +116,7 @@ interface MeetingNotesModeProps {
   hasEmailContext?: boolean
   onConnectEmail?: () => void
   userEmail?: string
+  userEmails?: string[]
   userName?: string
 }
 
@@ -146,6 +147,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   hasEmailContext = false,
   onConnectEmail,
   userEmail,
+  userEmails = [],
   userName,
 }) => {
   useEffect(() => enterMeetingWindowLayout(), [])
@@ -308,15 +310,29 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     [meeting?.participants],
   )
 
+  const userEmailSet = useMemo(
+    () => new Set([userEmail, ...userEmails]
+      .filter((email): email is string => !!email)
+      .map(email => email.trim().toLowerCase())),
+    [userEmail, userEmails],
+  )
+
   const otherParticipants = useMemo(
-    () => meeting?.participants.filter(p => !userEmail || p.email !== userEmail) ?? [],
-    [meeting?.participants, userEmail],
+    () => meeting?.participants.filter(
+      p => !userEmailSet.has(p.email.trim().toLowerCase()),
+    ) ?? [],
+    [meeting?.participants, userEmailSet],
+  )
+
+  const otherParticipantEmails = useMemo(
+    () => otherParticipants.map(participant => participant.email).filter(Boolean),
+    [otherParticipants],
   )
 
   const externalDomains = useMemo(() => {
-    if (!userEmail || attendeeEmails.length === 0) return []
-    return Array.from(new Set(extractWorkDomains(userEmail, attendeeEmails)))
-  }, [attendeeEmails, userEmail])
+    if (!userEmail || otherParticipantEmails.length === 0) return []
+    return Array.from(new Set(extractWorkDomains(userEmail, otherParticipantEmails)))
+  }, [otherParticipantEmails, userEmail])
 
   const buildBriefPrepDocuments = useCallback(async () => {
     if (!meeting || !userEmail || attendeeEmails.length === 0) {
@@ -324,8 +340,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     const dataFetcher = new DataFetcher()
-    const internalEmails = extractInternalEmails(userEmail, attendeeEmails)
-    const externalEmails = extractExternalEmails(userEmail, attendeeEmails)
+    const internalEmails = extractInternalEmails(userEmail, otherParticipantEmails)
+    const externalEmails = extractExternalEmails(userEmail, otherParticipantEmails)
     const sourceSet = new Set<string>(['Calendar'])
     const documents = new Set<number>()
 
@@ -350,7 +366,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     try {
-      const driveIds = await getDriveDocumentsIds(attendeeEmails, userEmail)
+      const driveIds = await getDriveDocumentsIds(otherParticipantEmails, userEmail)
       const driveDocuments = driveIds.length
         ? await getDocumentInfos(
             driveIds,
@@ -371,7 +387,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     if (externalDomains.length > 0) sourceSet.add('Web')
 
     return { documents: Array.from(documents).slice(0, 12), sources: Array.from(sourceSet) }
-  }, [attendeeEmails, externalDomains.length, meeting, userEmail])
+  }, [attendeeEmails.length, externalDomains.length, meeting, otherParticipantEmails, userEmail])
 
   useEffect(() => {
     if (!showCalendarPicker && !showAttendeePicker) return
@@ -711,7 +727,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
     const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
     const participantList = meeting.participants
-      .map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      .map(p => {
+        const participant = p.name ? `${p.name} (${p.email})` : p.email
+        return userEmailSet.has(p.email.trim().toLowerCase()) ? `${participant} [you]` : participant
+      })
       .join(', ')
     const otherParticipantList = otherParticipants
       .map(p => p.name ? `${p.name} (${p.email})` : p.email)
@@ -740,6 +759,7 @@ Write a concise meeting brief in markdown with no preamble and exactly this stru
 Meeting: ${meeting.title || thread.subtitle || 'Meeting'}
 Time: ${startTime}
 User: ${userName || 'Unknown'}${userEmail ? ` <${userEmail}>` : ''}
+User email identities: ${Array.from(userEmailSet).join(', ') || 'unknown'}
 All participants: ${participantList}
 Participants other than the user: ${otherParticipantList || 'unknown'}${desc}
 External domains: ${externalDomains.join(', ') || 'none'}
@@ -778,6 +798,7 @@ Be specific, compact, and useful while the user is joining the call.`,
     thread.recorded,
     thread.subtitle,
     userEmail,
+    userEmailSet,
     userName,
   ])
 

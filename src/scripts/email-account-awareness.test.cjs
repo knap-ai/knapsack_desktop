@@ -163,6 +163,36 @@ test('settings group Google capabilities by the actual connected account', () =>
   assert.doesNotMatch(settings, /return ` via \$\{item\.ownerEmail\}`/)
 })
 
+test('meeting briefs recognize every connected account as the signed-in user', () => {
+  const connectionsApi = fs.readFileSync(
+    path.join(sourceRoot, 'src/api/connections.tsx'),
+    'utf8',
+  )
+  const meetingNotes = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/organisms/MeetingNotesMode/index.tsx'),
+    'utf8',
+  )
+  const meetingsView = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/organisms/MeetingsTabView/index.tsx'),
+    'utf8',
+  )
+  const home = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/templates/Home/Home.tsx'),
+    'utf8',
+  )
+
+  assert.match(connectionsApi, /export const getConnectedIdentityEmails/)
+  assert.match(connectionsApi, /connection\.calendarAccountEmail/)
+  assert.match(connectionsApi, /connection\.ownerEmail/)
+  assert.match(meetingsView, /getConnectedIdentityEmails\(connections, userEmail\)/)
+  assert.match(meetingsView, /userEmails=\{userEmails\}/)
+  assert.match(home, /getConnectedIdentityEmails\(connections, userEmail\)/)
+  assert.match(home, /userEmails=\{userEmails\}/)
+  assert.match(meetingNotes, /const userEmailSet = useMemo/)
+  assert.match(meetingNotes, /userEmailSet\.has\(p\.email\.trim\(\)\.toLowerCase\(\)\)/)
+  assert.match(meetingNotes, /User email identities:/)
+})
+
 test('Gmail actions and replies select the precise connected account', () => {
   const connectionsApi = fs.readFileSync(
     path.join(sourceRoot, 'src/api/connections.tsx'),

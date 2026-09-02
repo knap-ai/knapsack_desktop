@@ -144,8 +144,7 @@ async fn request_studio(
   };
   let timeout = if method == reqwest::Method::POST && path.ends_with("/call") {
     Duration::from_secs(120)
-  } else if method == reqwest::Method::GET
-    && (path.ends_with("/tools") || path.contains("/tools?"))
+  } else if method == reqwest::Method::GET && (path.ends_with("/tools") || path.contains("/tools?"))
   {
     // Large Composio catalogs (GitHub currently exposes about 200 actions)
     // can take longer to generate on a cold Studio cache.
@@ -307,7 +306,9 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   authorize_studio_request(arguments).await?;
   let studio_account = nonempty(read_tokens()?.knapsack_email)
-    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?
+    .ok_or_else(|| {
+      "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string()
+    })?
     .to_ascii_lowercase();
   let connector = arguments
     .get("connector")
@@ -353,12 +354,7 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
         path.push_str("&query=");
         path.push_str(&urlencoding::encode(query));
       }
-      let value = request_studio(
-        reqwest::Method::GET,
-        &path,
-        None,
-      )
-      .await?;
+      let value = request_studio(reqwest::Method::GET, &path, None).await?;
       if let Ok(mut cache) = CONNECTOR_TOOLS_CACHE.lock() {
         cache.insert(
           cache_key,
@@ -520,7 +516,9 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
     .collect::<Vec<_>>()
     .join(", ");
   let description = if !labels.is_empty() {
-    format!("Connected Studio connector id. Currently available: {labels}")
+    format!(
+      "Connected Studio connector id. Currently available: {labels}. Each slack:<account-id> is a distinct authorized Slack workspace. For requests about a named Slack workspace or about all Slack workspaces, use these account-specific Studio connectors; do not infer their coverage from the native Slack channel tool."
+    )
   } else if let Some(error) = discovery_error {
     format!("Connected Studio connector id. Connector discovery is currently unavailable: {error}")
   } else {
@@ -532,7 +530,7 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
   vec![
     json!({
       "name": LIST_TOOL,
-      "description": "Discover actions for one connector already connected through Knapsack Studio. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials.",
+      "description": "Discover actions for one connector already connected through Knapsack Studio. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials. Slack connectors with ids like slack:<account-id> are separate authorized workspaces; use each relevant account-specific connector for named-workspace or cross-workspace requests instead of relying on the native Slack channel tool.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -545,7 +543,7 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
     }),
     json!({
       "name": CALL_TOOL,
-      "description": "Execute an action from a connector already connected through Knapsack Studio. First call list_connector_tools, then use its exact action name and argument schema. Only perform writes or sends when the user requested them.",
+      "description": "Execute an action from a connector already connected through Knapsack Studio. First call list_connector_tools, then use its exact action name and argument schema. Only perform writes or sends when the user requested them. For Slack, preserve the exact slack:<account-id> selected during discovery so the action runs in the intended workspace.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -694,6 +692,8 @@ mod tests {
     assert!(serialized.contains("Slack"));
     assert!(serialized.contains("google_gmail_modify"));
     assert!(serialized.contains("mark@knap.ai"));
+    assert!(serialized.contains("distinct authorized Slack workspace"));
+    assert!(serialized.contains("native Slack channel tool"));
     assert!(!serialized.contains("\"enum\""));
     assert!(!serialized.contains("access_token"));
   }

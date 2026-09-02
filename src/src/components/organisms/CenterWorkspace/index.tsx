@@ -57,6 +57,7 @@ interface CenterWorkspaceProps {
   ) => Promise<void>
   addToLLMQueue: (item: LLMParams) => void
   userEmail: string
+  userEmails?: string[]
   userName: string
   onConnectAccountClick: (key: ConnectionKeys[]) => void
   profileProvider?: string
@@ -105,6 +106,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
   handleAutomationPreview,
   addToLLMQueue,
   userEmail,
+  userEmails,
   userName,
   onConnectAccountClick,
   profileProvider,
@@ -413,6 +415,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       handleOpenTasks={handleOpenTasks}
                       onLibraryWorkspaceOpen={onLibraryWorkspaceOpen}
                       userEmail={userEmail}
+                      userEmails={userEmails}
                       userName={userName}
                       onEmailClick={(notesMarkdown, meeting) => {
                         const participants = meeting?.participants ?? []
