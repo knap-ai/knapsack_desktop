@@ -484,6 +484,16 @@ $ks-red: #c14841;
     font-size: 18px;
   }
 
+  &__team-unread {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border: 2px solid white;
+    border-radius: 50%;
+    background: #c84943;
+    box-shadow: 0 0 0 1px rgba(200, 73, 67, 0.18);
+  }
+
   &__composer-backdrop {
     position: fixed;
     inset: 0;
@@ -625,6 +635,47 @@ $ks-red: #c14841;
       padding: 8px;
       text-align: center;
       font-size: 20px;
+    }
+  }
+
+  &__composer-emoji-picker {
+    margin: 10px 0 0;
+    padding: 0;
+    border: 0;
+
+    legend {
+      margin-bottom: 7px;
+      color: $ks-text-muted;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    > div {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 6px;
+    }
+
+    button {
+      display: grid;
+      width: 100%;
+      aspect-ratio: 1;
+      place-items: center;
+      border: 1px solid $ks-border;
+      border-radius: 9px;
+      background: #fcfcfc;
+      font-size: 19px;
+      cursor: pointer;
+
+      &:hover,
+      &.is-selected {
+        border-color: $ks-accent;
+        background: rgba($ks-accent, 0.08);
+      }
+
+      &.is-selected {
+        box-shadow: 0 0 0 2px rgba($ks-accent, 0.13);
+      }
     }
   }
 

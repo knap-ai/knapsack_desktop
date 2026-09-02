@@ -1321,6 +1321,7 @@ function getMimeTypeFromExt(ext: string): string {
 // only re-render this small component instead of the entire chat body.
 type ChatInputBarProps = {
   busy: boolean
+  providerReady: boolean
   hasQueuedMessage: boolean
   isRecording: boolean
   isTranscribing: boolean
@@ -1337,6 +1338,7 @@ type ChatInputBarProps = {
   replyToMsg?: Msg | null
   onCancelReply?: () => void
   initialValue?: string
+  inputElementRef?: React.MutableRefObject<HTMLTextAreaElement | null>
 }
 
 // ── Memoized single-message renderer ──────────────────────────────────
@@ -1538,10 +1540,11 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
+    inputElementRef,
   } = props
   // Keep the draft in the native textarea instead of React state. This leaves
   // keystrokes on the browser's fast path; React only needs to render when the
@@ -1676,7 +1679,10 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
         </button>
         <div className="ClawdInputWrapper">
           <textarea
-            ref={textareaRef}
+            ref={element => {
+              textareaRef.current = element
+              if (inputElementRef) inputElementRef.current = element
+            }}
             data-testid="qa-clawd-chat-input"
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
@@ -1709,15 +1715,15 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
                 }
               }
             }}
-            placeholder={isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
-            disabled={isRecording}
+            placeholder={!providerReady ? 'Refreshing your selected AI provider...' : isRecording ? '🎤 Listening...' : busy ? 'Type your next message (Enter to queue)...' : 'Ask me to browse, search, read pages, or automate tasks...'}
+            disabled={isRecording || !providerReady}
             rows={1}
           />
           {/* Voice mode toggle - always visible inside input like ChatGPT */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
             onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
-            disabled={busy || isTranscribing}
+            disabled={busy || isTranscribing || !providerReady}
             title={
               !voiceEnabled
                 ? 'Enable voice mode'
@@ -1752,7 +1758,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             </button>
           </>
         ) : (
-          <button disabled={!hasInput && attachedFiles.length === 0} onClick={handleSend}>
+          <button disabled={!providerReady || (!hasInput && attachedFiles.length === 0)} onClick={handleSend}>
             Send
           </button>
         )}
@@ -1945,6 +1951,8 @@ function ChannelAllowlistSection({ channel, isConnected }: { channel: string; is
 }
 
 interface ClawdChatProps {
+  /** Whether this mounted chat currently owns global shortcuts and app events. */
+  active?: boolean
   showActivityPanel?: boolean
   onToggleActivity?: () => void
   onCloseActivity?: () => void
@@ -1952,6 +1960,7 @@ interface ClawdChatProps {
   userName?: string
   onBusyChange?: (busy: boolean) => void
   onProviderPanelOpenChange?: (open: boolean) => void
+  onAssistantMessage?: (chatId: string) => void
   nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
@@ -1981,7 +1990,9 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+  const activeRef = useRef(active)
+  activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
   // Load chat history from localStorage on mount
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -2004,6 +2015,8 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [chatFindQuery, setChatFindQuery] = useState('')
   const [chatFindActiveIndex, setChatFindActiveIndex] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [providerSelectionRefreshing, setProviderSelectionRefreshing] = useState(active)
+  const providerSelectionRefreshRef = useRef<Promise<void> | null>(null)
   const [showCompactControls, setShowCompactControls] = useState(false)
   const compactControlsRef = useRef<HTMLDivElement | null>(null)
 
@@ -2180,6 +2193,19 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   const [showDeveloperWarning, setShowDeveloperWarning] = useState(false)
   const [showDevPanel, setShowDevPanel] = useState(false)
 
+  // These preferences are global even though retained chats keep their local
+  // UI state. Re-read them whenever this instance becomes visible.
+  useEffect(() => {
+    if (!active) return
+    const storedAutonomy = localStorage.getItem(AUTONOMY_MODE_STORAGE)
+    setAutonomyMode(storedAutonomy === 'assist' || storedAutonomy === 'autonomous' ? storedAutonomy : 'autonomous')
+    setAdvancedMode(localStorage.getItem(ADVANCED_MODE_STORAGE) === 'true')
+    setDeveloperMode(localStorage.getItem(DEVELOPER_MODE_STORAGE) === 'true')
+    setSelectedTone(localStorage.getItem(TONE_STORAGE) || 'snarky')
+    const storedProactive = localStorage.getItem(PROACTIVE_MODE_STORAGE)
+    setProactiveMode(storedProactive === null ? false : storedProactive === 'true')
+  }, [active])
+
   // Activity panel is now controlled by parent via props
 
   // Skills panel state
@@ -2297,12 +2323,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   thinkingMessageRef.current = thinkingMessage
 
   // Gateway service state — channel connection status
-  const channelStatus = useChannelStatus(true, 15_000)
+  const channelStatus = useChannelStatus(active, 15_000)
   useEffect(() => {
+    if (!active) return
     if (expandedChannel === 'slack' || channelStatus.genericChannels.slack?.configured) {
       void refreshSlackAccounts()
     }
-  }, [expandedChannel, channelStatus.genericChannels.slack?.configured, refreshSlackAccounts])
+  }, [active, expandedChannel, channelStatus.genericChannels.slack?.configured, refreshSlackAccounts])
   const hasAnyChannel = !!(
     isChannelRuntimeConnected(channelStatus.whatsapp) ||
     isChannelRuntimeConnected(channelStatus.imessage) ||
@@ -2460,7 +2487,35 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     // Check backend for a valid key (single source of truth)
     try {
-      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
+        timeoutMs: 4000,
+      })
+      setHasCompletedOnboarding(Boolean(keyStatus.has_key))
+      setKeyHints({
+        openai: keyStatus.openai_key_hint,
+        anthropic: keyStatus.anthropic_key_hint,
+        gemini: keyStatus.gemini_key_hint,
+        groq: keyStatus.groq_key_hint,
+        xai: keyStatus.xai_key_hint,
+        openrouter: keyStatus.openrouter_key_hint,
+        trustedrouter: keyStatus.trustedrouter_key_hint,
+      })
+      setSavedProviderKeys({
+        knapsack: Boolean(keyStatus.has_knapsack),
+        openai: Boolean(keyStatus.has_openai_key),
+        anthropic: Boolean(keyStatus.has_anthropic_key),
+        gemini: Boolean(keyStatus.has_gemini_key),
+        groq: Boolean(keyStatus.has_groq_key),
+        xai: Boolean(keyStatus.has_xai_key),
+        openrouter: Boolean(keyStatus.has_openrouter_key),
+        trustedrouter: Boolean(keyStatus.has_trustedrouter_key),
+      })
+      setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+      if (keyStatus.knapsack_auth_expired) {
+        setKnapsackConnectError('Your Knapsack Studio session expired. Reconnect to use Studio integrations.')
+      } else {
+        setKnapsackConnectError(null)
+      }
         if (keyStatus.has_key) {
           setHasCompletedOnboarding(true)
         if (keyStatus.model && keyStatus.active_provider) {
@@ -3274,8 +3329,17 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // forward file data through the browser's drop event, so we handle drops
   // via Tauri's event system to actually attach the files.
   useEffect(() => {
+    if (!active) return
+    setVoiceEnabled(localStorage.getItem(VOICE_MODE_STORAGE) === 'true')
     let cancelled = false
     const cleanups: Array<() => void> = []
+    const registerCleanup = (unlisten: () => void) => {
+      if (cancelled) {
+        unlisten()
+      } else {
+        cleanups.push(unlisten)
+      }
+    }
 
     ;(async () => {
       const unlistenDrop = await tauriListen<string[]>('tauri://file-drop', async (event) => {
@@ -3336,27 +3400,27 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         }
       })
-      cleanups.push(unlistenDrop)
+      registerCleanup(unlistenDrop)
 
       const unlistenHover = await tauriListen<string[]>('tauri://file-drop-hover', () => {
         if (cancelled) return
         setIsDragOver(true)
       })
-      cleanups.push(unlistenHover)
+      registerCleanup(unlistenHover)
 
       const unlistenCancel = await tauriListen('tauri://file-drop-cancelled', () => {
         if (cancelled) return
         setIsDragOver(false)
         dragCounter.current = 0
       })
-      cleanups.push(unlistenCancel)
+      registerCleanup(unlistenCancel)
     })()
 
     return () => {
       cancelled = true
       cleanups.forEach(fn => fn())
     }
-  }, [])
+  }, [active])
 
   // Listen for Claude Code started/exited events to auto-open Activity Panel
   // and show an indicator in the chat while it's running.
@@ -3366,8 +3430,16 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   externalActivityPanelRef.current = externalActivityPanel
 
   useEffect(() => {
+    if (!active) return
     let cancelled = false
     const cleanups: Array<() => void> = []
+    const registerCleanup = (unlisten: () => void) => {
+      if (cancelled) {
+        unlisten()
+        return
+      }
+      cleanups.push(unlisten)
+    }
 
     ;(async () => {
       const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string; agent?: string }>(
@@ -3384,7 +3456,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         },
       )
-      cleanups.push(unlistenStarted)
+      registerCleanup(unlistenStarted)
 
       const unlistenExit = await tauriListen<{ processId: string; sessionId: string; exitCode: number }>(
         'streaming-exit',
@@ -3397,7 +3469,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         },
       )
-      cleanups.push(unlistenExit)
+      registerCleanup(unlistenExit)
 
       // Listen for open-activity-panel events from the AI agent
       const unlistenOpenPanel = await tauriListen<Record<string, never>>(
@@ -3409,7 +3481,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           }
         },
       )
-      cleanups.push(unlistenOpenPanel)
+      registerCleanup(unlistenOpenPanel)
 
       // Forward compose-email-ready events to the window so Home.tsx can switch tabs
       const unlistenCompose = await tauriListen<Record<string, unknown>>(
@@ -3419,13 +3491,13 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: event.payload }))
         },
       )
-      cleanups.push(unlistenCompose)
+      registerCleanup(unlistenCompose)
 
       // Knapsack deep-link auth callback from the OS URL scheme handler
       const unlistenKnapsackConnected = await tauriListen<{ email: string }>(
         'knapsack-connected',
         (event) => {
-          if (cancelled) return
+          if (cancelled || !activeRef.current) return
           const { email } = event.payload
           setKnapsackEmail(email)
           setIsKnapsackConnecting(false)
@@ -3438,24 +3510,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           pushAssistant(`Connected to Knapsack as **${email}**.`)
         },
       )
-      cleanups.push(unlistenKnapsackConnected)
+      registerCleanup(unlistenKnapsackConnected)
 
       const unlistenKnapsackError = await tauriListen<{ error: string }>(
         'knapsack-auth-error',
         (event) => {
-          if (cancelled) return
+          if (cancelled || !activeRef.current) return
           setIsKnapsackConnecting(false)
           setKnapsackConnectError(event.payload.error || 'Connection failed')
         },
       )
-      cleanups.push(unlistenKnapsackError)
+      registerCleanup(unlistenKnapsackError)
     })()
 
     return () => {
       cancelled = true
       cleanups.forEach(fn => fn())
     }
-  }, [])
+  }, [active])
 
   // Gateway service handler removed - channels UI removed in this version
 
@@ -3564,7 +3636,35 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const syncProviderSelectionFromBackend = useCallback(async () => {
     try {
-      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
+        timeoutMs: 4000,
+      })
+      setHasCompletedOnboarding(Boolean(keyStatus.has_key))
+      setKeyHints({
+        openai: keyStatus.openai_key_hint,
+        anthropic: keyStatus.anthropic_key_hint,
+        gemini: keyStatus.gemini_key_hint,
+        groq: keyStatus.groq_key_hint,
+        xai: keyStatus.xai_key_hint,
+        openrouter: keyStatus.openrouter_key_hint,
+        trustedrouter: keyStatus.trustedrouter_key_hint,
+      })
+      setSavedProviderKeys({
+        knapsack: Boolean(keyStatus.has_knapsack),
+        openai: Boolean(keyStatus.has_openai_key),
+        anthropic: Boolean(keyStatus.has_anthropic_key),
+        gemini: Boolean(keyStatus.has_gemini_key),
+        groq: Boolean(keyStatus.has_groq_key),
+        xai: Boolean(keyStatus.has_xai_key),
+        openrouter: Boolean(keyStatus.has_openrouter_key),
+        trustedrouter: Boolean(keyStatus.has_trustedrouter_key),
+      })
+      setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
+      setKnapsackConnectError(
+        keyStatus.knapsack_auth_expired
+          ? 'Your Knapsack Studio session expired. Reconnect to use Studio integrations.'
+          : null,
+      )
       const activeProvider = keyStatus.active_provider as Provider | undefined
       if (activeProvider) {
         setSelectedProvider(activeProvider)
@@ -3620,6 +3720,22 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // Keep the optimistic local selection if backend sync is temporarily unavailable.
     }
   }, [])
+
+  // Persisted chats remain mounted so background requests can finish. Refresh
+  // the global provider/model selection whenever one becomes active again.
+  useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    setProviderSelectionRefreshing(true)
+    const refresh = syncProviderSelectionFromBackend().finally(() => {
+      if (providerSelectionRefreshRef.current === refresh) {
+        providerSelectionRefreshRef.current = null
+      }
+      if (!cancelled) setProviderSelectionRefreshing(false)
+    })
+    providerSelectionRefreshRef.current = refresh
+    return () => { cancelled = true }
+  }, [active, syncProviderSelectionFromBackend])
 
   const recoverProviderSwitchFromBackend = useCallback(async (expectedProvider: Provider) => {
     try {
@@ -3861,6 +3977,25 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [recoverProviderSwitchFromBackend, selectedModel, selectedAnthropicModel, selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel, selectedTrustedRouterModel, selectedKnapsackModel, saveOllamaProvider, syncProviderSelectionFromBackend])
 
   useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    const timers = new Set<ReturnType<typeof setTimeout>>()
+    const schedule = (callback: () => void | Promise<void>, delayMs: number) => {
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        if (!cancelled) void callback()
+      }, delayMs)
+      timers.add(timer)
+    }
+    const delay = (delayMs: number) =>
+      new Promise<void>(resolve => {
+        const timer = setTimeout(() => {
+          timers.delete(timer)
+          if (!cancelled) resolve()
+        }, delayMs)
+        timers.add(timer)
+      })
+
     const init = async () => {
       // Only show welcome messages if no chat history exists
       if (msgs.length === 0) {
@@ -3880,7 +4015,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             break
           } catch {
             // Backend not ready yet — wait and retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)))
+            await delay(1000 * (attempt + 1))
           }
         }
         if (!s) {
@@ -3895,7 +4030,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             await apiPost('/api/clawd/service/enable', { enabled: true })
           } catch {
             // First enable attempt failed — wait and retry
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            await delay(2000)
             await apiPost('/api/clawd/service/enable', { enabled: true })
           }
           // Wait for gateway to become healthy (with exponential backoff on backend).
@@ -3904,7 +4039,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             await fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready')
           } catch {
             // Backend might not be reachable yet — fall back to a short delay
-            await new Promise(resolve => setTimeout(resolve, 4000))
+            await delay(4000)
           }
         }
 
@@ -3927,8 +4062,10 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
         // Starts at 1s, doubles each failure up to 15s max.
         let catchBackoffMs = 1000
         const pollGateway = async () => {
+          if (cancelled) return
           try {
             const h = await apiGet<ServiceHealth>('/api/clawd/service/health', { timeoutMs: 6500 })
+            if (cancelled) return
             const hJson = JSON.stringify(h)
             if (hJson !== lastHealthJson) {
               lastHealthJson = hJson
@@ -3936,6 +4073,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
             }
             // Also refresh service status periodically
             const s2 = await apiGet<ServiceStatus>('/api/clawd/service/status', { timeoutMs: 6500 })
+            if (cancelled) return
             const s2Json = JSON.stringify(s2)
             if (s2Json !== lastStatusJson) {
               lastStatusJson = s2Json
@@ -3954,7 +4092,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
               browserNotReadyCount = 0
               setBrowserNotReadyPolls(0)
               setGatewayDownPolls(0)
-              setTimeout(pollGateway, 5000)
+              schedule(pollGateway, 5000)
             } else if (h.gateway_ok && !h.browser_ok) {
               // Gateway is up but browser is still starting or not reachable.
               // Poll every 3s so we detect browser readiness quickly. The
@@ -3976,7 +4114,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                     browserRecoveryInFlight = false
                   })
               }
-              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
+              schedule(pollGateway, HEALTH_POLL_INTERVAL_MS)
             } else {
               // Gateway is down (reconnecting state).
               // Health-check-driven reconnect: poll every 3s so the UI transitions
@@ -4005,7 +4143,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 fetch('http://127.0.0.1:8897/api/clawd/service/startup-ready').catch(() => {})
               }
 
-              setTimeout(pollGateway, HEALTH_POLL_INTERVAL_MS)
+              schedule(pollGateway, HEALTH_POLL_INTERVAL_MS)
             }
           } catch {
             // HTTP backend itself is unreachable — back off exponentially (1s→15s)
@@ -4022,29 +4160,34 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
                 setHealth(downHealth)
               }
             }
-            setTimeout(pollGateway, catchBackoffMs)
+            schedule(pollGateway, catchBackoffMs)
             catchBackoffMs = Math.min(catchBackoffMs * 2, 15000)
           }
         }
         // Start polling after 500ms — gives the gateway a moment to start
         // before the first check (handles the startup race condition).
-        setTimeout(pollGateway, 500)
+        schedule(pollGateway, 500)
       } catch (e) {
         console.error('Failed to auto-enable service:', e)
       }
 
       // Check for API key after a short delay to let status load
-      setTimeout(() => {
+      schedule(() => {
         checkAndPromptForKey()
       }, 500)
 
       // Fetch skills status after gateway has time to connect
-      setTimeout(() => {
+      schedule(() => {
         fetchSkills()
       }, 6000)
     }
-    init()
-  }, [])
+    void init()
+    return () => {
+      cancelled = true
+      timers.forEach(timer => clearTimeout(timer))
+      timers.clear()
+    }
+  }, [active])
 
   // Track whether user is near the bottom of the chat
   const handleChatScroll = useCallback(() => {
@@ -4145,10 +4288,11 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   }, [knapsackEmail])
 
   useEffect(() => {
+    if (!active) return
     void refreshStudioConnections()
     window.addEventListener('focus', refreshStudioConnections)
     return () => window.removeEventListener('focus', refreshStudioConnections)
-  }, [refreshStudioConnections])
+  }, [active, refreshStudioConnections])
 
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
@@ -4232,6 +4376,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       ...prev,
       { id: crypto.randomUUID(), role: 'assistant', text, ts: Date.now() },
     ])
+    onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
     if (voiceEnabled) {
       // Stop any currently playing audio first
@@ -4283,7 +4428,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           })
       }
     }
-  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice])
+  }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
@@ -4292,13 +4437,14 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   // Uses pushAssistantRef (not pushAssistant) to avoid re-subscribing on every
   // render, which causes typing latency in the input box.
   useEffect(() => {
+    if (!active) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) pushAssistantRef.current?.(text)
     }
     window.addEventListener('clawd-push-assistant', handler)
     return () => window.removeEventListener('clawd-push-assistant', handler)
-  }, [])
+  }, [active])
 
   // Listen for suggested action triggers from notification handlers.
   // When the user clicks the primary action button on a notification,
@@ -4309,22 +4455,24 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
   busyRef.current = busy
   const queueMessageRef = useRef<(text: string, attachments?: Attachment[]) => void>(() => {})
   useEffect(() => {
+    if (!active) return
     const handler = (e: Event) => {
       const text = (e as CustomEvent<string>).detail
       if (text) handleSendWithTextRef.current?.(text)
     }
     window.addEventListener('clawd-send-user', handler)
     return () => window.removeEventListener('clawd-send-user', handler)
-  }, [])
+  }, [active])
 
   // Listen for requests to open the developer panel from chat intent detection
   useEffect(() => {
+    if (!active) return
     const handler = () => {
       if (developerMode) setShowDevPanel(true)
     }
     window.addEventListener('clawd-open-dev-panel', handler)
     return () => window.removeEventListener('clawd-open-dev-panel', handler)
-  }, [developerMode])
+  }, [active, developerMode])
 
   const pushUser = (text: string, replyToId?: string) => {
     setMsgs(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text, ts: Date.now(), ...(replyToId ? { replyTo: replyToId } : {}) }])
@@ -4681,6 +4829,26 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
   const doSend = async (text: string, attachmentOverride?: Attachment[]) => {
 
+    // A persisted background chat may have stale provider/model state until it
+    // becomes active. Wait for that activation refresh before snapshotting the
+    // provider so fast clicks and programmatic sends cannot use the old model.
+    if (providerSelectionRefreshRef.current) {
+      await providerSelectionRefreshRef.current
+    }
+
+    // Execution modes and tone are global preferences. Snapshot localStorage
+    // at send time so a retained chat can never use permissions disabled in a
+    // different chat before this instance re-rendered.
+    const advancedModeAtSend = localStorage.getItem(ADVANCED_MODE_STORAGE) === 'true'
+    const developerModeAtSend = localStorage.getItem(DEVELOPER_MODE_STORAGE) === 'true'
+    const storedAutonomyMode = localStorage.getItem(AUTONOMY_MODE_STORAGE)
+    const autonomyModeAtSend: AutonomyMode =
+      storedAutonomyMode === 'assist' || storedAutonomyMode === 'autonomous'
+        ? storedAutonomyMode
+        : 'autonomous'
+    const selectedToneAtSend = localStorage.getItem(TONE_STORAGE) || 'snarky'
+    const voiceEnabledAtSend = localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
+
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
     if (runInTerminalTimerRef.current) {
@@ -4727,7 +4895,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
     pushUser(text + attachmentSummary, currentReplyTo?.id)
 
     // --- Developer mode intent detection ---
-    if (!developerMode && detectBuildIntent(text)) {
+    if (!developerModeAtSend && detectBuildIntent(text)) {
       // User is talking about building but dev mode is off — suggest it
       setTimeout(() => {
         pushAssistantRef.current?.(
@@ -4738,7 +4906,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
           '[Enable Developer Mode](knapsack://prompt/__ENABLE_DEV_MODE__)'
         )
       }, 500)
-    } else if (developerMode && detectBuildIntent(text)) {
+    } else if (developerModeAtSend && detectBuildIntent(text)) {
       // Dev mode is on — populate the panel with this description
       dispatchDevPopulate(extractProjectDescription(text))
       dispatchOpenDevPanel()
@@ -4750,27 +4918,30 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
     setBusy(true)
 
-    // Snapshot the active model label from React state at request time so error
-    // messages reflect the model that was actually selected when sent, not the
-    // model in localStorage (which can lag behind UI state changes).
-    const providerAtSend = confirmedProvider
+    // Provider synchronization writes the backend-confirmed selection to
+    // localStorage before React state commits. Read that authoritative snapshot
+    // after awaiting the refresh so an immediate send cannot use a stale render.
+    const providerAtSend =
+      (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider | null) || confirmedProvider
     const activeModelAtSend = (() => {
-      if (providerAtSend === 'knapsack') return `knapsack/${selectedKnapsackModel}`
+      if (providerAtSend === 'knapsack') {
+        return `knapsack/${localStorage.getItem(KNAPSACK_MODEL_STORAGE) || selectedKnapsackModel}`
+      }
       const m = providerAtSend === 'ollama'
-        ? selectedOllamaModel
+        ? localStorage.getItem(OLLAMA_MODEL_STORAGE) || selectedOllamaModel
         : providerAtSend === 'anthropic'
-        ? selectedAnthropicModel
+        ? localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || selectedAnthropicModel
         : providerAtSend === 'gemini'
-        ? selectedGeminiModel
+        ? localStorage.getItem(GEMINI_MODEL_STORAGE) || selectedGeminiModel
         : providerAtSend === 'groq'
-        ? selectedGroqModel
+        ? localStorage.getItem(GROQ_MODEL_STORAGE) || selectedGroqModel
         : providerAtSend === 'xai'
-        ? selectedXaiModel
+        ? localStorage.getItem(XAI_MODEL_STORAGE) || selectedXaiModel
         : providerAtSend === 'openrouter'
-        ? selectedOpenRouterModel
+        ? localStorage.getItem(OPENROUTER_MODEL_STORAGE) || selectedOpenRouterModel
         : providerAtSend === 'trustedrouter'
-        ? selectedTrustedRouterModel
-        : selectedModel
+        ? localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || selectedTrustedRouterModel
+        : localStorage.getItem(OPENAI_MODEL_STORAGE) || selectedModel
       return m ? `${providerAtSend}/${m}` : providerAtSend
     })()
     const selectedModelForProvider = activeModelAtSend.includes('/')
@@ -4918,7 +5089,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
       // If it's not a known command, treat it as natural language and let the agent handle it.
 
       // Suggest advanced mode if the prompt looks like it needs shell/system access
-      if (!advancedMode) {
+      if (!advancedModeAtSend) {
         const lower = text.toLowerCase()
         const advancedPatterns = [
           // Install / package management
@@ -5098,7 +5269,7 @@ export default function ClawdChat({ showActivityPanel: externalActivityPanel, on
 
       try {
         // Get the current tone's system prompt addition
-        const currentTone = TONE_OPTIONS.find(t => t.id === selectedTone)
+        const currentTone = TONE_OPTIONS.find(t => t.id === selectedToneAtSend)
         const tonePrompt = currentTone?.systemPromptAddition || ''
 
         // For the smart prompt, pre-fetch email/calendar data from Knapsack's APIs
@@ -5161,7 +5332,7 @@ ${actualText}`
 
         // Auto-include recent terminal output as context so the AI can see
         // what the user is working on without requiring copy-paste
-        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedMode, developerMode)) {
+        if (!isSmartPrompt && shouldIncludeTerminalContext(text, advancedModeAtSend, developerModeAtSend)) {
           try {
             const termRes = await fetch(apiUrl('/api/clawd/terminal/output?max_lines=30'))
             if (termRes.ok) {
@@ -5202,12 +5373,12 @@ ${actualText}`
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId,
-          tone: selectedTone,
+          tone: selectedToneAtSend,
           tonePrompt,
-          voiceMode: voiceEnabled, // Signal backend to be more concise for voice output
-          autonomyMode, // 'assist' or 'autonomous' - controls how independent the agent is
-          advancedMode, // When true, enables run_command tool for shell execution
-          developerMode, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
+          voiceMode: voiceEnabledAtSend, // Signal backend to be more concise for voice output
+          autonomyMode: autonomyModeAtSend, // 'assist' or 'autonomous' - controls how independent the agent is
+          advancedMode: advancedModeAtSend, // When true, enables run_command tool for shell execution
+          developerMode: developerModeAtSend, // When true, enables Sentry scanning, error log analysis, and auto-PR creation
           userEmail: userEmail || '', // For direct email sending via send_email tool
           userName: userName || '', // Sender display name for emails
           memoryNotes: trimMemoryNotes(getAgentMemory(`knapsack-chat:${chatId}`)), // Persistent per-agent context
@@ -5259,7 +5430,7 @@ ${actualText}`
               ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {
                 teamMembers: agentTeamMembers,
               }),
-              advancedMode,
+              advancedMode: advancedModeAtSend,
               userEmail: userEmail || '',
               userName: userName || '',
               ...(currentAttachments.length > 0 && {
@@ -5352,6 +5523,7 @@ ${actualText}`
                       (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
                   },
                 ])
+                onAssistantMessage?.(chatId)
               }
             } else {
               if (agentOut.noFallback) {
@@ -5426,6 +5598,7 @@ ${actualText}`
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+              onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)
             } else {
@@ -5540,7 +5713,15 @@ ${actualText}`
   clearHistoryRef.current = clearHistory
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
+  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
   useEffect(() => {
+    if (!active) return
+    const frame = requestAnimationFrame(() => chatInputElementRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [active])
+
+  useEffect(() => {
+    if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
       if (e.key === 'Escape') {
@@ -5565,15 +5746,16 @@ ${actualText}`
       // Cmd/Ctrl+L — focus chat input
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault()
-        document.querySelector<HTMLTextAreaElement>('.ClawdChatInput textarea')?.focus()
+        chatInputElementRef.current?.focus()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [chatFindOpen])
+  }, [active, chatFindOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
+    if (!active) return
     const handleBannerKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       // Don't intercept when user is typing in an input/textarea
@@ -5600,7 +5782,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleBannerKey)
     return () => window.removeEventListener('keydown', handleBannerKey)
-  }, [health, channelStatus.gatewayStarting])
+  }, [active, health, channelStatus.gatewayStarting])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
@@ -6456,6 +6638,7 @@ ${actualText}`
 
       <ChatInputBar
         busy={busy}
+        providerReady={!providerSelectionRefreshing}
         hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
         isTranscribing={isTranscribing}
@@ -6472,6 +6655,7 @@ ${actualText}`
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
         initialValue={initialInput}
+        inputElementRef={chatInputElementRef}
       />
       </div>
       </div>{/* end ClawdChatContent */}

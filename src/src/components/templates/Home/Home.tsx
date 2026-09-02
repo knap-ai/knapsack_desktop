@@ -138,6 +138,8 @@ function Home({
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>(() => loadTeamGroups())
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const [unreadChatIds, setUnreadChatIds] = useState<Set<string>>(() => new Set())
+  const [mountedChatIds, setMountedChatIds] = useState<Set<string>>(() => new Set(['main']))
   const isResizingRef = useRef(false)
 
   const primaryAgent = useMemo(() => getPrimaryScout(teamAgents), [teamAgents])
@@ -156,27 +158,30 @@ function Home({
         .filter((agent): agent is TeamAgent => Boolean(agent)) ?? [],
     [activeGroup, teamAgents],
   )
-  // Scout is Knapsack's primary product identity and intentionally runs on
-  // OpenClaw's stable `main` agent. Other team chats remain separately scoped
-  // personas, but selecting "Scout" must not create a competing runtime agent.
-  const chatAgent = activeGroup ? null : (activeAgent ?? primaryAgent)
   const activeChatId = activeGroup
     ? `group-${activeGroup.id}`
     : activeAgent
       ? `agent-${activeAgent.id}`
       : 'main'
+  const activeChatIdRef = useRef(activeChatId)
+  activeChatIdRef.current = activeChatId
+  const currentTabRef = useRef(currentTab)
+  currentTabRef.current = currentTab
+
+  useEffect(() => {
+    if (currentTab !== TabChoices.Openclaw) return
+    setUnreadChatIds(current => {
+      if (!current.has(activeChatId)) return current
+      const next = new Set(current)
+      next.delete(activeChatId)
+      return next
+    })
+  }, [activeChatId, currentTab])
   // Preserve the established main browser profile (and its cookies/logins)
   // when presenting main as Scout. Only secondary agents get new profiles.
   const activeBrowserProfile = activeGroup
     ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
     : (activeAgent?.browserProfile ?? 'openclaw')
-  const activeAgentContext =
-    !activeGroup && chatAgent
-    ? `You are ${chatAgent.name}, ${activeAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${chatAgent.soul}
-
-Stay within your role: ${chatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${activeBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
-      : undefined
-
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userName = useMemo(() => auth.profile?.name ?? '', [auth.profile])
   const nativeEmailConnected = useMemo(
@@ -710,7 +715,14 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
             teamGroups={teamGroups}
             activeAgentId={activeAgentId}
             activeGroupId={activeGroupId}
+            unreadChatIds={unreadChatIds}
             onAgentSelect={agent => {
+              setMountedChatIds(current => new Set(current).add(`agent-${agent.id}`))
+              setUnreadChatIds(current => {
+                const next = new Set(current)
+                next.delete(`agent-${agent.id}`)
+                return next
+              })
               setActiveAgentId(agent.id)
               setActiveGroupId(null)
               setEmbeddedBrowserProfile(agent.browserProfile)
@@ -736,8 +748,24 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               if (activeGroupId && !remainingGroups.some(group => group.id === activeGroupId)) {
                 setActiveGroupId(null)
               }
+              setMountedChatIds(current => {
+                const next = new Set(current)
+                next.delete(`agent-${agent.id}`)
+                for (const group of teamGroups) {
+                  if (!remainingGroups.some(candidate => candidate.id === group.id)) {
+                    next.delete(`group-${group.id}`)
+                  }
+                }
+                return next
+              })
             }}
             onGroupSelect={group => {
+              setMountedChatIds(current => new Set(current).add(`group-${group.id}`))
+              setUnreadChatIds(current => {
+                const next = new Set(current)
+                next.delete(`group-${group.id}`)
+                return next
+              })
               setActiveAgentId(null)
               setActiveGroupId(group.id)
               const leadProfile = group.agentIds
@@ -748,6 +776,11 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               setMeetingSubView('chat')
             }}
             onTeamChatSelect={() => {
+              setUnreadChatIds(current => {
+                const next = new Set(current)
+                next.delete('main')
+                return next
+              })
               setActiveAgentId(null)
               setActiveGroupId(null)
               setEmbeddedBrowserProfile('openclaw')
@@ -808,53 +841,98 @@ Stay within your role: ${chatAgent.personality}. Your durable chat session and b
               )}
 
               <div
-                className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
+                className={`overflow-hidden w-full h-full flex flex-row relative${embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen ? ' has-embedded-browser-launcher' : ''}${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
               >
                   <div className="overflow-hidden flex-1 h-full min-w-0">
-                    <ClawdChat
-                      key={activeChatId}
-                      showActivityPanel={showActivityPanel}
-                      onToggleActivity={() => setShowActivityPanel(prev => !prev)}
-                      onCloseActivity={() => setShowActivityPanel(false)}
-                      userEmail={userEmail}
-                      userName={userName}
-                      nativeEmailConnected={nativeEmailConnected}
-                      onBusyChange={setIsChatBusy}
-                      onProviderPanelOpenChange={setIsChatProviderPanelOpen}
-                      openProviderPanel={openProviderPanelTrigger}
-                      chatId={activeChatId}
-                      sessionId={
-                        activeGroup
-                          ? `ui-group-${activeGroup.id}`
-                          : activeAgent
-                            ? `ui-agent-${activeAgent.id}`
-                            : 'ui'
-                      }
-                      contextPrefix={activeAgentContext}
-                      browserProfile={activeBrowserProfile}
-                      agentName={activeGroup?.name ?? chatAgent?.name}
-                      agentTeamMembers={activeGroup ? activeGroupAgents : undefined}
-                      agentPersonality={
-                        activeGroup
-                          ? `${activeGroupAgents.map(agent => agent.name).join(', ')} collaborating`
-                          : chatAgent?.personality
-                      }
-                      agentSuggestedPrompts={
-                        activeGroup
-                          ? [
-                              `Have ${activeGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
-                              'Work together on this decision, surface disagreements, and recommend the best next step.',
-                            ]
-                          : chatAgent?.suggestedPrompts
-                      }
-                      title={
-                        activeGroup
-                          ? `${activeGroup.emoji} ${activeGroup.name}`
-                          : chatAgent
-                            ? `${chatAgent.emoji} ${chatAgent.name}`
-                            : 'Knapsack Chat'
-                      }
-                    />
+                    {Array.from(mountedChatIds).map(mountedChatId => {
+                      const mountedGroup = mountedChatId.startsWith('group-')
+                        ? teamGroups.find(group => `group-${group.id}` === mountedChatId) ?? null
+                        : null
+                      const mountedAgent = mountedChatId.startsWith('agent-')
+                        ? teamAgents.find(agent => `agent-${agent.id}` === mountedChatId) ?? null
+                        : null
+                      const mountedGroupAgents =
+                        mountedGroup?.agentIds
+                          .map(id => teamAgents.find(agent => agent.id === id))
+                          .filter((agent): agent is TeamAgent => Boolean(agent)) ?? []
+                      const mountedChatAgent = mountedGroup ? null : (mountedAgent ?? primaryAgent)
+                      const mountedBrowserProfile = mountedGroup
+                        ? (mountedGroupAgents[0]?.browserProfile ?? 'openclaw')
+                        : (mountedAgent?.browserProfile ?? 'openclaw')
+                      const mountedContext =
+                        !mountedGroup && mountedChatAgent
+                          ? `You are ${mountedChatAgent.name}, ${mountedAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${mountedChatAgent.soul}
+
+Stay within your role: ${mountedChatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${mountedBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
+                          : undefined
+                      const isActiveChat = mountedChatId === activeChatId
+
+                      return (
+                        <div
+                          key={mountedChatId}
+                          className={isActiveChat ? 'h-full' : 'hidden h-full'}
+                          aria-hidden={!isActiveChat}
+                        >
+                          <ClawdChat
+                            active={isActiveChat}
+                            showActivityPanel={isActiveChat && showActivityPanel}
+                            onToggleActivity={
+                              isActiveChat ? () => setShowActivityPanel(prev => !prev) : undefined
+                            }
+                            onCloseActivity={
+                              isActiveChat ? () => setShowActivityPanel(false) : undefined
+                            }
+                            userEmail={userEmail}
+                            userName={userName}
+                            nativeEmailConnected={nativeEmailConnected}
+                            onBusyChange={isActiveChat ? setIsChatBusy : undefined}
+                            onProviderPanelOpenChange={
+                              isActiveChat ? setIsChatProviderPanelOpen : undefined
+                            }
+                            onAssistantMessage={respondingChatId => {
+                              if (
+                                respondingChatId === activeChatIdRef.current
+                                && currentTabRef.current === TabChoices.Openclaw
+                              ) return
+                              setUnreadChatIds(current => new Set(current).add(respondingChatId))
+                            }}
+                            openProviderPanel={isActiveChat ? openProviderPanelTrigger : 0}
+                            chatId={mountedChatId}
+                            sessionId={
+                              mountedGroup
+                                ? `ui-group-${mountedGroup.id}`
+                                : mountedAgent
+                                  ? `ui-agent-${mountedAgent.id}`
+                                  : 'ui'
+                            }
+                            contextPrefix={mountedContext}
+                            browserProfile={mountedBrowserProfile}
+                            agentName={mountedGroup?.name ?? mountedChatAgent?.name}
+                            agentTeamMembers={mountedGroup ? mountedGroupAgents : undefined}
+                            agentPersonality={
+                              mountedGroup
+                                ? `${mountedGroupAgents.map(agent => agent.name).join(', ')} collaborating`
+                                : mountedChatAgent?.personality
+                            }
+                            agentSuggestedPrompts={
+                              mountedGroup
+                                ? [
+                                    `Have ${mountedGroupAgents.map(agent => agent.name).join(', ')} compare perspectives on my top priority today.`,
+                                    'Work together on this decision, surface disagreements, and recommend the best next step.',
+                                  ]
+                                : mountedChatAgent?.suggestedPrompts
+                            }
+                            title={
+                              mountedGroup
+                                ? `${mountedGroup.emoji} ${mountedGroup.name}`
+                                : mountedChatAgent
+                                  ? `${mountedChatAgent.emoji} ${mountedChatAgent.name}`
+                                  : 'Knapsack Chat'
+                            }
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                   {!showEmbeddedBrowser && showActivityPanel && (
                     <>
