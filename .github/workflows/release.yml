@@ -560,7 +560,10 @@ jobs:
         # MSI is also produced because several release/QA flows expect it.
         run: |
           $log = "$env:RUNNER_TEMP\tauri-build.log"
-          npx tauri build --bundles nsis,msi --verbose 2>&1 | Tee-Object -FilePath $log
+          # The updater bundle is opt-in in Tauri v1, even when updater.active
+          # is true. Without it the release still produces installers, but no
+          # signed archive for latest.json.
+          npx tauri build --bundles nsis,msi,updater --verbose 2>&1 | Tee-Object -FilePath $log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -597,6 +600,16 @@ jobs:
               $_ | Tee-Object -FilePath $verifyLog -Append
               exit 1
             }
+          }
+          $updaterArchives = @(Get-ChildItem 'src\src-tauri\target\release\bundle\nsis\*.nsis.zip' -ErrorAction SilentlyContinue)
+          if ($updaterArchives.Count -ne 1) {
+            Write-Error "Expected exactly one Windows updater archive, found $($updaterArchives.Count)"
+            exit 1
+          }
+          $updaterSignature = "$($updaterArchives[0].FullName).sig"
+          if (-not (Test-Path $updaterSignature) -or (Get-Item $updaterSignature).Length -eq 0) {
+            Write-Error "Windows updater signature is missing or empty: $updaterSignature"
+            exit 1
           }
 
       - name: Post build log to PR on failure
@@ -664,6 +677,7 @@ jobs:
         env:
           TAG: ${{ needs.bump-version.outputs.tag }}
         run: |
+          set -euo pipefail
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/download/$TAG"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -688,6 +702,27 @@ jobs:
             fi
           done
 
+          WIN_SETUP_NAME=""
+          for f in artifacts/windows-artifacts/**/*.msi artifacts/windows-artifacts/*.msi; do
+            if [ -f "$f" ]; then
+              WIN_SETUP_NAME=$(basename "$f")
+              break
+            fi
+          done
+
+          if [ -z "$MACOS_TAR_NAME" ] || [ -z "$MACOS_SIG" ]; then
+            echo "Missing signed macOS updater artifact" >&2
+            exit 1
+          fi
+          if [ -z "$WIN_ZIP_NAME" ] || [ -z "$WIN_SIG" ]; then
+            echo "Missing signed Windows updater artifact" >&2
+            exit 1
+          fi
+          if [ -z "$WIN_SETUP_NAME" ]; then
+            echo "Missing Windows MSI installer" >&2
+            exit 1
+          fi
+
           # Build latest.json
           cat > artifacts/latest.json <<EOF
           {
@@ -705,7 +740,8 @@ jobs:
               },
               "windows-x86_64": {
                 "url": "$RELEASE_URL/$WIN_ZIP_NAME",
-                "signature": "$WIN_SIG"
+                "signature": "$WIN_SIG",
+                "setupUrl": "$RELEASE_URL/$WIN_SETUP_NAME"
               }
             }
           }
