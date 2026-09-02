@@ -19,6 +19,8 @@ test('Gmail API responses retain mailbox identity and account-scope threads', ()
   assert.match(emailModel, /WHERE email_uid = \?11 AND account_email = \?13/)
   assert.match(emailModel, /get_last_email_by_thread_id_for_account/)
   assert.match(emailModel, /LOWER\(account_email\) IN/)
+  assert.match(emailModel, /account_email\.strip_prefix\("microsoft:"\)/)
+  assert.match(emailModel, /UPDATE emails SET account_email = \?2[\s\S]*?TRIM\(account_email\) = ''[\s\S]*?LOWER\(sender\) LIKE/)
 })
 
 test('foreground email context identifies the source mailbox', () => {
@@ -58,6 +60,8 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /emailAccountAddress\(email\.accountEmail\.trim\(\)\.toLowerCase\(\)\)/)
   assert.match(feed, /draftEmailReply\([\s\S]*?emailAccountAddress\(email\.message\.accountEmail\)/)
   assert.match(feed, /let newMessages = allThreadMessages\.filter\([\s\S]*?!successfullyClassifiedMessageKeys\.has\(emailMessageKey\(message\)\)/)
+  assert.match(feed, /const emailAutopilotRunRef = useRef<Promise<void> \| null>/)
+  assert.match(feed, /if \(emailAutopilotRunRef\.current\) \{\s*return emailAutopilotRunRef\.current/)
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
@@ -80,6 +84,7 @@ test('full Email Autopilot preserves each message provider for actions', () => {
   assert.match(autopilot, /sourceProvider\?: ConnectionKeys\.GOOGLE_PROFILE/)
   assert.match(autopilot, /const provider = sourceProvider \|\|/)
   assert.match(autopilot, /profileProvider=\{email\.provider\}/)
+  assert.match(autopilot, /selectedProvider[\s\S]*?selectedEmail\.accountEmail,[\s\S]*?selectedProvider/)
 })
 
 test('account-awareness does not delete legacy unscoped email history', () => {

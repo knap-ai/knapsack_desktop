@@ -465,10 +465,17 @@ impl Email {
     account_email: &str,
   ) -> Result<Vec<Email>, Error> {
     let connection = get_db_conn();
+    if let Some(mailbox) = account_email.strip_prefix("microsoft:") {
+      let mailbox_pattern = format!("%{}%", mailbox.to_ascii_lowercase());
+      connection.execute(
+        "UPDATE emails SET account_email = ?2 WHERE thread_id = ?1 AND TRIM(account_email) = '' AND (LOWER(sender) LIKE ?3 OR LOWER(recipient) LIKE ?3 OR LOWER(cc) LIKE ?3) AND NOT EXISTS (SELECT 1 FROM emails scoped WHERE scoped.email_uid = emails.email_uid AND scoped.account_email = ?2)",
+        params![thread_id, account_email, mailbox_pattern],
+      )?;
+    }
+
     let mut stmt = connection
         .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 AND account_email = ?2 ORDER BY date DESC")
         .expect("could not prepare account-scoped query emails by thread_id");
-
     let emails = stmt
       .query_map(params![thread_id, account_email], |row| {
         Email::build_struct_from_row(row)

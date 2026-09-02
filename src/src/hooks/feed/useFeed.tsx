@@ -1,4 +1,4 @@
-import { ReactElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { insertAutomationRun } from 'src/api/automations'
 import {
@@ -291,6 +291,7 @@ export function useFeed(
   const [classifiedEmails, setClassifiedEmails] = useState<
     Partial<Record<EmailImportance, DisplayEmail[]>>
   >({})
+  const emailAutopilotRunRef = useRef<Promise<void> | null>(null)
   const connectedEmailAccountEmails = useMemo(
     () => Array.from(new Set(
       Object.values(connections)
@@ -796,7 +797,7 @@ export function useFeed(
     }
   }, [classifiedEmails, connectedEmailAccountEmails])
 
-  const runEmailAutopilot = async () => {
+  const runEmailAutopilotOnce = async () => {
     const dataFetcher = new DataFetcher()
     // const isSynced = handleSyncSources([AutomationDataSources.GMAIL])
     await updateRecentClassifiedEmails()
@@ -949,6 +950,21 @@ export function useFeed(
         handleErrorContact('Error starting Email Autopilot, please try again later.')
       }
       throw error
+    }
+  }
+
+  const runEmailAutopilot = async () => {
+    if (emailAutopilotRunRef.current) {
+      return emailAutopilotRunRef.current
+    }
+    const run = runEmailAutopilotOnce()
+    emailAutopilotRunRef.current = run
+    try {
+      await run
+    } finally {
+      if (emailAutopilotRunRef.current === run) {
+        emailAutopilotRunRef.current = null
+      }
     }
   }
 

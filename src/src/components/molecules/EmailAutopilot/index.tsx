@@ -257,11 +257,19 @@ export const EmailAutopilot = ({
             event.preventDefault()
 
             if (event.key === 'ArrowLeft') {
+              const selectedProvider = emailsCategory?.find(
+                email =>
+                  emailActionKey(
+                    email.message.emailUid,
+                    email.message.accountEmail || userEmail,
+                  ) === selectedEmail.emailKey,
+              )?.provider
               handleEmailActionTaken(
                 actions.leftAction,
                 selectedEmail.emailUuid,
                 undefined,
                 selectedEmail.accountEmail,
+                selectedProvider,
               )
             } else if (event.key === 'ArrowRight') {
               arrowRightHandler()
