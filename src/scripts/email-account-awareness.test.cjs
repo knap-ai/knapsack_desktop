@@ -61,6 +61,16 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
+test('connection refresh preserves provider ownership metadata', () => {
+  const connectionHook = fs.readFileSync(
+    path.join(sourceRoot, 'src/hooks/connections/useConnections.tsx'),
+    'utf8',
+  )
+
+  assert.match(connectionHook, /calendarAccountEmail, ownerEmail/)
+  assert.match(connectionHook, /calendarAccountEmail, ownerEmail \}/)
+})
+
 test('full Email Autopilot preserves each message provider for actions', () => {
   const autopilot = fs.readFileSync(
     path.join(sourceRoot, 'src/components/molecules/EmailAutopilot/index.tsx'),
@@ -117,6 +127,8 @@ test('Outlook cache rows are mailbox-scoped for mixed-provider Autopilot', () =>
   assert.match(outlook, /fetch_outlook_emails\(email\.clone\(\), update_user_connection\.token\.clone\(\), 7, true\)/)
   assert.match(outlook, /format!\("microsoft:\{\}", email\.trim\(\)\.to_ascii_lowercase\(\)\)/)
   assert.match(outlook, /Email::mark_deleted_emails\(&all_email_uuids, i64::from\(days\), &account_key\)/)
+  assert.match(outlook, /Email::claim_unscoped_uid_for_account\(&email_data\.id, account_email\)/)
+  assert.match(outlook, /if email_entry\.id\.is_some\(\)/)
 })
 
 test('settings group Google capabilities by the actual connected account', () => {

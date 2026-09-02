@@ -105,9 +105,14 @@ async fn upsert_email_by_uid(
   flag_update: bool,
   account_email: &str,
 ) -> Result<Email, Error> {
-  if let Ok(Some(email)) = Email::find_by_uid_and_account(&email_data.id, account_email) {
+  let existing_email = match Email::find_by_uid_and_account(&email_data.id, account_email)? {
+    Some(email) => Some(email),
+    None => Email::claim_unscoped_uid_for_account(&email_data.id, account_email)?,
+  };
+
+  if let Some(email) = existing_email.as_ref() {
     if !flag_update {
-      return Ok(email);
+      return Ok(email.clone());
     }
   }
 
@@ -118,7 +123,7 @@ async fn upsert_email_by_uid(
   let is_archived = email_data.parentFolderId == archive_folder_id;
 
   let mut email_entry = Email {
-    id: None,
+    id: existing_email.and_then(|email| email.id),
     email_uid: email_data.id,
     subject: email_data.subject.unwrap_or_default(),
     date: received_timestamp,
@@ -155,7 +160,11 @@ async fn upsert_email_by_uid(
     account_email: account_email.to_string(),
   };
 
-  email_entry.create();
+  if email_entry.id.is_some() {
+    email_entry.update()?;
+  } else {
+    email_entry.create()?;
+  }
   Ok(email_entry)
 }
 

@@ -139,6 +139,18 @@ impl Email {
     Ok(email)
   }
 
+  pub fn claim_unscoped_uid_for_account(
+    uid: &str,
+    account_email: &str,
+  ) -> Result<Option<Email>, Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE emails SET account_email = ?2 WHERE email_uid = ?1 AND TRIM(account_email) = ''",
+      params![uid, account_email],
+    )?;
+    Self::find_by_uid_and_account(uid, account_email)
+  }
+
   pub fn get_recent_emails_with(sender_or_recipient: &str, limit: usize) -> Vec<Email> {
     let connection = get_db_conn();
     let sender_or_recipient_query_string = format!("%{}%", sender_or_recipient).clone().to_string();
