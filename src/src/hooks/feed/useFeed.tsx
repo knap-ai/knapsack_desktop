@@ -97,14 +97,18 @@ const emailThreadKey = (email: EmailDocument): string | undefined =>
 const emailMessageKey = (email: EmailDocument): string =>
   `${(email.accountEmail || 'unknown').toLowerCase()}:${email.emailUid}`
 
+const emailAddressesInHeader = (header: string): string[] =>
+  header.toLowerCase().match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/g) || []
+
 const wasSentByMailboxOwner = (email: EmailDocument, fallbackUserEmail?: string): boolean => {
-  const sender = email.sender.toLowerCase()
+  const senderAddresses = emailAddressesInHeader(email.sender)
   const mailbox = email.accountEmail
     ? emailAccountAddress(email.accountEmail.trim().toLowerCase())
     : undefined
   const fallback = fallbackUserEmail?.trim().toLowerCase()
   return Boolean(
-    (mailbox && sender.includes(mailbox)) || (!mailbox && fallback && sender.includes(fallback)),
+    (mailbox && senderAddresses.includes(mailbox))
+      || (!mailbox && fallback && senderAddresses.includes(fallback)),
   )
 }
 
