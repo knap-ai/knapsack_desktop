@@ -5438,6 +5438,10 @@ ${actualText}`
               provider: providerAtSend,
               model: selectedModelForProvider,
               text: requestBody.text,
+              // Keep the user's unaugmented message separate from trusted
+              // connector/persona context so backend intent shortcuts do not
+              // mistake context inventory entries for the user's request.
+              userText: text,
               sessionId,
               noFallback: requiresHarness,
               ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {

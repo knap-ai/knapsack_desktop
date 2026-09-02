@@ -259,12 +259,36 @@ async fn run_openclaw_group(request: &HarnessRequest<'_>) -> Result<String, Stri
     let prompt = openclaw_group_member_prompt(member, request.message);
     let session_key = openclaw_group_member_session_key(&parent_session_key, &member.id);
     async move {
-      let result = tokio::time::timeout(
+      let result = match tokio::time::timeout(
         remaining_until(deadline)?.min(GROUP_MEMBER_TIMEOUT),
         gateway_client::agent_chat(&prompt, request.attachments, None, None, Some(&session_key)),
       )
       .await
-      .map_err(|_| format!("{} did not finish before the group deadline", member.name))??;
+      {
+        Ok(result) => result?,
+        Err(_) => {
+          match tokio::time::timeout(
+            Duration::from_secs(10),
+            gateway_client::abort_chat_session(&session_key, None),
+          )
+          .await
+          {
+            Ok(Ok(_)) => eprintln!(
+              "[clawd-harness] aborted timed-out group member session {session_key}"
+            ),
+            Ok(Err(error)) => eprintln!(
+              "[clawd-harness] failed to abort timed-out group member session {session_key}: {error}"
+            ),
+            Err(_) => eprintln!(
+              "[clawd-harness] timed out aborting group member session {session_key}"
+            ),
+          }
+          return Err(format!(
+            "{} did not finish before the group deadline",
+            member.name
+          ));
+        }
+      };
       let reply = parse_openclaw_reply(&result)
         .map_err(|error| format!("{} could not contribute: {error}", member.name))?;
       Ok::<(String, String), String>((member.name.clone(), reply))
