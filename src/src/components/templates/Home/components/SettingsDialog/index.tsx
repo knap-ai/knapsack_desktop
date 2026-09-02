@@ -46,6 +46,7 @@ import { Dialog } from 'src/components/molecules/Dialog'
 import HeartbeatSettings from 'src/components/organisms/HeartbeatSettings'
 
 import { invoke } from '@tauri-apps/api/tauri'
+import { open as openExternalUrl } from '@tauri-apps/api/shell'
 
 import styles from './styles.module.scss'
 
@@ -63,6 +64,18 @@ type SettingsDialogProps = {
   onProviderSignInClick?: (
     provider?: 'knapsack' | 'openai' | 'anthropic' | 'openrouter' | 'trustedrouter',
   ) => void
+}
+
+type StudioOauthAccount = {
+  id: number
+  label: string
+}
+
+type StudioConnectorCatalogItem = {
+  id?: string
+  connected?: boolean
+  supports_multiple_accounts?: boolean
+  accounts?: StudioOauthAccount[]
 }
 
 const PERMISSION_LIST_GOOGLE_CONNECTIONS = new Set([
@@ -676,6 +689,9 @@ export const SettingsDialog = ({
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [showTelegramInput, setShowTelegramInput] = useState(false)
+  const [slackOauthAccounts, setSlackOauthAccounts] = useState<StudioOauthAccount[]>([])
+  const [slackOauthBusy, setSlackOauthBusy] = useState(false)
+  const [slackOauthMessage, setSlackOauthMessage] = useState('')
   const isMacPlatform = navigator.platform?.includes('Mac')
   const isWindowsPlatform = navigator.platform?.includes('Win')
   const showKeepAwakePowerControls = isMacPlatform || isWindowsPlatform
@@ -752,6 +768,70 @@ export const SettingsDialog = ({
     }
   }, [connections, googlePrimaryEmail])
 
+  const loadSlackOauthAccounts = useCallback(async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/clawd/service/studio-connections')
+      const body = await response.json()
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.message || 'Connect Knapsack Studio first.')
+      }
+      const slack = (body.available || []).find(
+        (connector: StudioConnectorCatalogItem) => connector.id === 'slack',
+      ) as StudioConnectorCatalogItem | undefined
+      setSlackOauthAccounts(Array.isArray(slack?.accounts) ? slack.accounts : [])
+      setSlackOauthMessage('')
+    } catch (error) {
+      setSlackOauthAccounts([])
+      setSlackOauthMessage(error instanceof Error ? error.message : String(error))
+    }
+  }, [])
+
+  const handleAddSlackOauthAccount = useCallback(async () => {
+    if (slackOauthBusy) return
+    setSlackOauthBusy(true)
+    setSlackOauthMessage('')
+    try {
+      const response = await fetch(
+        'http://127.0.0.1:8897/api/clawd/service/studio-connectors/slack/oauth-start',
+        { method: 'POST' },
+      )
+      const body = await response.json()
+      if (!response.ok || !body?.success || !body?.url) {
+        throw new Error(body?.message || 'Could not start Slack authorization.')
+      }
+      await openExternalUrl(body.url)
+      setSlackOauthMessage('Finish authorizing Slack in your browser, then return to Knapsack.')
+    } catch (error) {
+      setSlackOauthMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSlackOauthBusy(false)
+    }
+  }, [slackOauthBusy])
+
+  const handleRemoveSlackOauthAccount = useCallback(
+    async (connectionId: number) => {
+      if (slackOauthBusy) return
+      setSlackOauthBusy(true)
+      setSlackOauthMessage('')
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8897/api/clawd/service/studio-connectors/accounts/${connectionId}`,
+          { method: 'DELETE' },
+        )
+        const body = await response.json()
+        if (!response.ok || !body?.success) {
+          throw new Error(body?.message || 'Could not remove this Slack account.')
+        }
+        await loadSlackOauthAccounts()
+      } catch (error) {
+        setSlackOauthMessage(error instanceof Error ? error.message : String(error))
+      } finally {
+        setSlackOauthBusy(false)
+      }
+    },
+    [loadSlackOauthAccounts, slackOauthBusy],
+  )
+
   const requireGooglePrimaryEmail = useCallback(
     (flow: string) => {
       if (googlePrimaryEmail) return googlePrimaryEmail
@@ -826,7 +906,15 @@ export const SettingsDialog = ({
   useEffect(() => {
     if (!isOpen) return
     void loadSettingsConnections()
-  }, [isOpen, loadSettingsConnections])
+    void loadSlackOauthAccounts()
+  }, [isOpen, loadSettingsConnections, loadSlackOauthAccounts])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const refreshAfterOauth = () => void loadSlackOauthAccounts()
+    window.addEventListener('focus', refreshAfterOauth)
+    return () => window.removeEventListener('focus', refreshAfterOauth)
+  }, [isOpen, loadSlackOauthAccounts])
 
   useEffect(() => {
     if (profile && profile.provider) {
@@ -1804,10 +1892,10 @@ export const SettingsDialog = ({
           <div className="flex justify-between h-[36px] items-center">
             <div className="flex items-center gap-2">
               <Typography className="text-gray-500">
-                More (Slack, Discord, IRC, Signal, ...)
+                Agent channels (Slack bot, Discord, IRC, Signal, ...)
               </Typography>
             </div>
-            <Typography className={`text-xs text-gray-400`}>Use Channels panel in chat</Typography>
+            <Typography className={`text-xs text-gray-400`}>Use Channels in chat</Typography>
           </div>
 
           {channels.error && (
@@ -1819,6 +1907,49 @@ export const SettingsDialog = ({
           <Typography weight={TypographyWeight.medium}>Permissions</Typography>
 
           <div className="PermissionContent flex flex-col gap-2">
+            <div className="flex flex-col gap-2 py-2 border-b border-zinc-100">
+              <div className="flex justify-between min-h-[36px] items-center gap-4">
+                <div>
+                  <Typography weight={TypographyWeight.medium}>Slack accounts</Typography>
+                  <Typography className="text-xs text-gray-500">
+                    Read and send messages using each Slack workspace you authorize.
+                  </Typography>
+                </div>
+                <button
+                  className="px-3 py-1.5 text-xs bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50 shrink-0"
+                  disabled={slackOauthBusy}
+                  onClick={handleAddSlackOauthAccount}
+                >
+                  {slackOauthBusy
+                    ? 'Opening…'
+                    : slackOauthAccounts.length > 0
+                      ? 'Connect another'
+                      : 'Connect Slack'}
+                </button>
+              </div>
+              {slackOauthAccounts.map(account => (
+                <div
+                  className="flex justify-between items-center min-h-[30px] pl-3"
+                  key={`slack-oauth-${account.id}`}
+                >
+                  <Typography className="text-sm text-gray-600">{account.label}</Typography>
+                  <Typography
+                    className={`cursor-pointer ${styles.link}`}
+                    onClick={() => handleRemoveSlackOauthAccount(account.id)}
+                  >
+                    Remove
+                  </Typography>
+                </div>
+              ))}
+              {slackOauthMessage && (
+                <Typography className="text-xs text-gray-500">{slackOauthMessage}</Typography>
+              )}
+              <Typography className="text-xs text-gray-400">
+                This gives your agents Slack tools. It does not add an agent to Slack; agent
+                channels are configured separately from the Channels button in chat.
+              </Typography>
+            </div>
+
             {/* Non-calendar, non-drive, non-gmail connections */}
             {Object.values(connections)
               .filter(

@@ -1,4 +1,4 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{delete, get, post, web, HttpResponse, Responder};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -16136,6 +16136,177 @@ pub struct StudioConnectionsResponse {
   pub connected: Vec<String>,
   pub available: Vec<serde_json::Value>,
   pub message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StudioConnectorOauthResponse {
+  pub success: bool,
+  pub url: Option<String>,
+  pub message: Option<String>,
+}
+
+async fn studio_access_token(app_handle: &tauri::AppHandle) -> Result<String, String> {
+  let tokens = load_or_create_tokens(app_handle)?;
+  if !has_knapsack_runtime_auth(&tokens) {
+    return Err(if knapsack_auth_is_expired(&tokens) {
+      "Knapsack Studio sign-in expired. Please reconnect.".to_string()
+    } else {
+      "Connect a Knapsack Studio account first.".to_string()
+    });
+  }
+  if has_usable_knapsack_token(tokens.knapsack_access_token.as_ref()) {
+    if let Some(token) = tokens.knapsack_access_token.as_deref() {
+      return Ok(token.trim().to_string());
+    }
+  }
+  crate::clawd::browser::refresh_knapsack_access_token(Some(app_handle))
+    .await
+    .ok_or_else(|| "Knapsack Studio sign-in expired. Please reconnect.".to_string())
+}
+
+/// Start a first-party connector OAuth flow without exposing the Studio bearer
+/// token to the webview. Slack uses this for every additional workspace.
+#[post("/api/clawd/service/studio-connectors/{connector}/oauth-start")]
+pub async fn start_studio_connector_oauth(
+  app_handle: web::Data<tauri::AppHandle>,
+  connector: web::Path<String>,
+) -> impl Responder {
+  let connector = connector.into_inner().trim().to_ascii_lowercase();
+  if connector != "slack" {
+    return HttpResponse::BadRequest().json(StudioConnectorOauthResponse {
+      success: false,
+      url: None,
+      message: Some("This connector does not support account OAuth in Desktop yet.".to_string()),
+    });
+  }
+  let token = match studio_access_token(app_handle.get_ref()).await {
+    Ok(token) => token,
+    Err(message) => {
+      return HttpResponse::Unauthorized().json(StudioConnectorOauthResponse {
+        success: false,
+        url: None,
+        message: Some(message),
+      })
+    }
+  };
+  let api_base = std::env::var("KNAPSACK_STUDIO_API_BASE")
+    .ok()
+    .filter(|value| !value.trim().is_empty())
+    .unwrap_or_else(|| {
+      option_env!("VITE_KN_API_SERVER")
+        .unwrap_or("https://api.knapsack.ai")
+        .to_string()
+    });
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(20))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(StudioConnectorOauthResponse {
+        success: false,
+        url: None,
+        message: Some(format!("Could not initialize the Studio connection: {error}")),
+      })
+    }
+  };
+  let response = client
+    .post(format!(
+      "{}/api/composio/auth/connect-link",
+      api_base.trim_end_matches('/')
+    ))
+    .bearer_auth(token)
+    .json(&serde_json::json!({ "app": connector }))
+    .send()
+    .await;
+  match response {
+    Ok(response) if response.status().is_success() => {
+      let body: serde_json::Value = response.json().await.unwrap_or_default();
+      let url = body
+        .get("connect_link_url")
+        .and_then(serde_json::Value::as_str)
+        .map(ToOwned::to_owned);
+      match url {
+        Some(url) => HttpResponse::Ok().json(StudioConnectorOauthResponse {
+          success: true,
+          url: Some(url),
+          message: None,
+        }),
+        None => HttpResponse::BadGateway().json(StudioConnectorOauthResponse {
+          success: false,
+          url: None,
+          message: Some("Studio did not return an OAuth link.".to_string()),
+        }),
+      }
+    }
+    Ok(response) => HttpResponse::BadGateway().json(StudioConnectorOauthResponse {
+      success: false,
+      url: None,
+      message: Some(format!("Studio returned {}", response.status())),
+    }),
+    Err(error) => HttpResponse::BadGateway().json(StudioConnectorOauthResponse {
+      success: false,
+      url: None,
+      message: Some(format!("Unable to reach Knapsack Studio: {error}")),
+    }),
+  }
+}
+
+/// Remove exactly one Studio OAuth account and preserve sibling workspaces.
+#[delete("/api/clawd/service/studio-connectors/accounts/{connection_id}")]
+pub async fn remove_studio_connector_account(
+  app_handle: web::Data<tauri::AppHandle>,
+  connection_id: web::Path<i64>,
+) -> impl Responder {
+  let token = match studio_access_token(app_handle.get_ref()).await {
+    Ok(token) => token,
+    Err(message) => {
+      return HttpResponse::Unauthorized()
+        .json(serde_json::json!({ "success": false, "message": message }))
+    }
+  };
+  let api_base = std::env::var("KNAPSACK_STUDIO_API_BASE")
+    .ok()
+    .filter(|value| !value.trim().is_empty())
+    .unwrap_or_else(|| {
+      option_env!("VITE_KN_API_SERVER")
+        .unwrap_or("https://api.knapsack.ai")
+        .to_string()
+    });
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(20))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(serde_json::json!({
+        "success": false,
+        "message": format!("Could not initialize the Studio connection: {error}")
+      }))
+    }
+  };
+  match client
+    .delete(format!(
+      "{}/api/composio/auth/accounts/{}",
+      api_base.trim_end_matches('/'),
+      connection_id.into_inner()
+    ))
+    .bearer_auth(token)
+    .send()
+    .await
+  {
+    Ok(response) if response.status().is_success() => {
+      HttpResponse::Ok().json(serde_json::json!({ "success": true }))
+    }
+    Ok(response) => HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": format!("Studio returned {}", response.status())
+    })),
+    Err(error) => HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": format!("Unable to reach Knapsack Studio: {error}")
+    })),
+  }
 }
 
 fn parse_studio_connector_catalog(
