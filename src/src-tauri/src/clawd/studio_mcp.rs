@@ -306,6 +306,9 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   authorize_studio_request(arguments).await?;
+  let studio_account = nonempty(read_tokens()?.knapsack_email)
+    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?
+    .to_ascii_lowercase();
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -324,7 +327,13 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
     .unwrap_or(DEFAULT_SEARCH_RESULT_LIMIT)
     .clamp(1, MAX_SEARCH_RESULT_LIMIT);
 
-  let cache_key = format!("{}\n{}\n{}", connector, query.unwrap_or(""), limit);
+  let cache_key = format!(
+    "{}\n{}\n{}\n{}",
+    studio_account,
+    connector,
+    query.unwrap_or(""),
+    limit
+  );
   let cached = CONNECTOR_TOOLS_CACHE
     .lock()
     .ok()
@@ -335,7 +344,7 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
     Some(value) => value,
     None => {
       let mut path = format!(
-        "/desktop/integrations/{}/tools?limit={limit}",
+        "/desktop/integrations/{}/tools?limit={limit}&compact=true",
         urlencoding::encode(connector)
       );
       if let Some(query) = query {
