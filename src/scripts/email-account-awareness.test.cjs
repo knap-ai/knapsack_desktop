@@ -63,7 +63,11 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /draftEmailReply\([\s\S]*?emailAccountAddress\(email\.message\.accountEmail\)/)
   assert.match(feed, /let newMessages = allThreadMessages\.filter\([\s\S]*?!successfullyClassifiedMessageKeys\.has\(emailMessageKey\(message\)\)/)
   assert.match(feed, /const emailAutopilotRunRef = useRef<Promise<void> \| null>/)
-  assert.match(feed, /if \(emailAutopilotRunRef\.current\) \{\s*return emailAutopilotRunRef\.current/)
+  assert.match(feed, /const emailAutopilotRerunPendingRef = useRef\(false\)/)
+  assert.match(feed, /if \(emailAutopilotRunRef\.current\) \{\s*emailAutopilotRerunPendingRef\.current = true/)
+  assert.match(feed, /do \{[\s\S]*?await runEmailAutopilotOnce\(\)[\s\S]*?\} while \(emailAutopilotRerunPendingRef\.current\)/)
+  assert.match(feed, /emailAutopilotCycleMessageKeysRef\.current\.has\(emailMessageKey\(message\)\)/)
+  assert.match(feed, /emailAutopilotCycleMessageKeysRef\.current\.clear\(\)/)
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 

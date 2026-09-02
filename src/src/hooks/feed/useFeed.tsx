@@ -292,6 +292,8 @@ export function useFeed(
     Partial<Record<EmailImportance, DisplayEmail[]>>
   >({})
   const emailAutopilotRunRef = useRef<Promise<void> | null>(null)
+  const emailAutopilotRerunPendingRef = useRef(false)
+  const emailAutopilotCycleMessageKeysRef = useRef(new Set<string>())
   const connectedEmailAccountEmails = useMemo(
     () => Array.from(new Set(
       Object.values(connections)
@@ -853,7 +855,9 @@ export function useFeed(
         ),
       )
       const messages = allMessages.filter(
-        message => !successfullyClassifiedMessageKeys.has(emailMessageKey(message)),
+        message =>
+          !successfullyClassifiedMessageKeys.has(emailMessageKey(message)) &&
+          !emailAutopilotCycleMessageKeysRef.current.has(emailMessageKey(message)),
       )
 
       if (messages.length === 0) {
@@ -919,6 +923,10 @@ export function useFeed(
         return
       }
 
+      newMessages.forEach(message => {
+        emailAutopilotCycleMessageKeysRef.current.add(emailMessageKey(message))
+      })
+
       setEmailAutopilotStatus(prevState => ({
         status: 'classifying-emails',
         progress: {
@@ -955,9 +963,19 @@ export function useFeed(
 
   const runEmailAutopilot = async () => {
     if (emailAutopilotRunRef.current) {
+      emailAutopilotRerunPendingRef.current = true
       return emailAutopilotRunRef.current
     }
-    const run = runEmailAutopilotOnce()
+    const run = (async () => {
+      try {
+        do {
+          emailAutopilotRerunPendingRef.current = false
+          await runEmailAutopilotOnce()
+        } while (emailAutopilotRerunPendingRef.current)
+      } finally {
+        emailAutopilotCycleMessageKeysRef.current.clear()
+      }
+    })()
     emailAutopilotRunRef.current = run
     try {
       await run
