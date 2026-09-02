@@ -1,0 +1,10 @@
+{
+  "id": "knapsack-requester-mcp",
+  "name": "Knapsack Requester MCP",
+  "description": "Binds Knapsack Studio and Snowflake MCP connections to the authenticated requester for each OpenClaw turn.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

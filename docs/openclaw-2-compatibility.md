@@ -135,10 +135,32 @@ drop-in replacement yet:
 
 The implementation PR should therefore add a loopback HTTP MCP bridge owned by
 Tauri and a bundled Knapsack plugin that resolves `studio` and `snowflake` to
-that bridge with a short-lived, app-authenticated capability. Tests must cover
+that bridge with an app-authenticated capability. Tests must cover
 two simultaneous Slack users, two Slack workspaces with colliding user ids,
 Desktop chat, missing identity, revoked identity, header redaction, and runtime
 revalidation before the compiled patches are removed.
+
+### Draft implementation status
+
+The stacked implementation draft adds the supported bridge without changing
+the bundled runtime or removing the legacy stdio MCP servers:
+
+- the plugin is enabled only when the exact bundled OpenClaw version is
+  `2026.8.2` or newer and removes only its own config on rollback;
+- the resolver forwards the host-supplied sender, account and channel through
+  an authenticated loopback HTTP endpoint;
+- Slack authorization verifies the exact configured bot account and sender
+  through Slack before deriving the Studio email, so it never selects from the
+  global active-session set; and
+- unknown channels, missing senders, invalid headers and service-account domain
+  mismatches fail closed.
+
+The draft is intentionally not merge-ready yet. OpenClaw `2026.8.2` does not
+accept a requester sender on the `agent` RPC currently used by Desktop chat.
+The Desktop path must either move to a gateway method that supplies a trusted
+client identity or gain an upstream supported identity field, and an isolated
+8.2 runtime must prove that value reaches the resolver. Until then, the current
+`2026.5.22` runtime and legacy stdio bridges remain the active production path.
 
 ## New capabilities that align with Knapsack
 

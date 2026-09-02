@@ -17,6 +17,7 @@ pub mod meeting_context;
 pub mod pairing_auto_approve;
 pub mod peekaboo_watchdog;
 pub mod service;
+pub mod requester_mcp;
 pub mod session_watcher;
 pub mod sidecar;
 pub mod snowflake_mcp;
