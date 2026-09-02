@@ -50,31 +50,3 @@
   flex-shrink: 0;
   overflow: hidden;
 }
-
-.embedded-browser-launcher {
-  position: absolute;
-  top: 11px;
-  right: 14px;
-  z-index: 20;
-  height: 30px;
-  padding: 0 11px;
-  border: 1px solid rgba(24, 24, 27, 0.11);
-  border-radius: 9px;
-  color: #52525b;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 2px 8px rgba(24, 24, 27, 0.06);
-  backdrop-filter: blur(10px);
-  font-size: 12px;
-  font-weight: 600;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
-
-  &:hover {
-    color: #18181b;
-    border-color: rgba(100, 116, 172, 0.35);
-    background: #fff;
-  }
-}
-
-.has-embedded-browser-launcher .ClawdChatHeader {
-  padding-right: 104px;
-}

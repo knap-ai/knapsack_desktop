@@ -130,7 +130,6 @@ function Home({
   })
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
-  const [isChatProviderPanelOpen, setIsChatProviderPanelOpen] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
@@ -841,7 +840,7 @@ function Home({
               )}
 
               <div
-                className={`overflow-hidden w-full h-full flex flex-row relative${embeddedBrowserEnabled && !showEmbeddedBrowser && !isChatProviderPanelOpen ? ' has-embedded-browser-launcher' : ''}${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
+                className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
               >
                   <div className="overflow-hidden flex-1 h-full min-w-0">
                     {Array.from(mountedChatIds).map(mountedChatId => {
@@ -886,9 +885,6 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                             userName={userName}
                             nativeEmailConnected={nativeEmailConnected}
                             onBusyChange={isActiveChat ? setIsChatBusy : undefined}
-                            onProviderPanelOpenChange={
-                              isActiveChat ? setIsChatProviderPanelOpen : undefined
-                            }
                             onAssistantMessage={respondingChatId => {
                               if (
                                 respondingChatId === activeChatIdRef.current
