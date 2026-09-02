@@ -3430,8 +3430,16 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   externalActivityPanelRef.current = externalActivityPanel
 
   useEffect(() => {
+    if (!active) return
     let cancelled = false
     const cleanups: Array<() => void> = []
+    const registerCleanup = (unlisten: () => void) => {
+      if (cancelled) {
+        unlisten()
+        return
+      }
+      cleanups.push(unlisten)
+    }
 
     ;(async () => {
       const unlistenStarted = await tauriListen<{ processId: string; sessionId: string; prompt: string; cwd: string; agent?: string }>(
@@ -3448,7 +3456,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           }
         },
       )
-      cleanups.push(unlistenStarted)
+      registerCleanup(unlistenStarted)
 
       const unlistenExit = await tauriListen<{ processId: string; sessionId: string; exitCode: number }>(
         'streaming-exit',
@@ -3461,7 +3469,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           }
         },
       )
-      cleanups.push(unlistenExit)
+      registerCleanup(unlistenExit)
 
       // Listen for open-activity-panel events from the AI agent
       const unlistenOpenPanel = await tauriListen<Record<string, never>>(
@@ -3473,7 +3481,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           }
         },
       )
-      cleanups.push(unlistenOpenPanel)
+      registerCleanup(unlistenOpenPanel)
 
       // Forward compose-email-ready events to the window so Home.tsx can switch tabs
       const unlistenCompose = await tauriListen<Record<string, unknown>>(
@@ -3483,7 +3491,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           window.dispatchEvent(new CustomEvent('clawd-email-draft-ready', { detail: event.payload }))
         },
       )
-      cleanups.push(unlistenCompose)
+      registerCleanup(unlistenCompose)
 
       // Knapsack deep-link auth callback from the OS URL scheme handler
       const unlistenKnapsackConnected = await tauriListen<{ email: string }>(
@@ -3502,7 +3510,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           pushAssistant(`Connected to Knapsack as **${email}**.`)
         },
       )
-      cleanups.push(unlistenKnapsackConnected)
+      registerCleanup(unlistenKnapsackConnected)
 
       const unlistenKnapsackError = await tauriListen<{ error: string }>(
         'knapsack-auth-error',
@@ -3512,14 +3520,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           setKnapsackConnectError(event.payload.error || 'Connection failed')
         },
       )
-      cleanups.push(unlistenKnapsackError)
+      registerCleanup(unlistenKnapsackError)
     })()
 
     return () => {
       cancelled = true
       cleanups.forEach(fn => fn())
     }
-  }, [])
+  }, [active])
 
   // Gateway service handler removed - channels UI removed in this version
 
@@ -4280,10 +4288,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [knapsackEmail])
 
   useEffect(() => {
+    if (!active) return
     void refreshStudioConnections()
     window.addEventListener('focus', refreshStudioConnections)
     return () => window.removeEventListener('focus', refreshStudioConnections)
-  }, [refreshStudioConnections])
+  }, [active, refreshStudioConnections])
 
   // Auto-scroll to bottom when messages change, but only if user is near the bottom
   useEffect(() => {
