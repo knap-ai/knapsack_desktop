@@ -44,6 +44,7 @@ pub struct SetEmailReadResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SetEmailReadResponseParams {
   email: String,
+  account_email: Option<String>,
   message_id: String,
   extra_action: Option<String>,
 }
@@ -460,14 +461,33 @@ async fn fetch_google_gmail_api(
 
 #[post("/api/knapsack/connections/google/gmail/read")]
 async fn set_email_as_read(payload: Json<SetEmailReadResponseParams>) -> impl Responder {
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    payload.email.clone(),
-    String::from(GOOGLE_GMAIL_SCOPE),
-  )
-  .unwrap();
-  let access_token = refresh_connection_token(payload.email.clone(), user_connection.clone())
-    .await
-    .unwrap();
+  let user_connection = match payload.account_email.clone() {
+    Some(account_email) => UserConnection::find_by_user_email_scope_and_calendar_account(
+      payload.email.clone(),
+      String::from(GOOGLE_GMAIL_SCOPE),
+      account_email,
+    ),
+    None => UserConnection::find_by_user_email_and_scope(
+      payload.email.clone(),
+      String::from(GOOGLE_GMAIL_SCOPE),
+    ),
+  };
+  let user_connection = match user_connection {
+    Ok(connection) => connection,
+    Err(error) => {
+      return HttpResponse::BadRequest().json(SetEmailReadResponse {
+        message: error.to_string(),
+      })
+    }
+  };
+  let access_token = match refresh_connection_token(payload.email.clone(), user_connection).await {
+    Ok(token) => token,
+    Err(error) => {
+      return HttpResponse::BadRequest().json(SetEmailReadResponse {
+        message: error.to_string(),
+      })
+    }
+  };
   let message_id = payload.message_id.clone();
 
   let hub = Gmail::new(get_https_client(), access_token.to_string());

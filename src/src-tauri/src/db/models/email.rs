@@ -70,7 +70,7 @@ impl Email {
             is_read = ?9, 
             is_archived = ?10 ,
             is_deleted =?12
-        WHERE email_uid = ?11",
+        WHERE email_uid = ?11 AND account_email = ?13",
       params![
         self.subject,
         self.date,
@@ -83,7 +83,8 @@ impl Email {
         self.is_read,
         self.is_archived,
         self.email_uid,
-        self.is_deleted
+        self.is_deleted,
+        self.account_email
       ],
     )?;
     Ok(())
@@ -123,6 +124,31 @@ impl Email {
       .query_row([uid], |row| Email::build_struct_from_row(row))
       .optional()?;
     Ok(email)
+  }
+
+  pub fn find_by_uid_and_account(uid: &str, account_email: &str) -> Result<Option<Email>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection
+      .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE email_uid = ?1 AND account_email = ?2")
+      .expect("could not prepare account-scoped email query");
+    let email = stmt
+      .query_row(params![uid, account_email], |row| {
+        Email::build_struct_from_row(row)
+      })
+      .optional()?;
+    Ok(email)
+  }
+
+  pub fn claim_unscoped_uid_for_account(
+    uid: &str,
+    account_email: &str,
+  ) -> Result<Option<Email>, Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE emails SET account_email = ?2 WHERE email_uid = ?1 AND TRIM(account_email) = ''",
+      params![uid, account_email],
+    )?;
+    Self::find_by_uid_and_account(uid, account_email)
   }
 
   pub fn get_recent_emails_with(sender_or_recipient: &str, limit: usize) -> Vec<Email> {
@@ -243,6 +269,7 @@ impl Email {
     maybe_email_address: Option<Vec<String>>,
     maybe_minimum_timestamp: Option<i64>,
     maybe_maximum_timestamp: Option<i64>,
+    maybe_account_emails: Option<Vec<String>>,
   ) -> Vec<Email> {
     let connection = get_db_conn();
     let mut where_queries = Vec::new();
@@ -268,6 +295,27 @@ impl Email {
     if let Some(maximum_timestamp) = maybe_maximum_timestamp {
       where_queries.push(format!("date <= ?{}", params.len() + 1));
       params.push(maximum_timestamp.to_string());
+    }
+
+    if let Some(account_emails) = maybe_account_emails {
+      let account_emails = account_emails
+        .into_iter()
+        .map(|email| email.trim().to_ascii_lowercase())
+        .filter(|email| !email.is_empty())
+        .collect::<Vec<_>>();
+      if !account_emails.is_empty() {
+        let first_param_index = params.len() + 1;
+        let placeholders = account_emails
+          .iter()
+          .enumerate()
+          .map(|(index, _)| format!("?{}", first_param_index + index))
+          .collect::<Vec<_>>();
+        where_queries.push(format!(
+          "LOWER(account_email) IN ({})",
+          placeholders.join(", ")
+        ));
+        params.extend(account_emails);
+      }
     }
 
     let mut where_query = "".to_string();
@@ -405,6 +453,37 @@ impl Email {
 
     let emails = stmt
       .query_map([thread_id], |row| Email::build_struct_from_row(row))
+      .map_err(Error::from)?
+      .filter_map(|r| r.ok())
+      .collect();
+
+    Ok(emails)
+  }
+
+  pub fn get_last_email_by_thread_id_for_account(
+    thread_id: &str,
+    account_email: &str,
+  ) -> Result<Vec<Email>, Error> {
+    let connection = get_db_conn();
+    let mailbox = account_email
+      .strip_prefix("microsoft:")
+      .unwrap_or(account_email)
+      .trim();
+    if !mailbox.is_empty() {
+      let mailbox_pattern = format!("%{}%", mailbox.to_ascii_lowercase());
+      connection.execute(
+        "UPDATE emails SET account_email = ?2 WHERE thread_id = ?1 AND TRIM(account_email) = '' AND (LOWER(sender) LIKE ?3 OR LOWER(recipient) LIKE ?3 OR LOWER(cc) LIKE ?3) AND NOT EXISTS (SELECT 1 FROM emails scoped WHERE scoped.email_uid = emails.email_uid AND scoped.account_email = ?2)",
+        params![thread_id, account_email, mailbox_pattern],
+      )?;
+    }
+
+    let mut stmt = connection
+        .prepare("SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email FROM emails WHERE thread_id = ?1 AND account_email = ?2 ORDER BY date DESC")
+        .expect("could not prepare account-scoped query emails by thread_id");
+    let emails = stmt
+      .query_map(params![thread_id, account_email], |row| {
+        Email::build_struct_from_row(row)
+      })
       .map_err(Error::from)?
       .filter_map(|r| r.ok())
       .collect();

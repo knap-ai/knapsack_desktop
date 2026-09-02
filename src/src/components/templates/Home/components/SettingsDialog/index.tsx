@@ -773,14 +773,35 @@ export const SettingsDialog = ({
   }, [requireGooglePrimaryEmail])
 
   const getGoogleAccountLabel = useCallback(
-    (item: Connection) => item.calendarAccountEmail || googlePrimaryEmail || 'unknown account',
+    (item: Connection) =>
+      item.calendarAccountEmail || item.ownerEmail || googlePrimaryEmail || 'unknown account',
     [googlePrimaryEmail],
   )
 
-  const getGoogleOwnerSuffix = useCallback((item: Connection) => {
-    if (!item.ownerEmail || item.ownerEmail === item.calendarAccountEmail) return ''
-    return ` via ${item.ownerEmail}`
-  }, [])
+  const googleAccounts = Array.from(
+    [
+      ...getGoogleGmailConnections(displayConnections).map(connection => ({
+        connection,
+        service: 'Gmail',
+      })),
+      ...getGoogleCalendarConnections(displayConnections).map(connection => ({
+        connection,
+        service: 'Calendar',
+      })),
+      ...getGoogleDriveConnections(displayConnections).map(connection => ({
+        connection,
+        service: 'Drive',
+      })),
+    ].reduce((accounts, item) => {
+      const accountEmail = getGoogleAccountLabel(item.connection)
+      const existing = accounts.get(accountEmail) || []
+      existing.push(item)
+      accounts.set(accountEmail, existing)
+      return accounts
+    }, new Map<string, Array<{ connection: Connection; service: string }>>()),
+  )
+    .map(([accountEmail, services]) => ({ accountEmail, services }))
+    .sort((a, b) => a.accountEmail.localeCompare(b.accountEmail))
 
   useEffect(() => {
     setSettingsConnections(connections)
@@ -1825,60 +1846,33 @@ export const SettingsDialog = ({
                 </div>
               ))}
 
-            {/* Google Drive — one row per linked account */}
-            {getGoogleDriveConnections(displayConnections).map(item => (
+            {googleAccounts.length > 0 && (
+              <Typography className="text-xs text-gray-500 mt-1">
+                Connected Google accounts
+              </Typography>
+            )}
+            {googleAccounts.map(account => (
               <div
-                className="flex justify-between h-[36px] items-center"
-                key={`drive-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
+                className="flex flex-col gap-1 py-2 border-b border-zinc-100 last:border-b-0"
+                key={`google-account-${account.accountEmail}`}
               >
-                <Typography>
-                  Drive, {getGoogleAccountLabel(item)}
-                  {getGoogleOwnerSuffix(item)}
-                </Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={() => handleDeleteConnection(item)}
-                >
-                  Remove
-                </Typography>
-              </div>
-            ))}
-
-            {/* Google Gmail — one row per linked account */}
-            {getGoogleGmailConnections(displayConnections).map(item => (
-              <div
-                className="flex justify-between h-[36px] items-center"
-                key={`gmail-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
-              >
-                <Typography>
-                  Gmail, {getGoogleAccountLabel(item)}
-                  {getGoogleOwnerSuffix(item)}
-                </Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={() => handleDeleteConnection(item)}
-                >
-                  Remove
-                </Typography>
-              </div>
-            ))}
-
-            {/* Google Calendar — one row per linked account */}
-            {getGoogleCalendarConnections(displayConnections).map(item => (
-              <div
-                className="flex justify-between h-[36px] items-center"
-                key={`cal-${item.id}-${item.calendarAccountEmail}-${item.ownerEmail}`}
-              >
-                <Typography>
-                  Calendar, {getGoogleAccountLabel(item)}
-                  {getGoogleOwnerSuffix(item)}
-                </Typography>
-                <Typography
-                  className={`cursor-pointer ${styles.link}`}
-                  onClick={() => handleDeleteConnection(item)}
-                >
-                  Remove
-                </Typography>
+                <Typography weight={TypographyWeight.medium}>{account.accountEmail}</Typography>
+                <div className="flex flex-col gap-1">
+                  {account.services.map(({ connection, service }) => (
+                    <div
+                      className="flex justify-between items-center min-h-[28px] pl-3"
+                      key={`${service}-${connection.id}-${connection.ownerEmail}`}
+                    >
+                      <Typography className="text-sm text-gray-600">{service}</Typography>
+                      <Typography
+                        className={`cursor-pointer ${styles.link}`}
+                        onClick={() => handleDeleteConnection(connection)}
+                      >
+                        Remove
+                      </Typography>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
 

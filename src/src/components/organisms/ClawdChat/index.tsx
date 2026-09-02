@@ -1074,7 +1074,7 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<
         const dateStr = new Date(email.date * 1000).toLocaleString()
         const preview = (email.summary || email.body || '').slice(0, 200)
         contextParts.push(
-          `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+          `- **Mailbox:** ${email.accountEmail || 'unknown'} | **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
         )
       }
     } else if (nativeEmailConnected) {

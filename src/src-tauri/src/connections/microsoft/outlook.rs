@@ -103,10 +103,16 @@ async fn upsert_email_by_uid(
   email_data: EmailData,
   archive_folder_id: String,
   flag_update: bool,
+  account_email: &str,
 ) -> Result<Email, Error> {
-  if let Ok(Some(email)) = Email::find_by_uid(&email_data.id) {
+  let existing_email = match Email::find_by_uid_and_account(&email_data.id, account_email)? {
+    Some(email) => Some(email),
+    None => Email::claim_unscoped_uid_for_account(&email_data.id, account_email)?,
+  };
+
+  if let Some(email) = existing_email.as_ref() {
     if !flag_update {
-      return Ok(email);
+      return Ok(email.clone());
     }
   }
 
@@ -117,7 +123,7 @@ async fn upsert_email_by_uid(
   let is_archived = email_data.parentFolderId == archive_folder_id;
 
   let mut email_entry = Email {
-    id: None,
+    id: existing_email.and_then(|email| email.id),
     email_uid: email_data.id,
     subject: email_data.subject.unwrap_or_default(),
     date: received_timestamp,
@@ -151,10 +157,14 @@ async fn upsert_email_by_uid(
     is_read: Some(email_data.isRead),
     is_archived: Some(is_archived),
     is_deleted: Some(false),
-    account_email: String::new(),
+    account_email: account_email.to_string(),
   };
 
-  email_entry.create();
+  if email_entry.id.is_some() {
+    email_entry.update()?;
+  } else {
+    email_entry.create()?;
+  }
   Ok(email_entry)
 }
 
@@ -224,7 +234,9 @@ async fn start_outlook_data_fetching(
     true,
   )
   .await;
-  fetch_outlook_emails(email.clone(), update_user_connection.token.clone(), 3, true).await;
+  // Keep the same seven-day horizon as Email Autopilot and persist the owning
+  // mailbox so Outlook rows remain distinguishable from legacy unscoped Gmail.
+  fetch_outlook_emails(email.clone(), update_user_connection.token.clone(), 7, true).await;
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit(
     "finish_fetch_email",
@@ -247,6 +259,7 @@ pub async fn fetch_outlook_emails(
   days: u16,
   flag_update: bool,
 ) -> Result<(), Error> {
+  let account_key = format!("microsoft:{}", email.trim().to_ascii_lowercase());
   let client = Client::new();
   let mut older_date = Utc::now();
   let limit_date = Utc::now() - Duration::days(days.into());
@@ -288,7 +301,13 @@ pub async fn fetch_outlook_emails(
       all_email_uuids.push(email_data.id.clone());
       let email_documents_clone = email_documents.clone();
       let email_record =
-        match upsert_email_by_uid(email_data, archive_folder_id.clone(), flag_update.clone()).await
+        match upsert_email_by_uid(
+          email_data,
+          archive_folder_id.clone(),
+          flag_update,
+          &account_key,
+        )
+        .await
         {
           Ok(email) => email,
           Err(e) => {
@@ -314,7 +333,7 @@ pub async fn fetch_outlook_emails(
     }
   }
 
-  Email::mark_deleted_emails(&all_email_uuids, 3, "").await?;
+  Email::mark_deleted_emails(&all_email_uuids, i64::from(days), &account_key).await?;
 
   Ok(())
 }

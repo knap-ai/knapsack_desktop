@@ -105,13 +105,13 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
       // calendar connections).  We must iterate by record key — not by the
       // connection.key field — so multiple calendar accounts are preserved.
       for (const [recordKey, connection] of Object.entries(cloudConnections)) {
-        const { id, key, state, lastSynced, syncedSince, calendarAccountEmail } = connection
+        const { id, key, state, lastSynced, syncedSince, calendarAccountEmail, ownerEmail } = connection
 
         updatedConnections[recordKey] =
           connections[recordKey]?.state === ConnectionStates.UP_TO_DATE ||
           connections[recordKey]?.state === ConnectionStates.SYNCING
-            ? connections[recordKey]
-            : { id, key, state, calendarAccountEmail }
+            ? { ...connections[recordKey], calendarAccountEmail, ownerEmail }
+            : { id, key, state, calendarAccountEmail, ownerEmail }
 
         if (lastSynced != null) {
           if (typeof lastSynced === 'string') {

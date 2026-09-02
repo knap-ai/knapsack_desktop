@@ -135,7 +135,7 @@ fn ingest_emails(
 ) -> Result<(), Error> {
   // Pull a generous slab — filter_emails sorts by date DESC, so we still get
   // the most recent emails when we cap below.
-  let emails = Email::filter_emails(5_000, None, None, None);
+  let emails = Email::filter_emails(5_000, None, None, None, None);
   log::info!("[library_curator/people] scanning {} emails", emails.len());
 
   for email in emails {

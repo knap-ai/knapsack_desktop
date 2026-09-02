@@ -56,10 +56,23 @@ import useCalendar, { Meeting } from '../dataSources/useCalendar'
 export interface DisplayEmail {
   message: EmailDocument
   classification: EmailClassification | null
+  provider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE
   wasIgnored?: boolean
   wasReplySent?: boolean
   draftedReply?: string
 }
+
+const emailProvider = (
+  email: EmailDocument,
+): ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE =>
+  email.accountEmail?.toLowerCase().startsWith('microsoft:')
+    ? ConnectionKeys.MICROSOFT_PROFILE
+    : ConnectionKeys.GOOGLE_PROFILE
+
+const emailAccountAddress = (accountEmail: string): string =>
+  accountEmail.toLowerCase().startsWith('microsoft:')
+    ? accountEmail.slice('microsoft:'.length)
+    : accountEmail
 
 const ignore_actions = [
   AutopilotActions.MARK_AS_READ,
@@ -75,6 +88,30 @@ const reply_actions = [
 
 const MAX_RETRIES = 5
 export const STATIONARY_ITEMS = 'stationary'
+
+const emailThreadKey = (email: EmailDocument): string | undefined =>
+  email.threadId
+    ? `${(email.accountEmail || 'unknown').toLowerCase()}:${email.threadId}`
+    : undefined
+
+const emailMessageKey = (email: EmailDocument): string =>
+  `${(email.accountEmail || 'unknown').toLowerCase()}:${email.emailUid}`
+
+const emailAddressesInHeader = (header: string): string[] =>
+  header.toLowerCase().match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+/g) || []
+
+const wasSentByMailboxOwner = (email: EmailDocument, fallbackUserEmail?: string): boolean => {
+  const senderAddresses = emailAddressesInHeader(email.sender)
+  const mailbox = email.accountEmail
+    ? emailAccountAddress(email.accountEmail.trim().toLowerCase())
+    : undefined
+  const fallback = fallbackUserEmail?.trim().toLowerCase()
+  return Boolean(
+    (mailbox && senderAddresses.includes(mailbox))
+      || (!mailbox && fallback && senderAddresses.includes(fallback)),
+  )
+}
+
 export interface IFeed {
   updateFeedItemTitle?: (key: string, itemId: number, newTitle: string) => void
   deleteFeedItemFromState?: (itemId: number) => Promise<void>
@@ -176,6 +213,7 @@ export interface IFeed {
     action: AutopilotActions,
     userProvider: ConnectionKeys.MICROSOFT_PROFILE | ConnectionKeys.GOOGLE_PROFILE,
     draftReply?: string,
+    accountEmail?: string,
   ) => void
   createEmailAutoPilot: () => Promise<FeedItem>
   emailAutopilot: IEmailAutopilot
@@ -257,6 +295,27 @@ export function useFeed(
   const [classifiedEmails, setClassifiedEmails] = useState<
     Partial<Record<EmailImportance, DisplayEmail[]>>
   >({})
+  const emailAutopilotRunRef = useRef<Promise<void> | null>(null)
+  const emailAutopilotRerunPendingRef = useRef(false)
+  const emailAutopilotCycleMessageKeysRef = useRef(new Set<string>())
+  const connectedEmailAccountEmails = useMemo(
+    () => Array.from(new Set(
+      Object.values(connections)
+        .filter(connection =>
+          connection.key === ConnectionKeys.GOOGLE_GMAIL ||
+          connection.key === ConnectionKeys.MICROSOFT_OUTLOOK,
+        )
+        .map(connection =>
+          connection.key === ConnectionKeys.GOOGLE_GMAIL
+            ? (connection.calendarAccountEmail || connection.ownerEmail)?.trim().toLowerCase()
+            : connection.ownerEmail
+              ? `microsoft:${connection.ownerEmail.trim().toLowerCase()}`
+              : undefined,
+        )
+        .filter((email): email is string => Boolean(email)),
+    )),
+    [connections],
+  )
   const [classificationActions, setClassificationActions] = useState<
     Partial<Record<EmailImportance, EmailAction>>
   >({
@@ -353,7 +412,9 @@ export function useFeed(
           ) {
             const draftedReply = await emailAutopilot.draftEmailReply(
               email.message,
-              userEmail,
+              email.message.accountEmail
+                ? emailAccountAddress(email.message.accountEmail)
+                : userEmail,
               userName,
             )
 
@@ -404,8 +465,6 @@ export function useFeed(
     UNIMPORTANT: 1,
     UNCLASSIFIED: 0,
   }
-
-  const lastEmailId = useRef<number | undefined>(undefined)
 
   const selectEmailCategory = useCallback(() => {
     const getTabCount = (category: EmailImportance): number => {
@@ -554,6 +613,7 @@ export function useFeed(
           const displayEmail: DisplayEmail = {
             message: email,
             classification: classification,
+            provider: emailProvider(email),
           }
           return displayEmail
         }
@@ -565,7 +625,9 @@ export function useFeed(
       const newState = { ...prevState }
 
       const newThreadIds = new Set(
-        displayEmails.map(email => email?.message.threadId).filter(Boolean),
+        displayEmails
+          .map(email => (email ? emailThreadKey(email.message) : undefined))
+          .filter(Boolean),
       )
 
       const filteredState: Partial<Record<EmailImportance, DisplayEmail[]>> = {}
@@ -574,7 +636,7 @@ export function useFeed(
         const emails = newState[key as EmailImportance]
         if (emails) {
           filteredState[key as EmailImportance] = emails.filter(
-            (email: DisplayEmail) => !newThreadIds.has(email.message.threadId),
+            (email: DisplayEmail) => !newThreadIds.has(emailThreadKey(email.message)),
           )
         }
       })
@@ -609,9 +671,9 @@ export function useFeed(
         setEmailAutopilotStatus(prev => ({ ...prev, status: 'complete' }))
   }, [emailAutopilotStatus])
 
-  const handleFailMessagesClassified = (emails: EmailDocument[], retry: number = 0) => {
+  const handleFailMessagesClassified = async (emails: EmailDocument[], retry: number = 0) => {
     if (retry < MAX_RETRIES) {
-      executeClassification(emails, retry + 1)
+      await executeClassification(emails, retry + 1)
       return
     }
 
@@ -628,11 +690,15 @@ export function useFeed(
 
     setClassifiedEmails(prevState => {
       const newState = { ...prevState }
+      const failedMessageKeys = new Set(emails.map(emailMessageKey))
       newState['UNCLASSIFIED'] = [
-        ...(newState['UNCLASSIFIED'] || []),
+        ...(newState['UNCLASSIFIED'] || []).filter(
+          email => !failedMessageKeys.has(emailMessageKey(email.message)),
+        ),
         ...emails.map(message => ({
           message: message,
           classification: null,
+          provider: emailProvider(message),
         })),
       ]
       return newState
@@ -655,7 +721,7 @@ export function useFeed(
 
   const executeClassification = async (batch: EmailDocument[], retry: number = 0) => {
     try {
-      emailAutopilot.classifyEmails(batch, handleSuccessMessagesClassified, emails =>
+      await emailAutopilot.classifyEmails(batch, handleSuccessMessagesClassified, emails =>
         handleFailMessagesClassified(emails, retry),
       )
     } catch (error: any) {
@@ -663,7 +729,7 @@ export function useFeed(
         additionalInfo: '',
         error: error.toString(),
       })
-      handleFailMessagesClassified(batch, retry)
+      await handleFailMessagesClassified(batch, retry)
       console.error('Error classifying emails:', error)
     }
   }
@@ -672,7 +738,12 @@ export function useFeed(
     try {
       const dataFetcher = new DataFetcher()
 
-      const allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
+      const allMessages = await dataFetcher.getRecentGmailMessages(
+        7,
+        5000,
+        false,
+        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
+      )
 
       if (allMessages.length === 0) {
         return
@@ -681,8 +752,9 @@ export function useFeed(
       // Identify threads where the user has sent a message (i.e. already replied)
       const repliedThreadIds = new Set<string>()
       allMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          repliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          repliedThreadIds.add(threadKey)
         }
       })
 
@@ -702,7 +774,7 @@ export function useFeed(
                 // or fall back to the read/archived/deleted heuristic.
                 const userRepliedInThread =
                   updatedMessage.threadId != null &&
-                  repliedThreadIds.has(updatedMessage.threadId)
+                  repliedThreadIds.has(emailThreadKey(updatedMessage) || '')
 
                 return {
                   ...displayEmail,
@@ -729,9 +801,9 @@ export function useFeed(
         error: error instanceof Error ? error.toString() : String(error),
       })
     }
-  }, [classifiedEmails])
+  }, [classifiedEmails, connectedEmailAccountEmails])
 
-  const runEmailAutopilot = async () => {
+  const runEmailAutopilotOnce = async () => {
     const dataFetcher = new DataFetcher()
     // const isSynced = handleSyncSources([AutomationDataSources.GMAIL])
     await updateRecentClassifiedEmails()
@@ -743,7 +815,12 @@ export function useFeed(
       setEmailAutopilotStatus({ status: 'fetching-emails' })
       // Fetch 7 days so starred / unread emails older than 24h are still
       // picked up.  The unread+starred filter below keeps the set manageable.
-      let allMessages = await dataFetcher.getRecentGmailMessages(7, 5000)
+      let allMessages = await dataFetcher.getRecentGmailMessages(
+        7,
+        5000,
+        false,
+        connectedEmailAccountEmails.length > 0 ? connectedEmailAccountEmails : undefined,
+      )
 
       if (allMessages.length === 0) {
         setEmailAutopilotStatus({ status: 'complete' })
@@ -754,8 +831,9 @@ export function useFeed(
       // replied to (sent messages are read, so the filter below would drop them).
       const userRepliedThreadIds = new Set<string>()
       allMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          userRepliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          userRepliedThreadIds.add(threadKey)
         }
       })
 
@@ -763,16 +841,33 @@ export function useFeed(
         message => message.isStarred || (!message.isRead && !message.isArchived),
       )
 
-      let messages = []
-      if (lastEmailId.current) {
-        const lastEmailIndex = allMessages.findIndex(
-          message => message.documentId === lastEmailId.current,
-        )
-        messages = allMessages.slice(0, lastEmailIndex)
-      } else {
-        messages = allMessages
+      if (allMessages.length === 0) {
+        setEmailAutopilotStatus({ status: 'complete' })
+        return
       }
-      lastEmailId.current = allMessages[0].documentId
+
+      // Reconsider messages that are new or previously failed classification,
+      // while preserving successful classifications and generated drafts.
+      // This avoids both a brittle document cursor and repeated LLM work.
+      const successfullyClassifiedMessageKeys = new Set(
+        Object.entries(classifiedEmails).flatMap(([importance, emails]) =>
+          importance === EmailImportance.UNCLASSIFIED
+            ? []
+            : (emails || [])
+                .filter(email => email.classification)
+                .map(email => emailMessageKey(email.message)),
+        ),
+      )
+      const messages = allMessages.filter(
+        message =>
+          !successfullyClassifiedMessageKeys.has(emailMessageKey(message)) &&
+          !emailAutopilotCycleMessageKeysRef.current.has(emailMessageKey(message)),
+      )
+
+      if (messages.length === 0) {
+        setEmailAutopilotStatus({ status: 'complete' })
+        return
+      }
 
       const emailThreadsSet = new Set<EmailDocument>()
 
@@ -800,26 +895,29 @@ export function useFeed(
       // Also check thread messages for user replies (now that the backend
       // returns the full thread instead of only the latest message).
       allThreadMessages.forEach(message => {
-        if (message.sender.includes(userEmail) && message.threadId) {
-          userRepliedThreadIds.add(message.threadId)
+        const threadKey = emailThreadKey(message)
+        if (wasSentByMailboxOwner(message, userEmail) && threadKey) {
+          userRepliedThreadIds.add(threadKey)
         }
       })
 
       let newMessages = allThreadMessages.filter(
         message =>
-          !message.sender.includes(userEmail) &&
-          !(message.threadId && userRepliedThreadIds.has(message.threadId)),
+          !successfullyClassifiedMessageKeys.has(emailMessageKey(message)) &&
+          !wasSentByMailboxOwner(message, userEmail) &&
+          !(emailThreadKey(message) && userRepliedThreadIds.has(emailThreadKey(message)!)),
       )
 
       const uniqueUuids: Record<string, number> = {}
 
       newMessages = newMessages.reduce((finalEmails, message) => {
-        if (uniqueUuids[message.emailUid]) {
-          const index = uniqueUuids[message.emailUid]
+        const messageKey = emailMessageKey(message)
+        if (uniqueUuids[messageKey] !== undefined) {
+          const index = uniqueUuids[messageKey]
           finalEmails[index] = finalEmails[index].date > message.date ? finalEmails[index] : message
         } else {
           const pos = finalEmails.push(message)
-          uniqueUuids[message.emailUid] = pos - 1
+          uniqueUuids[messageKey] = pos - 1
         }
         return finalEmails
       }, [] as EmailDocument[])
@@ -828,6 +926,10 @@ export function useFeed(
         setEmailAutopilotStatus({ status: 'complete' })
         return
       }
+
+      newMessages.forEach(message => {
+        emailAutopilotCycleMessageKeysRef.current.add(emailMessageKey(message))
+      })
 
       setEmailAutopilotStatus(prevState => ({
         status: 'classifying-emails',
@@ -842,7 +944,7 @@ export function useFeed(
       const BATCH_SIZE = 3
       for (let i = 0; i < newMessages.length; i += BATCH_SIZE) {
         const batch = newMessages.slice(i, i + BATCH_SIZE)
-        executeClassification(batch)
+        await executeClassification(batch)
 
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
@@ -860,6 +962,31 @@ export function useFeed(
         handleErrorContact('Error starting Email Autopilot, please try again later.')
       }
       throw error
+    }
+  }
+
+  const runEmailAutopilot = async () => {
+    if (emailAutopilotRunRef.current) {
+      emailAutopilotRerunPendingRef.current = true
+      return emailAutopilotRunRef.current
+    }
+    const run = (async () => {
+      try {
+        do {
+          emailAutopilotRerunPendingRef.current = false
+          await runEmailAutopilotOnce()
+        } while (emailAutopilotRerunPendingRef.current)
+      } finally {
+        emailAutopilotCycleMessageKeysRef.current.clear()
+      }
+    })()
+    emailAutopilotRunRef.current = run
+    try {
+      await run
+    } finally {
+      if (emailAutopilotRunRef.current === run) {
+        emailAutopilotRunRef.current = null
+      }
     }
   }
 
@@ -2008,32 +2135,59 @@ export function useFeed(
     action: AutopilotActions,
     userProvider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     draftedReply?: string,
+    accountEmail?: string,
   ) => {
     setClassifiedEmails(prevState => {
       const newState = { ...prevState }
+      let actionHandled = false
 
       // Search through all importance categories
       Object.keys(newState).forEach(importance => {
+        if (actionHandled) return
         const emails = newState[importance as EmailImportance]
         if (!emails) return
 
-        // Find and update the matching email
-        const emailIndex = emails.findIndex(email => email.message.emailUid === emailUid)
+        // Gmail message IDs are only unique inside a mailbox. Match both the
+        // message and its connected account so an action cannot affect another
+        // mailbox that happens to expose the same ID.
+        const normalizedAccount = (accountEmail || userEmail).trim().toLowerCase()
+        const emailIndex = emails.findIndex(
+          email =>
+            email.message.emailUid === emailUid &&
+            (email.message.accountEmail || userEmail).trim().toLowerCase() === normalizedAccount,
+        )
 
         if (emailIndex !== -1) {
+          actionHandled = true
           const updatedEmail = { ...emails[emailIndex] }
           const dataFetcher = new DataFetcher()
+          const actionOwnerEmail =
+            userProvider === ConnectionKeys.MICROSOFT_PROFILE
+              ? emailAccountAddress(updatedEmail.message.accountEmail || userEmail)
+              : userEmail
           if (ignore_actions.includes(action)) {
             updatedEmail.wasIgnored = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                actionOwnerEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })
           } else if (reply_actions.includes(action)) {
             updatedEmail.wasReplySent = true
             dataFetcher
-              .postMarkEmailRead(userEmail, emailUid, userProvider, action)
+              .postMarkEmailRead(
+                actionOwnerEmail,
+                emailUid,
+                userProvider,
+                action,
+                updatedEmail.message.accountEmail,
+              )
               .catch(error => {
                 console.error('Fail to mark email as read ', error)
               })

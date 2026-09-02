@@ -274,6 +274,7 @@ export default class DataFetcher {
     days: number,
     maxMessages: number = 20,
     throwOnFailure: boolean = false,
+    accountEmails?: string[],
   ): Promise<EmailDocument[]> {
     const fromDatetime = KNDateUtils.nDaysAgo(days)
     const today = new Date()
@@ -290,6 +291,7 @@ export default class DataFetcher {
         top: maxMessages,
         from_timestamp: fromDatetime.getTime() / 1000,
         to_timestamp: toDatetime.getTime() / 1000,
+        account_emails: accountEmails,
       }),
     })
 
@@ -475,6 +477,7 @@ export default class DataFetcher {
     messageId: string,
     provider: ConnectionKeys.GOOGLE_PROFILE | ConnectionKeys.MICROSOFT_PROFILE,
     action: AutopilotActions,
+    accountEmail?: string,
   ) {
     const url =
       provider == ConnectionKeys.MICROSOFT_PROFILE
@@ -494,7 +497,12 @@ export default class DataFetcher {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ message_id: messageId, email: email, extra_action: extra_action }),
+      body: JSON.stringify({
+        message_id: messageId,
+        email,
+        account_email: accountEmail,
+        extra_action,
+      }),
     })
     const data = await response.json()
 
@@ -507,6 +515,7 @@ export default class DataFetcher {
         },
         body: JSON.stringify({
           emailUid: messageId,
+          accountEmail,
           isRead: true,
         }),
       })

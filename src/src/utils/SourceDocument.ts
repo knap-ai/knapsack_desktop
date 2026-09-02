@@ -15,6 +15,8 @@ export interface SourceDocument {
 
 export interface EmailDocument extends SourceDocument {
   emailUid: string
+  /** The connected mailbox this message was synced from. */
+  accountEmail?: string
   sender: string
   recipients: string[]
   cc: string[]
@@ -49,4 +51,3 @@ export const serializeEmailDocumentsToAdditionalDocuments = (
     content: JSON.stringify(email),
   }))
 }
-

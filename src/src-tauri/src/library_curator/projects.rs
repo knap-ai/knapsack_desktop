@@ -104,7 +104,7 @@ pub async fn detect_and_upsert(_cfg: &CuratorSettings) -> Result<(), Error> {
 }
 
 fn collect_email_subjects() -> Vec<String> {
-  let emails = Email::filter_emails(MAX_EMAILS_FOR_CORPUS, None, None, None);
+  let emails = Email::filter_emails(MAX_EMAILS_FOR_CORPUS, None, None, None, None);
   emails
     .into_iter()
     .filter_map(|e| {
@@ -238,7 +238,7 @@ fn upsert_project_collection(proj: &DetectedProject) -> Result<(), Error> {
 
   // Attach matching emails by subject/body keyword hit.
   let mut email_attached = 0_usize;
-  let emails = Email::filter_emails(EMAIL_SCAN_LIMIT, None, None, None);
+  let emails = Email::filter_emails(EMAIL_SCAN_LIMIT, None, None, None, None);
   for email in emails {
     if email_attached >= MAX_DOCS_PER_PROJECT {
       break;

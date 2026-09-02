@@ -37,6 +37,57 @@ export interface EmailClassification {
   actionRequired: string | null
 }
 
+const EMAIL_IMPORTANCE_VALUES = new Set<string>(Object.values(EmailImportance))
+
+export function parseEmailClassificationResponse(message: string): EmailClassification[] {
+  const fencedMatch = message.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  const trimmed = message.trim()
+  const objectStart = trimmed.indexOf('{')
+  const objectEnd = trimmed.lastIndexOf('}')
+  const candidates = [
+    fencedMatch?.[1]?.trim(),
+    trimmed,
+    objectStart >= 0 && objectEnd > objectStart ? trimmed.slice(objectStart, objectEnd + 1) : undefined,
+  ].filter((candidate): candidate is string => Boolean(candidate))
+
+  for (const candidate of candidates) {
+    try {
+      let parsed: any = JSON.parse(candidate)
+      if (typeof parsed === 'string') parsed = JSON.parse(parsed)
+      if (!Array.isArray(parsed?.classifiedEmails)) continue
+
+      const classifications = parsed.classifiedEmails
+        .filter(
+          (item: any) =>
+            Number.isFinite(Number(item?.documentId)) &&
+            EMAIL_IMPORTANCE_VALUES.has(item?.classification),
+        )
+        .map((item: any): EmailClassification => ({
+          documentId: Number(item.documentId),
+          classification: item.classification as EmailImportance,
+          summary: Array.isArray(item.summary)
+            ? item.summary.map(String)
+            : item.summary
+              ? [String(item.summary)]
+              : [],
+          justification: String(item.justification || ''),
+          responseDeadline: item.responseDeadline ?? item.response_deadline ?? null,
+          confidenceScore: Number(item.confidenceScore ?? item.confidence_score ?? 0),
+          keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [],
+          actionRequired: item.actionRequired ?? item.action_required ?? null,
+        }))
+
+      if (classifications.length > 0 || parsed.classifiedEmails.length === 0) {
+        return classifications
+      }
+    } catch {
+      // Try the next supported response shape.
+    }
+  }
+
+  throw new Error('Could not parse email classification response')
+}
+
 export type DraftTone = 'default' | 'yes' | 'no'
 
 export interface IEmailAutopilot {
@@ -45,9 +96,9 @@ export interface IEmailAutopilot {
     handleSuccessMessagesClassified: (
       emails: EmailDocument[],
       emailClassification: EmailClassification[],
-    ) => void,
-    handleFailMessagesClassified: (emails: EmailDocument[]) => void,
-  ) => void
+    ) => void | Promise<void>,
+    handleFailMessagesClassified: (emails: EmailDocument[]) => void | Promise<void>,
+  ) => Promise<void>
   draftEmailReply: (email: EmailDocument, userEmail: string, userName?: string, tone?: DraftTone, toneLevel?: number) => Promise<string>
 }
 
@@ -56,79 +107,70 @@ export function useEmailAutopilot(
   userEmail?: string,
   userName?: string,
 ) {
-  const classifyEmails = async (
+  const classifyEmails = (
     emails: EmailDocument[],
     handleSuccessMessagesClassified: (
       emails: EmailDocument[],
       emailClassification: EmailClassification[],
-    ) => void,
-    handleFailMessagesClassified: (emails: EmailDocument[]) => void,
-  ) => {
+    ) => void | Promise<void>,
+    handleFailMessagesClassified: (emails: EmailDocument[]) => void | Promise<void>,
+  ): Promise<void> => new Promise(resolve => {
+    const nonStarredEmails = emails.filter(email => !email.isStarred)
     const messageStreamCallback = () => null
     const messageFinishCallback = async (message: string) => {
       try {
-        // Extract anything between ```json and ``` regardless of other content
-        const regex = /```json\s*([\s\S]*?)\s*```/
-        const match = message.match(regex)
-
-        if (match && match[1]) {
-          // Remove any escaped quotes and parse the JSON
-          const jsonString = match[1]
-            .trim()
-            .replace(/\\"/g, '"') // Handle escaped quotes
-            .replace(/^"|"$/g, '') // Remove wrapping quotes if they exist
-          const classifications = JSON.parse(jsonString)
-
-          const starredEmails = emails.filter(email => email.isStarred)
-          const starredClassifications = starredEmails.map(email => ({
-            documentId: email.documentId,
-            classification: EmailImportance.IMPORTANT,
-            summary: email.summary ? [email.summary] : [''],
-            justification: 'Email was starred by the user',
-            responseDeadline: null,
-            confidenceScore: 1.0,
-            keywords: ['starred'],
-            actionRequired: 'Review starred email',
-          }))
-
-          const allClassifications = {
-            classifiedEmails: [...starredClassifications, ...classifications['classifiedEmails']],
-          }
-
-          handleSuccessMessagesClassified(emails, allClassifications['classifiedEmails'])
-        } else {
-          console.error('ERROR CLASSIFYING.')
-
-          logError(new Error('Could not classify'), {
-            additionalInfo: '',
-            error: 'Could not parse the generated object',
-          })
-          handleFailMessagesClassified(emails)
+        const classifications = parseEmailClassificationResponse(message)
+        const expectedDocumentIds = new Set(nonStarredEmails.map(email => email.documentId))
+        const returnedDocumentIds = new Set(classifications.map(item => item.documentId))
+        if (
+          classifications.length !== expectedDocumentIds.size ||
+          returnedDocumentIds.size !== expectedDocumentIds.size ||
+          !Array.from(expectedDocumentIds).every(id => returnedDocumentIds.has(id))
+        ) {
+          throw new Error('Email classifier omitted or duplicated one or more messages')
         }
-      } catch {
+        const starredEmails = emails.filter(email => email.isStarred)
+        const starredClassifications = starredEmails.map(email => ({
+          documentId: email.documentId,
+          classification: EmailImportance.IMPORTANT,
+          summary: email.summary ? [email.summary] : [''],
+          justification: 'Email was starred by the user',
+          responseDeadline: null,
+          confidenceScore: 1.0,
+          keywords: ['starred'],
+          actionRequired: 'Review starred email',
+        }))
+
+        await handleSuccessMessagesClassified(emails, [
+          ...starredClassifications,
+          ...classifications,
+        ])
+      } catch (error) {
         console.error('ERROR CLASSIFYING.')
-        logError(new Error('Could not classify'), {
-          additionalInfo: '',
-          error: 'Could not classify',
+        logError(error instanceof Error ? error : new Error('Could not classify'), {
+          additionalInfo: 'Email Autopilot accepts raw JSON and fenced JSON responses',
+          error: error instanceof Error ? error.message : 'Could not classify',
         })
-        handleFailMessagesClassified(emails)
+        await handleFailMessagesClassified(emails)
+      } finally {
+        resolve()
       }
     }
 
-    const errorCallbackFollowUp = (error: Error) => {
+    const errorCallbackFollowUp = async (error: Error) => {
       console.error(error)
       logError(error, {
         additionalInfo: 'Email classification request failed',
         error: error.message,
       })
-      handleFailMessagesClassified(emails)
+      await handleFailMessagesClassified(emails)
+      resolve()
     }
-
-    const nonStarredEmails = emails.filter(email => !email.isStarred)
 
     const additionalDocuments = nonStarredEmails.map(email => ({
       title: email.subject,
       content: `Subject: ${email.subject}
+Mailbox: ${email.accountEmail || 'unknown'}
 From: ${email.sender}
 To: ${email.recipients.join(', ')}
 ${email.cc.length > 0 ? `CC: ${email.cc.join(', ')}\n` : ''}Subject: ${email.subject}
@@ -149,7 +191,8 @@ isStarred: ${email.isStarred}`,
         keywords: ['starred'],
         actionRequired: 'Review starred email',
       }))
-      handleSuccessMessagesClassified(emails, starredClassifications)
+      void Promise.resolve(handleSuccessMessagesClassified(emails, starredClassifications))
+        .finally(resolve)
       return
     }
 
@@ -158,17 +201,23 @@ isStarred: ${email.isStarred}`,
       userEmail || '',
     ).replace(/\{userName\}/g, userName || '')
 
-    addToLLMQueue({
-      documents: nonStarredEmails.map(email => email.documentId),
-      additionalDocuments: additionalDocuments,
-      semanticSearchQuery: undefined,
-      prompt: emailClassificationPrompt,
-      threadId: undefined,
-      messageStreamCallback,
-      messageFinishCallback,
-      errorCallback: errorCallbackFollowUp,
-    })
-  }
+    try {
+      addToLLMQueue({
+        documents: nonStarredEmails.map(email => email.documentId),
+        additionalDocuments: additionalDocuments,
+        semanticSearchQuery: undefined,
+        prompt: emailClassificationPrompt,
+        threadId: undefined,
+        messageStreamCallback,
+        messageFinishCallback,
+        errorCallback: errorCallbackFollowUp,
+      })
+    } catch (error) {
+      void errorCallbackFollowUp(
+        error instanceof Error ? error : new Error('Email classification queue failed'),
+      )
+    }
+  })
 
   // Shared DataFetcher instance — email drafts call the LLM directly
   // instead of going through the global serial LLM queue, so multiple
