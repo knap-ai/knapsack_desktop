@@ -100,6 +100,30 @@ test('chat applies account-wide connector context and inline recovery to gateway
   assert.match(chatSource, /studioAvailableConnectorsRef\.current,\s*true,/)
 })
 
+test('settings exposes multi-account Slack OAuth separately from agent channels', async () => {
+  const settingsSource = await fs.readFile(
+    new URL('../src/components/templates/Home/components/SettingsDialog/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  const serviceSource = await fs.readFile(
+    new URL('../src-tauri/src/clawd/service.rs', `file://${__filename}`),
+    'utf8',
+  )
+  const actixSource = await fs.readFile(
+    new URL('../src-tauri/src/server/actix.rs', `file://${__filename}`),
+    'utf8',
+  )
+
+  assert.match(settingsSource, /Slack accounts/)
+  assert.match(settingsSource, /Connect another/)
+  assert.match(settingsSource, /does not add an agent to Slack/)
+  assert.match(settingsSource, /studio-connectors\/slack\/oauth-start/)
+  assert.match(settingsSource, /studio-connectors\/accounts\/\$\{connectionId\}/)
+  assert.match(serviceSource, /start_studio_connector_oauth/)
+  assert.match(serviceSource, /remove_studio_connector_account/)
+  assert.match(actixSource, /service\(clawd::service::start_studio_connector_oauth\)/)
+})
+
 test('embedded browser tab and screenshot polling are independently serialized', async () => {
   const browserSource = await fs.readFile(
     new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),

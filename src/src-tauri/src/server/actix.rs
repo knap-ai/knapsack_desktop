@@ -431,6 +431,8 @@ pub async fn start_server<'a>(
       .service(clawd::service::knapsack_auth_callback)
       .service(clawd::service::knapsack_disconnect)
       .service(clawd::service::studio_connections)
+      .service(clawd::service::start_studio_connector_oauth)
+      .service(clawd::service::remove_studio_connector_account)
       .service(clawd::service::gemini_connect)
       // Ollama (local LLM) endpoints
       .service(clawd::service::ollama_status)
