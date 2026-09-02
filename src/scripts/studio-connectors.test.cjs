@@ -121,6 +121,8 @@ test('settings exposes multi-account Slack OAuth separately from agent channels'
   assert.match(settingsSource, /studio-connectors\/accounts\/\$\{connectionId\}/)
   assert.match(serviceSource, /start_studio_connector_oauth/)
   assert.match(serviceSource, /remove_studio_connector_account/)
+  assert.match(serviceSource, /has_usable_knapsack_token\(tokens\.knapsack_access_token\.as_ref\(\)\)/)
+  assert.match(serviceSource, /timeout\(std::time::Duration::from_secs\(20\)\)/)
   assert.match(actixSource, /service\(clawd::service::start_studio_connector_oauth\)/)
 })
 

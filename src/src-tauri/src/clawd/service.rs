@@ -16154,13 +16154,10 @@ async fn studio_access_token(app_handle: &tauri::AppHandle) -> Result<String, St
       "Connect a Knapsack Studio account first.".to_string()
     });
   }
-  if let Some(token) = tokens
-    .knapsack_access_token
-    .as_deref()
-    .map(str::trim)
-    .filter(|value| !value.is_empty())
-  {
-    return Ok(token.to_string());
+  if has_usable_knapsack_token(tokens.knapsack_access_token.as_ref()) {
+    if let Some(token) = tokens.knapsack_access_token.as_deref() {
+      return Ok(token.trim().to_string());
+    }
   }
   crate::clawd::browser::refresh_knapsack_access_token(Some(app_handle))
     .await
@@ -16200,7 +16197,20 @@ pub async fn start_studio_connector_oauth(
         .unwrap_or("https://api.knapsack.ai")
         .to_string()
     });
-  let response = reqwest::Client::new()
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(20))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(StudioConnectorOauthResponse {
+        success: false,
+        url: None,
+        message: Some(format!("Could not initialize the Studio connection: {error}")),
+      })
+    }
+  };
+  let response = client
     .post(format!(
       "{}/api/composio/auth/connect-link",
       api_base.trim_end_matches('/')
@@ -16263,7 +16273,19 @@ pub async fn remove_studio_connector_account(
         .unwrap_or("https://api.knapsack.ai")
         .to_string()
     });
-  match reqwest::Client::new()
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(20))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      return HttpResponse::InternalServerError().json(serde_json::json!({
+        "success": false,
+        "message": format!("Could not initialize the Studio connection: {error}")
+      }))
+    }
+  };
+  match client
     .delete(format!(
       "{}/api/composio/auth/accounts/{}",
       api_base.trim_end_matches('/'),
