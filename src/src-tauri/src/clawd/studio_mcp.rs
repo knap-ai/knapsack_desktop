@@ -10,8 +10,9 @@
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt as _;
 
 use super::service::clawdbot_home_headless;
@@ -19,6 +20,12 @@ use super::session_watcher::resolve_bound_authorized_session_with_slack_context;
 
 const LIST_TOOL: &str = "list_connector_tools";
 const CALL_TOOL: &str = "call_connector_tool";
+const CONNECTOR_TOOLS_CACHE_TTL: Duration = Duration::from_secs(10 * 60);
+const LARGE_CONNECTOR_TOOL_COUNT: usize = 40;
+const DEFAULT_SEARCH_RESULT_LIMIT: usize = 5;
+const MAX_SEARCH_RESULT_LIMIT: usize = 10;
+const MAX_SEARCH_RESULT_BYTES: usize = 12_000;
+
 #[derive(Clone)]
 struct RefreshedStudioToken {
   refresh_token: String,
@@ -27,6 +34,15 @@ struct RefreshedStudioToken {
 
 static REFRESHED_ACCESS_TOKEN: Lazy<Mutex<Option<RefreshedStudioToken>>> =
   Lazy::new(|| Mutex::new(None));
+
+#[derive(Clone)]
+struct CachedConnectorTools {
+  fetched_at: Instant,
+  value: Value,
+}
+
+static CONNECTOR_TOOLS_CACHE: Lazy<Mutex<HashMap<String, CachedConnectorTools>>> =
+  Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Deserialize)]
 struct StudioTokens {
@@ -128,6 +144,12 @@ async fn request_studio(
   };
   let timeout = if method == reqwest::Method::POST && path.ends_with("/call") {
     Duration::from_secs(120)
+  } else if method == reqwest::Method::GET
+    && (path.ends_with("/tools") || path.contains("/tools?"))
+  {
+    // Large Composio catalogs (GitHub currently exposes about 200 actions)
+    // can take longer to generate on a cold Studio cache.
+    Duration::from_secs(60)
   } else {
     Duration::from_secs(45)
   };
@@ -136,18 +158,27 @@ async fn request_studio(
     .build()
     .map_err(|error| error.to_string())?;
 
-  for attempt in 0..2 {
+  let max_attempts = if method == reqwest::Method::GET { 3 } else { 2 };
+  for attempt in 0..max_attempts {
     let mut request = client
       .request(method.clone(), format!("{}{}", api_base(), path))
       .bearer_auth(&access_token);
     if let Some(payload) = body.as_ref() {
       request = request.json(payload);
     }
-    let response = request
-      .send()
-      .await
-      .map_err(|error| format!("Unable to reach Knapsack Studio: {error}"))?;
-    if response.status() == reqwest::StatusCode::UNAUTHORIZED && attempt == 0 {
+    let response = match request.send().await {
+      Ok(response) => response,
+      Err(error) if method == reqwest::Method::GET && attempt + 1 < max_attempts => {
+        eprintln!(
+          "[studio_mcp] retrying Studio GET {path} after attempt {} failed: {error}",
+          attempt + 1
+        );
+        tokio::time::sleep(Duration::from_millis(350 * (attempt as u64 + 1))).await;
+        continue;
+      }
+      Err(error) => return Err(format!("Unable to reach Knapsack Studio: {error}")),
+    };
+    if response.status() == reqwest::StatusCode::UNAUTHORIZED && attempt + 1 < max_attempts {
       let refresh = refresh_token.as_deref().ok_or_else(|| {
         "Knapsack Studio sign-in expired. Reconnect Studio in Settings.".to_string()
       })?;
@@ -156,6 +187,14 @@ async fn request_studio(
     }
     let status = response.status();
     let value: Value = response.json().await.unwrap_or_else(|_| json!({}));
+    if method == reqwest::Method::GET && status.is_server_error() && attempt + 1 < max_attempts {
+      eprintln!(
+        "[studio_mcp] retrying Studio GET {path} after attempt {} returned {status}",
+        attempt + 1
+      );
+      tokio::time::sleep(Duration::from_millis(350 * (attempt as u64 + 1))).await;
+      continue;
+    }
     if !status.is_success() {
       let detail = value
         .get("detail")
@@ -180,20 +219,26 @@ fn email_domain(email: &str) -> Option<&str> {
 
 async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
   let tokens = read_tokens()?;
-  let owner = nonempty(tokens.knapsack_email)
-    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?;
+  let owner = nonempty(tokens.knapsack_email).ok_or_else(|| {
+    "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string()
+  })?;
   let session_id = arguments
     .get("_knapsack_session_id")
     .and_then(Value::as_str)
     .map(str::trim)
     .filter(|value| !value.is_empty())
-    .ok_or_else(|| "Cannot authorize Studio connector access: missing trusted gateway session context".to_string())?;
+    .ok_or_else(|| {
+      "Cannot authorize Studio connector access: missing trusted gateway session context"
+        .to_string()
+    })?;
   let scope_key = arguments
     .get("_knapsack_scope_key")
     .and_then(Value::as_str)
     .map(str::trim)
     .filter(|value| !value.is_empty())
-    .ok_or_else(|| "Cannot authorize Studio connector access: missing trusted gateway session scope".to_string())?;
+    .ok_or_else(|| {
+      "Cannot authorize Studio connector access: missing trusted gateway session scope".to_string()
+    })?;
 
   let slack_user_id = arguments
     .get("_knapsack_slack_user_id")
@@ -224,9 +269,7 @@ async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
       if !sender.eq_ignore_ascii_case(&owner)
         && email_domain(&sender)
           .zip(email_domain(&owner))
-          .map(|(sender_domain, owner_domain)| {
-            !sender_domain.eq_ignore_ascii_case(owner_domain)
-          })
+          .map(|(sender_domain, owner_domain)| !sender_domain.eq_ignore_ascii_case(owner_domain))
           .unwrap_or(true)
       {
         return Err(format!(
@@ -269,15 +312,149 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or_else(|| "connector is required".to_string())?;
-  request_studio(
-    reqwest::Method::GET,
-    &format!(
-      "/desktop/integrations/{}/tools",
-      urlencoding::encode(connector)
-    ),
-    None,
-  )
-  .await
+  let query = arguments
+    .get("query")
+    .and_then(Value::as_str)
+    .map(str::trim)
+    .filter(|value| !value.is_empty());
+  let limit = arguments
+    .get("limit")
+    .and_then(Value::as_u64)
+    .map(|value| value as usize)
+    .unwrap_or(DEFAULT_SEARCH_RESULT_LIMIT)
+    .clamp(1, MAX_SEARCH_RESULT_LIMIT);
+
+  let cache_key = format!("{}\n{}\n{}", connector, query.unwrap_or(""), limit);
+  let cached = CONNECTOR_TOOLS_CACHE
+    .lock()
+    .ok()
+    .and_then(|cache| cache.get(&cache_key).cloned())
+    .filter(|entry| entry.fetched_at.elapsed() < CONNECTOR_TOOLS_CACHE_TTL)
+    .map(|entry| entry.value);
+  let value = match cached {
+    Some(value) => value,
+    None => {
+      let mut path = format!(
+        "/desktop/integrations/{}/tools?limit={limit}",
+        urlencoding::encode(connector)
+      );
+      if let Some(query) = query {
+        path.push_str("&query=");
+        path.push_str(&urlencoding::encode(query));
+      }
+      let value = request_studio(
+        reqwest::Method::GET,
+        &path,
+        None,
+      )
+      .await?;
+      if let Ok(mut cache) = CONNECTOR_TOOLS_CACHE.lock() {
+        cache.insert(
+          cache_key,
+          CachedConnectorTools {
+            fetched_at: Instant::now(),
+            value: value.clone(),
+          },
+        );
+      }
+      value
+    }
+  };
+  Ok(shape_connector_tools(value, query, limit))
+}
+
+fn shape_connector_tools(mut value: Value, query: Option<&str>, limit: usize) -> Value {
+  let Some(tools) = value.get("tools").and_then(Value::as_array) else {
+    return value;
+  };
+  let total = tools.len();
+  let normalized_query = query.map(|value| value.to_ascii_lowercase());
+
+  if let Some(query) = normalized_query.as_deref() {
+    let query_terms = query.split_whitespace().collect::<Vec<_>>();
+    let mut ranked = tools
+      .iter()
+      .enumerate()
+      .filter_map(|(index, tool)| {
+        score_tool_for_query(tool, query, &query_terms).map(|score| (score, index, tool))
+      })
+      .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+    let mut matches = Vec::new();
+    let mut response_bytes = 0;
+    for (_, _, tool) in ranked.into_iter().take(limit) {
+      let tool_bytes = serde_json::to_vec(tool).map_or(0, |serialized| serialized.len());
+      if !matches.is_empty() && response_bytes + tool_bytes > MAX_SEARCH_RESULT_BYTES {
+        break;
+      }
+      response_bytes += tool_bytes;
+      matches.push(tool.clone());
+    }
+    value["tools"] = Value::Array(matches);
+    value["totalTools"] = json!(total);
+    value["query"] = json!(query);
+    value["message"] = json!(
+      "Use an exact returned action name and input schema with call_connector_tool. Refine query if the needed action is not shown."
+    );
+    return value;
+  }
+
+  if total > LARGE_CONNECTOR_TOOL_COUNT {
+    value["tools"] = Value::Array(
+      tools
+        .iter()
+        .filter_map(|tool| {
+          tool
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|name| json!({ "name": name }))
+        })
+        .collect(),
+    );
+    value["totalTools"] = json!(total);
+    value["requiresQuery"] = json!(true);
+    value["message"] = json!(
+      "This connector has a large action catalog. Call list_connector_tools again with a short query describing the action you need to receive matching exact schemas."
+    );
+  }
+  value
+}
+
+fn score_tool_for_query(tool: &Value, query: &str, query_terms: &[&str]) -> Option<u32> {
+  let name = tool
+    .get("name")
+    .and_then(Value::as_str)
+    .unwrap_or("")
+    .to_ascii_lowercase();
+  let normalized_name = name.replace('_', " ").replace('-', " ");
+  let description = tool
+    .get("description")
+    .and_then(Value::as_str)
+    .unwrap_or("")
+    .to_ascii_lowercase();
+  if !query_terms
+    .iter()
+    .all(|term| normalized_name.contains(term) || description.contains(term))
+  {
+    return None;
+  }
+
+  let mut score = 0;
+  if normalized_name.contains(query) {
+    score += 100;
+  }
+  if description.contains(query) {
+    score += 5;
+  }
+  for term in query_terms {
+    if normalized_name.contains(term) {
+      score += 20;
+    }
+    if description.contains(term) {
+      score += 1;
+    }
+  }
+  Some(score)
 }
 
 async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
@@ -339,10 +516,14 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
   vec![
     json!({
       "name": LIST_TOOL,
-      "description": "List the available actions and exact input schemas for one connector already connected through Knapsack Studio. Call this before using call_connector_tool. Never ask the user for connector credentials.",
+      "description": "Discover actions for one connector already connected through Knapsack Studio. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials.",
       "inputSchema": {
         "type": "object",
-        "properties": { "connector": connector_schema.clone() },
+        "properties": {
+          "connector": connector_schema.clone(),
+          "query": { "type": "string", "description": "Optional short action search, such as 'list repositories' or 'create issue'. Use this when the first result says requiresQuery." },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 10, "description": "Maximum matching exact schemas to return (default 5; response size is also bounded to prevent truncation)." }
+        },
         "required": ["connector"]
       }
     }),
@@ -499,6 +680,54 @@ mod tests {
     assert!(serialized.contains("mark@knap.ai"));
     assert!(!serialized.contains("\"enum\""));
     assert!(!serialized.contains("access_token"));
+  }
+
+  #[test]
+  fn large_connector_catalog_returns_a_compact_searchable_index() {
+    let tools = (0..200)
+      .map(|index| {
+        json!({
+          "name": format!("github_action_{index}"),
+          "description": format!("GitHub action number {index}"),
+          "inputSchema": { "type": "object", "properties": { "value": { "type": "string" } } }
+        })
+      })
+      .collect::<Vec<_>>();
+    let shaped = shape_connector_tools(
+      json!({ "connector": "github", "tools": tools }),
+      None,
+      DEFAULT_SEARCH_RESULT_LIMIT,
+    );
+
+    assert_eq!(shaped.get("totalTools").and_then(Value::as_u64), Some(200));
+    assert_eq!(
+      shaped.get("requiresQuery").and_then(Value::as_bool),
+      Some(true)
+    );
+    assert_eq!(shaped["tools"].as_array().unwrap().len(), 200);
+    assert!(shaped["tools"][0].get("inputSchema").is_none());
+  }
+
+  #[test]
+  fn connector_search_returns_only_matching_exact_schemas() {
+    let shaped = shape_connector_tools(
+      json!({
+        "connector": "github",
+        "tools": [
+          { "name": "github_list_repositories", "description": "List repositories", "inputSchema": { "type": "object" } },
+          { "name": "github_create_issue", "description": "Create an issue", "inputSchema": { "type": "object" } },
+          { "name": "github_list_repository_issues", "description": "List issues for a repository", "inputSchema": { "type": "object" } }
+        ]
+      }),
+      Some("list repositories"),
+      1,
+    );
+
+    let matches = shaped["tools"].as_array().unwrap();
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0]["name"], "github_list_repositories");
+    assert!(matches[0].get("inputSchema").is_some());
+    assert_eq!(shaped.get("totalTools").and_then(Value::as_u64), Some(3));
   }
 
   #[tokio::test(flavor = "current_thread")]
