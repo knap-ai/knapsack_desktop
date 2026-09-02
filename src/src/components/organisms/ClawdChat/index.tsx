@@ -3333,6 +3333,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     setVoiceEnabled(localStorage.getItem(VOICE_MODE_STORAGE) === 'true')
     let cancelled = false
     const cleanups: Array<() => void> = []
+    const registerCleanup = (unlisten: () => void) => {
+      if (cancelled) {
+        unlisten()
+      } else {
+        cleanups.push(unlisten)
+      }
+    }
 
     ;(async () => {
       const unlistenDrop = await tauriListen<string[]>('tauri://file-drop', async (event) => {
@@ -3393,20 +3400,20 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           }
         }
       })
-      cleanups.push(unlistenDrop)
+      registerCleanup(unlistenDrop)
 
       const unlistenHover = await tauriListen<string[]>('tauri://file-drop-hover', () => {
         if (cancelled) return
         setIsDragOver(true)
       })
-      cleanups.push(unlistenHover)
+      registerCleanup(unlistenHover)
 
       const unlistenCancel = await tauriListen('tauri://file-drop-cancelled', () => {
         if (cancelled) return
         setIsDragOver(false)
         dragCounter.current = 0
       })
-      cleanups.push(unlistenCancel)
+      registerCleanup(unlistenCancel)
     })()
 
     return () => {
@@ -3621,7 +3628,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   const syncProviderSelectionFromBackend = useCallback(async () => {
     try {
-      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status')
+      const keyStatus = await apiGet<ApiKeyStatus>('/api/clawd/service/api-key-status', {
+        timeoutMs: 4000,
+      })
       setHasCompletedOnboarding(Boolean(keyStatus.has_key))
       setKeyHints({
         openai: keyStatus.openai_key_hint,
@@ -5669,6 +5678,12 @@ ${actualText}`
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
   const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(() => {
+    if (!active) return
+    const frame = requestAnimationFrame(() => chatInputElementRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [active])
+
   useEffect(() => {
     if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
