@@ -1686,6 +1686,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             data-testid="qa-clawd-chat-input"
             onChange={e => {
               if (debugPerf) performance.mark('ks:chatInput:onChange:start')
+              window.dispatchEvent(new Event('knapsack:chat-input-activity'))
               const nextInput = e.currentTarget.value
               inputRef.current = nextInput
               const nextHasInput = nextInput.trim().length > 0
@@ -1961,6 +1962,7 @@ interface ClawdChatProps {
   onBusyChange?: (busy: boolean) => void
   onProviderPanelOpenChange?: (open: boolean) => void
   onAssistantMessage?: (chatId: string) => void
+  onOpenBrowser?: () => void
   nativeEmailConnected?: boolean
   /** When set to a truthy value, opens the AI provider sidebar. Increment to re-trigger. */
   openProviderPanel?: number
@@ -1990,7 +1992,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -5516,7 +5518,7 @@ ${actualText}`
                   harness: agentOut.harness,
                   gateway: agentOut.gateway,
                 })
-                let displayText = agentOut.reply!
+                let displayText = rawReply
                 // When the gateway surfaces an error (rate limit, auth, key), enrich the message
                 if (agentOut.gateway) {
                   const lowerReply = displayText.toLowerCase()
@@ -6063,6 +6065,11 @@ ${actualText}`
           <button disabled={busy} onClick={clearHistory} title="Clear chat history and start fresh">
             Clear
           </button>
+          {onOpenBrowser && (
+            <button onClick={onOpenBrowser} title="Open embedded browser">
+              Browser
+            </button>
+          )}
           {voiceEnabled && (
             <button
               className="voice-enabled"

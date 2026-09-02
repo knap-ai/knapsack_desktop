@@ -137,6 +137,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const resizeTimerRef = useRef<number>()
   const wheelPendingRef = useRef(false)
   const chromeImportBusyRef = useRef(false)
+  const lastChatInputAtRef = useRef(0)
   const [address, setAddress] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentUrl, setCurrentUrl] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentTitle, setCurrentTitle] = useState('')
@@ -154,6 +155,14 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   )
 
   const activeTabStorageKey = `knapsack.browser.active-tab.${browserProfile}`
+
+  useEffect(() => {
+    const noteChatInputActivity = () => {
+      lastChatInputAtRef.current = performance.now()
+    }
+    window.addEventListener('knapsack:chat-input-activity', noteChatInputActivity)
+    return () => window.removeEventListener('knapsack:chat-input-activity', noteChatInputActivity)
+  }, [])
 
   useEffect(() => {
     if (browserProfile !== 'openclaw' || chromeImportDismissed) return
@@ -364,8 +373,11 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
           if (result.target_id) selectTarget(result.target_id)
         }
         window.setTimeout(async () => {
-          await refreshTabs().catch(() => undefined)
+          // Paint the navigated page before reconciling tab metadata. Listing
+          // every browser target can take hundreds of milliseconds and should
+          // not sit on the critical path for visible navigation feedback.
           await refreshScreenshot()
+          await refreshTabs().catch(() => undefined)
         }, 350)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
@@ -515,6 +527,10 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     const pollScreenshot = async () => {
       if (cancelled || chromeImportBusyRef.current) return schedule()
       if (screenshotPendingRef.current || navigationPendingRef.current) return schedule()
+      // Screenshot decoding is one of the heaviest recurring operations in this
+      // view. Give active typing a quiet window so browser polling cannot steal
+      // frames from the chat composer.
+      if (performance.now() - lastChatInputAtRef.current < 500) return schedule()
       try {
         await refreshScreenshot()
       } catch (err) {

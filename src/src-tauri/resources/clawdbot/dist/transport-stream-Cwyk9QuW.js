@@ -2,7 +2,7 @@ import { a as normalizeLowercaseStringOrEmpty } from "./string-coerce-DyL154ka.j
 import { E as buildGuardedModelFetch, _ as mergeTransportHeaders, b as transformTransportMessages, f as coerceTransportToolCallArguments, g as finalizeTransportStream, h as failTransportStream, m as createWritableTransportEventStream, p as createEmptyTransportUsage, y as sanitizeTransportPayloadText } from "./openai-transport-stream-Pgx5hpN7.js";
 import { o as createProviderHttpError } from "./provider-http-errors-C90BH-le.js";
 import { i as stripSystemPromptCacheBoundary } from "./system-prompt-cache-boundary-T51pGsv9.js";
-import { _ as stripInvalidGoogleThinkingBudget, d as isGoogleGemini3ProModel, h as resolveGoogleGemini3ThinkingLevel, l as isGoogleGemini25ThinkingBudgetModel, u as isGoogleGemini3FlashModel } from "./provider-stream-shared-jI_a6bxx.js";
+import { _ as stripInvalidGoogleThinkingBudget, d as isGoogleGemini3ProModel, h as resolveGoogleGemini3ThinkingLevel, l as isGoogleGemini25ThinkingBudgetModel, u as isGoogleGemini3FlashModel, w as isGoogleGemini37OrNewerFlashModel } from "./provider-stream-shared-jI_a6bxx.js";
 import "./string-coerce-runtime-BAEEbdFW.js";
 import "./provider-http-CYBE-CBM.js";
 import "./provider-transport-runtime-Be6VrgOg.js";
@@ -425,7 +425,7 @@ function shouldRetryGoogleGemini3FirstResponse(params) {
 }
 function resolveGoogleGemini3RetryThinkingLevel(modelId) {
 	if (isGoogleGemini3ProModel(modelId)) return "LOW";
-	if (isGoogleGemini3FlashModel(modelId)) return "MINIMAL";
+	if (isGoogleGemini3FlashModel(modelId)) return isGoogleGemini37OrNewerFlashModel(modelId) ? "LOW" : "MINIMAL";
 }
 function cloneGoogleGenerateContentRequest(params) {
 	return JSON.parse(JSON.stringify(params));
