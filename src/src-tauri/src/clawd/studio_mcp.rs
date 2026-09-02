@@ -55,6 +55,11 @@ fn read_tokens() -> Result<StudioTokens, String> {
   serde_json::from_str(&raw).map_err(|error| format!("Unable to parse Studio sign-in: {error}"))
 }
 
+pub(crate) fn connected_studio_owner() -> Result<String, String> {
+  nonempty(read_tokens()?.knapsack_email)
+    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())
+}
+
 fn nonempty(value: Option<String>) -> Option<String> {
   value
     .map(|value| value.trim().to_string())
@@ -178,10 +183,23 @@ fn email_domain(email: &str) -> Option<&str> {
   email.rsplit_once('@').map(|(_, domain)| domain)
 }
 
+fn authorize_verified_studio_sender(sender: &str) -> Result<(), String> {
+  let owner = connected_studio_owner()?;
+  if !sender.eq_ignore_ascii_case(&owner)
+    && email_domain(sender)
+      .zip(email_domain(&owner))
+      .map(|(sender_domain, owner_domain)| !sender_domain.eq_ignore_ascii_case(owner_domain))
+      .unwrap_or(true)
+  {
+    return Err(format!(
+      "The verified requester {sender} is outside the connected Studio owner's organization. Refusing connector access."
+    ));
+  }
+  Ok(())
+}
+
 async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
-  let tokens = read_tokens()?;
-  let owner = nonempty(tokens.knapsack_email)
-    .ok_or_else(|| "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string())?;
+  let owner = connected_studio_owner()?;
   let session_id = arguments
     .get("_knapsack_session_id")
     .and_then(Value::as_str)
@@ -221,18 +239,7 @@ async fn authorize_studio_request(arguments: &Value) -> Result<(), String> {
       // configured connector owner or selected from other active sessions.
       // Restrict service-account sharing to the owner's email domain so a
       // second Slack workspace cannot inherit another tenant's connectors.
-      if !sender.eq_ignore_ascii_case(&owner)
-        && email_domain(&sender)
-          .zip(email_domain(&owner))
-          .map(|(sender_domain, owner_domain)| {
-            !sender_domain.eq_ignore_ascii_case(owner_domain)
-          })
-          .unwrap_or(true)
-      {
-        return Err(format!(
-          "The verified Slack sender {sender} is outside the connected Studio owner's organization. Refusing connector access."
-        ));
-      }
+      authorize_verified_studio_sender(&sender)?;
       eprintln!(
         "[studio_mcp] authorized gateway session {session_id} scope {scope_key} as {sender} to use Studio owner {owner}"
       );
@@ -261,8 +268,14 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
   )
 }
 
-async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
-  authorize_studio_request(arguments).await?;
+async fn list_connector_tools(
+  arguments: &Value,
+  verified_sender: Option<&str>,
+) -> Result<Value, String> {
+  match verified_sender {
+    Some(sender) => authorize_verified_studio_sender(sender)?,
+    None => authorize_studio_request(arguments).await?,
+  }
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -280,8 +293,14 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   .await
 }
 
-async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
-  authorize_studio_request(arguments).await?;
+async fn call_connector_tool(
+  arguments: &Value,
+  verified_sender: Option<&str>,
+) -> Result<Value, String> {
+  match verified_sender {
+    Some(sender) => authorize_verified_studio_sender(sender)?,
+    None => authorize_studio_request(arguments).await?,
+  }
   let connector = arguments
     .get("connector")
     .and_then(Value::as_str)
@@ -370,7 +389,10 @@ fn respond_error(id: &Value, code: i64, message: String) -> Value {
   json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
-async fn handle_request(request: Value) -> Option<Value> {
+async fn handle_request_with_verified_sender(
+  request: Value,
+  verified_sender: Option<&str>,
+) -> Option<Value> {
   let id = request.get("id").cloned().unwrap_or(Value::Null);
   let method = request.get("method").and_then(Value::as_str).unwrap_or("");
   let has_id = request.get("id").is_some();
@@ -401,8 +423,8 @@ async fn handle_request(request: Value) -> Option<Value> {
         .cloned()
         .unwrap_or_else(|| json!({}));
       let result = match name {
-        LIST_TOOL => list_connector_tools(&arguments).await,
-        CALL_TOOL => call_connector_tool(&arguments).await,
+        LIST_TOOL => list_connector_tools(&arguments, verified_sender).await,
+        CALL_TOOL => call_connector_tool(&arguments, verified_sender).await,
         _ => Err(format!("Unknown tool: {name}")),
       };
       match result {
@@ -420,6 +442,17 @@ async fn handle_request(request: Value) -> Option<Value> {
     other => respond_error(&id, -32601, format!("Method not found: {other}")),
   };
   has_id.then_some(response)
+}
+
+async fn handle_request(request: Value) -> Option<Value> {
+  handle_request_with_verified_sender(request, None).await
+}
+
+pub(crate) async fn handle_request_for_verified_sender(
+  request: Value,
+  verified_sender: &str,
+) -> Option<Value> {
+  handle_request_with_verified_sender(request, Some(verified_sender)).await
 }
 
 pub async fn run_stdio_server() {

@@ -1013,6 +1013,9 @@ const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
   "xai",
 ];
 
+const KNAPSACK_REQUESTER_MCP_PLUGIN_ID: &str = "knapsack-requester-mcp";
+const OPENCLAW_REQUESTER_MCP_MIN_VERSION: (u64, u64, u64) = (2026, 8, 2);
+
 const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
 
 fn configured_channel_ids_from_config(json: &serde_json::Value) -> Vec<String> {
@@ -2323,6 +2326,126 @@ fn ensure_knapsack_plugin_allowlist(cfg: &mut serde_json::Value) -> bool {
   true
 }
 
+fn parse_openclaw_version(version: &str) -> Option<(u64, u64, u64)> {
+  let normalized = version.trim().trim_start_matches('v');
+  if normalized.contains('-') {
+    return None;
+  }
+  let core = normalized.split('+').next()?;
+  let mut parts = core.split('.');
+  let major = parts.next()?.parse().ok()?;
+  let minor = parts.next()?.parse().ok()?;
+  let patch = parts.next()?.parse().ok()?;
+  Some((major, minor, patch))
+}
+
+fn openclaw_supports_requester_mcp(version: &str) -> bool {
+  parse_openclaw_version(version)
+    .map(|version| version >= OPENCLAW_REQUESTER_MCP_MIN_VERSION)
+    .unwrap_or(false)
+}
+
+/// Enable the requester-aware bridge only for runtimes that expose
+/// `registerMcpServerConnectionResolver`. On rollback, remove only this
+/// plugin's allow/entry records and preserve all unrelated user config.
+fn ensure_knapsack_requester_mcp_plugin(
+  cfg: &mut serde_json::Value,
+  bundle_version: &str,
+) -> bool {
+  if !cfg.is_object() {
+    return false;
+  }
+  let supported = openclaw_supports_requester_mcp(bundle_version);
+  let mut patched = false;
+
+  if supported {
+    if cfg
+      .get("plugins")
+      .and_then(serde_json::Value::as_object)
+      .is_none()
+    {
+      cfg
+        .as_object_mut()
+        .unwrap()
+        .insert("plugins".to_string(), serde_json::json!({}));
+      patched = true;
+    }
+    if cfg
+      .pointer("/plugins/allow")
+      .and_then(serde_json::Value::as_array)
+      .is_none()
+    {
+      cfg
+        .pointer_mut("/plugins")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("allow".to_string(), serde_json::json!([]));
+      patched = true;
+    }
+    if let Some(allow) = cfg
+      .pointer_mut("/plugins/allow")
+      .and_then(serde_json::Value::as_array_mut)
+    {
+      if !allow
+        .iter()
+        .any(|value| value.as_str() == Some(KNAPSACK_REQUESTER_MCP_PLUGIN_ID))
+      {
+        allow.push(serde_json::json!(KNAPSACK_REQUESTER_MCP_PLUGIN_ID));
+        patched = true;
+      }
+      allow.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+      allow.dedup();
+    }
+    if cfg
+      .pointer("/plugins/entries")
+      .and_then(serde_json::Value::as_object)
+      .is_none()
+    {
+      cfg
+        .pointer_mut("/plugins")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert("entries".to_string(), serde_json::json!({}));
+      patched = true;
+    }
+    let expected = serde_json::json!({ "enabled": true });
+    if cfg.pointer(&format!(
+      "/plugins/entries/{KNAPSACK_REQUESTER_MCP_PLUGIN_ID}"
+    )) != Some(&expected)
+    {
+      cfg
+        .pointer_mut("/plugins/entries")
+        .unwrap()
+        .as_object_mut()
+        .unwrap()
+        .insert(KNAPSACK_REQUESTER_MCP_PLUGIN_ID.to_string(), expected);
+      patched = true;
+    }
+  } else if let Some(plugins) = cfg
+    .get_mut("plugins")
+    .and_then(serde_json::Value::as_object_mut)
+  {
+    if let Some(allow) = plugins
+      .get_mut("allow")
+      .and_then(serde_json::Value::as_array_mut)
+    {
+      let original_len = allow.len();
+      allow.retain(|value| value.as_str() != Some(KNAPSACK_REQUESTER_MCP_PLUGIN_ID));
+      patched |= allow.len() != original_len;
+    }
+    if let Some(entries) = plugins
+      .get_mut("entries")
+      .and_then(serde_json::Value::as_object_mut)
+    {
+      patched |= entries.remove(KNAPSACK_REQUESTER_MCP_PLUGIN_ID).is_some();
+    }
+  }
+
+  patched
+}
+
 fn remove_object_keys(obj: &mut serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> bool {
   let mut patched = false;
   for key in keys {
@@ -2961,6 +3084,7 @@ fn configured_desktop_plugin_discovery_allowlist(config_path: &Path) -> String {
     .map(|plugin| plugin.to_string())
     .collect();
   ids.extend(configured_channel_plugin_ids(config_path));
+  ids.push(KNAPSACK_REQUESTER_MCP_PLUGIN_ID.to_string());
   ids.sort();
   ids.dedup();
   ids.join(",")
@@ -5498,6 +5622,7 @@ fn sanitize_config_file_allowlist(config_path: &Path, bundle_version: Option<&st
     | ensure_knapsack_plugin_allowlist(&mut cfg)
     | sanitize_invalid_default_agent_model_config(&mut cfg);
   if let Some(version) = bundle_version {
+    patched = ensure_knapsack_requester_mcp_plugin(&mut cfg, version) || patched;
     patched = sanitize_config_file_version(&mut cfg, version) || patched;
   }
   if patched {
@@ -11770,6 +11895,12 @@ async fn prepare_gateway_config(
     {
       eprintln!("[clawd/service] Added knapsack-local provider config to default gateway config");
     }
+    if ensure_knapsack_requester_mcp_plugin(&mut default_config, &bundle_version) {
+      eprintln!(
+        "[clawd/service] Enabled requester-aware MCP bridge for OpenClaw {}",
+        bundle_version
+      );
+    }
     match fs::write(
       &config_path,
       serde_json::to_string_pretty(&default_config).unwrap_or_default(),
@@ -11896,6 +12027,13 @@ async fn prepare_gateway_config(
         }
 
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
+          patched = true;
+        }
+        if ensure_knapsack_requester_mcp_plugin(&mut cfg_val, &bundle_version) {
+          eprintln!(
+            "[clawd/service] Reconciled requester-aware MCP bridge for OpenClaw {}",
+            bundle_version
+          );
           patched = true;
         }
         if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available, force_docker_mode) {
@@ -13993,6 +14131,14 @@ pub async fn set_service_enabled(
             }
 
             if ensure_knapsack_plugin_allowlist(&mut cfg) {
+              patched = true;
+            }
+            let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(&app_handle));
+            if ensure_knapsack_requester_mcp_plugin(&mut cfg, &bundle_version) {
+              eprintln!(
+                "[clawd/service] Reconciled requester-aware MCP bridge for OpenClaw {}",
+                bundle_version
+              );
               patched = true;
             }
             let docker_sandbox_status = docker_session_sandbox_available();
@@ -17944,13 +18090,16 @@ mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
-    ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
+    ensure_knapsack_progress_draft_labels, ensure_knapsack_requester_mcp_plugin,
+    ensure_knapsack_session_isolation,
     ensure_knapsack_sandbox_browser_host_control,
     ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
     ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
-    parse_studio_connector_catalog, sync_active_provider_for_ollama_toggle, StoredTokens,
-    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
+    openclaw_supports_requester_mcp, parse_studio_connector_catalog,
+    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE, KNAPSACK_REQUESTER_MCP_PLUGIN_ID,
   };
+  use serde_json::Value;
   use std::path::PathBuf;
 
   fn empty_tokens() -> StoredTokens {
@@ -18357,6 +18506,60 @@ mod knapsack_runtime_auth_tests {
     }
     assert!(!ensure_knapsack_studio_mcp_server(&mut cfg, &clawdbot_home));
     assert!(!ensure_knapsack_studio_tool_allow(&mut cfg));
+  }
+
+  #[test]
+  fn requester_mcp_plugin_is_enabled_only_for_supported_openclaw_versions() {
+    let mut cfg = serde_json::json!({
+      "plugins": {
+        "allow": ["slack"],
+        "entries": { "unrelated": { "enabled": true } }
+      }
+    });
+
+    assert!(ensure_knapsack_requester_mcp_plugin(&mut cfg, "2026.8.2"));
+    assert!(cfg
+      .pointer("/plugins/allow")
+      .and_then(Value::as_array)
+      .is_some_and(|allow| allow.iter().any(|value| {
+        value.as_str() == Some(KNAPSACK_REQUESTER_MCP_PLUGIN_ID)
+      })));
+    assert_eq!(
+      cfg.pointer("/plugins/entries/knapsack-requester-mcp/enabled")
+        .and_then(Value::as_bool),
+      Some(true)
+    );
+    assert_eq!(
+      cfg.pointer("/plugins/entries/unrelated/enabled")
+        .and_then(Value::as_bool),
+      Some(true)
+    );
+    assert!(!ensure_knapsack_requester_mcp_plugin(&mut cfg, "v2026.8.2"));
+
+    assert!(ensure_knapsack_requester_mcp_plugin(&mut cfg, "2026.5.22"));
+    assert!(!cfg
+      .pointer("/plugins/allow")
+      .and_then(Value::as_array)
+      .is_some_and(|allow| allow.iter().any(|value| {
+        value.as_str() == Some(KNAPSACK_REQUESTER_MCP_PLUGIN_ID)
+      })));
+    assert!(cfg
+      .pointer("/plugins/entries/knapsack-requester-mcp")
+      .is_none());
+    assert_eq!(
+      cfg.pointer("/plugins/entries/unrelated/enabled")
+        .and_then(Value::as_bool),
+      Some(true)
+    );
+  }
+
+  #[test]
+  fn malformed_or_prerelease_versions_fail_closed_for_requester_mcp() {
+    assert!(!openclaw_supports_requester_mcp(""));
+    assert!(!openclaw_supports_requester_mcp("not-a-version"));
+    assert!(!openclaw_supports_requester_mcp("2026.8.1"));
+    assert!(!openclaw_supports_requester_mcp("2026.8.2-beta.1"));
+    assert!(openclaw_supports_requester_mcp("2027.1.0"));
   }
 
   #[test]

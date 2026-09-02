@@ -406,6 +406,7 @@ pub async fn start_server<'a>(
       .service(clawd::browser::agent_chat)
       .service(clawd::browser::agent_run)
       .service(clawd::browser::terminal_output)
+      .service(clawd::requester_mcp::requester_mcp)
       .service(clawd::harness::get_harness_settings)
       .service(clawd::harness::test_harness_settings)
       .service(clawd::harness::set_harness_settings)

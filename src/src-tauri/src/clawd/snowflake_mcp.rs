@@ -353,6 +353,14 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
     "[snowflake_mcp] authorized gateway session {session_id} scope {scope_key} as {email}"
   );
 
+  execute_snowflake_query(query, &email, session_id).await
+}
+
+async fn execute_snowflake_query(
+  query: &str,
+  email: &str,
+  audit_session_id: &str,
+) -> Result<Value, String> {
   let secret = read_session_capability_secret_headless()?;
   // One value drives both the `sub` claim and the broker URL — see
   // `resolve_broker_email`.
@@ -366,10 +374,10 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
   // Sign the exact gateway session id. It came from the gateway runtime, not
   // model output, and the scope match above proves that the persisted Slack
   // identity belongs to this same request session.
-  let jwt = mint_capability_jwt(&secret, broker_email, session_id)?;
+  let jwt = mint_capability_jwt(&secret, broker_email, audit_session_id)?;
   let oauth_token = fetch_broker_token(broker_email, &jwt).await?;
   eprintln!(
-    "[snowflake_mcp] broker granted Snowflake token for gateway session {session_id} as {broker_email}"
+    "[snowflake_mcp] broker granted Snowflake token for requester session {audit_session_id} as {broker_email}"
   );
 
   // No sandbox-container teardown here any more: the token is never placed in
@@ -384,7 +392,7 @@ async fn handle_snowflake_query(args: &Value) -> Result<Value, String> {
     .and_then(Value::as_str)
     .unwrap_or("unavailable");
   eprintln!(
-    "[snowflake_mcp] Snowflake SQL API succeeded for gateway session {session_id} statement {statement_handle}"
+    "[snowflake_mcp] Snowflake SQL API succeeded for requester session {audit_session_id} statement {statement_handle}"
   );
   Ok(result)
 }
@@ -418,7 +426,10 @@ fn respond_error(id: &Value, code: i64, message: String) -> Value {
   json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
-async fn handle_request(request: Value) -> Option<Value> {
+async fn handle_request_with_verified_sender(
+  request: Value,
+  verified_sender: Option<(&str, &str)>,
+) -> Option<Value> {
   let id = request.get("id").cloned().unwrap_or(Value::Null);
   let method = request.get("method").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -442,7 +453,20 @@ async fn handle_request(request: Value) -> Option<Value> {
         respond_error(&id, -32602, format!("Unknown tool: {name}"))
       } else {
         let args = params.get("arguments").cloned().unwrap_or(json!({}));
-        match handle_snowflake_query(&args).await {
+        let result = match verified_sender {
+          Some((email, audit_session_id)) => {
+            let query = args
+              .get("query")
+              .and_then(Value::as_str)
+              .ok_or_else(|| "Missing required argument: query".to_string());
+            match query {
+              Ok(query) => execute_snowflake_query(query, email, audit_session_id).await,
+              Err(error) => Err(error),
+            }
+          }
+          None => handle_snowflake_query(&args).await,
+        };
+        match result {
           Ok(result) => respond(
             &id,
             json!({ "content": [{ "type": "text", "text": result.to_string() }] }),
@@ -463,6 +487,18 @@ async fn handle_request(request: Value) -> Option<Value> {
   } else {
     None
   }
+}
+
+async fn handle_request(request: Value) -> Option<Value> {
+  handle_request_with_verified_sender(request, None).await
+}
+
+pub(crate) async fn handle_request_for_verified_sender(
+  request: Value,
+  verified_sender: &str,
+  audit_session_id: &str,
+) -> Option<Value> {
+  handle_request_with_verified_sender(request, Some((verified_sender, audit_session_id))).await
 }
 
 /// Async stdio loop, meant to be awaited directly from `main()`'s existing

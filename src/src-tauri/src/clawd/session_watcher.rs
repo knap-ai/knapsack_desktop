@@ -534,6 +534,35 @@ async fn resolve_slack_email(
   resolve_slack_email_for_workspace(clawdbot_home, account_id, slack_user_id, None).await
 }
 
+/// Verify an OpenClaw requester tuple against the configured Slack account.
+///
+/// The account id and native sender id come from OpenClaw's trusted
+/// requester-scoped MCP resolver context, not from model arguments. The
+/// account selects one configured bot token, and Slack's `users.info` response
+/// supplies the email. This remains safe in a shared gateway with many cached
+/// sessions because no session inventory or email guessing is involved.
+pub(crate) async fn resolve_verified_slack_requester(
+  clawdbot_home: &Path,
+  account_id: &str,
+  slack_user_id: &str,
+) -> Result<String, String> {
+  let account_id = account_id.trim();
+  let account_id = if account_id.is_empty() {
+    "default"
+  } else {
+    account_id
+  };
+  let slack_user_id = slack_user_id.trim();
+  if !matches!(slack_user_id.chars().next(), Some('U' | 'W'))
+    || !slack_user_id
+      .chars()
+      .all(|character| character.is_ascii_alphanumeric())
+  {
+    return Err("Invalid trusted Slack requester id".to_string());
+  }
+  resolve_slack_email(clawdbot_home, account_id, slack_user_id).await
+}
+
 async fn resolve_slack_email_for_workspace(
   clawdbot_home: &Path,
   account_id: &str,
