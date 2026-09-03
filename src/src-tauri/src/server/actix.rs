@@ -440,6 +440,10 @@ pub async fn start_server<'a>(
       .service(clawd::service::ollama_configure)
       .service(clawd::service::ollama_pull)
       .service(clawd::service::ollama_delete)
+      // Optional, locally stored PII detection model
+      .service(clawd::privacy_model::pii_model_status)
+      .service(clawd::privacy_model::pii_model_download)
+      .service(clawd::privacy_model::pii_model_delete)
       // Docker sandbox mode endpoints
       .service(clawd::service::docker_mode_status)
       .service(clawd::service::docker_mode_configure)

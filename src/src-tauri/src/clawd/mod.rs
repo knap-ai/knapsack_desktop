@@ -16,6 +16,7 @@ pub mod managed_agents;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
 pub mod peekaboo_watchdog;
+pub mod privacy_model;
 pub mod service;
 pub mod session_watcher;
 pub mod sidecar;
