@@ -176,6 +176,16 @@ type OllamaModel = {
   family?: string
 }
 
+type PiiModelStatus = {
+  installed: boolean
+  downloading: boolean
+  downloaded_bytes: number
+  total_bytes: number
+  model_id: string
+  revision: string
+  error?: string | null
+}
+
 // ── Update section ───────────────────────────────────────────────────────────
 
 const UpdateSection = () => {
@@ -739,6 +749,8 @@ export const SettingsDialog = ({
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([])
   const [ollamaBusy, setOllamaBusy] = useState(false)
   const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
+  const [piiModelStatus, setPiiModelStatus] = useState<PiiModelStatus | null>(null)
+  const [piiModelBusy, setPiiModelBusy] = useState(false)
   const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
   const displayConnections =
     isOpen && Object.keys(settingsConnections).length > 0 ? settingsConnections : connections
@@ -1015,6 +1027,23 @@ export const SettingsDialog = ({
       .catch(() => {})
   }, [expandedProvider])
 
+  const loadPiiModelStatus = useCallback(async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/knapsack/privacy/pii/status')
+      if (!response.ok) throw new Error('Could not load privacy model status')
+      setPiiModelStatus(await response.json())
+    } catch {
+      setPiiModelStatus(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    void loadPiiModelStatus()
+    const timer = window.setInterval(() => void loadPiiModelStatus(), 1_500)
+    return () => window.clearInterval(timer)
+  }, [isOpen, loadPiiModelStatus])
+
   useEffect(() => {
     shouldSaveTranscript().then(value => {
       setSaveTranscripts(value)
@@ -1208,6 +1237,47 @@ export const SettingsDialog = ({
     }
   }
 
+  const handlePiiModelDownload = async () => {
+    setPiiModelBusy(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/knapsack/privacy/pii/download', {
+        method: 'POST',
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.message || 'Could not start the model download')
+      setPiiModelStatus(data)
+    } catch (error) {
+      setPiiModelStatus(current =>
+        current
+          ? { ...current, error: error instanceof Error ? error.message : String(error) }
+          : current,
+      )
+    } finally {
+      setPiiModelBusy(false)
+    }
+  }
+
+  const handlePiiModelDelete = async () => {
+    if (!confirm('Remove the on-device PII model and free about 1.2 GB of disk space?')) return
+    setPiiModelBusy(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/knapsack/privacy/pii/model', {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.message || 'Could not remove the privacy model')
+      await loadPiiModelStatus()
+    } catch (error) {
+      setPiiModelStatus(current =>
+        current
+          ? { ...current, error: error instanceof Error ? error.message : String(error) }
+          : current,
+      )
+    } finally {
+      setPiiModelBusy(false)
+    }
+  }
+
   // ── Accordion toggle ─────────────────────────────────────────────────────
 
   const toggleProvider = (id: string) => {
@@ -1294,6 +1364,79 @@ export const SettingsDialog = ({
         <hr className="border-zinc-200" />
 
         <DockerModeSection isOpen={isOpen} />
+        <hr className="border-zinc-200" />
+
+        <div className="p-6 flex flex-col gap-3">
+          <div className={styles.privacyHeadingRow}>
+            <Typography weight={TypographyWeight.medium}>On-device privacy</Typography>
+            <span className={styles.experimentalBadge}>Experimental</span>
+          </div>
+          <div className={styles.privacyModelCard}>
+            <div className={styles.privacyModelCopy}>
+              <div className={styles.privacyModelTitle}>PII detection model</div>
+              <div className={styles.privacyModelDescription}>
+                Download Perplexity&apos;s local PII detector to this computer. It is separate from
+                your chat model and never sends model files or detection input to Ollama.
+              </div>
+              <a
+                href="https://huggingface.co/perplexity-ai/pplx-pii-masking"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.privacyModelLink}
+              >
+                Model details and license
+              </a>
+            </div>
+            <div className={styles.privacyModelAction}>
+              {piiModelStatus?.installed ? (
+                <>
+                  <span className={styles.privacyModelReady}>Downloaded · 1.2 GB</span>
+                  <button
+                    className={styles.privacyModelRemoveButton}
+                    disabled={piiModelBusy}
+                    onClick={handlePiiModelDelete}
+                  >
+                    {piiModelBusy ? 'Removing…' : 'Remove'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className={styles.privacyModelDownloadButton}
+                  disabled={piiModelBusy || piiModelStatus?.downloading}
+                  onClick={handlePiiModelDownload}
+                >
+                  {piiModelStatus?.downloading ? 'Downloading…' : 'Download · 1.2 GB'}
+                </button>
+              )}
+            </div>
+            {piiModelStatus?.downloading && (
+              <div className={styles.privacyModelProgress}>
+                <div
+                  className={styles.privacyModelProgressFill}
+                  style={{
+                    width: `${Math.min(100, Math.round((piiModelStatus.downloaded_bytes / Math.max(1, piiModelStatus.total_bytes)) * 100))}%`,
+                  }}
+                />
+              </div>
+            )}
+            {piiModelStatus?.downloading && (
+              <div className={styles.privacyModelProgressText}>
+                {Math.round(
+                  (piiModelStatus.downloaded_bytes / Math.max(1, piiModelStatus.total_bytes)) * 100,
+                )}
+                % downloaded
+              </div>
+            )}
+            {piiModelStatus?.error && (
+              <div className={styles.privacyModelError}>{piiModelStatus.error}</div>
+            )}
+            <div className={styles.privacyModelNotice}>
+              Downloading only installs the verified model assets. Automatic warn/redact controls
+              remain off until the cross-platform local inference runtime is available.
+            </div>
+          </div>
+        </div>
+
         <hr className="border-zinc-200" />
 
         {/* ── AI Provider (accordion) ─────────────────────────────────── */}

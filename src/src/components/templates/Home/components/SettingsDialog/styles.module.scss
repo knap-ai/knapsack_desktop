@@ -17,6 +17,131 @@
   overflow: hidden;
 }
 
+.privacyHeadingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.experimentalBadge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f3e8ff;
+  color: #7e22ce;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.privacyModelCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 18px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.privacyModelCopy {
+  min-width: 0;
+}
+
+.privacyModelTitle {
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.privacyModelDescription,
+.privacyModelNotice,
+.privacyModelProgressText {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.privacyModelDescription {
+  margin-top: 4px;
+}
+
+.privacyModelLink {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--color-blue-600);
+  font-size: 12px;
+}
+
+.privacyModelAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.privacyModelButton {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.privacyModelDownloadButton {
+  composes: privacyModelButton;
+  background: #1e293b;
+  color: #fff;
+}
+
+.privacyModelRemoveButton {
+  composes: privacyModelButton;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.privacyModelReady {
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.privacyModelProgress {
+  grid-column: 1 / -1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.privacyModelProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: #7c3aed;
+  transition: width 0.2s ease;
+}
+
+.privacyModelProgressText,
+.privacyModelError,
+.privacyModelNotice {
+  grid-column: 1 / -1;
+}
+
+.privacyModelError {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.privacyModelNotice {
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
 .providerItem {
   border-bottom: 1px solid #e2e8f0;
 

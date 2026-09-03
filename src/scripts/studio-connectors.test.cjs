@@ -126,6 +126,31 @@ test('settings exposes multi-account Slack OAuth separately from agent channels'
   assert.match(actixSource, /service\(clawd::service::start_studio_connector_oauth\)/)
 })
 
+test('settings exposes a verified optional on-device PII model download', async () => {
+  const settingsSource = await fs.readFile(
+    new URL('../src/components/templates/Home/components/SettingsDialog/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  const privacyModelSource = await fs.readFile(
+    new URL('../src-tauri/src/clawd/privacy_model.rs', `file://${__filename}`),
+    'utf8',
+  )
+  const actixSource = await fs.readFile(
+    new URL('../src-tauri/src/server/actix.rs', `file://${__filename}`),
+    'utf8',
+  )
+
+  assert.match(settingsSource, /On-device privacy/)
+  assert.match(settingsSource, /Download · 1\.2 GB/)
+  assert.match(settingsSource, /Automatic warn\/redact controls[\s\S]*?remain off/)
+  assert.match(settingsSource, /api\/knapsack\/privacy\/pii\/download/)
+  assert.match(settingsSource, /method: 'DELETE'/)
+  assert.match(privacyModelSource, /MODEL_REVISION/)
+  assert.match(privacyModelSource, /failed its integrity check/)
+  assert.match(privacyModelSource, /\.verified-revision/)
+  assert.match(actixSource, /service\(clawd::privacy_model::pii_model_download\)/)
+})
+
 test('embedded browser tab and screenshot polling are independently serialized', async () => {
   const browserSource = await fs.readFile(
     new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),
