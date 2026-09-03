@@ -115,8 +115,19 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
           td: ({ node, ...props }) => <td className="px-4 py-2" {...props} />,
           a: ({ node, ...props }) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
           blockquote: ({ node, ...props }) => <blockquote className="pl-4 text-gray-700 my-3" {...props} />,
-          code: ({ node, ...props }) =>
-            <code className="block bg-gray-100 p-3 rounded text-sm font-mono overflow-x-auto my-3" {...props} />,
+          code: ({ node, children, ...props }) => {
+            const isBlock = String(children).includes('\n')
+            return (
+              <code
+                className={isBlock
+                  ? 'block bg-gray-100 p-3 rounded text-sm font-mono overflow-x-auto my-3'
+                  : 'bg-gray-100 px-1 py-0.5 rounded text-[0.9em] font-mono break-words'}
+                {...props}
+              >
+                {children}
+              </code>
+            )
+          },
           pre: ({ node, ...props }) => <pre className="bg-gray-100 p-3 rounded overflow-x-auto my-3" {...props} />,
           hr: ({ node, ...props }) => <hr className="my-6" {...props} />,
           img: ({ node, ...props }) => <img className="max-w-full h-auto my-4" {...props} alt={props.alt || ''} />

@@ -2,6 +2,7 @@ import {
   KN_API_GET_DOC_INFOS,
   KN_API_GET_DRIVE_DOC_IDS,
   KN_API_GET_EMAIL_THREAD,
+  KN_API_GOOGLE_DRIVE_FILE_TEXT,
 } from 'src/utils/constants'
 import { EmailDocument, SourceDocument } from 'src/utils/SourceDocument'
 
@@ -57,6 +58,36 @@ export async function getDriveDocumentsIds(emails: string[], userEmail: string) 
     return []
   }
   return data.ids as string[]
+}
+
+export type GoogleDriveFileText = {
+  name: string
+  content: string
+  truncated: boolean
+}
+
+export async function getGoogleDriveFileText(
+  idOrUrl: string,
+  accountEmails: string[],
+): Promise<GoogleDriveFileText | undefined> {
+  for (const email of Array.from(new Set(accountEmails.filter(Boolean)))) {
+    const query = new URLSearchParams({ email, id_or_url: idOrUrl })
+    try {
+      const response = await fetch(`${KN_API_GOOGLE_DRIVE_FILE_TEXT}?${query.toString()}`)
+      if (!response.ok) continue
+      const data = await response.json()
+      if (data?.success && typeof data.content === 'string') {
+        return {
+          name: data.name || 'Linked Google Drive file',
+          content: data.content,
+          truncated: !!data.truncated,
+        }
+      }
+    } catch {
+      // Try the next connected account. A shared link may belong to any one of them.
+    }
+  }
+  return undefined
 }
 
 export async function getEmailThread(documentId: number) {

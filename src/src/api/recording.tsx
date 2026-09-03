@@ -1,4 +1,5 @@
 import {
+  KN_API_LIVE_TRANSCRIPT,
   KN_API_MIC_USAGE,
   KN_API_PAUSE_RECORD,
   KN_API_RECORD_STATUS,
@@ -126,6 +127,13 @@ export async function isRecordingStatus() {
   }
 
   return data as RecordingStatus
+}
+
+export async function getLiveTranscript(threadId: number): Promise<string> {
+  const response = await fetch(`${KN_API_LIVE_TRANSCRIPT}/${threadId}`)
+  if (!response.ok) return ''
+  const data = await response.json()
+  return typeof data?.content === 'string' ? data.content : ''
 }
 
 export async function getMicUsage() {

@@ -18,9 +18,9 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import debounce from 'lodash/debounce'
 import { CSSTransition, TransitionGroup } from 'react-transition-group'
-import { getDocumentInfos, getDriveDocumentsIds } from 'src/api/data_source'
+import { getDocumentInfos, getDriveDocumentsIds, getGoogleDriveFileText } from 'src/api/data_source'
 import { FeedItem } from 'src/api/feed_items'
-import { isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
+import { getLiveTranscript, isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
 import { IThread, ThreadType } from 'src/api/threads'
 import { getSavedTranscript } from 'src/api/transcripts'
 import { LLMParams } from 'src/App'
@@ -63,6 +63,23 @@ interface MenuButtonProps<T = any> {
   children: React.ReactNode
   title?: string
   disabled?: boolean
+}
+
+const extractGoogleDriveLinks = (description = ''): string[] => {
+  const decoded = description
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+  const matches = decoded.match(/https:\/\/(?:docs|drive)\.google\.com\/[^\s<>"']+/gi) ?? []
+  return Array.from(new Set(matches.map(url => url.replace(/[),.;]+$/, ''))))
+}
+
+const descriptionForPrompt = (description = ''): string => {
+  let clean = description.replace(/<[^>]+>/g, ' ')
+  for (const link of extractGoogleDriveLinks(description)) {
+    clean = clean.replace(link, '[linked Google Drive file]')
+  }
+  return clean.replace(/\s+/g, ' ').trim()
 }
 
 const MenuButton: React.FC<MenuButtonProps> = ({
@@ -221,23 +238,40 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setIsEditingTitle(false)
   }
 
-  const openMeetingChat = () => {
+  const refreshMeetingTranscriptContext = useCallback(async () => {
+    if (recordingHandlers.isRecording(thread.id)) {
+      const content = await getLiveTranscript(thread.id).catch(() => '')
+      setMeetingTranscriptContext(extractTranscriptBodyForContext(content))
+      return content
+    }
+    if (thread.savedTranscript) {
+      const data = await getSavedTranscript(thread.id.toString()).catch(() => undefined)
+      const content = data?.content || ''
+      setMeetingTranscriptContext(extractTranscriptBodyForContext(content))
+      return content
+    }
+    setMeetingTranscriptContext('')
+    return ''
+  }, [recordingHandlers, thread.id, thread.savedTranscript])
+
+  const openMeetingChat = async () => {
+    await refreshMeetingTranscriptContext()
     setMeetingChatInitialInput('What should I pay attention to in this meeting?')
     setBriefPrepExpanded(true)
     setIsMeetingChatOpen(true)
   }
 
   useEffect(() => {
-    if (!isMeetingChatOpen || !thread.savedTranscript) return
-    let cancelled = false
-    getSavedTranscript(thread.id.toString()).then(data => {
-      if (cancelled || !data?.content) return
-      setMeetingTranscriptContext(extractTranscriptBodyForContext(data.content))
-    }).catch(() => {})
+    if (!isMeetingChatOpen) return
+    const refresh = () => refreshMeetingTranscriptContext().catch(() => '')
+    refresh()
+    const interval = recordingHandlers.isRecording(thread.id)
+      ? setInterval(refresh, 10000)
+      : undefined
     return () => {
-      cancelled = true
+      if (interval) clearInterval(interval)
     }
-  }, [isMeetingChatOpen, thread.id, thread.savedTranscript])
+  }, [isMeetingChatOpen, recordingHandlers, refreshMeetingTranscriptContext, thread.id])
 
   const meetingChatContext = useMemo(() => {
     const participantList = meeting?.participants
@@ -256,7 +290,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       `- Participants: ${participantList}`,
       meeting?.start ? `- Start: ${dayjs.unix(meeting.start).format('MMM D, YYYY h:mm A')}` : '',
       meeting?.end ? `- End: ${dayjs.unix(meeting.end).format('MMM D, YYYY h:mm A')}` : '',
-      meeting?.description ? `- Description: ${meeting.description}` : '',
+      meeting?.description ? `- Description: ${descriptionForPrompt(meeting.description)}` : '',
       `- Recording status: ${recordingHandlers.isRecording(thread.id) ? 'currently recording' : 'not recording'}`,
       '',
       'Current meeting brief:',
@@ -266,7 +300,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       notesMarkdown || 'No notes yet.',
       '',
       'Transcript:',
-      meetingTranscriptContext || (thread.savedTranscript ? 'Transcript is being loaded or unavailable.' : 'No saved transcript yet. If the meeting is still live, rely on current notes and meeting details.'),
+      meetingTranscriptContext || (recordingHandlers.isRecording(thread.id)
+        ? 'No live transcript text is available yet. Say so clearly for transcript-dependent questions; do not substitute unrelated background context.'
+        : thread.savedTranscript
+          ? 'Transcript is being loaded or unavailable.'
+          : 'No transcript is available. Say so clearly for transcript-dependent questions; do not invent what happened.'),
     ]
     return lines.filter(line => line !== '').join('\n')
   }, [briefPrepContent, meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userName])
@@ -300,11 +338,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     ).sort((a, b) => a.start - b.start)
   }, [feed.meetings, timestamp, meeting])
 
-  const attendeeEmails = useMemo(
-    () => meeting?.participants.map(p => p.email).filter(Boolean) ?? [],
-    [meeting?.participants],
-  )
-
   const attendeeNames = useMemo(
     () => meeting?.participants.map(p => p.name || p.email.split('@')[0]).filter(Boolean) ?? [],
     [meeting?.participants],
@@ -335,8 +368,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   }, [otherParticipantEmails, userEmail])
 
   const buildBriefPrepDocuments = useCallback(async () => {
-    if (!meeting || !userEmail || attendeeEmails.length === 0) {
-      return { documents: [] as number[], sources: ['Calendar'] }
+    if (!meeting || !userEmail) {
+      return { documents: [] as number[], sources: ['Calendar'], linkedDriveContext: '' }
     }
 
     const dataFetcher = new DataFetcher()
@@ -344,6 +377,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const externalEmails = extractExternalEmails(userEmail, otherParticipantEmails)
     const sourceSet = new Set<string>(['Calendar'])
     const documents = new Set<number>()
+    const linkedDriveSections: string[] = []
 
     try {
       const emailDocs = (
@@ -383,11 +417,25 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       // Drive is opportunistic context; do not block the meeting surface on it.
     }
 
+    const linkedDriveUrls = extractGoogleDriveLinks(meeting.description || '')
+    for (const url of linkedDriveUrls.slice(0, 3)) {
+      const linkedFile = await getGoogleDriveFileText(url, [userEmail, ...userEmails])
+      if (!linkedFile?.content.trim()) continue
+      linkedDriveSections.push(
+        `Linked file: ${linkedFile.name}\n${linkedFile.content.slice(0, 30000)}`,
+      )
+      sourceSet.add('Drive')
+    }
+
     sourceSet.add('Previous notes')
     if (externalDomains.length > 0) sourceSet.add('Web')
 
-    return { documents: Array.from(documents).slice(0, 12), sources: Array.from(sourceSet) }
-  }, [attendeeEmails.length, externalDomains.length, meeting, otherParticipantEmails, userEmail])
+    return {
+      documents: Array.from(documents).slice(0, 12),
+      sources: Array.from(sourceSet),
+      linkedDriveContext: linkedDriveSections.join('\n\n'),
+    }
+  }, [externalDomains.length, meeting, otherParticipantEmails, userEmail, userEmails])
 
   useEffect(() => {
     if (!showCalendarPicker && !showAttendeePicker) return
@@ -738,8 +786,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const startTime = meeting.start
       ? dayjs.unix(meeting.start).format('MMM D, YYYY h:mm A')
       : 'unknown time'
-    const desc = meeting.description ? ` Context: ${meeting.description}.` : ''
-    buildBriefPrepDocuments().then(({ documents, sources }) => {
+    const cleanedDescription = descriptionForPrompt(meeting.description || '')
+    const desc = cleanedDescription ? ` Context: ${cleanedDescription}.` : ''
+    buildBriefPrepDocuments().then(({ documents, sources, linkedDriveContext }) => {
       if (sources.length > 0) setBriefPrepSources(sources)
       addToLLMQueue({
         prompt: `You are preparing ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''} for a meeting. Always write to this user as "you". Do not treat the user as an external customer, prospect, vendor, or attendee to research.
@@ -763,8 +812,10 @@ User email identities: ${Array.from(userEmailSet).join(', ') || 'unknown'}
 All participants: ${participantList}
 Participants other than the user: ${otherParticipantList || 'unknown'}${desc}
 External domains: ${externalDomains.join(', ') || 'none'}
+Linked Google Drive content (authoritative when present):
+${linkedDriveContext || 'No linked file content could be read.'}
 
-Be specific, compact, and useful while the user is joining the call.`,
+Be specific, compact, and useful while the user is joining the call. Never print raw calendar URLs; refer to them by a readable label such as "the linked management sheet".`,
         semanticSearchQuery: [
           meeting.title || thread.subtitle || 'meeting',
           otherParticipantList || participantList,
@@ -1706,8 +1757,11 @@ Be direct, specific, and concise. No filler text.`
               <div className="notetaker-note__brief-drawer-actions">
                 <button
                   className="notetaker-note__brief-drawer-miss"
-                  onClick={() => {
-                    setMeetingChatInitialInput('What did I miss? Compare the brief, current notes, and available meeting context.')
+                  onClick={async () => {
+                    const liveTranscript = await refreshMeetingTranscriptContext()
+                    setMeetingChatInitialInput(liveTranscript.trim()
+                      ? 'What did I miss? Summarize only what the live transcript and current notes show happened in this meeting. Separate confirmed discussion, decisions, and action items.'
+                      : 'What did I miss? First state that no transcript text is available yet. Do not substitute email, Slack, web, or unrelated background as if it happened in this meeting.')
                     setIsMeetingChatOpen(true)
                     setBriefPrepExpanded(true)
                   }}
