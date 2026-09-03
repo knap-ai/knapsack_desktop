@@ -57,7 +57,7 @@ export default class KNAnalytics {
     }
   }
 
-  static trackEvent(event: string, properties: any) {
+  static trackEvent(event: string, properties: any): boolean {
     // TODO: currently, we need to manually set this property to
     // private in order to access the amplitude var for
     // generic logEvent like this.
@@ -72,6 +72,8 @@ export default class KNAnalytics {
     // instead.
     if (ampli !== undefined && ampli.amplitude! !== undefined) {
       ampli.amplitude!.logEvent(event, { platform: 'desktop', app: 'knapsack_desktop', ...properties })
+      return true
     }
+    return false
   }
 }

@@ -34,6 +34,11 @@ import {
   type StudioConnector,
   type StudioConnectorSuggestion,
 } from 'src/utils/studioConnectors'
+import KNAnalytics from 'src/utils/KNAnalytics'
+import {
+  getActivationAttribution,
+  markActivationTracked,
+} from 'src/utils/onboardingIntent'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -970,6 +975,17 @@ function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; 
 
 function clearOnboardingAgents() {
   localStorage.removeItem('kn_onboarding_agents')
+}
+
+function trackPaidActivation(inferenceSurface: 'agent_chat' | 'direct_chat') {
+  const attribution = getActivationAttribution()
+  if (!attribution) return
+
+  const queued = KNAnalytics.trackEvent('desktop_paid_activation', {
+    ...attribution,
+    inference_surface: inferenceSurface,
+  })
+  if (queued) markActivationTracked()
 }
 
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
@@ -5543,6 +5559,7 @@ ${actualText}`
                       (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
                   },
                 ])
+                trackPaidActivation('agent_chat')
                 onAssistantMessage?.(chatId)
               }
             } else {
@@ -5618,6 +5635,7 @@ ${actualText}`
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
+              trackPaidActivation('direct_chat')
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)

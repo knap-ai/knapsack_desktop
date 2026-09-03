@@ -15,6 +15,7 @@ import { listen } from '@tauri-apps/api/event'
  */
 
 const STORAGE_KEY = 'ks_onboarding_intent'
+const ACTIVATION_TRACKED_KEY = 'ks_paid_activation_tracked'
 export const ONBOARDING_INTENT_EVENT = 'knapsack-onboarding-intent'
 
 /** Landing-page role slug -> agent template id in agentTemplates.ts. */
@@ -35,6 +36,9 @@ export interface OnboardingIntent {
   /** Ad attribution id set by the website, for joining this install to a click. */
   attrId?: string
   gclid?: string
+  utmSource?: string
+  utmMedium?: string
+  utmCampaign?: string
   receivedAt: number
 }
 
@@ -55,6 +59,16 @@ function write(intent: OnboardingIntent) {
   }
 }
 
+export interface ActivationAttribution {
+  role?: string
+  attr_id?: string
+  gclid?: string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
+  attribution_age_seconds: number
+}
+
 /** Parses knapsack://onboard?role=…&attr_id=… into an intent. */
 export function parseDeepLink(url: string): OnboardingIntent | null {
   try {
@@ -72,6 +86,9 @@ export function parseDeepLink(url: string): OnboardingIntent | null {
       role,
       attrId: params.get('attr_id') || undefined,
       gclid: params.get('gclid') || undefined,
+      utmSource: params.get('utm_source') || undefined,
+      utmMedium: params.get('utm_medium') || undefined,
+      utmCampaign: params.get('utm_campaign') || undefined,
       receivedAt: Date.now(),
     }
   } catch {
@@ -104,7 +121,66 @@ export function getOnboardingIntent(): OnboardingIntent | null {
   return read()
 }
 
-/** Clears the intent once onboarding has consumed it. */
+function activationTrackingKey(intent: OnboardingIntent): string | null {
+  if (intent.gclid) return intent.gclid
+  if (intent.attrId) return intent.attrId
+
+  const isGoogleCpc =
+    intent.utmSource?.toLowerCase() === 'google' && intent.utmMedium?.toLowerCase() === 'cpc'
+  if (!isGoogleCpc) return null
+
+  // A stable key for the stored deep-link intent prevents a UTM-only campaign
+  // from reporting every successful inference as another first activation.
+  return [intent.utmSource, intent.utmMedium, intent.utmCampaign || 'unknown', intent.receivedAt].join(
+    ':',
+  )
+}
+
+/**
+ * Returns ad attribution for the first successful inference, if it has not
+ * already been reported for this click. The role-selection intent deliberately
+ * survives onboarding so the activation event can be joined back to the web
+ * visit and download.
+ */
+export function getActivationAttribution(): ActivationAttribution | null {
+  const intent = read()
+  if (!intent) return null
+
+  const attributionId = activationTrackingKey(intent)
+  if (!attributionId) return null
+
+  try {
+    const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
+    if (trackedId && trackedId === attributionId) return null
+  } catch {
+    /* storage unavailable; returning the attribution is safer than dropping it */
+  }
+
+  return {
+    role: intent.role,
+    attr_id: intent.attrId,
+    gclid: intent.gclid,
+    utm_source: intent.utmSource,
+    utm_medium: intent.utmMedium,
+    utm_campaign: intent.utmCampaign,
+    attribution_age_seconds: Math.max(0, Math.round((Date.now() - intent.receivedAt) / 1000)),
+  }
+}
+
+/** Marks this attributed install after its first successful inference event. */
+export function markActivationTracked() {
+  const intent = read()
+  const attributionId = intent ? activationTrackingKey(intent) : null
+  if (!attributionId) return
+
+  try {
+    localStorage.setItem(ACTIVATION_TRACKED_KEY, attributionId)
+  } catch {
+    /* best-effort deduplication */
+  }
+}
+
+/** Clears the intent when an explicit reset is required. */
 export function clearOnboardingIntent() {
   try {
     localStorage.removeItem(STORAGE_KEY)
