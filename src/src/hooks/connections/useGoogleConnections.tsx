@@ -7,9 +7,6 @@ import {
   calendarConnectionKey,
   driveConnectionKey,
   gmailConnectionKey,
-  getGoogleCalendarConnections,
-  getGoogleDriveConnections,
-  getGoogleGmailConnections,
   isConnectionReadyToSync,
   syncGoogleCalendarAPI,
   syncGoogleDriveAPI,
@@ -52,8 +49,8 @@ export const useGoogleConnections = (
 
   /** Sync a single Google Drive account identified by accountEmail. */
   const syncGoogleDrive = useCallback(
-    async (primaryEmail: string, accountEmail: string) => {
-      const recordKey = driveConnectionKey(accountEmail)
+    async (primaryEmail: string, accountEmail: string, stateKey?: string) => {
+      const recordKey = stateKey || driveConnectionKey(accountEmail)
       setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
         await syncGoogleDriveAPI(primaryEmail, accountEmail)
@@ -67,8 +64,8 @@ export const useGoogleConnections = (
 
   /** Sync a single Gmail account identified by accountEmail. */
   const syncGoogleGmail = useCallback(
-    async (primaryEmail: string, accountEmail: string) => {
-      const recordKey = gmailConnectionKey(accountEmail)
+    async (primaryEmail: string, accountEmail: string, stateKey?: string) => {
+      const recordKey = stateKey || gmailConnectionKey(accountEmail)
       setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
         await syncGoogleGmailAPI(primaryEmail, accountEmail)
@@ -82,8 +79,8 @@ export const useGoogleConnections = (
 
   /** Sync a single Google Calendar account identified by calendarAccountEmail. */
   const syncGoogleCalendar = useCallback(
-    async (primaryEmail: string, calendarAccountEmail: string) => {
-      const recordKey = calendarConnectionKey(calendarAccountEmail)
+    async (primaryEmail: string, calendarAccountEmail: string, stateKey?: string) => {
+      const recordKey = stateKey || calendarConnectionKey(calendarAccountEmail)
       setConnectionState?.(recordKey, ConnectionStates.SYNCING)
       try {
         await syncGoogleCalendarAPI(primaryEmail, calendarAccountEmail)
@@ -100,23 +97,47 @@ export const useGoogleConnections = (
       const promises: Promise<void>[] = []
 
       // Sync every linked Google Drive account independently.
-      for (const driveConn of getGoogleDriveConnections(connections)) {
+      for (const [recordKey, driveConn] of Object.entries(connections).filter(
+        ([, connection]) => connection.key === ConnectionKeys.GOOGLE_DRIVE,
+      )) {
         if (isConnectionReadyToSync(driveConn)) {
-          promises.push(syncGoogleDrive(email, driveConn.calendarAccountEmail || email))
+          promises.push(
+            syncGoogleDrive(
+              driveConn.ownerEmail || email,
+              driveConn.calendarAccountEmail || email,
+              recordKey,
+            ),
+          )
         }
       }
 
       // Sync every linked Gmail account independently.
-      for (const gmailConn of getGoogleGmailConnections(connections)) {
+      for (const [recordKey, gmailConn] of Object.entries(connections).filter(
+        ([, connection]) => connection.key === ConnectionKeys.GOOGLE_GMAIL,
+      )) {
         if (isConnectionReadyToSync(gmailConn)) {
-          promises.push(syncGoogleGmail(email, gmailConn.calendarAccountEmail || email))
+          promises.push(
+            syncGoogleGmail(
+              gmailConn.ownerEmail || email,
+              gmailConn.calendarAccountEmail || email,
+              recordKey,
+            ),
+          )
         }
       }
 
       // Sync every linked Google Calendar account independently.
-      for (const calConn of getGoogleCalendarConnections(connections)) {
+      for (const [recordKey, calConn] of Object.entries(connections).filter(
+        ([, connection]) => connection.key === ConnectionKeys.GOOGLE_CALENDAR,
+      )) {
         if (isConnectionReadyToSync(calConn)) {
-          promises.push(syncGoogleCalendar(email, calConn.calendarAccountEmail || email))
+          promises.push(
+            syncGoogleCalendar(
+              calConn.ownerEmail || email,
+              calConn.calendarAccountEmail || email,
+              recordKey,
+            ),
+          )
         }
       }
 
