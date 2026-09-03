@@ -1,7 +1,5 @@
 import { listen } from '@tauri-apps/api/event'
 
-import { getPaidActivationId } from './activationAttribution'
-
 /**
  * Onboarding intent carried in from the website.
  *
@@ -123,6 +121,21 @@ export function getOnboardingIntent(): OnboardingIntent | null {
   return read()
 }
 
+function activationTrackingKey(intent: OnboardingIntent): string | null {
+  if (intent.gclid) return intent.gclid
+  if (intent.attrId) return intent.attrId
+
+  const isGoogleCpc =
+    intent.utmSource?.toLowerCase() === 'google' && intent.utmMedium?.toLowerCase() === 'cpc'
+  if (!isGoogleCpc) return null
+
+  // A stable key for the stored deep-link intent prevents a UTM-only campaign
+  // from reporting every successful inference as another first activation.
+  return [intent.utmSource, intent.utmMedium, intent.utmCampaign || 'unknown', intent.receivedAt].join(
+    ':',
+  )
+}
+
 /**
  * Returns ad attribution for the first successful inference, if it has not
  * already been reported for this click. The role-selection intent deliberately
@@ -133,7 +146,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
   const intent = read()
   if (!intent) return null
 
-  const attributionId = getPaidActivationId(intent)
+  const attributionId = activationTrackingKey(intent)
   if (!attributionId) return null
 
   try {
@@ -157,7 +170,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
 /** Marks this attributed install after its first successful inference event. */
 export function markActivationTracked() {
   const intent = read()
-  const attributionId = intent ? getPaidActivationId(intent) : null
+  const attributionId = intent ? activationTrackingKey(intent) : null
   if (!attributionId) return
 
   try {
