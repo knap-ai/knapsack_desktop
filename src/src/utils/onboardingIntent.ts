@@ -15,6 +15,7 @@ import { listen } from '@tauri-apps/api/event'
  */
 
 const STORAGE_KEY = 'ks_onboarding_intent'
+const ACTIVATION_TRACKED_KEY = 'ks_paid_activation_tracked'
 export const ONBOARDING_INTENT_EVENT = 'knapsack-onboarding-intent'
 
 /** Landing-page role slug -> agent template id in agentTemplates.ts. */
@@ -53,6 +54,13 @@ function write(intent: OnboardingIntent) {
   } catch {
     /* storage unavailable; the picker just shows its default */
   }
+}
+
+export interface ActivationAttribution {
+  role?: string
+  attr_id?: string
+  gclid?: string
+  attribution_age_seconds: number
 }
 
 /** Parses knapsack://onboard?role=…&attr_id=… into an intent. */
@@ -104,7 +112,46 @@ export function getOnboardingIntent(): OnboardingIntent | null {
   return read()
 }
 
-/** Clears the intent once onboarding has consumed it. */
+/**
+ * Returns ad attribution for the first successful inference, if it has not
+ * already been reported for this click. The role-selection intent deliberately
+ * survives onboarding so the activation event can be joined back to the web
+ * visit and download.
+ */
+export function getActivationAttribution(): ActivationAttribution | null {
+  const intent = read()
+  if (!intent || (!intent.attrId && !intent.gclid)) return null
+
+  try {
+    const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
+    const attributionId = intent.attrId || intent.gclid
+    if (trackedId && trackedId === attributionId) return null
+  } catch {
+    /* storage unavailable; returning the attribution is safer than dropping it */
+  }
+
+  return {
+    role: intent.role,
+    attr_id: intent.attrId,
+    gclid: intent.gclid,
+    attribution_age_seconds: Math.max(0, Math.round((Date.now() - intent.receivedAt) / 1000)),
+  }
+}
+
+/** Marks this attributed install after its first successful inference event. */
+export function markActivationTracked() {
+  const intent = read()
+  const attributionId = intent?.attrId || intent?.gclid
+  if (!attributionId) return
+
+  try {
+    localStorage.setItem(ACTIVATION_TRACKED_KEY, attributionId)
+  } catch {
+    /* best-effort deduplication */
+  }
+}
+
+/** Clears the intent when an explicit reset is required. */
 export function clearOnboardingIntent() {
   try {
     localStorage.removeItem(STORAGE_KEY)

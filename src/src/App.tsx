@@ -25,7 +25,11 @@ import { useLLMBar } from 'src/hooks/feed/useLLMBar'
 import { getHasOnboarded, Onboarding } from 'src/pages/onboarding'
 import { KN_API_STOP_LLM_EXECUTION, KN_CHAT_MESSAGE_MAX_STREAM_READS } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
-import { initOnboardingIntent } from 'src/utils/onboardingIntent'
+import {
+  getActivationAttribution,
+  initOnboardingIntent,
+  markActivationTracked,
+} from 'src/utils/onboardingIntent'
 
 import Home from './components/templates/Home/Home'
 import {
@@ -503,6 +507,17 @@ function App() {
             error: String(callbackErr),
           })
           errorCallback?.(callbackErr as Error)
+        }
+        if (messageText.trim()) {
+          const attribution = getActivationAttribution()
+          if (attribution) {
+            const queued = KNAnalytics.trackEvent('desktop_paid_activation', {
+              ...attribution,
+              inference_surface: 'legacy_chat',
+              thread_id: threadId,
+            })
+            if (queued) markActivationTracked()
+          }
         }
         return messageText
       } catch (err) {

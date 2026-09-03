@@ -6,7 +6,6 @@ import { AgentIdentity, Cadence, CadenceType, DaysOfWeek } from 'src/automations
 import { AGENT_TEMPLATES, AGENTMAKER_PROMPT } from 'src/automations/agentTemplates'
 import LoadingIcon from 'src/components/atoms/loading-icon'
 import {
-  clearOnboardingIntent,
   getOnboardingIntent,
   ONBOARDING_INTENT_EVENT,
   OnboardingIntent,
@@ -431,7 +430,6 @@ export default function AgentPickerScreen({
 
   const handleActivate = useCallback(() => {
     const allSelections = [...selections, ...agentmakerResults]
-    clearOnboardingIntent()
     onActivate(allSelections)
   }, [selections, agentmakerResults, onActivate])
 
