@@ -36,6 +36,9 @@ export interface OnboardingIntent {
   /** Ad attribution id set by the website, for joining this install to a click. */
   attrId?: string
   gclid?: string
+  utmSource?: string
+  utmMedium?: string
+  utmCampaign?: string
   receivedAt: number
 }
 
@@ -60,6 +63,9 @@ export interface ActivationAttribution {
   role?: string
   attr_id?: string
   gclid?: string
+  utm_source?: string
+  utm_medium?: string
+  utm_campaign?: string
   attribution_age_seconds: number
 }
 
@@ -80,6 +86,9 @@ export function parseDeepLink(url: string): OnboardingIntent | null {
       role,
       attrId: params.get('attr_id') || undefined,
       gclid: params.get('gclid') || undefined,
+      utmSource: params.get('utm_source') || undefined,
+      utmMedium: params.get('utm_medium') || undefined,
+      utmCampaign: params.get('utm_campaign') || undefined,
       receivedAt: Date.now(),
     }
   } catch {
@@ -120,11 +129,15 @@ export function getOnboardingIntent(): OnboardingIntent | null {
  */
 export function getActivationAttribution(): ActivationAttribution | null {
   const intent = read()
-  if (!intent || (!intent.attrId && !intent.gclid)) return null
+  if (!intent) return null
+
+  const isGoogleCpc = intent.utmSource?.toLowerCase() === 'google'
+    && intent.utmMedium?.toLowerCase() === 'cpc'
+  if (!intent.gclid && !isGoogleCpc) return null
 
   try {
     const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
-    const attributionId = intent.attrId || intent.gclid
+    const attributionId = intent.gclid || intent.attrId
     if (trackedId && trackedId === attributionId) return null
   } catch {
     /* storage unavailable; returning the attribution is safer than dropping it */
@@ -134,6 +147,9 @@ export function getActivationAttribution(): ActivationAttribution | null {
     role: intent.role,
     attr_id: intent.attrId,
     gclid: intent.gclid,
+    utm_source: intent.utmSource,
+    utm_medium: intent.utmMedium,
+    utm_campaign: intent.utmCampaign,
     attribution_age_seconds: Math.max(0, Math.round((Date.now() - intent.receivedAt) / 1000)),
   }
 }
@@ -141,7 +157,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
 /** Marks this attributed install after its first successful inference event. */
 export function markActivationTracked() {
   const intent = read()
-  const attributionId = intent?.attrId || intent?.gclid
+  const attributionId = intent?.gclid || intent?.attrId
   if (!attributionId) return
 
   try {
