@@ -98,7 +98,11 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
 
   const fetchConnections = useCallback(
     async (email: string) => {
-      const cloudConnections = await getConnections(email)
+      // Connections can belong to an older local Knapsack profile after the
+      // user links additional Google accounts or changes their primary login.
+      // Settings already shows this aggregate inventory; use the same source
+      // for background sync so a connected calendar cannot silently go stale.
+      const cloudConnections = await getConnections(email, { includeAllUsers: true })
       const updatedConnections: Record<string, Connection> = {}
 
       // cloudConnections is keyed by record key (scope, or scope|calEmail for
@@ -192,11 +196,13 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
 
   const syncConnections = useCallback(
     async (email: string, updatedConnections: Record<string, Connection>) => {
-      syncGoogleConnections(email, updatedConnections)
-      syncLocalConnections(updatedConnections)
-      syncMicrosoftConnections(email, updatedConnections)
+      await Promise.all([
+        syncGoogleConnections(email, updatedConnections),
+        syncLocalConnections(updatedConnections),
+        syncMicrosoftConnections(email, updatedConnections),
+      ])
     },
-    [syncGoogleConnections, syncLocalConnections],
+    [syncGoogleConnections, syncLocalConnections, syncMicrosoftConnections],
   )
 
   const syncGoogleConnectionsByKey = useCallback(

@@ -26,3 +26,27 @@ test('sidebar uses an abbreviated month inside a non-wrapping date label', () =>
   assert.doesNotMatch(component, /Object\.entries\(upcomingEvents\)\s*\.slice\(0, 5\)/)
   assert.match(styles, /&__calendar-date-meta\s*\{[^}]*white-space:\s*nowrap;/s)
 })
+
+test('background sync refreshes every locally connected Google account', () => {
+  const connectionHook = fs.readFileSync(
+    path.join(sourceRoot, 'hooks/connections/useConnections.tsx'),
+    'utf8',
+  )
+  const googleHook = fs.readFileSync(
+    path.join(sourceRoot, 'hooks/connections/useGoogleConnections.tsx'),
+    'utf8',
+  )
+
+  assert.match(connectionHook, /getConnections\(email, \{ includeAllUsers: true \}\)/)
+  assert.match(connectionHook, /await Promise\.all\(\[/)
+  assert.match(googleHook, /driveConn\.ownerEmail \|\| email/)
+  assert.match(googleHook, /gmailConn\.ownerEmail \|\| email/)
+  assert.match(googleHook, /calConn\.ownerEmail \|\| email/)
+})
+
+test('aggregate connection keys keep legacy single-account services addressable', () => {
+  const api = fs.readFileSync(path.join(sourceRoot, 'api/connections.tsx'), 'utf8')
+
+  assert.match(api, /multiAccountScopes\.has\(scope as ConnectionKeys\)/)
+  assert.doesNotMatch(api, /:\s*options\?\.includeAllUsers\s*\?\s*`\$\{scope\}\|\$\{ownerEmail\}`/s)
+})

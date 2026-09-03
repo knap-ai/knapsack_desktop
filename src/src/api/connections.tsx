@@ -283,9 +283,7 @@ export async function getConnections(
       const recordKey =
         multiAccountScopes.has(scope as ConnectionKeys) && calendarAccountEmail
           ? `${scope}|${calendarAccountEmail}${options?.includeAllUsers ? `|${ownerEmail}` : ''}`
-          : options?.includeAllUsers
-            ? `${scope}|${ownerEmail}`
-            : scope
+          : scope
 
       return {
         ...acc,
