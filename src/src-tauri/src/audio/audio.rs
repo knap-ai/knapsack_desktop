@@ -52,8 +52,8 @@ use crate::RecordingState;
 
 use super::encode::save_chunk;
 use super::transcribe::{
-  begin_transcription_job, finalize_chunk, generate_meeting_insight, unify_transcript,
-  wait_for_transcription_jobs,
+  begin_transcription_job, finalize_chunk, generate_meeting_insight, read_live_transcript,
+  unify_transcript, wait_for_transcription_jobs,
 };
 use cpal::SizedSample;
 use hound::SampleFormat;
@@ -1498,6 +1498,37 @@ async fn get_recording_status(recording_state: web::Data<RecordingState>) -> imp
   };
 
   HttpResponse::Ok().json(response)
+}
+
+#[get("/api/knapsack/live_transcript/{thread_id}")]
+pub async fn get_live_transcript(
+  path: web::Path<u64>,
+  recording_state: web::Data<RecordingState>,
+) -> HttpResponse {
+  let requested_thread_id = path.into_inner();
+  let active_thread_id = *recording_state.thread_id.lock().unwrap();
+  if !recording_state.is_recording.load(Ordering::Relaxed)
+    || active_thread_id != Some(requested_thread_id)
+  {
+    return HttpResponse::NotFound().json(json!({
+      "success": false,
+      "message": "This meeting is not currently recording"
+    }));
+  }
+
+  let input_filename = recording_state.input_filename.lock().unwrap().clone();
+  let output_filename = recording_state.output_filename.lock().unwrap().clone();
+  let (Some(input_filename), Some(output_filename)) = (input_filename, output_filename) else {
+    return HttpResponse::Ok().json(json!({ "success": true, "content": "" }));
+  };
+
+  match read_live_transcript(&input_filename, &output_filename) {
+    Ok(content) => HttpResponse::Ok().json(json!({ "success": true, "content": content })),
+    Err(error) => HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "message": format!("Could not read the live transcript: {:?}", error)
+    })),
+  }
 }
 
 #[get("/api/knapsack/mic/usage")]

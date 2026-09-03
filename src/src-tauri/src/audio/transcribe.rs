@@ -459,6 +459,17 @@ pub async fn generate_meeting_insight(
   }
 }
 
+/// Return the transcript accumulated by the periodic recording workers without
+/// finalizing or moving any files. Meeting chat uses this while recording.
+pub fn read_live_transcript(input_filename: &str, output_filename: &str) -> Result<String, Error> {
+  let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
+  let transcripts_dir = home_dir.join(".knapsack/transcripts");
+  let input_content = read_file_content(&transcripts_dir.join(format!("{}.txt", input_filename)))?;
+  let output_content =
+    read_file_content(&transcripts_dir.join(format!("{}.txt", output_filename)))?;
+  Ok(merge_transcripts(&input_content, &output_content))
+}
+
 pub fn unify_transcript(
   input_filename: &str,
   output_filename: &str,

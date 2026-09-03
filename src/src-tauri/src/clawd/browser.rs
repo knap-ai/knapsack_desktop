@@ -916,31 +916,28 @@ fn connected_google_accounts(
 fn connected_google_accounts_for_context(
   preferred_user_email: &str,
 ) -> std::collections::BTreeMap<String, Vec<&'static str>> {
-  let direct = connected_google_accounts(preferred_user_email);
-  if !direct.is_empty() {
-    return direct;
-  }
-
-  // Studio identity and the native Desktop connection owner can differ. If
-  // the preferred identity owns no native Google scopes, select the local user
-  // whose Google inventory contains that account, otherwise the richest native
-  // Google inventory. This preserves simultaneous accounts without a switcher.
-  let mut best = std::collections::BTreeMap::new();
-  let mut best_score = 0usize;
+  // Settings intentionally aggregates connections owned by every local
+  // identity. Chat must use the same inventory; returning early for the
+  // preferred identity hid other simultaneously connected Google accounts.
+  let mut combined = std::collections::BTreeMap::<String, Vec<&'static str>>::new();
   if let Ok(users) = User::find_all_with_email() {
     for user in users {
       let accounts = connected_google_accounts(&user.email);
-      if accounts.contains_key(preferred_user_email) {
-        return accounts;
-      }
-      let score = accounts.values().map(Vec::len).sum::<usize>();
-      if score > best_score {
-        best_score = score;
-        best = accounts;
+      for (account, services) in accounts {
+        let combined_services = combined.entry(account).or_default();
+        for service in services {
+          if !combined_services.contains(&service) {
+            combined_services.push(service);
+          }
+        }
       }
     }
   }
-  best
+  if combined.is_empty() {
+    connected_google_accounts(preferred_user_email)
+  } else {
+    combined
+  }
 }
 
 fn connected_google_accounts_section(user_email: &str) -> String {

@@ -44,6 +44,8 @@ export const KN_API_GET_EVENTS_IDS_BY_RECURRENCE_ID =
   KN_SERVER_HOST + '/api/knapsack/connections/google/calendar/get_emails_by_recurrence_id'
 export const KN_API_GOOGLE_DRIVE_FILES =
   KN_SERVER_HOST + '/api/knapsack/connections/google/drive/files'
+export const KN_API_GOOGLE_DRIVE_FILE_TEXT =
+  KN_SERVER_HOST + '/api/knapsack/connections/google/drive/file_text'
 export const KN_API_GOOGLE_DRIVE_MIME_TYPES =
   KN_SERVER_HOST + '/api/knapsack/google/drive/mimeTypes'
 export const KN_API_GET_EMAIL_THREAD = KN_SERVER_HOST + '/api/knapsack/email_thread'
@@ -91,6 +93,7 @@ export const KN_API_TRANSCRIPTS_LIST = KN_SERVER_HOST + '/api/knapsack/transcrip
 export const KN_API_MEETING_INSIGHTS = KN_SERVER_HOST + '/api/knapsack/meeting_insights'
 export const KN_API_NOTES = KN_SERVER_HOST + '/api/knapsack/notes'
 export const KN_API_RECORD_STATUS = KN_SERVER_HOST + '/api/knapsack/recording_status'
+export const KN_API_LIVE_TRANSCRIPT = KN_SERVER_HOST + '/api/knapsack/live_transcript'
 export const KN_API_MIC_USAGE = KN_SERVER_HOST + '/api/knapsack/mic/usage'
 export const KN_API_THREAD_TRANSCRIPT = KN_SERVER_HOST + '/api/knapsack/thread/transcript'
 export const KN_API_PAUSE_RECORD = KN_SERVER_HOST + '/api/knapsack/pause_recording'
