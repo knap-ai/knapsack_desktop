@@ -121,6 +121,21 @@ export function getOnboardingIntent(): OnboardingIntent | null {
   return read()
 }
 
+function activationTrackingKey(intent: OnboardingIntent): string | null {
+  if (intent.gclid) return intent.gclid
+  if (intent.attrId) return intent.attrId
+
+  const isGoogleCpc =
+    intent.utmSource?.toLowerCase() === 'google' && intent.utmMedium?.toLowerCase() === 'cpc'
+  if (!isGoogleCpc) return null
+
+  // A stable key for the stored deep-link intent prevents a UTM-only campaign
+  // from reporting every successful inference as another first activation.
+  return [intent.utmSource, intent.utmMedium, intent.utmCampaign || 'unknown', intent.receivedAt].join(
+    ':',
+  )
+}
+
 /**
  * Returns ad attribution for the first successful inference, if it has not
  * already been reported for this click. The role-selection intent deliberately
@@ -135,9 +150,11 @@ export function getActivationAttribution(): ActivationAttribution | null {
     && intent.utmMedium?.toLowerCase() === 'cpc'
   if (!intent.gclid && !isGoogleCpc) return null
 
+  const attributionId = activationTrackingKey(intent)
+  if (!attributionId) return null
+
   try {
     const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
-    const attributionId = intent.gclid || intent.attrId
     if (trackedId && trackedId === attributionId) return null
   } catch {
     /* storage unavailable; returning the attribution is safer than dropping it */
@@ -157,7 +174,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
 /** Marks this attributed install after its first successful inference event. */
 export function markActivationTracked() {
   const intent = read()
-  const attributionId = intent?.gclid || intent?.attrId
+  const attributionId = intent ? activationTrackingKey(intent) : null
   if (!attributionId) return
 
   try {
