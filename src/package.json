@@ -27,6 +27,7 @@
     "test:studio-connectors": "node --test scripts/studio-connectors.test.cjs",
     "test:snowflake-session-binding": "node --test scripts/snowflake-session-binding.test.cjs",
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
+    "test:activation-attribution": "node --experimental-strip-types --test scripts/activation-attribution.test.mjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",

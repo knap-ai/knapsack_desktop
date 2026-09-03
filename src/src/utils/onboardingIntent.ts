@@ -1,5 +1,7 @@
 import { listen } from '@tauri-apps/api/event'
 
+import { getPaidActivationId } from './activationAttribution'
+
 /**
  * Onboarding intent carried in from the website.
  *
@@ -131,13 +133,11 @@ export function getActivationAttribution(): ActivationAttribution | null {
   const intent = read()
   if (!intent) return null
 
-  const isGoogleCpc = intent.utmSource?.toLowerCase() === 'google'
-    && intent.utmMedium?.toLowerCase() === 'cpc'
-  if (!intent.gclid && !isGoogleCpc) return null
+  const attributionId = getPaidActivationId(intent)
+  if (!attributionId) return null
 
   try {
     const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
-    const attributionId = intent.gclid || intent.attrId
     if (trackedId && trackedId === attributionId) return null
   } catch {
     /* storage unavailable; returning the attribution is safer than dropping it */
@@ -157,7 +157,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
 /** Marks this attributed install after its first successful inference event. */
 export function markActivationTracked() {
   const intent = read()
-  const attributionId = intent?.gclid || intent?.attrId
+  const attributionId = intent ? getPaidActivationId(intent) : null
   if (!attributionId) return
 
   try {
