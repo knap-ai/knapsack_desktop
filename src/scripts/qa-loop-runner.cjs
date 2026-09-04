@@ -92,12 +92,18 @@ const MODELS_BY_PROVIDER = {
   ollama: ["markheynen/knapsack-7b-chat-metal:latest"],
   knapsack: ["auto"],
   openai: [
+    "gpt-6-astra",
+    "gpt-6",
+    "gpt-5.6",
     "gpt-5.5",
     "gpt-5.4",
     "o3",
     "gpt-5-mini",
   ],
   anthropic: [
+    "claude-fable-5-1",
+    "claude-fable-5",
+    "claude-opus-4-8",
     "claude-opus-4-7",
     "claude-opus-4-6",
     "claude-sonnet-4-6",
@@ -106,6 +112,9 @@ const MODELS_BY_PROVIDER = {
     "claude-opus-4-5-20251101",
   ],
   gemini: [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
     "gemini-2.5-flash",
     "gemini-2.5-pro",
     "gemini-3.1-pro-preview",
@@ -742,6 +751,32 @@ async function killOpenClawProcessesForQa() {
   await runCommand("powershell.exe", ["-NoProfile", "-Command", command]);
 }
 
+function parseListenerPids(output) {
+  return [...new Set(String(output || "")
+    .split(/\r?\n/)
+    .map((value) => Number(value.trim()))
+    .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid))];
+}
+
+function killPosixPortListeners(ports) {
+  const pids = new Set();
+  for (const port of ports) {
+    const result = spawnSync(
+      "lsof",
+      ["-nP", `-tiTCP:${port}`, "-sTCP:LISTEN"],
+      { encoding: "utf8" },
+    );
+    for (const pid of parseListenerPids(result.stdout)) pids.add(pid);
+  }
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // Listener may already have exited.
+    }
+  }
+}
+
 function fetchWithTimeout(url, options = {}, timeoutMs = 8_000) {
   const { qaSkipBody, ...fetchOptions } = options || {};
   const headers = localApiHeaders(url, fetchOptions.headers);
@@ -949,9 +984,12 @@ function killWindowsPortListeners(ports) {
 }
 
 async function ensureCleanPorts(ports) {
-  if (process.platform !== "win32") return;
   for (let i = 0; i < 5; i++) {
-    killWindowsPortListeners(ports);
+    if (process.platform === "win32") {
+      killWindowsPortListeners(ports);
+    } else {
+      killPosixPortListeners(ports);
+    }
     await sleep(250);
   }
 }
@@ -1394,7 +1432,7 @@ function readinessProviderModels(opts) {
   }
 
   const providers = Array.isArray(opts?.providers) && opts.providers.length > 0
-    ? Array.from(new Set(opts.providers.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)))
+    ? Array.from(new Set(opts.providers.map((value) => normalizeProvider(value)).filter(Boolean)))
     : ["gemini"];
   if (providers.includes("openai") && !providers.includes("gemini")) {
     providers.push("gemini");
@@ -2691,8 +2729,10 @@ module.exports = {
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,
+  parseListenerPids,
   qaSetProviderTimeoutMs,
   qaDevClawdbotDir,
+  readinessProviderModels,
   shouldPreserveExistingQaState,
   setApiAuthStateDirForTest(value) {
     activeApiAuthStateDir = value;

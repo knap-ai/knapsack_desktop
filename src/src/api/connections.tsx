@@ -43,8 +43,8 @@ export type Connection = {
 }
 
 /** Record key used for a Google Calendar connection given its account email. */
-export const calendarConnectionKey = (calendarAccountEmail: string): string =>
-  `${ConnectionKeys.GOOGLE_CALENDAR}|${calendarAccountEmail}`
+export const calendarConnectionKey = (calendarAccountEmail: string, ownerEmail?: string): string =>
+  `${ConnectionKeys.GOOGLE_CALENDAR}|${calendarAccountEmail}${ownerEmail ? `|${ownerEmail}` : ''}`
 
 /** Record key used for a Google Drive connection given its account email. */
 export const driveConnectionKey = (accountEmail: string): string =>

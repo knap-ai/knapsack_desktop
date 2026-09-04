@@ -31,7 +31,7 @@ jobs:
           commit-message: 'Refresh public provider model catalogs'
           title: 'Refresh public provider model catalogs'
           body: |
-            Weekly refresh of shared public-provider model catalogs, including Google Gemini, from official public docs and APIs.
+            Weekly refresh of the Anthropic, Google Gemini, and OpenAI model catalogs from official public documentation.
 
             This updates the model choices shown in Knapsack provider settings and chat model pickers.
           branch: codex/refresh-public-provider-model-catalogs

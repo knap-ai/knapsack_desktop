@@ -9,7 +9,8 @@ import dayjs from 'dayjs'
 import {
   // Connection,
   ConnectionKeys,
-  // ConnectionStates,
+  ConnectionStates,
+  calendarConnectionKey,
   deleteConnection as deleteConnectionApi,
   getCompleteGoogleSignIn,
   getGoogleConnectionKeysFromScopes,
@@ -319,6 +320,7 @@ function App() {
     syncConnections,
     fetchConnections,
     addConnections,
+    setConnectionState,
   } = useConnections()
 
   const handleSignInDialogOpenChange = useCallback((show: boolean) => {
@@ -712,7 +714,19 @@ function App() {
     )
     const unlistenFetchCalendarPromise = listen(
       'finish_fetch_calendar',
-      async (event: Event<{ success: boolean; synced_events_count?: number }>) => {
+      async (event: Event<{
+        success: boolean
+        synced_events_count?: number
+        calendar_account_email?: string
+        owner_email?: string
+      }>) => {
+        const calendarAccountEmail = event.payload.calendar_account_email
+        if (calendarAccountEmail) {
+          setConnectionState(
+            calendarConnectionKey(calendarAccountEmail, event.payload.owner_email),
+            event.payload.success ? ConnectionStates.UP_TO_DATE : ConnectionStates.FAILED,
+          )
+        }
         if (event.payload.success) {
           KNAnalytics.trackEvent('CalendarSynced', {
             synced_events_count: event.payload.synced_events_count || 0,
@@ -725,6 +739,16 @@ function App() {
           await syncAutomations()
           // Check for upcoming meetings that need prep notifications
           backgroundNotificationsRef.current.handleCalendarSyncComplete()
+        } else {
+          KNAnalytics.trackEvent('CalendarSynced', {
+            source: 'google',
+            success: false,
+          })
+          handleErrorContact(
+            calendarAccountEmail
+              ? `Could not refresh Calendar for ${calendarAccountEmail}. Open Connections to reconnect or retry.`
+              : 'Could not refresh Calendar. Open Connections to reconnect or retry.',
+          )
         }
       },
     )

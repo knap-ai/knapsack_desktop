@@ -50,3 +50,19 @@ test('aggregate connection keys keep legacy single-account services addressable'
   assert.match(api, /multiAccountScopes\.has\(scope as ConnectionKeys\)/)
   assert.doesNotMatch(api, /:\s*options\?\.includeAllUsers\s*\?\s*`\$\{scope\}\|\$\{ownerEmail\}`/s)
 })
+
+test('failed Google Calendar fetches stay stale and report the owning account', () => {
+  const calendar = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src-tauri', 'src', 'connections', 'google', 'calendar.rs'),
+    'utf8',
+  )
+  const app = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
+
+  assert.match(calendar, /let mut sync_succeeded = true;/)
+  assert.match(calendar, /Err\(error\) => \{[\s\S]*?sync_succeeded = false;/)
+  assert.match(calendar, /if sync_succeeded \{[\s\S]*?delete_calendar_events_removed[\s\S]*?update_last_sync_by_id/)
+  assert.match(calendar, /success: sync_succeeded/)
+  assert.match(calendar, /owner_email: Some\(email\)/)
+  assert.match(app, /calendarConnectionKey\(calendarAccountEmail, event\.payload\.owner_email\)/)
+  assert.match(app, /event\.payload\.success \? ConnectionStates\.UP_TO_DATE : ConnectionStates\.FAILED/)
+})
