@@ -15,6 +15,12 @@ import {
   KNAPSACK_ANTHROPIC_TIER_MODELS,
 } from 'src/utils/anthropicModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
+import { GEMINI_MODELS, GEMINI_PROVIDER_DESCRIPTION } from 'src/utils/geminiModels'
+import {
+  DEFAULT_OPENAI_MODEL,
+  OPENAI_MODELS,
+  OPENAI_PROVIDER_DESCRIPTION,
+} from 'src/utils/openaiModels'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
@@ -54,17 +60,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    description: 'GPT-5.5, GPT-5.4, o3',
+    description: OPENAI_PROVIDER_DESCRIPTION,
     keyPrefix: 'sk-',
     helpUrl: 'https://platform.openai.com/api-keys',
     helpLabel: 'platform.openai.com/api-keys',
-    models: [
-      { id: 'gpt-5.5', name: 'GPT-5.5', description: 'Newest frontier model, best for complex professional work' },
-      { id: 'gpt-5.4', name: 'GPT-5.4', description: 'Highly capable, great balance of performance and cost' },
-      { id: 'o3', name: 'o3 (Reasoning)', description: 'Reasoning model for complex logic' },
-      { id: 'gpt-5-mini', name: 'GPT-5 Mini', description: 'Fast and affordable' },
-    ],
-    defaultModel: 'gpt-5-mini',
+    models: OPENAI_MODELS,
+    defaultModel: DEFAULT_OPENAI_MODEL,
   },
   {
     id: 'anthropic',
@@ -105,15 +106,12 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'gemini',
     name: 'Gemini',
-    description: 'Gemini 2.5 Pro, 2.5 Flash — sign in with Google',
+    description: `${GEMINI_PROVIDER_DESCRIPTION} — sign in with Google`,
     keyPrefix: 'AIza',
     helpUrl: 'https://aistudio.google.com/apikey',
     helpLabel: 'aistudio.google.com/apikey',
-    models: [
-      { id: 'gemini/gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Stable, strong reasoning and coding' },
-      { id: 'gemini/gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Stable fast multimodal Gemini model' },
-    ],
-    defaultModel: 'gemini/gemini-2.5-flash',
+    models: GEMINI_MODELS,
+    defaultModel: 'gemini-2.5-flash',
   },
 ]
 
@@ -484,7 +482,7 @@ export const ProviderSignInDialog = ({
         setSelectedModel(config.defaultModel)
       } else if (data.active_provider === 'google-gemini-cli') {
         setSelectedProvider('gemini')
-        setSelectedModel('gemini/gemini-2.5-flash')
+        setSelectedModel('gemini-2.5-flash')
       } else if (data.active_provider === 'knapsack') {
         setSelectedProvider('knapsack')
         const config = PROVIDER_CONFIGS.find(p => p.id === 'knapsack')!

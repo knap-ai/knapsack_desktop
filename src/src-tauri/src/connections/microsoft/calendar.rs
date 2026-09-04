@@ -349,6 +349,8 @@ async fn fetch_calendar(
     FetchCalendarEventPayload {
       success: true,
       synced_events_count: event_count,
+      calendar_account_email: None,
+      owner_email: None,
     },
   );
 

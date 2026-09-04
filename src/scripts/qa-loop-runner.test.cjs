@@ -10,11 +10,17 @@ const {
   findManagedBrowserCommandLine,
   lastSuccessfulChatCheck,
   localApiHeaders,
+  parseListenerPids,
   providerSwitchAppliedButStillStarting,
   qaSetProviderTimeoutMs,
+  readinessProviderModels,
   setApiAuthStateDirForTest,
   shouldPreserveExistingQaState,
 } = require("./qa-loop-runner.cjs");
+
+test("QA port cleanup parses unique listener pids", () => {
+  assert.deepEqual(parseListenerPids("123\n456\n123\ninvalid\n"), [123, 456]);
+});
 
 test.afterEach(() => setApiAuthStateDirForTest(null));
 
@@ -45,6 +51,13 @@ test("provider switching waits longer than the backend restart budget", () => {
   assert.equal(qaSetProviderTimeoutMs("180000"), 240_000);
   assert.equal(qaSetProviderTimeoutMs("300000"), 300_000);
   assert.equal(qaSetProviderTimeoutMs("invalid"), 240_000);
+});
+
+test("Google QA provider alias routes through the native Gemini provider", () => {
+  assert.deepEqual(readinessProviderModels({
+    providers: ["google"],
+    modelOverride: "gemini-3.8-flash",
+  }), [["gemini", ["gemini-3.8-flash"]]]);
 });
 
 test("an applied provider switch can recover readiness without switching again", () => {

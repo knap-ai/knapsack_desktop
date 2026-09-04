@@ -24,6 +24,7 @@ import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
 import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
 import { GEMINI_MODELS, GEMINI_PROVIDER_DESCRIPTION } from 'src/utils/geminiModels'
+import { OPENAI_MODELS } from 'src/utils/openaiModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import { XAI_MODELS } from 'src/utils/xaiModels'
 import {
@@ -658,14 +659,6 @@ const ONBOARDING_VERSION_STORAGE = 'moltbot_onboarding_version'
 // The current app version — bump this when you want to re-show the key prompt
 const APP_VERSION = '0.9.600'
 
-// Available OpenAI models
-type OpenAIModelOption = {
-  id: string
-  name: string
-  description: string
-  vision?: boolean
-}
-
 function normalizeOpenAIModelSelection(model: string | null | undefined): string {
   const trimmed = model?.trim()
   if (!trimmed) return 'gpt-5.5'
@@ -674,33 +667,6 @@ function normalizeOpenAIModelSelection(model: string | null | undefined): string
   }
   return trimmed
 }
-
-const OPENAI_MODELS: OpenAIModelOption[] = [
-  {
-    id: 'gpt-5.5',
-    name: 'GPT-5.5',
-    description: 'Newest frontier model, best for complex professional work',
-    vision: true,
-  },
-  {
-    id: 'gpt-5.4',
-    name: 'GPT-5.4',
-    description: 'Highly capable, great balance of performance and cost',
-    vision: true,
-  },
-  {
-    id: 'o3',
-    name: 'o3 (Reasoning)',
-    description: 'Reasoning model for complex logic',
-    vision: true,
-  },
-  {
-    id: 'gpt-5-mini',
-    name: 'GPT-5 Mini',
-    description: 'Fast and affordable',
-    vision: true,
-  },
-]
 
 // Autonomy modes - controls how independent the agent is
 type AutonomyMode = 'assist' | 'autonomous'

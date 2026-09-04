@@ -41,6 +41,8 @@ pub struct FetchGoogleCalendarParams {
 pub struct FetchCalendarEventPayload {
   pub success: bool,
   pub synced_events_count: usize,
+  pub calendar_account_email: Option<String>,
+  pub owner_email: Option<String>,
 }
 
 pub async fn fetch_calendar(
@@ -103,6 +105,7 @@ pub async fn fetch_calendar(
     let mut page_token: Option<String> = None;
 
     let mut event_ids_total: Vec<String> = Vec::new();
+    let mut sync_succeeded = true;
     loop {
       // List events from the calendar identified by calendar_account_email.
       let mut request = hub
@@ -204,6 +207,7 @@ pub async fn fetch_calendar(
             if let Err(e) = calendar_event.create() {
               let msg = format!("Failed to create calendar event: {:?}", e);
               knap_log_error(msg, Some(e), Some(true));
+              sync_succeeded = false;
             }
           }
 
@@ -216,25 +220,69 @@ pub async fn fetch_calendar(
           log::error!("Calendar sync failed {:?}", error.to_string());
           let error_msg = format!("Fetch calendar failed: {:?}", error.to_string());
           knap_log_error(error_msg, None, Some(true));
+          sync_succeeded = false;
           break;
         }
       };
     }
     let event_count = event_ids_total.len();
-    CalendarEvent::delete_calendar_events_removed(event_ids_total, &cal_email_clone);
+    // A failed or partial fetch is not an authoritative snapshot. Preserve the
+    // cached calendar and its last-sync timestamp so the UI can report the
+    // failure and retry instead of silently treating stale data as current.
+    if sync_succeeded {
+      if let Err(error) = CalendarEvent::delete_calendar_events_removed(
+        event_ids_total,
+        &cal_email_clone,
+      ) {
+        let message = format!(
+          "Failed to reconcile removed calendar events for {}",
+          cal_email_clone
+        );
+        knap_log_error(message, Some(error), Some(true));
+        sync_succeeded = false;
+      }
+    }
+    if sync_succeeded {
+      match user_connection.id {
+        Some(connection_id) => {
+          if let Err(error) =
+            UserConnection::update_last_sync_by_id(connection_id, chrono::Utc::now())
+          {
+            let message = format!(
+              "Failed to update calendar sync timestamp for {}",
+              cal_email_clone
+            );
+            knap_log_error(message, Some(error), Some(true));
+            sync_succeeded = false;
+          }
+        }
+        None => {
+          knap_log_error(
+            format!(
+              "Calendar connection for {} has no database id",
+              cal_email_clone
+            ),
+            None,
+            Some(true),
+          );
+          sync_succeeded = false;
+        }
+      }
+    }
     ConnectionsData::lock_and_finish_account_sync(
       connections_data,
       ConnectionsEnum::GoogleCalendar,
       &cal_email_clone,
     )
     .await;
-    UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), chrono::Utc::now());
     let window = app_handle.get_window(WINDOW_LABEL).unwrap();
     window.emit(
       "finish_fetch_calendar",
       FetchCalendarEventPayload {
-        success: true,
+        success: sync_succeeded,
         synced_events_count: event_count,
+        calendar_account_email: Some(cal_email_clone),
+        owner_email: Some(email),
       },
     );
   });
