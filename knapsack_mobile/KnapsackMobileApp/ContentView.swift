@@ -26,11 +26,8 @@ private enum NoteBlock: Identifiable {
 
 struct ContentView: View {
   private enum DesktopPane: String, CaseIterable, Identifiable {
-    case autopilot = "Autopilot"
-    case brain = "GBrain"
     case notes = "Notes"
     case chats = "Chats"
-    case agenda = "Agenda"
 
     var id: String { rawValue }
   }
@@ -41,10 +38,11 @@ struct ContentView: View {
   @StateObject private var watchSync = WatchSyncCoordinator.shared
   @State private var draftNotes = ""
   @State private var draftChatMessage = ""
+  @State private var expandedChatMessageIDs: Set<UInt64> = []
   @State private var draftAutopilotReply = ""
   @State private var gbrainDraftPrompt = ""
   @State private var searchText = ""
-  @State private var selectedPane: DesktopPane = .autopilot
+  @State private var selectedPane: DesktopPane = .chats
   @State private var noteDetailMode: NoteDetailMode = .read
   @State private var isShowingSettings = false
   @State private var presentedMeeting: MobileMeetingDetail?
@@ -56,34 +54,16 @@ struct ContentView: View {
 
   var body: some View {
     TabView(selection: $selectedPane) {
-      autopilotTab
-        .tag(DesktopPane.autopilot)
-        .tabItem {
-          Label("Autopilot", systemImage: "sparkles")
-        }
-
-      brainTab
-        .tag(DesktopPane.brain)
-        .tabItem {
-          Label("GBrain", systemImage: "brain")
-        }
-
-      notesTab
-        .tag(DesktopPane.notes)
-        .tabItem {
-          Label("Notes", systemImage: "note.text")
-        }
-
       chatsTab
         .tag(DesktopPane.chats)
         .tabItem {
           Label("Chats", systemImage: "bubble.left.and.bubble.right")
         }
 
-      agendaTab
-        .tag(DesktopPane.agenda)
+      notesTab
+        .tag(DesktopPane.notes)
         .tabItem {
-          Label("Agenda", systemImage: "calendar")
+          Label("Meeting notes", systemImage: "note.text")
         }
     }
     .sheet(isPresented: $isShowingSettings) {
@@ -145,7 +125,12 @@ struct ContentView: View {
         ScrollView {
           chatDetailView(liveChat)
             .padding()
+            .padding(.bottom, 12)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+          chatComposer
+        }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.white.ignoresSafeArea())
         .toolbar {
           ToolbarItem(placement: .topBarLeading) {
@@ -221,7 +206,6 @@ struct ContentView: View {
       watchSync.activate()
       await watchSync.importPendingSharedRecordings()
       await viewModel.refresh()
-      await viewModel.refreshGBrain()
     }
     .onDisappear {
       discovery.stopBrowsing()
@@ -300,22 +284,11 @@ struct ContentView: View {
     }
   }
 
-  private var agendaTab: some View {
-    pageScrollView {
-      VStack(alignment: .leading, spacing: 22) {
-        agendaHeader
-        searchBar
-        agendaSection
-        syncSection
-      }
-    }
-  }
-
   private var notesHeader: some View {
     sectionHeader(
       eyebrow: "Knapsack",
-      title: "My Notes",
-      subtitle: "Capture, review, and polish meetings without hunting through one giant screen."
+      title: "Meeting notes",
+      subtitle: "Capture the conversation, keep the signal, and turn it into a useful follow-up."
     ) {
       headerActionButton(systemName: "gearshape")
     }
@@ -344,8 +317,8 @@ struct ContentView: View {
   private var chatsHeader: some View {
     sectionHeader(
       eyebrow: "Knapsack",
-      title: "Desktop Chats",
-      subtitle: "Continue desktop conversations without losing the thread."
+      title: "Chats",
+      subtitle: "Continue every Knapsack conversation from your phone, including team work from desktop."
     ) {
       HStack(spacing: 10) {
         Button("New chat") {
@@ -363,16 +336,6 @@ struct ContentView: View {
     }
   }
 
-  private var agendaHeader: some View {
-    sectionHeader(
-      eyebrow: "Knapsack",
-      title: "Agenda",
-      subtitle: "See what is next, then jump straight into note capture."
-    ) {
-      headerActionButton(systemName: "gearshape")
-    }
-  }
-
   private func pageScrollView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
     ScrollView {
       content()
@@ -380,17 +343,7 @@ struct ContentView: View {
         .padding(.top, 12)
         .padding(.bottom, 120)
     }
-    .background(
-      ZStack {
-        KnapsackBrand.shellGradient.ignoresSafeArea()
-        LinearGradient(
-          colors: [KnapsackBrand.mist.opacity(0.55), Color.white.opacity(0.08)],
-          startPoint: .top,
-          endPoint: .bottom
-        )
-        .ignoresSafeArea()
-      }
-    )
+    .background(Color.white.ignoresSafeArea())
   }
 
   private func sectionHeader<Accessory: View>(
@@ -473,16 +426,10 @@ struct ContentView: View {
 
   private var searchPlaceholder: String {
     switch selectedPane {
-    case .autopilot:
-      return "Search your brief, inbox, or open loops"
-    case .brain:
-      return "Search brain pages, people, and saved context"
     case .notes:
       return "Search meetings and notes"
     case .chats:
       return "Search chats and replies"
-    case .agenda:
-      return "Search upcoming meetings and events"
     }
   }
 
@@ -729,7 +676,7 @@ struct ContentView: View {
           ForEach(autopilotPromptSuggestions, id: \.self) { prompt in
             Button(prompt) {
               gbrainDraftPrompt = prompt
-              selectedPane = .brain
+              selectedPane = .chats
             }
             .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
           }
@@ -876,7 +823,7 @@ struct ContentView: View {
           .foregroundStyle(KnapsackBrand.slate)
       }
 
-      Text(recorder.isRecording ? "Keep the phone nearby. We’ll sync the recording back to your desktop note automatically." : "Start from your phone when something begins quickly, then polish the note later from desktop.")
+      Text(recorder.isRecording ? "Keep the phone nearby. When you finish, the clip is securely uploaded to the linked desktop meeting." : "Start recording when a conversation begins, or create a clean note to capture the decisions yourself.")
         .font(KnapsackBrand.inter(14))
         .foregroundStyle(KnapsackBrand.slate)
         .fixedSize(horizontal: false, vertical: true)
@@ -888,7 +835,7 @@ struct ContentView: View {
       }
 
       HStack(spacing: 10) {
-        Button(recorder.isRecording ? "Finish" : "Start notes") {
+        Button(recorder.isRecording ? "Finish recording" : "Start recording") {
           if recorder.isRecording {
             recorder.stop()
             if let fileURL = recorder.currentFileURL {
@@ -920,7 +867,14 @@ struct ContentView: View {
         )
 
         Button("New note") {
-          Task { await viewModel.createMeeting() }
+          Task {
+            await viewModel.createMeeting()
+            if let meeting = viewModel.selectedMeeting {
+              draftNotes = meeting.notes ?? ""
+              noteDetailMode = .edit
+              presentedMeeting = meeting
+            }
+          }
         }
         .brandPill(
           background: Color.white.opacity(0.86),
@@ -1532,7 +1486,7 @@ struct ContentView: View {
   private var chatsSection: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Text("Desktop Chats")
+        Text("Chats")
           .font(KnapsackBrand.inter(28, weight: .bold))
           .foregroundStyle(KnapsackBrand.ink)
         Spacer()
@@ -1564,6 +1518,13 @@ struct ContentView: View {
                   .font(KnapsackBrand.inter(13))
                   .foregroundStyle(KnapsackBrand.slate)
                   .lineLimit(2)
+
+                if let subtitle = chat.thread.subtitle,
+                   subtitle.localizedCaseInsensitiveContains("agent") {
+                  Label("Team chat", systemImage: "person.3.fill")
+                    .font(KnapsackBrand.inter(11, weight: .semibold))
+                    .foregroundStyle(KnapsackBrand.inkMuted)
+                }
               }
 
               Spacer(minLength: 10)
@@ -1594,127 +1555,182 @@ struct ContentView: View {
   private func chatDetailView(_ chat: MobileChatDetail) -> some View {
     let visibleMessages = condensedMessages(for: chat.messages)
 
-    return VStack(alignment: .leading, spacing: 18) {
-      HStack(alignment: .top) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Desktop chat")
-            .font(KnapsackBrand.inter(12, weight: .semibold))
-            .foregroundStyle(KnapsackBrand.inkMuted)
-            .textCase(.uppercase)
-
-          Text(chat.thread.title ?? "Desktop chat")
-            .font(KnapsackBrand.spectral(32))
+    return VStack(alignment: .leading, spacing: 20) {
+      HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 3) {
+          Text(chat.thread.title ?? "Chat")
+            .font(KnapsackBrand.inter(22, weight: .semibold))
             .foregroundStyle(KnapsackBrand.ink)
+            .lineLimit(2)
 
           Text(chatTimeString(chat.updatedAt))
-            .font(KnapsackBrand.inter(13))
+            .font(KnapsackBrand.inter(12))
             .foregroundStyle(KnapsackBrand.slate)
         }
 
         Spacer()
 
-        Button("Refresh") {
-          Task { await viewModel.selectChat(MobileChatSummary(thread: chat.thread, preview: nil, updatedAt: chat.updatedAt, messageCount: chat.messages.count)) }
-        }
-        .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
-      }
-
-      VStack(alignment: .leading, spacing: 10) {
-        ForEach(visibleMessages, id: \.stableID) { message in
-          VStack(alignment: .leading, spacing: 8) {
-            Text(message.role == "user" ? "You" : "Knapsack")
-              .font(KnapsackBrand.inter(11, weight: .semibold))
-              .foregroundStyle(KnapsackBrand.inkMuted)
-              .textCase(.uppercase)
-            markdownMessageText(message.content)
+        Button {
+          Task {
+            await viewModel.selectChat(
+              MobileChatSummary(
+                thread: chat.thread,
+                preview: nil,
+                updatedAt: chat.updatedAt,
+                messageCount: chat.messages.count
+              )
+            )
           }
-          .padding(16)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-              .fill(message.role == "user" ? KnapsackBrand.paper : Color.white)
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-              .stroke(KnapsackBrand.line, lineWidth: 1)
-          )
+        } label: {
+          Image(systemName: "arrow.clockwise")
+            .font(.system(size: 15, weight: .semibold))
+            .frame(width: 38, height: 38)
+            .background(Circle().fill(KnapsackBrand.paper))
         }
+        .foregroundStyle(KnapsackBrand.ink)
+        .accessibilityLabel("Refresh chat")
       }
 
-      VStack(alignment: .leading, spacing: 12) {
-        Text("Reply from iPhone")
-          .font(KnapsackBrand.inter(11, weight: .semibold))
-          .foregroundStyle(KnapsackBrand.inkMuted)
-          .textCase(.uppercase)
-
-        VStack(alignment: .leading, spacing: 12) {
-          TextField("Message Knapsack on your desktop", text: $draftChatMessage, axis: .vertical)
+      if visibleMessages.isEmpty {
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Start the conversation")
+            .font(KnapsackBrand.inter(18, weight: .semibold))
+          Text("Ask about your work, meetings, or a decision you need to make.")
             .font(KnapsackBrand.inter(15))
-            .foregroundStyle(KnapsackBrand.ink)
-            .tint(KnapsackBrand.ink)
-            .lineLimit(3...8)
-            .textInputAutocapitalization(.sentences)
+            .foregroundStyle(KnapsackBrand.slate)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(KnapsackBrand.paper))
+      }
 
-          HStack {
-            Text(viewModel.isSendingChatMessage ? "Sending your reply back to desktop…" : "Your response will stay in sync with the desktop thread.")
-              .font(KnapsackBrand.inter(13))
-              .foregroundStyle(KnapsackBrand.slate)
+      VStack(alignment: .leading, spacing: 16) {
+        ForEach(visibleMessages, id: \.stableID) { message in
+          HStack(alignment: .bottom, spacing: 8) {
+            if message.role == "assistant" {
+              Image(systemName: "sparkle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(KnapsackBrand.ink)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(KnapsackBrand.paper))
+            }
 
-            Spacer(minLength: 12)
+            if message.role == "user" { Spacer(minLength: 36) }
 
-            Button(viewModel.isSendingChatMessage ? "Sending…" : "Send") {
-              let pendingMessage = draftChatMessage
-              guard !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return
+            VStack(alignment: .leading, spacing: 7) {
+              if message.role == "assistant" {
+                Text("KNAPSACK")
+                  .font(KnapsackBrand.inter(10, weight: .semibold))
+                  .foregroundStyle(KnapsackBrand.inkMuted)
+                  .tracking(0.7)
               }
-              draftChatMessage = ""
-              Task {
-                let didSend = await viewModel.sendChatMessage(pendingMessage)
-                if didSend {
-                  presentedChat = viewModel.selectedChat
-                } else {
-                  draftChatMessage = pendingMessage
-                }
+
+              if message.role == "assistant" {
+                assistantMessageContent(message)
+              } else {
+                markdownMessageText(message.content, foreground: .white)
               }
             }
-            .brandPill(
-              background: viewModel.isSendingChatMessage ? KnapsackBrand.paper : KnapsackBrand.ink,
-              foreground: viewModel.isSendingChatMessage ? KnapsackBrand.inkMuted : .white
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .background(
+              RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(message.role == "user" ? KnapsackBrand.ink : KnapsackBrand.paper)
             )
-            .disabled(viewModel.isSendingChatMessage)
+            .foregroundStyle(message.role == "user" ? Color.white : KnapsackBrand.ink)
+            .frame(maxWidth: message.role == "user" ? 300 : .infinity, alignment: .leading)
+
+            if message.role == "assistant" { Spacer(minLength: 20) }
           }
         }
-        .padding(16)
-        .background(
-          RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .fill(KnapsackBrand.paper.opacity(0.9))
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 22, style: .continuous)
-            .stroke(KnapsackBrand.line, lineWidth: 1)
-        )
       }
     }
-    .padding(22)
-    .background(RoundedRectangle(cornerRadius: 30, style: .continuous).fill(Color.white))
-    .overlay(
-      RoundedRectangle(cornerRadius: 30, style: .continuous)
-        .stroke(KnapsackBrand.line, lineWidth: 1)
-    )
+  }
+
+  private var chatComposer: some View {
+    HStack(alignment: .bottom, spacing: 10) {
+      TextField("Message Knapsack", text: $draftChatMessage, axis: .vertical)
+        .font(KnapsackBrand.inter(16))
+        .foregroundStyle(KnapsackBrand.ink)
+        .tint(KnapsackBrand.ink)
+        .lineLimit(1...4)
+        .textInputAutocapitalization(.sentences)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+
+      Button {
+        let pendingMessage = draftChatMessage
+        guard !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        draftChatMessage = ""
+        Task {
+          let didSend = await viewModel.sendChatMessage(pendingMessage)
+          if didSend {
+            presentedChat = viewModel.selectedChat
+          } else {
+            draftChatMessage = pendingMessage
+          }
+        }
+      } label: {
+        Group {
+          if viewModel.isSendingChatMessage {
+            ProgressView()
+              .tint(.white)
+          } else {
+            Image(systemName: "arrow.up")
+              .font(.system(size: 17, weight: .bold))
+          }
+        }
+        .frame(width: 44, height: 44)
+        .background(Circle().fill(KnapsackBrand.ink))
+        .foregroundStyle(.white)
+      }
+      .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+      .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
+    }
+    .padding(.horizontal, 20)
+    .padding(.top, 12)
+    .padding(.bottom, 10)
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .top) { Divider().overlay(KnapsackBrand.line) }
   }
 
   @ViewBuilder
-  private func markdownMessageText(_ content: String) -> some View {
+  private func assistantMessageContent(_ message: MobileChatMessage) -> some View {
+    let isExpanded = expandedChatMessageIDs.contains(message.stableID)
+    let content = readableAssistantMessage(message.content)
+    let isLong = content.count > 900
+
+    markdownMessageText(content)
+      .lineLimit(isLong && !isExpanded ? 12 : nil)
+
+    if isLong {
+      Button(isExpanded ? "Show less" : "Read full answer") {
+        if isExpanded {
+          expandedChatMessageIDs.remove(message.stableID)
+        } else {
+          expandedChatMessageIDs.insert(message.stableID)
+        }
+      }
+      .font(KnapsackBrand.inter(13, weight: .semibold))
+      .foregroundStyle(KnapsackBrand.ink)
+      .buttonStyle(.plain)
+    }
+  }
+
+  @ViewBuilder
+  private func markdownMessageText(_ content: String, foreground: Color = KnapsackBrand.ink) -> some View {
     if let markdown = try? AttributedString(markdown: sanitizedMarkdown(content)) {
       Text(markdown)
         .font(KnapsackBrand.inter(15))
-        .foregroundStyle(KnapsackBrand.ink)
+        .foregroundStyle(foreground)
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
     } else {
       Text(content)
         .font(KnapsackBrand.inter(15))
-        .foregroundStyle(KnapsackBrand.ink)
+        .foregroundStyle(foreground)
         .fixedSize(horizontal: false, vertical: true)
         .textSelection(.enabled)
     }
@@ -1896,7 +1912,7 @@ struct ContentView: View {
     let calendar = Calendar.current
     let now = Date()
     let grouped = Dictionary(grouping: filteredMeetings) { meeting in
-      let date = Date(timeIntervalSince1970: TimeInterval(meeting.metadata.updatedAt))
+      let date = Date(timeIntervalSince1970: meetingChronologicalTimestamp(meeting))
       if calendar.isDateInToday(date) {
         return "Today"
       } else if calendar.isDate(date, equalTo: now, toGranularity: .weekOfYear) {
@@ -2097,7 +2113,7 @@ struct ContentView: View {
   private func runGBrainPrompt(_ prompt: String, clearComposer: Bool = false) async {
     guard let detail = await viewModel.runGBrainPrompt(prompt) else { return }
     presentedChat = detail
-    selectedPane = .brain
+    selectedPane = .chats
     if clearComposer {
       gbrainDraftPrompt = ""
     }
@@ -2106,7 +2122,7 @@ struct ContentView: View {
   private func handleAutopilotCardTap(_ card: MobileAutopilotCard) {
     if let prompt = card.suggestedPrompts.first, !autopilotCardIsDirectlyActionable(card) {
       gbrainDraftPrompt = prompt
-      selectedPane = .brain
+      selectedPane = .chats
       return
     }
 
@@ -2253,7 +2269,7 @@ struct ContentView: View {
           if let prompt = detail.suggestedPrompts.first {
             Button("Ask GBrain") {
               gbrainDraftPrompt = prompt
-              selectedPane = .brain
+              selectedPane = .chats
               presentedAutopilotEmail = nil
             }
             .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
@@ -2342,6 +2358,27 @@ struct ContentView: View {
     return condensed
   }
 
+  private func readableAssistantMessage(_ content: String) -> String {
+    var result = sanitizedMarkdown(content)
+
+    // Some desktop responses arrive as a single calendar paragraph. Restore the
+    // visual breaks a phone reader needs without changing the underlying answer.
+    result = insertingLineBreaks(
+      in: result,
+      pattern: "(?<!\\n)(?=(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),)"
+    )
+    result = insertingLineBreaks(in: result, pattern: "(?<!\\n)(?=All Day:)")
+    result = insertingLineBreaks(in: result, pattern: "(?<=[.!?])(?=[A-Z])")
+    result = insertingLineBreaks(in: result, pattern: "(?<=(?:AM|PM))(?=\\d{1,2}:)")
+    return result.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  private func insertingLineBreaks(in content: String, pattern: String) -> String {
+    guard let expression = try? NSRegularExpression(pattern: pattern) else { return content }
+    let range = NSRange(content.startIndex..., in: content)
+    return expression.stringByReplacingMatches(in: content, range: range, withTemplate: "\n")
+  }
+
   private func sanitizedMarkdown(_ content: String) -> String {
     content
       .replacingOccurrences(of: "\r\n", with: "\n")
@@ -2397,6 +2434,11 @@ struct ContentView: View {
       value /= 1000
     }
     return value
+  }
+
+  private func meetingChronologicalTimestamp(_ meeting: MobileMeetingDetail) -> TimeInterval {
+    let threadTimestamp = meeting.thread.timestamp ?? 0
+    return normalizedUnixTimestamp(threadTimestamp > 0 ? threadTimestamp : meeting.metadata.updatedAt)
   }
 
   private func noteBlocks(from notes: String) -> [NoteBlock] {
