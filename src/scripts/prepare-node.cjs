@@ -6,7 +6,7 @@
  * Runs automatically via the npm `prebuild` hook (before `tsc && vite build`),
  * so every `tauri build` gets the right binary without manual intervention.
  *
- * Override the version:  NODE_VERSION=22.19.0 node scripts/prepare-node.js
+ * Override the version:  NODE_VERSION=22.22.3 node scripts/prepare-node.js
  */
 const fs = require('fs');
 const path = require('path');
@@ -15,7 +15,7 @@ const { execSync } = require('child_process');
 const https = require('https');
 const http = require('http');
 
-const NODE_VERSION = process.env.NODE_VERSION || '22.19.0';
+const NODE_VERSION = process.env.NODE_VERSION || '22.22.3';
 const SCRIPT_DIR = __dirname;
 const PROJECT_DIR = path.resolve(SCRIPT_DIR, '..');
 const TARGET_DIR = path.join(PROJECT_DIR, 'src-tauri', 'resources', 'node');
