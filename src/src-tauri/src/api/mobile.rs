@@ -1297,6 +1297,33 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
   )
 }
 
+fn mobile_presentation_instructions() -> &'static str {
+  "Presentation rules for Knapsack on iPhone:\n\
+- Lead with the answer or the one action that matters.\n\
+- Use short Markdown headings and bullets that scan cleanly on a phone.\n\
+- Keep paragraphs to two sentences or fewer.\n\
+- Never return a wall of raw calendar, email, or meeting data. For calendar requests, show the next five relevant events at most, one per bullet, then offer to expand.\n\
+- Preserve useful names, dates, and times, but omit duplicate metadata and boilerplate.\n\
+- If the request needs a decision, end with a clear next step."
+}
+
+fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> String {
+  if is_gbrain_thread(thread) {
+    format!(
+      "{}\n\n{}\n\nUser request\n{}",
+      build_mobile_gbrain_context(thread_id),
+      mobile_presentation_instructions(),
+      text
+    )
+  } else {
+    format!(
+      "You are replying inside Knapsack's iPhone app.\n\n{}\n\nUser request\n{}",
+      mobile_presentation_instructions(),
+      text
+    )
+  }
+}
+
 fn mobile_meeting_detail(
   thread: Thread,
   metadata: Option<MobileMeetingMetadata>,
@@ -1989,15 +2016,7 @@ pub async fn send_mobile_chat_message(
     }));
   }
 
-  let request_text = if is_gbrain_thread(&thread) {
-    format!(
-      "{}\n\nUser request\n{}",
-      build_mobile_gbrain_context(thread_id),
-      text
-    )
-  } else {
-    text.clone()
-  };
+  let request_text = build_mobile_chat_request(&thread, thread_id, &text);
 
   let mut attachments = Vec::new();
   if !seed_history.is_empty() {
@@ -2369,7 +2388,8 @@ pub async fn upload_mobile_recording(
 
 #[cfg(test)]
 mod tests {
-  use super::{gateway_reply_from_result, parse_gateway_payload_text};
+  use super::{build_mobile_chat_request, gateway_reply_from_result, parse_gateway_payload_text};
+  use crate::db::models::thread::{Thread, ThreadType};
   use serde_json::json;
 
   #[test]
@@ -2395,5 +2415,26 @@ mod tests {
     });
 
     assert_eq!(gateway_reply_from_result(&result).as_deref(), Some("A\n\nB"));
+  }
+
+  #[test]
+  fn mobile_chat_requests_enforce_phone_readability() {
+    let thread = Thread {
+      id: Some(42),
+      timestamp: None,
+      hide_follow_up: None,
+      feed_item_id: None,
+      title: Some("Planning".to_string()),
+      subtitle: None,
+      thread_type: ThreadType::Chat,
+      recorded: None,
+      saved_transcript: None,
+      prompt_template: None,
+    };
+
+    let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
+    assert!(request.contains("Knapsack on iPhone"));
+    assert!(request.contains("Never return a wall of raw calendar"));
+    assert!(request.ends_with("What is on my calendar?"));
   }
 }
