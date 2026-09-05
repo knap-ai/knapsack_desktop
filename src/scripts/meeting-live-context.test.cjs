@@ -60,3 +60,19 @@ test("inline code no longer renders as a full-width code block", () => {
   assert.match(markdown, /const isBlock = String\(children\)\.includes/);
   assert.match(markdown, /px-1 py-0\.5/);
 });
+
+test("current user's meeting action items open in the contextual meeting chat", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const markdown = read("src/components/molecules/MarkdownDisplay/index.tsx");
+
+  assert.match(meeting, /isOwnedByCurrentUser\(taskText, userName, userEmail\)/);
+  assert.match(meeting, /`knapsack:\/\/prompt\/\$\{encodeURIComponent\(actionItemPrompt\(taskText\)\)\}`/);
+  assert.match(meeting, /taskActionHref=\{actionItemHref\}/);
+  assert.match(meeting, /onTaskAction=\{openActionItemInMeetingChat\}/);
+  assert.match(meeting, /Help me complete this action item from/);
+  assert.match(meeting, /Let me review the plan before sending messages/);
+  assert.match(markdown, /classNames\.includes\('task-list-item'\)/);
+  assert.match(markdown, /child\.properties\?\.type === 'checkbox'/);
+  assert.match(markdown, /event\.preventDefault\(\)/);
+  assert.match(markdown, /Open this action item in meeting chat/);
+});
