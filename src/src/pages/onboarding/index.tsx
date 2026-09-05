@@ -28,9 +28,17 @@ import { openGoogleAuthScreen } from 'src/utils/permissions/google'
 import { openMicrosoftAuthScreen } from 'src/utils/permissions/microsoft'
 // import { requestNotificationOSPermissions } from 'src/utils/permissions/notification'
 
-import { Event, listen } from '@tauri-apps/api/event'
+import { Event as TauriEvent, listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
 import { getAppVersion } from 'src/utils/app'
+import {
+  getOnboardingAnalyticsProps,
+  getOnboardingIntent,
+  getPaidStarter,
+  OnboardingIntent,
+  ONBOARDING_INTENT_EVENT,
+  savePaidStarter,
+} from 'src/utils/onboardingIntent'
 
 import { AgentSelection } from './AgentPickerScreen'
 import { AgentTelegramEntry } from './TelegramAccountsScreen'
@@ -79,6 +87,9 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
   const [activatedAgents, setActivatedAgents] = useState<AgentTelegramEntry[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string>('')
+  const [onboardingIntent, setOnboardingIntent] = useState<OnboardingIntent | null>(() =>
+    getOnboardingIntent(),
+  )
   const [googlePermissions, setGooglePermissions] = useState<Record<string, boolean>>({
     [ConnectionKeys.GOOGLE_CALENDAR]: true,
     // [ConnectionKeys.GOOGLE_DRIVE]: true,
@@ -96,16 +107,32 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
 
   // On page load
   useEffect(() => {
-    KNAnalytics.trackEvent('Onboarding Screen - Loaded', {})
+    KNAnalytics.trackEvent('Onboarding Screen - Loaded', getOnboardingAnalyticsProps())
+
+    const handleIntent = (event: globalThis.Event) => {
+      setOnboardingIntent((event as CustomEvent<OnboardingIntent>).detail)
+    }
+    window.addEventListener(ONBOARDING_INTENT_EVENT, handleIntent)
+    return () => window.removeEventListener(ONBOARDING_INTENT_EVENT, handleIntent)
   }, [])
 
   const ONBOARDING_SCREEN_NAMES: Record<number, string> = {
     0: 'welcome',
-    1: 'sign_in',
-    2: 'chrome_extension',
-    3: 'agent_picker',
-    4: 'telegram_accounts',
+    1: 'privacy',
+    2: 'sign_in',
+    3: 'chrome_extension',
+    4: 'agent_picker',
+    5: 'telegram_accounts',
   }
+
+  useEffect(() => {
+    if (currentSlideInScreen === undefined) return
+    KNAnalytics.trackEvent('onboarding_screen_viewed', {
+      step: currentSlideInScreen,
+      screen: ONBOARDING_SCREEN_NAMES[currentSlideInScreen] ?? `screen_${currentSlideInScreen}`,
+      ...getOnboardingAnalyticsProps(onboardingIntent),
+    })
+  }, [currentSlideInScreen, onboardingIntent])
 
   const transitionToNextScreen = useCallback(
     (index: number) => {
@@ -115,6 +142,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
         to_step: index + 1,
         to_screen: ONBOARDING_SCREEN_NAMES[index + 1] ?? `screen_${index + 1}`,
         app_version: KNAnalytics.APP_VERSION,
+        ...getOnboardingAnalyticsProps(onboardingIntent),
       })
       setCurrentSlideOutScreen(index)
 
@@ -126,15 +154,34 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
         }, 800)
       }, 550)
     },
-    [setCurrentSlideOutScreen, setCurrentSlideInScreen],
+    [onboardingIntent, setCurrentSlideOutScreen, setCurrentSlideInScreen],
   )
+
+  const handleWelcomeContinue = async (index: number) => {
+    const latestIntent = onboardingIntent ?? getOnboardingIntent()
+    const paidStarter = getPaidStarter(latestIntent)
+    if (!paidStarter) {
+      transitionToNextScreen(index)
+      return
+    }
+
+    savePaidStarter(paidStarter)
+    KNAnalytics.trackEvent('onboarding_paid_fast_path_completed', {
+      step: index,
+      screen: 'welcome',
+      destination: 'first_task',
+      ...getOnboardingAnalyticsProps(latestIntent),
+    })
+    await setHasOnboarded(true)
+    navigate('/home?onboarding=paid-role')
+  }
 
   // Listen to google signin
   useEffect(() => {
     if (googleListenerTransitionIndex) {
       const unlistenPromise = listen(
         'signin_success',
-        (event: Event<{ code: string; raw_scopes: string }>) => {
+        (event: TauriEvent<{ code: string; raw_scopes: string }>) => {
           setIsLoading(true)
           setError('')
 
@@ -186,7 +233,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     } else if (microsoftListenerTransitionIndex) {
       const unlistenPromise = listen(
         'microsoft_signin_success',
-        (event: Event<{ profile: Profile }>) => {
+        (event: TauriEvent<{ profile: Profile }>) => {
           setIsLoading(true)
           setError('')
           const profile = event.payload.profile
@@ -468,7 +515,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     <OnboardingTemplate
       currentSlideInScreen={currentSlideInScreen}
       currentSlideOutScreen={currentSlideOutScreen}
-      onWelcomeScreenContinueClick={transitionToNextScreen}
+      onWelcomeScreenContinueClick={handleWelcomeContinue}
       acceptedTerms={acceptedTerms}
       setAcceptedTerms={setAcceptedTerms}
       onLocalFilesGrantClick={onClickGrantFilePermission}

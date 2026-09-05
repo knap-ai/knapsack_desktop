@@ -562,6 +562,13 @@ struct ProgressState {
 }
 
 #[tauri::command]
+fn kn_get_initial_deep_link() -> Option<String> {
+  std::env::args()
+    .skip(1)
+    .find(|arg| arg.starts_with("knapsack://onboard?"))
+}
+
+#[tauri::command]
 fn kn_get_or_generate_uuid(state: State<'_, UUIDState>, app: AppHandle) -> String {
   let mut uuid_guard = state.uuid.lock().unwrap();
 
@@ -2118,6 +2125,7 @@ async fn main() {
     .invoke_handler(tauri::generate_handler![
       local_fs::kn_open_file_as_app,
       local_fs::kn_trigger_file_read_permissions,
+      kn_get_initial_deep_link,
       kn_get_or_generate_uuid,
       kn_get_search_indexing_status,
       start_oauth,
