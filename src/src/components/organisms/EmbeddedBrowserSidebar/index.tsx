@@ -25,6 +25,8 @@ import { open } from '@tauri-apps/api/shell'
 const BACKEND = 'http://127.0.0.1:8897'
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
 const SCREENSHOT_INTERVAL_MS = 1200
+const ACTIVE_SCREENSHOT_INTERVAL_MS = 120
+const ACTIVE_SCREENSHOT_WINDOW_MS = 2200
 const TABS_INTERVAL_MS = 1800
 const MIN_DESKTOP_VIEWPORT_WIDTH = 1100
 const MAX_DESKTOP_VIEWPORT_HEIGHT = 1600
@@ -131,13 +133,18 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   const knownTargetIdsRef = useRef(new Set<string>())
   const tabsRef = useRef<BrowserTab[]>([])
   const screenshotPendingRef = useRef(false)
+  const screenshotQueuedRef = useRef(false)
+  const refreshScreenshotRef = useRef<(priority?: boolean) => Promise<void>>(async () => undefined)
+  const screenshotBurstTimersRef = useRef(new Set<number>())
   const tabsPendingRef = useRef(false)
   const navigationPendingRef = useRef(false)
   const addressEditingRef = useRef(false)
   const resizeTimerRef = useRef<number>()
   const wheelPendingRef = useRef(false)
+  const wheelDeltaRef = useRef({ x: 0, y: 0 })
   const chromeImportBusyRef = useRef(false)
   const lastChatInputAtRef = useRef(0)
+  const lastBrowserInteractionAtRef = useRef(0)
   const [address, setAddress] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentUrl, setCurrentUrl] = useState(requestedUrl || DEFAULT_BROWSER_URL)
   const [currentTitle, setCurrentTitle] = useState('')
@@ -295,13 +302,19 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     }
   }, [activeTabStorageKey, browserProfile, selectTarget])
 
-  const refreshScreenshot = useCallback(async () => {
+  const refreshScreenshot = useCallback(async (priority = false) => {
     if (
       document.hidden
       || chromeImportBusyRef.current
-      || screenshotPendingRef.current
       || !currentTargetIdRef.current
     ) return
+    if (screenshotPendingRef.current) {
+      // A user action must always result in a frame captured after that action.
+      // Previously an in-flight background capture caused the action refresh to
+      // be dropped, leaving the UI stale until the next 1.2s poll.
+      if (priority) screenshotQueuedRef.current = true
+      return
+    }
     screenshotPendingRef.current = true
     try {
       const query = new URLSearchParams({
@@ -339,8 +352,28 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       }
     } finally {
       screenshotPendingRef.current = false
+      if (screenshotQueuedRef.current) {
+        screenshotQueuedRef.current = false
+        window.setTimeout(() => void refreshScreenshotRef.current(false), 0)
+      }
     }
   }, [browserProfile, refreshTabs])
+  refreshScreenshotRef.current = refreshScreenshot
+
+  const requestInteractiveFrames = useCallback((delays: number[] = [0, 160, 420, 900]) => {
+    lastBrowserInteractionAtRef.current = performance.now()
+    // Coalesce bursts across rapid clicks/keystrokes instead of accumulating
+    // timers that compete with the browser action itself.
+    for (const timer of screenshotBurstTimersRef.current) window.clearTimeout(timer)
+    screenshotBurstTimersRef.current.clear()
+    for (const delay of delays) {
+      const timer = window.setTimeout(() => {
+        screenshotBurstTimersRef.current.delete(timer)
+        void refreshScreenshotRef.current(true)
+      }, delay)
+      screenshotBurstTimersRef.current.add(timer)
+    }
+  }, [])
 
   const navigate = useCallback(
     async (value: string) => {
@@ -351,6 +384,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       setCurrentUrl(url)
       setIsLoading(true)
       setError('')
+      requestInteractiveFrames([80, 260, 600, 1200])
       try {
         if (currentTargetIdRef.current) {
           const response = await fetch(`${BACKEND}/api/clawd/browser/navigate`, {
@@ -372,20 +406,17 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
           }
           if (result.target_id) selectTarget(result.target_id)
         }
+        requestInteractiveFrames([0, 180, 500, 1000])
         window.setTimeout(async () => {
-          // Paint the navigated page before reconciling tab metadata. Listing
-          // every browser target can take hundreds of milliseconds and should
-          // not sit on the critical path for visible navigation feedback.
-          await refreshScreenshot()
           await refreshTabs().catch(() => undefined)
-        }, 350)
+        }, 200)
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
       } finally {
         navigationPendingRef.current = false
       }
     },
-    [browserProfile, refreshScreenshot, refreshTabs, selectTarget],
+    [browserProfile, refreshTabs, requestInteractiveFrames, selectTarget],
   )
 
   const focusTab = async (tab: BrowserTab) => {
@@ -521,12 +552,20 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
   useEffect(() => {
     let cancelled = false
     let timer: number | undefined
+    const burstTimers = screenshotBurstTimersRef.current
     const schedule = () => {
-      if (!cancelled) timer = window.setTimeout(pollScreenshot, SCREENSHOT_INTERVAL_MS)
+      const recentlyInteractive =
+        performance.now() - lastBrowserInteractionAtRef.current < ACTIVE_SCREENSHOT_WINDOW_MS
+      if (!cancelled) {
+        timer = window.setTimeout(
+          pollScreenshot,
+          recentlyInteractive ? ACTIVE_SCREENSHOT_INTERVAL_MS : SCREENSHOT_INTERVAL_MS,
+        )
+      }
     }
     const pollScreenshot = async () => {
       if (cancelled || chromeImportBusyRef.current) return schedule()
-      if (screenshotPendingRef.current || navigationPendingRef.current) return schedule()
+      if (screenshotPendingRef.current) return schedule()
       // Screenshot decoding is one of the heaviest recurring operations in this
       // view. Give active typing a quiet window so browser polling cannot steal
       // frames from the chat composer.
@@ -543,6 +582,8 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     return () => {
       cancelled = true
       if (timer) window.clearTimeout(timer)
+      for (const burstTimer of burstTimers) window.clearTimeout(burstTimer)
+      burstTimers.clear()
       if (screenshotUrlRef.current) URL.revokeObjectURL(screenshotUrlRef.current)
     }
   }, [refreshScreenshot])
@@ -586,15 +627,14 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
           ? '() => history.forward()'
           : '() => location.reload()'
     try {
+      requestInteractiveFrames([80, 260, 600])
       await postBrowserAction({
         kind: 'evaluate',
         targetId: currentTargetIdRef.current,
         fn,
       }, browserProfile)
-      window.setTimeout(() => {
-        refreshTabs().catch(() => undefined)
-        refreshScreenshot()
-      }, 300)
+      requestInteractiveFrames()
+      window.setTimeout(() => refreshTabs().catch(() => undefined), 200)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -616,13 +656,14 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
 
     viewportRef.current?.focus()
     try {
+      requestInteractiveFrames([120, 360])
       await postBrowserAction({
         kind: 'clickCoords',
         targetId: currentTargetIdRef.current,
         x: Math.round(x),
         y: Math.round(y),
       }, browserProfile)
-      window.setTimeout(refreshScreenshot, 180)
+      requestInteractiveFrames()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -657,33 +698,46 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
       key,
     ].filter(Boolean)
     event.preventDefault()
+    requestInteractiveFrames([100, 320])
     postBrowserAction({
       kind: 'press',
       targetId: currentTargetIdRef.current,
       key: parts.join('+'),
     }, browserProfile)
-      .then(() => window.setTimeout(refreshScreenshot, 120))
+      .then(() => requestInteractiveFrames([0, 180, 420]))
       .catch(err => setError(err instanceof Error ? err.message : String(err)))
   }
 
-  const handleViewportWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (chromeImportBusyRef.current || !currentTargetIdRef.current || wheelPendingRef.current) return
-    event.preventDefault()
+  const flushWheel = useCallback(async function flushWheelQueue() {
+    if (wheelPendingRef.current || chromeImportBusyRef.current || !currentTargetIdRef.current) return
+    const delta = wheelDeltaRef.current
+    if (!delta.x && !delta.y) return
+    wheelDeltaRef.current = { x: 0, y: 0 }
     wheelPendingRef.current = true
-    postBrowserAction({
-      kind: 'evaluate',
-      targetId: currentTargetIdRef.current,
-      fn: `() => window.scrollBy({ top: ${Math.round(event.deltaY)}, left: ${Math.round(
-        event.deltaX,
-      )}, behavior: "auto" })`,
-    }, browserProfile)
-      .then(() => window.setTimeout(refreshScreenshot, 100))
-      .catch(err => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => {
-        window.setTimeout(() => {
-          wheelPendingRef.current = false
-        }, 80)
-      })
+    try {
+      await postBrowserAction({
+        kind: 'evaluate',
+        targetId: currentTargetIdRef.current,
+        fn: `() => window.scrollBy({ top: ${Math.round(delta.y)}, left: ${Math.round(
+          delta.x,
+        )}, behavior: "auto" })`,
+      }, browserProfile)
+      requestInteractiveFrames([0, 140, 360])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      wheelPendingRef.current = false
+      if (wheelDeltaRef.current.x || wheelDeltaRef.current.y) void flushWheelQueue()
+    }
+  }, [browserProfile, requestInteractiveFrames])
+
+  const handleViewportWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (chromeImportBusyRef.current || !currentTargetIdRef.current) return
+    event.preventDefault()
+    wheelDeltaRef.current.x += event.deltaX
+    wheelDeltaRef.current.y += event.deltaY
+    requestInteractiveFrames([100, 280])
+    void flushWheel()
   }
 
   return (
