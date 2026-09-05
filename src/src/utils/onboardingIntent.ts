@@ -1,4 +1,5 @@
 import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/tauri'
 
 /**
  * Onboarding intent carried in from the website.
@@ -16,6 +17,7 @@ import { listen } from '@tauri-apps/api/event'
 
 const STORAGE_KEY = 'ks_onboarding_intent'
 const ACTIVATION_TRACKED_KEY = 'ks_paid_activation_tracked'
+const PAID_STARTER_KEY = 'ks_paid_starter'
 export const ONBOARDING_INTENT_EVENT = 'knapsack-onboarding-intent'
 
 /** Landing-page role slug -> agent template id in agentTemplates.ts. */
@@ -69,6 +71,35 @@ export interface ActivationAttribution {
   attribution_age_seconds: number
 }
 
+export interface PaidStarter {
+  role: string
+  title: string
+  prompt: string
+}
+
+const PAID_STARTERS: Record<string, Omit<PaidStarter, 'role'>> = {
+  'investment-research-analyst': {
+    title: 'Investment Research Analyst',
+    prompt:
+      'I want to create a source-grounded investment research brief. Ask me to attach a filing or earnings release, then use only that document to identify key facts, risks, and open questions. Do not give investment advice.',
+  },
+  'ria-compliance-analyst': {
+    title: 'RIA Compliance Analyst',
+    prompt:
+      'I want to create a source-linked compliance gap report for human review. Ask me to attach my checklist and the files to review, then identify missing evidence, exceptions, and follow-up questions.',
+  },
+  'advertising-compliance-reviewer': {
+    title: 'Advertising Compliance Reviewer',
+    prompt:
+      'I want to review a marketing draft against my compliance checklist. Ask me to attach both files, then flag claims, disclosures, and supporting evidence that need human review.',
+  },
+  'regulatory-exam-readiness-analyst': {
+    title: 'Regulatory Exam Readiness Analyst',
+    prompt:
+      'I want to build an exam-readiness inventory. Ask me to attach the request list and available documents, then organize the evidence and identify what is missing for human review.',
+  },
+}
+
 /** Parses knapsack://onboard?role=…&attr_id=… into an intent. */
 export function parseDeepLink(url: string): OnboardingIntent | null {
   try {
@@ -101,9 +132,7 @@ export function parseDeepLink(url: string): OnboardingIntent | null {
  * Returns an unlisten function.
  */
 export async function initOnboardingIntent(): Promise<() => void> {
-  return listen<string | string[]>('deep-link-received', event => {
-    const payload = event.payload
-    const url = Array.isArray(payload) ? payload[0] : payload
+  const consumeUrl = (url: unknown) => {
     if (typeof url !== 'string') return
 
     const intent = parseDeepLink(url)
@@ -113,12 +142,73 @@ export async function initOnboardingIntent(): Promise<() => void> {
         new CustomEvent<OnboardingIntent>(ONBOARDING_INTENT_EVENT, { detail: intent }),
       )
     }
+  }
+
+  const unlisten = await listen<string | string[]>('deep-link-received', event => {
+    const payload = event.payload
+    const url = Array.isArray(payload) ? payload[0] : payload
+    consumeUrl(url)
   })
+
+  // On a cold Windows launch the protocol URL is argv[1]. The v1 deep-link
+  // plugin only forwards URLs to its callback when another app instance is
+  // already running, so explicitly consume the initial process argument.
+  const initialUrl = await invoke<string | null>('kn_get_initial_deep_link').catch(() => null)
+  consumeUrl(initialUrl)
+
+  return unlisten
 }
 
 /** The stored intent, if the app was opened from a role page. */
 export function getOnboardingIntent(): OnboardingIntent | null {
   return read()
+}
+
+export function isPaidOnboardingIntent(intent: OnboardingIntent | null): boolean {
+  if (!intent) return false
+  return Boolean(
+    intent.gclid ||
+      (intent.utmSource?.toLowerCase() === 'google' &&
+        intent.utmMedium?.toLowerCase() === 'cpc'),
+  )
+}
+
+export function getOnboardingAnalyticsProps(
+  intent: OnboardingIntent | null = read(),
+): Record<string, string | number> {
+  if (!intent) return {}
+  return {
+    ...(intent.role ? { role: intent.role } : {}),
+    ...(intent.attrId ? { attr_id: intent.attrId } : {}),
+    ...(intent.gclid ? { gclid: intent.gclid } : {}),
+    ...(intent.utmSource ? { utm_source: intent.utmSource } : {}),
+    ...(intent.utmMedium ? { utm_medium: intent.utmMedium } : {}),
+    ...(intent.utmCampaign ? { utm_campaign: intent.utmCampaign } : {}),
+    attribution_age_seconds: Math.max(0, Math.round((Date.now() - intent.receivedAt) / 1000)),
+  }
+}
+
+export function getPaidStarter(intent: OnboardingIntent | null = read()): PaidStarter | null {
+  if (!intent?.role || !isPaidOnboardingIntent(intent)) return null
+  const starter = PAID_STARTERS[intent.role]
+  return starter ? { role: intent.role, ...starter } : null
+}
+
+export function savePaidStarter(starter: PaidStarter) {
+  try {
+    localStorage.setItem(PAID_STARTER_KEY, JSON.stringify(starter))
+  } catch {
+    /* the normal home screen remains available */
+  }
+}
+
+export function getSavedPaidStarter(): PaidStarter | null {
+  try {
+    const raw = localStorage.getItem(PAID_STARTER_KEY)
+    return raw ? (JSON.parse(raw) as PaidStarter) : null
+  } catch {
+    return null
+  }
 }
 
 function activationTrackingKey(intent: OnboardingIntent): string | null {
@@ -175,6 +265,7 @@ export function markActivationTracked() {
 
   try {
     localStorage.setItem(ACTIVATION_TRACKED_KEY, attributionId)
+    localStorage.removeItem(PAID_STARTER_KEY)
   } catch {
     /* best-effort deduplication */
   }

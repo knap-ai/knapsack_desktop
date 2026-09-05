@@ -38,6 +38,7 @@ import {
 import KNAnalytics from 'src/utils/KNAnalytics'
 import {
   getActivationAttribution,
+  getSavedPaidStarter,
   markActivationTracked,
 } from 'src/utils/onboardingIntent'
 
@@ -2389,9 +2390,36 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     () => (chatId === 'main' ? getOnboardingAgentsPrompt() : null),
     [chatId],
   )
+  const paidStarterData = useMemo(
+    () => (chatId === 'main' ? getSavedPaidStarter() : null),
+    [chatId],
+  )
 
   const welcomeMessages = useMemo(
     () => {
+      if (paidStarterData) {
+        return [
+          {
+            id: 'welcome-1',
+            role: 'assistant' as Role,
+            text: `Your ${paidStarterData.title} is ready. Start with one document-driven task; connections and automation setup can wait until you need them.`,
+            ts: Date.now(),
+          },
+          {
+            id: 'welcome-2',
+            role: 'assistant' as Role,
+            text: 'Choose the first task below. I’ll ask for the document before I analyze anything.',
+            ts: Date.now() + 1,
+            promptActions: [
+              {
+                label: `Start my first ${paidStarterData.title} task`,
+                prompt: paidStarterData.prompt,
+              },
+            ],
+          },
+        ]
+      }
+
       // If the user just onboarded with agents, show a team-oriented welcome
       if (onboardingAgentsData) {
         const agentNames = onboardingAgentsData.agents
@@ -2462,7 +2490,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         ],
       },
     ]},
-    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData],
+    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData, paidStarterData],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -4528,6 +4556,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     if (
       chatId === 'main' &&
       hasCompletedOnboarding &&
+      !paidStarterData &&
       health?.gateway_ok &&
       !autoTriggeredBriefingRef.current &&
       !busy &&
@@ -4551,7 +4580,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }, 800)
       return () => clearTimeout(timer)
     }
-  }, [chatId, hasCompletedOnboarding, health?.gateway_ok, busy, advancedMode, developerMode, autonomyMode, msgs])
+  }, [chatId, hasCompletedOnboarding, paidStarterData, health?.gateway_ok, busy, advancedMode, developerMode, autonomyMode, msgs])
 
   const enableAssistant = async (enabled: boolean) => {
     setBusy(true)

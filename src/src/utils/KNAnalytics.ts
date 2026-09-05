@@ -11,18 +11,19 @@ export default class KNAnalytics {
   static HAS_LOADED = false
   static OS_VERSION_STRING: string | undefined = undefined
   static APP_VERSION: string | undefined = undefined
+  static PENDING_EVENTS: Array<{ event: string; properties: any }> = []
 
   static async initAnalytics(email: string, uuid: string, userUuid: string) {
     const version = await getAppVersion()
     // TODO: disable for dev instances
     if (!this.HAS_LOADED) {
-      ampli.load({
+      await ampli.load({
         disabled: false,
         client: {
           apiKey: ApiKey.default,
           configuration: { ...DefaultConfiguration, logLevel: 3, appVersion: version },
         },
-      })
+      }).promise
       this.HAS_LOADED = true
     }
 
@@ -55,6 +56,16 @@ export default class KNAnalytics {
       }
       await ampli.amplitude!.identify(amplitudeIdentify, { ...options }).promise
     }
+
+    const pendingEvents = this.PENDING_EVENTS.splice(0)
+    for (const pending of pendingEvents) {
+      ampli.amplitude!.logEvent(pending.event, {
+        platform: 'desktop',
+        app: 'knapsack_desktop',
+        app_version: this.APP_VERSION,
+        ...pending.properties,
+      })
+    }
   }
 
   static trackEvent(event: string, properties: any): boolean {
@@ -70,8 +81,17 @@ export default class KNAnalytics {
     //
     // This feels rather brittle to me, so I'm opting for this solution
     // instead.
+    if (!this.HAS_LOADED) {
+      this.PENDING_EVENTS.push({ event, properties })
+      return true
+    }
     if (ampli !== undefined && ampli.amplitude! !== undefined) {
-      ampli.amplitude!.logEvent(event, { platform: 'desktop', app: 'knapsack_desktop', ...properties })
+      ampli.amplitude!.logEvent(event, {
+        platform: 'desktop',
+        app: 'knapsack_desktop',
+        app_version: this.APP_VERSION,
+        ...properties,
+      })
       return true
     }
     return false
