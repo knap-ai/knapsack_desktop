@@ -158,7 +158,7 @@ test('embedded browser tab and screenshot polling are independently serialized',
   )
   assert.match(browserSource, /tabsPendingRef/)
   assert.match(browserSource, /window\.setTimeout\(pollTabs, TABS_INTERVAL_MS\)/)
-  assert.match(browserSource, /window\.setTimeout\(pollScreenshot, SCREENSHOT_INTERVAL_MS\)/)
+  assert.match(browserSource, /window\.setTimeout\(\s*pollScreenshot,/)
   const tabPoller = browserSource.slice(browserSource.indexOf('const pollTabs'), browserSource.indexOf('const pollScreenshot'))
   const screenshotPollerStart = browserSource.indexOf('const pollScreenshot')
   const screenshotPoller = browserSource.slice(
@@ -169,6 +169,17 @@ test('embedded browser tab and screenshot polling are independently serialized',
   assert.doesNotMatch(screenshotPoller, /refreshTabs/)
   assert.doesNotMatch(browserSource, /window\.setInterval\(refreshScreenshot/)
   assert.doesNotMatch(browserSource, /const tabsTimer = window\.setInterval/)
+})
+
+test('embedded browser prioritizes interaction frames and coalesces scrolling', async () => {
+  const browserSource = await fs.readFile(
+    new URL('../src/components/organisms/EmbeddedBrowserSidebar/index.tsx', `file://${__filename}`),
+    'utf8',
+  )
+  assert.match(browserSource, /ACTIVE_SCREENSHOT_INTERVAL_MS = 120/)
+  assert.match(browserSource, /if \(priority\) screenshotQueuedRef\.current = true/)
+  assert.match(browserSource, /recentlyInteractive \? ACTIVE_SCREENSHOT_INTERVAL_MS : SCREENSHOT_INTERVAL_MS/)
+  assert.match(browserSource, /wheelDeltaRef\.current\.y \+= event\.deltaY/)
 })
 
 test('group runtime bypasses single-agent shortcuts and aborts timed-out members', async () => {
