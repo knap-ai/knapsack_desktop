@@ -82,6 +82,35 @@ const descriptionForPrompt = (description = ''): string => {
   return clean.replace(/\s+/g, ' ').trim()
 }
 
+const normalizedActionOwner = (value = '') => value
+  .replace(/[*_`]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .toLowerCase()
+
+const actionItemOwner = (taskText: string): string => {
+  const [owner = ''] = taskText.split(/\s+(?:—|–|-)\s+/, 1)
+  return normalizedActionOwner(owner)
+}
+
+const isOwnedByCurrentUser = (taskText: string, userName?: string, userEmail?: string): boolean => {
+  const owner = actionItemOwner(taskText)
+  if (!owner) return false
+  const aliases = new Set(['you', 'me'])
+  if (userName) {
+    const normalizedName = normalizedActionOwner(userName)
+    aliases.add(normalizedName)
+    const firstName = normalizedName.split(' ')[0]
+    if (firstName) aliases.add(firstName)
+  }
+  if (userEmail) {
+    aliases.add(normalizedActionOwner(userEmail))
+    aliases.add(normalizedActionOwner(userEmail.split('@')[0].replace(/[._-]+/g, ' ')))
+  }
+  const owners = owner.split(/\s*(?:\/|,|&|\band\b)\s*/i).filter(Boolean)
+  return owners.some(candidate => aliases.has(candidate))
+}
+
 const MenuButton: React.FC<MenuButtonProps> = ({
   isActive,
   onClick,
@@ -260,6 +289,30 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setBriefPrepExpanded(true)
     setIsMeetingChatOpen(true)
   }
+
+  const isMyActionItem = useCallback(
+    (taskText: string) => isOwnedByCurrentUser(taskText, userName, userEmail),
+    [userEmail, userName],
+  )
+
+  const actionItemPrompt = useCallback((taskText: string) => {
+    const meetingTitle = meeting?.title || thread.subtitle || 'this meeting'
+    return `Help me complete this action item from "${meetingTitle}": ${taskText}. ` +
+      'Use the meeting notes and transcript for context, identify the next concrete step, and use my connected tools where helpful. ' +
+      'Let me review the plan before sending messages, creating events, or making other external changes.'
+  }, [meeting?.title, thread.subtitle])
+
+  const actionItemHref = useCallback(
+    (taskText: string) => `knapsack://prompt/${encodeURIComponent(actionItemPrompt(taskText))}`,
+    [actionItemPrompt],
+  )
+
+  const openActionItemInMeetingChat = useCallback(async (taskText: string) => {
+    await refreshMeetingTranscriptContext()
+    setMeetingChatInitialInput(actionItemPrompt(taskText))
+    setBriefPrepExpanded(true)
+    setIsMeetingChatOpen(true)
+  }, [actionItemPrompt, refreshMeetingTranscriptContext])
 
   useEffect(() => {
     if (!isMeetingChatOpen) return
@@ -1919,6 +1972,9 @@ Be direct, specific, and concise. No filler text.`
           <MarkdownDisplay
             markdown={notesMarkdown}
             className="notetaker-note__document notetaker-note__document--display"
+            isTaskActionable={isMyActionItem}
+            taskActionHref={actionItemHref}
+            onTaskAction={openActionItemInMeetingChat}
             onChange={(updatedMarkdown) => {
               setNotesMarkdown(updatedMarkdown)
               saveNotes(thread.id, updatedMarkdown)

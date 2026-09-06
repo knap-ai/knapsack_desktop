@@ -8,12 +8,41 @@ interface MarkdownDisplayProps {
   markdown: string
   className?: string
   onChange?: (updatedMarkdown: string) => void
+  isTaskActionable?: (taskText: string) => boolean
+  taskActionHref?: (taskText: string) => string
+  onTaskAction?: (taskText: string) => void
+}
+
+const markdownNodeText = (node: unknown): string => {
+  if (!node || typeof node !== 'object') return ''
+  const markdownNode = node as { value?: unknown; children?: unknown[] }
+  if (typeof markdownNode.value === 'string') return markdownNode.value
+  if (!Array.isArray(markdownNode.children)) return ''
+  return markdownNode.children.map(markdownNodeText).join('')
+}
+
+const isMarkdownTaskListItem = (node: unknown): boolean => {
+  if (!node || typeof node !== 'object') return false
+  const element = node as {
+    properties?: { className?: unknown }
+    children?: { tagName?: unknown; properties?: { type?: unknown } }[]
+  }
+  const classNames = Array.isArray(element.properties?.className)
+    ? element.properties?.className
+    : [element.properties?.className]
+  if (classNames.includes('task-list-item')) return true
+  return element.children?.some(child =>
+    child?.tagName === 'input' && child.properties?.type === 'checkbox'
+  ) === true
 }
 
 const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
   markdown = '',
   className = '',
   onChange,
+  isTaskActionable,
+  taskActionHref,
+  onTaskAction,
 }) => {
 
   const [content, setContent] = useState(markdown);
@@ -74,6 +103,38 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
           ul: ({ node, ...props }) => <ul className="list-disc pl-6 mt-1 mb-1" {...props} />,
           ol: ({ node, ...props }) => <ol className="list-decimal pl-6 my-3" {...props} />,
           li: ({ node, ...props }) => {
+            const taskText = markdownNodeText(node).replace(/^\s*\[[ xX]\]\s*/, '').trim()
+            const isGfmTaskItem = isMarkdownTaskListItem(node)
+            if (
+              isGfmTaskItem &&
+              taskText &&
+              onTaskAction &&
+              (!isTaskActionable || isTaskActionable(taskText))
+            ) {
+              const children = React.Children.toArray(props.children)
+              const checkbox = children.find(child =>
+                React.isValidElement(child) && child.type === 'input'
+              )
+              const taskContent = children.filter(child => child !== checkbox)
+
+              return (
+                <li {...props} className="mb-1 flex items-start markdown-task-action-item">
+                  {checkbox}
+                  <a
+                    href={taskActionHref?.(taskText) || `knapsack://prompt/${encodeURIComponent(taskText)}`}
+                    className="markdown-task-action"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      onTaskAction(taskText)
+                    }}
+                    title="Open this action item in meeting chat"
+                  >
+                    {taskContent}
+                  </a>
+                </li>
+              )
+            }
+
             const isTaskListItem =
               (node?.children?.[0]?.type === 'text' && node?.children?.[0]?.value?.includes('[ ] ')) ||
               (node?.children?.[0]?.type === 'text' && node?.children?.[0]?.value?.includes('[x] '))

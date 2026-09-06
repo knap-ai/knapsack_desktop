@@ -36,6 +36,44 @@
   transform: rotate(45deg);
 }
 
+.markdown-content .markdown-task-action-item {
+  align-items: flex-start;
+}
+
+.markdown-content .markdown-task-action-item > input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin-top: 0.22em;
+  margin-right: 0.55rem;
+}
+
+.markdown-content .markdown-task-action {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.16em;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.markdown-content .markdown-task-action:hover,
+.markdown-content .markdown-task-action:focus-visible {
+  color: #1d4ed8;
+  text-decoration-color: currentColor;
+}
+
+.markdown-content .markdown-task-action:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 /* Code block syntax highlighting base styles */
 .markdown-content pre {
   background-color: #f6f8fa;
@@ -72,4 +110,3 @@
 .markdown-content blockquote {
   font-style: italic;
 }
-
