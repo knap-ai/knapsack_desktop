@@ -37,9 +37,10 @@ import {
 } from 'src/utils/studioConnectors'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import {
-  getActivationAttribution,
+  claimActivationAttribution,
   getSavedPaidStarter,
   markActivationTracked,
+  releaseActivationClaim,
 } from 'src/utils/onboardingIntent'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
@@ -944,15 +945,16 @@ function clearOnboardingAgents() {
   localStorage.removeItem('kn_onboarding_agents')
 }
 
-function trackPaidActivation(inferenceSurface: 'agent_chat' | 'direct_chat') {
-  const attribution = getActivationAttribution()
-  if (!attribution) return
+async function trackPaidActivation(inferenceSurface: 'agent_chat' | 'direct_chat') {
+  const activationClaim = claimActivationAttribution()
+  if (!activationClaim) return
 
-  const queued = KNAnalytics.trackEvent('desktop_paid_activation', {
-    ...attribution,
+  const delivered = await KNAnalytics.trackEventAndFlush('desktop_paid_activation', {
+    ...activationClaim.attribution,
     inference_surface: inferenceSurface,
   })
-  if (queued) markActivationTracked()
+  if (delivered) markActivationTracked(activationClaim.trackingId)
+  else releaseActivationClaim(activationClaim.trackingId)
 }
 
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
@@ -5554,7 +5556,7 @@ ${actualText}`
                       (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
                   },
                 ])
-                trackPaidActivation('agent_chat')
+                void trackPaidActivation('agent_chat')
                 onAssistantMessage?.(chatId)
               }
             } else {
@@ -5630,7 +5632,7 @@ ${actualText}`
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
-              trackPaidActivation('direct_chat')
+              void trackPaidActivation('direct_chat')
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)

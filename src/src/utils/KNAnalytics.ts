@@ -11,7 +11,42 @@ export default class KNAnalytics {
   static HAS_LOADED = false
   static OS_VERSION_STRING: string | undefined = undefined
   static APP_VERSION: string | undefined = undefined
-  static PENDING_EVENTS: Array<{ event: string; properties: any }> = []
+  static PENDING_EVENT_TIMEOUT_MS = 5000
+  static PENDING_EVENTS: Array<{
+    event: string
+    properties: any
+    resolveDelivery?: (delivered: boolean) => void
+    cancelWaitTimeout?: () => void
+  }> = []
+
+  private static eventProperties(properties: any) {
+    return {
+      platform: 'desktop',
+      app: 'knapsack_desktop',
+      app_version: this.APP_VERSION,
+      ...properties,
+    }
+  }
+
+  private static wasDelivered(result: unknown): boolean {
+    const code = (result as { code?: unknown } | null)?.code
+    return typeof code === 'number' && code >= 200 && code < 300
+  }
+
+  private static async sendAndFlush(event: string, properties: any): Promise<boolean> {
+    if (!this.HAS_LOADED || !ampli?.amplitude) return false
+
+    try {
+      const trackPromise = ampli.amplitude.logEvent(event, this.eventProperties(properties)).promise
+      const flushPromise = ampli.flush().promise
+      const [trackResult] = await Promise.all([trackPromise, flushPromise])
+      if (!this.wasDelivered(trackResult)) return false
+      return true
+    } catch (error) {
+      console.error(`Failed to deliver analytics event ${event}`, error)
+      return false
+    }
+  }
 
   static async initAnalytics(email: string, uuid: string, userUuid: string) {
     const version = await getAppVersion()
@@ -58,14 +93,18 @@ export default class KNAnalytics {
     }
 
     const pendingEvents = this.PENDING_EVENTS.splice(0)
-    for (const pending of pendingEvents) {
-      ampli.amplitude!.logEvent(pending.event, {
-        platform: 'desktop',
-        app: 'knapsack_desktop',
-        app_version: this.APP_VERSION,
-        ...pending.properties,
-      })
-    }
+    await Promise.all(
+      pendingEvents.map(async pending => {
+        if (!pending.resolveDelivery) {
+          ampli.amplitude!.logEvent(pending.event, this.eventProperties(pending.properties))
+          return
+        }
+
+        pending.cancelWaitTimeout?.()
+        const delivered = await this.sendAndFlush(pending.event, pending.properties)
+        pending.resolveDelivery(delivered)
+      }),
+    )
   }
 
   static trackEvent(event: string, properties: any): boolean {
@@ -95,5 +134,40 @@ export default class KNAnalytics {
       return true
     }
     return false
+  }
+
+  /**
+   * Tracks an event and resolves only after Amplitude confirms both the event
+   * upload and a flush. Callers may safely persist deduplication state only
+   * when this returns true.
+   */
+  static trackEventAndFlush(event: string, properties: any): Promise<boolean> {
+    if (!this.HAS_LOADED) {
+      return new Promise(resolveDelivery => {
+        let settled = false
+        let pending: (typeof this.PENDING_EVENTS)[number]
+        const timeout = setTimeout(() => {
+          if (settled) return
+          settled = true
+          const index = this.PENDING_EVENTS.indexOf(pending)
+          if (index >= 0) this.PENDING_EVENTS.splice(index, 1)
+          resolveDelivery(false)
+        }, this.PENDING_EVENT_TIMEOUT_MS)
+
+        pending = {
+          event,
+          properties,
+          resolveDelivery: delivered => {
+            if (settled) return
+            settled = true
+            resolveDelivery(delivered)
+          },
+          cancelWaitTimeout: () => clearTimeout(timeout),
+        }
+        this.PENDING_EVENTS.push(pending)
+      })
+    }
+
+    return this.sendAndFlush(event, properties)
   }
 }

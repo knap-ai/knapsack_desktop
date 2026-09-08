@@ -25,6 +25,7 @@
     "test:qa-loop": "node --test scripts/qa-loop-runner.test.cjs",
     "test:app-update": "node --test scripts/app-update.test.cjs",
     "test:onboarding-intent": "node --test scripts/onboarding-intent.test.cjs",
+    "test:analytics-delivery": "node --test scripts/analytics-delivery.test.cjs",
     "test:studio-connectors": "node --test scripts/studio-connectors.test.cjs",
     "test:snowflake-session-binding": "node --test scripts/snowflake-session-binding.test.cjs",
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
