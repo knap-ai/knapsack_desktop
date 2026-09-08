@@ -40,8 +40,11 @@ function selectionsForTemplate(templateId?: string): AgentSelection[] {
   const matchesRequest = templateId
     ? AGENT_TEMPLATES.some(template => template.id === templateId)
     : false
+  const availableTemplates = AGENT_TEMPLATES.filter(
+    template => !template.optInOnly || template.id === templateId,
+  )
 
-  return AGENT_TEMPLATES.map(template => ({
+  return availableTemplates.map(template => ({
     templateId: template.id,
     enabled: matchesRequest ? template.id === templateId : true,
     identity: { ...template.defaultIdentity },
