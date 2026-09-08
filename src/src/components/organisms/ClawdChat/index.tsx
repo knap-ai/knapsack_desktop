@@ -4556,6 +4556,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // already been explicitly chosen on the welcome screen, so requiring a
   // second click here only creates an avoidable activation drop-off.
   useEffect(() => {
+    const paidStarterIsUntouched =
+      paidStarterData && !msgs.some(message => message.role === 'user')
+    const ordinaryWelcomeIsUntouched =
+      !paidStarterData && msgs.length > 0 && msgs.every(message => message.id.startsWith('welcome-'))
+
     if (
       chatId === 'main' &&
       hasCompletedOnboarding &&
@@ -4565,24 +4570,30 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       !advancedMode &&
       !developerMode &&
       (paidStarterData || autonomyMode === 'assist') &&
-      msgs.length > 0 &&
-      msgs.every(m => m.id.startsWith('welcome-'))
+      (paidStarterIsUntouched || ordinaryWelcomeIsUntouched)
     ) {
-      autoTriggeredBriefingRef.current = true
       // Short delay to let the UI settle after initialization
       const timer = setTimeout(() => {
+        const send = handleSendWithTextRef.current
+        if (!send) return
+
+        // Consume the trigger only when the task is actually sent. Provider
+        // setup can update messages and cancel this timer; in that case the
+        // effect should retry once the gateway is ready.
+        autoTriggeredBriefingRef.current = true
+
         if (paidStarterData) {
-          handleSendWithTextRef.current?.(paidStarterData.prompt)
+          void send(paidStarterData.prompt)
           return
         }
         // If agents were just onboarded, auto-trigger the team intro instead
         const agentsData = getOnboardingAgentsPrompt()
         if (agentsData) {
           clearOnboardingAgents()
-          handleSendWithTextRef.current?.(agentsData.prompt)
+          void send(agentsData.prompt)
           return
         }
-        handleSendWithTextRef.current?.(SMART_PROMPT)
+        void send(SMART_PROMPT)
       }, 800)
       return () => clearTimeout(timer)
     }
