@@ -13,6 +13,8 @@ export type AbstractSource = 'email' | 'calendar' | 'drive' | 'web' | 'local'
 
 export interface AgentTemplate {
   id: string
+  /** Hidden from ordinary starter teams; selected only by an explicit role intent. */
+  optInOnly?: boolean
   defaultIdentity: AgentIdentity
   description: string
   abstractSources: AbstractSource[]
@@ -242,6 +244,7 @@ function createSemanticSearchPromptAutomation(opts: {
 export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     id: 'investment-research',
+    optInOnly: true,
     defaultIdentity: {
       displayName: 'Research Analyst',
       emoji: '📈',

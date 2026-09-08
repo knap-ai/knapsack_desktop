@@ -119,7 +119,7 @@ function normalizeTeamGroup(group: TeamGroup): TeamGroup {
 }
 
 export function defaultTeamRoster(): TeamAgent[] {
-  return AGENT_TEMPLATES.map(template =>
+  return AGENT_TEMPLATES.filter(template => !template.optInOnly).map(template =>
     createTeamAgent({
       id: template.id,
       name: template.defaultIdentity.displayName,
