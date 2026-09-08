@@ -7,6 +7,7 @@ pub async fn record_speaker_output(
   _is_paused: Arc<AtomicBool>,
   _output_file: &str,
   _semaphore: Arc<Semaphore>,
+  _startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   Err("Speaker output recording is not supported on Linux".into())
 }

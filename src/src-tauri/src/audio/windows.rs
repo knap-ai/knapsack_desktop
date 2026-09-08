@@ -289,6 +289,7 @@ pub async fn record_speaker_output(
   is_paused: Arc<AtomicBool>,
   output_file: &str,
   semaphore: Arc<Semaphore>,
+  startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   println!("------- RECORDING WINDOWS SPEAKER OUTPUT -------");
   let audio_recorder = AudioRecorder {
@@ -304,6 +305,7 @@ pub async fn record_speaker_output(
   // Start recording and keep running until is_recording becomes false
   let res = match audio_recorder.start_recording() {
     Ok(_) => {
+      let _ = startup_tx.send(Ok(()));
       while is_recording.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(100)).await;
       }

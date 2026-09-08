@@ -163,8 +163,11 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
           throw new Error(message)
         }
 
-        if (eventId && !permissions.screen_recording) {
+        if (!permissions.screen_recording) {
           const message = "Meeting recording needs System Audio Recording permission to capture other participants. Knapsack only has microphone access right now, so starting this recording would miss the call audio. Enable System Audio Recording in System Settings > Privacy & Security, then try again."
+
+          localStorage.removeItem('screenPermissionGranted')
+          localStorage.removeItem('permissionsDismissed')
 
           logError(
             new Error('Missing system audio permission for meeting recording'),

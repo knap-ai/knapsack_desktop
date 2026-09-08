@@ -220,6 +220,7 @@ pub async fn record_speaker_output(
   is_paused: Arc<AtomicBool>,
   output_file: &str,
   semaphore: Arc<Semaphore>,
+  startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   #[cfg(not(target_os = "macos"))]
   {
@@ -477,6 +478,7 @@ pub async fn record_speaker_output(
       return Err(format!("AudioDeviceStart failed with status {}", status).into());
     }
     log::info!("[audio tap] System audio capture started successfully");
+    let _ = startup_tx.send(Ok(()));
 
     // --- Step 6: Wait until recording stops ---
     while is_recording.load(Ordering::Relaxed) {

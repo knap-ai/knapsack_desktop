@@ -286,7 +286,7 @@ pub async fn check_audio_permissions() -> Result<serde_json::Value, String> {
                     "microphone": mic_granted,
                     "screen_recording": system_audio_granted,
                     "system_audio": system_audio_granted,
-                    "all_granted": mic_granted
+                    "all_granted": mic_granted && system_audio_granted
                 })
             }),
         )
@@ -380,9 +380,12 @@ fn check_system_audio_permission_macos() -> bool {
   // crash the entire check_audio_permissions command, causing the frontend to
   // fall back to stale localStorage values — leaving users permanently stuck.
   match std::panic::catch_unwind(check_system_audio_via_tap_probe) {
-    Ok(true) => return true,
+    Ok(true) => true,
     Ok(false) => {
-      log::info!("Tap probe returned false, trying fallback strategies");
+      log::warn!(
+        "Tap probe returned false; treating system audio as unavailable. Screen Recording permission alone does not prove Core Audio tap access"
+      );
+      false
     }
     Err(e) => {
       let panic_msg = if let Some(s) = e.downcast_ref::<&str>() {
@@ -393,84 +396,12 @@ fn check_system_audio_permission_macos() -> bool {
         "unknown panic".to_string()
       };
       log::warn!(
-        "Tap probe panicked ({}), trying fallback strategies",
+        "Tap probe panicked ({}); treating system audio as unavailable",
         panic_msg
       );
+      false
     }
   }
-
-  // Strategy 2: Use CGPreflightScreenCaptureAccess() to check for screen
-  // recording permission (kTCCServiceScreenCapture). Screen recording is a
-  // superset of system audio recording — if the user has granted "Screen &
-  // System Audio Recording", this returns true and audio capture will work.
-  // This is a stable Apple API (macOS 10.15+) that doesn't depend on TCC
-  // database access or process tap creation.
-  if check_screen_capture_via_cg_preflight() {
-    log::info!("CGPreflightScreenCaptureAccess confirms screen recording permission (superset of audio capture)");
-    return true;
-  }
-
-  // Strategy 3 (fallback): Check the TCC database for kTCCServiceAudioCapture.
-  // This may fail on newer macOS versions where SIP protects the database,
-  // but is kept as a fallback for older systems.
-  {
-    use std::process::Command;
-    let bundle_id = get_bundle_id();
-
-    // Check kTCCServiceAudioCapture (System Audio Recording Only)
-    let query = format!(
-            "SELECT auth_value FROM access WHERE service='kTCCServiceAudioCapture' AND client='{}' LIMIT 1",
-            bundle_id
-        );
-    if let Ok(output) = Command::new("sqlite3")
-      .arg(format!(
-        "{}/Library/Application Support/com.apple.TCC/TCC.db",
-        std::env::var("HOME").unwrap_or_default()
-      ))
-      .arg(&query)
-      .output()
-    {
-      let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
-      let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-      if !stderr.is_empty() {
-        log::warn!(
-          "TCC database query for kTCCServiceAudioCapture returned stderr: {}",
-          stderr
-        );
-      }
-      // auth_value 2 = authorized
-      if val == "2" {
-        log::info!("TCC database confirms system audio recording permission granted (kTCCServiceAudioCapture)");
-        return true;
-      }
-    }
-
-    // Also check the old kTCCServiceScreenCapture as a fallback —
-    // if the user already had screen recording permission, system audio
-    // capture will also work since screen recording is a superset.
-    let query_screen = format!(
-            "SELECT auth_value FROM access WHERE service='kTCCServiceScreenCapture' AND client='{}' LIMIT 1",
-            bundle_id
-        );
-    if let Ok(output) = Command::new("sqlite3")
-      .arg(format!(
-        "{}/Library/Application Support/com.apple.TCC/TCC.db",
-        std::env::var("HOME").unwrap_or_default()
-      ))
-      .arg(&query_screen)
-      .output()
-    {
-      let val = String::from_utf8_lossy(&output.stdout).trim().to_string();
-      if val == "2" {
-        log::info!(
-          "TCC database confirms screen recording permission granted (superset of audio capture)"
-        );
-        return true;
-      }
-    }
-  }
-
-  false
 }
 
 /// Check if the current macOS version is >= 14.2 (required for Core Audio Taps).
