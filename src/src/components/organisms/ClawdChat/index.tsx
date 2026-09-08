@@ -4551,14 +4551,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     autoTriggeredBriefingRef.current = false
   }, [chatHistoryStorage, welcomeMessages])
 
-  // Auto-trigger initial briefing for onboarded users with email/calendar connected.
-  // Fires once per session when: onboarding is complete, gateway is healthy,
-  // and only welcome messages are showing (no prior chat history).
+  // Auto-trigger the promised first task after paid-role onboarding, or the
+  // normal briefing for other newly onboarded users. The paid fast path has
+  // already been explicitly chosen on the welcome screen, so requiring a
+  // second click here only creates an avoidable activation drop-off.
   useEffect(() => {
     if (
       chatId === 'main' &&
       hasCompletedOnboarding &&
-      !paidStarterData &&
       health?.gateway_ok &&
       !autoTriggeredBriefingRef.current &&
       !busy &&
@@ -4571,6 +4571,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       autoTriggeredBriefingRef.current = true
       // Short delay to let the UI settle after initialization
       const timer = setTimeout(() => {
+        if (paidStarterData) {
+          handleSendWithTextRef.current?.(paidStarterData.prompt)
+          return
+        }
         // If agents were just onboarded, auto-trigger the team intro instead
         const agentsData = getOnboardingAgentsPrompt()
         if (agentsData) {

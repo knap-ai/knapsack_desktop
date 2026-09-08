@@ -171,6 +171,36 @@ Analyze my work patterns and produce a daily coaching report:
 - Celebrate one thing you did well recently
 - Challenge for today`
 
+// ── Investment Research Analyst ─────────────────────────────
+
+const INVESTMENT_RESEARCH_SEARCH_PROMPT =
+  'Find the latest primary-source filings, earnings materials, investor presentations, and credible market context for the companies and investment themes the user is researching. Include relevant documents from connected files.'
+
+const INVESTMENT_RESEARCH_PROMPT = `You are the user's private investment research analyst. You are rigorous, source-driven, and explicit about uncertainty.
+
+Turn the available research into an investment brief:
+
+# 📈 Investment Research Brief
+
+## Executive Summary
+- The core thesis in plain language
+- What changed recently and why it matters
+
+## Evidence
+- Key operating and financial signals from primary sources
+- Important management commentary, with dates and sources
+- Industry and competitive context
+
+## Risks and Counterarguments
+- The strongest evidence against the thesis
+- Material unknowns and assumptions that still need validation
+
+## Follow-Up Research
+- The three highest-value questions to investigate next
+- Source links for every factual claim when available
+
+Do not invent figures or imply investment advice. Clearly separate sourced facts, analysis, and open questions.`
+
 // ── Agentmaker Prompt ───────────────────────────────────────
 
 export const AGENTMAKER_PROMPT = `Look at my email, calendar, and connected files. Analyze my workflow, identify operational bottlenecks, and suggest up to 3 additional specialized agents that would make me significantly more productive.
@@ -210,6 +240,31 @@ function createSemanticSearchPromptAutomation(opts: {
 }
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
+  {
+    id: 'investment-research',
+    defaultIdentity: {
+      displayName: 'Research Analyst',
+      emoji: '📈',
+      personality: 'Your private, source-grounded investment research analyst',
+      soul: 'You are rigorous, skeptical, and source-driven. You distinguish evidence from inference and make uncertainty explicit.',
+    },
+    description:
+      'Turns filings, earnings materials, connected documents, and credible web sources into decision-ready investment briefs.',
+    abstractSources: ['web', 'drive', 'local'],
+    defaultCadence: { type: CadenceType.DAILY, time: '08:00' },
+    createAutomation(provider, overrides) {
+      return createSemanticSearchPromptAutomation({
+        name: this.defaultIdentity.displayName,
+        description: overrides?.description ?? this.description,
+        identity: this.defaultIdentity,
+        abstractSources: this.abstractSources,
+        cadence: overrides?.cadence ?? this.defaultCadence,
+        searchPrompt: INVESTMENT_RESEARCH_SEARCH_PROMPT,
+        agentPrompt: INVESTMENT_RESEARCH_PROMPT,
+        provider,
+      })
+    },
+  },
   {
     id: 'polly',
     defaultIdentity: {

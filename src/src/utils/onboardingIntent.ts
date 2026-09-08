@@ -28,6 +28,7 @@ export const ROLE_TO_TEMPLATE: Record<string, string> = {
   'enterprise-sdr': 'atlas',
   'daily-coach': 'coach',
   'email-autopilot': 'polly',
+  'investment-research-analyst': 'investment-research',
   // Roles below have landing pages but no agent template yet. Left unmapped on
   // purpose: preselecting the wrong worker is worse than showing the picker.
 }
