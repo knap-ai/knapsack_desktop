@@ -4564,7 +4564,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       !busy &&
       !advancedMode &&
       !developerMode &&
-      autonomyMode === 'assist' &&
+      (paidStarterData || autonomyMode === 'assist') &&
       msgs.length > 0 &&
       msgs.every(m => m.id.startsWith('welcome-'))
     ) {
