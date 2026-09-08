@@ -438,6 +438,7 @@ pub async fn start_recording(
   // Start system audio before the microphone and wait for a positive startup
   // acknowledgement. A meeting must never appear to be recording when the
   // speaker-output capture already failed.
+  #[cfg(any(target_os = "macos", target_os = "windows"))]
   {
     let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
     let (startup_tx, mut startup_rx) = mpsc::unbounded_channel::<Result<(), String>>();
