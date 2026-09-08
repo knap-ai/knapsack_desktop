@@ -17,6 +17,8 @@ import { invoke } from '@tauri-apps/api/tauri'
 
 const STORAGE_KEY = 'ks_onboarding_intent'
 const ACTIVATION_TRACKED_KEY = 'ks_paid_activation_tracked'
+const MAX_TRACKED_ACTIVATIONS = 20
+const activationTrackingInFlight = new Set<string>()
 const PAID_STARTER_KEY = 'ks_paid_starter'
 export const ONBOARDING_INTENT_EVENT = 'knapsack-onboarding-intent'
 
@@ -69,6 +71,11 @@ export interface ActivationAttribution {
   utm_medium?: string
   utm_campaign?: string
   attribution_age_seconds: number
+}
+
+export interface ActivationClaim {
+  attribution: ActivationAttribution
+  trackingId: string
 }
 
 export interface PaidStarter {
@@ -226,6 +233,24 @@ function activationTrackingKey(intent: OnboardingIntent): string | null {
   )
 }
 
+function getTrackedActivationIds(): string[] {
+  try {
+    const raw = localStorage.getItem(ACTIVATION_TRACKED_KEY)
+    if (!raw) return []
+
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.filter(id => typeof id === 'string')
+    } catch {
+      /* legacy values were stored as a plain string */
+    }
+
+    return [raw]
+  } catch {
+    return []
+  }
+}
+
 /**
  * Returns ad attribution for the first successful inference, if it has not
  * already been reported for this click. The role-selection intent deliberately
@@ -240,8 +265,7 @@ export function getActivationAttribution(): ActivationAttribution | null {
   if (!attributionId) return null
 
   try {
-    const trackedId = localStorage.getItem(ACTIVATION_TRACKED_KEY)
-    if (trackedId && trackedId === attributionId) return null
+    if (getTrackedActivationIds().includes(attributionId)) return null
   } catch {
     /* storage unavailable; returning the attribution is safer than dropping it */
   }
@@ -257,22 +281,48 @@ export function getActivationAttribution(): ActivationAttribution | null {
   }
 }
 
-/** Marks this attributed install after its first successful inference event. */
-export function markActivationTracked() {
+/** Reserves the first paid activation so concurrent chat replies cannot duplicate it. */
+export function claimActivationAttribution(): ActivationClaim | null {
   const intent = read()
-  const attributionId = intent ? activationTrackingKey(intent) : null
-  if (!attributionId) return
+  const trackingId = intent ? activationTrackingKey(intent) : null
+  if (trackingId && activationTrackingInFlight.has(trackingId)) return null
 
+  const attribution = getActivationAttribution()
+  if (!trackingId || !attribution) return null
+
+  activationTrackingInFlight.add(trackingId)
+  return { attribution, trackingId }
+}
+
+/** Releases a failed delivery so the next successful inference can retry it. */
+export function releaseActivationClaim(trackingId: string) {
+  activationTrackingInFlight.delete(trackingId)
+}
+
+/** Marks the exact claimed attribution after its event is confirmed delivered. */
+export function markActivationTracked(trackingId: string) {
   try {
-    localStorage.setItem(ACTIVATION_TRACKED_KEY, attributionId)
-    localStorage.removeItem(PAID_STARTER_KEY)
+    const trackedIds = getTrackedActivationIds().filter(id => id !== trackingId)
+    trackedIds.push(trackingId)
+    localStorage.setItem(
+      ACTIVATION_TRACKED_KEY,
+      JSON.stringify(trackedIds.slice(-MAX_TRACKED_ACTIVATIONS)),
+    )
+
+    const currentIntent = read()
+    if (currentIntent && activationTrackingKey(currentIntent) === trackingId) {
+      localStorage.removeItem(PAID_STARTER_KEY)
+    }
   } catch {
     /* best-effort deduplication */
+  } finally {
+    activationTrackingInFlight.delete(trackingId)
   }
 }
 
 /** Clears the intent when an explicit reset is required. */
 export function clearOnboardingIntent() {
+  activationTrackingInFlight.clear()
   try {
     localStorage.removeItem(STORAGE_KEY)
   } catch {

@@ -44,8 +44,77 @@ test('UTM-only paid activation is reported once', async () => {
   storage.set('ks_onboarding_intent', JSON.stringify(intent))
 
   assert.equal(api.getActivationAttribution().utm_campaign, 'desktop')
-  api.markActivationTracked()
+  const claim = api.claimActivationAttribution()
+  api.markActivationTracked(claim.trackingId)
   assert.equal(api.getActivationAttribution(), null)
+})
+
+test('paid activation claim serializes concurrent inference completions', async () => {
+  const { api, storage } = await loadModule()
+  const intent = api.parseDeepLink(
+    'knapsack://onboard?role=executive-assistant&utm_source=google&utm_medium=cpc&utm_campaign=desktop',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(intent))
+
+  const firstClaim = api.claimActivationAttribution()
+  assert.ok(firstClaim)
+  assert.equal(api.claimActivationAttribution(), null)
+
+  api.releaseActivationClaim(firstClaim.trackingId)
+  const retryClaim = api.claimActivationAttribution()
+  assert.ok(retryClaim)
+  api.markActivationTracked(retryClaim.trackingId)
+  assert.equal(api.claimActivationAttribution(), null)
+})
+
+test('delivery completion marks its claimed click without suppressing a newer intent', async () => {
+  const { api, storage } = await loadModule()
+  const firstIntent = api.parseDeepLink(
+    'knapsack://onboard?role=investment-research-analyst&gclid=first-click',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(firstIntent))
+  const firstClaim = api.claimActivationAttribution()
+
+  const newerIntent = api.parseDeepLink(
+    'knapsack://onboard?role=ria-compliance-analyst&gclid=newer-click',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(newerIntent))
+  api.savePaidStarter({ role: 'ria-compliance-analyst', title: 'RIA', prompt: 'Review' })
+  const newerClaim = api.claimActivationAttribution()
+  assert.ok(newerClaim)
+
+  api.markActivationTracked(firstClaim.trackingId)
+  assert.equal(api.getActivationAttribution().gclid, 'newer-click')
+  assert.equal(api.getSavedPaidStarter().role, 'ria-compliance-analyst')
+  assert.equal(api.claimActivationAttribution(), null)
+
+  api.markActivationTracked(newerClaim.trackingId)
+  assert.equal(api.getActivationAttribution(), null)
+  assert.equal(api.getSavedPaidStarter(), null)
+})
+
+test('out-of-order delivery retains both completed attribution IDs', async () => {
+  const { api, storage } = await loadModule()
+  const olderIntent = api.parseDeepLink(
+    'knapsack://onboard?role=investment-research-analyst&gclid=older-click',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(olderIntent))
+  const olderClaim = api.claimActivationAttribution()
+
+  const newerIntent = api.parseDeepLink(
+    'knapsack://onboard?role=ria-compliance-analyst&gclid=newer-click',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(newerIntent))
+  const newerClaim = api.claimActivationAttribution()
+
+  api.markActivationTracked(newerClaim.trackingId)
+  api.markActivationTracked(olderClaim.trackingId)
+
+  assert.equal(api.getActivationAttribution(), null)
+  assert.deepEqual(JSON.parse(storage.get('ks_paid_activation_tracked')), [
+    'newer-click',
+    'older-click',
+  ])
 })
 
 test('organic UTM intent is not reported as a paid activation', async () => {
@@ -70,7 +139,8 @@ test('paid investment research intent gets a focused starter task', async () => 
 
   api.savePaidStarter(starter)
   assert.deepEqual(api.getSavedPaidStarter(), starter)
-  api.markActivationTracked()
+  const claim = api.claimActivationAttribution()
+  api.markActivationTracked(claim.trackingId)
   assert.equal(api.getSavedPaidStarter(), null)
 })
 

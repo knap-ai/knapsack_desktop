@@ -27,9 +27,10 @@ import { getHasOnboarded, Onboarding } from 'src/pages/onboarding'
 import { KN_API_STOP_LLM_EXECUTION, KN_CHAT_MESSAGE_MAX_STREAM_READS } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
 import {
-  getActivationAttribution,
+  claimActivationAttribution,
   initOnboardingIntent,
   markActivationTracked,
+  releaseActivationClaim,
 } from 'src/utils/onboardingIntent'
 
 import Home from './components/templates/Home/Home'
@@ -511,14 +512,16 @@ function App() {
           errorCallback?.(callbackErr as Error)
         }
         if (messageText.trim()) {
-          const attribution = getActivationAttribution()
-          if (attribution) {
-            const queued = KNAnalytics.trackEvent('desktop_paid_activation', {
-              ...attribution,
+          const activationClaim = claimActivationAttribution()
+          if (activationClaim) {
+            void KNAnalytics.trackEventAndFlush('desktop_paid_activation', {
+              ...activationClaim.attribution,
               inference_surface: 'legacy_chat',
               thread_id: threadId,
+            }).then(delivered => {
+              if (delivered) markActivationTracked(activationClaim.trackingId)
+              else releaseActivationClaim(activationClaim.trackingId)
             })
-            if (queued) markActivationTracked()
           }
         }
         return messageText
