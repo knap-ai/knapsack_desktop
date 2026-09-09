@@ -419,18 +419,37 @@ struct ContentView: View {
         }
       }
 
-      HStack(spacing: 6) {
-        Image(systemName: viewModel.session?.linked == true ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-        Text(viewModel.session?.linked == true ? "Desktop ready" : "Connect desktop to ask")
-      }
-      .font(KnapsackBrand.inter(13, weight: .medium))
-      .foregroundStyle(viewModel.session?.linked == true ? KnapsackBrand.inkMuted : KnapsackBrand.coral)
-
-      if let error = viewModel.errorMessage {
-        Text(error)
-          .font(KnapsackBrand.inter(13))
-          .foregroundStyle(KnapsackBrand.coral)
-          .fixedSize(horizontal: false, vertical: true)
+      if viewModel.isDesktopReachable, viewModel.session?.linked == true {
+        HStack(spacing: 6) {
+          Image(systemName: "checkmark.circle.fill")
+          Text("Connected to your desktop")
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.inkMuted)
+      } else if viewModel.session?.linked == true {
+        HStack(spacing: 8) {
+          Image(systemName: "wifi.slash")
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Offline - showing saved chats")
+            Text("Reconnect to ask Knapsack or refresh your workspace.")
+              .font(KnapsackBrand.inter(12))
+          }
+          Spacer()
+          Button("Retry") {
+            Task { await viewModel.connectToDesktop() }
+          }
+          .font(KnapsackBrand.inter(13, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.coral)
+      } else {
+        HStack(spacing: 6) {
+          Image(systemName: "exclamationmark.circle.fill")
+          Text("Connect your desktop to ask Knapsack")
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.coral)
       }
     }
     .cardStyle()

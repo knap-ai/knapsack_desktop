@@ -21,6 +21,7 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isRunningGBrainPrompt = false
   @Published var isSendingChatMessage = false
   @Published var isConnectingToDesktop = false
+  @Published private(set) var isDesktopReachable = false
   @Published var serverURLText: String
   @Published var errorMessage: String?
   @Published var statusMessage: String?
@@ -39,6 +40,7 @@ final class MeetingListViewModel: ObservableObject {
 
   func refresh() async {
     if shouldWaitForDesktopLink {
+      isDesktopReachable = false
       session = nil
       calendarEvents = []
       chats = []
@@ -83,8 +85,10 @@ final class MeetingListViewModel: ObservableObject {
         statusMessage = "Loaded \(meetings.count) meeting\(meetings.count == 1 ? "" : "s") and \(chats.count) chat\(chats.count == 1 ? "" : "s")."
       }
       errorMessage = nil
+      isDesktopReachable = true
       await refreshGBrain()
     } catch {
+      isDesktopReachable = false
       errorMessage = friendlyMessage(for: error)
     }
   }
@@ -196,12 +200,14 @@ final class MeetingListViewModel: ObservableObject {
     do {
       let linkedSession = try await api.getSession()
       session = linkedSession
+      isDesktopReachable = true
       statusMessage = linkedSession.linked
         ? "Connected to your desktop as \(linkedSession.profile?.email ?? "your Knapsack account")."
         : "Connected to desktop. Finish signing in on your Mac to sync chats, meetings, and calendar."
       errorMessage = nil
       await refresh()
     } catch {
+      isDesktopReachable = false
       errorMessage = "Could not reach Knapsack Desktop at \(url.host() ?? url.absoluteString). Make sure the Mac app is open and use your Mac's local network address."
     }
 
@@ -433,6 +439,7 @@ final class MeetingListViewModel: ObservableObject {
         selectedChat = previousChat
         upsertChatSummary(from: previousChat)
       }
+      isDesktopReachable = false
       isSendingChatMessage = false
       errorMessage = friendlyMessage(for: error)
       return false
@@ -455,6 +462,7 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
       return detail
     } catch {
+      isDesktopReachable = false
       errorMessage = friendlyMessage(for: error)
       return nil
     }
