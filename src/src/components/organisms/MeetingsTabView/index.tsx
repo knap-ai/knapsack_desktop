@@ -127,6 +127,9 @@ const MeetingsTabView = ({
         if (permissions.all_granted) {
           localStorage.setItem('permissionsDismissed', 'true')
           setPermissionsDismissed(true)
+        } else {
+          localStorage.removeItem('permissionsDismissed')
+          setPermissionsDismissed(false)
         }
       } catch {
         // Fall back to localStorage values (already set in initial state)

@@ -53,8 +53,9 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     }
   }, []);
 
-  // When microphone permission is granted, transition to the chat notice step
-  // (system audio is optional — mic-only recording is supported).
+  // Meeting notes need both the microphone and the system-audio tap. Do not
+  // complete setup with a microphone-only configuration because it cannot hear
+  // the other meeting participants.
   const handleAudioPermissionsReady = useCallback(() => {
     // If the user has already configured the meeting chat notice before
     // (permissionsDismissed was set in a previous session), skip straight
@@ -113,7 +114,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         localStorage.removeItem('micPermissionGranted');
       }
 
-      if (permissions.microphone) {
+      if (permissions.all_granted) {
         handleAudioPermissionsReady();
       }
     } finally {
@@ -163,7 +164,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         localStorage.removeItem('screenPermissionGranted');
       }
 
-      if (permissions.microphone) {
+      if (permissions.all_granted) {
         handleAudioPermissionsReady();
       }
     } finally {
@@ -197,7 +198,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       if (permissions.screen_recording) {
         localStorage.setItem('screenPermissionGranted', 'true');
       }
-      if (permissions.microphone) {
+      if (permissions.all_granted) {
         handleAudioPermissionsReady();
       }
     } finally {
@@ -224,8 +225,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
           localStorage.removeItem('screenPermissionGranted');
         }
 
-        // Only microphone is required to proceed; system audio is optional.
-        if (permissions.microphone) {
+        if (permissions.all_granted) {
           handleAudioPermissionsReady();
         }
       } catch (error) {
@@ -241,17 +241,17 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
     initialCheck();
   }, [handleAudioPermissionsReady, checkRealPermissions]);
 
-  // Microphone is the only required permission — proceed as soon as it's granted.
+  // Both permissions are required for meeting capture.
   useEffect(() => {
-    if (micPermission) {
+    if (micPermission && systemAudioPermission) {
       handleAudioPermissionsReady();
     }
-  }, [micPermission, handleAudioPermissionsReady]);
+  }, [micPermission, systemAudioPermission, handleAudioPermissionsReady]);
 
   // Poll for permission changes while the component is visible
   // (user may grant permissions in System Settings without coming back to the app)
   useEffect(() => {
-    if (micPermission) return;
+    if (micPermission && systemAudioPermission) return;
 
     const interval = setInterval(async () => {
       const permissions = await checkRealPermissions();
@@ -263,7 +263,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         setSystemAudioPermission(true);
         localStorage.setItem('screenPermissionGranted', 'true');
       }
-      if (permissions.microphone) {
+      if (permissions.all_granted) {
         handleAudioPermissionsReady();
       }
     }, 3000);
@@ -421,9 +421,9 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
         <div className="text-center">
           <div className="mb-8">
             <h1 className="text-4xl text-ks-warm-grey-950 !font-Lora">
-              <span className="font-bold">Microphone</span> access<br/>
-              is required<br/>
-              to create meeting notes
+              <span className="font-bold">Audio access</span><br/>
+              is required to hear<br/>
+              the whole meeting
             </h1>
           </div>
           <div className="flex flex-col gap-5 w-full max-w-[400px] mx-auto">
@@ -450,7 +450,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
               </button>
             )}
 
-            {/* System audio permission — optional, improves speaker capture */}
+            {/* System audio permission — required to capture other participants */}
             {systemAudioPermission ? (
               <button
                 className="flex items-center justify-center gap-3 w-full py-4 px-8 bg-ks-warm-grey-50 rounded-full text-ks-warm-grey-950 font-normal border-[1px] border-solid border-ks-warm-grey-950"
@@ -473,11 +473,11 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 onClick={requestSystemAudioAccess}
                 disabled={isCheckingSystemAudio || !micPermission}
               >
-                {isCheckingSystemAudio ? 'Checking...' : 'Enable system audio (optional — captures speaker)'}
+                {isCheckingSystemAudio ? 'Checking...' : 'Enable system audio access'}
               </button>
             )}
           </div>
-          {!micPermission && (
+          {(!micPermission || !systemAudioPermission) && (
             <div className="mt-6 max-w-[400px] mx-auto text-center">
               {systemAudioAttempts >= 2 && !systemAudioPermission ? (
                 <>

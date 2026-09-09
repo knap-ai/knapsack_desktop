@@ -279,6 +279,9 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
         if (permissions.all_granted) {
           localStorage.setItem('permissionsDismissed', 'true')
           setPermissionsDismissed(true)
+        } else {
+          localStorage.removeItem('permissionsDismissed')
+          setPermissionsDismissed(false)
         }
       } catch (error) {
         logError(new Error('Error checking permissions.'), {

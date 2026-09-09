@@ -46,7 +46,10 @@ impl AudioRecorder {
     }
   }
 
-  pub fn start_recording(&self) -> Result<(), Error> {
+  pub fn start_recording(
+    &self,
+    startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
+  ) -> Result<(), Error> {
     let hr = initialize_mta();
     if hr.is_err() {
       log::error!("Error initializing mta: {:?}", hr);
@@ -62,12 +65,14 @@ impl AudioRecorder {
     let chunk_counter = self.chunk_counter.clone();
     let semaphore = self.semaphore.clone();
     let output_path = self.output_path.clone();
+    let readiness_tx = startup_tx.clone();
     let _handle = thread::Builder::new()
       .name("Capture".to_string())
       .spawn(move || {
-        let result = Self::capture_loop(tx_capt, is_recording_clone);
+        let result = Self::capture_loop(tx_capt, is_recording_clone, readiness_tx.clone());
         if let Err(err) = result {
           log::error!("Capture failed with error {}", err);
+          let _ = readiness_tx.send(Err(err.to_string()));
         }
       })?;
 
@@ -141,6 +146,7 @@ impl AudioRecorder {
   pub fn capture_loop(
     tx_capt: std::sync::mpsc::SyncSender<Vec<f32>>,
     is_recording: Arc<AtomicBool>,
+    startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     // Use `Direction::Capture` for normal capture,
     // or `Direction::Render` for loopback mode (for capturing from a playback device).
@@ -202,6 +208,7 @@ impl AudioRecorder {
     log::info!("state before start: {:?}", session_control.get_state());
     audio_client.start_stream()?;
     log::info!("state after start: {:?}", session_control.get_state());
+    let _ = startup_tx.send(Ok(()));
 
     loop {
       while sample_queue.len() > (blockalign as usize * chunksize) {
@@ -289,6 +296,7 @@ pub async fn record_speaker_output(
   is_paused: Arc<AtomicBool>,
   output_file: &str,
   semaphore: Arc<Semaphore>,
+  startup_tx: tokio::sync::mpsc::UnboundedSender<Result<(), String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   println!("------- RECORDING WINDOWS SPEAKER OUTPUT -------");
   let audio_recorder = AudioRecorder {
@@ -302,7 +310,7 @@ pub async fn record_speaker_output(
   };
 
   // Start recording and keep running until is_recording becomes false
-  let res = match audio_recorder.start_recording() {
+  let res = match audio_recorder.start_recording(startup_tx) {
     Ok(_) => {
       while is_recording.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(100)).await;

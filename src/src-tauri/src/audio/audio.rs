@@ -61,7 +61,7 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr;
-use tokio::sync::Semaphore;
+use tokio::sync::{mpsc, Semaphore};
 
 #[derive(Parser, Debug)]
 struct Opt {
@@ -349,12 +349,11 @@ pub async fn start_recording(
     data.save_transcript
   );
 
-  let is_meeting_recording = data.event_id != 0;
   let has_system_audio_permission = crate::audio::permission::has_system_audio_permission();
-  if is_meeting_recording && !has_system_audio_permission {
+  if !has_system_audio_permission {
     let message = "Meeting recording needs System Audio Recording permission to capture other participants. Knapsack only has microphone access right now, so starting this recording would miss the call audio. Enable System Audio Recording in System Settings > Privacy & Security, then try again.";
     log::warn!(
-      "[recording] refusing meeting recording without system audio permission: thread_id={} event_id={}",
+      "[recording] refusing recording without system audio permission: thread_id={} event_id={}",
       data.thread_id,
       data.event_id
     );
@@ -436,6 +435,83 @@ pub async fn start_recording(
   let mic_input_config = mic_input_config.clone();
   let mic_input_device = mic_input_device.clone();
   log::debug!("--------------- MIC INPUT CFG: {:?}", mic_input_config);
+  // Start system audio before the microphone and wait for a positive startup
+  // acknowledgement. A meeting must never appear to be recording when the
+  // speaker-output capture already failed.
+  #[cfg(any(target_os = "macos", target_os = "windows"))]
+  {
+    let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
+    let (startup_tx, mut startup_rx) = mpsc::unbounded_channel::<Result<(), String>>();
+    let failure_tx = startup_tx.clone();
+    let output_thread = handle.spawn_blocking(move || {
+      let result = tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(record_speaker_output(
+          is_recording_output,
+          is_paused_output,
+          &output_filename,
+          output_file_semaphore,
+          startup_tx,
+        ));
+      if let Err(e) = result {
+        let message = e.to_string();
+        let _ = failure_tx.send(Err(message.clone()));
+        knap_log_error(
+          format!("Error in speaker output recording: {:?}", message),
+          None,
+          None,
+        );
+      }
+    });
+
+    let startup_result = timeout(Duration::from_secs(8), startup_rx.recv()).await;
+    match startup_result {
+      Ok(Some(Ok(()))) => {
+        let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
+        *output_thread_guard = Some(output_thread);
+      }
+      Ok(Some(Err(message))) => {
+        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _ = output_thread.await;
+        if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+          let _ = indicator_window.hide();
+        }
+        return Ok(HttpResponse::BadRequest().json(json!({
+          "error": format!("System audio could not start: {}", message),
+          "code": "system_audio_start_failed",
+          "status": "error"
+        })));
+      }
+      Ok(None) => {
+        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _ = output_thread.await;
+        if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+          let _ = indicator_window.hide();
+        }
+        return Ok(HttpResponse::BadRequest().json(json!({
+          "error": "System audio stopped before it became ready. Check System Audio Recording permission in System Settings, restart Knapsack, and try again.",
+          "code": "system_audio_start_failed",
+          "status": "error"
+        })));
+      }
+      Err(_) => {
+        recording_state.is_recording.store(false, Ordering::Relaxed);
+        // A blocking Core Audio initialization cannot always be cancelled, but
+        // dropping the task handle lets this request return immediately. If it
+        // later becomes ready it observes is_recording=false and cleans up.
+        output_thread.abort();
+        if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+          let _ = indicator_window.hide();
+        }
+        return Ok(HttpResponse::GatewayTimeout().json(json!({
+          "error": "System audio did not become ready. Check System Audio Recording permission in System Settings, restart Knapsack, and try again.",
+          "code": "system_audio_start_timeout",
+          "status": "error"
+        })));
+      }
+    }
+  }
+
   let mic_thread = handle.spawn_blocking(move || {
     if let Err(e) = tokio::runtime::Runtime::new()
       .unwrap()
@@ -454,38 +530,6 @@ pub async fn start_recording(
       );
     }
   });
-
-  // Start system audio recording via Core Audio Taps — only if the user has
-  // granted System Audio Recording permission. On macOS 15 (Sequoia) many users
-  // have microphone but not system audio permission; we record mic-only in that
-  // case rather than blocking recording entirely.
-  if has_system_audio_permission {
-    let output_file_semaphore = Arc::clone(&recording_state.output_file_semaphore);
-    let output_thread = handle.spawn_blocking(move || {
-      if let Err(e) = tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(record_speaker_output(
-          is_recording_output,
-          is_paused_output,
-          &output_filename,
-          output_file_semaphore,
-        ))
-      {
-        knap_log_error(
-          format!("Error in speaker output recording: {:?}", e.to_string()),
-          None,
-          None,
-        );
-      }
-    });
-
-    {
-      let mut output_thread_guard = recording_state.output_thread.lock().unwrap();
-      *output_thread_guard = Some(output_thread);
-    }
-  } else {
-    log::info!("[recording] Recording mic only — system audio permission not granted");
-  }
 
   {
     let mut mic_thread_guard = recording_state.mic_thread.lock().unwrap();
