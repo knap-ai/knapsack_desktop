@@ -1145,15 +1145,6 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
   }
 }
 
-fn is_gbrain_thread(thread: &Thread) -> bool {
-  thread
-    .title
-    .as_deref()
-    .unwrap_or_default()
-    .to_lowercase()
-    .contains("gbrain")
-}
-
 fn format_mobile_timestamp(timestamp: Option<i64>) -> String {
   timestamp
     .and_then(|value| chrono::DateTime::from_timestamp(value, 0))
@@ -1310,21 +1301,13 @@ fn mobile_presentation_instructions() -> &'static str {
 - If the request needs a decision, end with a clear next step."
 }
 
-fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> String {
-  if is_gbrain_thread(thread) {
-    format!(
-      "{}\n\n{}\n\nUser request\n{}",
-      build_mobile_gbrain_context(thread_id),
-      mobile_presentation_instructions(),
-      text
-    )
-  } else {
-    format!(
-      "You are replying inside Knapsack's iPhone app.\n\n{}\n\nUser request\n{}",
-      mobile_presentation_instructions(),
-      text
-    )
-  }
+fn build_mobile_chat_request(_thread: &Thread, thread_id: u64, text: &str) -> String {
+  format!(
+    "{}\n\n{}\n\nYou are replying inside Knapsack's iPhone app. The workspace context above is trusted and sufficient for this turn. Do not call browser or other tools; answer from that context and say exactly what is unavailable if it does not contain the needed detail.\n\nUser request\n{}",
+    build_mobile_gbrain_context(thread_id),
+    mobile_presentation_instructions(),
+    text
+  )
 }
 
 fn mobile_meeting_detail(
@@ -2437,6 +2420,8 @@ mod tests {
 
     let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
     assert!(request.contains("Knapsack on iPhone"));
+    assert!(request.contains("Knapsack mobile workspace context"));
+    assert!(request.contains("Do not call browser or other tools"));
     assert!(request.contains("Never return a wall of raw calendar"));
     assert!(request.contains("Every list item must start on its own line"));
     assert!(request.contains("## Do now"));
