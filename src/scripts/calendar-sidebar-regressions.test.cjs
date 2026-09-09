@@ -44,6 +44,31 @@ test('background sync refreshes every locally connected Google account', () => {
   assert.match(googleHook, /calConn\.ownerEmail \|\| email/)
 })
 
+test('periodic calendar refresh rediscovers accounts without UI-state timer churn', () => {
+  const app = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
+  const connectionHook = fs.readFileSync(
+    path.join(sourceRoot, 'hooks/connections/useConnections.tsx'),
+    'utf8',
+  )
+
+  assert.match(
+    app,
+    /const refreshedConnections = await handlers\.fetchConnections\(userEmail\)[\s\S]*?await handlers\.syncConnections\(userEmail, refreshedConnections\)/,
+  )
+  assert.match(
+    app,
+    /try \{[\s\S]*?handlers\.fetchConnections\(userEmail\)[\s\S]*?\} catch \(error\) \{[\s\S]*?await handlers\.syncMeetings\(\)/,
+  )
+  assert.doesNotMatch(
+    app,
+    /const fiveMinutesInterval = setInterval[\s\S]*?syncConnections\(userEmail, connections\)/,
+  )
+  assert.match(connectionHook, /return discoveredConnections/)
+  assert.match(connectionHook, /\},\n\s*\[\],\n\s*\)/)
+  assert.match(app, /const periodicSyncRef = useRef\(/)
+  assert.match(app, /\}, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+})
+
 test('aggregate connection keys keep legacy single-account services addressable', () => {
   const api = fs.readFileSync(path.join(sourceRoot, 'api/connections.tsx'), 'utf8')
 

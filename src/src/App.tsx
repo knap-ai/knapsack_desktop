@@ -1075,32 +1075,48 @@ function App() {
     }
   }, [userEmail, checkMorningBriefing, checkProactiveCheckin])
 
-  // TODO test this hook the refresh don't look being working as expected
+  const periodicSyncRef = useRef({
+    fetchConnections,
+    syncConnections,
+    syncMeetings,
+    scheduleRuns,
+    syncAutomations,
+  })
+  periodicSyncRef.current = {
+    fetchConnections,
+    syncConnections,
+    syncMeetings,
+    scheduleRuns,
+    syncAutomations,
+  }
+
   useEffect(() => {
     if (!userEmail) return
 
     const MINUTE_MS = 60000
     const fiveMinutesInterval = setInterval(async () => {
-      await syncConnections(userEmail, connections)
-      await syncMeetings()
-      await scheduleRuns(userEmail)
-      await syncAutomations()
+      // Re-read the aggregate inventory on every cycle. Relying on the
+      // renderer's connection state meant a transient startup miss (or a
+      // missed completion event) could leave an account stale indefinitely.
+      const handlers = periodicSyncRef.current
+      try {
+        const refreshedConnections = await handlers.fetchConnections(userEmail)
+        await handlers.syncConnections(userEmail, refreshedConnections)
+      } catch (error) {
+        logError(new Error('Could not refresh connection inventory'), {
+          additionalInfo: 'Periodic background sync will retry on the next cycle.',
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      await handlers.syncMeetings()
+      await handlers.scheduleRuns(userEmail)
+      await handlers.syncAutomations()
     }, MINUTE_MS * 5)
 
     return () => {
       clearInterval(fiveMinutesInterval)
     }
-  }, [
-    syncAutomations,
-    syncMeetings,
-    scheduleRuns,
-    handleAutomationsFeedScheduleService,
-    handleNotificationsScheduleService,
-    syncConnections,
-    connections,
-    userEmail,
-    updateMeetingStatuses,
-  ])
+  }, [userEmail])
 
   useEffect(() => {
     const unlistenClock = setClocks()
