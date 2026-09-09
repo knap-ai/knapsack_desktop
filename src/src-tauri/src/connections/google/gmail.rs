@@ -53,6 +53,8 @@ pub struct SetEmailReadResponseParams {
 #[derive(Debug, Serialize, Clone)]
 pub struct FetchEmailEventPayload {
   pub success: bool,
+  pub account_email: Option<String>,
+  pub owner_email: Option<String>,
 }
 
 use chrono::{DateTime, Utc};
@@ -291,6 +293,9 @@ pub async fn fetch_gmail(
 
   let limit_date = chrono::Utc::now() - chrono::Duration::days(days.into());
   let older_date = Arc::new(Mutex::new(chrono::Utc::now()));
+  // A malformed message must degrade the result without preventing later
+  // pages, deletion reconciliation, or sync bookkeeping from completing.
+  let had_fetch_errors = Arc::new(AtomicBool::new(false));
   loop {
     let mut list_request = hub
       .users()
@@ -309,12 +314,11 @@ pub async fn fetch_gmail(
     maybe_next_page_token = response.1.next_page_token;
 
     let email_documents = Arc::new(Mutex::new(Vec::new()));
-    let had_fetch_errors = Arc::new(AtomicBool::new(false));
-
     for message in response.1.messages.unwrap_or_default() {
       let semaphore_clone = Arc::clone(&semaphore);
       let access_token_clone = access_token.clone();
       let Some(message_id) = message.id else {
+        had_fetch_errors.store(true, Ordering::Relaxed);
         knap_log_error(
           "Gmail list response contained a message without an id".to_string(),
           None,
@@ -329,6 +333,7 @@ pub async fn fetch_gmail(
       let had_fetch_errors_clone = had_fetch_errors.clone();
       let task = tauri::async_runtime::spawn(async move {
         let Ok(_permit) = semaphore_clone.acquire().await else {
+          had_fetch_errors_clone.store(true, Ordering::Relaxed);
           return;
         };
         let result = upsert_email_by_uid(
@@ -361,12 +366,14 @@ pub async fn fetch_gmail(
     }
 
     for task in tasks {
-      task.await?;
-    }
-    if had_fetch_errors.load(Ordering::Relaxed) {
-      return Err(Error::KSError(
-        "One or more Gmail messages could not be downloaded".into(),
-      ));
+      if let Err(error) = task.await {
+        had_fetch_errors.store(true, Ordering::Relaxed);
+        knap_log_error(
+          format!("Gmail download task failed: {error:?}"),
+          Some(error.into()),
+          Some(true),
+        );
+      }
     }
 
     let attrs = Email::get_attrs();
@@ -401,7 +408,13 @@ pub async fn fetch_gmail(
 
   let oldest_synced_date = *older_date.lock().await;
   UserConnection::update_last_sync_by_id(connection_id, oldest_synced_date)?;
-  Ok(())
+  if had_fetch_errors.load(Ordering::Relaxed) {
+    Err(Error::KSError(
+      "One or more Gmail messages could not be downloaded".into(),
+    ))
+  } else {
+    Ok(())
+  }
 }
 
 async fn start_gmail_data_fetching(
@@ -472,6 +485,8 @@ async fn start_gmail_data_fetching(
         "finish_fetch_email",
         FetchEmailEventPayload {
           success: sync_succeeded,
+          account_email: Some(account_email.clone()),
+          owner_email: Some(email.clone()),
         },
       );
     }

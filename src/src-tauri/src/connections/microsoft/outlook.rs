@@ -240,7 +240,11 @@ async fn start_outlook_data_fetching(
   let window = app_handle.get_window(WINDOW_LABEL).unwrap();
   window.emit(
     "finish_fetch_email",
-    FetchEmailEventPayload { success: true },
+    FetchEmailEventPayload {
+      success: true,
+      account_email: None,
+      owner_email: None,
+    },
   );
 
   ConnectionsData::lock_and_set_connection_is_syncing(

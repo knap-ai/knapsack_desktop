@@ -12,6 +12,7 @@ import {
   ConnectionStates,
   calendarConnectionKey,
   deleteConnection as deleteConnectionApi,
+  gmailConnectionKey,
   getCompleteGoogleSignIn,
   getGoogleConnectionKeysFromScopes,
   getGoogleProfile,
@@ -799,11 +800,23 @@ function App() {
 
     const unlistenFetchEmailPromise = listen(
       'finish_fetch_email',
-      async (event: Event<{ success: boolean }>) => {
+      async (event: Event<{
+        success: boolean
+        account_email?: string
+        owner_email?: string
+      }>) => {
         if (event.payload.success) {
           await feedRef.current.runEmailAutopilot()
           // Check if new emails warrant a background notification
           backgroundNotificationsRef.current.handleEmailSyncComplete()
+        } else if (event.payload.account_email) {
+          setConnectionState(
+            gmailConnectionKey(event.payload.account_email, event.payload.owner_email),
+            ConnectionStates.FAILED,
+          )
+          handleErrorContact(
+            `Could not refresh Gmail for ${event.payload.account_email}. Open Connections to reconnect or retry.`,
+          )
         }
       },
     )

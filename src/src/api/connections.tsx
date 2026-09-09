@@ -51,8 +51,8 @@ export const driveConnectionKey = (accountEmail: string): string =>
   `${ConnectionKeys.GOOGLE_DRIVE}|${accountEmail}`
 
 /** Record key used for a Google Gmail connection given its account email. */
-export const gmailConnectionKey = (accountEmail: string): string =>
-  `${ConnectionKeys.GOOGLE_GMAIL}|${accountEmail}`
+export const gmailConnectionKey = (accountEmail: string, ownerEmail?: string): string =>
+  `${ConnectionKeys.GOOGLE_GMAIL}|${accountEmail}${ownerEmail ? `|${ownerEmail}` : ''}`
 
 /** All Google Calendar connections in the connections map. */
 export const getGoogleCalendarConnections = (

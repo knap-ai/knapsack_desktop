@@ -92,7 +92,21 @@ test('Gmail sync reports real completion and tolerates malformed messages', () =
   assert.doesNotMatch(gmail, /semaphore_clone\.acquire\(\)\.await\.unwrap\(\)/)
   assert.doesNotMatch(gmail, /from_utf8\([^)]*\)\s*\.expect\(/)
   assert.match(gmail, /had_fetch_errors_clone\.store\(true, Ordering::Relaxed\)/)
-  assert.match(gmail, /if had_fetch_errors\.load\(Ordering::Relaxed\)/)
+  assert.match(gmail, /Email::mark_deleted_emails[\s\S]*?update_last_sync_by_id[\s\S]*?if had_fetch_errors\.load\(Ordering::Relaxed\)/)
+  assert.doesNotMatch(gmail, /if had_fetch_errors\.load\(Ordering::Relaxed\) \{\s*return Err/)
+})
+
+test('failed Gmail fetches stay failed and identify the precise mailbox', () => {
+  const gmail = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src-tauri', 'src', 'connections', 'google', 'gmail.rs'),
+    'utf8',
+  )
+  const app = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
+
+  assert.match(gmail, /account_email: Some\(account_email\.clone\(\)\)/)
+  assert.match(gmail, /owner_email: Some\(email\.clone\(\)\)/)
+  assert.match(app, /gmailConnectionKey\(event\.payload\.account_email, event\.payload\.owner_email\)/)
+  assert.match(app, /ConnectionStates\.FAILED/)
 })
 
 test('aggregate connection keys keep legacy single-account services addressable', () => {
