@@ -460,12 +460,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     try {
-      const driveIds = await getDriveDocumentsIds(otherParticipantEmails, contextualUserEmail)
+      // This endpoint's second argument is the owning Knapsack profile, not
+      // the calendar alias used to classify meeting participants.
+      const connectionOwnerEmail = userEmail || contextualUserEmail
+      const driveIds = await getDriveDocumentsIds(otherParticipantEmails, connectionOwnerEmail)
       const driveDocuments = driveIds.length
         ? await getDocumentInfos(
             driveIds,
             driveIds.map(() => KNFileType.DRIVE_FILE),
-            contextualUserEmail,
+            connectionOwnerEmail,
           )
         : []
 

@@ -64,6 +64,11 @@ test("meeting identity is available from the calendar event before connections l
     meeting,
     /contextualUserEmail = meeting\?\.calendar_account_email\?\.trim\(\) \|\| userEmail/,
   );
+  assert.match(meeting, /connectionOwnerEmail = userEmail \|\| contextualUserEmail/);
+  assert.match(
+    meeting,
+    /getDriveDocumentsIds\(otherParticipantEmails, connectionOwnerEmail\)/,
+  );
 });
 
 test("chat capability truth aggregates every locally connected Google account", () => {
