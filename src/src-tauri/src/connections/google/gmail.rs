@@ -77,13 +77,14 @@ fn get_body_content(maybe_body: Option<MessagePartBody>) -> Option<String> {
   }
 }
 
-fn parse_message_date(headers: &HashMap<String, String>) -> u64 {
+fn parse_message_date(headers: &HashMap<String, String>, stable_fallback: Option<u64>) -> u64 {
   headers
     .get("date")
     .and_then(|value| dateparse(value).ok())
     .filter(|timestamp| *timestamp > 0)
     .and_then(|timestamp| u64::try_from(timestamp).ok())
-    .unwrap_or_else(|| Utc::now().timestamp() as u64)
+    .or_else(|| stable_fallback.filter(|timestamp| *timestamp > 0))
+    .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -91,11 +92,19 @@ mod gmail_message_tests {
   use super::*;
 
   #[test]
-  fn malformed_or_missing_dates_do_not_abort_mailbox_sync() {
+  fn malformed_or_missing_dates_use_the_stable_gmail_timestamp() {
     let malformed = HashMap::from([("date".to_string(), "not-a-date".to_string())]);
+    let gmail_internal_date = 1_789_000_000_u64;
 
-    assert!(parse_message_date(&malformed) > 0);
-    assert!(parse_message_date(&HashMap::new()) > 0);
+    assert_eq!(
+      parse_message_date(&malformed, Some(gmail_internal_date)),
+      gmail_internal_date
+    );
+    assert_eq!(
+      parse_message_date(&HashMap::new(), Some(gmail_internal_date)),
+      gmail_internal_date
+    );
+    assert_eq!(parse_message_date(&HashMap::new(), None), 0);
   }
 }
 
@@ -106,6 +115,7 @@ pub async fn upsert_email_by_uid(
   account_email: &str,
 ) -> Result<Email, Error> {
   let email_result = Email::find_by_uid(email_uid).ok().flatten();
+  let existing_date = email_result.as_ref().map(|email| email.date);
   if let Some(email) = email_result {
     if email.thread_id.is_some() && !flag_update {
       return Ok(email);
@@ -120,6 +130,12 @@ pub async fn upsert_email_by_uid(
     Err(_) => return Err(Error::KSError("Failed to fetch email".into())),
   };
 
+  let stable_message_date = message
+    .internal_date
+    .and_then(|milliseconds| u64::try_from(milliseconds).ok())
+    .map(|milliseconds| milliseconds / 1000)
+    .filter(|timestamp| *timestamp > 0)
+    .or(existing_date);
   let thread_id = message.thread_id.unwrap_or_default();
 
   let payload = message
@@ -198,7 +214,7 @@ pub async fn upsert_email_by_uid(
         Err(_) => raw_subject,
       }
     },
-    date: parse_message_date(&hashed_headers),
+    date: parse_message_date(&hashed_headers, stable_message_date),
     sender: hashed_headers
       .get("from")
       .unwrap_or(&String::from(""))
