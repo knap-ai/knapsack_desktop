@@ -14,12 +14,35 @@ const {
   providerSwitchAppliedButStillStarting,
   qaSetProviderTimeoutMs,
   readinessProviderModels,
+  retrySuccessfulResultWithDelay,
   setApiAuthStateDirForTest,
   shouldPreserveExistingQaState,
 } = require("./qa-loop-runner.cjs");
 
 test("QA port cleanup parses unique listener pids", () => {
   assert.deepEqual(parseListenerPids("123\n456\n123\ninvalid\n"), [123, 456]);
+});
+
+test("interface probes retry unsuccessful HTTP responses", async () => {
+  let attempts = 0;
+  const result = await retrySuccessfulResultWithDelay(async () => {
+    attempts += 1;
+    return { ok: attempts === 3, status: attempts === 3 ? 200 : 503 };
+  }, 4, 0);
+
+  assert.equal(attempts, 3);
+  assert.deepEqual(result, { ok: true, status: 200 });
+});
+
+test("interface probes return the final failure after exhausting retries", async () => {
+  let attempts = 0;
+  const result = await retrySuccessfulResultWithDelay(async () => {
+    attempts += 1;
+    return false;
+  }, 2, 0);
+
+  assert.equal(attempts, 2);
+  assert.equal(result, false);
 });
 
 test.afterEach(() => setApiAuthStateDirForTest(null));

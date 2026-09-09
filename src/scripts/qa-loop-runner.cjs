@@ -2100,38 +2100,44 @@ async function createMockMeeting() {
   return { ok: true };
 }
 
-async function checkInterfaceAccess(includeUi, startupState) {
-  const retryWithDelay = async (thunk, attempts = 3, delayMs = 500) => {
-    let result = null;
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      result = await thunk().catch(() => null);
-      if (result) return result;
-      if (attempt + 1 < attempts) {
-        await sleep(delayMs);
-      }
+async function retrySuccessfulResultWithDelay(thunk, attempts = 3, delayMs = 500) {
+  let result = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    result = await thunk().catch(() => null);
+    const succeeded = typeof result === "boolean" ? result : result?.ok === true;
+    if (succeeded) return result;
+    if (attempt + 1 < attempts) {
+      await sleep(delayMs);
     }
-    return result;
-  };
+  }
+  return result;
+}
+
+async function checkInterfaceAccess(includeUi, startupState) {
 
   // These probes are independent. Running them serially made the aggregate QA
   // deadline depend on the sum of every retry window during startup load.
   const [root, health, workspaces, channels, automations, skills, feed, ui] = await Promise.all([
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(`${API_BASE}/api/clawd/service/status`, { method: "GET" }, 8_000),
       4,
       1_000,
     ),
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(`${API_BASE}/api/clawd/service/health`, { method: "GET" }, 8_000),
       4,
       1_000,
     ),
-    retryWithDelay(
-      () => fetchWithTimeout(`${API_BASE}/api/knapsack/workspaces`, { method: "GET", qaSkipBody: true }, 5_000),
+    retrySuccessfulResultWithDelay(
+      () => fetchWithTimeout(
+        `${API_BASE}/api/knapsack/workspaces`,
+        { method: "GET", qaSkipBody: true },
+        Number(process.env.KNAPSACK_QA_WORKSPACES_TIMEOUT_MS || 30_000),
+      ),
       4,
       1_000,
     ),
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(
         `${API_BASE}/api/clawd/channels/diagnostics`,
         { method: "GET" },
@@ -2140,23 +2146,23 @@ async function checkInterfaceAccess(includeUi, startupState) {
       3,
       1_000,
     ),
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(`${API_BASE}/api/knapsack/automations`, { method: "GET" }, 10_000),
       3,
       1_000,
     ),
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(`${API_BASE}/api/clawd/skills/status`, { method: "GET" }, 8_000),
       4,
       1_000,
     ),
-    retryWithDelay(
+    retrySuccessfulResultWithDelay(
       () => fetchWithTimeout(`${API_BASE}/api/knapsack/feed_items`, { method: "GET", qaSkipBody: true }, 5_000),
       4,
       1_000,
     ),
     includeUi
-      ? retryWithDelay(
+      ? retrySuccessfulResultWithDelay(
         () => fetchWithTimeout(`${UI_BASE}/home`, { method: "GET" }, 8_000),
         4,
         1_000,
@@ -2166,7 +2172,7 @@ async function checkInterfaceAccess(includeUi, startupState) {
   const healthBrowserOk = Boolean(health?.body?.browser_ok);
   const browserControl = healthBrowserOk
     ? true
-    : await retryWithDelay(
+    : await retrySuccessfulResultWithDelay(
       () => probeBrowserControl(3_000),
       3,
       750,
@@ -2733,6 +2739,7 @@ module.exports = {
   qaSetProviderTimeoutMs,
   qaDevClawdbotDir,
   readinessProviderModels,
+  retrySuccessfulResultWithDelay,
   shouldPreserveExistingQaState,
   setApiAuthStateDirForTest(value) {
     activeApiAuthStateDir = value;
