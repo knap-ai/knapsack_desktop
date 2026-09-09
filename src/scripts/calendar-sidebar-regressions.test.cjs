@@ -68,6 +68,10 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
   assert.match(app, /const periodicSyncRef = useRef\(/)
   assert.match(app, /void runBackgroundSync\(\)/)
   assert.match(app, /setInterval\(runBackgroundSync, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+  assert.equal(
+    (app.match(/fetchConnections\(email\)\.then\(updatedConnections => syncConnections/g) || []).length,
+    0,
+  )
   assert.match(
     app,
     /listen\('custom-focus'[\s\S]*?await fetchConnections\(email\)[\s\S]*?await syncConnections\(email, refreshedConnections\)/,

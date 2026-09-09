@@ -573,8 +573,9 @@ function App() {
         getGoogleProfile(email).then(updatedProfile => auth.updateProfile(updatedProfile))
       }
 
-      // Update connections and start syncing data
-      fetchConnections(email).then(updatedConnections => syncConnections(email, updatedConnections))
+      // The periodic-sync effect below performs the immediate connection
+      // discovery and sync. Starting it here as well would double-count a
+      // single auth failure and could trigger an unnecessary reconnect.
     }
   }, [auth.profile?.email])
 
