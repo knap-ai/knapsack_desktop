@@ -24,7 +24,7 @@ use actix_web::{
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{create_dir_all, read_to_string, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -452,13 +452,16 @@ struct MobileCalendarLinks {
   prep_preview: Option<String>,
 }
 
-fn build_mobile_calendar_links() -> HashMap<u64, MobileCalendarLinks> {
+fn build_mobile_calendar_links(event_ids: &HashSet<u64>) -> HashMap<u64, MobileCalendarLinks> {
   let mut links = HashMap::new();
 
   for item in FeedItem::find_all_complete().unwrap_or_default() {
     let Some(event_id) = item.calendar_event.and_then(|event| event.id) else {
       continue;
     };
+    if !event_ids.contains(&event_id) {
+      continue;
+    }
     let is_meeting_prep = item
       .automation
       .as_ref()
@@ -532,7 +535,7 @@ fn mobile_calendar_summary(
 
 fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary> {
   let now = chrono::Utc::now().timestamp() - 60 * 60 * 6;
-  let links = build_mobile_calendar_links();
+  let links = HashMap::new();
   let mut events = CalendarEvent::find_all()
     .into_iter()
     .filter(|event| event.start.unwrap_or_default() >= now)
@@ -548,7 +551,6 @@ fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary>
 
 fn build_mobile_calendar_timeline(limit: usize) -> Vec<MobileCalendarEventSummary> {
   let oldest = chrono::Utc::now().timestamp() - 60 * 60 * 24 * 180;
-  let links = build_mobile_calendar_links();
   let mut events = CalendarEvent::find_all()
     .into_iter()
     .filter(|event| event.start.unwrap_or_default() >= oldest)
@@ -557,9 +559,11 @@ fn build_mobile_calendar_timeline(limit: usize) -> Vec<MobileCalendarEventSummar
   events.sort_by(|left, right| {
     right.start.unwrap_or_default().cmp(&left.start.unwrap_or_default())
   });
+  events.truncate(limit);
+  let event_ids = events.iter().filter_map(|event| event.id).collect::<HashSet<_>>();
+  let links = build_mobile_calendar_links(&event_ids);
   events
     .into_iter()
-    .take(limit)
     .filter_map(|event| mobile_calendar_summary(event, &links))
     .collect()
 }
