@@ -80,6 +80,27 @@ fn get_body_content(maybe_body: Option<MessagePartBody>) -> Option<String> {
   }
 }
 
+fn parse_message_date(headers: &HashMap<String, String>) -> u64 {
+  headers
+    .get("date")
+    .and_then(|value| dateparse(value).ok())
+    .and_then(|timestamp| u64::try_from(timestamp).ok())
+    .unwrap_or_else(|| Utc::now().timestamp() as u64)
+}
+
+#[cfg(test)]
+mod gmail_message_tests {
+  use super::*;
+
+  #[test]
+  fn malformed_or_missing_dates_do_not_abort_mailbox_sync() {
+    let malformed = HashMap::from([("date".to_string(), "not-a-date".to_string())]);
+
+    assert!(parse_message_date(&malformed) > 0);
+    assert!(parse_message_date(&HashMap::new()) > 0);
+  }
+}
+
 pub async fn upsert_email_by_uid(
   email_uid: &str,
   access_token: &str,
@@ -101,10 +122,12 @@ pub async fn upsert_email_by_uid(
     Err(_) => return Err(Error::KSError("Failed to fetch email".into())),
   };
 
-  let mut thread_id = message.thread_id.unwrap_or_default();
+  let thread_id = message.thread_id.unwrap_or_default();
 
-  let payload = message.payload.unwrap();
-  let headers = payload.headers.unwrap();
+  let payload = message
+    .payload
+    .ok_or_else(|| Error::KSError("Gmail message has no payload".into()))?;
+  let headers = payload.headers.unwrap_or_default();
 
   let mut content: String = get_body_content(payload.body).unwrap_or(String::from(""));
 
@@ -122,8 +145,8 @@ pub async fn upsert_email_by_uid(
         content = body_content.unwrap_or(content);
       }
       if mime_type == "multipart/alternative" {
-        for part in subpart.parts.unwrap() {
-          let part_mime_type = part.mime_type.unwrap();
+        for part in subpart.parts.unwrap_or_default() {
+          let part_mime_type = part.mime_type.unwrap_or_default();
           let body_content = get_body_content(part.body);
           if part_mime_type == "text/plain" {
             if let Some(text_content) = body_content {
@@ -177,7 +200,7 @@ pub async fn upsert_email_by_uid(
         Err(_) => raw_subject,
       }
     },
-    date: dateparse(hashed_headers.get("date").unwrap().as_str()).unwrap() as u64,
+    date: parse_message_date(&hashed_headers),
     sender: hashed_headers
       .get("from")
       .unwrap_or(&String::from(""))
@@ -235,6 +258,9 @@ pub async fn fetch_gmail(
   flag_update: bool,
   account_email: String,
 ) -> Result<(), Error> {
+  let connection_id = user_connection
+    .id
+    .ok_or_else(|| Error::KSError("Gmail connection has no database id".into()))?;
   let mut maybe_next_page_token: Option<String> = None;
   let mut all_email_uuids = Vec::new();
   let hub = Gmail::new(
@@ -250,7 +276,7 @@ pub async fn fetch_gmail(
   );
 
   let limit_date = chrono::Utc::now() - chrono::Duration::days(days.into());
-  let mut older_date = chrono::Utc::now();
+  let older_date = Arc::new(Mutex::new(chrono::Utc::now()));
   loop {
     let mut list_request = hub
       .users()
@@ -260,22 +286,35 @@ pub async fn fetch_gmail(
     if let Some(next_page_token) = maybe_next_page_token {
       list_request = list_request.page_token(&next_page_token);
     }
-    let response = list_request.doit().await.unwrap();
+    let response = list_request
+      .doit()
+      .await
+      .map_err(|error| Error::KSError(format!("Failed to list Gmail messages: {error}")))?;
     let mut tasks = vec![];
     let semaphore = Arc::new(Semaphore::new(GMAIL_DOWNLOADS_THREAD_POOL_SIZE));
     maybe_next_page_token = response.1.next_page_token;
 
     let email_documents = Arc::new(Mutex::new(Vec::new()));
 
-    for message in response.1.messages.unwrap() {
+    for message in response.1.messages.unwrap_or_default() {
       let semaphore_clone = Arc::clone(&semaphore);
       let access_token_clone = access_token.clone();
-      let message_id = message.clone().id.unwrap();
+      let Some(message_id) = message.id else {
+        knap_log_error(
+          "Gmail list response contained a message without an id".to_string(),
+          None,
+          Some(true),
+        );
+        continue;
+      };
       all_email_uuids.push(message_id.clone());
       let email_documents_clone = email_documents.clone();
       let account_email_clone = account_email.clone();
+      let older_date_clone = older_date.clone();
       let task = tauri::async_runtime::spawn(async move {
-        let _permit = semaphore_clone.acquire().await.unwrap();
+        let Ok(_permit) = semaphore_clone.acquire().await else {
+          return;
+        };
         let result = upsert_email_by_uid(
           &message_id,
           &access_token_clone,
@@ -285,11 +324,13 @@ pub async fn fetch_gmail(
         .await;
         match result {
           Ok(email_message) => {
-            if (older_date.timestamp() as u64 > email_message.clone().date) {
-              if let Some(dt) = DateTime::from_timestamp(email_message.clone().date as i64, 0) {
-                older_date = dt;
+            let mut oldest_date = older_date_clone.lock().await;
+            if oldest_date.timestamp() as u64 > email_message.date {
+              if let Some(dt) = DateTime::from_timestamp(email_message.date as i64, 0) {
+                *oldest_date = dt;
               }
             }
+            drop(oldest_date);
             email_documents_clone.lock().await.push(email_message);
           }
           Err(error) => {
@@ -303,7 +344,7 @@ pub async fn fetch_gmail(
     }
 
     for task in tasks {
-      task.await.unwrap();
+      task.await?;
     }
 
     let attrs = Email::get_attrs();
@@ -336,7 +377,8 @@ pub async fn fetch_gmail(
 
   Email::mark_deleted_emails(&all_email_uuids, 3, &account_email).await?;
 
-  UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), older_date);
+  let oldest_synced_date = *older_date.lock().await;
+  UserConnection::update_last_sync_by_id(connection_id, oldest_synced_date)?;
   Ok(())
 }
 
@@ -402,13 +444,17 @@ async fn start_gmail_data_fetching(
     )
     .await;
 
-    let window = app_handle.get_window(WINDOW_LABEL).unwrap();
-    window.emit(
-      "finish_fetch_email",
-      FetchEmailEventPayload { success: true },
-    );
+    let sync_succeeded = fetching_day_result.is_ok();
+    if let Some(window) = app_handle.get_window(WINDOW_LABEL) {
+      window.emit(
+        "finish_fetch_email",
+        FetchEmailEventPayload {
+          success: sync_succeeded,
+        },
+      );
+    }
 
-    if fetching_day_result.is_err() {
+    if !sync_succeeded {
       log::error!("Failed to fetch gmail");
       let msg = format!("Failed to fetch gmail: {}", email);
 

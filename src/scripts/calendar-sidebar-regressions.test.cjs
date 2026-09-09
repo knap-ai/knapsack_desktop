@@ -66,7 +66,30 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
   assert.match(connectionHook, /return discoveredConnections/)
   assert.match(connectionHook, /\},\n\s*\[\],\n\s*\)/)
   assert.match(app, /const periodicSyncRef = useRef\(/)
-  assert.match(app, /\}, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+  assert.match(app, /void runBackgroundSync\(\)/)
+  assert.match(app, /setInterval\(runBackgroundSync, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+  assert.match(
+    app,
+    /listen\('custom-focus'[\s\S]*?await fetchConnections\(email\)[\s\S]*?await syncConnections\(email, refreshedConnections\)/,
+  )
+  assert.doesNotMatch(app, /listen\('custom-focus'[\s\S]*?getGoogleGmailConnections\(connections\)/)
+})
+
+test('Gmail sync reports real completion and tolerates malformed messages', () => {
+  const gmail = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src-tauri', 'src', 'connections', 'google', 'gmail.rs'),
+    'utf8',
+  )
+
+  assert.match(gmail, /let sync_succeeded = fetching_day_result\.is_ok\(\);/)
+  assert.match(gmail, /FetchEmailEventPayload \{\s*success: sync_succeeded,/)
+  assert.doesNotMatch(gmail, /FetchEmailEventPayload \{ success: true \}/)
+  assert.match(gmail, /\.messages\.unwrap_or_default\(\)/)
+  assert.match(gmail, /\.payload\s*\.ok_or_else/)
+  assert.doesNotMatch(gmail, /list_request\.doit\(\)\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /task\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /message(?:\.clone\(\))?\.id\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /semaphore_clone\.acquire\(\)\.await\.unwrap\(\)/)
 })
 
 test('aggregate connection keys keep legacy single-account services addressable', () => {
