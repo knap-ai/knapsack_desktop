@@ -1099,8 +1099,15 @@ function App() {
       // renderer's connection state meant a transient startup miss (or a
       // missed completion event) could leave an account stale indefinitely.
       const handlers = periodicSyncRef.current
-      const refreshedConnections = await handlers.fetchConnections(userEmail)
-      await handlers.syncConnections(userEmail, refreshedConnections)
+      try {
+        const refreshedConnections = await handlers.fetchConnections(userEmail)
+        await handlers.syncConnections(userEmail, refreshedConnections)
+      } catch (error) {
+        logError(new Error('Could not refresh connection inventory'), {
+          additionalInfo: 'Periodic background sync will retry on the next cycle.',
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
       await handlers.syncMeetings()
       await handlers.scheduleRuns(userEmail)
       await handlers.syncAutomations()

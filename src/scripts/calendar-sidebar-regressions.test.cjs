@@ -55,6 +55,10 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
     app,
     /const refreshedConnections = await handlers\.fetchConnections\(userEmail\)[\s\S]*?await handlers\.syncConnections\(userEmail, refreshedConnections\)/,
   )
+  assert.match(
+    app,
+    /try \{[\s\S]*?handlers\.fetchConnections\(userEmail\)[\s\S]*?\} catch \(error\) \{[\s\S]*?await handlers\.syncMeetings\(\)/,
+  )
   assert.doesNotMatch(
     app,
     /const fiveMinutesInterval = setInterval[\s\S]*?syncConnections\(userEmail, connections\)/,
