@@ -217,6 +217,16 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefPrepTriggeredRef = useRef(false)
   const missingNotesRecoveryTriggeredRef = useRef(false)
+  // The event's calendar account is available before asynchronous connection
+  // discovery finishes. Treat it as the user immediately so the first brief
+  // cannot classify a secondary account as another attendee.
+  const userEmailSet = useMemo(
+    () => new Set([userEmail, meeting?.calendar_account_email, ...userEmails]
+      .filter((email): email is string => !!email)
+      .map(email => email.trim().toLowerCase())),
+    [meeting?.calendar_account_email, userEmail, userEmails],
+  )
+  const contextualUserEmail = meeting?.calendar_account_email?.trim() || userEmail || ''
 
   useEffect(() => {
     missingNotesRecoveryTriggeredRef.current = false
@@ -328,7 +338,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const meetingChatContext = useMemo(() => {
     const participantList = meeting?.participants
-      ?.map(p => p.name ? `${p.name} (${p.email})` : p.email)
+      ?.map(p => {
+        const participant = p.name ? `${p.name} (${p.email})` : p.email
+        return userEmailSet.has(p.email.trim().toLowerCase()) ? `${participant} [you]` : participant
+      })
       .filter(Boolean)
       .join(', ') || 'Unknown'
     const lines = [
@@ -336,6 +349,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       'You have the same browser, web search, native integrations, and Knapsack Studio connector tools as the main chat. Use them when they materially improve the answer or when the user asks you to look something up.',
       'For transcript or note questions, use the local meeting tools with the thread id below if the embedded snapshot is incomplete. If a required Studio connector is disconnected, explain which one is needed so the chat can offer its inline Connect action.',
       `The user is ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''}. Address the user directly and do not confuse them with external attendees.`,
+      `The user's email identities are: ${Array.from(userEmailSet).join(', ') || 'unknown'}.`,
       '',
       'Meeting details:',
       `- Title: ${meeting?.title || thread.subtitle || 'Meeting'}`,
@@ -360,7 +374,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           : 'No transcript is available. Say so clearly for transcript-dependent questions; do not invent what happened.'),
     ]
     return lines.filter(line => line !== '').join('\n')
-  }, [briefPrepContent, meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userName])
+  }, [briefPrepContent, meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userEmailSet, userName])
 
   const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
   const transcribingTexts = [
@@ -396,13 +410,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     [meeting?.participants],
   )
 
-  const userEmailSet = useMemo(
-    () => new Set([userEmail, ...userEmails]
-      .filter((email): email is string => !!email)
-      .map(email => email.trim().toLowerCase())),
-    [userEmail, userEmails],
-  )
-
   const otherParticipants = useMemo(
     () => meeting?.participants.filter(
       p => !userEmailSet.has(p.email.trim().toLowerCase()),
@@ -416,18 +423,18 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   )
 
   const externalDomains = useMemo(() => {
-    if (!userEmail || otherParticipantEmails.length === 0) return []
-    return Array.from(new Set(extractWorkDomains(userEmail, otherParticipantEmails)))
-  }, [otherParticipantEmails, userEmail])
+    if (!contextualUserEmail || otherParticipantEmails.length === 0) return []
+    return Array.from(new Set(extractWorkDomains(contextualUserEmail, otherParticipantEmails)))
+  }, [contextualUserEmail, otherParticipantEmails])
 
   const buildBriefPrepDocuments = useCallback(async () => {
-    if (!meeting || !userEmail) {
+    if (!meeting || !contextualUserEmail) {
       return { documents: [] as number[], sources: ['Calendar'], linkedDriveContext: '' }
     }
 
     const dataFetcher = new DataFetcher()
-    const internalEmails = extractInternalEmails(userEmail, otherParticipantEmails)
-    const externalEmails = extractExternalEmails(userEmail, otherParticipantEmails)
+    const internalEmails = extractInternalEmails(contextualUserEmail, otherParticipantEmails)
+    const externalEmails = extractExternalEmails(contextualUserEmail, otherParticipantEmails)
     const sourceSet = new Set<string>(['Calendar'])
     const documents = new Set<number>()
     const linkedDriveSections: string[] = []
@@ -453,12 +460,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     try {
-      const driveIds = await getDriveDocumentsIds(otherParticipantEmails, userEmail)
+      // This endpoint's second argument is the owning Knapsack profile, not
+      // the calendar alias used to classify meeting participants.
+      const connectionOwnerEmail = userEmail || contextualUserEmail
+      const driveIds = await getDriveDocumentsIds(otherParticipantEmails, connectionOwnerEmail)
       const driveDocuments = driveIds.length
         ? await getDocumentInfos(
             driveIds,
             driveIds.map(() => KNFileType.DRIVE_FILE),
-            userEmail,
+            connectionOwnerEmail,
           )
         : []
 
@@ -472,7 +482,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
     const linkedDriveUrls = extractGoogleDriveLinks(meeting.description || '')
     for (const url of linkedDriveUrls.slice(0, 3)) {
-      const linkedFile = await getGoogleDriveFileText(url, [userEmail, ...userEmails])
+      const linkedFile = await getGoogleDriveFileText(
+        url,
+        Array.from(userEmailSet),
+      )
       if (!linkedFile?.content.trim()) continue
       linkedDriveSections.push(
         `Linked file: ${linkedFile.name}\n${linkedFile.content.slice(0, 30000)}`,
@@ -488,7 +501,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       sources: Array.from(sourceSet),
       linkedDriveContext: linkedDriveSections.join('\n\n'),
     }
-  }, [externalDomains.length, meeting, otherParticipantEmails, userEmail, userEmails])
+  }, [contextualUserEmail, externalDomains.length, meeting, otherParticipantEmails, userEmailSet])
 
   useEffect(() => {
     if (!showCalendarPicker && !showAttendeePicker) return

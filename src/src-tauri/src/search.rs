@@ -90,6 +90,7 @@ pub struct CalendarSearchResponseDoc {
   pub end: Option<i64>,
   pub google_meet_url: Option<String>,
   pub id: Option<u64>,
+  pub calendar_account_email: String,
 }
 
 #[derive(Serialize)]
@@ -181,6 +182,7 @@ async fn get_recent_calendar_events(
       end: calendar_event.end,
       google_meet_url: calendar_event.google_meet_url,
       id: calendar_event.id,
+      calendar_account_email: calendar_event.calendar_account_email,
     });
   }
   let response = GoogleCalendarSearchResponse {
@@ -214,6 +216,7 @@ async fn get_events(query: web::Query<CalendarGetEventsParams>) -> impl Responde
       end: calendar_event.end,
       google_meet_url: calendar_event.google_meet_url,
       id: calendar_event.id,
+      calendar_account_email: calendar_event.calendar_account_email,
     })
     .collect();
 

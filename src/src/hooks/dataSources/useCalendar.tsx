@@ -17,6 +17,7 @@ export interface Meeting {
   google_meet_url: string
   hasEnded: boolean
   event_id: string
+  calendar_account_email: string
 
   /**
    * Returns a readable string representation of the meeting
@@ -36,6 +37,7 @@ export interface CalendarEvents {
   creator_email: string
   google_meet_url: string
   event_id: string
+  calendar_account_email: string
 }
 
 export const serializeCalendarEventToMeeting = (event: CalendarEvents): Meeting => {
@@ -95,6 +97,7 @@ export const serializeCalendarEventToMeeting = (event: CalendarEvents): Meeting 
     meeting_platform: meetingPlatform,
     hasEnded: false,
     event_id: event.event_id,
+    calendar_account_email: event.calendar_account_email || '',
     getReadableFormat: function () {
       const participantsText = this.participants
         .map(p => `${p.name || ' '} (${p.email})`)

@@ -12,6 +12,7 @@ import {
   ConnectionStates,
   calendarConnectionKey,
   deleteConnection as deleteConnectionApi,
+  gmailConnectionKey,
   getCompleteGoogleSignIn,
   getGoogleConnectionKeysFromScopes,
   getGoogleProfile,
@@ -64,7 +65,7 @@ import {
   consumePendingAddAccountFlow,
   parsePendingAddAccountState,
 } from './utils/permissions/google'
-import { hasGoogleCalendar, getGoogleCalendarConnections, getGoogleDriveConnections, getGoogleGmailConnections } from 'src/api/connections'
+import { hasGoogleCalendar } from 'src/api/connections'
 
 export type CreateAutomationProps = {
   uuid?: string
@@ -572,8 +573,9 @@ function App() {
         getGoogleProfile(email).then(updatedProfile => auth.updateProfile(updatedProfile))
       }
 
-      // Update connections and start syncing data
-      fetchConnections(email).then(updatedConnections => syncConnections(email, updatedConnections))
+      // The periodic-sync effect below performs the immediate connection
+      // discovery and sync. Starting it here as well would double-count a
+      // single auth failure and could trigger an unnecessary reconnect.
     }
   }, [auth.profile?.email])
 
@@ -778,40 +780,16 @@ function App() {
           })
         }
 
-        // Build a sync-target map: all google calendar/drive/gmail accounts + microsoft.
-        const calendarEntries = Object.fromEntries(
-          getGoogleCalendarConnections(connections).map(c => {
-            const k = `${ConnectionKeys.GOOGLE_CALENDAR}|${c.calendarAccountEmail}`
-            return [k, c]
-          }),
-        )
-        const driveEntries = Object.fromEntries(
-          getGoogleDriveConnections(connections).map(c => {
-            const k = `${ConnectionKeys.GOOGLE_DRIVE}|${c.calendarAccountEmail}`
-            return [k, c]
-          }),
-        )
-        const gmailEntries = Object.fromEntries(
-          getGoogleGmailConnections(connections).map(c => {
-            const k = `${ConnectionKeys.GOOGLE_GMAIL}|${c.calendarAccountEmail}`
-            return [k, c]
-          }),
-        )
-        const CalendarConnection = Object.fromEntries(
-          Object.entries({
-            ...calendarEntries,
-            ...driveEntries,
-            ...gmailEntries,
-            [ConnectionKeys.MICROSOFT_CALENDAR]: connections[ConnectionKeys.MICROSOFT_CALENDAR],
-            [ConnectionKeys.MICROSOFT_OUTLOOK]: connections[ConnectionKeys.MICROSOFT_OUTLOOK],
-          }).filter(([_, value]) => value !== undefined),
-        )
-        if (Object.keys(CalendarConnection).length > 0) {
-          syncConnections(email, CalendarConnection)
-        } else {
-          logError(new Error('No calendar connections found'), {
+        // Re-read the persisted inventory on focus. The listener otherwise
+        // captures the connection state from the render where it was created,
+        // which can be empty even after the account list finishes loading.
+        try {
+          const refreshedConnections = await fetchConnections(email)
+          await syncConnections(email, refreshedConnections)
+        } catch (error) {
+          logError(new Error('Could not refresh connections on focus'), {
             additionalInfo: JSON.stringify(event.payload),
-            error: 'No calendar connections found',
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -823,11 +801,23 @@ function App() {
 
     const unlistenFetchEmailPromise = listen(
       'finish_fetch_email',
-      async (event: Event<{ success: boolean }>) => {
+      async (event: Event<{
+        success: boolean
+        account_email?: string
+        owner_email?: string
+      }>) => {
         if (event.payload.success) {
           await feedRef.current.runEmailAutopilot()
           // Check if new emails warrant a background notification
           backgroundNotificationsRef.current.handleEmailSyncComplete()
+        } else if (event.payload.account_email) {
+          setConnectionState(
+            gmailConnectionKey(event.payload.account_email, event.payload.owner_email),
+            ConnectionStates.FAILED,
+          )
+          handleErrorContact(
+            `Could not refresh Gmail for ${event.payload.account_email}. Open Connections to reconnect or retry.`,
+          )
         }
       },
     )
@@ -1094,7 +1084,7 @@ function App() {
     if (!userEmail) return
 
     const MINUTE_MS = 60000
-    const fiveMinutesInterval = setInterval(async () => {
+    const runBackgroundSync = async () => {
       // Re-read the aggregate inventory on every cycle. Relying on the
       // renderer's connection state meant a transient startup miss (or a
       // missed completion event) could leave an account stale indefinitely.
@@ -1111,7 +1101,12 @@ function App() {
       await handlers.syncMeetings()
       await handlers.scheduleRuns(userEmail)
       await handlers.syncAutomations()
-    }, MINUTE_MS * 5)
+    }
+
+    // Do not leave newly launched or long-suspended apps showing a stale
+    // "caught up" state until the first five-minute timer fires.
+    void runBackgroundSync()
+    const fiveMinutesInterval = setInterval(runBackgroundSync, MINUTE_MS * 5)
 
     return () => {
       clearInterval(fiveMinutesInterval)

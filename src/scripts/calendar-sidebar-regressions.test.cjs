@@ -66,7 +66,51 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
   assert.match(connectionHook, /return discoveredConnections/)
   assert.match(connectionHook, /\},\n\s*\[\],\n\s*\)/)
   assert.match(app, /const periodicSyncRef = useRef\(/)
-  assert.match(app, /\}, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+  assert.match(app, /void runBackgroundSync\(\)/)
+  assert.match(app, /setInterval\(runBackgroundSync, MINUTE_MS \* 5\)[\s\S]*?\}, \[userEmail\]\)/)
+  assert.equal(
+    (app.match(/fetchConnections\(email\)\.then\(updatedConnections => syncConnections/g) || []).length,
+    0,
+  )
+  assert.match(
+    app,
+    /listen\('custom-focus'[\s\S]*?await fetchConnections\(email\)[\s\S]*?await syncConnections\(email, refreshedConnections\)/,
+  )
+  assert.doesNotMatch(app, /listen\('custom-focus'[\s\S]*?getGoogleGmailConnections\(connections\)/)
+})
+
+test('Gmail sync reports real completion and tolerates malformed messages', () => {
+  const gmail = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src-tauri', 'src', 'connections', 'google', 'gmail.rs'),
+    'utf8',
+  )
+
+  assert.match(gmail, /let sync_succeeded = fetching_day_result\.is_ok\(\);/)
+  assert.match(gmail, /FetchEmailEventPayload \{\s*success: sync_succeeded,/)
+  assert.doesNotMatch(gmail, /FetchEmailEventPayload \{ success: true \}/)
+  assert.match(gmail, /\.messages\.unwrap_or_default\(\)/)
+  assert.match(gmail, /\.payload\s*\.ok_or_else/)
+  assert.doesNotMatch(gmail, /list_request\.doit\(\)\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /task\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /message(?:\.clone\(\))?\.id\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /semaphore_clone\.acquire\(\)\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /from_utf8\([^)]*\)\s*\.expect\(/)
+  assert.match(gmail, /had_fetch_errors_clone\.store\(true, Ordering::Relaxed\)/)
+  assert.match(gmail, /Email::mark_deleted_emails[\s\S]*?update_last_sync_by_id[\s\S]*?if had_fetch_errors\.load\(Ordering::Relaxed\)/)
+  assert.doesNotMatch(gmail, /if had_fetch_errors\.load\(Ordering::Relaxed\) \{\s*return Err/)
+})
+
+test('failed Gmail fetches stay failed and identify the precise mailbox', () => {
+  const gmail = fs.readFileSync(
+    path.resolve(__dirname, '..', 'src-tauri', 'src', 'connections', 'google', 'gmail.rs'),
+    'utf8',
+  )
+  const app = fs.readFileSync(path.join(sourceRoot, 'App.tsx'), 'utf8')
+
+  assert.match(gmail, /account_email: Some\(account_email\.clone\(\)\)/)
+  assert.match(gmail, /owner_email: Some\(email\.clone\(\)\)/)
+  assert.match(app, /gmailConnectionKey\(event\.payload\.account_email, event\.payload\.owner_email\)/)
+  assert.match(app, /ConnectionStates\.FAILED/)
 })
 
 test('aggregate connection keys keep legacy single-account services addressable', () => {
