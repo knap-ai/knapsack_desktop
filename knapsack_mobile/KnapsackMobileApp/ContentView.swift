@@ -1592,7 +1592,7 @@ struct ContentView: View {
           } label: {
             HStack(alignment: .top, spacing: 12) {
               VStack(alignment: .leading, spacing: 6) {
-                Text(chat.thread.title ?? "Untitled chat")
+                Text(mobileChatTitle(chat.thread.title, fallback: "Untitled chat"))
                   .font(KnapsackBrand.inter(18, weight: .semibold))
                   .foregroundStyle(KnapsackBrand.ink)
                   .multilineTextAlignment(.leading)
@@ -1641,7 +1641,7 @@ struct ContentView: View {
     return VStack(alignment: .leading, spacing: 20) {
       HStack(alignment: .center, spacing: 12) {
         VStack(alignment: .leading, spacing: 3) {
-          Text(chat.thread.title ?? "Chat")
+          Text(mobileChatTitle(chat.thread.title, fallback: "Chat"))
             .font(KnapsackBrand.inter(22, weight: .semibold))
             .foregroundStyle(KnapsackBrand.ink)
             .lineLimit(2)
@@ -2441,8 +2441,40 @@ struct ContentView: View {
     return condensed
   }
 
+  private func mobileChatTitle(_ title: String?, fallback: String) -> String {
+    let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.localizedCaseInsensitiveCompare("GBrain") == .orderedSame ? "Knapsack" : (trimmed.isEmpty ? fallback : trimmed)
+  }
+
   private func readableAssistantMessage(_ content: String) -> String {
     var result = sanitizedMarkdown(content)
+
+    // Older desktop replies sometimes use emoji labels without line breaks. Turn
+    // those into real Markdown sections before rendering them on a phone.
+    result = result
+      .replacingOccurrences(of: "🟢", with: "")
+      .replacingOccurrences(of: "🟡", with: "")
+      .replacingOccurrences(of: "🔵", with: "")
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:^|\\n|\\s)(?:action\\s*now|do\\s*now)\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Do now\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:^|\\n|\\s)(?:can\\s*wait|later)\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Later\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:^|\\n|\\s)(?:read\\s*before\\s*next\\s*conversation|before\\s*your\\s*next\\s*conversation)\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
+      with: "\n## Before your next conversation\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:^|\\n|\\s)next\\s*step\\s*:\\s*",
+      with: "\n## Next step\n"
+    )
 
     // Some desktop responses arrive as a single calendar paragraph. Restore the
     // visual breaks a phone reader needs without changing the underlying answer.
@@ -2453,13 +2485,21 @@ struct ContentView: View {
     result = insertingLineBreaks(in: result, pattern: "(?<!\\n)(?=All Day:)")
     result = insertingLineBreaks(in: result, pattern: "(?<=[.!?])(?=[A-Z])")
     result = insertingLineBreaks(in: result, pattern: "(?<=(?:AM|PM))(?=\\d{1,2}:)")
+    result = insertingLineBreaks(
+      in: result,
+      pattern: "(?<=[.!?])(?=(?:Reply|Send|Call|Review|Read|Prepare|Follow|Skim|Check|Schedule|Open|Ask|Update|Draft|Confirm)\\b)"
+    )
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func insertingLineBreaks(in content: String, pattern: String) -> String {
+    replacingMatches(in: content, pattern: pattern, with: "\n")
+  }
+
+  private func replacingMatches(in content: String, pattern: String, with replacement: String) -> String {
     guard let expression = try? NSRegularExpression(pattern: pattern) else { return content }
     let range = NSRange(content.startIndex..., in: content)
-    return expression.stringByReplacingMatches(in: content, range: range, withTemplate: "\n")
+    return expression.stringByReplacingMatches(in: content, range: range, withTemplate: replacement)
   }
 
   private func sanitizedMarkdown(_ content: String) -> String {

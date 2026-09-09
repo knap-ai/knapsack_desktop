@@ -1300,7 +1300,10 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
 fn mobile_presentation_instructions() -> &'static str {
   "Presentation rules for Knapsack on iPhone:\n\
 - Lead with the answer or the one action that matters.\n\
-- Use short Markdown headings and bullets that scan cleanly on a phone.\n\
+- Return valid Markdown. Every list item must start on its own line with `- `.\n\
+- For a brief, use this exact shape when the sections apply:\n\
+  `## Do now` followed by at most 3 bullets, then `## Later`, `## Before your next conversation`, and `## Next step`.\n\
+- Do not use emoji as structure, and never run a heading directly into its first sentence.\n\
 - Keep paragraphs to two sentences or fewer.\n\
 - Never return a wall of raw calendar, email, or meeting data. For calendar requests, show the next five relevant events at most, one per bullet, then offer to expand.\n\
 - Preserve useful names, dates, and times, but omit duplicate metadata and boilerplate.\n\
@@ -2435,6 +2438,8 @@ mod tests {
     let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
     assert!(request.contains("Knapsack on iPhone"));
     assert!(request.contains("Never return a wall of raw calendar"));
+    assert!(request.contains("Every list item must start on its own line"));
+    assert!(request.contains("## Do now"));
     assert!(request.ends_with("What is on my calendar?"));
   }
 }

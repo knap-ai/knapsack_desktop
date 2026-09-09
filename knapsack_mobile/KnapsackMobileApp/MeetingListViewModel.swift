@@ -369,7 +369,7 @@ final class MeetingListViewModel: ObservableObject {
       let detail = try await sendGBrainPrompt(trimmed)
       selectedChat = detail
       upsertChatSummary(from: detail)
-      statusMessage = "GBrain researched that for you."
+      statusMessage = "Knapsack has your answer ready."
       errorMessage = nil
       isRunningGBrainPrompt = false
       return detail
