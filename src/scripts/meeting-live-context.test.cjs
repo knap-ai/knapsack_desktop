@@ -28,7 +28,7 @@ test("meeting briefs fetch calendar-linked Google files through connected identi
   assert.match(meeting, /extractGoogleDriveLinks\(meeting\.description/);
   assert.match(
     meeting,
-    /getGoogleDriveFileText\(url, \[userEmail, \.\.\.userEmails\]\)/,
+    /getGoogleDriveFileText\([\s\S]*?Array\.from\(userEmailSet\)/,
   );
   assert.match(
     meeting,
@@ -37,6 +37,32 @@ test("meeting briefs fetch calendar-linked Google files through connected identi
   assert.match(
     dataSource,
     /for \(const email of Array\.from\(new Set\(accountEmails\.filter\(Boolean\)\)\)\)/,
+  );
+});
+
+test("meeting identity is available from the calendar event before connections load", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const calendar = read("src/hooks/dataSources/useCalendar.tsx");
+  const search = read("src-tauri/src/search.rs");
+
+  assert.match(search, /pub calendar_account_email: String/);
+  assert.match(
+    search,
+    /calendar_account_email: calendar_event\.calendar_account_email/,
+  );
+  assert.match(calendar, /calendar_account_email: event\.calendar_account_email \|\| ''/);
+  assert.match(
+    meeting,
+    /new Set\(\[userEmail, meeting\?\.calendar_account_email, \.\.\.userEmails\]/,
+  );
+  assert.match(
+    meeting,
+    /userEmailSet\.has\(p\.email\.trim\(\)\.toLowerCase\(\)\)/,
+  );
+  assert.match(meeting, /The user's email identities are:/);
+  assert.match(
+    meeting,
+    /contextualUserEmail = meeting\?\.calendar_account_email\?\.trim\(\) \|\| userEmail/,
   );
 });
 
