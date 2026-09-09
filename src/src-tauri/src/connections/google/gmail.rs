@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::connections::api::ConnectionsEnum;
@@ -68,11 +69,7 @@ fn get_body_content(maybe_body: Option<MessagePartBody>) -> Option<String> {
         if data.len() <= 1 {
           return None;
         }
-        Some(
-          std::str::from_utf8(&data)
-            .expect("Could not parse body")
-            .to_string(),
-        )
+        Some(String::from_utf8_lossy(&data).into_owned())
       }
       None => None,
     },
@@ -84,6 +81,7 @@ fn parse_message_date(headers: &HashMap<String, String>) -> u64 {
   headers
     .get("date")
     .and_then(|value| dateparse(value).ok())
+    .filter(|timestamp| *timestamp > 0)
     .and_then(|timestamp| u64::try_from(timestamp).ok())
     .unwrap_or_else(|| Utc::now().timestamp() as u64)
 }
@@ -295,6 +293,7 @@ pub async fn fetch_gmail(
     maybe_next_page_token = response.1.next_page_token;
 
     let email_documents = Arc::new(Mutex::new(Vec::new()));
+    let had_fetch_errors = Arc::new(AtomicBool::new(false));
 
     for message in response.1.messages.unwrap_or_default() {
       let semaphore_clone = Arc::clone(&semaphore);
@@ -311,6 +310,7 @@ pub async fn fetch_gmail(
       let email_documents_clone = email_documents.clone();
       let account_email_clone = account_email.clone();
       let older_date_clone = older_date.clone();
+      let had_fetch_errors_clone = had_fetch_errors.clone();
       let task = tauri::async_runtime::spawn(async move {
         let Ok(_permit) = semaphore_clone.acquire().await else {
           return;
@@ -334,6 +334,7 @@ pub async fn fetch_gmail(
             email_documents_clone.lock().await.push(email_message);
           }
           Err(error) => {
+            had_fetch_errors_clone.store(true, Ordering::Relaxed);
             let msg = format!("Failed to fetch emails: {:?}", error);
             knap_log_error(msg, Some(error), Some(true));
           }
@@ -345,6 +346,11 @@ pub async fn fetch_gmail(
 
     for task in tasks {
       task.await?;
+    }
+    if had_fetch_errors.load(Ordering::Relaxed) {
+      return Err(Error::KSError(
+        "One or more Gmail messages could not be downloaded".into(),
+      ));
     }
 
     let attrs = Email::get_attrs();

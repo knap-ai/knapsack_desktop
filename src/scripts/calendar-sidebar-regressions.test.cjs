@@ -90,6 +90,9 @@ test('Gmail sync reports real completion and tolerates malformed messages', () =
   assert.doesNotMatch(gmail, /task\.await\.unwrap\(\)/)
   assert.doesNotMatch(gmail, /message(?:\.clone\(\))?\.id\.unwrap\(\)/)
   assert.doesNotMatch(gmail, /semaphore_clone\.acquire\(\)\.await\.unwrap\(\)/)
+  assert.doesNotMatch(gmail, /from_utf8\([^)]*\)\s*\.expect\(/)
+  assert.match(gmail, /had_fetch_errors_clone\.store\(true, Ordering::Relaxed\)/)
+  assert.match(gmail, /if had_fetch_errors\.load\(Ordering::Relaxed\)/)
 })
 
 test('aggregate connection keys keep legacy single-account services addressable', () => {
