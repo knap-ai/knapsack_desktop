@@ -1817,36 +1817,40 @@ struct ContentView: View {
     let content = readableAssistantMessage(message.content)
     let isLong = content.count > 900
 
-    VStack(alignment: .leading, spacing: 12) {
-      ForEach(noteBlocks(from: content)) { block in
-        switch block {
-        case .heading(let text):
-          Text(text)
-            .font(KnapsackBrand.inter(15, weight: .bold))
-            .foregroundStyle(KnapsackBrand.ink)
-            .padding(.top, 3)
-        case .bullet(let text):
-          HStack(alignment: .top, spacing: 9) {
-            Circle()
-              .fill(KnapsackBrand.amber)
-              .frame(width: 6, height: 6)
-              .padding(.top, 8)
-            Text(text)
+    if isLong && !isExpanded {
+      markdownMessageText(content)
+        .lineLimit(12)
+    } else {
+      VStack(alignment: .leading, spacing: 12) {
+        ForEach(noteBlocks(from: content)) { block in
+          switch block {
+          case .heading(let text):
+            parsedMarkdownText(text)
+              .font(KnapsackBrand.inter(15, weight: .bold))
+              .foregroundStyle(KnapsackBrand.ink)
+              .padding(.top, 3)
+          case .bullet(let text):
+            HStack(alignment: .top, spacing: 9) {
+              Circle()
+                .fill(KnapsackBrand.amber)
+                .frame(width: 6, height: 6)
+                .padding(.top, 8)
+              parsedMarkdownText(text)
+                .font(KnapsackBrand.inter(16))
+                .foregroundStyle(KnapsackBrand.ink)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          case .paragraph(let text):
+            parsedMarkdownText(text)
               .font(KnapsackBrand.inter(16))
               .foregroundStyle(KnapsackBrand.ink)
               .lineSpacing(3)
               .fixedSize(horizontal: false, vertical: true)
           }
-        case .paragraph(let text):
-          Text(text)
-            .font(KnapsackBrand.inter(16))
-            .foregroundStyle(KnapsackBrand.ink)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
         }
       }
     }
-    .lineLimit(isLong && !isExpanded ? 12 : nil)
 
     if isLong {
       Button(isExpanded ? "Show less" : "Read full answer") {
@@ -1864,19 +1868,18 @@ struct ContentView: View {
 
   @ViewBuilder
   private func markdownMessageText(_ content: String, foreground: Color = KnapsackBrand.ink) -> some View {
+    parsedMarkdownText(content)
+      .font(KnapsackBrand.inter(15))
+      .foregroundStyle(foreground)
+      .fixedSize(horizontal: false, vertical: true)
+      .textSelection(.enabled)
+  }
+
+  private func parsedMarkdownText(_ content: String) -> Text {
     if let markdown = try? AttributedString(markdown: sanitizedMarkdown(content)) {
-      Text(markdown)
-        .font(KnapsackBrand.inter(15))
-        .foregroundStyle(foreground)
-        .fixedSize(horizontal: false, vertical: true)
-        .textSelection(.enabled)
-    } else {
-      Text(content)
-        .font(KnapsackBrand.inter(15))
-        .foregroundStyle(foreground)
-        .fixedSize(horizontal: false, vertical: true)
-        .textSelection(.enabled)
+      return Text(markdown)
     }
+    return Text(content)
   }
 
   private var chatDetailSection: some View {

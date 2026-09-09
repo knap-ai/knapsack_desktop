@@ -1303,7 +1303,7 @@ fn mobile_presentation_instructions() -> &'static str {
 
 fn build_mobile_chat_request(_thread: &Thread, thread_id: u64, text: &str) -> String {
   format!(
-    "{}\n\n{}\n\nYou are replying inside Knapsack's iPhone app. The workspace context above is trusted and sufficient for this turn. Do not call browser or other tools; answer from that context and say exactly what is unavailable if it does not contain the needed detail.\n\nUser request\n{}",
+    "{}\n\n{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. If the request needs information beyond the snapshot, use any tool that is available to you; if none is available, state the gap plainly without mentioning unavailable tools.\n\nUser request\n{}",
     build_mobile_gbrain_context(thread_id),
     mobile_presentation_instructions(),
     text
@@ -2421,7 +2421,7 @@ mod tests {
     let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
     assert!(request.contains("Knapsack on iPhone"));
     assert!(request.contains("Knapsack mobile workspace context"));
-    assert!(request.contains("Do not call browser or other tools"));
+    assert!(request.contains("Do not call a browser merely to retrieve that local workspace context"));
     assert!(request.contains("Never return a wall of raw calendar"));
     assert!(request.contains("Every list item must start on its own line"));
     assert!(request.contains("## Do now"));
