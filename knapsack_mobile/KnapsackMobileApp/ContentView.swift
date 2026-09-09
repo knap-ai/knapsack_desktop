@@ -63,7 +63,7 @@ struct ContentView: View {
       notesTab
         .tag(DesktopPane.notes)
         .tabItem {
-          Label("Meeting notes", systemImage: "note.text")
+          Label("Notes", systemImage: "note.text")
         }
     }
     .sheet(isPresented: $isShowingSettings) {
@@ -266,10 +266,10 @@ struct ContentView: View {
     pageScrollView {
       VStack(alignment: .leading, spacing: 22) {
         notesHeader
-        searchBar
+        nextCallCard
         quickCaptureCard
+        searchBar
         meetingsSection
-        syncSection
       }
     }
   }
@@ -278,6 +278,7 @@ struct ContentView: View {
     pageScrollView {
       VStack(alignment: .leading, spacing: 22) {
         chatsHeader
+        askKnapsackCard
         searchBar
         chatsSection
       }
@@ -287,8 +288,8 @@ struct ContentView: View {
   private var notesHeader: some View {
     sectionHeader(
       eyebrow: "Knapsack",
-      title: "Meeting notes",
-      subtitle: "Capture the conversation, keep the signal, and turn it into a useful follow-up."
+      title: "Notes",
+      subtitle: "Your meetings and calls, with the decisions and follow-ups that matter."
     ) {
       headerActionButton(systemName: "gearshape")
     }
@@ -318,7 +319,7 @@ struct ContentView: View {
     sectionHeader(
       eyebrow: "Knapsack",
       title: "Chats",
-      subtitle: "Continue every Knapsack conversation from your phone, including team work from desktop."
+      subtitle: "Continue a conversation or ask a question across your work."
     ) {
       HStack(spacing: 10) {
         Button("New chat") {
@@ -334,6 +335,88 @@ struct ContentView: View {
         headerActionButton(systemName: "gearshape")
       }
     }
+  }
+
+  private var nextCallCard: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Next up")
+        .font(KnapsackBrand.inter(14, weight: .semibold))
+        .foregroundStyle(KnapsackBrand.inkMuted)
+
+      if let event = viewModel.calendarEvents.first {
+        Text(event.title ?? "Upcoming call")
+          .font(KnapsackBrand.inter(20, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+          .fixedSize(horizontal: false, vertical: true)
+
+        Text(calendarEventTimeString(event))
+          .font(KnapsackBrand.inter(14))
+          .foregroundStyle(KnapsackBrand.slate)
+
+        Button("Prepare for this call") {
+          Task {
+            await runGBrainPrompt(
+              makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes, prior meetings, and relevant chats.")
+            )
+          }
+        }
+        .brandPill(background: KnapsackBrand.ink, foreground: .white)
+      } else {
+        Text(viewModel.session?.calendarConnected == true ? "No upcoming calls on your calendar." : "Link your desktop to see upcoming calls here.")
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+      }
+    }
+    .cardStyle()
+  }
+
+  private var askKnapsackCard: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Ask Knapsack")
+        .font(KnapsackBrand.inter(14, weight: .semibold))
+        .foregroundStyle(KnapsackBrand.inkMuted)
+
+      Text("Get the context you need, without leaving the chat.")
+        .font(KnapsackBrand.inter(17, weight: .medium))
+        .foregroundStyle(KnapsackBrand.ink)
+
+      TextField("Ask about a meeting, person, or open loop", text: $gbrainDraftPrompt, axis: .vertical)
+        .font(KnapsackBrand.inter(16))
+        .foregroundStyle(KnapsackBrand.ink)
+        .lineLimit(1...4)
+        .padding(14)
+        .background(KnapsackBrand.paper)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+      HStack(spacing: 10) {
+        Button(viewModel.isRunningGBrainPrompt ? "Thinking..." : "Ask") {
+          let prompt = makeResearchPrompt(from: gbrainDraftPrompt)
+          Task { await runGBrainPrompt(prompt, clearComposer: true) }
+        }
+        .brandPill(
+          background: viewModel.isRunningGBrainPrompt ? KnapsackBrand.paper : KnapsackBrand.ink,
+          foreground: viewModel.isRunningGBrainPrompt ? KnapsackBrand.inkMuted : .white
+        )
+        .disabled(viewModel.isRunningGBrainPrompt || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        Button("Today") {
+          Task { await runGBrainPrompt(makeDailyBriefPrompt()) }
+        }
+        .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+
+        if let event = viewModel.calendarEvents.first {
+          Button("Next call") {
+            Task {
+              await runGBrainPrompt(
+                makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes and chats.")
+              )
+            }
+          }
+          .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+        }
+      }
+    }
+    .cardStyle()
   }
 
   private func pageScrollView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
