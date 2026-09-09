@@ -2,7 +2,7 @@ use coreaudio_sys::{
   kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioHardwarePropertyDevices,
   kAudioObjectPropertyElementMain, kAudioObjectPropertyScopeGlobal, kAudioObjectSystemObject,
   AudioBufferList, AudioDeviceID, AudioObjectGetPropertyData, AudioObjectGetPropertyDataSize,
-  AudioObjectPropertyAddress, AudioTimeStamp, OSStatus,
+  AudioObjectID, AudioObjectPropertyAddress, AudioTimeStamp, OSStatus,
 };
 use std::sync::{
   atomic::{AtomicBool, Ordering},
@@ -67,6 +67,9 @@ extern "C" {
 // Property selectors for reading tap format
 #[cfg(target_os = "macos")]
 const K_AUDIO_TAP_PROPERTY_FORMAT: u32 = u32::from_be_bytes(*b"tfmt");
+// kAudioHardwarePropertyTranslatePIDToProcessObject — converts a Unix PID
+// into the AudioObjectID required by CATapDescription's process arrays.
+const K_AUDIO_HARDWARE_PROPERTY_TRANSLATE_PID_TO_PROCESS_OBJECT: u32 = u32::from_be_bytes(*b"id2p");
 
 // kAudioDevicePropertyStreams — list of stream IDs for a given scope
 const K_AUDIO_DEVICE_PROPERTY_STREAMS: u32 = u32::from_be_bytes(*b"stm#");
@@ -76,6 +79,44 @@ const K_AUDIO_OBJECT_PROPERTY_SCOPE_INPUT: u32 = u32::from_be_bytes(*b"inpt");
 const K_AUDIO_OBJECT_PROPERTY_NAME: u32 = u32::from_be_bytes(*b"lnam");
 // Name we give our own CoreAudio tap aggregate; excluded from mic counts
 const KNAPSACK_AGGREGATE_NAME: &str = "KnapsackAudioTapAggregate";
+
+/// Resolve this process to Core Audio's process object ID. CATapDescription
+/// accepts AudioObjectIDs, not Unix PIDs; passing a PID makes
+/// AudioHardwareCreateProcessTap fail with `kAudioHardwareBadObjectError`
+/// (`!obj`) even when System Audio Recording permission is enabled.
+#[cfg(target_os = "macos")]
+pub fn current_process_audio_object_id() -> Option<AudioObjectID> {
+  let address = AudioObjectPropertyAddress {
+    mSelector: K_AUDIO_HARDWARE_PROPERTY_TRANSLATE_PID_TO_PROCESS_OBJECT,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+  let pid = std::process::id() as libc::pid_t;
+  let mut process_object_id: AudioObjectID = 0;
+  let mut size = mem::size_of::<AudioObjectID>() as u32;
+  let status = unsafe {
+    AudioObjectGetPropertyData(
+      kAudioObjectSystemObject,
+      &address,
+      mem::size_of::<libc::pid_t>() as u32,
+      &pid as *const libc::pid_t as *const libc::c_void,
+      &mut size,
+      &mut process_object_id as *mut AudioObjectID as *mut libc::c_void,
+    )
+  };
+
+  if status == 0 && process_object_id != 0 {
+    Some(process_object_id)
+  } else {
+    log::warn!(
+      "[audio tap] Could not translate PID {} to a Core Audio process object: status={}, object_id={}",
+      pid,
+      status,
+      process_object_id
+    );
+    None
+  }
+}
 
 use crate::error::Error;
 
@@ -256,19 +297,23 @@ pub async fn record_speaker_output(
 
     // Create a stereo global tap that captures all system audio
     // (excluding our own process to avoid feedback)
-    let our_pid = std::process::id() as i32;
-    let our_pid_ns: Id<AnyObject> = unsafe {
-      let ns_number_class = AnyClass::get("NSNumber").unwrap();
-      msg_send_id![ns_number_class, numberWithInt: our_pid]
-    };
-    let exclude_pids: Id<AnyObject> = unsafe {
+    let our_process_object_id = current_process_audio_object_id();
+    let our_process_object_ns: Option<Id<AnyObject>> =
+      our_process_object_id.map(|object_id| unsafe {
+        let ns_number_class = AnyClass::get("NSNumber").unwrap();
+        msg_send_id![ns_number_class, numberWithUnsignedInt: object_id]
+      });
+    let excluded_processes: Id<AnyObject> = unsafe {
       let ns_array_class = AnyClass::get("NSArray").unwrap();
-      msg_send_id![ns_array_class, arrayWithObject: &*our_pid_ns]
+      match our_process_object_ns.as_ref() {
+        Some(object_id) => msg_send_id![ns_array_class, arrayWithObject: &**object_id],
+        None => msg_send_id![ns_array_class, array],
+      }
     };
 
     let tap_desc: Id<AnyObject> = unsafe {
       let alloc: Allocated<AnyObject> = msg_send_id![tap_desc_class, alloc];
-      msg_send_id![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
+      msg_send_id![alloc, initStereoGlobalTapButExcludeProcesses: &*excluded_processes]
     };
 
     // Configure the tap

@@ -519,20 +519,26 @@ fn check_system_audio_via_tap_probe() -> bool {
     }
   };
 
-  // Create a minimal stereo global tap (excluding our own process to avoid feedback)
-  let our_pid = std::process::id() as i32;
+  // CATapDescription requires Core Audio process object IDs, not Unix PIDs.
+  // Passing a PID makes AudioHardwareCreateProcessTap return `!obj` even when
+  // the user has enabled System Audio Recording for Knapsack.
+  let our_process_object_id = crate::audio::macos::current_process_audio_object_id();
   log::info!(
-    "Tap probe: creating CATapDescription excluding PID {}",
-    our_pid
+    "Tap probe: creating CATapDescription excluding Core Audio process object {:?}",
+    our_process_object_id
   );
 
-  let our_pid_ns: Id<AnyObject> = unsafe {
-    let ns_number_class = AnyClass::get("NSNumber").unwrap();
-    msg_send_id![ns_number_class, numberWithInt: our_pid]
-  };
-  let exclude_pids: Id<AnyObject> = unsafe {
+  let our_process_object_ns: Option<Id<AnyObject>> =
+    our_process_object_id.map(|object_id| unsafe {
+      let ns_number_class = AnyClass::get("NSNumber").unwrap();
+      msg_send_id![ns_number_class, numberWithUnsignedInt: object_id]
+    });
+  let excluded_processes: Id<AnyObject> = unsafe {
     let ns_array_class = AnyClass::get("NSArray").unwrap();
-    msg_send_id![ns_array_class, arrayWithObject: &*our_pid_ns]
+    match our_process_object_ns.as_ref() {
+      Some(object_id) => msg_send_id![ns_array_class, arrayWithObject: &**object_id],
+      None => msg_send_id![ns_array_class, array],
+    }
   };
 
   // Use raw msg_send! returning a nullable pointer instead of msg_send_id!
@@ -545,7 +551,7 @@ fn check_system_audio_via_tap_probe() -> bool {
       log::warn!("Tap probe: CATapDescription alloc returned nil");
       return false;
     }
-    msg_send![alloc, initStereoGlobalTapButExcludeProcesses: &*exclude_pids]
+    msg_send![alloc, initStereoGlobalTapButExcludeProcesses: &*excluded_processes]
   };
   if tap_desc_ptr.is_null() {
     log::warn!("Tap probe: CATapDescription initStereoGlobalTapButExcludeProcesses: returned nil — permission likely not granted yet");

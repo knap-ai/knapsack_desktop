@@ -60,3 +60,14 @@ test('Linux keeps the supported microphone-only recording path', () => {
 
   assert.match(speakerStartup, /#\[cfg\(any\(target_os = "macos", target_os = "windows"\)\)\]/)
 })
+
+test('macOS tap exclusions use Core Audio process objects rather than Unix PIDs', () => {
+  const macos = read('src-tauri/src/audio/macos.rs')
+  const permission = read('src-tauri/src/audio/permission.rs')
+
+  assert.match(macos, /K_AUDIO_HARDWARE_PROPERTY_TRANSLATE_PID_TO_PROCESS_OBJECT/)
+  assert.match(macos, /current_process_audio_object_id\(\)/)
+  assert.match(macos, /numberWithUnsignedInt: object_id/)
+  assert.match(permission, /current_process_audio_object_id\(\)/)
+  assert.doesNotMatch(permission, /numberWithInt: our_pid/)
+})
