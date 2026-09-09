@@ -49,6 +49,7 @@ struct ContentView: View {
   @State private var presentedManagedAgent: MobileManagedAgent?
   @State private var draftManagedAgentMessage = ""
   @State private var presentedAutopilotEmail: MobileAutopilotEmailDetail?
+  @State private var isNextMeetingPrepExpanded = false
   @FocusState private var isNotesEditorFocused: Bool
   @FocusState private var isAutopilotReplyFocused: Bool
   private let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -392,10 +393,30 @@ struct ContentView: View {
 
         if let prepMessage = viewModel.nextMeetingPrep?.messages.last(where: { $0.role == "assistant" }) {
           VStack(alignment: .leading, spacing: 8) {
-            Text("Prep, ready for you")
+            Text(isNextMeetingPrepExpanded ? "Meeting prep" : "Key action")
               .font(KnapsackBrand.inter(13, weight: .semibold))
               .foregroundStyle(KnapsackBrand.inkMuted)
-            assistantMessageContent(prepMessage)
+
+            if isNextMeetingPrepExpanded {
+              assistantMessageContent(prepMessage)
+            } else {
+              prepKeyActionContent(prepMessage)
+            }
+
+            Button {
+              withAnimation(.easeInOut(duration: 0.2)) {
+                isNextMeetingPrepExpanded.toggle()
+              }
+            } label: {
+              Label(
+                isNextMeetingPrepExpanded ? "Show less" : "Show full prep",
+                systemImage: isNextMeetingPrepExpanded ? "chevron.up" : "chevron.down"
+              )
+              .font(KnapsackBrand.inter(13, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.ink)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 3)
           }
           .padding(15)
           .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(KnapsackBrand.paper))
@@ -439,6 +460,9 @@ struct ContentView: View {
       }
     }
     .cardStyle()
+    .onChange(of: viewModel.nextCalendarEvent?.eventId) { _, _ in
+      isNextMeetingPrepExpanded = false
+    }
   }
 
   private var askKnapsackCard: some View {
@@ -2136,6 +2160,63 @@ struct ContentView: View {
         draftChatMessage = pendingMessage
       }
     }
+  }
+
+  @ViewBuilder
+  private func prepKeyActionContent(_ message: MobileChatMessage) -> some View {
+    switch prepKeyActionBlock(from: message) {
+    case .bullet(let text):
+      HStack(alignment: .top, spacing: 9) {
+        Circle()
+          .fill(KnapsackBrand.coral)
+          .frame(width: 7, height: 7)
+          .padding(.top, 8)
+        parsedMarkdownText(text)
+          .font(KnapsackBrand.inter(16, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+          .lineSpacing(3)
+          .lineLimit(4)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    case .heading(let text), .paragraph(let text):
+      parsedMarkdownText(text)
+        .font(KnapsackBrand.inter(16, weight: .semibold))
+        .foregroundStyle(KnapsackBrand.ink)
+        .lineSpacing(3)
+        .lineLimit(4)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func prepKeyActionBlock(from message: MobileChatMessage) -> NoteBlock {
+    let blocks = noteBlocks(from: readableAssistantMessage(message.content))
+    let actionTerms = ["key action", "action now", "do now", "attention", "next step", "before joining"]
+
+    for index in blocks.indices {
+      guard case .heading(let heading) = blocks[index],
+            actionTerms.contains(where: { heading.localizedCaseInsensitiveContains($0) }) else { continue }
+
+      for candidate in blocks.dropFirst(index + 1) {
+        if case .heading = candidate { break }
+        return candidate
+      }
+    }
+
+    if let bullet = blocks.first(where: {
+      if case .bullet = $0 { return true }
+      return false
+    }) {
+      return bullet
+    }
+
+    if let paragraph = blocks.first(where: {
+      if case .paragraph = $0 { return true }
+      return false
+    }) {
+      return paragraph
+    }
+
+    return blocks.first ?? .paragraph("Your prep is ready. Open it for the full brief.")
   }
 
   @ViewBuilder
