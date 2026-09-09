@@ -91,8 +91,7 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
 
   const { syncConnections: syncGoogleConnections } =
     useGoogleConnections(setConnectionState, removeConnection)
-  const { syncConnections: syncLocalConnections, getLocalConnections } =
-    useLocalConnections(setConnectionState)
+  const { syncConnections: syncLocalConnections } = useLocalConnections(setConnectionState)
   const {syncByConnectionKey: syncMicrosoftByConnectionKey, syncConnections: syncMicrosoftConnections } =
     useMicrosoftConnections(setConnectionState, removeConnection)
 
@@ -103,7 +102,7 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
       // Settings already shows this aggregate inventory; use the same source
       // for background sync so a connected calendar cannot silently go stale.
       const cloudConnections = await getConnections(email, { includeAllUsers: true })
-      const updatedConnections: Record<string, Connection> = {}
+      const discoveredConnections: Record<string, Connection> = {}
 
       // cloudConnections is keyed by record key (scope, or scope|calEmail for
       // calendar connections).  We must iterate by record key — not by the
@@ -111,22 +110,24 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
       for (const [recordKey, connection] of Object.entries(cloudConnections)) {
         const { id, key, state, lastSynced, syncedSince, calendarAccountEmail, ownerEmail } = connection
 
-        updatedConnections[recordKey] =
-          connections[recordKey]?.state === ConnectionStates.UP_TO_DATE ||
-          connections[recordKey]?.state === ConnectionStates.SYNCING
-            ? { ...connections[recordKey], calendarAccountEmail, ownerEmail }
-            : { id, key, state, calendarAccountEmail, ownerEmail }
+        discoveredConnections[recordKey] = {
+          id,
+          key,
+          state,
+          calendarAccountEmail,
+          ownerEmail,
+        }
 
         if (lastSynced != null) {
           if (typeof lastSynced === 'string') {
-            updatedConnections[recordKey].lastSynced = lastSynced
+            discoveredConnections[recordKey].lastSynced = lastSynced
           } else {
             let lastSyncedDate = lastSynced as Date
             let syncedSinceDate = syncedSince as Date
 
-            updatedConnections[recordKey].lastSynced = syncedMessage[key as ConnectionKeys]
+            discoveredConnections[recordKey].lastSynced = syncedMessage[key as ConnectionKeys]
             if (key !== ConnectionKeys.LOCAL_FILES) {
-              updatedConnections[recordKey].lastSynced += KNDateUtils.formatDate(
+              discoveredConnections[recordKey].lastSynced += KNDateUtils.formatDate(
                 syncedSinceDate ? syncedSinceDate : lastSyncedDate,
                 dateFormat[key as ConnectionKeys],
               )
@@ -135,10 +136,26 @@ export const useConnections = (initialState: Record<string, Connection> = {}) =>
         }
       }
 
-      setConnections(updatedConnections)
-      return updatedConnections
+      // Keep in-flight/status state for display without making discovery depend
+      // on the current render. Callers receive the fresh IDLE inventory so a
+      // missed startup event cannot strand a connected account in SYNCING.
+      setConnections(currentConnections =>
+        Object.fromEntries(
+          Object.entries(discoveredConnections).map(([recordKey, connection]) => {
+            const current = currentConnections[recordKey]
+            return [
+              recordKey,
+              current?.state === ConnectionStates.UP_TO_DATE ||
+              current?.state === ConnectionStates.SYNCING
+                ? { ...connection, state: current.state }
+                : connection,
+            ]
+          }),
+        ),
+      )
+      return discoveredConnections
     },
-    [connections, getLocalConnections],
+    [],
   )
 
   // Check connections finished syncing
