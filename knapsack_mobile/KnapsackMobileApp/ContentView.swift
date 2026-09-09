@@ -119,7 +119,7 @@ struct ContentView: View {
         }
       }
     }
-    .sheet(item: $presentedChat) { chat in
+    .fullScreenCover(item: $presentedChat) { chat in
       let liveChat = currentPresentedChat(fallback: chat)
       NavigationStack {
         ScrollView {
@@ -355,8 +355,9 @@ struct ContentView: View {
 
         Button("Prepare for this call") {
           Task {
-            await runGBrainPrompt(
-              makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes, prior meetings, and relevant chats.")
+            await runQuickPrompt(
+              title: "Meeting prep",
+              prompt: makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes, prior meetings, and relevant chats.")
             )
           }
         }
@@ -389,31 +390,47 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
       HStack(spacing: 10) {
-        Button(viewModel.isRunningGBrainPrompt ? "Thinking..." : "Ask") {
+        Button(viewModel.isSendingChatMessage ? "Thinking..." : "Ask") {
           let prompt = makeResearchPrompt(from: gbrainDraftPrompt)
-          Task { await runGBrainPrompt(prompt, clearComposer: true) }
+          Task { await runQuickPrompt(title: "Chat from iPhone", prompt: prompt, clearComposer: true) }
         }
         .brandPill(
-          background: viewModel.isRunningGBrainPrompt ? KnapsackBrand.paper : KnapsackBrand.ink,
-          foreground: viewModel.isRunningGBrainPrompt ? KnapsackBrand.inkMuted : .white
+          background: viewModel.isSendingChatMessage ? KnapsackBrand.paper : KnapsackBrand.ink,
+          foreground: viewModel.isSendingChatMessage ? KnapsackBrand.inkMuted : .white
         )
-        .disabled(viewModel.isRunningGBrainPrompt || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(viewModel.isSendingChatMessage || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-        Button("Today") {
-          Task { await runGBrainPrompt(makeDailyBriefPrompt()) }
+        Button(viewModel.isSendingChatMessage ? "Working..." : "Today") {
+          Task { await runQuickPrompt(title: "Today", prompt: makeDailyBriefPrompt()) }
         }
         .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+        .disabled(viewModel.isSendingChatMessage)
 
         if let event = viewModel.calendarEvents.first {
           Button("Next call") {
             Task {
-              await runGBrainPrompt(
-                makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes and chats.")
+              await runQuickPrompt(
+                title: "Meeting prep",
+                prompt: makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes and chats.")
               )
             }
           }
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
         }
+      }
+
+      HStack(spacing: 6) {
+        Image(systemName: viewModel.session?.linked == true ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+        Text(viewModel.session?.linked == true ? "Desktop ready" : "Connect desktop to ask")
+      }
+      .font(KnapsackBrand.inter(13, weight: .medium))
+      .foregroundStyle(viewModel.session?.linked == true ? KnapsackBrand.inkMuted : KnapsackBrand.coral)
+
+      if let error = viewModel.errorMessage {
+        Text(error)
+          .font(KnapsackBrand.inter(13))
+          .foregroundStyle(KnapsackBrand.coral)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
     .cardStyle()
@@ -1731,52 +1748,67 @@ struct ContentView: View {
   }
 
   private var chatComposer: some View {
-    HStack(alignment: .bottom, spacing: 10) {
-      TextField("Message Knapsack", text: $draftChatMessage, axis: .vertical)
-        .font(KnapsackBrand.inter(16))
-        .foregroundStyle(KnapsackBrand.ink)
-        .tint(KnapsackBrand.ink)
-        .lineLimit(1...4)
-        .textInputAutocapitalization(.sentences)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
-
-      Button {
-        let pendingMessage = draftChatMessage
-        guard !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        draftChatMessage = ""
-        Task {
-          let didSend = await viewModel.sendChatMessage(pendingMessage)
-          if didSend {
-            presentedChat = viewModel.selectedChat
-          } else {
-            draftChatMessage = pendingMessage
-          }
-        }
-      } label: {
-        Group {
-          if viewModel.isSendingChatMessage {
-            ProgressView()
-              .tint(.white)
-          } else {
-            Image(systemName: "arrow.up")
-              .font(.system(size: 17, weight: .bold))
-          }
-        }
-        .frame(width: 44, height: 44)
-        .background(Circle().fill(KnapsackBrand.ink))
-        .foregroundStyle(.white)
+    VStack(alignment: .leading, spacing: 7) {
+      if let error = viewModel.errorMessage {
+        Text(error)
+          .font(KnapsackBrand.inter(13, weight: .medium))
+          .foregroundStyle(KnapsackBrand.coral)
+          .fixedSize(horizontal: false, vertical: true)
       }
-      .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-      .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
+
+      HStack(alignment: .bottom, spacing: 10) {
+        TextField("Message Knapsack", text: $draftChatMessage, axis: .vertical)
+          .font(KnapsackBrand.inter(16))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
+          .lineLimit(1...4)
+          .textInputAutocapitalization(.sentences)
+          .submitLabel(.send)
+          .onSubmit(sendCurrentChatDraft)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 11)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+
+        Button(action: sendCurrentChatDraft) {
+          Group {
+            if viewModel.isSendingChatMessage {
+              ProgressView()
+                .tint(.white)
+            } else {
+              Image(systemName: "arrow.up")
+                .font(.system(size: 17, weight: .bold))
+            }
+          }
+          .frame(width: 44, height: 44)
+          .background(Circle().fill(KnapsackBrand.ink))
+          .foregroundStyle(.white)
+        }
+        .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+        .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
+      }
     }
     .padding(.horizontal, 20)
     .padding(.top, 12)
     .padding(.bottom, 10)
     .background(.ultraThinMaterial)
     .overlay(alignment: .top) { Divider().overlay(KnapsackBrand.line) }
+  }
+
+  private func sendCurrentChatDraft() {
+    let pendingMessage = draftChatMessage
+    guard !viewModel.isSendingChatMessage,
+          !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+    draftChatMessage = ""
+    Task {
+      let didSend = await viewModel.sendChatMessage(pendingMessage)
+      if didSend {
+        presentedChat = viewModel.selectedChat
+      } else {
+        draftChatMessage = pendingMessage
+      }
+    }
   }
 
   @ViewBuilder
@@ -2186,11 +2218,20 @@ struct ContentView: View {
   }
 
   private func makeDailyBriefPrompt() -> String {
-    "Give me a concise mobile GBrain brief for today. Use my upcoming meetings, recent notes, desktop chats, and saved brain pages to tell me: 1. what needs attention now, 2. what can wait, 3. what I should read before my next conversation."
+    "Give me a concise brief for today. Use my upcoming meetings, recent notes, desktop chats, and saved knowledge to tell me: 1. what needs attention now, 2. what can wait, 3. what I should read before my next conversation."
   }
 
   private func makeResearchPrompt(from prompt: String) -> String {
-    "Act as my mobile GBrain. Answer quickly but concretely, using my saved notes, meetings, chats, calendar, and brain pages when relevant. Focus on helping me move fast on the go.\n\nQuestion: \(prompt.trimmingCharacters(in: .whitespacesAndNewlines))"
+    "Answer quickly but concretely, using my saved notes, meetings, chats, calendar, and knowledge when relevant. Focus on helping me move fast on the go.\n\nQuestion: \(prompt.trimmingCharacters(in: .whitespacesAndNewlines))"
+  }
+
+  private func runQuickPrompt(title: String, prompt: String, clearComposer: Bool = false) async {
+    guard let detail = await viewModel.startChat(title: title, prompt: prompt) else { return }
+    presentedChat = detail
+    selectedPane = .chats
+    if clearComposer {
+      gbrainDraftPrompt = ""
+    }
   }
 
   private func runGBrainPrompt(_ prompt: String, clearComposer: Bool = false) async {

@@ -439,6 +439,27 @@ final class MeetingListViewModel: ObservableObject {
     }
   }
 
+  func startChat(title: String, prompt: String) async -> MobileChatDetail? {
+    let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    isSendingChatMessage = true
+    defer { isSendingChatMessage = false }
+
+    do {
+      let chat = try await api.createChat(title: title)
+      let detail = try await api.sendChatMessage(threadID: chat.id, text: trimmed)
+      selectedChat = detail
+      upsertChatSummary(from: detail)
+      statusMessage = "Knapsack has your answer ready."
+      errorMessage = nil
+      return detail
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
   private func upsertChatSummary(from chat: MobileChatDetail) {
     let preview = chat.messages.last?.content
     let summary = MobileChatSummary(
