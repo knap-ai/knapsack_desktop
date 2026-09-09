@@ -1817,8 +1817,36 @@ struct ContentView: View {
     let content = readableAssistantMessage(message.content)
     let isLong = content.count > 900
 
-    markdownMessageText(content)
-      .lineLimit(isLong && !isExpanded ? 12 : nil)
+    VStack(alignment: .leading, spacing: 12) {
+      ForEach(noteBlocks(from: content)) { block in
+        switch block {
+        case .heading(let text):
+          Text(text)
+            .font(KnapsackBrand.inter(15, weight: .bold))
+            .foregroundStyle(KnapsackBrand.ink)
+            .padding(.top, 3)
+        case .bullet(let text):
+          HStack(alignment: .top, spacing: 9) {
+            Circle()
+              .fill(KnapsackBrand.amber)
+              .frame(width: 6, height: 6)
+              .padding(.top, 8)
+            Text(text)
+              .font(KnapsackBrand.inter(16))
+              .foregroundStyle(KnapsackBrand.ink)
+              .lineSpacing(3)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        case .paragraph(let text):
+          Text(text)
+            .font(KnapsackBrand.inter(16))
+            .foregroundStyle(KnapsackBrand.ink)
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .lineLimit(isLong && !isExpanded ? 12 : nil)
 
     if isLong {
       Button(isExpanded ? "Show less" : "Read full answer") {
@@ -2490,8 +2518,23 @@ struct ContentView: View {
   private func readableAssistantMessage(_ content: String) -> String {
     var result = sanitizedMarkdown(content)
 
-    // Older desktop replies sometimes use emoji labels without line breaks. Turn
-    // those into real Markdown sections before rendering them on a phone.
+    // The desktop can return compact briefing labels without a separator. Turn
+    // them into explicit sections before using the mobile renderer.
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:⚡\\s*)?needs\\s+your\\s+attention\\s+now\\s*",
+      with: "\n## Needs your attention now\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:🟡\\s*)?can\\s+wait\\s*",
+      with: "\n## Can wait\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:🔵\\s*)?read\\s+before(?:\\s+your)?\\s+next\\s+conversation\\s*",
+      with: "\n## Read before your next conversation\n- "
+    )
     result = replacingMatches(
       in: result,
       pattern: "(?i)(?:🟢\\s*|(?:^|\\n)\\s*)(?:action\\s*now|do\\s*now)\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
@@ -2525,6 +2568,10 @@ struct ContentView: View {
     result = insertingLineBreaks(
       in: result,
       pattern: "(?<=[.!?])(?=(?:Reply|Send|Call|Review|Read|Prepare|Follow|Skim|Check|Schedule|Open|Ask|Update|Draft|Confirm)\\b)"
+    )
+    result = insertingLineBreaks(
+      in: result,
+      pattern: "(?<=[.!?])(?=(?:[🟢🟡🔵⚡]))"
     )
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
