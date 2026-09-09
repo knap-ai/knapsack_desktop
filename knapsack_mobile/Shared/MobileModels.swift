@@ -80,6 +80,54 @@ struct SendMobileChatMessageRequest: Codable {
   var text: String
 }
 
+struct MobileManagedAgent: Codable, Identifiable {
+  var agentId: String
+  var displayName: String
+  var templateId: String
+  var tenantId: String
+
+  var id: String { agentId }
+}
+
+struct MobileManagedAgentSession: Codable, Identifiable {
+  var sessionId: String
+  var agentId: String
+  var userId: String
+  var taskSummary: String
+  var status: String
+  var messageCount: Int
+  var lastInboundMessage: String?
+  var lastReplySummary: String?
+  var updatedAt: String
+
+  var id: String { sessionId }
+}
+
+struct MobileManagedAgentsIndex: Codable {
+  var success: Bool
+  var agents: [MobileManagedAgent]
+  var executionSessions: [MobileManagedAgentSession]
+}
+
+struct MobileManagedAgentRunResponse: Codable {
+  var success: Bool
+  var session: MobileManagedAgentSession
+  var reply: String?
+  var message: String
+}
+
+struct MobileManagedAgentRunRequest: Codable {
+  var agentId: String
+  var userId: String
+  var channel: String
+  var message: String
+  var taskSummary: String?
+  var contextKey: String?
+  var requiredCapabilities: [String]
+  var desktopSessionRequirement: String?
+  var gatewayAgentId: String?
+}
+
 struct MobileLinkedProfile: Codable {
   var email: String
   var name: String?
@@ -109,6 +157,10 @@ struct MobileCalendarEventSummary: Codable, Identifiable {
   var end: Int64?
   var googleMeetURL: String?
   var calendarAccountEmail: String
+  var meetingThreadId: UInt64?
+  var notesPreview: String?
+  var prepChatThreadId: UInt64?
+  var prepPreview: String?
 }
 
 struct MobileBrainEntry: Codable, Identifiable, Hashable {

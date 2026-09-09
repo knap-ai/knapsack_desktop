@@ -8,6 +8,13 @@ final class MeetingListViewModel: ObservableObject {
   @Published var selectedMeeting: MobileMeetingDetail?
   @Published var chats: [MobileChatSummary] = []
   @Published var selectedChat: MobileChatDetail?
+  @Published var managedAgents: [MobileManagedAgent] = []
+  @Published var managedAgentSessions: [MobileManagedAgentSession] = []
+  @Published var selectedManagedAgent: MobileManagedAgent?
+  @Published var managedAgentMessages: [MobileChatMessage] = []
+  @Published var isSendingManagedAgentMessage = false
+  @Published var nextMeetingPrep: MobileChatDetail?
+  @Published var isLoadingNextMeetingPrep = false
   @Published var autopilotBrief: MobileAutopilotBrief?
   @Published var isLoadingAutopilot = false
   @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
@@ -26,6 +33,7 @@ final class MeetingListViewModel: ObservableObject {
   @Published var errorMessage: String?
   @Published var statusMessage: String?
   private var lastAutoConnectedDesktopID: String?
+  private var preparedEventID: String?
 
   private let api: MobileAPI
 
@@ -86,6 +94,8 @@ final class MeetingListViewModel: ObservableObject {
       }
       errorMessage = nil
       isDesktopReachable = true
+      await refreshManagedAgents()
+      await preloadNextMeetingPrep()
       await refreshGBrain()
     } catch {
       isDesktopReachable = false
@@ -256,7 +266,33 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   func createMeetingForRecordingIfNeeded() async -> MobileMeetingDetail? {
-    if let selectedMeeting {
+    if let event = nextCalendarEvent {
+      if let meetingID = event.meetingThreadId,
+         let linkedMeeting = try? await api.getMeeting(threadID: meetingID) {
+        selectedMeeting = linkedMeeting
+        return linkedMeeting
+      }
+      if let selectedMeeting,
+         selectedMeeting.thread.title == event.title,
+         selectedMeeting.metadata.status == .recording {
+        return selectedMeeting
+      }
+      do {
+        let created = try await api.createMeeting(
+          title: event.title ?? "Recorded meeting",
+          subtitle: event.start.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .abbreviated, time: .shortened) },
+          sourceDevice: "iphone"
+        )
+        selectedMeeting = created
+        await refresh()
+        statusMessage = "Ready to record \(created.thread.title ?? "your next meeting")."
+        return created
+      } catch {
+        errorMessage = friendlyMessage(for: error)
+        return nil
+      }
+    }
+    if let selectedMeeting, selectedMeeting.metadata.status == .recording {
       return selectedMeeting
     }
     do {
@@ -265,6 +301,57 @@ final class MeetingListViewModel: ObservableObject {
       await refresh()
       statusMessage = "Prepared meeting \(created.id) for recording."
       return created
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  var nextCalendarEvent: MobileCalendarEventSummary? {
+    let now = Int64(Date().timeIntervalSince1970) - 15 * 60
+    return calendarEvents
+      .filter { ($0.end ?? $0.start ?? 0) >= now }
+      .min { ($0.start ?? Int64.max) < ($1.start ?? Int64.max) }
+  }
+
+  func preloadNextMeetingPrep(force: Bool = false) async {
+    guard isDesktopReachable, let event = nextCalendarEvent else { return }
+    guard force || preparedEventID != event.eventId else { return }
+    preparedEventID = event.eventId
+    isLoadingNextMeetingPrep = true
+    defer { isLoadingNextMeetingPrep = false }
+
+    if let prepChatID = event.prepChatThreadId,
+       let detail = try? await api.getChat(threadID: prepChatID) {
+      nextMeetingPrep = detail
+      return
+    }
+
+    let prepTitle = "Prep: \(event.title ?? "Next meeting")"
+    if let existing = chats.first(where: { $0.thread.title == prepTitle }),
+       let detail = try? await api.getChat(threadID: existing.id) {
+      nextMeetingPrep = detail
+      return
+    }
+
+    do {
+      let chat = try await api.createChat(title: prepTitle)
+      let prompt = "Prepare me for \(event.title ?? "my next meeting"). Use the calendar event, prior meetings, saved notes, and relevant chats. Lead with context, goals, open questions, and the three things I should know before joining."
+      let detail = try await api.sendChatMessage(threadID: chat.id, text: prompt)
+      nextMeetingPrep = detail
+      upsertChatSummary(from: detail)
+    } catch {
+      preparedEventID = nil
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func openCalendarEvent(_ event: MobileCalendarEventSummary) async -> MobileMeetingDetail? {
+    guard let meetingID = event.meetingThreadId else { return nil }
+    do {
+      let meeting = try await api.getMeeting(threadID: meetingID)
+      selectedMeeting = meeting
+      return meeting
     } catch {
       errorMessage = friendlyMessage(for: error)
       return nil
@@ -314,6 +401,54 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
     } catch {
       errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshManagedAgents() async {
+    guard let index = try? await api.getManagedAgents() else { return }
+    managedAgents = index.agents
+    managedAgentSessions = index.executionSessions.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  func openManagedAgent(_ agent: MobileManagedAgent) {
+    selectedManagedAgent = agent
+    var messages: [MobileChatMessage] = []
+    let sessions = managedAgentSessions
+      .filter { $0.agentId == agent.agentId }
+      .sorted { $0.updatedAt < $1.updatedAt }
+    for (index, session) in sessions.enumerated() {
+      let timestamp = Int64(index * 2)
+      if let inbound = session.lastInboundMessage, !inbound.isEmpty {
+        messages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: inbound))
+      }
+      if let reply = session.lastReplySummary, !reply.isEmpty {
+        messages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
+      }
+    }
+    managedAgentMessages = messages
+  }
+
+  func sendManagedAgentMessage(_ text: String) async -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let agent = selectedManagedAgent, !trimmed.isEmpty else { return false }
+    let userID = session?.profile?.uuid ?? session?.profile?.email ?? "mobile-user"
+    let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+    managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: trimmed))
+    isSendingManagedAgentMessage = true
+    defer { isSendingManagedAgentMessage = false }
+
+    do {
+      let response = try await api.sendManagedAgentMessage(agentID: agent.agentId, userID: userID, text: trimmed)
+      if let reply = response.reply, !reply.isEmpty {
+        managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
+      }
+      await refreshManagedAgents()
+      errorMessage = response.success ? nil : response.message
+      return response.success
+    } catch {
+      managedAgentMessages.removeLast()
+      errorMessage = friendlyMessage(for: error)
+      return false
     }
   }
 

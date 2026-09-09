@@ -7,6 +7,8 @@ final class MobileAPI {
   private let encoder = JSONEncoder()
   private let fallbackStoreKey = "knapsack.mobile.fallback.meetings"
   private let fallbackChatStoreKey = "knapsack.mobile.fallback.chats"
+  private let fallbackChatDetailStoreKey = "knapsack.mobile.fallback.chatDetails"
+  private let fallbackCalendarStoreKey = "knapsack.mobile.fallback.calendar"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
@@ -118,7 +120,16 @@ final class MobileAPI {
   }
 
   func getChat(threadID: UInt64) async throws -> MobileChatDetail {
-    try await fetch(path: "/api/knapsack/mobile/chats/\(threadID)")
+    do {
+      let chat: MobileChatDetail = try await fetch(path: "/api/knapsack/mobile/chats/\(threadID)")
+      try? upsertFallbackChatDetail(chat)
+      return chat
+    } catch {
+      guard let chat = loadFallbackChatDetails().first(where: { $0.id == threadID }) else {
+        throw error
+      }
+      return chat
+    }
   }
 
   func createChat(title: String? = nil) async throws -> MobileChatDetail {
@@ -128,6 +139,7 @@ final class MobileAPI {
       body: CreateMobileChatRequest(title: title)
     )
     try? upsertFallbackChatSummary(from: chat)
+    try? upsertFallbackChatDetail(chat)
     return chat
   }
 
@@ -138,7 +150,29 @@ final class MobileAPI {
       body: SendMobileChatMessageRequest(text: text)
     )
     try? upsertFallbackChatSummary(from: chat)
+    try? upsertFallbackChatDetail(chat)
     return chat
+  }
+
+  func getManagedAgents() async throws -> MobileManagedAgentsIndex {
+    try await fetchDirect(path: "/api/clawd/managed-agents")
+  }
+
+  func sendManagedAgentMessage(agentID: String, userID: String, text: String) async throws -> MobileManagedAgentRunResponse {
+    try await sendDirect(
+      path: "/api/clawd/managed-agents/channel-run",
+      body: MobileManagedAgentRunRequest(
+        agentId: agentID,
+        userId: userID,
+        channel: "desktop_chat",
+        message: text,
+        taskSummary: nil,
+        contextKey: "mobile-\(userID)-\(agentID)",
+        requiredCapabilities: ["cloud_chat", "shared_task_context"],
+        desktopSessionRequirement: "preferred",
+        gatewayAgentId: nil
+      )
+    )
   }
 
   func getSession() async throws -> MobileLinkedSession {
@@ -146,7 +180,19 @@ final class MobileAPI {
   }
 
   func listCalendarEvents() async throws -> [MobileCalendarEventSummary] {
-    try await fetch(path: "/api/knapsack/mobile/calendar")
+    do {
+      let events: [MobileCalendarEventSummary] = try await fetch(path: "/api/knapsack/mobile/calendar")
+      if let data = try? encoder.encode(events) {
+        UserDefaults.standard.set(data, forKey: fallbackCalendarStoreKey)
+      }
+      return events
+    } catch {
+      guard let data = UserDefaults.standard.data(forKey: fallbackCalendarStoreKey),
+            let events = try? decoder.decode([MobileCalendarEventSummary].self, from: data) else {
+        throw error
+      }
+      return events
+    }
   }
 
   func getAutopilotBrief() async throws -> MobileAutopilotBrief {
@@ -345,6 +391,29 @@ final class MobileAPI {
     return payload
   }
 
+  private func fetchDirect<T: Codable>(path: String) async throws -> T {
+    var request = URLRequest(url: try requestURL(path: path))
+    applyAuthentication(to: &request)
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
+      throw MobileAPIError.server("Request failed")
+    }
+    return try decoder.decode(T.self, from: data)
+  }
+
+  private func sendDirect<T: Codable, Body: Codable>(path: String, body: Body) async throws -> T {
+    var request = URLRequest(url: try requestURL(path: path))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    applyAuthentication(to: &request)
+    request.httpBody = try encoder.encode(body)
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
+      throw MobileAPIError.server("Request failed")
+    }
+    return try decoder.decode(T.self, from: data)
+  }
+
   private func send<T: Codable, Body: Codable>(path: String, method: String, body: Body) async throws -> T {
     var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
     request.httpMethod = method
@@ -381,6 +450,14 @@ final class MobileAPI {
     return chats.sorted { $0.updatedAt > $1.updatedAt }
   }
 
+  private func loadFallbackChatDetails() -> [MobileChatDetail] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackChatDetailStoreKey),
+          let chats = try? decoder.decode([MobileChatDetail].self, from: data) else {
+      return []
+    }
+    return chats.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
   private func saveFallbackMeetings(_ meetings: [MobileMeetingDetail]) throws {
     let data = try encoder.encode(meetings)
     UserDefaults.standard.set(data, forKey: fallbackStoreKey)
@@ -389,6 +466,11 @@ final class MobileAPI {
   private func saveFallbackChats(_ chats: [MobileChatSummary]) throws {
     let data = try encoder.encode(chats)
     UserDefaults.standard.set(data, forKey: fallbackChatStoreKey)
+  }
+
+  private func saveFallbackChatDetails(_ chats: [MobileChatDetail]) throws {
+    let data = try encoder.encode(Array(chats.prefix(40)))
+    UserDefaults.standard.set(data, forKey: fallbackChatDetailStoreKey)
   }
 
   private func upsertFallbackMeeting(_ meeting: MobileMeetingDetail) throws {
@@ -417,6 +499,17 @@ final class MobileAPI {
     }
     chats.sort { $0.updatedAt > $1.updatedAt }
     try saveFallbackChats(chats)
+  }
+
+  private func upsertFallbackChatDetail(_ chat: MobileChatDetail) throws {
+    var chats = loadFallbackChatDetails()
+    if let index = chats.firstIndex(where: { $0.id == chat.id }) {
+      chats[index] = chat
+    } else {
+      chats.insert(chat, at: 0)
+    }
+    chats.sort { $0.updatedAt > $1.updatedAt }
+    try saveFallbackChatDetails(chats)
   }
 
   private func createFallbackMeeting(title: String?, subtitle: String?, sourceDevice: String) throws -> MobileMeetingDetail {

@@ -196,9 +196,11 @@ pub async fn start_server<'a>(
   let (desktop_api_token, mobile_api_token) = clawd::service::api_auth_tokens(&app_handle)
     .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
   let mobile_api_token_for_server = mobile_api_token.clone();
+  let mobile_app_handle = app_handle.clone();
   let mobile_port = mobile_lan_port(port);
   let mobile_server = HttpServer::new(move || {
     App::new()
+      .app_data(Data::new(mobile_app_handle.clone()))
       .wrap(ApiAuth::mobile(mobile_api_token_for_server.clone()))
       .wrap(Logger::default())
       .service(ping)
@@ -220,6 +222,8 @@ pub async fn start_server<'a>(
       .service(api::mobile::save_mobile_notes)
       .service(api::mobile::update_mobile_meeting_status)
       .service(api::mobile::upload_mobile_recording)
+      .service(clawd::managed_agents::managed_agents_index)
+      .service(clawd::managed_agents::managed_agent_channel_run)
   });
 
   let mobile_server_handle = match mobile_server.bind(("0.0.0.0", mobile_port)) {

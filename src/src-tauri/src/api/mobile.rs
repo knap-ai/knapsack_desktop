@@ -171,6 +171,10 @@ pub struct MobileCalendarEventSummary {
   pub end: Option<i64>,
   pub google_meet_url: Option<String>,
   pub calendar_account_email: String,
+  pub meeting_thread_id: Option<u64>,
+  pub notes_preview: Option<String>,
+  pub prep_chat_thread_id: Option<u64>,
+  pub prep_preview: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -440,8 +444,95 @@ fn build_mobile_session() -> MobileLinkedSession {
   }
 }
 
+#[derive(Clone, Default)]
+struct MobileCalendarLinks {
+  meeting_thread_id: Option<u64>,
+  notes_preview: Option<String>,
+  prep_chat_thread_id: Option<u64>,
+  prep_preview: Option<String>,
+}
+
+fn build_mobile_calendar_links() -> HashMap<u64, MobileCalendarLinks> {
+  let mut links = HashMap::new();
+
+  for item in FeedItem::find_all_complete().unwrap_or_default() {
+    let Some(event_id) = item.calendar_event.and_then(|event| event.id) else {
+      continue;
+    };
+    let is_meeting_prep = item
+      .automation
+      .as_ref()
+      .map(|automation| {
+        let label = format!("{} {}", automation.name, automation.description).to_lowercase();
+        label.contains("meeting") && label.contains("prep")
+      })
+      .unwrap_or(false);
+    let link = links.entry(event_id).or_insert_with(MobileCalendarLinks::default);
+
+    for thread_with_messages in item.threads.unwrap_or_default() {
+      let thread_id = thread_with_messages.thread.id;
+      match thread_with_messages.thread.thread_type {
+        ThreadType::MeetingNotes => {
+          if link.meeting_thread_id.is_none() {
+            link.meeting_thread_id = thread_id;
+            link.notes_preview = thread_id
+              .and_then(load_notes)
+              .and_then(|notes| clean_email_preview(&notes));
+          }
+        }
+        ThreadType::Chat if is_meeting_prep => {
+          let prep = thread_with_messages
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.user_id.is_none())
+            .map(|message| {
+              message
+                .content_facade
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| message.content.clone())
+            })
+            .and_then(|content| clean_email_preview(&content));
+          if prep.is_some() {
+            link.prep_chat_thread_id = thread_id;
+            link.prep_preview = prep;
+          }
+        }
+        ThreadType::Chat => {}
+      }
+    }
+  }
+
+  links
+}
+
+fn mobile_calendar_summary(
+  event: CalendarEvent,
+  links: &HashMap<u64, MobileCalendarLinks>,
+) -> Option<MobileCalendarEventSummary> {
+  let id = event.id?;
+  let link = links.get(&id).cloned().unwrap_or_default();
+  Some(MobileCalendarEventSummary {
+    id,
+    event_id: event.event_id,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    start: event.start,
+    end: event.end,
+    google_meet_url: event.google_meet_url,
+    calendar_account_email: event.calendar_account_email,
+    meeting_thread_id: link.meeting_thread_id,
+    notes_preview: link.notes_preview,
+    prep_chat_thread_id: link.prep_chat_thread_id,
+    prep_preview: link.prep_preview,
+  })
+}
+
 fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary> {
   let now = chrono::Utc::now().timestamp() - 60 * 60 * 6;
+  let links = build_mobile_calendar_links();
   let mut events = CalendarEvent::find_all()
     .into_iter()
     .filter(|event| event.start.unwrap_or_default() >= now)
@@ -451,19 +542,25 @@ fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary>
   events
     .into_iter()
     .take(limit)
-    .filter_map(|event| {
-      Some(MobileCalendarEventSummary {
-        id: event.id?,
-        event_id: event.event_id,
-        title: event.title,
-        description: event.description,
-        location: event.location,
-        start: event.start,
-        end: event.end,
-        google_meet_url: event.google_meet_url,
-        calendar_account_email: event.calendar_account_email,
-      })
-    })
+    .filter_map(|event| mobile_calendar_summary(event, &links))
+    .collect()
+}
+
+fn build_mobile_calendar_timeline(limit: usize) -> Vec<MobileCalendarEventSummary> {
+  let oldest = chrono::Utc::now().timestamp() - 60 * 60 * 24 * 180;
+  let links = build_mobile_calendar_links();
+  let mut events = CalendarEvent::find_all()
+    .into_iter()
+    .filter(|event| event.start.unwrap_or_default() >= oldest)
+    .collect::<Vec<_>>();
+
+  events.sort_by(|left, right| {
+    right.start.unwrap_or_default().cmp(&left.start.unwrap_or_default())
+  });
+  events
+    .into_iter()
+    .take(limit)
+    .filter_map(|event| mobile_calendar_summary(event, &links))
     .collect()
 }
 
@@ -1638,7 +1735,7 @@ pub async fn get_mobile_session() -> impl Responder {
 pub async fn list_mobile_calendar_events() -> impl Responder {
   HttpResponse::Ok().json(json!({
     "success": true,
-    "data": build_mobile_calendar_events(20)
+    "data": build_mobile_calendar_timeline(150)
   }))
 }
 
@@ -2138,7 +2235,7 @@ pub async fn list_mobile_meetings() -> impl Responder {
   let meetings: Vec<MobileMeetingDetail> = threads
     .into_iter()
     .filter(|thread| matches!(thread.thread_type, ThreadType::MeetingNotes))
-    .take(50)
+    .take(200)
     .map(|thread| {
       let metadata = thread
         .id
