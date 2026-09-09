@@ -486,6 +486,7 @@ struct ContentView: View {
             }
           }
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+          .disabled(viewModel.isSendingChatMessage)
         }
       }
 
@@ -1691,7 +1692,7 @@ struct ContentView: View {
         ForEach(noteBlocks(from: notes)) { block in
           switch block {
           case .heading(let text):
-            Text(text)
+            parsedMarkdownText(text)
               .font(KnapsackBrand.inter(18, weight: .bold))
               .foregroundStyle(KnapsackBrand.ink)
               .padding(.top, 4)
@@ -1701,13 +1702,13 @@ struct ContentView: View {
                 .fill(KnapsackBrand.amber)
                 .frame(width: 7, height: 7)
                 .padding(.top, 8)
-              Text(text)
+              parsedMarkdownText(text)
                 .font(KnapsackBrand.inter(16))
                 .foregroundStyle(KnapsackBrand.ink)
                 .fixedSize(horizontal: false, vertical: true)
             }
           case .paragraph(let text):
-            Text(text)
+            parsedMarkdownText(text)
               .font(KnapsackBrand.inter(16))
               .foregroundStyle(KnapsackBrand.ink)
               .fixedSize(horizontal: false, vertical: true)
@@ -1805,6 +1806,7 @@ struct ContentView: View {
         }
       }
     }
+    .textSelection(.enabled)
   }
 
   private var chatsSection: some View {
@@ -2168,6 +2170,7 @@ struct ContentView: View {
         }
       }
     }
+    .textSelection(.enabled)
   }
 
   @ViewBuilder
@@ -2868,17 +2871,17 @@ struct ContentView: View {
     // them into explicit sections before using the mobile renderer.
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:⚡\\s*)?needs\\s+your\\s+attention\\s+now\\s*",
+      pattern: "(?mi)^\\s*(?:⚡\\s*)?needs\\s+your\\s+attention\\s+now\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
       with: "\n## Needs your attention now\n- "
     )
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:🟡\\s*)?can\\s+wait\\s*",
+      pattern: "(?mi)^\\s*(?:🟡\\s*)?can\\s+wait\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
       with: "\n## Can wait\n- "
     )
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:🔵\\s*)?read\\s+before(?:\\s+your)?\\s+next\\s+conversation\\s*",
+      pattern: "(?mi)^\\s*(?:🔵\\s*)?read\\s+before(?:\\s+your)?\\s+next\\s+conversation\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
       with: "\n## Read before your next conversation\n- "
     )
     result = replacingMatches(

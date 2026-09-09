@@ -9,6 +9,7 @@ final class MobileAPI {
   private let fallbackChatStoreKey = "knapsack.mobile.fallback.chats"
   private let fallbackChatDetailStoreKey = "knapsack.mobile.fallback.chatDetails"
   private let fallbackCalendarStoreKey = "knapsack.mobile.fallback.calendar"
+  private let fallbackSessionStoreKey = "knapsack.mobile.fallback.session"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
@@ -176,7 +177,22 @@ final class MobileAPI {
   }
 
   func getSession() async throws -> MobileLinkedSession {
-    try await fetch(path: "/api/knapsack/mobile/session")
+    let session: MobileLinkedSession = try await fetch(path: "/api/knapsack/mobile/session")
+    if let data = try? encoder.encode(session) {
+      UserDefaults.standard.set(data, forKey: fallbackSessionStoreKey)
+    }
+    return session
+  }
+
+  func loadCachedWorkspace() -> (
+    session: MobileLinkedSession?,
+    calendarEvents: [MobileCalendarEventSummary],
+    meetings: [MobileMeetingDetail],
+    chats: [MobileChatSummary]
+  ) {
+    let session = UserDefaults.standard.data(forKey: fallbackSessionStoreKey)
+      .flatMap { try? decoder.decode(MobileLinkedSession.self, from: $0) }
+    return (session, loadFallbackCalendarEvents(), loadFallbackMeetings(), loadFallbackChats())
   }
 
   func listCalendarEvents() async throws -> [MobileCalendarEventSummary] {
@@ -456,6 +472,14 @@ final class MobileAPI {
       return []
     }
     return chats.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  private func loadFallbackCalendarEvents() -> [MobileCalendarEventSummary] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackCalendarStoreKey),
+          let events = try? decoder.decode([MobileCalendarEventSummary].self, from: data) else {
+      return []
+    }
+    return events
   }
 
   private func saveFallbackMeetings(_ meetings: [MobileMeetingDetail]) throws {

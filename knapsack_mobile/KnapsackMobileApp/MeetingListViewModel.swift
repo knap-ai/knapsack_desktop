@@ -99,7 +99,18 @@ final class MeetingListViewModel: ObservableObject {
       await refreshGBrain()
     } catch {
       isDesktopReachable = false
+      let cached = api.loadCachedWorkspace()
+      session = cached.session
+      calendarEvents = cached.calendarEvents
+      meetings = cached.meetings
+      chats = cached.chats.sorted { $0.updatedAt > $1.updatedAt }
+      if selectedMeeting == nil {
+        selectedMeeting = meetings.first
+      }
       errorMessage = friendlyMessage(for: error)
+      statusMessage = chats.isEmpty && meetings.isEmpty
+        ? "Reconnect to your Mac to load your workspace."
+        : "Offline - showing saved chats and meeting notes."
     }
   }
 
@@ -217,7 +228,9 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
       await refresh()
     } catch {
-      isDesktopReachable = false
+      if error is URLError {
+        isDesktopReachable = false
+      }
       errorMessage = "Could not reach Knapsack Desktop at \(url.host() ?? url.absoluteString). Make sure the Mac app is open and use your Mac's local network address."
     }
 
@@ -574,7 +587,9 @@ final class MeetingListViewModel: ObservableObject {
         selectedChat = previousChat
         upsertChatSummary(from: previousChat)
       }
-      isDesktopReachable = false
+      if error is URLError {
+        isDesktopReachable = false
+      }
       isSendingChatMessage = false
       errorMessage = friendlyMessage(for: error)
       return false
@@ -583,7 +598,7 @@ final class MeetingListViewModel: ObservableObject {
 
   func startChat(title: String, prompt: String) async -> MobileChatDetail? {
     let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
+    guard !trimmed.isEmpty, !isSendingChatMessage else { return nil }
 
     isSendingChatMessage = true
     defer { isSendingChatMessage = false }
@@ -597,7 +612,9 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
       return detail
     } catch {
-      isDesktopReachable = false
+      if error is URLError {
+        isDesktopReachable = false
+      }
       errorMessage = friendlyMessage(for: error)
       return nil
     }
