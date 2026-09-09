@@ -2451,28 +2451,24 @@ struct ContentView: View {
 
     // Older desktop replies sometimes use emoji labels without line breaks. Turn
     // those into real Markdown sections before rendering them on a phone.
-    result = result
-      .replacingOccurrences(of: "🟢", with: "")
-      .replacingOccurrences(of: "🟡", with: "")
-      .replacingOccurrences(of: "🔵", with: "")
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:^|\\n|\\s)(?:action\\s*now|do\\s*now)\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      pattern: "(?i)(?:🟢\\s*|(?:^|\\n)\\s*)(?:action\\s*now|do\\s*now)\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
       with: "\n## Do now\n- "
     )
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:^|\\n|\\s)(?:can\\s*wait|later)\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      pattern: "(?i)(?:🟡\\s*|(?:^|\\n)\\s*)(?:can\\s*wait|later)\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
       with: "\n## Later\n- "
     )
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:^|\\n|\\s)(?:read\\s*before\\s*next\\s*conversation|before\\s*your\\s*next\\s*conversation)\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
+      pattern: "(?i)(?:🔵\\s*|(?:^|\\n)\\s*)(?:read\\s*before\\s*next\\s*conversation|before\\s*your\\s*next\\s*conversation)\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
       with: "\n## Before your next conversation\n- "
     )
     result = replacingMatches(
       in: result,
-      pattern: "(?i)(?:^|\\n|\\s)next\\s*step\\s*:\\s*",
+      pattern: "(?mi)^\\s*(?:#{1,6}\\s*|-\\s*)?next\\s*step\\s*:\\s*|(?<=\\.)\\s*next\\s*step\\s*:\\s*",
       with: "\n## Next step\n"
     )
 
