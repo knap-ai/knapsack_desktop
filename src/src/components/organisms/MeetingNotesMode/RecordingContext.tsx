@@ -31,7 +31,7 @@ export interface RecordingContextProps {
       userNotes: string,
       meeting: Meeting | undefined,
     ) => Promise<void>,
-    saveNotes: (threadId: number, notes: string) => Promise<void>,
+    _saveNotes: (threadId: number, notes: string) => Promise<void>,
     checkTranscriptSaved: () => Promise<void>,
     notesMarkdown: string,
     threadId: number,
@@ -49,7 +49,7 @@ export interface RecordingContextProps {
       userNotes: string,
       meeting: Meeting | undefined,
     ) => Promise<void>,
-    saveNotes: (threadId: number, notes: string) => Promise<void>,
+    _saveNotes: (threadId: number, notes: string) => Promise<void>,
     notesMarkdown: string,
     meeting: Meeting | undefined
   ) => Promise<void>
@@ -233,7 +233,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       userNotes: string,
       meeting: Meeting | undefined,
     ) => Promise<void>,
-    saveNotes: (threadId: number, notes: string) => Promise<void>,
+    _saveNotes: (threadId: number, notes: string) => Promise<void>,
     notesMarkdown: string,
     meeting: Meeting | undefined
   ) => {
@@ -243,7 +243,6 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
         setHasSynthesized(threadId, true)
         setIsRecording(threadId, false)
         setActiveRecordingThreadId(prev => prev === threadId ? null : prev)
-        await saveNotes(threadId, notesMarkdown)
         // Emit event for post-meeting follow-up notifications
         emit('notes_synthesized', {
           threadId,

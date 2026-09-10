@@ -19,6 +19,7 @@ interface EmailAutopilotProps {
   userName: string
   showSettings: boolean
   setShowSettings: (show: boolean) => void
+  onRefresh?: () => Promise<void>
 }
 
 type VisibleEmails = {
@@ -38,6 +39,7 @@ export const EmailAutopilot = ({
   userName,
   showSettings,
   setShowSettings,
+  onRefresh,
 }: EmailAutopilotProps) => {
   const [visibleEmailIds, setVisibleEmailIds] = useState<VisibleEmails[]>([])
   const [selectedEmail, setSelectedEmail] = useState<VisibleEmails>({
@@ -51,6 +53,7 @@ export const EmailAutopilot = ({
   const [removingEmailKey, setRemovingEmailKey] = useState<string>('')
   const [isEditorActive, setIsEditorActive] = useState(false)
   const [showEAInfoModal, setShowEAInfoModal] = useState(false)
+  const refreshEmails = onRefresh || feed.runEmailAutopilot
 
   const emailRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const observer = useRef<IntersectionObserver | null>(null)
@@ -443,6 +446,14 @@ export const EmailAutopilot = ({
               {getLoadingText(feed.emailAutopilotStatus.status)}
             </Typography>
           </div>
+        ) : feed.emailAutopilotStatus.status === 'error' &&
+          (!emailsCategory || emailsCategory.length === 0) ? (
+          <div className="flex flex-col items-center text-center text-gray-500 mt-4 gap-2">
+            <span>Email refresh did not finish.</span>
+            <button className="text-ks-red-500 hover:underline" onClick={() => void refreshEmails()}>
+              Try again
+            </button>
+          </div>
         ) : unclassifiedCount > 0 && (!emailsCategory || emailsCategory.length === 0) ? (
           <div className="flex flex-col items-center text-center text-gray-500 mt-4 gap-2">
             <span>
@@ -459,7 +470,7 @@ export const EmailAutopilot = ({
         ) : (
           selectedCategory &&
           (!emailsCategory || emailsCategory.length === 0) && (
-            <div className="text-center text-gray-500 mt-4">You're all caught up!</div>
+            <div className="text-center text-gray-500 mt-4">No emails in this category.</div>
           )
         )}
         <div className="space-y-4 pb-28">

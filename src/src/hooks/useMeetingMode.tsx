@@ -11,6 +11,7 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 import { KNLocalStorage } from 'src/utils/KNLocalStorage'
 import { isSharingEnabled, shouldSaveTranscript } from 'src/utils/settings'
 import { MeetingTemplatePrompt } from 'src/utils/template_prompts'
+import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 
 import { PROFILE_KEY } from './auth/useAuth'
 
@@ -30,6 +31,8 @@ type LLMParams = {
 interface IMeetingSynthesis {
   content: string
   isLLMLoading: boolean
+  streamingMarkdown: string
+  synthesisPhase: 'idle' | 'reading-transcript' | 'writing' | 'saving'
   error: Error | null
   synthesizeContent: (
     threadId: number,
@@ -50,6 +53,8 @@ export const useMeetingSynthesis = (
   const [content, setContent] = useState<string>('')
   const [markdown, setMarkdown] = useState<string>('')
   const [isLLMLoading, setIsLLMLoading] = useState<boolean>(false)
+  const [streamingMarkdown, setStreamingMarkdown] = useState<string>('')
+  const [synthesisPhase, setSynthesisPhase] = useState<IMeetingSynthesis['synthesisPhase']>('idle')
   const [error, setError] = useState<Error | null>(null)
 
   const insertLLMResponse = (editor: Editor | null, response: string) => {
@@ -206,6 +211,8 @@ It's highly likely that the company names mentioned in the transcript appear in 
   const synthesizeContent = useCallback(
     async (threadId: number, userNotes: string, meeting: Meeting | undefined) => {
       setIsLLMLoading(true)
+      setStreamingMarkdown('')
+      setSynthesisPhase('reading-transcript')
       setError(null)
 
       try {
@@ -216,6 +223,7 @@ It's highly likely that the company names mentioned in the transcript appear in 
             error: 'Transcript is undefined or null',
           })
           setIsLLMLoading(false)
+          setSynthesisPhase('idle')
           return
         }
 
@@ -224,61 +232,78 @@ It's highly likely that the company names mentioned in the transcript appear in 
 
         const notesSynthesisPrompt = await customizeNotesSynthesisPrompt(meeting)
 
-        addToLLMQueue({
-          prompt: notesSynthesisPrompt,
-          semanticSearchQuery: '',
-          documents: [],
-          additionalDocuments: [
-            { title: 'Meeting Transcript', content: transcript.content },
-            { title: 'User Notes', content: userNotes },
-          ],
-          messageStreamCallback: content => {
-            console.log('LLM Stream:', content)
-          },
-          messageFinishCallback: async response => {
-            // TODO verify if we still need that, I think onSynthesisFinish solve this
-            insertLLMResponse(editor, response) // this is where the response is inserted into the editor
-            try {
-              await saveNotes(threadId, response)
-              if (!shouldSave) {
-                await deleteTranscript(threadId)
+        setSynthesisPhase('writing')
+        await new Promise<void>((resolve, reject) => {
+          addToLLMQueue({
+            prompt: notesSynthesisPrompt,
+            semanticSearchQuery: '',
+            documents: [],
+            additionalDocuments: [
+              { title: 'Meeting Transcript', content: transcript.content },
+              { title: 'User Notes', content: userNotes },
+            ],
+            // The legacy stream callback receives the complete response-so-far,
+            // not a delta. Render it immediately so notes visibly take shape
+            // instead of leaving the user on a blank page until completion.
+            messageStreamCallback: content => {
+              setSynthesisPhase('writing')
+              setStreamingMarkdown(normalizeMeetingNotesMarkdown(content))
+            },
+            messageFinishCallback: async response => {
+              const normalizedResponse = normalizeMeetingNotesMarkdown(response)
+              setStreamingMarkdown(normalizedResponse)
+              setSynthesisPhase('saving')
+              insertLLMResponse(editor, normalizedResponse)
+              try {
+                await saveNotes(threadId, normalizedResponse)
+                if (!shouldSave) {
+                  await deleteTranscript(threadId)
+                }
+              } catch (err: any) {
+                logError(
+                  err,
+                  {
+                    additionalInfo: 'Error handling notes or transcript',
+                    error: err,
+                  },
+                  true,
+                )
+                setError(err)
+                setIsLLMLoading(false)
+                setSynthesisPhase('idle')
+                reject(err)
+                return response
               }
-            } catch (err: any) {
-              logError(
-                err,
-                {
-                  additionalInfo: 'Error handling notes or transcript',
-                  error: err,
-                },
-                true,
-              )
-              setError(err)
-            }
 
-            onSynthesisFinish()
-            KNAnalytics.trackEvent('Synthesized notes', {})
-            setIsLLMLoading(false)
-            return Promise.resolve(response)
-          },
-          errorCallback: error => {
-            // TODO: it isn't working properly because save notes button need fix - task #94456439
-            saveNotes(threadId, markdown).then(() => {
-              if (!shouldSave) {
-                deleteTranscript(threadId)
-              }
-            })
-
-            logError(error, {
-              additionalInfo: 'errorCallback from addToLLMQueue',
-              error: error.message,
-            })
-            setError(error)
-            setIsLLMLoading(false)
-          },
+              onSynthesisFinish()
+              KNAnalytics.trackEvent('Synthesized notes', {})
+              setIsLLMLoading(false)
+              setSynthesisPhase('idle')
+              setStreamingMarkdown('')
+              resolve()
+              return response
+            },
+            errorCallback: error => {
+              // Keep the transcript and autosaved live notes intact so the user
+              // can retry; never overwrite them with a stale pre-synthesis value.
+              logError(error, {
+                additionalInfo: 'errorCallback from addToLLMQueue',
+                error: error.message,
+              })
+              setError(error)
+              setIsLLMLoading(false)
+              setSynthesisPhase('idle')
+              setStreamingMarkdown('')
+              reject(error)
+            },
+          })
         })
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Unknown error occurred'))
         setIsLLMLoading(false)
+        setSynthesisPhase('idle')
+        setStreamingMarkdown('')
+        throw err
       }
     },
     [markdown],
@@ -287,6 +312,8 @@ It's highly likely that the company names mentioned in the transcript appear in 
   return {
     content,
     isLLMLoading,
+    streamingMarkdown,
+    synthesisPhase,
     error,
     synthesizeContent,
     saveNotes,

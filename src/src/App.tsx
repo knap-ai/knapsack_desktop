@@ -7,7 +7,7 @@ import './main.css'
 import { Alert, Button as MUIButton, Snackbar } from '@mui/material'
 import dayjs from 'dayjs'
 import {
-  // Connection,
+  Connection,
   ConnectionKeys,
   ConnectionStates,
   calendarConnectionKey,
@@ -177,6 +177,7 @@ export interface HomeProps {
   setIsSignInDialogOpened: (show: boolean) => void
   reconnectKeys: ConnectionKeys[]
   isAnyRecording: boolean
+  refreshEmailAutopilot: () => Promise<void>
 }
 
 export type LLMParams = {
@@ -1080,6 +1081,35 @@ function App() {
     syncAutomations,
   }
 
+  const refreshEmailAutopilot = useCallback(async () => {
+    if (!userEmail) return
+
+    feed.setEmailAutopilotStatus({ status: 'sync-email' })
+    try {
+      const refreshedConnections = await fetchConnections(userEmail)
+      const emailConnections = Object.fromEntries(
+        Object.entries(refreshedConnections).filter(([, connection]) => {
+          const key = (connection as Connection).key
+          return key === ConnectionKeys.GOOGLE_GMAIL || key === ConnectionKeys.MICROSOFT_OUTLOOK
+        }),
+      )
+      await syncConnections(userEmail, emailConnections)
+      await feed.runEmailAutopilot()
+    } catch (error) {
+      feed.setEmailAutopilotStatus({ status: 'error' })
+      logError(new Error('Could not refresh Email Autopilot'), {
+        additionalInfo: 'The dedicated Email tab refresh failed.',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }, [
+    feed.runEmailAutopilot,
+    feed.setEmailAutopilotStatus,
+    fetchConnections,
+    syncConnections,
+    userEmail,
+  ])
+
   useEffect(() => {
     if (!userEmail) return
 
@@ -1661,6 +1691,7 @@ function App() {
                 setIsSignInDialogOpened={handleSignInDialogOpenChange}
                 reconnectKeys={reconnect}
                 isAnyRecording={isAnyRecording}
+                refreshEmailAutopilot={refreshEmailAutopilot}
               />
             }
           />

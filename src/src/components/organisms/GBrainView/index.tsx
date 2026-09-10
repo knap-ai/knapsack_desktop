@@ -293,7 +293,7 @@ const GBrainView: React.FC<{
         const message = errorMessage(reason)
         setError(
           message === 'Gateway not available'
-            ? 'Your brain is saved locally, but the answer service is not running. Start Knapsack Chat, then try again.'
+            ? 'Your brain is saved locally, but the answer service is still starting. Try again in a moment.'
             : message || 'Your brain could not answer right now.',
         )
       } finally {

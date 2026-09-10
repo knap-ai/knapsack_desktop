@@ -22,6 +22,7 @@ import TranscriptView from 'src/components/organisms/TranscriptView'
 import InsightsView from 'src/components/organisms/InsightsView'
 import MeetingTasks from 'src/components/molecules/MeetingTasks'
 import { RecordingContextProps } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
+import { formatMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import { TaskItem } from 'src/components/organisms/CenterWorkspace'
 
 import CalendarIcon from '/assets/images/dataSources/gcal.svg'
@@ -277,14 +278,15 @@ const MeetingsTabView = ({
             <button
               className="MeetingsTabView__topbar-icon"
               onClick={() => {
-                // Copy the meeting notes as markdown
+                // Copy Slack-ready meeting notes, including an aligned fallback
+                // for tables because Slack has no native Markdown table syntax.
                 const notesThread = selectedMeeting.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
                 const noteContent = notesThread?.messages?.[0]?.text || selectedMeeting.getTitle?.() || ''
                 if (copyToClipboard && noteContent) {
-                  copyToClipboard(noteContent)
+                  copyToClipboard(formatMeetingNotesForSlack(noteContent, selectedMeeting.getTitle?.()))
                 }
               }}
-              title="Copy notes to clipboard"
+              title="Copy notes formatted for Slack"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />

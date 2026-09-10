@@ -17,7 +17,6 @@ import Typography from '@tiptap/extension-typography'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import debounce from 'lodash/debounce'
-import { CSSTransition, TransitionGroup } from 'react-transition-group'
 import { getDocumentInfos, getDriveDocumentsIds, getGoogleDriveFileText } from 'src/api/data_source'
 import { FeedItem } from 'src/api/feed_items'
 import { getLiveTranscript, isRecordingStatus, statusRecordByThreadID } from 'src/api/recording'
@@ -37,6 +36,7 @@ import { enterMeetingWindowLayout } from 'src/utils/meetingWindowLayout'
 import { normalizeMeetingNotesMarkdown } from 'src/utils/meetingNotesMarkdown'
 import { getEventUrl } from 'src/utils/meetingUtils'
 import { shouldSaveTranscript } from 'src/utils/settings'
+import { formatMeetingNotesForSlack } from 'src/utils/slackMeetingNotes'
 import {
   INTERNAL_MEETING,
   MEETING_TEMPLATES,
@@ -376,15 +376,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     return lines.filter(line => line !== '').join('\n')
   }, [briefPrepContent, meeting, meetingTranscriptContext, notesMarkdown, recordingHandlers, thread.id, thread.savedTranscript, thread.subtitle, userEmail, userEmailSet, userName])
 
-  const [transcribingTextIndex, setTranscribingTextIndex] = useState(0)
-  const transcribingTexts = [
-    'Privately transcribing...',
-    'Deleting recording/transcript from server...',
-    'Generating meeting notes...',
-    'Deleting meeting notes from server...',
-    'Saving transcript locally...',
-    'Transcript saved',
-  ]
   // Completed meetings should open as polished notes. Editing is opt-in so the
   // document doesn't flash a toolbar or flatten rich Markdown on first render.
   const [isEditing, setIsEditing] = useState(!thread.recorded)
@@ -655,7 +646,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     },
   })
 
-  const { isLLMLoading, synthesizeContent, saveNotes, setContent, setMarkdown } =
+  const {
+    isLLMLoading,
+    streamingMarkdown,
+    synthesisPhase,
+    synthesizeContent,
+    saveNotes,
+    setContent,
+    setMarkdown,
+  } =
     useMeetingSynthesis(editor, addToLLMQueue, onSynthesisFinish, templatePrompt)
 
   const debouncedSave = useMemo(
@@ -1154,18 +1153,19 @@ Be specific, compact, and useful while the user is joining the call. Never print
   const isEndingMeetingState = isEndingMeeting || (
     recordingHandlers.isLoadingNotes(thread.id) && !recordingHandlers.isRecording(thread.id) && !thread.recorded
   )
-  const endingMeetingStatusText = isEndingMeeting
-    ? 'Stopping recording and preparing your notes.'
-    : transcribingTexts[transcribingTextIndex]
+  const endingMeetingStatusText = synthesisPhase === 'saving'
+    ? 'Saving your notes…'
+    : synthesisPhase === 'writing'
+      ? 'Writing your notes…'
+      : synthesisPhase === 'reading-transcript'
+        ? 'Reading the transcript…'
+        : 'Preparing the transcript…'
 
   const [synthTimedOut, setSynthTimedOut] = useState(false)
+  const showNotesProcessing = !synthTimedOut && (isEndingMeetingState || isSynthesizing())
 
   useEffect(() => {
     if (isSynthesizing() && !synthTimedOut) {
-      const timer = setInterval(() => {
-        setTranscribingTextIndex(prevIndex => (prevIndex + 1) % transcribingTexts.length)
-      }, 1600)
-
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner
       const timeout = setTimeout(() => {
         setSynthTimedOut(true)
@@ -1173,11 +1173,9 @@ Be specific, compact, and useful while the user is joining the call. Never print
       }, 3 * 60 * 1000)
 
       return () => {
-        clearInterval(timer)
         clearTimeout(timeout)
       }
     } else {
-      setTranscribingTextIndex(0)
       if (!isSynthesizing()) {
         setSynthTimedOut(false)
       }
@@ -1627,27 +1625,9 @@ Be direct, specific, and concise. No filler text.`
                 />
               )}
               {isSynthesizing() && !isEndingMeetingState && !synthTimedOut && (
-                <div className="inline-flex justify-center items-center">
-                  <div className="text-right text-stone-500 text-sm font-normal font-Inter leading-tight max-w-[18rem]">
-                    <TransitionGroup className="relative overflow-hidden whitespace-nowrap h-6">
-                      <CSSTransition
-                        key={transcribingTextIndex}
-                        timeout={400}
-                        classNames={{
-                          enter: 'translate-x-full',
-                          enterActive:
-                            'translate-x-0 transition-transform duration-400 ease-in-out',
-                          exit: 'translate-x-0',
-                          exitActive:
-                            '-translate-x-full transition-transform duration-400 ease-in-out',
-                        }}
-                      >
-                        <div className="absolute inset-0">
-                          {transcribingTexts[transcribingTextIndex]}
-                        </div>
-                      </CSSTransition>
-                    </TransitionGroup>
-                  </div>
+                <div className="notetaker-note__processing-pill" role="status" aria-live="polite">
+                  <span className="notetaker-note__processing-spinner" aria-hidden="true" />
+                  {endingMeetingStatusText}
                 </div>
               )}
             </div>
@@ -1786,7 +1766,12 @@ Be direct, specific, and concise. No filler text.`
             onTasksButtonClick={handleTasksButtonClick}
             onInsightsClick={handleOpenInsights ? () => handleOpenInsights(thread.id) : undefined}
             onCopyClick={() => {
-              if (copyToClipboard) copyToClipboard(notesMarkdown)
+              if (copyToClipboard) {
+                copyToClipboard(formatMeetingNotesForSlack(
+                  notesMarkdown,
+                  meeting?.title || thread.subtitle,
+                ))
+              }
             }}
             canChangeTemplate={true}
             isEditing={isEditing}
@@ -1905,8 +1890,38 @@ Be direct, specific, and concise. No filler text.`
           </div>
         )}
 
-        {/* Editor - always shown, focused during recording */}
-        {isEditing ? (
+        {/* Stream synthesized notes into the page as they arrive. */}
+        {showNotesProcessing ? (
+          <section className="notetaker-note__processing" aria-busy="true" aria-live="polite">
+            <div className="notetaker-note__processing-header">
+              <span className="notetaker-note__processing-spinner" aria-hidden="true" />
+              <div>
+                <strong>{endingMeetingStatusText}</strong>
+                <span>{streamingMarkdown ? 'Your notes are appearing as they are organized.' : 'The first lines will appear here shortly.'}</span>
+              </div>
+            </div>
+            <div className="notetaker-note__processing-track" aria-hidden="true">
+              <span />
+            </div>
+            {streamingMarkdown ? (
+              <div className="notetaker-note__processing-document">
+                <MarkdownDisplay
+                  markdown={streamingMarkdown}
+                  className="notetaker-note__document notetaker-note__document--display"
+                  onChange={() => {}}
+                />
+                <span className="notetaker-note__processing-cursor" aria-hidden="true" />
+              </div>
+            ) : (
+              <div className="notetaker-note__processing-placeholder" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            )}
+          </section>
+        ) : isEditing ? (
           <div className={`notetaker-note__editor ${recordingHandlers.isRecording(thread.id) ? 'notetaker-note__editor--recording' : ''}`}>
             {!recordingHandlers.isRecording(thread.id) && (
               <div className="border-0 border-b-[1px] outline-none mx-3 py-1">

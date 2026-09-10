@@ -3327,8 +3327,14 @@ pub async fn agent_run(body: web::Json<JsonValue>) -> impl Responder {
   }
 
   if !gateway_client::is_gateway_port_open().await {
-    return HttpResponse::ServiceUnavailable()
-      .json(serde_json::json!({"ok": false, "message": "Gateway not available"}));
+    // A Brain request can land during the short launch/restart window even
+    // though the service is enabled. Recover the managed gateway here instead
+    // of latching a false "start chat" error in the UI.
+    gateway_client::ensure_gateway_and_wait().await;
+    if !gateway_client::is_gateway_port_open().await {
+      return HttpResponse::ServiceUnavailable()
+        .json(serde_json::json!({"ok": false, "message": "Gateway not available"}));
+    }
   }
 
   eprintln!(
