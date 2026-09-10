@@ -39,6 +39,28 @@ final class WatchSyncCoordinatorTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(MobileTeamRoster.starter.agents.count, 4)
   }
 
+  func testFutureMeetingPrepUsesEventSpecificTitleAndContext() {
+    let event = MobileCalendarEventSummary(
+      id: 77,
+      eventId: "calendar-event-77",
+      title: "Board planning",
+      description: "Review hiring plan",
+      location: "Conference room",
+      start: 1_800_000_000,
+      end: 1_800_003_600,
+      googleMeetURL: nil,
+      calendarAccountEmail: "mark@example.com",
+      meetingThreadId: nil,
+      notesPreview: nil,
+      prepChatThreadId: nil,
+      prepPreview: nil
+    )
+
+    XCTAssertTrue(event.prepConversationTitle.contains("Board planning"))
+    XCTAssertTrue(event.prepPrompt.contains("Review hiring plan"))
+    XCTAssertTrue(event.prepPrompt.contains("Conference room"))
+  }
+
   private let appGroupOverrideEnv = "KNAPSACK_MOBILE_APP_GROUP_ROOT"
   private let mobileCacheKeys = [
     "knapsack.mobile.fallback.meetings",

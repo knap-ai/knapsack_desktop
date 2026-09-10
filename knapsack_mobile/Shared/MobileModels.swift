@@ -234,6 +234,35 @@ struct MobileCalendarEventSummary: Codable, Identifiable {
   var notesPreview: String?
   var prepChatThreadId: UInt64?
   var prepPreview: String?
+
+  var displayTitle: String {
+    let value = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return value.isEmpty ? "Untitled meeting" : value
+  }
+
+  var prepConversationTitle: String {
+    guard let start else { return "Prep: \(displayTitle)" }
+    let date = Date(timeIntervalSince1970: TimeInterval(start))
+      .formatted(date: .abbreviated, time: .shortened)
+    return "Prep: \(displayTitle) - \(date)"
+  }
+
+  var prepPrompt: String {
+    var context = ["Prepare me for \(displayTitle)"]
+    if let start {
+      let date = Date(timeIntervalSince1970: TimeInterval(start))
+        .formatted(date: .complete, time: .shortened)
+      context.append("scheduled for \(date)")
+    }
+    if let location = location?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty {
+      context.append("at \(location)")
+    }
+    if let description = description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+      context.append("Calendar context: \(description)")
+    }
+    context.append("Use the calendar event, prior meetings, saved notes, and relevant chats. Lead with context, goals, open questions, and the three things I should know before joining.")
+    return context.joined(separator: ". ")
+  }
 }
 
 struct MobileBrainEntry: Codable, Identifiable, Hashable {

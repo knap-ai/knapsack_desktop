@@ -297,6 +297,7 @@ struct ContentView: View {
       VStack(alignment: .leading, spacing: 22) {
         notesHeader
         nextCallCard
+        laterMeetingsSection
         searchBar
         calendarNotesSection
         if !standaloneMeetings.isEmpty {
@@ -444,7 +445,13 @@ struct ContentView: View {
               viewModel.selectedChat = prep
               presentedChat = prep
             } else {
-              Task { await viewModel.preloadNextMeetingPrep(force: true) }
+              Task {
+                await viewModel.preloadNextMeetingPrep(force: true)
+                if let prep = viewModel.nextMeetingPrep {
+                  viewModel.selectedChat = prep
+                  presentedChat = prep
+                }
+              }
             }
           }
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
@@ -464,6 +471,73 @@ struct ContentView: View {
     .cardStyle()
     .onChange(of: viewModel.nextCalendarEvent?.eventId) { _, _ in
       isNextMeetingPrepExpanded = false
+    }
+  }
+
+  @ViewBuilder
+  private var laterMeetingsSection: some View {
+    let events = futureCalendarEvents.filter { $0.eventId != viewModel.nextCalendarEvent?.eventId }
+    if !events.isEmpty {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Text("Later meetings")
+            .font(KnapsackBrand.inter(24, weight: .bold))
+            .foregroundStyle(KnapsackBrand.ink)
+          Spacer()
+          Text("\(events.count)")
+            .font(KnapsackBrand.inter(13, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.inkMuted)
+        }
+
+        ForEach(events) { event in
+          VStack(alignment: .leading, spacing: 12) {
+            Text(event.displayTitle)
+              .font(KnapsackBrand.inter(17, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.ink)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Label(calendarEventTimeString(event), systemImage: "calendar")
+              .font(KnapsackBrand.inter(13, weight: .medium))
+              .foregroundStyle(KnapsackBrand.slate)
+
+            HStack(spacing: 10) {
+              let prep = viewModel.prep(for: event)
+              Button(prep == nil ? "Generate prep" : "Open prep") {
+                if let prep {
+                  viewModel.selectedChat = prep
+                  presentedChat = prep
+                } else {
+                  Task {
+                    if let generated = await viewModel.prepareMeeting(event) {
+                      viewModel.selectedChat = generated
+                      presentedChat = generated
+                    }
+                  }
+                }
+              }
+              .brandPill(background: KnapsackBrand.ink, foreground: .white)
+              .disabled(viewModel.isLoadingPrep(for: event))
+
+              if viewModel.isLoadingPrep(for: event) {
+                ProgressView()
+                  .tint(KnapsackBrand.ink)
+              } else if prep != nil {
+                Button("Refresh") {
+                  Task { _ = await viewModel.prepareMeeting(event, force: true) }
+                }
+                .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+              }
+            }
+          }
+          .padding(18)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white))
+          .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+              .stroke(KnapsackBrand.line, lineWidth: 1)
+          )
+        }
+      }
     }
   }
 
@@ -2470,6 +2544,13 @@ struct ContentView: View {
           && ($0.meetingThreadId != nil || !($0.notesPreview ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       .sorted { ($0.start ?? 0) > ($1.start ?? 0) }
+  }
+
+  private var futureCalendarEvents: [MobileCalendarEventSummary] {
+    let now = Int64(Date().timeIntervalSince1970)
+    return filteredCalendarEvents
+      .filter { ($0.end ?? $0.start ?? 0) >= now }
+      .sorted { ($0.start ?? Int64.max) < ($1.start ?? Int64.max) }
   }
 
   private var filteredCalendarEvents: [MobileCalendarEventSummary] {

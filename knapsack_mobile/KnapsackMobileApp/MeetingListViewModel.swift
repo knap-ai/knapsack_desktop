@@ -15,6 +15,8 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isSendingManagedAgentMessage = false
   @Published var nextMeetingPrep: MobileChatDetail?
   @Published var isLoadingNextMeetingPrep = false
+  @Published private(set) var meetingPreps: [String: MobileChatDetail] = [:]
+  @Published private(set) var loadingMeetingPrepIDs: Set<String> = []
   @Published var autopilotBrief: MobileAutopilotBrief?
   @Published var isLoadingAutopilot = false
   @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
@@ -125,8 +127,12 @@ final class MeetingListViewModel: ObservableObject {
 
   private func hydrateCachedNextMeetingPrep() {
     guard nextMeetingPrep == nil, let event = nextCalendarEvent else { return }
-    let title = "Prep: \(event.title ?? "Next meeting")"
-    nextMeetingPrep = api.cachedChat(threadID: event.prepChatThreadId, titled: title)
+    let cached = api.cachedChat(threadID: event.prepChatThreadId, titled: event.prepConversationTitle)
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: "Prep: \(event.displayTitle)")
+    if let cached {
+      meetingPreps[event.eventId] = cached
+      nextMeetingPrep = cached
+    }
   }
 
   func refreshAutopilot() async {
@@ -349,28 +355,83 @@ final class MeetingListViewModel: ObservableObject {
     isLoadingNextMeetingPrep = true
     defer { isLoadingNextMeetingPrep = false }
 
-    if let prepChatID = event.prepChatThreadId,
-       let detail = try? await api.getChat(threadID: prepChatID) {
-      nextMeetingPrep = detail
-      return
+    nextMeetingPrep = await prepareMeeting(event, force: force)
+    if nextMeetingPrep == nil {
+      preparedEventID = nil
+    }
+  }
+
+  func prep(for event: MobileCalendarEventSummary) -> MobileChatDetail? {
+    meetingPreps[event.eventId]
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: event.prepConversationTitle)
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: "Prep: \(event.displayTitle)")
+  }
+
+  func isLoadingPrep(for event: MobileCalendarEventSummary) -> Bool {
+    loadingMeetingPrepIDs.contains(event.eventId)
+  }
+
+  func prepareMeeting(_ event: MobileCalendarEventSummary, force: Bool = false) async -> MobileChatDetail? {
+    guard isDesktopReachable else {
+      errorMessage = "Reconnect to your desktop to generate new meeting prep."
+      return prep(for: event)
     }
 
-    let prepTitle = "Prep: \(event.title ?? "Next meeting")"
-    if let existing = chats.first(where: { $0.thread.title == prepTitle }),
+    loadingMeetingPrepIDs.insert(event.eventId)
+    defer { loadingMeetingPrepIDs.remove(event.eventId) }
+
+    if !force, let cached = prep(for: event) {
+      storePrep(cached, for: event)
+      return cached
+    }
+
+    if let prepChatID = event.prepChatThreadId,
+       let detail = try? await api.getChat(threadID: prepChatID) {
+      if force {
+        return await refreshMeetingPrep(event, chat: detail)
+      }
+      storePrep(detail, for: event)
+      return detail
+    }
+
+    let titles = [event.prepConversationTitle, "Prep: \(event.displayTitle)"]
+    if let existing = chats.first(where: { titles.contains($0.thread.title ?? "") }),
        let detail = try? await api.getChat(threadID: existing.id) {
-      nextMeetingPrep = detail
-      return
+      if force {
+        return await refreshMeetingPrep(event, chat: detail)
+      }
+      storePrep(detail, for: event)
+      return detail
     }
 
     do {
-      let chat = try await api.createChat(title: prepTitle)
-      let prompt = "Prepare me for \(event.title ?? "my next meeting"). Use the calendar event, prior meetings, saved notes, and relevant chats. Lead with context, goals, open questions, and the three things I should know before joining."
-      let detail = try await api.sendChatMessage(threadID: chat.id, text: prompt)
-      nextMeetingPrep = detail
-      upsertChatSummary(from: detail)
+      let chat = try await api.createChat(title: event.prepConversationTitle)
+      return await refreshMeetingPrep(event, chat: chat)
     } catch {
-      preparedEventID = nil
       errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  private func refreshMeetingPrep(
+    _ event: MobileCalendarEventSummary,
+    chat: MobileChatDetail
+  ) async -> MobileChatDetail? {
+    do {
+      let detail = try await api.sendChatMessage(threadID: chat.id, text: event.prepPrompt)
+      storePrep(detail, for: event)
+      upsertChatSummary(from: detail)
+      return detail
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  private func storePrep(_ prep: MobileChatDetail, for event: MobileCalendarEventSummary) {
+    meetingPreps[event.eventId] = prep
+    if event.eventId == nextCalendarEvent?.eventId {
+      nextMeetingPrep = prep
     }
   }
 
