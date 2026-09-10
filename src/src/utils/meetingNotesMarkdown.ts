@@ -14,6 +14,9 @@ export const normalizeMeetingNotesMarkdown = (markdown: string): string => {
     .replace(/^\s*\*\*([^*\n]{2,100})\*\*\s*$/gm, '## $1')
     // Normalize typographic bullets so Markdown renderers preserve nesting.
     .replace(/^(\s*)[•‣]\s+/gm, '$1- ')
+    // A missing deadline is absence of information, not useful note content.
+    // Remove the noisy placeholder from new and previously generated notes.
+    .replace(/\s+(?:—|–|-)\s+\*\*Due:\*\*\s+Not specified\.?\s*$/gim, '')
     // Ensure headings are separated from the content on both sides.
     .replace(/([^\n])\n(#{1,6}\s+)/g, '$1\n\n$2')
     .replace(/^(#{1,6}\s+[^\n]+)\n(?!\n)/gm, '$1\n\n')

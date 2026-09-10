@@ -556,6 +556,11 @@ html, body {
   overflow-wrap: anywhere;
 }
 
+.notetaker-note__document.markdown-content {
+  font-size: 14px;
+  line-height: 1.52;
+}
+
 .notetaker-note__document--display > h1:first-child {
   /* The meeting title already appears in the page header. */
   display: none;
@@ -689,8 +694,14 @@ html, body {
   position: relative;
   display: block;
   min-width: 0;
-  padding-left: 28px;
+  margin: 0;
+  padding: 9px 0 9px 27px;
+  border-bottom: 1px solid #F0EFEE;
   list-style: none;
+}
+
+.notetaker-note__document--display li.task-list-item:last-child {
+  border-bottom: 0;
 }
 
 .notetaker-note__document--display li.task-list-item > input[type='checkbox'] {
@@ -706,6 +717,129 @@ html, body {
   margin: 0;
   word-break: normal;
   overflow-wrap: break-word;
+}
+
+.notetaker-note__processing {
+  margin-top: 14px;
+  border: 1px solid #E3E2E2;
+  border-radius: 12px;
+  background: #FFFFFF;
+  overflow: hidden;
+}
+
+.notetaker-note__processing-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px 10px;
+  color: #302D2C;
+  font-family: 'Inter', sans-serif;
+}
+
+.notetaker-note__processing-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notetaker-note__processing-header strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.notetaker-note__processing-header span:not(.notetaker-note__processing-spinner) {
+  color: #777371;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.notetaker-note__processing-spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid #E4DDDC;
+  border-top-color: #A33B35;
+  border-radius: 50%;
+  animation: notetaker-processing-spin 800ms linear infinite;
+}
+
+.notetaker-note__processing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #6A6563;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+}
+
+.notetaker-note__processing-track {
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  background: #F1EEEE;
+}
+
+.notetaker-note__processing-track span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 999px;
+  background: #A33B35;
+  animation: notetaker-processing-track 1.35s ease-in-out infinite;
+}
+
+.notetaker-note__processing-document {
+  position: relative;
+  padding: 4px 16px 24px;
+}
+
+.notetaker-note__processing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 15px;
+  margin-left: 2px;
+  border-radius: 1px;
+  background: #A33B35;
+  animation: notetaker-processing-cursor 850ms steps(1, end) infinite;
+}
+
+.notetaker-note__processing-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 16px 26px;
+}
+
+.notetaker-note__processing-placeholder span {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #F1EFEE 15%, #FAF9F9 45%, #F1EFEE 75%);
+  background-size: 220% 100%;
+  animation: notetaker-processing-shimmer 1.4s ease-in-out infinite;
+}
+
+.notetaker-note__processing-placeholder span:nth-child(1) { width: 38%; }
+.notetaker-note__processing-placeholder span:nth-child(2) { width: 91%; }
+.notetaker-note__processing-placeholder span:nth-child(3) { width: 78%; }
+.notetaker-note__processing-placeholder span:nth-child(4) { width: 62%; }
+
+@keyframes notetaker-processing-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes notetaker-processing-track {
+  0% { transform: translateX(-105%); }
+  55%, 100% { transform: translateX(270%); }
+}
+
+@keyframes notetaker-processing-cursor {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+@keyframes notetaker-processing-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
 }
 
 .notetaker-note__document--editing .ProseMirror {

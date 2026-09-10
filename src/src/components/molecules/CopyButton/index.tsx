@@ -36,9 +36,9 @@ const CopyButton: React.FC<CopyButtonProps> = ({
   };
 
   return (
-    <div className="flex flex-row items-center gap-2" onClick={handleClick}>
+    <div className="flex flex-row items-center gap-2">
       <Button
-        label={isCopied ? "Copied!" : "Copy"}
+        label={isCopied ? "Copied!" : "Copy for Slack"}
         variant={ButtonVariant.regular}
         size={ButtonSize.medium}
         icon={

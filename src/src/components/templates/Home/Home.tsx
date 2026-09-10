@@ -99,6 +99,7 @@ function Home({
   setIsSignInDialogOpened,
   reconnectKeys,
   isAnyRecording,
+  refreshEmailAutopilot,
 }: HomeProps) {
   const [fullRelease, setFullRelease] = useState<boolean | null>(null)
   const [currentTab, setCurrentTab] = useState<TabChoices>(TabChoices.Openclaw)
@@ -1094,6 +1095,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                   userName={userName}
                   profileProvider={auth.profile?.provider}
                   onConnectAccountClick={onConnectAccountClick}
+                  onRefresh={refreshEmailAutopilot}
                 />
               )}
 

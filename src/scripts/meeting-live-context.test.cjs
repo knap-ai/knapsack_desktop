@@ -107,3 +107,77 @@ test("current user's meeting action items open in the contextual meeting chat", 
   assert.match(markdown, /event\.preventDefault\(\)/);
   assert.match(markdown, /Open this action item in meeting chat/);
 });
+
+test("meeting notes stream visibly while synthesis is still running", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const synthesis = read("src/hooks/useMeetingMode.tsx");
+  const styles = read("src/main.css");
+
+  assert.match(synthesis, /setStreamingMarkdown\(normalizeMeetingNotesMarkdown\(content\)\)/);
+  assert.match(synthesis, /await new Promise<void>/);
+  assert.match(meeting, /aria-busy="true" aria-live="polite"/);
+  assert.match(meeting, /markdown=\{streamingMarkdown\}/);
+  assert.match(meeting, /The first lines will appear here shortly/);
+  assert.match(styles, /notetaker-note__processing-track/);
+});
+
+test("missing action-item deadlines are omitted instead of rendered as placeholders", () => {
+  const prompts = read("src/prompts.ts");
+  const normalization = read("src/utils/meetingNotesMarkdown.ts");
+
+  assert.match(prompts, /omit the \*\*Due:\*\* field entirely/);
+  assert.doesNotMatch(prompts, /date or "Not specified"/);
+  assert.match(normalization, /Not specified/);
+});
+
+test("stopping a meeting cannot toggle the feed back into recording", () => {
+  const feed = read("src/hooks/feed/useFeed.tsx");
+  const sidebar = read("src/components/organisms/NotetakerSidebar/index.tsx");
+
+  assert.match(feed, /isRecording === undefined \? !feedItem\.isRecording : isRecording/);
+  assert.match(sidebar, /if \(hasCompletedNotes\) return/);
+  assert.match(sidebar, /const meetingHasEnded = recordingHasEnded \|\|/);
+});
+
+test("copy notes produces Slack-native emphasis, tasks, links, and tables", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const formatter = read("src/utils/slackMeetingNotes.ts");
+  const copyButton = read("src/components/molecules/CopyButton/index.tsx");
+
+  assert.match(meeting, /formatMeetingNotesForSlack/);
+  assert.match(formatter, /Slack has no native Markdown table syntax/);
+  assert.match(formatter, /'☑ ' : '☐ '/);
+  assert.match(formatter, /'<\$2\|\$1>'/);
+  assert.match(formatter, /renderSlackTable/);
+  assert.match(copyButton, /Copy for Slack/);
+});
+
+test("the dedicated Email tab refreshes connected inboxes before claiming a category is empty", () => {
+  const app = read("src/App.tsx");
+  const emailTab = read("src/components/organisms/EmailTabView/index.tsx");
+  const emailView = read("src/components/molecules/EmailAutopilot/index.tsx");
+
+  assert.match(app, /const refreshEmailAutopilot = useCallback/);
+  assert.match(app, /key === ConnectionKeys\.GOOGLE_GMAIL \|\| key === ConnectionKeys\.MICROSOFT_OUTLOOK/);
+  assert.match(app, /await syncConnections\(userEmail, emailConnections\)/);
+  assert.match(app, /await feed\.runEmailAutopilot\(\)/);
+  assert.match(emailTab, /refreshStartedRef\.current = true/);
+  assert.match(emailTab, /void onRefresh\(\)/);
+  assert.match(emailView, /Email refresh did not finish/);
+  assert.match(emailView, /No emails in this category/);
+  assert.doesNotMatch(emailView, /You're all caught up!/);
+});
+
+test("Brain self-heals an enabled gateway during its startup window", () => {
+  const browser = read("src-tauri/src/clawd/browser.rs");
+  const brain = read("src/components/organisms/GBrainView/index.tsx");
+  const agentRun = browser.slice(
+    browser.indexOf('#[post("/api/clawd/agent-run")]'),
+    browser.indexOf('#[post("/api/clawd/chat")]'),
+  );
+
+  assert.match(agentRun, /gateway_client::ensure_gateway_and_wait\(\)\.await/);
+  assert.match(agentRun, /if !gateway_client::is_gateway_port_open\(\)\.await/);
+  assert.match(brain, /answer service is still starting/);
+  assert.doesNotMatch(brain, /Start Knapsack Chat, then try again/);
+});

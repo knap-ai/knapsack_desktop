@@ -87,8 +87,9 @@ Use this structure:
 - If no decision was made, write "No explicit decisions recorded."
 
 ## Action items
-- [ ] **Owner** — concrete action — **Due:** date or "Not specified"
+- [ ] **Owner** — concrete action — **Due:** date
 - Include only real commitments. Never invent an owner or deadline.
+- If no deadline was stated, omit the **Due:** field entirely instead of adding a placeholder.
 
 ## Key discussion
 ### Descriptive topic

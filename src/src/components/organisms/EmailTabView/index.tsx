@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { ConnectionKeys } from 'src/api/connections'
 import { EmailImportance } from 'src/hooks/dataSources/useEmailAutopilot'
@@ -17,6 +17,7 @@ interface EmailTabViewProps {
   userName: string
   profileProvider?: string
   onConnectAccountClick: (keys: ConnectionKeys[]) => void
+  onRefresh: () => Promise<void>
 }
 
 const EmailTabView = ({
@@ -25,8 +26,16 @@ const EmailTabView = ({
   userName,
   profileProvider,
   onConnectAccountClick,
+  onRefresh,
 }: EmailTabViewProps) => {
   const [showEmailSettings, setShowEmailSettings] = useState(false)
+  const refreshStartedRef = useRef(false)
+
+  useEffect(() => {
+    if (!feed.loggedEmailAutopilot || refreshStartedRef.current) return
+    refreshStartedRef.current = true
+    void onRefresh()
+  }, [feed.loggedEmailAutopilot, onRefresh])
 
   const emailCategories = useMemo(() => {
     const categories: Record<EmailImportance, { total: number; active: number }> = {
@@ -105,6 +114,7 @@ const EmailTabView = ({
             userName={userName}
             showSettings={showEmailSettings}
             setShowSettings={setShowEmailSettings}
+            onRefresh={onRefresh}
           />
         </div>
       </div>

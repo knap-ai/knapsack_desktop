@@ -363,6 +363,10 @@ function NotetakerSidebar({
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
         if (!item.calendarEvent) return
+        const hasCompletedNotes = item.threads?.some(
+          thread => thread.threadType === ThreadType.MEETING_NOTES && thread.recorded,
+        )
+        if (hasCompletedNotes) return
         const dedupeKey =
           item.calendarEvent.event_id ||
           `${item.title}_${Math.floor(item.timestamp.getTime() / 60000)}`
@@ -391,7 +395,10 @@ function NotetakerSidebar({
       if (key === STATIONARY_ITEMS) return
       items.forEach(item => {
         const hasMeetingNotes = item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES)
-        const meetingHasEnded = !item.calendarEvent || getMeetingEndTime(item) < now
+        const recordingHasEnded = item.threads?.some(
+          thread => thread.threadType === ThreadType.MEETING_NOTES && thread.recorded,
+        )
+        const meetingHasEnded = recordingHasEnded || !item.calendarEvent || getMeetingEndTime(item) < now
         if (hasMeetingNotes && item.timestamp.getTime() < now && meetingHasEnded) {
           if (!groups[key]) groups[key] = []
           groups[key].push({ item, key })

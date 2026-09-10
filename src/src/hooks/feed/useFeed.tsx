@@ -200,7 +200,7 @@ export interface IFeed {
   attachNotesToCalendarEvent: (feedItemId: number, meeting: Meeting) => Promise<void>
   renameMeeting: (threadId: number, newTitle: string, feedItemId?: number) => Promise<void>
   refreshFeedItems: () => Promise<never[] | undefined>
-  runEmailAutopilot: () => void
+  runEmailAutopilot: () => Promise<void>
   classifiedEmails: Partial<Record<EmailImportance, DisplayEmail[]>>
   classificationActions: Partial<Record<EmailImportance, EmailAction>>
   updateClassificationActions: (
@@ -1602,7 +1602,9 @@ export function useFeed(
   const setIsRecording = useCallback(
     (feedItem: FeedItem, isRecording: boolean | undefined = undefined) => {
       const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
-      feedItem.isRecording = isRecording ? isRecording : !feedItem.isRecording
+      // `false` is an explicit stop signal. The old truthiness check treated it
+      // as "toggle", turning recording back on after a successful stop.
+      feedItem.isRecording = isRecording === undefined ? !feedItem.isRecording : isRecording
       setRecordingFeedItem(feedItem.isRecording ? feedItem : null)
       setFeedContent(prevState => {
         const updatedFeedItems = prevState[timelineKey].map(item => {
