@@ -8955,9 +8955,10 @@ fn mac_service_status_summary(
   qa_direct_grace_ms: Option<u64>,
   qa_direct_running: bool,
 ) -> (bool, String) {
-  let running = gateway_ready || qa_direct_running;
+  let startup_grace_ms = launch_grace_ms.or(qa_direct_grace_ms);
+  let running = startup_grace_ms.is_none() && (gateway_ready || qa_direct_running);
 
-  let message = if let Some(ms) = launch_grace_ms.or(qa_direct_grace_ms) {
+  let message = if let Some(ms) = startup_grace_ms {
     format!("Clawdbot gateway is starting ({}ms)", ms)
   } else if running {
     "Clawdbot service is running".to_string()
