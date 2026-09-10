@@ -67,6 +67,11 @@ extern "C" {
 // Property selectors for reading tap format
 #[cfg(target_os = "macos")]
 const K_AUDIO_TAP_PROPERTY_FORMAT: u32 = u32::from_be_bytes(*b"tfmt");
+
+// CATapMuteBehavior values from CoreAudio/CATapDescription.h.
+// CATapUnmuted preserves playback while copying the audio into the tap.
+#[cfg(target_os = "macos")]
+const CATAP_MUTE_BEHAVIOR_UNMUTED: isize = 0;
 // kAudioHardwarePropertyTranslatePIDToProcessObject — converts a Unix PID
 // into the AudioObjectID required by CATapDescription's process arrays.
 const K_AUDIO_HARDWARE_PROPERTY_TRANSLATE_PID_TO_PROCESS_OBJECT: u32 = u32::from_be_bytes(*b"id2p");
@@ -318,10 +323,9 @@ pub async fn record_speaker_output(
 
     // Configure the tap
     unsafe {
-      // CATapMuteBehaviorUnmuted = 1. Objective-C expects NSInteger here,
-      // which is 64-bit on modern macOS, so avoid sending an i32.
-      let mute_behavior_unmuted: isize = 1;
-      let _: () = msg_send![&*tap_desc, setMuteBehavior: mute_behavior_unmuted];
+      // muteBehavior is an NSInteger-backed enum. CATapUnmuted (0) captures
+      // the audio without suppressing playback through the user's speakers.
+      let _: () = msg_send![&*tap_desc, setMuteBehavior: CATAP_MUTE_BEHAVIOR_UNMUTED];
       // Make it private so it doesn't show up as an audio device to other apps
       let _: () = msg_send![&*tap_desc, setPrivate: true];
     }
@@ -814,4 +818,16 @@ pub fn count_microphone_users() -> u64 {
     .count();
 
   count as u64
+}
+
+#[cfg(test)]
+mod tests {
+  use super::CATAP_MUTE_BEHAVIOR_UNMUTED;
+
+  #[test]
+  fn system_audio_tap_preserves_speaker_playback() {
+    // CoreAudio/CATapDescription.h defines CATapUnmuted as 0. A value of 1 is
+    // CATapMuted and silences playback while the recording tap is active.
+    assert_eq!(CATAP_MUTE_BEHAVIOR_UNMUTED, 0);
+  }
 }
