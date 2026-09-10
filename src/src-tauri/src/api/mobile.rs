@@ -21,6 +21,7 @@ use actix_web::{
   web::{self, Json},
   HttpResponse, Responder,
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -336,10 +337,63 @@ fn mobile_team_roster_path() -> Result<PathBuf, Error> {
   Ok(knapsack_data_dir()?.join("mobile_team_roster.json"))
 }
 
+fn starter_mobile_team_roster() -> MobileTeamRoster {
+  MobileTeamRoster {
+    agents: vec![
+      MobileTeamAgent {
+        id: "scout".to_string(),
+        name: "Scout".to_string(),
+        emoji: "\u{1F4CB}".to_string(),
+        personality: "Your executive assistant".to_string(),
+        soul: "You are Scout, an organized, proactive, and detail-oriented executive assistant."
+          .to_string(),
+        browser_profile: "agent-scout".to_string(),
+        suggested_prompts: vec![
+          "Brief me on today's meetings, commitments, and top priorities.".to_string(),
+          "Find the follow-ups most at risk of falling through the cracks.".to_string(),
+        ],
+      },
+      MobileTeamAgent {
+        id: "polly".to_string(),
+        name: "Polly".to_string(),
+        emoji: "\u{1F4EC}".to_string(),
+        personality: "Your inbox and social media monitor".to_string(),
+        soul: "You are Polly, a warm and concise inbox and social media monitor.".to_string(),
+        browser_profile: "agent-polly".to_string(),
+        suggested_prompts: vec![
+          "Triage my inbox and show me what deserves a response first.".to_string(),
+        ],
+      },
+      MobileTeamAgent {
+        id: "atlas".to_string(),
+        name: "Atlas".to_string(),
+        emoji: "\u{1F91D}".to_string(),
+        personality: "Your relationship optimizer".to_string(),
+        soul: "You are Atlas, a strategic relationship and opportunity advisor.".to_string(),
+        browser_profile: "agent-atlas".to_string(),
+        suggested_prompts: vec![
+          "Who should I follow up with now, and what should I say?".to_string()
+        ],
+      },
+      MobileTeamAgent {
+        id: "coach".to_string(),
+        name: "Coach".to_string(),
+        emoji: "\u{1F3AF}".to_string(),
+        personality: "Your daily work coach".to_string(),
+        soul: "You are Coach, a direct, analytical, and encouraging daily work coach.".to_string(),
+        browser_profile: "agent-coach".to_string(),
+        suggested_prompts: vec![
+          "Give me a realistic plan for today based on my recent work.".to_string(),
+        ],
+      },
+    ],
+  }
+}
+
 fn load_mobile_team_roster() -> Result<MobileTeamRoster, Error> {
   let path = mobile_team_roster_path()?;
   if !path.exists() {
-    return Ok(MobileTeamRoster::default());
+    return Ok(starter_mobile_team_roster());
   }
   let content = read_to_string(path)?;
   serde_json::from_str(&content)
@@ -351,6 +405,15 @@ fn save_mobile_team_roster(roster: &MobileTeamRoster) -> Result<(), Error> {
     .map_err(|err| Error::KSError(format!("Failed to serialize mobile team roster: {err}")))?;
   std::fs::write(mobile_team_roster_path()?, serialized)?;
   Ok(())
+}
+
+fn mobile_seed_history_attachment(seed_history: &[Value]) -> Value {
+  let json = serde_json::to_vec(seed_history).unwrap_or_else(|_| b"[]".to_vec());
+  json!({
+    "name": "mobile-seed-history.json",
+    "type": "application/json",
+    "content": STANDARD.encode(json),
+  })
 }
 
 fn load_mobile_metadata(thread_id: u64) -> Result<Option<MobileMeetingMetadata>, Error> {
@@ -2357,11 +2420,7 @@ pub async fn send_mobile_chat_message(
 
   let mut attachments = Vec::new();
   if !seed_history.is_empty() {
-    attachments.push(json!({
-      "name": "mobile-seed-history.json",
-      "type": "application/json",
-      "content": serde_json::to_string(&seed_history).unwrap_or_else(|_| "[]".to_string()),
-    }));
+    attachments.push(mobile_seed_history_attachment(&seed_history));
   }
 
   let gateway_result =
@@ -2727,10 +2786,12 @@ pub async fn upload_mobile_recording(
 mod tests {
   use super::{
     build_mobile_chat_request, gateway_history_message_text, gateway_reply_from_result,
-    mobile_team_history_messages, parse_gateway_payload_text,
+    mobile_seed_history_attachment, mobile_team_history_messages, parse_gateway_payload_text,
+    starter_mobile_team_roster,
   };
+  use base64::{engine::general_purpose::STANDARD, Engine as _};
   use crate::db::models::thread::{Thread, ThreadType};
-  use serde_json::json;
+  use serde_json::{json, Value};
 
   #[test]
   fn parses_plain_gateway_payload_text() {
@@ -2807,5 +2868,22 @@ mod tests {
     assert!(request.contains("Every list item must start on its own line"));
     assert!(request.contains("## Do now"));
     assert!(request.ends_with("What is on my calendar?"));
+  }
+
+  #[test]
+  fn starter_mobile_team_is_available_without_phone_seed() {
+    let roster = starter_mobile_team_roster();
+    assert_eq!(roster.agents.len(), 4);
+    assert_eq!(roster.agents[0].id, "scout");
+    assert_eq!(roster.agents[0].name, "Scout");
+  }
+
+  #[test]
+  fn mobile_seed_history_attachment_uses_gateway_base64_contract() {
+    let history = vec![json!({ "role": "user", "content": "hello" })];
+    let attachment = mobile_seed_history_attachment(&history);
+    let encoded = attachment.get("content").and_then(Value::as_str).unwrap();
+    let decoded = STANDARD.decode(encoded).unwrap();
+    assert_eq!(serde_json::from_slice::<Value>(&decoded).unwrap(), json!(history));
   }
 }
