@@ -2,6 +2,43 @@ import XCTest
 @testable import KnapsackMobileApp
 
 final class WatchSyncCoordinatorTests: XCTestCase {
+  func testMeetingDisplayTitleFallsBackToDesktopSubtitle() {
+    let meeting = MobileMeetingDetail(
+      thread: MobileThread(
+        id: 42,
+        timestamp: 1_789_000_000_000,
+        hideFollowUp: nil,
+        feedItemId: 9,
+        title: "",
+        subtitle: "Tiendas Neto Discussion",
+        threadType: "MEETING NOTES",
+        recorded: true,
+        savedTranscript: nil,
+        promptTemplate: nil
+      ),
+      metadata: MobileMeetingMetadata(
+        threadId: 42,
+        status: .ready,
+        sourceDevice: "desktop",
+        latestAudioFile: nil,
+        notesPreview: "Decisions and actions",
+        startedAt: nil,
+        endedAt: nil,
+        updatedAt: 1_789_000_100
+      ),
+      notes: "Meeting notes"
+    )
+
+    XCTAssertEqual(meeting.displayTitle, "Tiendas Neto Discussion")
+    XCTAssertEqual(meeting.displayTimestamp, 1_789_000_000_000)
+  }
+
+  func testStarterTeamAlwaysIncludesScout() {
+    XCTAssertEqual(MobileTeamRoster.starter.agents.first?.id, "scout")
+    XCTAssertEqual(MobileTeamRoster.starter.agents.first?.displayName, "Scout")
+    XCTAssertGreaterThanOrEqual(MobileTeamRoster.starter.agents.count, 4)
+  }
+
   private let appGroupOverrideEnv = "KNAPSACK_MOBILE_APP_GROUP_ROOT"
   private let mobileCacheKeys = [
     "knapsack.mobile.fallback.meetings",

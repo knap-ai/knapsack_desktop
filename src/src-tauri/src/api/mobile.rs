@@ -1465,9 +1465,28 @@ fn build_mobile_chat_request(_thread: &Thread, thread_id: u64, text: &str) -> St
 }
 
 fn mobile_meeting_detail(
-  thread: Thread,
+  mut thread: Thread,
   metadata: Option<MobileMeetingMetadata>,
 ) -> MobileMeetingDetail {
+  let title_is_missing = thread
+    .title
+    .as_deref()
+    .map(str::trim)
+    .filter(|title| !title.is_empty() && !title.eq_ignore_ascii_case("untitled meeting"))
+    .is_none();
+  if title_is_missing {
+    thread.title = thread
+      .feed_item_id
+      .and_then(|feed_item_id| FeedItem::find_by_id(feed_item_id).ok().flatten())
+      .and_then(|feed_item| feed_item.title)
+      .filter(|title| !title.trim().is_empty())
+      .or_else(|| {
+        thread
+          .subtitle
+          .clone()
+          .filter(|subtitle| !subtitle.trim().is_empty())
+      });
+  }
   let notes = thread.id.and_then(load_notes);
   let mut merged = metadata.unwrap_or_else(|| {
     build_default_metadata(thread.id.unwrap_or_default(), Some("iphone".to_string()))

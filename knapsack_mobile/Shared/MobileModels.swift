@@ -42,6 +42,21 @@ struct MobileMeetingDetail: Codable, Identifiable {
   var notes: String?
 
   var id: UInt64 { thread.id ?? metadata.threadId }
+
+  var displayTitle: String {
+    let title = thread.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !title.isEmpty && title.localizedCaseInsensitiveCompare("Untitled meeting") != .orderedSame {
+      return title
+    }
+
+    let subtitle = thread.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return subtitle.isEmpty ? "Untitled meeting" : subtitle
+  }
+
+  var displayTimestamp: Int64 {
+    let threadTimestamp = thread.timestamp ?? 0
+    return threadTimestamp > 0 ? threadTimestamp : metadata.updatedAt
+  }
 }
 
 struct MobileChatSummary: Codable, Identifiable {
@@ -95,6 +110,48 @@ struct MobileManagedAgent: Codable, Identifiable {
 
 struct MobileTeamRoster: Codable {
   var agents: [MobileManagedAgent]
+
+  static let starter = MobileTeamRoster(agents: [
+    MobileManagedAgent(
+      id: "scout",
+      name: "Scout",
+      emoji: "\u{1F4CB}",
+      personality: "Your executive assistant",
+      soul: "You are Scout, an organized, proactive, and detail-oriented executive assistant.",
+      browserProfile: "agent-scout",
+      suggestedPrompts: [
+        "Brief me on today's meetings, commitments, and top priorities.",
+        "Find the follow-ups most at risk of falling through the cracks.",
+      ]
+    ),
+    MobileManagedAgent(
+      id: "polly",
+      name: "Polly",
+      emoji: "\u{1F4EC}",
+      personality: "Your inbox and social media monitor",
+      soul: "You are Polly, a warm and concise inbox and social media monitor.",
+      browserProfile: "agent-polly",
+      suggestedPrompts: ["Triage my inbox and show me what deserves a response first."]
+    ),
+    MobileManagedAgent(
+      id: "atlas",
+      name: "Atlas",
+      emoji: "\u{1F91D}",
+      personality: "Your relationship optimizer",
+      soul: "You are Atlas, a strategic relationship and opportunity advisor.",
+      browserProfile: "agent-atlas",
+      suggestedPrompts: ["Who should I follow up with now, and what should I say?"]
+    ),
+    MobileManagedAgent(
+      id: "coach",
+      name: "Coach",
+      emoji: "\u{1F3AF}",
+      personality: "Your daily work coach",
+      soul: "You are Coach, a direct, analytical, and encouraging daily work coach.",
+      browserProfile: "agent-coach",
+      suggestedPrompts: ["Give me a realistic plan for today based on my recent work."]
+    ),
+  ])
 }
 
 struct MobileTeamMessageResponse: Codable {

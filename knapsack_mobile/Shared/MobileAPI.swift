@@ -159,7 +159,10 @@ final class MobileAPI {
 
   func getManagedAgents() async throws -> MobileManagedAgentsIndex {
     do {
-      let roster: MobileTeamRoster = try await fetch(path: "/api/knapsack/mobile/team")
+      var roster: MobileTeamRoster = try await fetch(path: "/api/knapsack/mobile/team")
+      if roster.agents.isEmpty {
+        roster = (try? await saveManagedAgents(MobileTeamRoster.starter)) ?? .starter
+      }
       if let data = try? encoder.encode(roster) {
         UserDefaults.standard.set(data, forKey: fallbackTeamStoreKey)
       }
@@ -170,6 +173,24 @@ final class MobileAPI {
         throw error
       }
       return MobileManagedAgentsIndex(success: true, agents: roster.agents, executionSessions: [])
+    }
+  }
+
+  private func saveManagedAgents(_ roster: MobileTeamRoster) async throws -> MobileTeamRoster {
+    try await send(
+      path: "/api/knapsack/mobile/team",
+      method: "POST",
+      body: roster
+    )
+  }
+
+  func cachedChat(threadID: UInt64?, titled title: String) -> MobileChatDetail? {
+    let details = loadFallbackChatDetails()
+    if let threadID, let detail = details.first(where: { $0.id == threadID }) {
+      return detail
+    }
+    return details.first {
+      ($0.thread.title ?? "").localizedCaseInsensitiveCompare(title) == .orderedSame
     }
   }
 

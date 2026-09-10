@@ -1505,7 +1505,7 @@ struct ContentView: View {
               presentedMeeting = meeting
             } label: {
               VStack(alignment: .leading, spacing: 10) {
-                Text(meeting.thread.title ?? "Untitled meeting")
+                Text(meeting.displayTitle)
                   .font(KnapsackBrand.inter(21, weight: .bold))
                   .foregroundStyle(KnapsackBrand.ink)
                   .multilineTextAlignment(.leading)
@@ -1529,9 +1529,10 @@ struct ContentView: View {
                   Spacer(minLength: 10)
 
                   VStack(alignment: .trailing, spacing: 8) {
-                    Text(meetingTimeString(for: meeting))
-                      .font(KnapsackBrand.inter(12, weight: .medium))
-                      .foregroundStyle(KnapsackBrand.slate)
+                    Label(meetingTimeString(for: meeting), systemImage: "calendar")
+                      .font(KnapsackBrand.inter(12, weight: .semibold))
+                      .foregroundStyle(KnapsackBrand.ink)
+                      .multilineTextAlignment(.trailing)
 
                     Text(meetingDisplayStatus(meeting))
                       .font(KnapsackBrand.inter(10, weight: .semibold))
@@ -1562,7 +1563,7 @@ struct ContentView: View {
 
   private func meetingDetailView(_ meeting: MobileMeetingDetail) -> some View {
     VStack(alignment: .leading, spacing: 20) {
-      Text(meeting.thread.title ?? "Untitled meeting")
+      Text(meeting.displayTitle)
         .font(KnapsackBrand.inter(32, weight: .bold))
         .foregroundStyle(KnapsackBrand.ink)
         .fixedSize(horizontal: false, vertical: true)
@@ -1582,7 +1583,9 @@ struct ContentView: View {
           .background(Capsule().fill(KnapsackBrand.paper))
       }
 
-      if let subtitle = meeting.thread.subtitle, !subtitle.isEmpty {
+      if let subtitle = meeting.thread.subtitle,
+         !subtitle.isEmpty,
+         subtitle.localizedCaseInsensitiveCompare(meeting.displayTitle) != .orderedSame {
         Text(subtitle)
           .font(KnapsackBrand.inter(15))
           .foregroundStyle(KnapsackBrand.slate)
@@ -2384,7 +2387,7 @@ struct ContentView: View {
 
     return viewModel.meetings.filter { meeting in
       let haystack = [
-        meeting.thread.title,
+        meeting.displayTitle,
         meeting.thread.subtitle,
         meeting.metadata.notesPreview,
         meeting.notes,
@@ -2564,7 +2567,7 @@ struct ContentView: View {
   }
 
   private func meetingTimeString(for meeting: MobileMeetingDetail) -> String {
-    let timestamp = meeting.thread.timestamp ?? meeting.metadata.updatedAt
+    let timestamp = meeting.displayTimestamp
     let date = Date(timeIntervalSince1970: normalizedUnixTimestamp(timestamp))
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
@@ -3053,8 +3056,7 @@ struct ContentView: View {
   }
 
   private func meetingChronologicalTimestamp(_ meeting: MobileMeetingDetail) -> TimeInterval {
-    let threadTimestamp = meeting.thread.timestamp ?? 0
-    return normalizedUnixTimestamp(threadTimestamp > 0 ? threadTimestamp : meeting.metadata.updatedAt)
+    normalizedUnixTimestamp(meeting.displayTimestamp)
   }
 
   private func noteBlocks(from notes: String) -> [NoteBlock] {

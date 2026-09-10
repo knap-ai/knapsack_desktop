@@ -47,6 +47,7 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   func refresh() async {
+    hydrateCachedWorkspaceIfNeeded()
     if shouldWaitForDesktopLink {
       isDesktopReachable = false
       session = nil
@@ -73,7 +74,9 @@ final class MeetingListViewModel: ObservableObject {
       meetings = try await meetingsTask
       chats = try await chatsTask
       chats.sort { $0.updatedAt > $1.updatedAt }
-      await refreshAutopilot()
+      isDesktopReachable = true
+      hydrateCachedNextMeetingPrep()
+      await preloadNextMeetingPrep()
       if let selectedID = selectedMeeting?.id,
          let matched = meetings.first(where: { $0.id == selectedID }) {
         selectedMeeting = matched
@@ -93,10 +96,7 @@ final class MeetingListViewModel: ObservableObject {
         statusMessage = "Loaded \(meetings.count) meeting\(meetings.count == 1 ? "" : "s") and \(chats.count) chat\(chats.count == 1 ? "" : "s")."
       }
       errorMessage = nil
-      isDesktopReachable = true
       await refreshManagedAgents()
-      await preloadNextMeetingPrep()
-      await refreshGBrain()
     } catch {
       isDesktopReachable = false
       let cached = api.loadCachedWorkspace()
@@ -112,6 +112,21 @@ final class MeetingListViewModel: ObservableObject {
         ? "Reconnect to your Mac to load your workspace."
         : "Offline - showing saved chats and meeting notes."
     }
+  }
+
+  private func hydrateCachedWorkspaceIfNeeded() {
+    let cached = api.loadCachedWorkspace()
+    if session == nil { session = cached.session }
+    if calendarEvents.isEmpty { calendarEvents = cached.calendarEvents }
+    if meetings.isEmpty { meetings = cached.meetings }
+    if chats.isEmpty { chats = cached.chats.sorted { $0.updatedAt > $1.updatedAt } }
+    hydrateCachedNextMeetingPrep()
+  }
+
+  private func hydrateCachedNextMeetingPrep() {
+    guard nextMeetingPrep == nil, let event = nextCalendarEvent else { return }
+    let title = "Prep: \(event.title ?? "Next meeting")"
+    nextMeetingPrep = api.cachedChat(threadID: event.prepChatThreadId, titled: title)
   }
 
   func refreshAutopilot() async {
