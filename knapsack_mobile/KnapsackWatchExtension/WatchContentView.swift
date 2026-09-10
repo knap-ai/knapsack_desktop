@@ -16,120 +16,127 @@ struct WatchContentView: View {
       )
       .ignoresSafeArea()
 
-      VStack(spacing: 8) {
+      VStack(spacing: 9) {
         HStack {
           Image("BrandMark")
             .resizable()
             .scaledToFit()
-            .frame(width: 16, height: 16)
-            .padding(6)
+            .frame(width: 15, height: 15)
+            .padding(5)
             .background(Color.white.opacity(0.10))
             .clipShape(Circle())
+
           Spacer()
-          Text(recorder.isRecording ? "LIVE" : "READY")
-            .font(KnapsackBrand.inter(10, weight: .bold))
-            .foregroundStyle(recorder.isRecording ? KnapsackBrand.amber : .white.opacity(0.8))
+
+          HStack(spacing: 4) {
+            Circle()
+              .fill(recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.amber)
+              .frame(width: 6, height: 6)
+            Text(recorder.isRecording ? "Recording" : "Ready")
+          }
+          .font(KnapsackBrand.inter(10, weight: .bold))
+          .foregroundStyle(.white.opacity(0.82))
         }
 
+        Spacer(minLength: 0)
+
         Button {
-          if recorder.isRecording {
-            recorder.stop()
-          } else {
-            Task {
-              do {
-                try await recorder.start()
-              } catch {
-                recorder.statusText = error.localizedDescription
-              }
-            }
-          }
+          toggleRecording()
         } label: {
           ZStack {
             Circle()
-              .fill(Color.white.opacity(0.10))
-              .frame(width: 100, height: 100)
+              .fill(Color.white.opacity(0.09))
+              .frame(width: 92, height: 92)
 
             Circle()
-              .fill(recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.amber)
-              .frame(width: 78, height: 78)
+              .fill(
+                recorder.isRecording
+                  ? AnyShapeStyle(KnapsackBrand.coral)
+                  : AnyShapeStyle(KnapsackBrand.heroGradient)
+              )
+              .frame(width: 72, height: 72)
 
-            if !recorder.isRecording {
-              Circle()
-                .fill(KnapsackBrand.heroGradient)
-                .frame(width: 78, height: 78)
-            }
-
-            VStack(spacing: 4) {
+            VStack(spacing: 3) {
               Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
-                .font(.system(size: 22, weight: .semibold))
-              Text(recorder.isRecording ? "Stop" : "Start")
-                .font(KnapsackBrand.inter(12, weight: .bold))
+                .font(.system(size: 20, weight: .semibold))
+              Text(recorder.isRecording ? "Stop" : "Record")
+                .font(KnapsackBrand.inter(11, weight: .bold))
             }
             .foregroundStyle(recorder.isRecording ? .white : KnapsackBrand.ink)
           }
         }
         .buttonStyle(.plain)
 
-        Text(recorder.isRecording ? "Recording to Knapsack" : "Tap to start a note")
-          .font(KnapsackBrand.inter(13, weight: .semibold))
+        Text(recorder.isRecording ? "Capturing this meeting" : "Start a meeting note")
+          .font(KnapsackBrand.inter(12, weight: .semibold))
           .foregroundStyle(.white)
           .multilineTextAlignment(.center)
 
-        Text(recorder.statusText)
-          .font(KnapsackBrand.inter(11))
-          .multilineTextAlignment(.center)
-          .foregroundStyle(.white.opacity(0.72))
-          .lineLimit(2)
-
-        Button("Sync to iPhone") {
-          guard let fileURL = recorder.lastFileURL else { return }
-          syncManager.transferRecording(
-            fileURL: fileURL,
-            startedAt: recorder.startedAt,
-            endedAt: recorder.endedAt
-          )
-        }
-        .font(KnapsackBrand.inter(12, weight: .semibold))
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.12))
-        .clipShape(Capsule())
-        .disabled(recorder.lastFileURL == nil || recorder.isRecording)
-
-        Text(syncManager.status)
-          .font(KnapsackBrand.inter(10))
-          .multilineTextAlignment(.center)
-          .foregroundStyle(.white.opacity(0.65))
-
-        if let notification = syncManager.latestChatNotification {
-          VStack(alignment: .leading, spacing: 4) {
-            Text("Latest reply")
-              .font(KnapsackBrand.inter(10, weight: .bold))
-              .foregroundStyle(.white.opacity(0.7))
-              .textCase(.uppercase)
-
-            Text(notification.title)
-              .font(KnapsackBrand.inter(12, weight: .semibold))
+        if recorder.lastFileURL != nil && !recorder.isRecording {
+          Button {
+            sendLastNote()
+          } label: {
+            Label("Send last note", systemImage: "arrow.up.circle.fill")
+              .font(KnapsackBrand.inter(11, weight: .semibold))
               .foregroundStyle(.white)
-              .lineLimit(1)
-
-            Text(notification.body)
-              .font(KnapsackBrand.inter(11))
-              .foregroundStyle(.white.opacity(0.82))
-              .lineLimit(3)
+              .padding(.horizontal, 12)
+              .padding(.vertical, 7)
+              .background(Capsule().fill(Color.white.opacity(0.11)))
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(10)
-          .background(Color.white.opacity(0.08))
-          .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+          .buttonStyle(.plain)
+        }
+
+        Spacer(minLength: 0)
+
+        if let activityText {
+          HStack(spacing: 6) {
+            Image(systemName: syncManager.latestChatNotification == nil ? "iphone" : "bubble.left.fill")
+              .font(.system(size: 10, weight: .semibold))
+            Text(activityText)
+              .lineLimit(1)
+          }
+          .font(KnapsackBrand.inter(10, weight: .medium))
+          .foregroundStyle(.white.opacity(0.68))
         }
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 8)
+      .padding(.horizontal, 15)
+      .padding(.vertical, 9)
     }
     .onAppear {
       syncManager.activate()
     }
+  }
+
+  private var activityText: String? {
+    if let notification = syncManager.latestChatNotification {
+      return "Reply from \(notification.title)"
+    }
+    if syncManager.status != "Ready" {
+      return syncManager.status
+    }
+    return recorder.statusText == "Ready" ? nil : recorder.statusText
+  }
+
+  private func toggleRecording() {
+    if recorder.isRecording {
+      recorder.stop()
+      return
+    }
+    Task {
+      do {
+        try await recorder.start()
+      } catch {
+        recorder.statusText = error.localizedDescription
+      }
+    }
+  }
+
+  private func sendLastNote() {
+    guard let fileURL = recorder.lastFileURL else { return }
+    syncManager.transferRecording(
+      fileURL: fileURL,
+      startedAt: recorder.startedAt,
+      endedAt: recorder.endedAt
+    )
   }
 }

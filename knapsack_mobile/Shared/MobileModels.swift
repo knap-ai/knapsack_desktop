@@ -81,12 +81,28 @@ struct SendMobileChatMessageRequest: Codable {
 }
 
 struct MobileManagedAgent: Codable, Identifiable {
-  var agentId: String
-  var displayName: String
-  var templateId: String
-  var tenantId: String
+  var id: String
+  var name: String
+  var emoji: String
+  var personality: String
+  var soul: String
+  var browserProfile: String
+  var suggestedPrompts: [String]
 
-  var id: String { agentId }
+  var agentId: String { id }
+  var displayName: String { name }
+}
+
+struct MobileTeamRoster: Codable {
+  var agents: [MobileManagedAgent]
+}
+
+struct MobileTeamMessageResponse: Codable {
+  var reply: String
+}
+
+struct MobileTeamMessages: Codable {
+  var messages: [MobileChatMessage]
 }
 
 struct MobileManagedAgentSession: Codable, Identifiable {

@@ -10,6 +10,8 @@ final class MobileAPI {
   private let fallbackChatDetailStoreKey = "knapsack.mobile.fallback.chatDetails"
   private let fallbackCalendarStoreKey = "knapsack.mobile.fallback.calendar"
   private let fallbackSessionStoreKey = "knapsack.mobile.fallback.session"
+  private let fallbackTeamStoreKey = "knapsack.mobile.fallback.team"
+  private let fallbackTeamMessagesStoreKey = "knapsack.mobile.fallback.teamMessages"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
@@ -156,24 +158,46 @@ final class MobileAPI {
   }
 
   func getManagedAgents() async throws -> MobileManagedAgentsIndex {
-    try await fetchDirect(path: "/api/clawd/managed-agents")
+    do {
+      let roster: MobileTeamRoster = try await fetch(path: "/api/knapsack/mobile/team")
+      if let data = try? encoder.encode(roster) {
+        UserDefaults.standard.set(data, forKey: fallbackTeamStoreKey)
+      }
+      return MobileManagedAgentsIndex(success: true, agents: roster.agents, executionSessions: [])
+    } catch {
+      guard let data = UserDefaults.standard.data(forKey: fallbackTeamStoreKey),
+            let roster = try? decoder.decode(MobileTeamRoster.self, from: data) else {
+        throw error
+      }
+      return MobileManagedAgentsIndex(success: true, agents: roster.agents, executionSessions: [])
+    }
   }
 
-  func sendManagedAgentMessage(agentID: String, userID: String, text: String) async throws -> MobileManagedAgentRunResponse {
-    try await sendDirect(
-      path: "/api/clawd/managed-agents/channel-run",
-      body: MobileManagedAgentRunRequest(
-        agentId: agentID,
-        userId: userID,
-        channel: "desktop_chat",
-        message: text,
-        taskSummary: nil,
-        contextKey: "mobile-\(userID)-\(agentID)",
-        requiredCapabilities: ["cloud_chat", "shared_task_context"],
-        desktopSessionRequirement: "preferred",
-        gatewayAgentId: nil
-      )
+  func sendManagedAgentMessage(agentID: String, text: String) async throws -> MobileTeamMessageResponse {
+    try await send(
+      path: "/api/knapsack/mobile/team/\(agentID)/messages",
+      method: "POST",
+      body: SendMobileChatMessageRequest(text: text)
     )
+  }
+
+  func getManagedAgentMessages(agentID: String) async throws -> [MobileChatMessage] {
+    do {
+      let history: MobileTeamMessages = try await fetch(
+        path: "/api/knapsack/mobile/team/\(agentID)/messages"
+      )
+      var cached = loadFallbackTeamMessages()
+      cached[agentID] = history.messages
+      if let data = try? encoder.encode(cached) {
+        UserDefaults.standard.set(data, forKey: fallbackTeamMessagesStoreKey)
+      }
+      return history.messages
+    } catch {
+      guard let messages = loadFallbackTeamMessages()[agentID] else {
+        throw error
+      }
+      return messages
+    }
   }
 
   func getSession() async throws -> MobileLinkedSession {
@@ -407,29 +431,6 @@ final class MobileAPI {
     return payload
   }
 
-  private func fetchDirect<T: Codable>(path: String) async throws -> T {
-    var request = URLRequest(url: try requestURL(path: path))
-    applyAuthentication(to: &request)
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
-      throw MobileAPIError.server("Request failed")
-    }
-    return try decoder.decode(T.self, from: data)
-  }
-
-  private func sendDirect<T: Codable, Body: Codable>(path: String, body: Body) async throws -> T {
-    var request = URLRequest(url: try requestURL(path: path))
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    applyAuthentication(to: &request)
-    request.httpBody = try encoder.encode(body)
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
-      throw MobileAPIError.server("Request failed")
-    }
-    return try decoder.decode(T.self, from: data)
-  }
-
   private func send<T: Codable, Body: Codable>(path: String, method: String, body: Body) async throws -> T {
     var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
     request.httpMethod = method
@@ -472,6 +473,14 @@ final class MobileAPI {
       return []
     }
     return chats.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  private func loadFallbackTeamMessages() -> [String: [MobileChatMessage]] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackTeamMessagesStoreKey),
+          let messages = try? decoder.decode([String: [MobileChatMessage]].self, from: data) else {
+      return [:]
+    }
+    return messages
   }
 
   private func loadFallbackCalendarEvents() -> [MobileCalendarEventSummary] {

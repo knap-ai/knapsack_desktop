@@ -321,7 +321,7 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   var nextCalendarEvent: MobileCalendarEventSummary? {
-    let now = Int64(Date().timeIntervalSince1970) - 15 * 60
+    let now = Int64(Date().timeIntervalSince1970)
     return calendarEvents
       .filter { ($0.end ?? $0.start ?? 0) >= now }
       .min { ($0.start ?? Int64.max) < ($1.start ?? Int64.max) }
@@ -423,41 +423,49 @@ final class MeetingListViewModel: ObservableObject {
     managedAgentSessions = index.executionSessions.sorted { $0.updatedAt > $1.updatedAt }
   }
 
-  func openManagedAgent(_ agent: MobileManagedAgent) {
+  func openManagedAgent(_ agent: MobileManagedAgent) async {
     selectedManagedAgent = agent
-    var messages: [MobileChatMessage] = []
+    var fallbackMessages: [MobileChatMessage] = []
     let sessions = managedAgentSessions
       .filter { $0.agentId == agent.agentId }
       .sorted { $0.updatedAt < $1.updatedAt }
     for (index, session) in sessions.enumerated() {
       let timestamp = Int64(index * 2)
       if let inbound = session.lastInboundMessage, !inbound.isEmpty {
-        messages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: inbound))
+        fallbackMessages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: inbound))
       }
       if let reply = session.lastReplySummary, !reply.isEmpty {
-        messages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
+        fallbackMessages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
       }
     }
-    managedAgentMessages = messages
+    managedAgentMessages = fallbackMessages
+
+    do {
+      managedAgentMessages = try await api.getManagedAgentMessages(agentID: agent.agentId)
+      errorMessage = nil
+    } catch {
+      if fallbackMessages.isEmpty {
+        errorMessage = friendlyMessage(for: error)
+      }
+    }
   }
 
   func sendManagedAgentMessage(_ text: String) async -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard let agent = selectedManagedAgent, !trimmed.isEmpty else { return false }
-    let userID = session?.profile?.uuid ?? session?.profile?.email ?? "mobile-user"
     let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
     managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: trimmed))
     isSendingManagedAgentMessage = true
     defer { isSendingManagedAgentMessage = false }
 
     do {
-      let response = try await api.sendManagedAgentMessage(agentID: agent.agentId, userID: userID, text: trimmed)
-      if let reply = response.reply, !reply.isEmpty {
+      let response = try await api.sendManagedAgentMessage(agentID: agent.agentId, text: trimmed)
+      if !response.reply.isEmpty {
+        let reply = response.reply
         managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
       }
-      await refreshManagedAgents()
-      errorMessage = response.success ? nil : response.message
-      return response.success
+      errorMessage = nil
+      return true
     } catch {
       managedAgentMessages.removeLast()
       errorMessage = friendlyMessage(for: error)

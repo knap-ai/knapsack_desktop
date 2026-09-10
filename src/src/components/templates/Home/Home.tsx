@@ -10,6 +10,7 @@ import {
   loadTeamRoster,
   saveTeamGroups,
   saveTeamRoster,
+  syncTeamRosterToMobile,
   TeamAgent,
   TeamGroup,
 } from 'src/agents/teamRoster'
@@ -309,6 +310,12 @@ function Home({
       window.removeEventListener('knapsack:team-groups-changed', refreshGroups)
     }
   }, [])
+
+  useEffect(() => {
+    syncTeamRosterToMobile(teamAgents).catch(error => {
+      console.warn('[team] Unable to publish roster to mobile:', error)
+    })
+  }, [teamAgents])
 
   // Listen for /autopilot slash command to force-open the email drawer
   useEffect(() => {

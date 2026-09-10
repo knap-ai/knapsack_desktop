@@ -136,6 +136,38 @@ pub struct SendMobileChatMessageRequest {
   pub text: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamAgent {
+  pub id: String,
+  pub name: String,
+  pub emoji: String,
+  pub personality: String,
+  pub soul: String,
+  pub browser_profile: String,
+  #[serde(default)]
+  pub suggested_prompts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamRoster {
+  #[serde(default)]
+  pub agents: Vec<MobileTeamAgent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMobileTeamMessageRequest {
+  pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamMessages {
+  pub messages: Vec<MobileChatMessage>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MobileLinkedProfile {
@@ -298,6 +330,27 @@ fn mobile_recordings_dir() -> Result<PathBuf, Error> {
 
 fn mobile_metadata_path(thread_id: u64) -> Result<PathBuf, Error> {
   Ok(mobile_metadata_dir()?.join(format!("{thread_id}.json")))
+}
+
+fn mobile_team_roster_path() -> Result<PathBuf, Error> {
+  Ok(knapsack_data_dir()?.join("mobile_team_roster.json"))
+}
+
+fn load_mobile_team_roster() -> Result<MobileTeamRoster, Error> {
+  let path = mobile_team_roster_path()?;
+  if !path.exists() {
+    return Ok(MobileTeamRoster::default());
+  }
+  let content = read_to_string(path)?;
+  serde_json::from_str(&content)
+    .map_err(|err| Error::KSError(format!("Failed to parse mobile team roster: {err}")))
+}
+
+fn save_mobile_team_roster(roster: &MobileTeamRoster) -> Result<(), Error> {
+  let serialized = serde_json::to_string_pretty(roster)
+    .map_err(|err| Error::KSError(format!("Failed to serialize mobile team roster: {err}")))?;
+  std::fs::write(mobile_team_roster_path()?, serialized)?;
+  Ok(())
 }
 
 fn load_mobile_metadata(thread_id: u64) -> Result<Option<MobileMeetingMetadata>, Error> {
@@ -1605,6 +1658,67 @@ fn gateway_reply_from_result(result: &Value) -> Option<String> {
   if reply.is_empty() { None } else { Some(reply) }
 }
 
+fn gateway_history_message_text(message: &Value) -> Option<String> {
+  let content = if let Some(text) = message.get("text").and_then(Value::as_str) {
+    text.to_string()
+  } else if let Some(text) = message.get("content").and_then(Value::as_str) {
+    text.to_string()
+  } else {
+    message
+      .get("content")
+      .and_then(Value::as_array)?
+      .iter()
+      .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+      .filter_map(|part| part.get("text").and_then(Value::as_str))
+      .collect::<Vec<_>>()
+      .join("\n\n")
+  };
+
+  let without_desktop_context = content
+    .rsplit_once("\n---\nUser message:\n")
+    .map(|(_, message)| message)
+    .unwrap_or(&content);
+  let display_content = without_desktop_context
+    .rsplit_once("\n\nUser request\n")
+    .map(|(_, message)| message)
+    .unwrap_or(without_desktop_context)
+    .trim()
+    .to_string();
+  if display_content.is_empty() { None } else { Some(display_content) }
+}
+
+fn mobile_team_history_messages(history: &Value) -> Vec<MobileChatMessage> {
+  let now = chrono::Utc::now().timestamp_millis();
+  history
+    .get("messages")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .enumerate()
+    .filter_map(|(index, message)| {
+      let role = message.get("role").and_then(Value::as_str)?;
+      if role != "user" && role != "assistant" {
+        return None;
+      }
+      let content = gateway_history_message_text(message)?;
+      let timestamp = message
+        .get("timestamp")
+        .and_then(|value| {
+          value
+            .as_i64()
+            .or_else(|| value.as_str().and_then(|raw| raw.parse::<i64>().ok()))
+        })
+        .unwrap_or(now + index as i64);
+      Some(MobileChatMessage {
+        id: message.get("id").and_then(Value::as_u64),
+        timestamp,
+        role: role.to_string(),
+        content,
+      })
+    })
+    .collect()
+}
+
 fn thread_message_preview(message: &Message) -> Option<String> {
   message
     .content_facade
@@ -1733,6 +1847,123 @@ pub async fn get_mobile_session() -> impl Responder {
     "success": true,
     "data": build_mobile_session()
   }))
+}
+
+#[get("/api/knapsack/mobile/team")]
+pub async fn get_mobile_team() -> impl Responder {
+  match load_mobile_team_roster() {
+    Ok(roster) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": roster
+    })),
+    Err(err) => HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  }
+}
+
+#[post("/api/knapsack/mobile/team")]
+pub async fn save_mobile_team(payload: Json<MobileTeamRoster>) -> impl Responder {
+  let mut roster = payload.into_inner();
+  roster.agents.retain(|agent| !agent.id.trim().is_empty() && !agent.name.trim().is_empty());
+  if let Err(err) = save_mobile_team_roster(&roster) {
+    return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    }));
+  }
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": roster
+  }))
+}
+
+#[post("/api/knapsack/mobile/team/{agent_id}/messages")]
+pub async fn send_mobile_team_message(
+  path: web::Path<String>,
+  payload: Json<SendMobileTeamMessageRequest>,
+) -> impl Responder {
+  let agent_id = path.into_inner();
+  let text = payload.text.trim();
+  if text.is_empty() {
+    return HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": "Message text is required"
+    }));
+  }
+
+  let roster = match load_mobile_team_roster() {
+    Ok(roster) => roster,
+    Err(err) => return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  };
+  let Some(agent) = roster.agents.into_iter().find(|agent| agent.id == agent_id) else {
+    return HttpResponse::NotFound().json(json!({
+      "success": false,
+      "error": "Virtual employee not found"
+    }));
+  };
+
+  let request_text = format!(
+    "You are {}, one member of the user's Knapsack team. {}\n\nStay within your role: {}. Continue the same private conversation used by this employee on desktop.\n\nUser request\n{}",
+    agent.name, agent.soul, agent.personality, text
+  );
+  let session_key = format!("agent:main:webchat:dm:ui-agent-{}", agent.id);
+  match gateway_client::agent_chat(&request_text, &[], None, Some("dm"), Some(&session_key)).await {
+    Ok(result) => {
+      let reply = gateway_reply_from_result(&result).unwrap_or_default();
+      if reply.is_empty() {
+        HttpResponse::BadGateway().json(json!({
+          "success": false,
+          "error": "The virtual employee did not return a response"
+        }))
+      } else {
+        HttpResponse::Ok().json(json!({
+          "success": true,
+          "data": { "reply": reply }
+        }))
+      }
+    }
+    Err(err) => HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
+}
+
+#[get("/api/knapsack/mobile/team/{agent_id}/messages")]
+pub async fn get_mobile_team_messages(path: web::Path<String>) -> impl Responder {
+  let agent_id = path.into_inner();
+  let roster = match load_mobile_team_roster() {
+    Ok(roster) => roster,
+    Err(err) => return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  };
+  if !roster.agents.iter().any(|agent| agent.id == agent_id) {
+    return HttpResponse::NotFound().json(json!({
+      "success": false,
+      "error": "Virtual employee not found"
+    }));
+  }
+
+  let session_key = format!("agent:main:webchat:dm:ui-agent-{agent_id}");
+  match gateway_client::chat_history(&session_key, None, 100).await {
+    Ok(history) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": MobileTeamMessages {
+        messages: mobile_team_history_messages(&history)
+      }
+    })),
+    Err(err) => HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
 }
 
 #[get("/api/knapsack/mobile/calendar")]
@@ -2475,7 +2706,10 @@ pub async fn upload_mobile_recording(
 
 #[cfg(test)]
 mod tests {
-  use super::{build_mobile_chat_request, gateway_reply_from_result, parse_gateway_payload_text};
+  use super::{
+    build_mobile_chat_request, gateway_history_message_text, gateway_reply_from_result,
+    mobile_team_history_messages, parse_gateway_payload_text,
+  };
   use crate::db::models::thread::{Thread, ThreadType};
   use serde_json::json;
 
@@ -2502,6 +2736,33 @@ mod tests {
     });
 
     assert_eq!(gateway_reply_from_result(&result).as_deref(), Some("A\n\nB"));
+  }
+
+  #[test]
+  fn strips_desktop_agent_context_from_mobile_history() {
+    let message = json!({
+      "role": "user",
+      "content": "You are Scout.\n---\nUser message:\nWhat needs my attention?"
+    });
+    assert_eq!(
+      gateway_history_message_text(&message).as_deref(),
+      Some("What needs my attention?")
+    );
+  }
+
+  #[test]
+  fn maps_gateway_team_history_to_mobile_messages() {
+    let history = json!({
+      "messages": [
+        { "id": 7, "timestamp": 100, "role": "user", "content": "Hello" },
+        { "id": 8, "timestamp": 101, "role": "assistant", "content": [{ "type": "text", "text": "Hi" }] },
+        { "id": 9, "timestamp": 102, "role": "tool", "content": "ignored" }
+      ]
+    });
+    let messages = mobile_team_history_messages(&history);
+    assert_eq!(messages.len(), 2);
+    assert_eq!(messages[0].content, "Hello");
+    assert_eq!(messages[1].content, "Hi");
   }
 
   #[test]
