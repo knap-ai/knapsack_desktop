@@ -2113,7 +2113,10 @@ struct ContentView: View {
       HStack(alignment: .bottom, spacing: 10) {
         TextField("Message your teammate", text: $draftManagedAgentMessage, axis: .vertical)
           .font(KnapsackBrand.inter(16))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
           .lineLimit(1...4)
+          .textInputAutocapitalization(.sentences)
           .padding(.horizontal, 16)
           .padding(.vertical, 11)
           .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
