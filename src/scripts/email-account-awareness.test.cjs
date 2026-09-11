@@ -76,6 +76,15 @@ test('Email Autopilot handles raw JSON and keeps accounts isolated', () => {
   assert.match(feed, /emailAutopilotCycleMessageKeysRef\.current\.clear\(\)/)
   assert.match(feed, /await emailAutopilot\.classifyEmails/)
   assert.match(feed, /await executeClassification\(batch\)/)
+  assert.match(feed, /threadResponse && threadResponse\.length > 0/)
+  assert.match(
+    feed,
+    /else \{[\s\S]*?emailThreadsSet\.add\(message\)[\s\S]*?\}\s*catch/,
+  )
+  assert.match(
+    feed,
+    /catch \(error\) \{[\s\S]*?emailThreadsSet\.add\(message\)/,
+  )
   assert.ok((feed.match(/connectedEmailAccountEmails\.length > 0 \? connectedEmailAccountEmails : undefined/g) || []).length >= 2)
 })
 
