@@ -38,32 +38,34 @@ struct ContentView: View {
   @StateObject private var watchSync = WatchSyncCoordinator.shared
   @State private var draftNotes = ""
   @State private var draftChatMessage = ""
-  @State private var expandedChatMessageIDs: Set<UInt64> = []
   @State private var draftAutopilotReply = ""
   @State private var gbrainDraftPrompt = ""
   @State private var searchText = ""
-  @State private var selectedPane: DesktopPane = .chats
+  @State private var selectedPane: DesktopPane = .notes
   @State private var noteDetailMode: NoteDetailMode = .read
   @State private var isShowingSettings = false
   @State private var presentedMeeting: MobileMeetingDetail?
   @State private var presentedChat: MobileChatDetail?
+  @State private var presentedManagedAgent: MobileManagedAgent?
+  @State private var draftManagedAgentMessage = ""
   @State private var presentedAutopilotEmail: MobileAutopilotEmailDetail?
+  @State private var isNextMeetingPrepExpanded = false
   @FocusState private var isNotesEditorFocused: Bool
   @FocusState private var isAutopilotReplyFocused: Bool
   private let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
   var body: some View {
     TabView(selection: $selectedPane) {
-      chatsTab
-        .tag(DesktopPane.chats)
-        .tabItem {
-          Label("Chats", systemImage: "bubble.left.and.bubble.right")
-        }
-
       notesTab
         .tag(DesktopPane.notes)
         .tabItem {
           Label("Notes", systemImage: "note.text")
+        }
+
+      chatsTab
+        .tag(DesktopPane.chats)
+        .tabItem {
+          Label("Chats", systemImage: "bubble.left.and.bubble.right")
         }
     }
     .sheet(isPresented: $isShowingSettings) {
@@ -119,7 +121,7 @@ struct ContentView: View {
         }
       }
     }
-    .sheet(item: $presentedChat) { chat in
+    .fullScreenCover(item: $presentedChat) { chat in
       let liveChat = currentPresentedChat(fallback: chat)
       NavigationStack {
         ScrollView {
@@ -142,6 +144,34 @@ struct ContentView: View {
           }
           ToolbarItem(placement: .principal) {
             Text("Chat")
+              .font(KnapsackBrand.inter(17, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.ink)
+          }
+        }
+      }
+    }
+    .fullScreenCover(item: $presentedManagedAgent) { agent in
+      NavigationStack {
+        ScrollView {
+          managedAgentDetailView(agent)
+            .padding()
+            .padding(.bottom, 12)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+          managedAgentComposer
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color.white.ignoresSafeArea())
+        .toolbar {
+          ToolbarItem(placement: .topBarLeading) {
+            Button("Close") {
+              presentedManagedAgent = nil
+            }
+            .font(KnapsackBrand.inter(15, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.ink)
+          }
+          ToolbarItem(placement: .principal) {
+            Text(agent.displayName)
               .font(KnapsackBrand.inter(17, weight: .semibold))
               .foregroundStyle(KnapsackBrand.ink)
           }
@@ -267,9 +297,12 @@ struct ContentView: View {
       VStack(alignment: .leading, spacing: 22) {
         notesHeader
         nextCallCard
-        quickCaptureCard
+        laterMeetingsSection
         searchBar
-        meetingsSection
+        calendarNotesSection
+        if !standaloneMeetings.isEmpty {
+          meetingsSection
+        }
       }
     }
   }
@@ -278,6 +311,7 @@ struct ContentView: View {
     pageScrollView {
       VStack(alignment: .leading, spacing: 22) {
         chatsHeader
+        virtualEmployeesSection
         askKnapsackCard
         searchBar
         chatsSection
@@ -338,14 +372,21 @@ struct ContentView: View {
   }
 
   private var nextCallCard: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Text("Next up")
+    VStack(alignment: .leading, spacing: 16) {
+      HStack {
+        Text(recorder.isRecording ? "Recording now" : "Your next meeting")
         .font(KnapsackBrand.inter(14, weight: .semibold))
         .foregroundStyle(KnapsackBrand.inkMuted)
+        Spacer()
+        if viewModel.isLoadingNextMeetingPrep {
+          ProgressView()
+            .tint(KnapsackBrand.ink)
+        }
+      }
 
-      if let event = viewModel.calendarEvents.first {
+      if let event = viewModel.nextCalendarEvent {
         Text(event.title ?? "Upcoming call")
-          .font(KnapsackBrand.inter(20, weight: .semibold))
+          .font(KnapsackBrand.spectral(31))
           .foregroundStyle(KnapsackBrand.ink)
           .fixedSize(horizontal: false, vertical: true)
 
@@ -353,21 +394,151 @@ struct ContentView: View {
           .font(KnapsackBrand.inter(14))
           .foregroundStyle(KnapsackBrand.slate)
 
-        Button("Prepare for this call") {
-          Task {
-            await runGBrainPrompt(
-              makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes, prior meetings, and relevant chats.")
-            )
+        if let prepMessage = viewModel.nextMeetingPrep?.messages.last(where: { $0.role == "assistant" }) {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(isNextMeetingPrepExpanded ? "Meeting prep" : "Key action")
+              .font(KnapsackBrand.inter(13, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.inkMuted)
+
+            if isNextMeetingPrepExpanded {
+              assistantMessageContent(prepMessage)
+            } else {
+              prepKeyActionContent(prepMessage)
+            }
+
+            Button {
+              withAnimation(.easeInOut(duration: 0.2)) {
+                isNextMeetingPrepExpanded.toggle()
+              }
+            } label: {
+              Label(
+                isNextMeetingPrepExpanded ? "Show less" : "Show full prep",
+                systemImage: isNextMeetingPrepExpanded ? "chevron.up" : "chevron.down"
+              )
+              .font(KnapsackBrand.inter(13, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.ink)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 3)
           }
+          .padding(15)
+          .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(KnapsackBrand.paper))
+        } else if let preview = event.prepPreview, !preview.isEmpty {
+          parsedMarkdownText(preview)
+            .font(KnapsackBrand.inter(15))
+            .foregroundStyle(KnapsackBrand.ink)
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .brandPill(background: KnapsackBrand.ink, foreground: .white)
+
+        HStack(spacing: 10) {
+          Button(recorder.isRecording ? "Finish recording" : "Record meeting") {
+            toggleMeetingRecording()
+          }
+          .brandPill(
+            background: recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink,
+            foreground: .white
+          )
+
+          Button("Open prep") {
+            if let prep = viewModel.nextMeetingPrep {
+              viewModel.selectedChat = prep
+              presentedChat = prep
+            } else {
+              Task {
+                await viewModel.preloadNextMeetingPrep(force: true)
+                if let prep = viewModel.nextMeetingPrep {
+                  viewModel.selectedChat = prep
+                  presentedChat = prep
+                }
+              }
+            }
+          }
+          .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+          .disabled(viewModel.isLoadingNextMeetingPrep)
+        }
       } else {
         Text(viewModel.session?.calendarConnected == true ? "No upcoming calls on your calendar." : "Link your desktop to see upcoming calls here.")
           .font(KnapsackBrand.inter(15))
           .foregroundStyle(KnapsackBrand.slate)
+
+        Button(recorder.isRecording ? "Finish recording" : "Record a meeting") {
+          toggleMeetingRecording()
+        }
+        .brandPill(background: recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink, foreground: .white)
       }
     }
     .cardStyle()
+    .onChange(of: viewModel.nextCalendarEvent?.eventId) { _, _ in
+      isNextMeetingPrepExpanded = false
+    }
+  }
+
+  @ViewBuilder
+  private var laterMeetingsSection: some View {
+    let events = futureCalendarEvents.filter { $0.eventId != viewModel.nextCalendarEvent?.eventId }
+    if !events.isEmpty {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Text("Later meetings")
+            .font(KnapsackBrand.inter(24, weight: .bold))
+            .foregroundStyle(KnapsackBrand.ink)
+          Spacer()
+          Text("\(events.count)")
+            .font(KnapsackBrand.inter(13, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.inkMuted)
+        }
+
+        ForEach(events) { event in
+          VStack(alignment: .leading, spacing: 12) {
+            Text(event.displayTitle)
+              .font(KnapsackBrand.inter(17, weight: .semibold))
+              .foregroundStyle(KnapsackBrand.ink)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Label(calendarEventTimeString(event), systemImage: "calendar")
+              .font(KnapsackBrand.inter(13, weight: .medium))
+              .foregroundStyle(KnapsackBrand.slate)
+
+            HStack(spacing: 10) {
+              let prep = viewModel.prep(for: event)
+              Button(prep == nil ? "Generate prep" : "Open prep") {
+                if let prep {
+                  viewModel.selectedChat = prep
+                  presentedChat = prep
+                } else {
+                  Task {
+                    if let generated = await viewModel.prepareMeeting(event) {
+                      viewModel.selectedChat = generated
+                      presentedChat = generated
+                    }
+                  }
+                }
+              }
+              .brandPill(background: KnapsackBrand.ink, foreground: .white)
+              .disabled(viewModel.isLoadingPrep(for: event))
+
+              if viewModel.isLoadingPrep(for: event) {
+                ProgressView()
+                  .tint(KnapsackBrand.ink)
+              } else if prep != nil {
+                Button("Refresh") {
+                  Task { _ = await viewModel.prepareMeeting(event, force: true) }
+                }
+                .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+              }
+            }
+          }
+          .padding(18)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white))
+          .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+              .stroke(KnapsackBrand.line, lineWidth: 1)
+          )
+        }
+      }
+    }
   }
 
   private var askKnapsackCard: some View {
@@ -389,31 +560,67 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
       HStack(spacing: 10) {
-        Button(viewModel.isRunningGBrainPrompt ? "Thinking..." : "Ask") {
+        Button(viewModel.isSendingChatMessage ? "Thinking..." : "Ask") {
           let prompt = makeResearchPrompt(from: gbrainDraftPrompt)
-          Task { await runGBrainPrompt(prompt, clearComposer: true) }
+          Task { await runQuickPrompt(title: "Chat from iPhone", prompt: prompt, clearComposer: true) }
         }
         .brandPill(
-          background: viewModel.isRunningGBrainPrompt ? KnapsackBrand.paper : KnapsackBrand.ink,
-          foreground: viewModel.isRunningGBrainPrompt ? KnapsackBrand.inkMuted : .white
+          background: viewModel.isSendingChatMessage ? KnapsackBrand.paper : KnapsackBrand.ink,
+          foreground: viewModel.isSendingChatMessage ? KnapsackBrand.inkMuted : .white
         )
-        .disabled(viewModel.isRunningGBrainPrompt || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(viewModel.isSendingChatMessage || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-        Button("Today") {
-          Task { await runGBrainPrompt(makeDailyBriefPrompt()) }
+        Button(viewModel.isSendingChatMessage ? "Working..." : "Today") {
+          Task { await runQuickPrompt(title: "Today", prompt: makeDailyBriefPrompt()) }
         }
         .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+        .disabled(viewModel.isSendingChatMessage)
 
-        if let event = viewModel.calendarEvents.first {
+        if let event = viewModel.nextCalendarEvent {
           Button("Next call") {
             Task {
-              await runGBrainPrompt(
-                makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes and chats.")
+              await runQuickPrompt(
+                title: "Meeting prep",
+                prompt: makeResearchPrompt(from: "Prepare me for \(event.title ?? "my next call") using my notes and chats.")
               )
             }
           }
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
+          .disabled(viewModel.isSendingChatMessage)
         }
+      }
+
+      if viewModel.isDesktopReachable, viewModel.session?.linked == true {
+        HStack(spacing: 6) {
+          Image(systemName: "checkmark.circle.fill")
+          Text("Connected to your desktop")
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.inkMuted)
+      } else if viewModel.session?.linked == true {
+        HStack(spacing: 8) {
+          Image(systemName: "wifi.slash")
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Offline - showing saved chats")
+            Text("Reconnect to ask Knapsack or refresh your workspace.")
+              .font(KnapsackBrand.inter(12))
+          }
+          Spacer()
+          Button("Retry") {
+            Task { await viewModel.connectToDesktop() }
+          }
+          .font(KnapsackBrand.inter(13, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.coral)
+      } else {
+        HStack(spacing: 6) {
+          Image(systemName: "exclamationmark.circle.fill")
+          Text("Connect your desktop to ask Knapsack")
+        }
+        .font(KnapsackBrand.inter(13, weight: .medium))
+        .foregroundStyle(KnapsackBrand.coral)
       }
     }
     .cardStyle()
@@ -1260,47 +1467,126 @@ struct ContentView: View {
     }
   }
 
-  private var meetingsSection: some View {
+  private var calendarNotesSection: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Text("Recent")
+        Text("Meeting history")
           .font(KnapsackBrand.inter(28, weight: .bold))
           .foregroundStyle(KnapsackBrand.ink)
         Spacer()
-        Text("\(filteredMeetings.count)")
+        Text("Calendar + notes")
+          .font(KnapsackBrand.inter(12, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.inkMuted)
+      }
+
+      if historicalCalendarEvents.isEmpty {
+        Text("Your recent calendar meetings will appear here with their notes attached.")
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+      } else {
+        ForEach(historicalCalendarEvents.prefix(24)) { event in
+          Button {
+            guard event.meetingThreadId != nil else { return }
+            Task {
+              if let meeting = await viewModel.openCalendarEvent(event) {
+                draftNotes = meeting.notes ?? ""
+                noteDetailMode = .read
+                presentedMeeting = meeting
+              }
+            }
+          } label: {
+            HStack(alignment: .top, spacing: 13) {
+              VStack(spacing: 3) {
+                Text(calendarDay(event))
+                  .font(KnapsackBrand.inter(11, weight: .semibold))
+                  .foregroundStyle(KnapsackBrand.coral)
+                  .textCase(.uppercase)
+                Text(calendarDateNumber(event))
+                  .font(KnapsackBrand.inter(22, weight: .bold))
+                  .foregroundStyle(KnapsackBrand.ink)
+              }
+              .frame(width: 42)
+
+              VStack(alignment: .leading, spacing: 6) {
+                Text(event.title ?? "Calendar meeting")
+                  .font(KnapsackBrand.inter(21, weight: .bold))
+                  .foregroundStyle(KnapsackBrand.ink)
+                  .multilineTextAlignment(.leading)
+                  .fixedSize(horizontal: false, vertical: true)
+
+                if let preview = event.notesPreview, !preview.isEmpty {
+                  parsedMarkdownText(preview)
+                    .font(KnapsackBrand.inter(13))
+                    .foregroundStyle(KnapsackBrand.slate)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                } else {
+                  Text(event.meetingThreadId == nil ? "No note was captured for this event." : "Notes attached")
+                    .font(KnapsackBrand.inter(13))
+                    .foregroundStyle(KnapsackBrand.slate)
+                }
+              }
+
+              Spacer(minLength: 8)
+
+              if event.meetingThreadId != nil {
+                Image(systemName: "doc.text.fill")
+                  .foregroundStyle(KnapsackBrand.ink)
+              }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 21, style: .continuous).fill(Color.white))
+            .overlay(
+              RoundedRectangle(cornerRadius: 21, style: .continuous)
+                .stroke(KnapsackBrand.line, lineWidth: 1)
+            )
+          }
+          .buttonStyle(.plain)
+          .disabled(event.meetingThreadId == nil)
+        }
+      }
+    }
+  }
+
+  private var meetingsSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack {
+        Text("Other notes")
+          .font(KnapsackBrand.inter(28, weight: .bold))
+          .foregroundStyle(KnapsackBrand.ink)
+        Spacer()
+        Text("\(standaloneMeetings.count)")
           .font(KnapsackBrand.inter(14, weight: .semibold))
           .foregroundStyle(KnapsackBrand.inkMuted)
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
           .background(Capsule().fill(KnapsackBrand.paper))
       }
-      if filteredMeetings.isEmpty {
-        Text("No meetings yet. Create one or start recording.")
-          .font(KnapsackBrand.inter(15))
-          .foregroundStyle(KnapsackBrand.slate)
-      } else {
-        ForEach(groupedMeetings, id: \.title) { group in
-          VStack(alignment: .leading, spacing: 10) {
-            Text(group.title)
-              .font(KnapsackBrand.inter(13, weight: .semibold))
-              .foregroundStyle(KnapsackBrand.slate)
-              .textCase(.uppercase)
+      ForEach(groupedMeetings, id: \.title) { group in
+        VStack(alignment: .leading, spacing: 10) {
+          Text(group.title)
+            .font(KnapsackBrand.inter(13, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.slate)
+            .textCase(.uppercase)
 
-            ForEach(group.meetings) { meeting in
-          Button {
-            viewModel.selectedMeeting = meeting
-            draftNotes = meeting.notes ?? ""
-            noteDetailMode = .read
-            isNotesEditorFocused = false
-            presentedMeeting = meeting
-          } label: {
+          ForEach(group.meetings) { meeting in
+            Button {
+              viewModel.selectedMeeting = meeting
+              draftNotes = meeting.notes ?? ""
+              noteDetailMode = .read
+              isNotesEditorFocused = false
+              presentedMeeting = meeting
+            } label: {
+              VStack(alignment: .leading, spacing: 10) {
+                Text(meeting.displayTitle)
+                  .font(KnapsackBrand.inter(21, weight: .bold))
+                  .foregroundStyle(KnapsackBrand.ink)
+                  .multilineTextAlignment(.leading)
+                  .fixedSize(horizontal: false, vertical: true)
+
                 HStack(alignment: .top, spacing: 12) {
                   VStack(alignment: .leading, spacing: 5) {
-                    Text(meeting.thread.title ?? "Untitled")
-                      .font(KnapsackBrand.inter(18, weight: .semibold))
-                      .foregroundStyle(KnapsackBrand.ink)
-                      .multilineTextAlignment(.leading)
-
                     if let preview = meeting.metadata.notesPreview, !preview.isEmpty {
                       Text(preview)
                         .font(KnapsackBrand.inter(13))
@@ -1317,40 +1603,32 @@ struct ContentView: View {
                   Spacer(minLength: 10)
 
                   VStack(alignment: .trailing, spacing: 8) {
-                    Text(meetingTimeString(for: meeting))
-                      .font(KnapsackBrand.inter(12, weight: .medium))
-                      .foregroundStyle(KnapsackBrand.slate)
+                    Label(meetingTimeString(for: meeting), systemImage: "calendar")
+                      .font(KnapsackBrand.inter(12, weight: .semibold))
+                      .foregroundStyle(KnapsackBrand.ink)
+                      .multilineTextAlignment(.trailing)
 
-                    if isReadyToStart(meeting) {
-                      Text("Start notes")
-                        .font(KnapsackBrand.inter(12, weight: .semibold))
-                        .foregroundStyle(KnapsackBrand.ink)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(KnapsackBrand.amber.opacity(0.30)))
-                    } else {
-                      Text(meeting.metadata.status.rawValue.replacingOccurrences(of: "_", with: " "))
-                        .font(KnapsackBrand.inter(10, weight: .semibold))
-                        .foregroundStyle(KnapsackBrand.inkMuted)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(Capsule().fill(KnapsackBrand.paper))
-                    }
+                    Text(meetingDisplayStatus(meeting))
+                      .font(KnapsackBrand.inter(10, weight: .semibold))
+                      .foregroundStyle(KnapsackBrand.inkMuted)
+                      .padding(.horizontal, 10)
+                      .padding(.vertical, 7)
+                      .background(Capsule().fill(meetingHasNotes(meeting) ? KnapsackBrand.amber.opacity(0.30) : KnapsackBrand.paper))
                   }
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                  RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white)
-                )
-                .overlay(
-                  RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(viewModel.selectedMeeting?.id == meeting.id ? KnapsackBrand.ink.opacity(0.18) : KnapsackBrand.line, lineWidth: 1)
-                )
               }
-              .buttonStyle(.plain)
+              .padding(18)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                  .fill(Color.white)
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                  .stroke(viewModel.selectedMeeting?.id == meeting.id ? KnapsackBrand.ink.opacity(0.18) : KnapsackBrand.line, lineWidth: 1)
+              )
             }
+            .buttonStyle(.plain)
           }
         }
       }
@@ -1359,48 +1637,33 @@ struct ContentView: View {
 
   private func meetingDetailView(_ meeting: MobileMeetingDetail) -> some View {
     VStack(alignment: .leading, spacing: 20) {
-          HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-              Text(meetingTimeString(for: meeting))
-                .font(KnapsackBrand.inter(12, weight: .medium))
-                .foregroundStyle(KnapsackBrand.slate)
+      Text(meeting.displayTitle)
+        .font(KnapsackBrand.inter(32, weight: .bold))
+        .foregroundStyle(KnapsackBrand.ink)
+        .fixedSize(horizontal: false, vertical: true)
 
-              Text(meeting.thread.title ?? "Meeting")
-                .font(KnapsackBrand.spectral(36))
-                .foregroundStyle(KnapsackBrand.ink)
-                .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 10) {
+        Text(meetingTimeString(for: meeting))
+          .font(KnapsackBrand.inter(13, weight: .medium))
+          .foregroundStyle(KnapsackBrand.slate)
 
-              if let subtitle = meeting.thread.subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                  .font(KnapsackBrand.inter(15))
-                  .foregroundStyle(KnapsackBrand.slate)
-              }
-            }
+        Spacer(minLength: 0)
 
-            Spacer(minLength: 0)
+        Text(meetingDisplayStatus(meeting))
+          .font(KnapsackBrand.inter(11, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.inkMuted)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 7)
+          .background(Capsule().fill(KnapsackBrand.paper))
+      }
 
-            VStack(alignment: .trailing, spacing: 10) {
-              Text(meeting.metadata.status.rawValue.replacingOccurrences(of: "_", with: " "))
-                .font(KnapsackBrand.inter(11, weight: .semibold))
-                .foregroundStyle(KnapsackBrand.inkMuted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Capsule().fill(KnapsackBrand.paper))
-
-              if let latestAudio = meeting.metadata.latestAudioFile {
-                Text(latestAudio)
-                  .font(KnapsackBrand.inter(11, weight: .medium))
-                  .foregroundStyle(KnapsackBrand.inkMuted)
-                  .lineLimit(1)
-              }
-            }
-          }
-
-          HStack(spacing: 8) {
-            detailMetaChip(label: "Updated", value: meetingTimeString(from: meeting.metadata.updatedAt))
-            detailMetaChip(label: "Source", value: meeting.metadata.sourceDevice?.capitalized ?? "Desktop")
-            detailMetaChip(label: "State", value: statusSubtitle(for: meeting))
-          }
+      if let subtitle = meeting.thread.subtitle,
+         !subtitle.isEmpty,
+         subtitle.localizedCaseInsensitiveCompare(meeting.displayTitle) != .orderedSame {
+        Text(subtitle)
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+      }
 
           VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -1504,7 +1767,7 @@ struct ContentView: View {
         ForEach(noteBlocks(from: notes)) { block in
           switch block {
           case .heading(let text):
-            Text(text)
+            parsedMarkdownText(text)
               .font(KnapsackBrand.inter(18, weight: .bold))
               .foregroundStyle(KnapsackBrand.ink)
               .padding(.top, 4)
@@ -1514,13 +1777,13 @@ struct ContentView: View {
                 .fill(KnapsackBrand.amber)
                 .frame(width: 7, height: 7)
                 .padding(.top, 8)
-              Text(text)
+              parsedMarkdownText(text)
                 .font(KnapsackBrand.inter(16))
                 .foregroundStyle(KnapsackBrand.ink)
                 .fixedSize(horizontal: false, vertical: true)
             }
           case .paragraph(let text):
-            Text(text)
+            parsedMarkdownText(text)
               .font(KnapsackBrand.inter(16))
               .foregroundStyle(KnapsackBrand.ink)
               .fixedSize(horizontal: false, vertical: true)
@@ -1566,14 +1829,70 @@ struct ContentView: View {
     )
   }
 
+  private var virtualEmployeesSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Your team")
+        .font(KnapsackBrand.inter(28, weight: .bold))
+        .foregroundStyle(KnapsackBrand.ink)
+
+      Text("Pick up where you left off with Scout and your virtual employees.")
+        .font(KnapsackBrand.inter(13))
+        .foregroundStyle(KnapsackBrand.slate)
+
+      if viewModel.managedAgents.isEmpty {
+        Text("Virtual employee conversations will stay pinned here when they appear on desktop.")
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+          .padding(16)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+      } else {
+        ForEach(viewModel.managedAgents) { agent in
+          Button {
+            presentedManagedAgent = agent
+            Task { await viewModel.openManagedAgent(agent) }
+          } label: {
+            HStack(spacing: 14) {
+              Text(agent.emoji)
+                .font(.system(size: 24))
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(Color.white))
+
+              VStack(alignment: .leading, spacing: 5) {
+                Text(agent.displayName)
+                  .font(KnapsackBrand.inter(17, weight: .semibold))
+                  .foregroundStyle(KnapsackBrand.ink)
+                  .multilineTextAlignment(.leading)
+                Text(managedAgentPreview(agent))
+                  .font(KnapsackBrand.inter(13))
+                  .foregroundStyle(KnapsackBrand.slate)
+                  .lineLimit(2)
+              }
+
+              Spacer()
+              Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(KnapsackBrand.inkMuted)
+            }
+            .padding(17)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(KnapsackBrand.paper))
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+    .textSelection(.enabled)
+  }
+
   private var chatsSection: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Text("Chats")
+        Text("Recent chats")
           .font(KnapsackBrand.inter(28, weight: .bold))
           .foregroundStyle(KnapsackBrand.ink)
         Spacer()
-        Text("\(filteredChats.count)")
+        Text("\(recentChats.count)")
           .font(KnapsackBrand.inter(14, weight: .semibold))
           .foregroundStyle(KnapsackBrand.inkMuted)
           .padding(.horizontal, 12)
@@ -1581,18 +1900,18 @@ struct ContentView: View {
           .background(Capsule().fill(KnapsackBrand.paper))
       }
 
-      if filteredChats.isEmpty {
+      if recentChats.isEmpty {
         Text("No desktop chats available yet.")
           .font(KnapsackBrand.inter(15))
           .foregroundStyle(KnapsackBrand.slate)
       } else {
-        ForEach(filteredChats) { chat in
+        ForEach(recentChats) { chat in
           Button {
             loadChatDetail(chat)
           } label: {
             HStack(alignment: .top, spacing: 12) {
               VStack(alignment: .leading, spacing: 6) {
-                Text(chat.thread.title ?? "Untitled chat")
+                Text(mobileChatTitle(chat.thread.title, fallback: "Untitled chat"))
                   .font(KnapsackBrand.inter(18, weight: .semibold))
                   .foregroundStyle(KnapsackBrand.ink)
                   .multilineTextAlignment(.leading)
@@ -1641,7 +1960,7 @@ struct ContentView: View {
     return VStack(alignment: .leading, spacing: 20) {
       HStack(alignment: .center, spacing: 12) {
         VStack(alignment: .leading, spacing: 3) {
-          Text(chat.thread.title ?? "Chat")
+          Text(mobileChatTitle(chat.thread.title, fallback: "Chat"))
             .font(KnapsackBrand.inter(22, weight: .semibold))
             .foregroundStyle(KnapsackBrand.ink)
             .lineLimit(2)
@@ -1730,47 +2049,98 @@ struct ContentView: View {
     }
   }
 
-  private var chatComposer: some View {
-    HStack(alignment: .bottom, spacing: 10) {
-      TextField("Message Knapsack", text: $draftChatMessage, axis: .vertical)
-        .font(KnapsackBrand.inter(16))
-        .foregroundStyle(KnapsackBrand.ink)
-        .tint(KnapsackBrand.ink)
-        .lineLimit(1...4)
-        .textInputAutocapitalization(.sentences)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
-
-      Button {
-        let pendingMessage = draftChatMessage
-        guard !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        draftChatMessage = ""
-        Task {
-          let didSend = await viewModel.sendChatMessage(pendingMessage)
-          if didSend {
-            presentedChat = viewModel.selectedChat
-          } else {
-            draftChatMessage = pendingMessage
-          }
-        }
-      } label: {
-        Group {
-          if viewModel.isSendingChatMessage {
-            ProgressView()
-              .tint(.white)
-          } else {
-            Image(systemName: "arrow.up")
-              .font(.system(size: 17, weight: .bold))
-          }
-        }
-        .frame(width: 44, height: 44)
-        .background(Circle().fill(KnapsackBrand.ink))
-        .foregroundStyle(.white)
+  private func managedAgentDetailView(_ agent: MobileManagedAgent) -> some View {
+    VStack(alignment: .leading, spacing: 20) {
+      VStack(alignment: .leading, spacing: 5) {
+        Text(agent.displayName)
+          .font(KnapsackBrand.spectral(36))
+          .foregroundStyle(KnapsackBrand.ink)
+        Text(agent.personality)
+          .font(KnapsackBrand.inter(14))
+          .foregroundStyle(KnapsackBrand.slate)
       }
-      .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
-      .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
+
+      if viewModel.managedAgentMessages.isEmpty {
+        Text("Ask \(agent.displayName) for an update, hand off a task, or continue work from another channel.")
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+          .padding(18)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(KnapsackBrand.paper))
+      }
+
+      ForEach(viewModel.managedAgentMessages, id: \.stableID) { message in
+        HStack(alignment: .bottom, spacing: 8) {
+          if message.role == "assistant" {
+            Text(agent.emoji)
+              .font(.system(size: 17))
+              .frame(width: 30, height: 30)
+          }
+          if message.role == "user" { Spacer(minLength: 36) }
+
+          VStack(alignment: .leading, spacing: 7) {
+            if message.role == "assistant" {
+              Text(agent.displayName.uppercased())
+                .font(KnapsackBrand.inter(10, weight: .semibold))
+                .foregroundStyle(KnapsackBrand.inkMuted)
+                .tracking(0.7)
+              assistantMessageContent(message)
+            } else {
+              markdownMessageText(message.content, foreground: .white)
+            }
+          }
+          .padding(.horizontal, 15)
+          .padding(.vertical, 13)
+          .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .fill(message.role == "user" ? KnapsackBrand.ink : KnapsackBrand.paper)
+          )
+          .frame(maxWidth: message.role == "user" ? 300 : .infinity, alignment: .leading)
+
+          if message.role == "assistant" { Spacer(minLength: 20) }
+        }
+      }
+    }
+  }
+
+  private var managedAgentComposer: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      if let error = viewModel.errorMessage {
+        Text(error)
+          .font(KnapsackBrand.inter(13, weight: .medium))
+          .foregroundStyle(KnapsackBrand.coral)
+      }
+      HStack(alignment: .bottom, spacing: 10) {
+        TextField("Message your teammate", text: $draftManagedAgentMessage, axis: .vertical)
+          .font(KnapsackBrand.inter(16))
+          .lineLimit(1...4)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 11)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+
+        Button {
+          let message = draftManagedAgentMessage
+          draftManagedAgentMessage = ""
+          Task {
+            let didSend = await viewModel.sendManagedAgentMessage(message)
+            if !didSend {
+              draftManagedAgentMessage = message
+            }
+          }
+        } label: {
+          Group {
+            if viewModel.isSendingManagedAgentMessage {
+              ProgressView().tint(.white)
+            } else {
+              Image(systemName: "arrow.up").font(.system(size: 17, weight: .bold))
+            }
+          }
+          .frame(width: 44, height: 44)
+          .background(Circle().fill(KnapsackBrand.ink))
+          .foregroundStyle(.white)
+        }
+        .disabled(viewModel.isSendingManagedAgentMessage || draftManagedAgentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
     }
     .padding(.horizontal, 20)
     .padding(.top, 12)
@@ -1779,44 +2149,176 @@ struct ContentView: View {
     .overlay(alignment: .top) { Divider().overlay(KnapsackBrand.line) }
   }
 
-  @ViewBuilder
-  private func assistantMessageContent(_ message: MobileChatMessage) -> some View {
-    let isExpanded = expandedChatMessageIDs.contains(message.stableID)
-    let content = readableAssistantMessage(message.content)
-    let isLong = content.count > 900
-
-    markdownMessageText(content)
-      .lineLimit(isLong && !isExpanded ? 12 : nil)
-
-    if isLong {
-      Button(isExpanded ? "Show less" : "Read full answer") {
-        if isExpanded {
-          expandedChatMessageIDs.remove(message.stableID)
-        } else {
-          expandedChatMessageIDs.insert(message.stableID)
-        }
+  private var chatComposer: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      if let error = viewModel.errorMessage {
+        Text(error)
+          .font(KnapsackBrand.inter(13, weight: .medium))
+          .foregroundStyle(KnapsackBrand.coral)
+          .fixedSize(horizontal: false, vertical: true)
       }
-      .font(KnapsackBrand.inter(13, weight: .semibold))
-      .foregroundStyle(KnapsackBrand.ink)
-      .buttonStyle(.plain)
+
+      HStack(alignment: .bottom, spacing: 10) {
+        TextField("Message Knapsack", text: $draftChatMessage, axis: .vertical)
+          .font(KnapsackBrand.inter(16))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
+          .lineLimit(1...4)
+          .textInputAutocapitalization(.sentences)
+          .submitLabel(.send)
+          .onSubmit(sendCurrentChatDraft)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 11)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+
+        Button(action: sendCurrentChatDraft) {
+          Group {
+            if viewModel.isSendingChatMessage {
+              ProgressView()
+                .tint(.white)
+            } else {
+              Image(systemName: "arrow.up")
+                .font(.system(size: 17, weight: .bold))
+            }
+          }
+          .frame(width: 44, height: 44)
+          .background(Circle().fill(KnapsackBrand.ink))
+          .foregroundStyle(.white)
+        }
+        .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+        .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
+      }
+    }
+    .padding(.horizontal, 20)
+    .padding(.top, 12)
+    .padding(.bottom, 10)
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .top) { Divider().overlay(KnapsackBrand.line) }
+  }
+
+  private func sendCurrentChatDraft() {
+    let pendingMessage = draftChatMessage
+    guard !viewModel.isSendingChatMessage,
+          !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+    draftChatMessage = ""
+    Task {
+      let didSend = await viewModel.sendChatMessage(pendingMessage)
+      if didSend {
+        presentedChat = viewModel.selectedChat
+      } else {
+        draftChatMessage = pendingMessage
+      }
     }
   }
 
   @ViewBuilder
-  private func markdownMessageText(_ content: String, foreground: Color = KnapsackBrand.ink) -> some View {
-    if let markdown = try? AttributedString(markdown: sanitizedMarkdown(content)) {
-      Text(markdown)
-        .font(KnapsackBrand.inter(15))
-        .foregroundStyle(foreground)
+  private func prepKeyActionContent(_ message: MobileChatMessage) -> some View {
+    switch prepKeyActionBlock(from: message) {
+    case .bullet(let text):
+      HStack(alignment: .top, spacing: 9) {
+        Circle()
+          .fill(KnapsackBrand.coral)
+          .frame(width: 7, height: 7)
+          .padding(.top, 8)
+        parsedMarkdownText(text)
+          .font(KnapsackBrand.inter(16, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+          .lineSpacing(3)
+          .lineLimit(4)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    case .heading(let text), .paragraph(let text):
+      parsedMarkdownText(text)
+        .font(KnapsackBrand.inter(16, weight: .semibold))
+        .foregroundStyle(KnapsackBrand.ink)
+        .lineSpacing(3)
+        .lineLimit(4)
         .fixedSize(horizontal: false, vertical: true)
-        .textSelection(.enabled)
-    } else {
-      Text(content)
-        .font(KnapsackBrand.inter(15))
-        .foregroundStyle(foreground)
-        .fixedSize(horizontal: false, vertical: true)
-        .textSelection(.enabled)
     }
+  }
+
+  private func prepKeyActionBlock(from message: MobileChatMessage) -> NoteBlock {
+    let blocks = noteBlocks(from: readableAssistantMessage(message.content))
+    let actionTerms = ["key action", "action now", "do now", "attention", "next step", "before joining"]
+
+    for index in blocks.indices {
+      guard case .heading(let heading) = blocks[index],
+            actionTerms.contains(where: { heading.localizedCaseInsensitiveContains($0) }) else { continue }
+
+      for candidate in blocks.dropFirst(index + 1) {
+        if case .heading = candidate { break }
+        return candidate
+      }
+    }
+
+    if let bullet = blocks.first(where: {
+      if case .bullet = $0 { return true }
+      return false
+    }) {
+      return bullet
+    }
+
+    if let paragraph = blocks.first(where: {
+      if case .paragraph = $0 { return true }
+      return false
+    }) {
+      return paragraph
+    }
+
+    return blocks.first ?? .paragraph("Your prep is ready. Open it for the full brief.")
+  }
+
+  @ViewBuilder
+  private func assistantMessageContent(_ message: MobileChatMessage) -> some View {
+    let content = readableAssistantMessage(message.content)
+    VStack(alignment: .leading, spacing: 12) {
+      ForEach(noteBlocks(from: content)) { block in
+        switch block {
+        case .heading(let text):
+          parsedMarkdownText(text)
+            .font(KnapsackBrand.inter(15, weight: .bold))
+            .foregroundStyle(KnapsackBrand.ink)
+            .padding(.top, 3)
+        case .bullet(let text):
+          HStack(alignment: .top, spacing: 9) {
+            Circle()
+              .fill(KnapsackBrand.amber)
+              .frame(width: 6, height: 6)
+              .padding(.top, 8)
+            parsedMarkdownText(text)
+              .font(KnapsackBrand.inter(16))
+              .foregroundStyle(KnapsackBrand.ink)
+              .lineSpacing(3)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        case .paragraph(let text):
+          parsedMarkdownText(text)
+            .font(KnapsackBrand.inter(16))
+            .foregroundStyle(KnapsackBrand.ink)
+            .lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+    .textSelection(.enabled)
+  }
+
+  @ViewBuilder
+  private func markdownMessageText(_ content: String, foreground: Color = KnapsackBrand.ink) -> some View {
+    parsedMarkdownText(content)
+      .font(KnapsackBrand.inter(15))
+      .foregroundStyle(foreground)
+      .fixedSize(horizontal: false, vertical: true)
+      .textSelection(.enabled)
+  }
+
+  private func parsedMarkdownText(_ content: String) -> Text {
+    if let markdown = try? AttributedString(markdown: sanitizedMarkdown(content)) {
+      return Text(markdown)
+    }
+    return Text(content)
   }
 
   private var chatDetailSection: some View {
@@ -1897,27 +2399,6 @@ struct ContentView: View {
       )
   }
 
-  private func detailMetaChip(label: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 3) {
-      Text(label)
-        .font(KnapsackBrand.inter(10, weight: .semibold))
-        .foregroundStyle(KnapsackBrand.inkMuted)
-        .textCase(.uppercase)
-      Text(value)
-        .font(KnapsackBrand.inter(13, weight: .semibold))
-        .foregroundStyle(KnapsackBrand.ink)
-        .lineLimit(2)
-    }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 10)
-    .background(KnapsackBrand.paper)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    .overlay(
-      RoundedRectangle(cornerRadius: 16, style: .continuous)
-        .stroke(KnapsackBrand.line, lineWidth: 1)
-    )
-  }
-
   private var filteredAutopilotSections: [MobileAutopilotSection] {
     guard let brief = viewModel.autopilotBrief else { return [] }
     let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1980,7 +2461,7 @@ struct ContentView: View {
 
     return viewModel.meetings.filter { meeting in
       let haystack = [
-        meeting.thread.title,
+        meeting.displayTitle,
         meeting.thread.subtitle,
         meeting.metadata.notesPreview,
         meeting.notes,
@@ -1991,10 +2472,18 @@ struct ContentView: View {
     }
   }
 
+  private var calendarLinkedMeetingIDs: Set<UInt64> {
+    Set(viewModel.calendarEvents.compactMap(\.meetingThreadId))
+  }
+
+  private var standaloneMeetings: [MobileMeetingDetail] {
+    filteredMeetings.filter { !calendarLinkedMeetingIDs.contains($0.id) }
+  }
+
   private var groupedMeetings: [(title: String, meetings: [MobileMeetingDetail])] {
     let calendar = Calendar.current
     let now = Date()
-    let grouped = Dictionary(grouping: filteredMeetings) { meeting in
+    let grouped = Dictionary(grouping: standaloneMeetings) { meeting in
       let date = Date(timeIntervalSince1970: meetingChronologicalTimestamp(meeting))
       if calendar.isDateInToday(date) {
         return "Today"
@@ -2007,7 +2496,9 @@ struct ContentView: View {
 
     return ["Today", "This Week", "Earlier"].compactMap { key in
       guard let meetings = grouped[key], !meetings.isEmpty else { return nil }
-      return (key, meetings)
+      return (key, meetings.sorted {
+        meetingChronologicalTimestamp($0) > meetingChronologicalTimestamp($1)
+      })
     }
   }
 
@@ -2024,6 +2515,42 @@ struct ContentView: View {
         .joined(separator: "\n")
       return haystack.contains(term)
     }
+  }
+
+  private var recentChats: [MobileChatSummary] {
+    filteredChats.filter { !isVirtualEmployeeChat($0) }
+  }
+
+  private func isVirtualEmployeeChat(_ chat: MobileChatSummary) -> Bool {
+    let label = [chat.thread.title, chat.thread.subtitle]
+      .compactMap { $0?.lowercased() }
+      .joined(separator: " ")
+    return ["scout", "virtual employee", "agent", "multi-agent", "multi agent"]
+      .contains { label.contains($0) }
+  }
+
+  private func managedAgentPreview(_ agent: MobileManagedAgent) -> String {
+    guard let session = viewModel.managedAgentSessions.first(where: { $0.agentId == agent.agentId }) else {
+      return agent.personality
+    }
+    return session.lastReplySummary ?? session.lastInboundMessage ?? session.taskSummary
+  }
+
+  private var historicalCalendarEvents: [MobileCalendarEventSummary] {
+    let now = Int64(Date().timeIntervalSince1970)
+    return filteredCalendarEvents
+      .filter {
+        ($0.start ?? 0) < now
+          && ($0.meetingThreadId != nil || !($0.notesPreview ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+      .sorted { ($0.start ?? 0) > ($1.start ?? 0) }
+  }
+
+  private var futureCalendarEvents: [MobileCalendarEventSummary] {
+    let now = Int64(Date().timeIntervalSince1970)
+    return filteredCalendarEvents
+      .filter { ($0.end ?? $0.start ?? 0) >= now }
+      .sorted { ($0.start ?? Int64.max) < ($1.start ?? Int64.max) }
   }
 
   private var filteredCalendarEvents: [MobileCalendarEventSummary] {
@@ -2053,7 +2580,7 @@ struct ContentView: View {
   private var gbrainBriefItems: [(title: String, detail: String)] {
     var items: [(String, String)] = []
 
-    if let nextEvent = viewModel.calendarEvents.first {
+    if let nextEvent = viewModel.nextCalendarEvent {
       items.append((
         "Next up",
         "\(nextEvent.title ?? "Untitled event")\(nextEvent.start != nil ? " • \(calendarEventTimeString(nextEvent))" : "")"
@@ -2104,7 +2631,7 @@ struct ContentView: View {
       ))
     }
 
-    if let event = viewModel.calendarEvents.first {
+    if let event = viewModel.nextCalendarEvent {
       suggestions.append((
         "Next meeting",
         "Prepare me for \(event.title ?? "my next meeting") using my saved notes, people context, and relevant history."
@@ -2121,7 +2648,7 @@ struct ContentView: View {
   }
 
   private func meetingTimeString(for meeting: MobileMeetingDetail) -> String {
-    let timestamp = meeting.thread.timestamp ?? meeting.metadata.updatedAt
+    let timestamp = meeting.displayTimestamp
     let date = Date(timeIntervalSince1970: normalizedUnixTimestamp(timestamp))
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
@@ -2177,6 +2704,16 @@ struct ContentView: View {
     return formatter.string(from: startDate)
   }
 
+  private func calendarDay(_ event: MobileCalendarEventSummary) -> String {
+    guard let start = event.start else { return "" }
+    return Date(timeIntervalSince1970: normalizedUnixTimestamp(start)).formatted(.dateTime.weekday(.abbreviated))
+  }
+
+  private func calendarDateNumber(_ event: MobileCalendarEventSummary) -> String {
+    guard let start = event.start else { return "-" }
+    return Date(timeIntervalSince1970: normalizedUnixTimestamp(start)).formatted(.dateTime.day())
+  }
+
   private func formattedBrainEntryTitle(_ entry: MobileBrainEntry) -> String {
     let baseTitle = (entry.title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? entry.title : entry.name) ?? entry.name
     return baseTitle
@@ -2186,11 +2723,20 @@ struct ContentView: View {
   }
 
   private func makeDailyBriefPrompt() -> String {
-    "Give me a concise mobile GBrain brief for today. Use my upcoming meetings, recent notes, desktop chats, and saved brain pages to tell me: 1. what needs attention now, 2. what can wait, 3. what I should read before my next conversation."
+    "Give me a concise brief for today. Use my upcoming meetings, recent notes, desktop chats, and saved knowledge to tell me: 1. what needs attention now, 2. what can wait, 3. what I should read before my next conversation."
   }
 
   private func makeResearchPrompt(from prompt: String) -> String {
-    "Act as my mobile GBrain. Answer quickly but concretely, using my saved notes, meetings, chats, calendar, and brain pages when relevant. Focus on helping me move fast on the go.\n\nQuestion: \(prompt.trimmingCharacters(in: .whitespacesAndNewlines))"
+    "Answer quickly but concretely, using my saved notes, meetings, chats, calendar, and knowledge when relevant. Focus on helping me move fast on the go.\n\nQuestion: \(prompt.trimmingCharacters(in: .whitespacesAndNewlines))"
+  }
+
+  private func runQuickPrompt(title: String, prompt: String, clearComposer: Bool = false) async {
+    guard let detail = await viewModel.startChat(title: title, prompt: prompt) else { return }
+    presentedChat = detail
+    selectedPane = .chats
+    if clearComposer {
+      gbrainDraftPrompt = ""
+    }
   }
 
   private func runGBrainPrompt(_ prompt: String, clearComposer: Bool = false) async {
@@ -2441,8 +2987,51 @@ struct ContentView: View {
     return condensed
   }
 
+  private func mobileChatTitle(_ title: String?, fallback: String) -> String {
+    let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return trimmed.localizedCaseInsensitiveCompare("GBrain") == .orderedSame ? "Knapsack" : (trimmed.isEmpty ? fallback : trimmed)
+  }
+
   private func readableAssistantMessage(_ content: String) -> String {
     var result = sanitizedMarkdown(content)
+
+    // The desktop can return compact briefing labels without a separator. Turn
+    // them into explicit sections before using the mobile renderer.
+    result = replacingMatches(
+      in: result,
+      pattern: "(?mi)^\\s*(?:⚡\\s*)?needs\\s+your\\s+attention\\s+now\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Needs your attention now\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?mi)^\\s*(?:🟡\\s*)?can\\s+wait\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Can wait\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?mi)^\\s*(?:🔵\\s*)?read\\s+before(?:\\s+your)?\\s+next\\s+conversation\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
+      with: "\n## Read before your next conversation\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:🟢\\s*|(?:^|\\n)\\s*)(?:action\\s*now|do\\s*now)\\s*(?=(?:reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Do now\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:🟡\\s*|(?:^|\\n)\\s*)(?:can\\s*wait|later)\\s*(?=(?:tonight|tomorrow|this|next|reply|send|call|review|read|prepare|follow|skim|check|schedule|open|ask|update|draft|confirm)\\b)",
+      with: "\n## Later\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?i)(?:🔵\\s*|(?:^|\\n)\\s*)(?:read\\s*before\\s*next\\s*conversation|before\\s*your\\s*next\\s*conversation)\\s*(?=(?:review|read|skim|open|check|follow)\\b)",
+      with: "\n## Before your next conversation\n- "
+    )
+    result = replacingMatches(
+      in: result,
+      pattern: "(?mi)^\\s*(?:#{1,6}\\s*|-\\s*)?next\\s*step\\s*:\\s*|(?<=\\.)\\s*next\\s*step\\s*:\\s*",
+      with: "\n## Next step\n"
+    )
 
     // Some desktop responses arrive as a single calendar paragraph. Restore the
     // visual breaks a phone reader needs without changing the underlying answer.
@@ -2453,13 +3042,25 @@ struct ContentView: View {
     result = insertingLineBreaks(in: result, pattern: "(?<!\\n)(?=All Day:)")
     result = insertingLineBreaks(in: result, pattern: "(?<=[.!?])(?=[A-Z])")
     result = insertingLineBreaks(in: result, pattern: "(?<=(?:AM|PM))(?=\\d{1,2}:)")
+    result = insertingLineBreaks(
+      in: result,
+      pattern: "(?<=[.!?])(?=(?:Reply|Send|Call|Review|Read|Prepare|Follow|Skim|Check|Schedule|Open|Ask|Update|Draft|Confirm)\\b)"
+    )
+    result = insertingLineBreaks(
+      in: result,
+      pattern: "(?<=[.!?])(?=(?:[🟢🟡🔵⚡]))"
+    )
     return result.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func insertingLineBreaks(in content: String, pattern: String) -> String {
+    replacingMatches(in: content, pattern: pattern, with: "\n")
+  }
+
+  private func replacingMatches(in content: String, pattern: String, with replacement: String) -> String {
     guard let expression = try? NSRegularExpression(pattern: pattern) else { return content }
     let range = NSRange(content.startIndex..., in: content)
-    return expression.stringByReplacingMatches(in: content, range: range, withTemplate: "\n")
+    return expression.stringByReplacingMatches(in: content, range: range, withTemplate: replacement)
   }
 
   private func sanitizedMarkdown(_ content: String) -> String {
@@ -2493,6 +3094,9 @@ struct ContentView: View {
   }
 
   private func statusSubtitle(for meeting: MobileMeetingDetail) -> String {
+    if meetingHasNotes(meeting) {
+      return "Notes captured and ready to review."
+    }
     switch meeting.metadata.status {
     case .created:
       return "Ready to start notes."
@@ -2507,8 +3111,21 @@ struct ContentView: View {
     }
   }
 
+  private func meetingHasNotes(_ meeting: MobileMeetingDetail) -> Bool {
+    !(meeting.notes ?? meeting.metadata.notesPreview ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .isEmpty
+  }
+
+  private func meetingDisplayStatus(_ meeting: MobileMeetingDetail) -> String {
+    if meetingHasNotes(meeting) {
+      return "Notes ready"
+    }
+    return meeting.metadata.status.rawValue.replacingOccurrences(of: "_", with: " ")
+  }
+
   private func isReadyToStart(_ meeting: MobileMeetingDetail) -> Bool {
-    meeting.metadata.status == .created
+    meeting.metadata.status == .created && !meetingHasNotes(meeting)
   }
 
   private func normalizedUnixTimestamp(_ rawTimestamp: Int64) -> TimeInterval {
@@ -2520,8 +3137,7 @@ struct ContentView: View {
   }
 
   private func meetingChronologicalTimestamp(_ meeting: MobileMeetingDetail) -> TimeInterval {
-    let threadTimestamp = meeting.thread.timestamp ?? 0
-    return normalizedUnixTimestamp(threadTimestamp > 0 ? threadTimestamp : meeting.metadata.updatedAt)
+    normalizedUnixTimestamp(meeting.displayTimestamp)
   }
 
   private func noteBlocks(from notes: String) -> [NoteBlock] {
@@ -2544,6 +3160,33 @@ struct ContentView: View {
 
         return .paragraph(line)
       }
+  }
+
+  private func toggleMeetingRecording() {
+    if recorder.isRecording {
+      recorder.stop()
+      guard let fileURL = recorder.currentFileURL else { return }
+      Task {
+        await viewModel.uploadRecording(
+          fileURL: fileURL,
+          startedAt: recorder.recordingStartedAt,
+          endedAt: recorder.recordingEndedAt
+        )
+      }
+      return
+    }
+
+    Task {
+      do {
+        let meeting = await viewModel.createMeetingForRecordingIfNeeded()
+        if let meetingID = meeting?.id {
+          _ = try await awaitStatusUpdate(for: meetingID, status: .recording)
+        }
+        try await recorder.start()
+      } catch {
+        viewModel.errorMessage = error.localizedDescription
+      }
+    }
   }
 
   private func awaitStatusUpdate(for meetingID: UInt64, status: MeetingStatus) async throws -> MobileMeetingMetadata {

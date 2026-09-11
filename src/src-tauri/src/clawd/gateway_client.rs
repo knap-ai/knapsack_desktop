@@ -27,6 +27,33 @@ use crate::clawd::{browser_import, gateway_supervisor};
 const GATEWAY_WS_URL: &str = "ws://127.0.0.1:18789";
 const PROTOCOL_VERSION: u32 = 4;
 const LAUNCH_AGENT_LABEL: &str = "ai.knap.knapsack.clawdbot";
+const GATEWAY_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+// A first launch can spend several minutes loading bundled channel
+// plugins after the HTTP socket binds. Keep mobile requests waiting through
+// that measured startup path instead of returning a misleading 502.
+const GATEWAY_COLD_START_WAIT_MS: u64 = 600_000;
+const GATEWAY_RECOVERY_WAIT_MS: u64 = 15_000;
+
+fn gateway_readiness_wait_ms(startup_in_progress: bool) -> u64 {
+  if startup_in_progress {
+    GATEWAY_COLD_START_WAIT_MS
+  } else {
+    GATEWAY_RECOVERY_WAIT_MS
+  }
+}
+
+fn should_apply_runtime_config_on_connect(
+  explicitly_enabled: bool,
+  already_applied: bool,
+  rpc_unsupported: bool,
+  gateway_running: bool,
+  disk_config_changed: bool,
+) -> bool {
+  explicitly_enabled
+    && !already_applied
+    && !rpc_unsupported
+    && (gateway_running || disk_config_changed)
+}
 
 // Backpressure: cap concurrent in-flight requests.
 const MAX_IN_FLIGHT: usize = 64;
@@ -2224,9 +2251,21 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
   //
   // BROWSER_CONFIG_APPLIED prevents firing on every reconnect after a transient
   // WS drop.
-  let need_runtime_patch = !BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed)
-    && !BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed)
-    && (gateway_already_running || disk_config_changed);
+  // Do not mutate gateway configuration as a side effect of serving a chat.
+  // config.patch may restart the gateway and has historically blocked on its
+  // file lock, turning the first mobile message into a 502. Startup already
+  // prepares the on-disk config; this opt-in remains for targeted diagnostics.
+  let runtime_patch_enabled = std::env::var("KNAPSACK_RUNTIME_CONFIG_PATCH_ON_CONNECT")
+    .ok()
+    .as_deref()
+    == Some("1");
+  let need_runtime_patch = should_apply_runtime_config_on_connect(
+    runtime_patch_enabled,
+    BROWSER_CONFIG_APPLIED.load(Ordering::Relaxed),
+    BROWSER_CONFIG_RPC_UNSUPPORTED.load(Ordering::Relaxed),
+    gateway_already_running,
+    disk_config_changed,
+  );
 
   if need_runtime_patch {
     // Wait briefly for the gateway to be reachable if we just wrote the disk config.
@@ -2246,7 +2285,17 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
     }
   }
 
-  ensure_gateway_best_effort(token).await;
+  let ensure = gateway_supervisor::ensure_gateway_running(LAUNCH_AGENT_LABEL, token).await;
+  if !ensure.running {
+    let wait_ms = gateway_readiness_wait_ms(crate::clawd::service::gateway_startup_in_progress());
+    if !gateway_supervisor::wait_for_gateway_ready(token, wait_ms).await {
+      return Err(format!(
+        "Gateway did not become ready within {}s: {}",
+        wait_ms / 1000,
+        ensure.message
+      ));
+    }
+  }
 
   // Wrap the TCP/WebSocket connection in a short timeout so we don't hang
   // for 10-30 seconds when the gateway is down (system TCP timeout defaults).
@@ -2258,16 +2307,21 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
       .insert("Origin", HeaderValue::from_static("http://localhost:1420"));
     r
   };
-  let (ws_stream, _) = tokio::time::timeout(Duration::from_secs(3), connect_async(ws_req))
+  let (ws_stream, _) = tokio::time::timeout(GATEWAY_CONNECT_TIMEOUT, connect_async(ws_req))
     .await
-    .map_err(|_| "Timeout connecting to gateway (3s)".to_string())?
+    .map_err(|_| {
+      format!(
+        "Timeout connecting to gateway ({}s)",
+        GATEWAY_CONNECT_TIMEOUT.as_secs()
+      )
+    })?
     .map_err(|e| format!("Failed to connect to gateway: {}", e))?;
 
   let (mut write, mut read) = ws_stream.split();
 
   // Wait for connect.challenge (skip ping/pong control frames)
   let challenge_text = loop {
-    let challenge_msg = tokio::time::timeout(Duration::from_secs(3), read.next())
+    let challenge_msg = tokio::time::timeout(GATEWAY_CONNECT_TIMEOUT, read.next())
       .await
       .map_err(|_| "Timeout waiting for challenge")?
       .ok_or("Connection closed before challenge")?
@@ -2326,7 +2380,7 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
   // Wait for connect response (skip ping/pong control frames)
   let connect_resp_text = loop {
-    let connect_resp_msg = tokio::time::timeout(Duration::from_secs(3), read.next())
+    let connect_resp_msg = tokio::time::timeout(GATEWAY_CONNECT_TIMEOUT, read.next())
       .await
       .map_err(|_| "Timeout waiting for connect response")?
       .ok_or("Connection closed before connect response")?
@@ -3600,6 +3654,22 @@ mod tests {
     ports.dedup();
     assert_eq!(ports.len(), 68);
     assert!(profiles.keys().all(|name| name.starts_with("agent-")));
+  }
+
+  #[test]
+  fn cold_start_readiness_budget_covers_post_bind_plugin_loading() {
+    assert_eq!(gateway_readiness_wait_ms(true), 600_000);
+    assert_eq!(gateway_readiness_wait_ms(false), 15_000);
+  }
+
+  #[test]
+  fn chat_connect_does_not_patch_or_restart_gateway_by_default() {
+    assert!(!should_apply_runtime_config_on_connect(
+      false, false, false, true, false
+    ));
+    assert!(should_apply_runtime_config_on_connect(
+      true, false, false, true, false
+    ));
   }
 
   fn read_model_from_config(val: &Value) -> String {

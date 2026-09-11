@@ -8,6 +8,15 @@ final class MeetingListViewModel: ObservableObject {
   @Published var selectedMeeting: MobileMeetingDetail?
   @Published var chats: [MobileChatSummary] = []
   @Published var selectedChat: MobileChatDetail?
+  @Published var managedAgents: [MobileManagedAgent] = []
+  @Published var managedAgentSessions: [MobileManagedAgentSession] = []
+  @Published var selectedManagedAgent: MobileManagedAgent?
+  @Published var managedAgentMessages: [MobileChatMessage] = []
+  @Published var isSendingManagedAgentMessage = false
+  @Published var nextMeetingPrep: MobileChatDetail?
+  @Published var isLoadingNextMeetingPrep = false
+  @Published private(set) var meetingPreps: [String: MobileChatDetail] = [:]
+  @Published private(set) var loadingMeetingPrepIDs: Set<String> = []
   @Published var autopilotBrief: MobileAutopilotBrief?
   @Published var isLoadingAutopilot = false
   @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
@@ -21,10 +30,12 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isRunningGBrainPrompt = false
   @Published var isSendingChatMessage = false
   @Published var isConnectingToDesktop = false
+  @Published private(set) var isDesktopReachable = false
   @Published var serverURLText: String
   @Published var errorMessage: String?
   @Published var statusMessage: String?
   private var lastAutoConnectedDesktopID: String?
+  private var preparedEventID: String?
 
   private let api: MobileAPI
 
@@ -38,7 +49,9 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   func refresh() async {
+    hydrateCachedWorkspaceIfNeeded()
     if shouldWaitForDesktopLink {
+      isDesktopReachable = false
       session = nil
       calendarEvents = []
       chats = []
@@ -63,7 +76,9 @@ final class MeetingListViewModel: ObservableObject {
       meetings = try await meetingsTask
       chats = try await chatsTask
       chats.sort { $0.updatedAt > $1.updatedAt }
-      await refreshAutopilot()
+      isDesktopReachable = true
+      hydrateCachedNextMeetingPrep()
+      await preloadNextMeetingPrep()
       if let selectedID = selectedMeeting?.id,
          let matched = meetings.first(where: { $0.id == selectedID }) {
         selectedMeeting = matched
@@ -83,9 +98,40 @@ final class MeetingListViewModel: ObservableObject {
         statusMessage = "Loaded \(meetings.count) meeting\(meetings.count == 1 ? "" : "s") and \(chats.count) chat\(chats.count == 1 ? "" : "s")."
       }
       errorMessage = nil
-      await refreshGBrain()
+      await refreshManagedAgents()
     } catch {
+      isDesktopReachable = false
+      let cached = api.loadCachedWorkspace()
+      session = cached.session
+      calendarEvents = cached.calendarEvents
+      meetings = cached.meetings
+      chats = cached.chats.sorted { $0.updatedAt > $1.updatedAt }
+      if selectedMeeting == nil {
+        selectedMeeting = meetings.first
+      }
       errorMessage = friendlyMessage(for: error)
+      statusMessage = chats.isEmpty && meetings.isEmpty
+        ? "Reconnect to your Mac to load your workspace."
+        : "Offline - showing saved chats and meeting notes."
+    }
+  }
+
+  private func hydrateCachedWorkspaceIfNeeded() {
+    let cached = api.loadCachedWorkspace()
+    if session == nil { session = cached.session }
+    if calendarEvents.isEmpty { calendarEvents = cached.calendarEvents }
+    if meetings.isEmpty { meetings = cached.meetings }
+    if chats.isEmpty { chats = cached.chats.sorted { $0.updatedAt > $1.updatedAt } }
+    hydrateCachedNextMeetingPrep()
+  }
+
+  private func hydrateCachedNextMeetingPrep() {
+    guard nextMeetingPrep == nil, let event = nextCalendarEvent else { return }
+    let cached = api.cachedChat(threadID: event.prepChatThreadId, titled: event.prepConversationTitle)
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: "Prep: \(event.displayTitle)")
+    if let cached {
+      meetingPreps[event.eventId] = cached
+      nextMeetingPrep = cached
     }
   }
 
@@ -196,12 +242,16 @@ final class MeetingListViewModel: ObservableObject {
     do {
       let linkedSession = try await api.getSession()
       session = linkedSession
+      isDesktopReachable = true
       statusMessage = linkedSession.linked
         ? "Connected to your desktop as \(linkedSession.profile?.email ?? "your Knapsack account")."
         : "Connected to desktop. Finish signing in on your Mac to sync chats, meetings, and calendar."
       errorMessage = nil
       await refresh()
     } catch {
+      if error is URLError {
+        isDesktopReachable = false
+      }
       errorMessage = "Could not reach Knapsack Desktop at \(url.host() ?? url.absoluteString). Make sure the Mac app is open and use your Mac's local network address."
     }
 
@@ -250,7 +300,33 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   func createMeetingForRecordingIfNeeded() async -> MobileMeetingDetail? {
-    if let selectedMeeting {
+    if let event = nextCalendarEvent {
+      if let meetingID = event.meetingThreadId,
+         let linkedMeeting = try? await api.getMeeting(threadID: meetingID) {
+        selectedMeeting = linkedMeeting
+        return linkedMeeting
+      }
+      if let selectedMeeting,
+         selectedMeeting.thread.title == event.title,
+         selectedMeeting.metadata.status == .recording {
+        return selectedMeeting
+      }
+      do {
+        let created = try await api.createMeeting(
+          title: event.title ?? "Recorded meeting",
+          subtitle: event.start.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .abbreviated, time: .shortened) },
+          sourceDevice: "iphone"
+        )
+        selectedMeeting = created
+        await refresh()
+        statusMessage = "Ready to record \(created.thread.title ?? "your next meeting")."
+        return created
+      } catch {
+        errorMessage = friendlyMessage(for: error)
+        return nil
+      }
+    }
+    if let selectedMeeting, selectedMeeting.metadata.status == .recording {
       return selectedMeeting
     }
     do {
@@ -259,6 +335,112 @@ final class MeetingListViewModel: ObservableObject {
       await refresh()
       statusMessage = "Prepared meeting \(created.id) for recording."
       return created
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  var nextCalendarEvent: MobileCalendarEventSummary? {
+    let now = Int64(Date().timeIntervalSince1970)
+    return calendarEvents
+      .filter { ($0.end ?? $0.start ?? 0) >= now }
+      .min { ($0.start ?? Int64.max) < ($1.start ?? Int64.max) }
+  }
+
+  func preloadNextMeetingPrep(force: Bool = false) async {
+    guard isDesktopReachable, let event = nextCalendarEvent else { return }
+    guard force || preparedEventID != event.eventId else { return }
+    preparedEventID = event.eventId
+    isLoadingNextMeetingPrep = true
+    defer { isLoadingNextMeetingPrep = false }
+
+    nextMeetingPrep = await prepareMeeting(event, force: force)
+    if nextMeetingPrep == nil {
+      preparedEventID = nil
+    }
+  }
+
+  func prep(for event: MobileCalendarEventSummary) -> MobileChatDetail? {
+    meetingPreps[event.eventId]
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: event.prepConversationTitle)
+      ?? api.cachedChat(threadID: event.prepChatThreadId, titled: "Prep: \(event.displayTitle)")
+  }
+
+  func isLoadingPrep(for event: MobileCalendarEventSummary) -> Bool {
+    loadingMeetingPrepIDs.contains(event.eventId)
+  }
+
+  func prepareMeeting(_ event: MobileCalendarEventSummary, force: Bool = false) async -> MobileChatDetail? {
+    guard isDesktopReachable else {
+      errorMessage = "Reconnect to your desktop to generate new meeting prep."
+      return prep(for: event)
+    }
+
+    loadingMeetingPrepIDs.insert(event.eventId)
+    defer { loadingMeetingPrepIDs.remove(event.eventId) }
+
+    if !force, let cached = prep(for: event) {
+      storePrep(cached, for: event)
+      return cached
+    }
+
+    if let prepChatID = event.prepChatThreadId,
+       let detail = try? await api.getChat(threadID: prepChatID) {
+      if force {
+        return await refreshMeetingPrep(event, chat: detail)
+      }
+      storePrep(detail, for: event)
+      return detail
+    }
+
+    let titles = [event.prepConversationTitle, "Prep: \(event.displayTitle)"]
+    if let existing = chats.first(where: { titles.contains($0.thread.title ?? "") }),
+       let detail = try? await api.getChat(threadID: existing.id) {
+      if force {
+        return await refreshMeetingPrep(event, chat: detail)
+      }
+      storePrep(detail, for: event)
+      return detail
+    }
+
+    do {
+      let chat = try await api.createChat(title: event.prepConversationTitle)
+      return await refreshMeetingPrep(event, chat: chat)
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  private func refreshMeetingPrep(
+    _ event: MobileCalendarEventSummary,
+    chat: MobileChatDetail
+  ) async -> MobileChatDetail? {
+    do {
+      let detail = try await api.sendChatMessage(threadID: chat.id, text: event.prepPrompt)
+      storePrep(detail, for: event)
+      upsertChatSummary(from: detail)
+      return detail
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  private func storePrep(_ prep: MobileChatDetail, for event: MobileCalendarEventSummary) {
+    meetingPreps[event.eventId] = prep
+    if event.eventId == nextCalendarEvent?.eventId {
+      nextMeetingPrep = prep
+    }
+  }
+
+  func openCalendarEvent(_ event: MobileCalendarEventSummary) async -> MobileMeetingDetail? {
+    guard let meetingID = event.meetingThreadId else { return nil }
+    do {
+      let meeting = try await api.getMeeting(threadID: meetingID)
+      selectedMeeting = meeting
+      return meeting
     } catch {
       errorMessage = friendlyMessage(for: error)
       return nil
@@ -308,6 +490,62 @@ final class MeetingListViewModel: ObservableObject {
       errorMessage = nil
     } catch {
       errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshManagedAgents() async {
+    guard let index = try? await api.getManagedAgents() else { return }
+    managedAgents = index.agents
+    managedAgentSessions = index.executionSessions.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  func openManagedAgent(_ agent: MobileManagedAgent) async {
+    selectedManagedAgent = agent
+    var fallbackMessages: [MobileChatMessage] = []
+    let sessions = managedAgentSessions
+      .filter { $0.agentId == agent.agentId }
+      .sorted { $0.updatedAt < $1.updatedAt }
+    for (index, session) in sessions.enumerated() {
+      let timestamp = Int64(index * 2)
+      if let inbound = session.lastInboundMessage, !inbound.isEmpty {
+        fallbackMessages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: inbound))
+      }
+      if let reply = session.lastReplySummary, !reply.isEmpty {
+        fallbackMessages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
+      }
+    }
+    managedAgentMessages = fallbackMessages
+
+    do {
+      managedAgentMessages = try await api.getManagedAgentMessages(agentID: agent.agentId)
+      errorMessage = nil
+    } catch {
+      if fallbackMessages.isEmpty {
+        errorMessage = friendlyMessage(for: error)
+      }
+    }
+  }
+
+  func sendManagedAgentMessage(_ text: String) async -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let agent = selectedManagedAgent, !trimmed.isEmpty else { return false }
+    let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+    managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp, role: "user", content: trimmed))
+    isSendingManagedAgentMessage = true
+    defer { isSendingManagedAgentMessage = false }
+
+    do {
+      let response = try await api.sendManagedAgentMessage(agentID: agent.agentId, text: trimmed)
+      if !response.reply.isEmpty {
+        let reply = response.reply
+        managedAgentMessages.append(MobileChatMessage(id: nil, timestamp: timestamp + 1, role: "assistant", content: reply))
+      }
+      errorMessage = nil
+      return true
+    } catch {
+      managedAgentMessages.removeLast()
+      errorMessage = friendlyMessage(for: error)
+      return false
     }
   }
 
@@ -369,7 +607,7 @@ final class MeetingListViewModel: ObservableObject {
       let detail = try await sendGBrainPrompt(trimmed)
       selectedChat = detail
       upsertChatSummary(from: detail)
-      statusMessage = "GBrain researched that for you."
+      statusMessage = "Knapsack has your answer ready."
       errorMessage = nil
       isRunningGBrainPrompt = false
       return detail
@@ -433,9 +671,36 @@ final class MeetingListViewModel: ObservableObject {
         selectedChat = previousChat
         upsertChatSummary(from: previousChat)
       }
+      if error is URLError {
+        isDesktopReachable = false
+      }
       isSendingChatMessage = false
       errorMessage = friendlyMessage(for: error)
       return false
+    }
+  }
+
+  func startChat(title: String, prompt: String) async -> MobileChatDetail? {
+    let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, !isSendingChatMessage else { return nil }
+
+    isSendingChatMessage = true
+    defer { isSendingChatMessage = false }
+
+    do {
+      let chat = try await api.createChat(title: title)
+      let detail = try await api.sendChatMessage(threadID: chat.id, text: trimmed)
+      selectedChat = detail
+      upsertChatSummary(from: detail)
+      statusMessage = "Knapsack has your answer ready."
+      errorMessage = nil
+      return detail
+    } catch {
+      if error is URLError {
+        isDesktopReachable = false
+      }
+      errorMessage = friendlyMessage(for: error)
+      return nil
     }
   }
 

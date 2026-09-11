@@ -7,6 +7,11 @@ final class MobileAPI {
   private let encoder = JSONEncoder()
   private let fallbackStoreKey = "knapsack.mobile.fallback.meetings"
   private let fallbackChatStoreKey = "knapsack.mobile.fallback.chats"
+  private let fallbackChatDetailStoreKey = "knapsack.mobile.fallback.chatDetails"
+  private let fallbackCalendarStoreKey = "knapsack.mobile.fallback.calendar"
+  private let fallbackSessionStoreKey = "knapsack.mobile.fallback.session"
+  private let fallbackTeamStoreKey = "knapsack.mobile.fallback.team"
+  private let fallbackTeamMessagesStoreKey = "knapsack.mobile.fallback.teamMessages"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
@@ -118,7 +123,16 @@ final class MobileAPI {
   }
 
   func getChat(threadID: UInt64) async throws -> MobileChatDetail {
-    try await fetch(path: "/api/knapsack/mobile/chats/\(threadID)")
+    do {
+      let chat: MobileChatDetail = try await fetch(path: "/api/knapsack/mobile/chats/\(threadID)")
+      try? upsertFallbackChatDetail(chat)
+      return chat
+    } catch {
+      guard let chat = loadFallbackChatDetails().first(where: { $0.id == threadID }) else {
+        throw error
+      }
+      return chat
+    }
   }
 
   func createChat(title: String? = nil) async throws -> MobileChatDetail {
@@ -128,6 +142,7 @@ final class MobileAPI {
       body: CreateMobileChatRequest(title: title)
     )
     try? upsertFallbackChatSummary(from: chat)
+    try? upsertFallbackChatDetail(chat)
     return chat
   }
 
@@ -138,15 +153,107 @@ final class MobileAPI {
       body: SendMobileChatMessageRequest(text: text)
     )
     try? upsertFallbackChatSummary(from: chat)
+    try? upsertFallbackChatDetail(chat)
     return chat
   }
 
+  func getManagedAgents() async throws -> MobileManagedAgentsIndex {
+    do {
+      var roster: MobileTeamRoster = try await fetch(path: "/api/knapsack/mobile/team")
+      if roster.agents.isEmpty {
+        roster = (try? await saveManagedAgents(MobileTeamRoster.starter)) ?? .starter
+      }
+      if let data = try? encoder.encode(roster) {
+        UserDefaults.standard.set(data, forKey: fallbackTeamStoreKey)
+      }
+      return MobileManagedAgentsIndex(success: true, agents: roster.agents, executionSessions: [])
+    } catch {
+      guard let data = UserDefaults.standard.data(forKey: fallbackTeamStoreKey),
+            let roster = try? decoder.decode(MobileTeamRoster.self, from: data) else {
+        throw error
+      }
+      return MobileManagedAgentsIndex(success: true, agents: roster.agents, executionSessions: [])
+    }
+  }
+
+  private func saveManagedAgents(_ roster: MobileTeamRoster) async throws -> MobileTeamRoster {
+    try await send(
+      path: "/api/knapsack/mobile/team",
+      method: "POST",
+      body: roster
+    )
+  }
+
+  func cachedChat(threadID: UInt64?, titled title: String) -> MobileChatDetail? {
+    let details = loadFallbackChatDetails()
+    if let threadID, let detail = details.first(where: { $0.id == threadID }) {
+      return detail
+    }
+    return details.first {
+      ($0.thread.title ?? "").localizedCaseInsensitiveCompare(title) == .orderedSame
+    }
+  }
+
+  func sendManagedAgentMessage(agentID: String, text: String) async throws -> MobileTeamMessageResponse {
+    try await send(
+      path: "/api/knapsack/mobile/team/\(agentID)/messages",
+      method: "POST",
+      body: SendMobileChatMessageRequest(text: text)
+    )
+  }
+
+  func getManagedAgentMessages(agentID: String) async throws -> [MobileChatMessage] {
+    do {
+      let history: MobileTeamMessages = try await fetch(
+        path: "/api/knapsack/mobile/team/\(agentID)/messages"
+      )
+      var cached = loadFallbackTeamMessages()
+      cached[agentID] = history.messages
+      if let data = try? encoder.encode(cached) {
+        UserDefaults.standard.set(data, forKey: fallbackTeamMessagesStoreKey)
+      }
+      return history.messages
+    } catch {
+      guard let messages = loadFallbackTeamMessages()[agentID] else {
+        throw error
+      }
+      return messages
+    }
+  }
+
   func getSession() async throws -> MobileLinkedSession {
-    try await fetch(path: "/api/knapsack/mobile/session")
+    let session: MobileLinkedSession = try await fetch(path: "/api/knapsack/mobile/session")
+    if let data = try? encoder.encode(session) {
+      UserDefaults.standard.set(data, forKey: fallbackSessionStoreKey)
+    }
+    return session
+  }
+
+  func loadCachedWorkspace() -> (
+    session: MobileLinkedSession?,
+    calendarEvents: [MobileCalendarEventSummary],
+    meetings: [MobileMeetingDetail],
+    chats: [MobileChatSummary]
+  ) {
+    let session = UserDefaults.standard.data(forKey: fallbackSessionStoreKey)
+      .flatMap { try? decoder.decode(MobileLinkedSession.self, from: $0) }
+    return (session, loadFallbackCalendarEvents(), loadFallbackMeetings(), loadFallbackChats())
   }
 
   func listCalendarEvents() async throws -> [MobileCalendarEventSummary] {
-    try await fetch(path: "/api/knapsack/mobile/calendar")
+    do {
+      let events: [MobileCalendarEventSummary] = try await fetch(path: "/api/knapsack/mobile/calendar")
+      if let data = try? encoder.encode(events) {
+        UserDefaults.standard.set(data, forKey: fallbackCalendarStoreKey)
+      }
+      return events
+    } catch {
+      guard let data = UserDefaults.standard.data(forKey: fallbackCalendarStoreKey),
+            let events = try? decoder.decode([MobileCalendarEventSummary].self, from: data) else {
+        throw error
+      }
+      return events
+    }
   }
 
   func getAutopilotBrief() async throws -> MobileAutopilotBrief {
@@ -381,6 +488,30 @@ final class MobileAPI {
     return chats.sorted { $0.updatedAt > $1.updatedAt }
   }
 
+  private func loadFallbackChatDetails() -> [MobileChatDetail] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackChatDetailStoreKey),
+          let chats = try? decoder.decode([MobileChatDetail].self, from: data) else {
+      return []
+    }
+    return chats.sorted { $0.updatedAt > $1.updatedAt }
+  }
+
+  private func loadFallbackTeamMessages() -> [String: [MobileChatMessage]] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackTeamMessagesStoreKey),
+          let messages = try? decoder.decode([String: [MobileChatMessage]].self, from: data) else {
+      return [:]
+    }
+    return messages
+  }
+
+  private func loadFallbackCalendarEvents() -> [MobileCalendarEventSummary] {
+    guard let data = UserDefaults.standard.data(forKey: fallbackCalendarStoreKey),
+          let events = try? decoder.decode([MobileCalendarEventSummary].self, from: data) else {
+      return []
+    }
+    return events
+  }
+
   private func saveFallbackMeetings(_ meetings: [MobileMeetingDetail]) throws {
     let data = try encoder.encode(meetings)
     UserDefaults.standard.set(data, forKey: fallbackStoreKey)
@@ -389,6 +520,11 @@ final class MobileAPI {
   private func saveFallbackChats(_ chats: [MobileChatSummary]) throws {
     let data = try encoder.encode(chats)
     UserDefaults.standard.set(data, forKey: fallbackChatStoreKey)
+  }
+
+  private func saveFallbackChatDetails(_ chats: [MobileChatDetail]) throws {
+    let data = try encoder.encode(Array(chats.prefix(40)))
+    UserDefaults.standard.set(data, forKey: fallbackChatDetailStoreKey)
   }
 
   private func upsertFallbackMeeting(_ meeting: MobileMeetingDetail) throws {
@@ -417,6 +553,17 @@ final class MobileAPI {
     }
     chats.sort { $0.updatedAt > $1.updatedAt }
     try saveFallbackChats(chats)
+  }
+
+  private func upsertFallbackChatDetail(_ chat: MobileChatDetail) throws {
+    var chats = loadFallbackChatDetails()
+    if let index = chats.firstIndex(where: { $0.id == chat.id }) {
+      chats[index] = chat
+    } else {
+      chats.insert(chat, at: 0)
+    }
+    chats.sort { $0.updatedAt > $1.updatedAt }
+    try saveFallbackChatDetails(chats)
   }
 
   private func createFallbackMeeting(title: String?, subtitle: String?, sourceDevice: String) throws -> MobileMeetingDetail {

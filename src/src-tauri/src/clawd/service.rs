@@ -8955,19 +8955,17 @@ fn mac_service_status_summary(
   qa_direct_grace_ms: Option<u64>,
   qa_direct_running: bool,
 ) -> (bool, String) {
-  let running = launchctl_running
-    || gateway_ready
-    || gateway_listening
-    || launch_grace_ms.is_some()
-    || qa_direct_grace_ms.is_some()
-    || qa_direct_running;
+  let startup_grace_ms = launch_grace_ms.or(qa_direct_grace_ms);
+  let running = startup_grace_ms.is_none() && (gateway_ready || qa_direct_running);
 
-  let message = if let Some(ms) = launch_grace_ms.or(qa_direct_grace_ms) {
+  let message = if let Some(ms) = startup_grace_ms {
     format!("Clawdbot gateway is starting ({}ms)", ms)
-  } else if gateway_listening && !gateway_ready {
-    "Clawdbot gateway is listening but still completing startup".to_string()
   } else if running {
     "Clawdbot service is running".to_string()
+  } else if gateway_listening && !gateway_ready {
+    "Clawdbot gateway is listening but still completing startup".to_string()
+  } else if launchctl_running {
+    "Clawdbot service is registered but the gateway is not reachable".to_string()
   } else if installed {
     "Clawdbot service is installed but not running".to_string()
   } else {
@@ -18932,12 +18930,33 @@ mod service_status_message_tests {
   }
 
   #[test]
-  fn qa_direct_startup_is_not_reported_as_not_running() {
+  fn qa_direct_startup_is_not_reported_as_ready() {
     let (running, message) =
       mac_service_status_summary(true, false, false, true, None, Some(123_u64), true);
 
-    assert!(running);
+    assert!(!running);
     assert_eq!(message, "Clawdbot gateway is starting (123ms)");
+  }
+
+  #[test]
+  fn ready_launch_agent_is_reported_as_running() {
+    let (running, message) =
+      mac_service_status_summary(true, true, true, true, None, None, false);
+
+    assert!(running);
+    assert_eq!(message, "Clawdbot service is running");
+  }
+
+  #[test]
+  fn loaded_launch_agent_without_gateway_is_not_reported_as_running() {
+    let (running, message) =
+      mac_service_status_summary(true, true, false, false, None, None, false);
+
+    assert!(!running);
+    assert_eq!(
+      message,
+      "Clawdbot service is registered but the gateway is not reachable"
+    );
   }
 
   #[test]

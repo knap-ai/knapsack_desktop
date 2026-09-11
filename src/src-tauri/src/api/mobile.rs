@@ -21,10 +21,11 @@ use actix_web::{
   web::{self, Json},
   HttpResponse, Responder,
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{create_dir_all, read_to_string, File};
 use std::io::Write;
 use std::path::PathBuf;
@@ -136,6 +137,38 @@ pub struct SendMobileChatMessageRequest {
   pub text: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamAgent {
+  pub id: String,
+  pub name: String,
+  pub emoji: String,
+  pub personality: String,
+  pub soul: String,
+  pub browser_profile: String,
+  #[serde(default)]
+  pub suggested_prompts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamRoster {
+  #[serde(default)]
+  pub agents: Vec<MobileTeamAgent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendMobileTeamMessageRequest {
+  pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileTeamMessages {
+  pub messages: Vec<MobileChatMessage>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MobileLinkedProfile {
@@ -171,6 +204,10 @@ pub struct MobileCalendarEventSummary {
   pub end: Option<i64>,
   pub google_meet_url: Option<String>,
   pub calendar_account_email: String,
+  pub meeting_thread_id: Option<u64>,
+  pub notes_preview: Option<String>,
+  pub prep_chat_thread_id: Option<u64>,
+  pub prep_preview: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -294,6 +331,89 @@ fn mobile_recordings_dir() -> Result<PathBuf, Error> {
 
 fn mobile_metadata_path(thread_id: u64) -> Result<PathBuf, Error> {
   Ok(mobile_metadata_dir()?.join(format!("{thread_id}.json")))
+}
+
+fn mobile_team_roster_path() -> Result<PathBuf, Error> {
+  Ok(knapsack_data_dir()?.join("mobile_team_roster.json"))
+}
+
+fn starter_mobile_team_roster() -> MobileTeamRoster {
+  MobileTeamRoster {
+    agents: vec![
+      MobileTeamAgent {
+        id: "scout".to_string(),
+        name: "Scout".to_string(),
+        emoji: "\u{1F4CB}".to_string(),
+        personality: "Your executive assistant".to_string(),
+        soul: "You are Scout, an organized, proactive, and detail-oriented executive assistant."
+          .to_string(),
+        browser_profile: "agent-scout".to_string(),
+        suggested_prompts: vec![
+          "Brief me on today's meetings, commitments, and top priorities.".to_string(),
+          "Find the follow-ups most at risk of falling through the cracks.".to_string(),
+        ],
+      },
+      MobileTeamAgent {
+        id: "polly".to_string(),
+        name: "Polly".to_string(),
+        emoji: "\u{1F4EC}".to_string(),
+        personality: "Your inbox and social media monitor".to_string(),
+        soul: "You are Polly, a warm and concise inbox and social media monitor.".to_string(),
+        browser_profile: "agent-polly".to_string(),
+        suggested_prompts: vec![
+          "Triage my inbox and show me what deserves a response first.".to_string(),
+        ],
+      },
+      MobileTeamAgent {
+        id: "atlas".to_string(),
+        name: "Atlas".to_string(),
+        emoji: "\u{1F91D}".to_string(),
+        personality: "Your relationship optimizer".to_string(),
+        soul: "You are Atlas, a strategic relationship and opportunity advisor.".to_string(),
+        browser_profile: "agent-atlas".to_string(),
+        suggested_prompts: vec![
+          "Who should I follow up with now, and what should I say?".to_string()
+        ],
+      },
+      MobileTeamAgent {
+        id: "coach".to_string(),
+        name: "Coach".to_string(),
+        emoji: "\u{1F3AF}".to_string(),
+        personality: "Your daily work coach".to_string(),
+        soul: "You are Coach, a direct, analytical, and encouraging daily work coach.".to_string(),
+        browser_profile: "agent-coach".to_string(),
+        suggested_prompts: vec![
+          "Give me a realistic plan for today based on my recent work.".to_string(),
+        ],
+      },
+    ],
+  }
+}
+
+fn load_mobile_team_roster() -> Result<MobileTeamRoster, Error> {
+  let path = mobile_team_roster_path()?;
+  if !path.exists() {
+    return Ok(starter_mobile_team_roster());
+  }
+  let content = read_to_string(path)?;
+  serde_json::from_str(&content)
+    .map_err(|err| Error::KSError(format!("Failed to parse mobile team roster: {err}")))
+}
+
+fn save_mobile_team_roster(roster: &MobileTeamRoster) -> Result<(), Error> {
+  let serialized = serde_json::to_string_pretty(roster)
+    .map_err(|err| Error::KSError(format!("Failed to serialize mobile team roster: {err}")))?;
+  std::fs::write(mobile_team_roster_path()?, serialized)?;
+  Ok(())
+}
+
+fn mobile_seed_history_attachment(seed_history: &[Value]) -> Value {
+  let json = serde_json::to_vec(seed_history).unwrap_or_else(|_| b"[]".to_vec());
+  json!({
+    "name": "mobile-seed-history.json",
+    "type": "application/json",
+    "content": STANDARD.encode(json),
+  })
 }
 
 fn load_mobile_metadata(thread_id: u64) -> Result<Option<MobileMeetingMetadata>, Error> {
@@ -440,8 +560,98 @@ fn build_mobile_session() -> MobileLinkedSession {
   }
 }
 
+#[derive(Clone, Default)]
+struct MobileCalendarLinks {
+  meeting_thread_id: Option<u64>,
+  notes_preview: Option<String>,
+  prep_chat_thread_id: Option<u64>,
+  prep_preview: Option<String>,
+}
+
+fn build_mobile_calendar_links(event_ids: &HashSet<u64>) -> HashMap<u64, MobileCalendarLinks> {
+  let mut links = HashMap::new();
+
+  for item in FeedItem::find_all_complete().unwrap_or_default() {
+    let Some(event_id) = item.calendar_event.and_then(|event| event.id) else {
+      continue;
+    };
+    if !event_ids.contains(&event_id) {
+      continue;
+    }
+    let is_meeting_prep = item
+      .automation
+      .as_ref()
+      .map(|automation| {
+        let label = format!("{} {}", automation.name, automation.description).to_lowercase();
+        label.contains("meeting") && label.contains("prep")
+      })
+      .unwrap_or(false);
+    let link = links.entry(event_id).or_insert_with(MobileCalendarLinks::default);
+
+    for thread_with_messages in item.threads.unwrap_or_default() {
+      let thread_id = thread_with_messages.thread.id;
+      match thread_with_messages.thread.thread_type {
+        ThreadType::MeetingNotes => {
+          if link.meeting_thread_id.is_none() {
+            link.meeting_thread_id = thread_id;
+            link.notes_preview = thread_id
+              .and_then(load_notes)
+              .and_then(|notes| clean_email_preview(&notes));
+          }
+        }
+        ThreadType::Chat if is_meeting_prep => {
+          let prep = thread_with_messages
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.user_id.is_none())
+            .map(|message| {
+              message
+                .content_facade
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| message.content.clone())
+            })
+            .and_then(|content| clean_email_preview(&content));
+          if prep.is_some() {
+            link.prep_chat_thread_id = thread_id;
+            link.prep_preview = prep;
+          }
+        }
+        ThreadType::Chat => {}
+      }
+    }
+  }
+
+  links
+}
+
+fn mobile_calendar_summary(
+  event: CalendarEvent,
+  links: &HashMap<u64, MobileCalendarLinks>,
+) -> Option<MobileCalendarEventSummary> {
+  let id = event.id?;
+  let link = links.get(&id).cloned().unwrap_or_default();
+  Some(MobileCalendarEventSummary {
+    id,
+    event_id: event.event_id,
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    start: event.start,
+    end: event.end,
+    google_meet_url: event.google_meet_url,
+    calendar_account_email: event.calendar_account_email,
+    meeting_thread_id: link.meeting_thread_id,
+    notes_preview: link.notes_preview,
+    prep_chat_thread_id: link.prep_chat_thread_id,
+    prep_preview: link.prep_preview,
+  })
+}
+
 fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary> {
   let now = chrono::Utc::now().timestamp() - 60 * 60 * 6;
+  let links = HashMap::new();
   let mut events = CalendarEvent::find_all()
     .into_iter()
     .filter(|event| event.start.unwrap_or_default() >= now)
@@ -451,19 +661,26 @@ fn build_mobile_calendar_events(limit: usize) -> Vec<MobileCalendarEventSummary>
   events
     .into_iter()
     .take(limit)
-    .filter_map(|event| {
-      Some(MobileCalendarEventSummary {
-        id: event.id?,
-        event_id: event.event_id,
-        title: event.title,
-        description: event.description,
-        location: event.location,
-        start: event.start,
-        end: event.end,
-        google_meet_url: event.google_meet_url,
-        calendar_account_email: event.calendar_account_email,
-      })
-    })
+    .filter_map(|event| mobile_calendar_summary(event, &links))
+    .collect()
+}
+
+fn build_mobile_calendar_timeline(limit: usize) -> Vec<MobileCalendarEventSummary> {
+  let oldest = chrono::Utc::now().timestamp() - 60 * 60 * 24 * 180;
+  let mut events = CalendarEvent::find_all()
+    .into_iter()
+    .filter(|event| event.start.unwrap_or_default() >= oldest)
+    .collect::<Vec<_>>();
+
+  events.sort_by(|left, right| {
+    right.start.unwrap_or_default().cmp(&left.start.unwrap_or_default())
+  });
+  events.truncate(limit);
+  let event_ids = events.iter().filter_map(|event| event.id).collect::<HashSet<_>>();
+  let links = build_mobile_calendar_links(&event_ids);
+  events
+    .into_iter()
+    .filter_map(|event| mobile_calendar_summary(event, &links))
     .collect()
 }
 
@@ -1145,15 +1362,6 @@ fn build_mobile_autopilot_brief() -> MobileAutopilotBrief {
   }
 }
 
-fn is_gbrain_thread(thread: &Thread) -> bool {
-  thread
-    .title
-    .as_deref()
-    .unwrap_or_default()
-    .to_lowercase()
-    .contains("gbrain")
-}
-
 fn format_mobile_timestamp(timestamp: Option<i64>) -> String {
   timestamp
     .and_then(|value| chrono::DateTime::from_timestamp(value, 0))
@@ -1300,34 +1508,48 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
 fn mobile_presentation_instructions() -> &'static str {
   "Presentation rules for Knapsack on iPhone:\n\
 - Lead with the answer or the one action that matters.\n\
-- Use short Markdown headings and bullets that scan cleanly on a phone.\n\
+- Return valid Markdown. Every list item must start on its own line with `- `.\n\
+- For a brief, use this exact shape when the sections apply:\n\
+  `## Do now` followed by at most 3 bullets, then `## Later`, `## Before your next conversation`, and `## Next step`.\n\
+- Do not use emoji as structure, and never run a heading directly into its first sentence.\n\
 - Keep paragraphs to two sentences or fewer.\n\
 - Never return a wall of raw calendar, email, or meeting data. For calendar requests, show the next five relevant events at most, one per bullet, then offer to expand.\n\
 - Preserve useful names, dates, and times, but omit duplicate metadata and boilerplate.\n\
 - If the request needs a decision, end with a clear next step."
 }
 
-fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> String {
-  if is_gbrain_thread(thread) {
-    format!(
-      "{}\n\n{}\n\nUser request\n{}",
-      build_mobile_gbrain_context(thread_id),
-      mobile_presentation_instructions(),
-      text
-    )
-  } else {
-    format!(
-      "You are replying inside Knapsack's iPhone app.\n\n{}\n\nUser request\n{}",
-      mobile_presentation_instructions(),
-      text
-    )
-  }
+fn build_mobile_chat_request(_thread: &Thread, thread_id: u64, text: &str) -> String {
+  format!(
+    "{}\n\n{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. If the request needs information beyond the snapshot, use any tool that is available to you; if none is available, state the gap plainly without mentioning unavailable tools.\n\nUser request\n{}",
+    build_mobile_gbrain_context(thread_id),
+    mobile_presentation_instructions(),
+    text
+  )
 }
 
 fn mobile_meeting_detail(
-  thread: Thread,
+  mut thread: Thread,
   metadata: Option<MobileMeetingMetadata>,
 ) -> MobileMeetingDetail {
+  let title_is_missing = thread
+    .title
+    .as_deref()
+    .map(str::trim)
+    .filter(|title| !title.is_empty() && !title.eq_ignore_ascii_case("untitled meeting"))
+    .is_none();
+  if title_is_missing {
+    thread.title = thread
+      .feed_item_id
+      .and_then(|feed_item_id| FeedItem::find_by_id(feed_item_id).ok().flatten())
+      .and_then(|feed_item| feed_item.title)
+      .filter(|title| !title.trim().is_empty())
+      .or_else(|| {
+        thread
+          .subtitle
+          .clone()
+          .filter(|subtitle| !subtitle.trim().is_empty())
+      });
+  }
   let notes = thread.id.and_then(load_notes);
   let mut merged = metadata.unwrap_or_else(|| {
     build_default_metadata(thread.id.unwrap_or_default(), Some("iphone".to_string()))
@@ -1518,6 +1740,67 @@ fn gateway_reply_from_result(result: &Value) -> Option<String> {
   if reply.is_empty() { None } else { Some(reply) }
 }
 
+fn gateway_history_message_text(message: &Value) -> Option<String> {
+  let content = if let Some(text) = message.get("text").and_then(Value::as_str) {
+    text.to_string()
+  } else if let Some(text) = message.get("content").and_then(Value::as_str) {
+    text.to_string()
+  } else {
+    message
+      .get("content")
+      .and_then(Value::as_array)?
+      .iter()
+      .filter(|part| part.get("type").and_then(Value::as_str) == Some("text"))
+      .filter_map(|part| part.get("text").and_then(Value::as_str))
+      .collect::<Vec<_>>()
+      .join("\n\n")
+  };
+
+  let without_desktop_context = content
+    .rsplit_once("\n---\nUser message:\n")
+    .map(|(_, message)| message)
+    .unwrap_or(&content);
+  let display_content = without_desktop_context
+    .rsplit_once("\n\nUser request\n")
+    .map(|(_, message)| message)
+    .unwrap_or(without_desktop_context)
+    .trim()
+    .to_string();
+  if display_content.is_empty() { None } else { Some(display_content) }
+}
+
+fn mobile_team_history_messages(history: &Value) -> Vec<MobileChatMessage> {
+  let now = chrono::Utc::now().timestamp_millis();
+  history
+    .get("messages")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .enumerate()
+    .filter_map(|(index, message)| {
+      let role = message.get("role").and_then(Value::as_str)?;
+      if role != "user" && role != "assistant" {
+        return None;
+      }
+      let content = gateway_history_message_text(message)?;
+      let timestamp = message
+        .get("timestamp")
+        .and_then(|value| {
+          value
+            .as_i64()
+            .or_else(|| value.as_str().and_then(|raw| raw.parse::<i64>().ok()))
+        })
+        .unwrap_or(now + index as i64);
+      Some(MobileChatMessage {
+        id: message.get("id").and_then(Value::as_u64),
+        timestamp,
+        role: role.to_string(),
+        content,
+      })
+    })
+    .collect()
+}
+
 fn thread_message_preview(message: &Message) -> Option<String> {
   message
     .content_facade
@@ -1648,11 +1931,128 @@ pub async fn get_mobile_session() -> impl Responder {
   }))
 }
 
+#[get("/api/knapsack/mobile/team")]
+pub async fn get_mobile_team() -> impl Responder {
+  match load_mobile_team_roster() {
+    Ok(roster) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": roster
+    })),
+    Err(err) => HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  }
+}
+
+#[post("/api/knapsack/mobile/team")]
+pub async fn save_mobile_team(payload: Json<MobileTeamRoster>) -> impl Responder {
+  let mut roster = payload.into_inner();
+  roster.agents.retain(|agent| !agent.id.trim().is_empty() && !agent.name.trim().is_empty());
+  if let Err(err) = save_mobile_team_roster(&roster) {
+    return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    }));
+  }
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": roster
+  }))
+}
+
+#[post("/api/knapsack/mobile/team/{agent_id}/messages")]
+pub async fn send_mobile_team_message(
+  path: web::Path<String>,
+  payload: Json<SendMobileTeamMessageRequest>,
+) -> impl Responder {
+  let agent_id = path.into_inner();
+  let text = payload.text.trim();
+  if text.is_empty() {
+    return HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "error": "Message text is required"
+    }));
+  }
+
+  let roster = match load_mobile_team_roster() {
+    Ok(roster) => roster,
+    Err(err) => return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  };
+  let Some(agent) = roster.agents.into_iter().find(|agent| agent.id == agent_id) else {
+    return HttpResponse::NotFound().json(json!({
+      "success": false,
+      "error": "Virtual employee not found"
+    }));
+  };
+
+  let request_text = format!(
+    "You are {}, one member of the user's Knapsack team. {}\n\nStay within your role: {}. Continue the same private conversation used by this employee on desktop.\n\nUser request\n{}",
+    agent.name, agent.soul, agent.personality, text
+  );
+  let session_key = format!("agent:main:webchat:dm:ui-agent-{}", agent.id);
+  match gateway_client::agent_chat(&request_text, &[], None, Some("dm"), Some(&session_key)).await {
+    Ok(result) => {
+      let reply = gateway_reply_from_result(&result).unwrap_or_default();
+      if reply.is_empty() {
+        HttpResponse::BadGateway().json(json!({
+          "success": false,
+          "error": "The virtual employee did not return a response"
+        }))
+      } else {
+        HttpResponse::Ok().json(json!({
+          "success": true,
+          "data": { "reply": reply }
+        }))
+      }
+    }
+    Err(err) => HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
+}
+
+#[get("/api/knapsack/mobile/team/{agent_id}/messages")]
+pub async fn get_mobile_team_messages(path: web::Path<String>) -> impl Responder {
+  let agent_id = path.into_inner();
+  let roster = match load_mobile_team_roster() {
+    Ok(roster) => roster,
+    Err(err) => return HttpResponse::InternalServerError().json(json!({
+      "success": false,
+      "error": err.to_string()
+    })),
+  };
+  if !roster.agents.iter().any(|agent| agent.id == agent_id) {
+    return HttpResponse::NotFound().json(json!({
+      "success": false,
+      "error": "Virtual employee not found"
+    }));
+  }
+
+  let session_key = format!("agent:main:webchat:dm:ui-agent-{agent_id}");
+  match gateway_client::chat_history(&session_key, None, 100).await {
+    Ok(history) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "data": MobileTeamMessages {
+        messages: mobile_team_history_messages(&history)
+      }
+    })),
+    Err(err) => HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": err
+    })),
+  }
+}
+
 #[get("/api/knapsack/mobile/calendar")]
 pub async fn list_mobile_calendar_events() -> impl Responder {
   HttpResponse::Ok().json(json!({
     "success": true,
-    "data": build_mobile_calendar_events(20)
+    "data": build_mobile_calendar_timeline(150)
   }))
 }
 
@@ -2020,11 +2420,7 @@ pub async fn send_mobile_chat_message(
 
   let mut attachments = Vec::new();
   if !seed_history.is_empty() {
-    attachments.push(json!({
-      "name": "mobile-seed-history.json",
-      "type": "application/json",
-      "content": serde_json::to_string(&seed_history).unwrap_or_else(|_| "[]".to_string()),
-    }));
+    attachments.push(mobile_seed_history_attachment(&seed_history));
   }
 
   let gateway_result =
@@ -2152,7 +2548,7 @@ pub async fn list_mobile_meetings() -> impl Responder {
   let meetings: Vec<MobileMeetingDetail> = threads
     .into_iter()
     .filter(|thread| matches!(thread.thread_type, ThreadType::MeetingNotes))
-    .take(50)
+    .take(200)
     .map(|thread| {
       let metadata = thread
         .id
@@ -2388,9 +2784,14 @@ pub async fn upload_mobile_recording(
 
 #[cfg(test)]
 mod tests {
-  use super::{build_mobile_chat_request, gateway_reply_from_result, parse_gateway_payload_text};
+  use super::{
+    build_mobile_chat_request, gateway_history_message_text, gateway_reply_from_result,
+    mobile_seed_history_attachment, mobile_team_history_messages, parse_gateway_payload_text,
+    starter_mobile_team_roster,
+  };
+  use base64::{engine::general_purpose::STANDARD, Engine as _};
   use crate::db::models::thread::{Thread, ThreadType};
-  use serde_json::json;
+  use serde_json::{json, Value};
 
   #[test]
   fn parses_plain_gateway_payload_text() {
@@ -2418,6 +2819,33 @@ mod tests {
   }
 
   #[test]
+  fn strips_desktop_agent_context_from_mobile_history() {
+    let message = json!({
+      "role": "user",
+      "content": "You are Scout.\n---\nUser message:\nWhat needs my attention?"
+    });
+    assert_eq!(
+      gateway_history_message_text(&message).as_deref(),
+      Some("What needs my attention?")
+    );
+  }
+
+  #[test]
+  fn maps_gateway_team_history_to_mobile_messages() {
+    let history = json!({
+      "messages": [
+        { "id": 7, "timestamp": 100, "role": "user", "content": "Hello" },
+        { "id": 8, "timestamp": 101, "role": "assistant", "content": [{ "type": "text", "text": "Hi" }] },
+        { "id": 9, "timestamp": 102, "role": "tool", "content": "ignored" }
+      ]
+    });
+    let messages = mobile_team_history_messages(&history);
+    assert_eq!(messages.len(), 2);
+    assert_eq!(messages[0].content, "Hello");
+    assert_eq!(messages[1].content, "Hi");
+  }
+
+  #[test]
   fn mobile_chat_requests_enforce_phone_readability() {
     let thread = Thread {
       id: Some(42),
@@ -2434,7 +2862,28 @@ mod tests {
 
     let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
     assert!(request.contains("Knapsack on iPhone"));
+    assert!(request.contains("Knapsack mobile workspace context"));
+    assert!(request.contains("Do not call a browser merely to retrieve that local workspace context"));
     assert!(request.contains("Never return a wall of raw calendar"));
+    assert!(request.contains("Every list item must start on its own line"));
+    assert!(request.contains("## Do now"));
     assert!(request.ends_with("What is on my calendar?"));
+  }
+
+  #[test]
+  fn starter_mobile_team_is_available_without_phone_seed() {
+    let roster = starter_mobile_team_roster();
+    assert_eq!(roster.agents.len(), 4);
+    assert_eq!(roster.agents[0].id, "scout");
+    assert_eq!(roster.agents[0].name, "Scout");
+  }
+
+  #[test]
+  fn mobile_seed_history_attachment_uses_gateway_base64_contract() {
+    let history = vec![json!({ "role": "user", "content": "hello" })];
+    let attachment = mobile_seed_history_attachment(&history);
+    let encoded = attachment.get("content").and_then(Value::as_str).unwrap();
+    let decoded = STANDARD.decode(encoded).unwrap();
+    assert_eq!(serde_json::from_slice::<Value>(&decoded).unwrap(), json!(history));
   }
 }

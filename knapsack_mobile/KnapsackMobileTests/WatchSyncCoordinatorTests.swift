@@ -2,20 +2,86 @@ import XCTest
 @testable import KnapsackMobileApp
 
 final class WatchSyncCoordinatorTests: XCTestCase {
+  func testMeetingDisplayTitleFallsBackToDesktopSubtitle() {
+    let meeting = MobileMeetingDetail(
+      thread: MobileThread(
+        id: 42,
+        timestamp: 1_789_000_000_000,
+        hideFollowUp: nil,
+        feedItemId: 9,
+        title: "",
+        subtitle: "Tiendas Neto Discussion",
+        threadType: "MEETING NOTES",
+        recorded: true,
+        savedTranscript: nil,
+        promptTemplate: nil
+      ),
+      metadata: MobileMeetingMetadata(
+        threadId: 42,
+        status: .ready,
+        sourceDevice: "desktop",
+        latestAudioFile: nil,
+        notesPreview: "Decisions and actions",
+        startedAt: nil,
+        endedAt: nil,
+        updatedAt: 1_789_000_100
+      ),
+      notes: "Meeting notes"
+    )
+
+    XCTAssertEqual(meeting.displayTitle, "Tiendas Neto Discussion")
+    XCTAssertEqual(meeting.displayTimestamp, 1_789_000_000_000)
+  }
+
+  func testStarterTeamAlwaysIncludesScout() {
+    XCTAssertEqual(MobileTeamRoster.starter.agents.first?.id, "scout")
+    XCTAssertEqual(MobileTeamRoster.starter.agents.first?.displayName, "Scout")
+    XCTAssertGreaterThanOrEqual(MobileTeamRoster.starter.agents.count, 4)
+  }
+
+  func testFutureMeetingPrepUsesEventSpecificTitleAndContext() {
+    let event = MobileCalendarEventSummary(
+      id: 77,
+      eventId: "calendar-event-77",
+      title: "Board planning",
+      description: "Review hiring plan",
+      location: "Conference room",
+      start: 1_800_000_000,
+      end: 1_800_003_600,
+      googleMeetURL: nil,
+      calendarAccountEmail: "mark@example.com",
+      meetingThreadId: nil,
+      notesPreview: nil,
+      prepChatThreadId: nil,
+      prepPreview: nil
+    )
+
+    XCTAssertTrue(event.prepConversationTitle.contains("Board planning"))
+    XCTAssertTrue(event.prepPrompt.contains("Review hiring plan"))
+    XCTAssertTrue(event.prepPrompt.contains("Conference room"))
+  }
+
   private let appGroupOverrideEnv = "KNAPSACK_MOBILE_APP_GROUP_ROOT"
+  private let mobileCacheKeys = [
+    "knapsack.mobile.fallback.meetings",
+    "knapsack.mobile.fallback.chats",
+    "knapsack.mobile.fallback.chatDetails",
+    "knapsack.mobile.fallback.calendar",
+    "knapsack.mobile.fallback.session",
+  ]
 
   override func setUp() {
     super.setUp()
     URLProtocol.registerClass(MockURLProtocol.self)
     MockURLProtocol.reset()
     UserDefaults.standard.removeObject(forKey: "knapsack.mobile.baseURL")
-    UserDefaults.standard.removeObject(forKey: "knapsack.mobile.fallback.meetings")
+    mobileCacheKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
   }
 
   override func tearDown() {
     unsetenv(appGroupOverrideEnv)
     UserDefaults.standard.removeObject(forKey: "knapsack.mobile.baseURL")
-    UserDefaults.standard.removeObject(forKey: "knapsack.mobile.fallback.meetings")
+    mobileCacheKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
     MockURLProtocol.reset()
     URLProtocol.unregisterClass(MockURLProtocol.self)
     super.tearDown()
@@ -168,6 +234,60 @@ final class WatchSyncCoordinatorTests: XCTestCase {
 
     try WatchSharedBridge.remove(entry)
     XCTAssertTrue(try WatchSharedBridge.pendingRecordings().isEmpty)
+  }
+
+  func testLinkedSessionAndCalendarRemainAvailableOffline() async throws {
+    MobileAPI.shared.baseURL = URL(string: "https://knapsack.test")!
+    let session = MobileLinkedSession(
+      linked: true,
+      profile: MobileLinkedProfile(
+        email: "person@knapsack.test",
+        name: "Test Person",
+        uuid: "user-1",
+        provider: "google",
+        profileImage: nil,
+        sharingPermission: nil
+      ),
+      connectionScopes: ["google_calendar_read"],
+      calendarConnected: true,
+      emailConnected: false,
+      driveConnected: false,
+      desktopLabel: "Linked to desktop"
+    )
+    let event = MobileCalendarEventSummary(
+      id: 77,
+      eventId: "calendar-77",
+      title: "Customer review",
+      description: nil,
+      location: nil,
+      start: 1_780_000_000,
+      end: 1_780_003_600,
+      googleMeetURL: nil,
+      calendarAccountEmail: "person@knapsack.test",
+      meetingThreadId: 501,
+      notesPreview: "Decided to ship the pilot.",
+      prepChatThreadId: 601,
+      prepPreview: "Ask about rollout timing."
+    )
+
+    MockURLProtocol.requestHandler = { request in
+      switch request.url?.path {
+      case "/api/knapsack/mobile/session":
+        return try Self.jsonResponse(APIEnvelope(success: true, data: session, error: nil))
+      case "/api/knapsack/mobile/calendar":
+        return try Self.jsonResponse(APIEnvelope(success: true, data: [event], error: nil))
+      default:
+        throw URLError(.unsupportedURL)
+      }
+    }
+
+    _ = try await MobileAPI.shared.getSession()
+    _ = try await MobileAPI.shared.listCalendarEvents()
+    let cached = MobileAPI.shared.loadCachedWorkspace()
+
+    XCTAssertEqual(cached.session?.profile?.email, "person@knapsack.test")
+    XCTAssertEqual(cached.calendarEvents.first?.meetingThreadId, 501)
+    XCTAssertEqual(cached.calendarEvents.first?.prepChatThreadId, 601)
   }
 
   private static func jsonResponse<T: Codable>(

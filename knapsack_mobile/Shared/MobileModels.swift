@@ -42,6 +42,21 @@ struct MobileMeetingDetail: Codable, Identifiable {
   var notes: String?
 
   var id: UInt64 { thread.id ?? metadata.threadId }
+
+  var displayTitle: String {
+    let title = thread.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !title.isEmpty && title.localizedCaseInsensitiveCompare("Untitled meeting") != .orderedSame {
+      return title
+    }
+
+    let subtitle = thread.subtitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return subtitle.isEmpty ? "Untitled meeting" : subtitle
+  }
+
+  var displayTimestamp: Int64 {
+    let threadTimestamp = thread.timestamp ?? 0
+    return threadTimestamp > 0 ? threadTimestamp : metadata.updatedAt
+  }
 }
 
 struct MobileChatSummary: Codable, Identifiable {
@@ -80,6 +95,112 @@ struct SendMobileChatMessageRequest: Codable {
   var text: String
 }
 
+struct MobileManagedAgent: Codable, Identifiable {
+  var id: String
+  var name: String
+  var emoji: String
+  var personality: String
+  var soul: String
+  var browserProfile: String
+  var suggestedPrompts: [String]
+
+  var agentId: String { id }
+  var displayName: String { name }
+}
+
+struct MobileTeamRoster: Codable {
+  var agents: [MobileManagedAgent]
+
+  static let starter = MobileTeamRoster(agents: [
+    MobileManagedAgent(
+      id: "scout",
+      name: "Scout",
+      emoji: "\u{1F4CB}",
+      personality: "Your executive assistant",
+      soul: "You are Scout, an organized, proactive, and detail-oriented executive assistant.",
+      browserProfile: "agent-scout",
+      suggestedPrompts: [
+        "Brief me on today's meetings, commitments, and top priorities.",
+        "Find the follow-ups most at risk of falling through the cracks.",
+      ]
+    ),
+    MobileManagedAgent(
+      id: "polly",
+      name: "Polly",
+      emoji: "\u{1F4EC}",
+      personality: "Your inbox and social media monitor",
+      soul: "You are Polly, a warm and concise inbox and social media monitor.",
+      browserProfile: "agent-polly",
+      suggestedPrompts: ["Triage my inbox and show me what deserves a response first."]
+    ),
+    MobileManagedAgent(
+      id: "atlas",
+      name: "Atlas",
+      emoji: "\u{1F91D}",
+      personality: "Your relationship optimizer",
+      soul: "You are Atlas, a strategic relationship and opportunity advisor.",
+      browserProfile: "agent-atlas",
+      suggestedPrompts: ["Who should I follow up with now, and what should I say?"]
+    ),
+    MobileManagedAgent(
+      id: "coach",
+      name: "Coach",
+      emoji: "\u{1F3AF}",
+      personality: "Your daily work coach",
+      soul: "You are Coach, a direct, analytical, and encouraging daily work coach.",
+      browserProfile: "agent-coach",
+      suggestedPrompts: ["Give me a realistic plan for today based on my recent work."]
+    ),
+  ])
+}
+
+struct MobileTeamMessageResponse: Codable {
+  var reply: String
+}
+
+struct MobileTeamMessages: Codable {
+  var messages: [MobileChatMessage]
+}
+
+struct MobileManagedAgentSession: Codable, Identifiable {
+  var sessionId: String
+  var agentId: String
+  var userId: String
+  var taskSummary: String
+  var status: String
+  var messageCount: Int
+  var lastInboundMessage: String?
+  var lastReplySummary: String?
+  var updatedAt: String
+
+  var id: String { sessionId }
+}
+
+struct MobileManagedAgentsIndex: Codable {
+  var success: Bool
+  var agents: [MobileManagedAgent]
+  var executionSessions: [MobileManagedAgentSession]
+}
+
+struct MobileManagedAgentRunResponse: Codable {
+  var success: Bool
+  var session: MobileManagedAgentSession
+  var reply: String?
+  var message: String
+}
+
+struct MobileManagedAgentRunRequest: Codable {
+  var agentId: String
+  var userId: String
+  var channel: String
+  var message: String
+  var taskSummary: String?
+  var contextKey: String?
+  var requiredCapabilities: [String]
+  var desktopSessionRequirement: String?
+  var gatewayAgentId: String?
+}
+
 struct MobileLinkedProfile: Codable {
   var email: String
   var name: String?
@@ -109,6 +230,39 @@ struct MobileCalendarEventSummary: Codable, Identifiable {
   var end: Int64?
   var googleMeetURL: String?
   var calendarAccountEmail: String
+  var meetingThreadId: UInt64?
+  var notesPreview: String?
+  var prepChatThreadId: UInt64?
+  var prepPreview: String?
+
+  var displayTitle: String {
+    let value = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return value.isEmpty ? "Untitled meeting" : value
+  }
+
+  var prepConversationTitle: String {
+    guard let start else { return "Prep: \(displayTitle)" }
+    let date = Date(timeIntervalSince1970: TimeInterval(start))
+      .formatted(date: .abbreviated, time: .shortened)
+    return "Prep: \(displayTitle) - \(date)"
+  }
+
+  var prepPrompt: String {
+    var context = ["Prepare me for \(displayTitle)"]
+    if let start {
+      let date = Date(timeIntervalSince1970: TimeInterval(start))
+        .formatted(date: .complete, time: .shortened)
+      context.append("scheduled for \(date)")
+    }
+    if let location = location?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty {
+      context.append("at \(location)")
+    }
+    if let description = description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+      context.append("Calendar context: \(description)")
+    }
+    context.append("Use the calendar event, prior meetings, saved notes, and relevant chats. Lead with context, goals, open questions, and the three things I should know before joining.")
+    return context.joined(separator: ". ")
+  }
 }
 
 struct MobileBrainEntry: Codable, Identifiable, Hashable {
