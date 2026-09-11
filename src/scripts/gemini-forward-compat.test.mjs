@@ -69,6 +69,13 @@ test('bundled runtime keeps future Gemini 3.x Flash versions forward compatible'
   assert.equal(resolve('gemini-3.8-flash')?.id, 'gemini-3.8-flash')
 })
 
+test('bundled runtime resolves Gemini 3.x Flash Lite when its preview template is absent', () => {
+  const model = resolve('gemini-3.5-flash-lite')
+  assert.equal(model?.id, 'gemini-3.5-flash-lite')
+  assert.equal(model?.provider, 'google')
+  assert.equal(model?.api, 'google-generative-ai')
+})
+
 test('Gemini 3.7 Flash never sends the unsupported MINIMAL thinking level', () => {
   assert.equal(resolveGeminiThinkingLevel({ modelId: 'gemini-3.7-flash', thinkingLevel: 'minimal' }), 'LOW')
   assert.equal(resolveGeminiThinkingLevel({ modelId: 'gemini-3.7-flash', thinkingLevel: 'off' }), undefined)
