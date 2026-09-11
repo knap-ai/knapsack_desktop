@@ -874,10 +874,16 @@ export function useFeed(
       for (const message of messages) {
         try {
           const threadResponse = await getEmailThread(message.documentId)
-          if (threadResponse) {
+          if (threadResponse && threadResponse.length > 0) {
             threadResponse.forEach(doc => {
               emailThreadsSet.add(doc)
             })
+          } else {
+            // During early app startup the thread endpoint can deliberately
+            // return an empty, deferred response. The candidate already
+            // contains the complete synced email, so keep it instead of
+            // incorrectly completing Autopilot with an empty inbox.
+            emailThreadsSet.add(message)
           }
         } catch (error) {
           logError(
@@ -887,6 +893,7 @@ export function useFeed(
               error: error instanceof Error ? error.toString() : String(error),
             },
           )
+          emailThreadsSet.add(message)
         }
       }
 
