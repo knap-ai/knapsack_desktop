@@ -163,3 +163,16 @@ test('cold-start protocol URL is consumed from the initial process argument', as
   assert.equal(stored.gclid, 'cold-start-click')
   assert.equal(dispatchedEvents[0].type, 'knapsack-onboarding-intent')
 })
+
+test('paid starter opens the no-key Knapsack provider path first', async () => {
+  const filename = new URL(
+    '../src/components/organisms/ClawdChat/index.tsx',
+    `file://${__filename}`,
+  )
+  const source = await fs.readFile(filename, 'utf8')
+
+  assert.match(source, /return getSavedPaidStarter\(\) \? 'knapsack' : 'openai'/)
+  assert.match(source, /setSelectedProvider\('knapsack'\)/)
+  assert.match(source, /Connect your Knapsack account to run your first analysis — no API key needed/)
+  assert.match(source, /onboarding_paid_provider_prompt_viewed/)
+})

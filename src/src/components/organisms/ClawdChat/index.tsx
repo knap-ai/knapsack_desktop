@@ -38,6 +38,7 @@ import {
 import KNAnalytics from 'src/utils/KNAnalytics'
 import {
   claimActivationAttribution,
+  getOnboardingAnalyticsProps,
   getSavedPaidStarter,
   markActivationTracked,
   releaseActivationClaim,
@@ -2047,6 +2048,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Onboarding state
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
+  const paidProviderPromptTrackedRef = useRef(false)
   useEffect(() => {
     onProviderPanelOpenChange?.(showKeyPrompt)
     return () => onProviderPanelOpenChange?.(false)
@@ -2086,7 +2088,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [knapsackConnectError, setKnapsackConnectError] = useState<string | null>(null)
   const [studioConnectedLabels, setStudioConnectedLabels] = useState<string[]>([])
   const [selectedProvider, setSelectedProvider] = useState<Provider>(() => {
-    return (localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider) || 'openai'
+    const savedProvider = localStorage.getItem(ACTIVE_PROVIDER_STORAGE) as Provider | null
+    if (savedProvider) return savedProvider
+
+    // A paid visitor was promised a first task, so open the no-key Knapsack
+    // account path instead of presenting a third-party API key form first.
+    return getSavedPaidStarter() ? 'knapsack' : 'openai'
   })
   // Tracks the backend-confirmed active provider separately from selectedProvider,
   // which also changes when the user opens an accordion (before any save).
@@ -2708,10 +2715,25 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       return false
     }
 
+    // No valid provider is configured. Paid visitors should land directly on
+    // the Knapsack account option so they can sign in and run the starter task
+    // without finding or pasting a third-party API key.
+    if (paidStarterData) {
+      setSelectedProvider('knapsack')
+      if (!paidProviderPromptTrackedRef.current) {
+        paidProviderPromptTrackedRef.current = true
+        KNAnalytics.trackEvent('onboarding_paid_provider_prompt_viewed', {
+          role: paidStarterData.role,
+          provider: 'knapsack',
+          ...getOnboardingAnalyticsProps(),
+        })
+      }
+    }
+
     // No valid key found, always show prompt
     setShowKeyPrompt(true)
     return false
-  }, [])
+  }, [paidStarterData])
 
   const handleToneChange = useCallback((toneId: string) => {
     setSelectedTone(toneId)
@@ -8144,10 +8166,12 @@ ${actualText}`
           {modelPickerTab === 'providers' && (
           <div className="ClawdChannelsPanelBody">
             <p className="ClawdChannelsPanelIntro">
-              {hasCompletedOnboarding
+              {!hasCompletedOnboarding && paidStarterData
+                ? 'Connect your Knapsack account to run your first analysis — no API key needed. You can also choose another provider below.'
+                : hasCompletedOnboarding
                 ? 'Review or change your AI provider and API key.'
                 : 'Choose your AI provider and enter your API key to get started.'}
-              {' '}Your key is stored locally and never shared.
+              {!paidStarterData && ' Your key is stored locally and never shared.'}
             </p>
 
             <div className="ClawdChannelAccordion">
