@@ -1,5 +1,65 @@
 import Foundation
 
+enum MobileServiceAvailability: Equatable {
+  case checking
+  case desktopOnline
+  case desktopNeedsSignIn
+  case offlineReady(lastSync: Date?)
+  case setupRequired
+
+  var title: String {
+    switch self {
+    case .checking:
+      return "Checking connection"
+    case .desktopOnline:
+      return "Online - all features ready"
+    case .desktopNeedsSignIn:
+      return "Desktop found - sign in required"
+    case .offlineReady:
+      return "Offline - notes and recording available"
+    case .setupRequired:
+      return "Not connected - setup required"
+    }
+  }
+
+  var detail: String {
+    switch self {
+    case .checking:
+      return "Confirming which Knapsack services are available."
+    case .desktopOnline:
+      return "Chats, meeting prep, notes, and recording are available."
+    case .desktopNeedsSignIn:
+      return "Open Knapsack Desktop and finish signing in to use chats and meeting prep."
+    case .offlineReady(let lastSync):
+      if let lastSync {
+        return "Saved content is available. Chats and new prep need a connection. Last synced \(lastSync.formatted(date: .abbreviated, time: .shortened))."
+      }
+      return "Saved content is available. Chats and new prep need a connection."
+    case .setupRequired:
+      return "Connect to Knapsack Desktop to load your workspace."
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .checking:
+      return "arrow.triangle.2.circlepath"
+    case .desktopOnline:
+      return "checkmark.circle.fill"
+    case .desktopNeedsSignIn:
+      return "person.crop.circle.badge.exclamationmark"
+    case .offlineReady:
+      return "exclamationmark.triangle.fill"
+    case .setupRequired:
+      return "xmark.circle.fill"
+    }
+  }
+
+  var supportsLiveActions: Bool {
+    self == .desktopOnline
+  }
+}
+
 @MainActor
 final class MeetingListViewModel: ObservableObject {
   @Published var session: MobileLinkedSession?
@@ -31,17 +91,38 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isSendingChatMessage = false
   @Published var isConnectingToDesktop = false
   @Published private(set) var isDesktopReachable = false
+  @Published private(set) var isCheckingConnection = true
+  @Published private(set) var lastSuccessfulSyncAt: Date?
   @Published var serverURLText: String
   @Published var errorMessage: String?
   @Published var statusMessage: String?
   private var lastAutoConnectedDesktopID: String?
   private var preparedEventID: String?
+  private let lastSuccessfulSyncStoreKey = "knapsack.mobile.lastSuccessfulSyncAt"
 
   private let api: MobileAPI
 
   init(api: MobileAPI = .shared) {
     self.api = api
     self.serverURLText = Self.initialServerURLText(for: api)
+    let storedTimestamp = UserDefaults.standard.double(forKey: lastSuccessfulSyncStoreKey)
+    self.lastSuccessfulSyncAt = storedTimestamp > 0 ? Date(timeIntervalSince1970: storedTimestamp) : nil
+  }
+
+  var availability: MobileServiceAvailability {
+    if isCheckingConnection {
+      return .checking
+    }
+    if isDesktopReachable, session?.linked == true {
+      return .desktopOnline
+    }
+    if isDesktopReachable {
+      return .desktopNeedsSignIn
+    }
+    if session != nil || !calendarEvents.isEmpty || !meetings.isEmpty || !chats.isEmpty {
+      return .offlineReady(lastSync: lastSuccessfulSyncAt)
+    }
+    return .setupRequired
   }
 
   var currentMeetingID: UInt64? {
@@ -49,20 +130,15 @@ final class MeetingListViewModel: ObservableObject {
   }
 
   func refresh() async {
+    isCheckingConnection = true
+    defer { isCheckingConnection = false }
     hydrateCachedWorkspaceIfNeeded()
     if shouldWaitForDesktopLink {
       isDesktopReachable = false
-      session = nil
-      calendarEvents = []
-      chats = []
-      meetings = []
-      autopilotBrief = nil
-      selectedMeeting = nil
-      selectedChat = nil
-      selectedAutopilotEmail = nil
-      statusMessage = "Open Knapsack on your Mac and keep this screen open. Your desktop should appear automatically."
+      statusMessage = session == nil && meetings.isEmpty && chats.isEmpty
+        ? "Open Knapsack on your Mac and keep this screen open. Your desktop should appear automatically."
+        : "Offline - saved notes, chats, and recording remain available."
       errorMessage = nil
-      await refreshGBrain()
       return
     }
 
@@ -77,6 +153,8 @@ final class MeetingListViewModel: ObservableObject {
       chats = try await chatsTask
       chats.sort { $0.updatedAt > $1.updatedAt }
       isDesktopReachable = true
+      recordSuccessfulSync()
+      isCheckingConnection = false
       hydrateCachedNextMeetingPrep()
       await preloadNextMeetingPrep()
       if let selectedID = selectedMeeting?.id,
@@ -114,6 +192,39 @@ final class MeetingListViewModel: ObservableObject {
         ? "Reconnect to your Mac to load your workspace."
         : "Offline - showing saved chats and meeting notes."
     }
+  }
+
+  @discardableResult
+  func refreshConnectionStatus() async -> Bool {
+    let wasReachable = isDesktopReachable
+    let shouldShowChecking = session == nil && meetings.isEmpty && chats.isEmpty
+    if shouldShowChecking { isCheckingConnection = true }
+    defer {
+      if shouldShowChecking { isCheckingConnection = false }
+    }
+
+    guard !shouldWaitForDesktopLink else {
+      isDesktopReachable = false
+      return false
+    }
+
+    do {
+      let liveSession = try await api.getSession()
+      session = liveSession
+      isDesktopReachable = true
+      recordSuccessfulSync()
+      errorMessage = nil
+      return !wasReachable
+    } catch {
+      isDesktopReachable = false
+      return false
+    }
+  }
+
+  private func recordSuccessfulSync() {
+    let now = Date()
+    lastSuccessfulSyncAt = now
+    UserDefaults.standard.set(now.timeIntervalSince1970, forKey: lastSuccessfulSyncStoreKey)
   }
 
   private func hydrateCachedWorkspaceIfNeeded() {

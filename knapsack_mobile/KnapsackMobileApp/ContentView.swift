@@ -52,6 +52,7 @@ struct ContentView: View {
   @State private var isNextMeetingPrepExpanded = false
   @FocusState private var isNotesEditorFocused: Bool
   @FocusState private var isAutopilotReplyFocused: Bool
+  @Environment(\.scenePhase) private var scenePhase
   private let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
   var body: some View {
@@ -67,6 +68,9 @@ struct ContentView: View {
         .tabItem {
           Label("Chats", systemImage: "bubble.left.and.bubble.right")
         }
+    }
+    .safeAreaInset(edge: .top, spacing: 0) {
+      connectionStatusBanner
     }
     .sheet(isPresented: $isShowingSettings) {
       NavigationStack {
@@ -92,6 +96,9 @@ struct ContentView: View {
             .foregroundStyle(KnapsackBrand.ink)
           }
         }
+      }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        connectionStatusBanner
       }
     }
     .sheet(item: $presentedMeeting, onDismiss: {
@@ -119,6 +126,9 @@ struct ContentView: View {
               .foregroundStyle(KnapsackBrand.ink)
           }
         }
+      }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        connectionStatusBanner
       }
     }
     .fullScreenCover(item: $presentedChat) { chat in
@@ -149,6 +159,9 @@ struct ContentView: View {
           }
         }
       }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        connectionStatusBanner
+      }
     }
     .fullScreenCover(item: $presentedManagedAgent) { agent in
       NavigationStack {
@@ -176,6 +189,9 @@ struct ContentView: View {
               .foregroundStyle(KnapsackBrand.ink)
           }
         }
+      }
+      .safeAreaInset(edge: .top, spacing: 0) {
+        connectionStatusBanner
       }
     }
     .sheet(item: $presentedAutopilotEmail) { detail in
@@ -236,6 +252,13 @@ struct ContentView: View {
       watchSync.activate()
       await watchSync.importPendingSharedRecordings()
       await viewModel.refresh()
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .seconds(20))
+        let reconnected = await viewModel.refreshConnectionStatus()
+        if reconnected {
+          await viewModel.refresh()
+        }
+      }
     }
     .onDisappear {
       discovery.stopBrowsing()
@@ -243,6 +266,15 @@ struct ContentView: View {
     .onChange(of: discovery.preferredDesktop?.id) { _, _ in
       Task {
         await viewModel.adoptDiscoveredDesktop(discovery.preferredDesktop)
+      }
+    }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active, !isRunningTests else { return }
+      Task {
+        let reconnected = await viewModel.refreshConnectionStatus()
+        if reconnected {
+          await viewModel.refresh()
+        }
       }
     }
     .onChange(of: viewModel.selectedMeeting?.id) { _, _ in
@@ -265,6 +297,76 @@ struct ContentView: View {
     }
     .onChange(of: presentedAutopilotEmail?.id) { _, _ in
       draftAutopilotReply = ""
+    }
+  }
+
+  private var connectionStatusBanner: some View {
+    let availability = viewModel.availability
+    return Button {
+      if availability == .desktopOnline {
+        Task { await viewModel.refresh() }
+      } else {
+        isShowingSettings = true
+      }
+    } label: {
+      HStack(spacing: 10) {
+        Image(systemName: availability.systemImage)
+          .font(.system(size: 14, weight: .semibold))
+
+        VStack(alignment: .leading, spacing: 2) {
+          Text(availability.title)
+            .font(KnapsackBrand.inter(13, weight: .semibold))
+          Text(availability.detail)
+            .font(KnapsackBrand.inter(11))
+            .lineLimit(2)
+        }
+
+        Spacer(minLength: 8)
+
+        if availability == .checking {
+          ProgressView()
+            .controlSize(.small)
+        } else {
+          Text(availability == .desktopOnline ? "Refresh" : "Details")
+            .font(KnapsackBrand.inter(12, weight: .semibold))
+        }
+      }
+      .foregroundStyle(connectionStatusForeground(for: availability))
+      .padding(.horizontal, 18)
+      .padding(.vertical, 10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(connectionStatusBackground(for: availability))
+      .overlay(alignment: .bottom) {
+        Rectangle()
+          .fill(KnapsackBrand.line)
+          .frame(height: 1)
+      }
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("\(availability.title). \(availability.detail)")
+  }
+
+  private func connectionStatusForeground(for availability: MobileServiceAvailability) -> Color {
+    switch availability {
+    case .desktopOnline:
+      return KnapsackBrand.ink
+    case .checking, .desktopNeedsSignIn, .offlineReady:
+      return KnapsackBrand.inkMuted
+    case .setupRequired:
+      return KnapsackBrand.coral
+    }
+  }
+
+  private func connectionStatusBackground(for availability: MobileServiceAvailability) -> Color {
+    switch availability {
+    case .desktopOnline:
+      return KnapsackBrand.mist
+    case .checking:
+      return KnapsackBrand.paper
+    case .desktopNeedsSignIn, .offlineReady:
+      return KnapsackBrand.amber.opacity(0.20)
+    case .setupRequired:
+      return KnapsackBrand.coral.opacity(0.10)
     }
   }
 
@@ -558,6 +660,7 @@ struct ContentView: View {
         .padding(14)
         .background(KnapsackBrand.paper)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .disabled(!viewModel.availability.supportsLiveActions)
 
       HStack(spacing: 10) {
         Button(viewModel.isSendingChatMessage ? "Thinking..." : "Ask") {
@@ -568,13 +671,13 @@ struct ContentView: View {
           background: viewModel.isSendingChatMessage ? KnapsackBrand.paper : KnapsackBrand.ink,
           foreground: viewModel.isSendingChatMessage ? KnapsackBrand.inkMuted : .white
         )
-        .disabled(viewModel.isSendingChatMessage || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(!viewModel.availability.supportsLiveActions || viewModel.isSendingChatMessage || gbrainDraftPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
         Button(viewModel.isSendingChatMessage ? "Working..." : "Today") {
           Task { await runQuickPrompt(title: "Today", prompt: makeDailyBriefPrompt()) }
         }
         .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
-        .disabled(viewModel.isSendingChatMessage)
+        .disabled(!viewModel.availability.supportsLiveActions || viewModel.isSendingChatMessage)
 
         if let event = viewModel.nextCalendarEvent {
           Button("Next call") {
@@ -586,7 +689,7 @@ struct ContentView: View {
             }
           }
           .brandPill(background: KnapsackBrand.paper, foreground: KnapsackBrand.ink)
-          .disabled(viewModel.isSendingChatMessage)
+          .disabled(!viewModel.availability.supportsLiveActions || viewModel.isSendingChatMessage)
         }
       }
 
@@ -727,7 +830,7 @@ struct ContentView: View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(alignment: .top) {
         VStack(alignment: .leading, spacing: 6) {
-          Text(viewModel.session?.linked == true ? "Linked account" : "Connect to desktop")
+          Text(accountHeading)
             .font(KnapsackBrand.inter(14, weight: .semibold))
             .foregroundStyle(KnapsackBrand.inkMuted)
 
@@ -752,9 +855,9 @@ struct ContentView: View {
 
         Spacer()
 
-        Text(viewModel.session?.linked == true ? "Linked" : "Not linked")
+        Text(accountConnectionLabel)
           .font(KnapsackBrand.inter(12, weight: .semibold))
-          .foregroundStyle(viewModel.session?.linked == true ? KnapsackBrand.ink : KnapsackBrand.slate)
+          .foregroundStyle(viewModel.availability == .desktopOnline ? KnapsackBrand.ink : KnapsackBrand.slate)
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
           .background(Capsule().fill(KnapsackBrand.paper))
@@ -822,6 +925,8 @@ struct ContentView: View {
           .keyboardType(.URL)
           .autocorrectionDisabled()
           .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
           .padding(.horizontal, 14)
           .padding(.vertical, 12)
           .background(KnapsackBrand.paper)
@@ -2113,10 +2218,13 @@ struct ContentView: View {
       HStack(alignment: .bottom, spacing: 10) {
         TextField("Message your teammate", text: $draftManagedAgentMessage, axis: .vertical)
           .font(KnapsackBrand.inter(16))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
           .lineLimit(1...4)
           .padding(.horizontal, 16)
           .padding(.vertical, 11)
           .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+          .disabled(!viewModel.availability.supportsLiveActions)
 
         Button {
           let message = draftManagedAgentMessage
@@ -2139,7 +2247,7 @@ struct ContentView: View {
           .background(Circle().fill(KnapsackBrand.ink))
           .foregroundStyle(.white)
         }
-        .disabled(viewModel.isSendingManagedAgentMessage || draftManagedAgentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(!viewModel.availability.supportsLiveActions || viewModel.isSendingManagedAgentMessage || draftManagedAgentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }
     .padding(.horizontal, 20)
@@ -2170,6 +2278,7 @@ struct ContentView: View {
           .padding(.horizontal, 16)
           .padding(.vertical, 11)
           .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
+          .disabled(!viewModel.availability.supportsLiveActions)
 
         Button(action: sendCurrentChatDraft) {
           Group {
@@ -2185,7 +2294,7 @@ struct ContentView: View {
           .background(Circle().fill(KnapsackBrand.ink))
           .foregroundStyle(.white)
         }
-        .disabled(viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(!viewModel.availability.supportsLiveActions || viewModel.isSendingChatMessage || draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         .opacity(draftChatMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
         .accessibilityLabel(viewModel.isSendingChatMessage ? "Sending message" : "Send message")
       }
@@ -2199,7 +2308,8 @@ struct ContentView: View {
 
   private func sendCurrentChatDraft() {
     let pendingMessage = draftChatMessage
-    guard !viewModel.isSendingChatMessage,
+    guard viewModel.availability.supportsLiveActions,
+          !viewModel.isSendingChatMessage,
           !pendingMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
     draftChatMessage = ""
@@ -2211,6 +2321,26 @@ struct ContentView: View {
         draftChatMessage = pendingMessage
       }
     }
+  }
+
+  private var accountConnectionLabel: String {
+    switch viewModel.availability {
+    case .checking:
+      return "Checking"
+    case .desktopOnline:
+      return "Online"
+    case .desktopNeedsSignIn:
+      return "Sign in"
+    case .offlineReady:
+      return "Offline"
+    case .setupRequired:
+      return "Not set up"
+    }
+  }
+
+  private var accountHeading: String {
+    guard viewModel.session != nil else { return "Connect to Knapsack" }
+    return viewModel.availability == .desktopOnline ? "Online account" : "Saved account"
   }
 
   @ViewBuilder
