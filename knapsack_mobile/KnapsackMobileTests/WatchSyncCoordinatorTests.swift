@@ -2,6 +2,17 @@ import XCTest
 @testable import KnapsackMobileApp
 
 final class WatchSyncCoordinatorTests: XCTestCase {
+  func testAvailabilityClearlySeparatesOnlineFromOfflineCapability() {
+    let lastSync = Date(timeIntervalSince1970: 1_800_000_000)
+
+    XCTAssertTrue(MobileServiceAvailability.desktopOnline.supportsLiveActions)
+    XCTAssertFalse(MobileServiceAvailability.offlineReady(lastSync: lastSync).supportsLiveActions)
+    XCTAssertTrue(MobileServiceAvailability.desktopOnline.title.contains("all features"))
+    XCTAssertTrue(MobileServiceAvailability.offlineReady(lastSync: lastSync).title.contains("notes and recording"))
+    XCTAssertTrue(MobileServiceAvailability.offlineReady(lastSync: lastSync).detail.contains("Last synced"))
+    XCTAssertEqual(MobileServiceAvailability.desktopNeedsSignIn.title, "Desktop found - sign in required")
+  }
+
   func testMeetingDisplayTitleFallsBackToDesktopSubtitle() {
     let meeting = MobileMeetingDetail(
       thread: MobileThread(
