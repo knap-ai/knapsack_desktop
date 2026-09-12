@@ -301,6 +301,18 @@
   font-size: 21px;
 }
 
+.BrainSectionHeading--loops {
+  align-items: flex-start;
+}
+
+.BrainSectionDescription {
+  max-width: 620px;
+  margin: 7px 0 0;
+  color: var(--brain-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .BrainTextButton {
   padding: 6px 10px;
 }
@@ -609,6 +621,221 @@
   overflow-y: auto;
 }
 
+.LoopSummary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--brain-line);
+  background: var(--brain-line);
+}
+
+.LoopSummary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.LoopSummary strong {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 23px;
+  font-weight: 500;
+}
+
+.LoopSummary span {
+  color: var(--brain-muted);
+  font-size: 11px;
+}
+
+.LoopSection {
+  margin-top: 38px;
+}
+
+.LoopGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.LoopCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 19px;
+  border: 1px solid var(--brain-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(38, 35, 27, 0.035);
+}
+
+.LoopCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.LoopCategory,
+.LoopMaturity {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.LoopCategory {
+  color: var(--brain-muted);
+}
+
+.LoopMaturity {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #edf5f0;
+  color: var(--brain-accent);
+}
+
+.LoopCard h3,
+.LoopSuggestionList h3 {
+  margin: 12px 0 5px;
+  color: var(--brain-ink);
+  font-family: Lora, Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.LoopCard > p,
+.LoopSuggestionList p {
+  margin: 0;
+  color: var(--brain-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.LoopCard dl {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.LoopCard dl > div {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 9px;
+}
+
+.LoopCard dt,
+.LoopProof strong {
+  color: var(--brain-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.LoopCard dd {
+  margin: 0;
+  color: #34322e;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.LoopProof {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--brain-wash);
+}
+
+.LoopProof span {
+  position: relative;
+  padding-left: 15px;
+  color: #45423c;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.LoopProof span::before {
+  position: absolute;
+  top: 5px;
+  left: 1px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--brain-accent);
+  border-radius: 50%;
+  content: '';
+}
+
+.LoopCard footer {
+  display: flex;
+  gap: 14px;
+  margin-top: auto;
+  padding-top: 14px;
+  color: var(--brain-muted);
+  font-size: 9px;
+}
+
+.LoopSuggestionList {
+  border-top: 1px solid var(--brain-line);
+}
+
+.LoopSuggestionList article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 17px 4px;
+  border-bottom: 1px solid var(--brain-line);
+}
+
+.LoopSuggestionList h3 {
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.LoopSuggestionProof {
+  display: block;
+  margin-top: 7px;
+  color: var(--brain-accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.LoopSuggestionList button {
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--brain-ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.LoopSuggestionList button:disabled {
+  opacity: 0.45;
+}
+
+.LoopSafetyNote {
+  margin-top: 40px;
+  padding: 17px 19px;
+  border-left: 3px solid var(--brain-accent);
+  background: #f1f5ef;
+}
+
+.LoopSafetyNote strong {
+  font-size: 12px;
+}
+
+.LoopSafetyNote p {
+  margin: 5px 0 0;
+  color: #4f554f;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 @keyframes brain-pulse {
   50% {
     opacity: 0.3;
@@ -632,7 +859,8 @@
 
   .BrainCapture,
   .BrainMemoryGrid,
-  .BrainSavedLayout {
+  .BrainSavedLayout,
+  .LoopGrid {
     grid-template-columns: 1fr;
   }
 
@@ -655,5 +883,17 @@
 
   .BrainSourceList {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .LoopSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .LoopSuggestionList article {
+    grid-template-columns: 1fr;
+  }
+
+  .LoopSuggestionList button {
+    justify-self: start;
   }
 }

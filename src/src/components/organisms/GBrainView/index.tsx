@@ -2,6 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import Markdown from 'marked-react'
 import { FeedItem, getFeedItems } from 'src/api/feed_items'
+import {
+  listLoopDefinitions,
+  listLoopRuns,
+  LoopDefinition,
+  LoopRun,
+  saveLoopDefinition,
+} from 'src/api/loops'
 import { listWorkspaces, Workspace, WorkspaceDocument } from 'src/api/workspaces'
 import { CalendarEvents, serializeCalendarEventToMeeting } from 'src/hooks/dataSources/useCalendar'
 import { IFeed } from 'src/hooks/feed/useFeed'
@@ -28,13 +35,193 @@ interface BrainAnswer {
   text: string
 }
 
-type View = 'ask' | 'today' | 'memory'
+type View = 'ask' | 'today' | 'loops' | 'memory'
 
 const SUGGESTED_QUESTIONS = [
   'What have I promised people recently?',
   'Catch me up on my most active project.',
   'Who have I not followed up with?',
 ]
+
+const STARTER_LOOPS: LoopDefinition[] = [
+  {
+    schemaVersion: 1,
+    id: 'starter-meeting-follow-up',
+    name: 'Meeting follow-up',
+    description:
+      'Turn a completed meeting into decisions, drafts, and followed-through next steps.',
+    category: 'Workday',
+    maturity: 'observe',
+    status: 'active',
+    trigger: {
+      kind: 'event',
+      source: 'Meetings',
+      description: 'A recorded meeting ends',
+    },
+    desiredOutcome: 'The approved recap is delivered and every next step has a clear owner.',
+    approvalPolicy: {
+      requiredBeforeExecution: true,
+      description: 'You approve external messages before they are sent.',
+    },
+    verificationRules: [
+      {
+        id: 'recap-delivered',
+        label: 'Recap delivered to the intended people',
+        method: 'system_record',
+        source: 'Sent email or Slack receipt',
+        required: true,
+      },
+      {
+        id: 'next-steps-recorded',
+        label: 'Next steps and owners recorded',
+        method: 'deterministic_check',
+        source: 'Knapsack work graph',
+        required: true,
+      },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  {
+    schemaVersion: 1,
+    id: 'starter-inbox-response',
+    name: 'Important email response',
+    description:
+      'Notice messages that need action, gather context, and prepare the right response.',
+    category: 'Workday',
+    maturity: 'observe',
+    status: 'active',
+    trigger: {
+      kind: 'event',
+      source: 'Email',
+      description: 'An important inbound message appears to need a response',
+    },
+    desiredOutcome:
+      'A context-aware response is sent from the correct account and its delivery is verified.',
+    approvalPolicy: {
+      requiredBeforeExecution: true,
+      description: 'You approve the recipient, account, and wording before sending.',
+    },
+    verificationRules: [
+      {
+        id: 'correct-account',
+        label: 'Correct sending account and recipients',
+        method: 'deterministic_check',
+        source: 'Connected account identity',
+        required: true,
+      },
+      {
+        id: 'message-sent',
+        label: 'Message appears in Sent',
+        method: 'system_record',
+        source: 'Email provider',
+        required: true,
+      },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  {
+    schemaVersion: 1,
+    id: 'starter-accounts-payable',
+    name: 'Invoice to reconciled payment',
+    description:
+      'Observe invoice intake, approval, payment, ledger posting, and reconciliation as one loop.',
+    category: 'Finance',
+    maturity: 'observe',
+    status: 'active',
+    trigger: {
+      kind: 'event',
+      source: 'Email and accounting system',
+      description: 'A vendor invoice is received',
+    },
+    desiredOutcome: 'The valid invoice is paid once, posted correctly, and reconciled to the bank.',
+    approvalPolicy: {
+      requiredBeforeExecution: true,
+      description: 'An authorized person approves every payment before release.',
+    },
+    verificationRules: [
+      {
+        id: 'invoice-controls',
+        label: 'Vendor, duplicate, coding, and matching checks pass',
+        method: 'deterministic_check',
+        source: 'Accounting system',
+        required: true,
+      },
+      {
+        id: 'payment-approved',
+        label: 'Authorized payment approval recorded',
+        method: 'human_approval',
+        source: 'Approval policy',
+        required: true,
+      },
+      {
+        id: 'payment-reconciled',
+        label: 'Bank settlement reconciles to the ledger',
+        method: 'system_record',
+        source: 'Bank and general ledger',
+        required: true,
+      },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  },
+  {
+    schemaVersion: 1,
+    id: 'starter-forecast-refresh',
+    name: 'Forecast refresh and calibration',
+    description:
+      'Refresh source data, produce an approved forecast, and measure it against later actuals.',
+    category: 'Finance',
+    maturity: 'observe',
+    status: 'active',
+    trigger: {
+      kind: 'schedule',
+      source: 'Calendar and finance systems',
+      description: 'The recurring forecast cycle begins',
+    },
+    desiredOutcome:
+      'A complete forecast is approved and published, then calibrated against actual results.',
+    approvalPolicy: {
+      requiredBeforeExecution: true,
+      description: 'A forecast owner approves publication and material assumption changes.',
+    },
+    verificationRules: [
+      {
+        id: 'sources-current',
+        label: 'Required sources are complete and current',
+        method: 'deterministic_check',
+        source: 'Finance systems',
+        required: true,
+      },
+      {
+        id: 'forecast-published',
+        label: 'Approved forecast published to the system of record',
+        method: 'system_record',
+        source: 'Planning system',
+        required: true,
+      },
+      {
+        id: 'forecast-calibrated',
+        label: 'Forecast accuracy measured against actuals',
+        method: 'deferred_outcome',
+        source: 'Planning system and general ledger',
+        required: true,
+      },
+    ],
+    createdAt: 0,
+    updatedAt: 0,
+  },
+]
+
+const maturityLabel = (maturity: LoopDefinition['maturity']) =>
+  ({
+    observe: 'Observing',
+    shadow: 'Shadowing',
+    prepare: 'Preparing',
+    supervised: 'Supervised',
+    exception_only: 'Exception only',
+  })[maturity]
 
 const formatTime = (unix: number) =>
   new Date(unix * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -167,6 +354,9 @@ const GBrainView: React.FC<{
   const [savedPages, setSavedPages] = useState<BrainSearchResult[]>([])
   const [selectedPage, setSelectedPage] = useState<BrainSearchResult | null>(null)
   const [selectedPageContent, setSelectedPageContent] = useState<string | null>(null)
+  const [loops, setLoops] = useState<LoopDefinition[]>([])
+  const [loopRuns, setLoopRuns] = useState<LoopRun[]>([])
+  const [savingLoopId, setSavingLoopId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const people = useMemo(
@@ -189,22 +379,33 @@ const GBrainView: React.FC<{
     )
     return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [workspaces])
+  const suggestedLoops = useMemo(
+    () => STARTER_LOOPS.filter(template => !loops.some(loop => loop.id === template.id)),
+    [loops],
+  )
+  const completedRuns = useMemo(
+    () => loopRuns.filter(run => run.status === 'completed').length,
+    [loopRuns],
+  )
 
   const refresh = useCallback(async () => {
     setLoading(true)
     const now = Math.floor(Date.now() / 1000)
-    const [workspaceResult, activityResult, meetingResult, root] = await Promise.all([
-      listWorkspaces().catch(() => ({ success: false, data: [] as Workspace[] })),
-      getFeedItems().catch(() => [] as FeedItem[]),
-      fetch(`${KN_SERVER_HOST}/api/knapsack/calendar/get_events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ start_timestamp: now, end_timestamp: now + 60 * 60 * 24 * 7 }),
-      })
-        .then(response => (response.ok ? response.json() : []))
-        .catch(() => []),
-      invoke<string>('kn_brain_default_root').catch(() => ''),
-    ])
+    const [workspaceResult, activityResult, meetingResult, root, loopDefinitions, runs] =
+      await Promise.all([
+        listWorkspaces().catch(() => ({ success: false, data: [] as Workspace[] })),
+        getFeedItems().catch(() => [] as FeedItem[]),
+        fetch(`${KN_SERVER_HOST}/api/knapsack/calendar/get_events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_timestamp: now, end_timestamp: now + 60 * 60 * 24 * 7 }),
+        })
+          .then(response => (response.ok ? response.json() : []))
+          .catch(() => []),
+        invoke<string>('kn_brain_default_root').catch(() => ''),
+        listLoopDefinitions().catch(() => []),
+        listLoopRuns().catch(() => []),
+      ])
 
     setWorkspaces(workspaceResult.success ? workspaceResult.data : [])
     setActivity(
@@ -220,6 +421,8 @@ const GBrainView: React.FC<{
         .slice(0, 8),
     )
     setBrainRoot(root)
+    setLoops(loopDefinitions)
+    setLoopRuns(runs)
     if (root) {
       const pages = await invoke<BrainSearchResult[]>('kn_brain_search', {
         brainRoot: root,
@@ -230,6 +433,26 @@ const GBrainView: React.FC<{
     }
     setLoading(false)
   }, [])
+
+  const startObserving = useCallback(
+    async (template: LoopDefinition) => {
+      if (savingLoopId) return
+      setSavingLoopId(template.id)
+      setError(null)
+      try {
+        const saved = await saveLoopDefinition(template, brainRoot)
+        setLoops(current => {
+          const withoutExisting = current.filter(loop => loop.id !== saved.id)
+          return [...withoutExisting, saved].sort((a, b) => b.updatedAt - a.updatedAt)
+        })
+      } catch (reason: unknown) {
+        setError(errorMessage(reason) || 'Knapsack could not start observing that loop.')
+      } finally {
+        setSavingLoopId(null)
+      }
+    },
+    [brainRoot, savingLoopId],
+  )
 
   useEffect(() => {
     refresh()
@@ -406,6 +629,7 @@ const GBrainView: React.FC<{
             [
               ['ask', 'Ask'],
               ['today', 'Today'],
+              ['loops', 'Loops'],
               ['memory', 'Memory'],
             ] as [View, string][]
           ).map(([id, label]) => (
@@ -594,6 +818,142 @@ const GBrainView: React.FC<{
                 </div>
               ))
             )}
+          </section>
+        </main>
+      )}
+
+      {view === 'loops' && (
+        <main className="BrainMain BrainMain--loops" data-testid="qa-loops-panel">
+          <div className="BrainSectionHeading BrainSectionHeading--loops">
+            <div>
+              <p className="BrainEyebrow">Work that keeps moving</p>
+              <h2>Verifiable loops</h2>
+              <p className="BrainSectionDescription">
+                Knapsack learns recurring work, takes on safe steps, and proves the outcome before
+                calling it done.
+              </p>
+            </div>
+            <button className="BrainTextButton" onClick={refresh}>
+              Refresh
+            </button>
+          </div>
+
+          <section className="LoopSummary" aria-label="Loop summary">
+            <div>
+              <strong>{loops.length}</strong>
+              <span>Loops observed</span>
+            </div>
+            <div>
+              <strong>
+                {
+                  loopRuns.filter(run => !['completed', 'failed', 'cancelled'].includes(run.status))
+                    .length
+                }
+              </strong>
+              <span>In progress</span>
+            </div>
+            <div>
+              <strong>{completedRuns}</strong>
+              <span>Verified outcomes</span>
+            </div>
+          </section>
+
+          {loops.length > 0 && (
+            <section className="LoopSection">
+              <div className="BrainSectionHeading">
+                <div>
+                  <h2>Being learned</h2>
+                  <p className="BrainSectionDescription">
+                    Observation comes first. Knapsack earns more responsibility only after its work
+                    can be checked reliably.
+                  </p>
+                </div>
+              </div>
+              <div className="LoopGrid">
+                {loops.map(loop => {
+                  const runs = loopRuns.filter(run => run.loopId === loop.id)
+                  const verified = runs.filter(run => run.status === 'completed').length
+                  return (
+                    <article className="LoopCard" key={loop.id}>
+                      <div className="LoopCardHeader">
+                        <span className="LoopCategory">{loop.category}</span>
+                        <span className={`LoopMaturity LoopMaturity--${loop.maturity}`}>
+                          {maturityLabel(loop.maturity)}
+                        </span>
+                      </div>
+                      <h3>{loop.name}</h3>
+                      <p>{loop.description}</p>
+                      <dl>
+                        <div>
+                          <dt>Starts when</dt>
+                          <dd>{loop.trigger.description}</dd>
+                        </div>
+                        <div>
+                          <dt>Done means</dt>
+                          <dd>{loop.desiredOutcome}</dd>
+                        </div>
+                      </dl>
+                      <div className="LoopProof">
+                        <strong>Required proof</strong>
+                        {loop.verificationRules.map(rule => (
+                          <span key={rule.id}>{rule.label}</span>
+                        ))}
+                      </div>
+                      <footer>
+                        <span>{runs.length} runs observed</span>
+                        <span>{verified} verified</span>
+                      </footer>
+                    </article>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          <section className="LoopSection">
+            <div className="BrainSectionHeading">
+              <div>
+                <h2>
+                  {loops.length === 0 ? 'Choose a first loop to observe' : 'Suggested next loops'}
+                </h2>
+                <p className="BrainSectionDescription">
+                  Starting in observation mode does not send messages, move money, or change another
+                  system.
+                </p>
+              </div>
+            </div>
+            {suggestedLoops.length === 0 ? (
+              <div className="BrainEmpty BrainEmpty--compact">
+                <strong>All starter loops are being observed</strong>
+                <span>Knapsack will suggest more as it recognizes repeated work patterns.</span>
+              </div>
+            ) : (
+              <div className="LoopSuggestionList">
+                {suggestedLoops.map(loop => (
+                  <article key={loop.id}>
+                    <div>
+                      <span className="LoopCategory">{loop.category}</span>
+                      <h3>{loop.name}</h3>
+                      <p>{loop.description}</p>
+                      <span className="LoopSuggestionProof">
+                        {loop.verificationRules.length} required checks define completion
+                      </span>
+                    </div>
+                    <button disabled={savingLoopId !== null} onClick={() => startObserving(loop)}>
+                      {savingLoopId === loop.id ? 'Starting…' : 'Start observing'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="LoopSafetyNote">
+            <strong>Safe by default</strong>
+            <p>
+              Observation is read-only. Consequential actions require the recorded approval policy,
+              and a run cannot be marked complete until every required check has verified evidence.
+            </p>
           </section>
         </main>
       )}

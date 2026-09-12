@@ -12,6 +12,7 @@ pub mod gateway_ws;
 pub mod gbrain;
 pub mod gmail;
 pub mod harness;
+pub mod loops;
 pub mod managed_agents;
 pub mod meeting_context;
 pub mod pairing_auto_approve;
