@@ -10,6 +10,66 @@ extension for local files, local applications, and other device-bound tools.
 The local-network API remains a development and low-latency optimization. It
 must not determine whether the mobile app is usable.
 
+## Studio relay
+
+The relay is an extension of Studio, not a separate mobile backend:
+
+```text
+iPhone / Watch -- HTTPS + push --> Studio <-- outbound TLS -- Desktop
+                                   |
+                                   +-- account data and durable conversations
+                                   +-- cloud inference and connected services
+                                   +-- async meeting-prep jobs
+                                   +-- desktop command queue and result stream
+```
+
+Both clients make outbound authenticated connections to Studio. The iPhone
+never needs to resolve or dial the Mac, and the desktop never opens a public
+inbound port. Studio's existing user identity is the routing boundary for data,
+desktop presence, commands, and results.
+
+Studio routes a request in one of three ways:
+
+- `cloud`: run immediately using Studio inference and cloud integrations.
+- `desktop`: queue for an online desktop because a local capability is required.
+- `hybrid_fallback`: prefer desktop, but run in Studio when it is unavailable.
+
+The existing Scout runtime's desktop presence and execution-target concepts can
+be extended for this contract. The relay still needs durable command records,
+desktop polling or a WebSocket/SSE result channel, idempotent acknowledgements,
+and mobile-facing status endpoints. Redis presence is useful for liveness, but
+durable user-visible work and results must live in the Studio database.
+
+The LAN path may remain as an optional low-latency optimization. It cannot be an
+authentication dependency or the only path for a supported action.
+
+## Product state
+
+The app should not present a single ambiguous Connected/Disconnected state.
+Instead it always shows one of these capability states:
+
+- `Cloud ready`: notes, recording upload, meeting prep, chats, and agents work.
+- `Cloud + desktop`: all cloud features plus desktop-only tools work.
+- `Offline`: cached reading and local recording work; uploads queue for retry.
+- `Sign in required`: no account-scoped cloud or desktop actions are available.
+
+Moving between Wi-Fi, cellular, and another LAN should normally leave the app in
+`Cloud ready`. A Mac going to sleep should only change `Cloud + desktop` to
+`Cloud ready`, not make the app unusable.
+
+## Relay protocol
+
+Every relayed command has a stable `command_id`, `account_id`, requested
+capability, state, timestamps, and an idempotency key. The desktop heartbeats its
+capabilities to Studio, leases commands for its authenticated account, reports
+progress, and commits a result. Studio persists the result before notifying the
+mobile client.
+
+Recording uses direct-to-object-storage uploads with short-lived signed URLs;
+large audio files do not pass through the command relay. A local recording is
+kept until Studio confirms durable receipt, so losing connectivity does not lose
+the meeting.
+
 ## Root cause
 
 The current production path is phone -> Bonjour discovery -> desktop `.local`
