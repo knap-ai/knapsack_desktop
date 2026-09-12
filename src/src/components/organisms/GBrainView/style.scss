@@ -1008,6 +1008,338 @@
   line-height: 1.55;
 }
 
+.GoalInlineError {
+  margin-bottom: 18px;
+  padding: 11px 14px;
+  border: 1px solid #e2c4bd;
+  border-radius: 8px;
+  background: #fff5f2;
+  color: #743d32;
+  font-size: 12px;
+}
+
+.GoalImport,
+.GoalProposal,
+.GoalBuilder,
+.GoalCard {
+  margin: 28px 0;
+  padding: 22px;
+  border: 1px solid var(--brain-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(38, 35, 27, 0.035);
+}
+
+.GoalImport {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.GoalImport h3,
+.GoalProposal h3,
+.GoalBuilder h3,
+.GoalCard h3 {
+  margin: 0;
+  font-family: Lora, Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.GoalImport p,
+.GoalProposal p,
+.GoalCard header p {
+  margin: 6px 0 0;
+  color: var(--brain-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.GoalImport textarea,
+.GoalBuilder textarea,
+.GoalBuilder input,
+.GoalBuilder select,
+.GoalLoopLink select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #d8d4c9;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--brain-ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.GoalImport textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.GoalImport details {
+  grid-column: 1 / -1;
+  padding-top: 14px;
+  border-top: 1px solid var(--brain-line);
+}
+
+.GoalImport summary {
+  cursor: pointer;
+  color: var(--brain-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.GoalImport details p {
+  margin-bottom: 9px;
+}
+
+.GoalImport details button {
+  margin-top: 8px;
+}
+
+.GoalImport button,
+.GoalProposal button,
+.GoalBuilder button,
+.GoalCard button {
+  padding: 8px 11px;
+  border: 1px solid #d8d4c9;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--brain-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.GoalImport button.is-primary,
+.GoalProposal button.is-primary,
+.GoalBuilder button.is-primary {
+  border-color: var(--brain-accent);
+  background: var(--brain-accent);
+  color: #fff;
+}
+
+.GoalImport button:disabled,
+.GoalProposal button:disabled,
+.GoalBuilder button:disabled,
+.GoalCard button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.GoalBuilder > header,
+.GoalBuilder > footer,
+.GoalProposal > header,
+.GoalProposal > footer,
+.GoalCard > header,
+.GoalCard > footer,
+.GoalKeyResultHeading,
+.GoalLoopLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.GoalProposal > header > span {
+  color: var(--brain-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.GoalProposalObjective {
+  margin: 18px 0 5px !important;
+  color: var(--brain-ink) !important;
+  font-family: Lora, Georgia, serif;
+  font-size: 17px !important;
+  line-height: 1.5 !important;
+}
+
+.GoalProposalReason {
+  margin-bottom: 18px !important;
+}
+
+.GoalProposalResults {
+  display: grid;
+  gap: 8px;
+}
+
+.GoalProposalResults > div {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--brain-wash);
+  font-size: 11px;
+}
+
+.GoalProposalResults small {
+  color: var(--brain-muted);
+}
+
+.GoalProposal > footer {
+  align-items: flex-end;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--brain-line);
+}
+
+.GoalProposal > footer p {
+  max-width: 540px;
+  margin: 0;
+}
+
+.GoalProposal > footer > div {
+  display: flex;
+  flex-shrink: 0;
+  gap: 7px;
+}
+
+.GoalBuilder > label {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--brain-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.GoalResults {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.GoalResultEditor {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--brain-wash);
+}
+
+.GoalResultEditor > div {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.GoalResultEditor > div:last-child {
+  grid-template-columns: 1fr 2fr;
+}
+
+.GoalBuilder > footer {
+  margin-top: 18px;
+  color: var(--brain-muted);
+  font-size: 11px;
+}
+
+.GoalList {
+  margin-top: 30px;
+}
+
+.GoalCard > header {
+  align-items: flex-start;
+}
+
+.GoalCardActions {
+  display: flex;
+  gap: 6px;
+}
+
+.GoalStatus {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: var(--brain-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.GoalStatus--draft,
+.GoalStatus--paused {
+  color: var(--brain-muted);
+}
+
+.GoalStatus--at_risk {
+  color: #a85b2e;
+}
+
+.GoalMissing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #bd7b34;
+  background: #fff8eb;
+  color: #6b512d;
+  font-size: 11px;
+}
+
+.GoalKeyResults {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.GoalKeyResult {
+  padding: 14px;
+  border: 1px solid var(--brain-line);
+  border-radius: 8px;
+}
+
+.GoalKeyResultHeading span,
+.GoalKeyResult small,
+.GoalCard > footer {
+  color: var(--brain-muted);
+  font-size: 10px;
+}
+
+.GoalMetricTrack {
+  height: 5px;
+  margin: 10px 0 7px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #ebe9e3;
+}
+
+.GoalMetricTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brain-accent);
+}
+
+.GoalLoopLink {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--brain-line);
+  font-size: 10px;
+}
+
+.GoalLoopLink > span {
+  flex: 1;
+}
+
+.GoalLoopLink .is-gap {
+  color: #986323;
+}
+
+.GoalLoopLink select {
+  width: 180px;
+}
+
+.GoalCard > footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--brain-line);
+}
+
 @keyframes brain-pulse {
   50% {
     opacity: 0.3;
@@ -1067,6 +1399,20 @@
 
   .LoopCandidateList article {
     grid-template-columns: 1fr;
+  }
+
+  .GoalImport,
+  .GoalProposalResults > div,
+  .GoalResultEditor > div,
+  .GoalResultEditor > div:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  .GoalLoopLink,
+  .GoalProposal > footer,
+  .GoalCard > header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .LoopSuggestionList button {

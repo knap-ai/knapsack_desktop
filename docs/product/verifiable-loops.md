@@ -159,6 +159,61 @@ Knapsack measures exceptions, reversals, human edits, timing, and downstream
 outcomes. It recommends a maturity change only after the loop meets explicit
 quality and safety thresholds.
 
+## Goals upstream of loops
+
+A loop proves that recurring work reached its declared operational outcome. A
+goal explains why that work matters and whether the broader result moved. These
+are deliberately separate truths: a meeting follow-up can complete perfectly
+while retention remains flat, and retention can improve for reasons unrelated
+to that follow-up.
+
+```text
+Objective
+  -> measurable key result
+    -> driver hypothesis
+      -> verifiable loop
+        -> runs and operational evidence
+  -> authoritative metric observations and strategic progress
+```
+
+Knapsack first turns informal goals, OKRs, plans, and commitments into a
+reviewable draft. The default interaction is confirmation, not composition:
+Knapsack finds the clearest candidate in connected work and presents the
+objective, key results, and provenance for confirmation. Pasting or typing an
+OKR remains an optional fallback. It identifies missing owners, baselines,
+targets, units, deadlines, and sources of truth. It may propose a canonical goal
+and candidate loops, but the user confirms the goal before activation; source
+material is never silently adopted.
+
+A goal contains:
+
+- a stable id, objective, owner, collaborators, status, and review history
+- one or more key results with baseline, target, unit, deadline, direction, and
+  authoritative source
+- constraints and explicit non-goals
+- hypotheses linking loops to key results, including expected contribution,
+  leading versus lagging role, review cadence, and a falsification condition
+- append-only metric observations with source provenance
+
+The initial decomposition flow is:
+
+1. Normalize the objective and preserve ambiguity as visible missing fields.
+2. Separate lagging outcomes from leading indicators and recurring behaviors.
+3. Form a testable driver hypothesis for each proposed loop.
+4. Reuse an existing loop when its outcome and proof contract fit; otherwise
+   propose the smallest new verifiable loop.
+5. Show key results without loop coverage rather than inventing activity.
+6. Review verified loop outcomes beside authoritative metric movement, with
+   uncertain attribution labeled explicitly.
+7. Revise or retire hypotheses and loops that repeatedly complete without
+   moving the intended measure.
+
+Goal progress is calculated from independently sourced metric observations.
+Models cannot write verified readings or mark a goal achieved. Achievement is
+accepted only after every required key result has a verified target reading.
+Loop completion, task volume, confidence, and persuasive narrative never count
+as substitute evidence.
+
 ## Domain model
 
 ### Loop definition

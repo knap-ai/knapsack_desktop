@@ -5,6 +5,10 @@ import {
   formatBrainDocumentContext,
   rankBrainDocuments,
 } from "../src/utils/brainContext.ts";
+import {
+  keyResultProgress,
+  parseGoalProposalResponse,
+} from "../src/api/goals.ts";
 
 const workspace = (documents) => ({
   id: 1,
@@ -79,4 +83,42 @@ test("formatted context retains provenance and bounded source content", () => {
   assert.match(context, /Source record: email-1/);
   assert.match(context, /Content excerpt: I will follow up/);
   assert.ok(context.length < 2600);
+});
+
+test("goal proposals accept strict JSON without silently accepting prose", () => {
+  const proposal = parseGoalProposalResponse(`\`\`\`json
+{"objective":"Raise retention","keyResults":[{"title":"Reach 60%"}]}
+\`\`\``);
+  assert.equal(proposal.objective, "Raise retention");
+  assert.throws(() => parseGoalProposalResponse("Looks good to me"));
+});
+
+test("goal progress uses independently verified readings for either direction", () => {
+  const assessment = {
+    goal: {},
+    missingFields: [],
+    uncoveredKeyResultIds: [],
+    observations: [
+      {
+        id: "observation-1",
+        goalId: "goal-1",
+        keyResultId: "kr-1",
+        value: 30,
+        source: "Authoritative report",
+        sourceRecord: "report:123456",
+        observedAt: 1,
+        verified: true,
+      },
+    ],
+  };
+  assert.equal(
+    keyResultProgress(assessment, {
+      id: "kr-1",
+      title: "Reduce errors",
+      baseline: 50,
+      target: 10,
+      direction: "decrease",
+    }),
+    50,
+  );
 });

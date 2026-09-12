@@ -29,6 +29,8 @@ import { KN_SERVER_HOST } from 'src/utils/constants'
 
 import { invoke } from '@tauri-apps/api/tauri'
 
+import GoalsPanel from './GoalsPanel'
+
 import './style.scss'
 
 interface Attendee {
@@ -48,7 +50,7 @@ interface BrainAnswer {
   text: string
 }
 
-type View = 'ask' | 'today' | 'loops' | 'memory'
+type View = 'ask' | 'today' | 'goals' | 'loops' | 'memory'
 
 const SUGGESTED_QUESTIONS = [
   'What have I promised people recently?',
@@ -427,6 +429,22 @@ const GBrainView: React.FC<{
     )
     return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [workspaces])
+  const goalSourceContext = useMemo(
+    () =>
+      workspaces
+        .flatMap(workspace =>
+          (workspace.documents ?? [])
+            .filter(document => (document.summary || document.contentHash)?.trim())
+            .slice(0, 5)
+            .map(
+              document =>
+                `[${workspace.name}] ${document.documentName}\nSource: ${document.sourceType || 'saved work'}${document.sourceId ? ` (${document.sourceId})` : ''}\n${(document.summary || document.contentHash || '').slice(0, 1600)}`,
+            ),
+        )
+        .slice(0, 30)
+        .join('\n\n'),
+    [workspaces],
+  )
   const suggestedLoops = useMemo(
     () => STARTER_LOOPS.filter(template => !loops.some(loop => loop.id === template.id)),
     [loops],
@@ -1009,6 +1027,7 @@ const GBrainView: React.FC<{
             [
               ['ask', 'Ask'],
               ['today', 'Today'],
+              ['goals', 'Goals'],
               ['loops', 'Loops'],
               ['memory', 'Memory'],
             ] as [View, string][]
@@ -1200,6 +1219,10 @@ const GBrainView: React.FC<{
             )}
           </section>
         </main>
+      )}
+
+      {view === 'goals' && (
+        <GoalsPanel brainRoot={brainRoot} loops={loops} sourceContext={goalSourceContext} />
       )}
 
       {view === 'loops' && (

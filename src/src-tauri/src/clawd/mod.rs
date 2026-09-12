@@ -11,6 +11,7 @@ pub mod gateway_supervisor;
 pub mod gateway_ws;
 pub mod gbrain;
 pub mod gmail;
+pub mod goals;
 pub mod harness;
 pub mod loops;
 pub mod managed_agents;
