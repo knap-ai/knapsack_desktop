@@ -1518,13 +1518,35 @@ fn mobile_presentation_instructions() -> &'static str {
 - If the request needs a decision, end with a clear next step."
 }
 
-fn build_mobile_chat_request(_thread: &Thread, thread_id: u64, text: &str) -> String {
+fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> String {
+  let is_meeting_prep = thread
+    .title
+    .as_deref()
+    .unwrap_or_default()
+    .trim_start()
+    .starts_with("Prep:");
+  let meeting_prep_policy = if is_meeting_prep {
+    "\n\nMeeting prep mode\n- Complete this prep from the supplied calendar, meeting, notes, chat, and saved-knowledge snapshot.\n- Do not call the browser or any other tool.\n- If context is sparse, produce the most useful brief possible and identify the missing context in one short line."
+  } else {
+    ""
+  };
+  let tool_policy = if is_meeting_prep {
+    "For this meeting prep, rely only on the supplied snapshot and do not call tools."
+  } else {
+    "If the request needs information beyond the snapshot, use any tool that is available to you; if none is available, state the gap plainly without mentioning unavailable tools."
+  };
   format!(
-    "{}\n\n{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. If the request needs information beyond the snapshot, use any tool that is available to you; if none is available, state the gap plainly without mentioning unavailable tools.\n\nUser request\n{}",
+    "{}\n\n{}{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. {}\n\nUser request\n{}",
     build_mobile_gbrain_context(thread_id),
     mobile_presentation_instructions(),
+    meeting_prep_policy,
+    tool_policy,
     text
   )
+}
+
+fn mobile_chat_session_key(thread_id: u64) -> String {
+  format!("agent:main:webchat:dm:mobile-chat-{thread_id}")
 }
 
 fn mobile_meeting_detail(
@@ -2417,6 +2439,7 @@ pub async fn send_mobile_chat_message(
   }
 
   let request_text = build_mobile_chat_request(&thread, thread_id, &text);
+  let session_key = mobile_chat_session_key(thread_id);
 
   let mut attachments = Vec::new();
   if !seed_history.is_empty() {
@@ -2424,7 +2447,15 @@ pub async fn send_mobile_chat_message(
   }
 
   let gateway_result =
-    match gateway_client::agent_chat(&request_text, &attachments, None, Some("dm"), None).await {
+    match gateway_client::agent_chat(
+      &request_text,
+      &attachments,
+      None,
+      Some("dm"),
+      Some(&session_key),
+    )
+    .await
+    {
       Ok(result) => result,
       Err(err) => {
         log::error!("Mobile chat gateway request failed: {:?}", err);
@@ -2786,8 +2817,8 @@ pub async fn upload_mobile_recording(
 mod tests {
   use super::{
     build_mobile_chat_request, gateway_history_message_text, gateway_reply_from_result,
-    mobile_seed_history_attachment, mobile_team_history_messages, parse_gateway_payload_text,
-    starter_mobile_team_roster,
+    mobile_chat_session_key, mobile_seed_history_attachment, mobile_team_history_messages,
+    parse_gateway_payload_text, starter_mobile_team_roster,
   };
   use base64::{engine::general_purpose::STANDARD, Engine as _};
   use crate::db::models::thread::{Thread, ThreadType};
@@ -2868,6 +2899,31 @@ mod tests {
     assert!(request.contains("Every list item must start on its own line"));
     assert!(request.contains("## Do now"));
     assert!(request.ends_with("What is on my calendar?"));
+  }
+
+  #[test]
+  fn meeting_prep_uses_snapshot_without_browser_tools() {
+    let thread = Thread {
+      id: Some(43),
+      timestamp: None,
+      hide_follow_up: None,
+      feed_item_id: None,
+      title: Some("Prep: Investor update".to_string()),
+      subtitle: None,
+      thread_type: ThreadType::Chat,
+      recorded: None,
+      saved_transcript: None,
+      prompt_template: None,
+    };
+
+    let request = build_mobile_chat_request(&thread, 43, "Prepare me");
+    assert!(request.contains("Meeting prep mode"));
+    assert!(request.contains("Do not call the browser or any other tool"));
+    assert!(!request.contains("use any tool that is available"));
+    assert_eq!(
+      mobile_chat_session_key(43),
+      "agent:main:webchat:dm:mobile-chat-43"
+    );
   }
 
   #[test]
