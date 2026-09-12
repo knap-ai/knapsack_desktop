@@ -31,6 +31,7 @@
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
     "test:meeting-live-context": "node --test scripts/meeting-live-context.test.cjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",
+    "test:verifiable-loops": "node --test scripts/gbrain-verifiable-loops.test.mjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",
     "tauri": "node scripts/load-env-and-run.cjs tauri",

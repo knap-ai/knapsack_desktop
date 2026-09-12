@@ -2175,7 +2175,25 @@ async fn main() {
       clawd::gbrain::kn_brain_read_page,
       clawd::gbrain::kn_brain_search,
       clawd::gbrain::kn_brain_write_page,
-      clawd::gbrain::kn_brain_default_root
+      clawd::gbrain::kn_brain_default_root,
+      clawd::goals::kn_goal_list,
+      clawd::goals::kn_goal_upsert,
+      clawd::goals::kn_goal_add_observation,
+      clawd::goals::kn_goal_delete,
+      clawd::loops::kn_loop_list_definitions,
+      clawd::loops::kn_loop_list_candidates,
+      clawd::loops::kn_loop_observe_candidate,
+      clawd::loops::kn_loop_discover_email_candidates,
+      clawd::loops::kn_loop_decide_candidate,
+      clawd::loops::kn_loop_upsert_definition,
+      clawd::loops::kn_loop_delete_definition,
+      clawd::loops::kn_loop_list_runs,
+      clawd::loops::kn_loop_start_run,
+      clawd::loops::kn_loop_set_approval,
+      clawd::loops::kn_loop_set_prepared_artifact,
+      clawd::loops::kn_loop_transition_run,
+      clawd::loops::kn_loop_export,
+      clawd::loops::kn_loop_import
     ])
     .manage(UUIDState {
       uuid: StdMutex::new(None),
