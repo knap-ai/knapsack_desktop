@@ -653,6 +653,173 @@
   margin-top: 38px;
 }
 
+.LoopHeaderActions,
+.LoopCandidateActions,
+.LoopRun footer,
+.LoopRun footer > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.LoopCandidateList,
+.LoopRunList {
+  display: grid;
+  gap: 12px;
+}
+
+.LoopCandidateList article,
+.LoopRun {
+  border: 1px solid var(--brain-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(38, 35, 27, 0.035);
+}
+
+.LoopCandidateList article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+}
+
+.LoopCandidateList h3,
+.LoopRun h3 {
+  margin: 5px 0;
+  color: var(--brain-ink);
+  font-family: Lora, Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.LoopCandidateList p,
+.LoopRunNext,
+.LoopRunIdentity {
+  margin: 0;
+  color: var(--brain-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.LoopSignal,
+.LoopConfidence,
+.LoopRunStatus {
+  color: var(--brain-accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.LoopConfidence {
+  display: block;
+  margin-top: 8px;
+  color: var(--brain-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.LoopCandidateActions button,
+.LoopRun button,
+.LoopCard footer button {
+  padding: 7px 10px;
+  border: 1px solid var(--brain-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--brain-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.LoopCandidateActions button.is-primary,
+.LoopRun button.is-primary {
+  border-color: var(--brain-accent);
+  background: var(--brain-accent);
+  color: #fff;
+}
+
+.LoopRun {
+  padding: 17px 19px;
+}
+
+.LoopRun > header,
+.LoopRun > footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.LoopRun > header time {
+  color: var(--brain-muted);
+  font-size: 9px;
+}
+
+.LoopProgress {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 13px 0;
+}
+
+.LoopProgress span {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--brain-line);
+}
+
+.LoopProgress span.is-reached {
+  background: var(--brain-accent);
+}
+
+.LoopRun--blocked .LoopRunStatus,
+.LoopRun--failed .LoopRunStatus {
+  color: #9d3c32;
+}
+
+.LoopRunIdentity {
+  margin-top: 5px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 9px;
+}
+
+.LoopArtifact {
+  margin-top: 14px;
+  border: 1px solid var(--brain-line);
+  border-radius: 8px;
+  background: var(--brain-wash);
+}
+
+.LoopArtifact summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.LoopArtifact .BrainMarkdown {
+  padding: 0 13px 13px;
+}
+
+.LoopEvidenceList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f5ef;
+  font-size: 9px;
+}
+
+.LoopRun > footer {
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--brain-line);
+}
+
 .LoopGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -778,6 +945,11 @@
   font-size: 9px;
 }
 
+.LoopCard footer button {
+  margin-left: auto;
+  padding: 3px 7px;
+}
+
 .LoopSuggestionList {
   border-top: 1px solid var(--brain-line);
 }
@@ -890,6 +1062,10 @@
   }
 
   .LoopSuggestionList article {
+    grid-template-columns: 1fr;
+  }
+
+  .LoopCandidateList article {
     grid-template-columns: 1fr;
   }
 
