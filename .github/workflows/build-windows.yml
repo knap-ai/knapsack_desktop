@@ -41,6 +41,10 @@ jobs:
         working-directory: src
         run: npm install
 
+      - name: Test recording routing and Developer Mode intent
+        working-directory: src
+        run: npm run test:meeting-recording-routing && npm run test:dev-intent
+
       - name: Create .env from example
         working-directory: src
         run: Copy-Item .env.example .env

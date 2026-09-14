@@ -31,8 +31,10 @@ interface NotetakerSidebarProps {
   currentTab: TabChoices
   onTabChange: (tab: TabChoices, subView?: 'meetings' | 'chat') => void
   onQuickNote: () => void
+  isAnyRecording?: boolean
   onConnectCalendar: () => void
   onMeetingSelect?: () => void
+  onMeetingChatSelect?: (threadId: number) => void
   activeView?: 'home' | 'chat'
   onLibraryWorkspaceOpen?: (ws: Workspace) => void
   recordingHandlers?: RecordingContextProps
@@ -233,8 +235,10 @@ function NotetakerSidebar({
   currentTab,
   onTabChange,
   onQuickNote,
+  isAnyRecording = false,
   onConnectCalendar,
   onMeetingSelect,
+  onMeetingChatSelect,
   activeView = 'home',
   onLibraryWorkspaceOpen,
   recordingHandlers,
@@ -411,6 +415,34 @@ function NotetakerSidebar({
     return groups
   }, [feed.feedContent, getMeetingEndTime])
 
+  // Inline meeting chats are separate sessions. Surface a return path in the
+  // persistent sidebar instead of making the user remember which note held it.
+  const meetingChats = useMemo(() => {
+    const rows: { item: FeedItem; key: string; threadId: number }[] = []
+    for (const [key, items] of Object.entries(feed.feedContent || {})) {
+      if (key === STATIONARY_ITEMS) continue
+      for (const item of items) {
+        if (item.id == null) continue
+        const thread = item.threads?.find(t =>
+          t.threadType === ThreadType.MEETING_NOTES &&
+          !!localStorage.getItem(`moltbot_chat_history:meeting:${t.id}`),
+        )
+        if (thread) rows.push({ item, key, threadId: thread.id })
+      }
+    }
+    return rows.sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime()).slice(0, 4)
+  }, [feed.feedContent, currentTab])
+
+  const localRecordings = useMemo(() =>
+    Object.entries(feed.feedContent || {})
+      .flatMap(([key, items]) => key === STATIONARY_ITEMS ? [] : items
+        .filter(item => item.id != null && !item.calendarEvent && item.threads?.some(
+          thread => thread.threadType === ThreadType.MEETING_NOTES,
+        ))
+        .map(item => ({ item, key })))
+      .sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime())
+      .slice(0, 3), [feed.feedContent])
+
   const orderedPastKeys = useMemo(() => {
     const keys = Object.entries(pastNotes)
       .filter(([_, items]) => (items as { item: FeedItem; key: string }[]).length > 0)
@@ -536,11 +568,10 @@ function NotetakerSidebar({
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      aria-hidden="true"
     >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none" />
     </svg>
   )
 
@@ -568,7 +599,7 @@ function NotetakerSidebar({
           </svg>
         </button>
         <div className="notetaker-sidebar__icon-bottom">
-          <button className="notetaker-sidebar__icon-btn" onClick={onQuickNote} title="New note">
+          <button className="notetaker-sidebar__icon-btn notetaker-sidebar__record-action" onClick={onQuickNote} title={isAnyRecording ? 'Open recording' : 'Start recording'} aria-label={isAnyRecording ? 'Open recording' : 'Start recording'}>
             {noteIcon}
           </button>
           <button
@@ -730,6 +761,25 @@ function NotetakerSidebar({
                   ×
                 </button>
               </div>
+              {meetingChats.length > 0 && (
+                <div className="notetaker-sidebar__meeting-chats" aria-label="Scout meeting chats">
+                  <div className="notetaker-sidebar__meeting-chats-heading">Meeting chats · Scout</div>
+                  {meetingChats.map(({ item, key, threadId }) => (
+                    <button
+                      type="button"
+                      key={threadId}
+                      className="notetaker-sidebar__meeting-chat-link notetaker-sidebar__meeting-chat-link--nested"
+                      onClick={() => {
+                        feed.selectFeedItem(key, item.id)
+                        onMeetingChatSelect?.(threadId)
+                      }}
+                    >
+                      <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
+                      <span className="notetaker-sidebar__meeting-chat-tag">{item.threads?.some(t => t.id === threadId && t.recorded) ? 'Recording chat' : 'Meeting chat'}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {teamGroups.map(group => {
                 const members = group.agentIds
                   .map(id => teamAgents.find(agent => agent.id === id))
@@ -818,6 +868,28 @@ function NotetakerSidebar({
         </div>
 
         <div className="notetaker-sidebar__meeting-pane">
+        {localRecordings.length > 0 && (
+          <section className="notetaker-sidebar__meeting-chats" aria-label="Local recordings">
+            <h2 className="notetaker-sidebar__section-title">Recent recordings</h2>
+            {localRecordings.map(({ item, key }) => (
+              <button
+                type="button"
+                key={item.id}
+                className="notetaker-sidebar__meeting-chat-link"
+                onClick={() => {
+                  feed.selectFeedItem(key, item.id)
+                  onMeetingSelect?.()
+                  onTabChange(TabChoices.Meeting, 'meetings')
+                }}
+              >
+                <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
+                <span className="notetaker-sidebar__meeting-chat-tag">
+                  {item.isRecording ? 'Recording now' : item.threads?.some(t => t.recorded) ? 'Saved in Knapsack' : 'Note · recording not started'} · {dayjs(item.timestamp).format('MMM D, h:mm A')}
+                </span>
+              </button>
+            ))}
+          </section>
+        )}
         {/* Connect calendar prompt */}
         {!hasCalendarConnected && (
           <div className="notetaker-sidebar__connect-prompt">
@@ -1193,12 +1265,14 @@ function NotetakerSidebar({
       <div className="notetaker-sidebar__bottom">
         <div className="notetaker-sidebar__bottom-actions">
           <button
-            className="notetaker-sidebar__bottom-action"
+            className="notetaker-sidebar__bottom-action notetaker-sidebar__record-action"
             onClick={onQuickNote}
-            title="New note"
+            title={isAnyRecording ? 'Open recording' : 'Start recording'}
+            aria-label={isAnyRecording ? 'Open recording' : 'Start recording'}
+            data-testid="qa-record-action"
           >
             {noteIcon}
-            <span>New Note</span>
+            <span>{isAnyRecording ? 'Recording' : 'Record'}</span>
           </button>
           <button
             className={`notetaker-sidebar__bottom-action ${isChatActive ? 'notetaker-sidebar__bottom-action--active' : ''}`}

@@ -138,6 +138,7 @@ interface MeetingNotesModeProps {
   key: number
   feedItemId?: number
   thread: IThread
+  meetingChatRequest?: { threadId: number; nonce: number }
   item: FeedItem
   meeting: Meeting | undefined
   timestamp: Date
@@ -168,6 +169,7 @@ interface MeetingNotesModeProps {
 
 const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   thread,
+  meetingChatRequest,
   meeting,
   timestamp,
   runParam,
@@ -205,6 +207,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+  useEffect(() => {
+    if (meetingChatRequest?.threadId === thread.id) setIsMeetingChatOpen(true)
+  }, [meetingChatRequest?.nonce, meetingChatRequest?.threadId, thread.id])
   const [meetingChatInitialInput, setMeetingChatInitialInput] = useState(
     'What should I pay attention to in this meeting?',
   )
@@ -2120,7 +2125,8 @@ Be direct, specific, and concise. No filler text.`
             userName={userName}
             userEmail={userEmail}
             compact
-            title="Ask about this meeting"
+            title="Scout · Meeting chat"
+            agentName="Scout"
             contextPrefix={meetingChatContext}
             initialInput={meetingChatInitialInput}
             chatId={`meeting:${thread.id}`}

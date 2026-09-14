@@ -298,6 +298,12 @@ export function useFeed(
   const emailAutopilotRunRef = useRef<Promise<void> | null>(null)
   const emailAutopilotRerunPendingRef = useRef(false)
   const emailAutopilotCycleMessageKeysRef = useRef(new Set<string>())
+  const quickNoteCreationRef = useRef<ReturnType<IFeed['createNewMeeting']> | null>(null)
+  const calendarCreationRef = useRef(new Map<string, Promise<FeedItem>>())
+  const calendarItemRef = useRef(new Map<string, FeedItem>())
+  const calendarRecordingRef = useRef(new Map<string, ReturnType<IFeed['startCalendarMeeting']>>())
+  const feedContentRef = useRef(feedContent)
+  feedContentRef.current = feedContent
   const connectedEmailAccountEmails = useMemo(
     () => Array.from(new Set(
       Object.values(connections)
@@ -1639,15 +1645,19 @@ export function useFeed(
     return recordingFeedItem?.getTitle()
   }
 
-  const createNewMeeting = async () => {
+  const createNewMeetingOnce = async () => {
     try {
-      const feedItemReturn = await insertFeedItemAPI(new Date().getTime(), 'Untitled Meeting')
+      const startedAt = new Date()
+      const recordingTitle = `Recording · ${startedAt.toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      })}`
+      const feedItemReturn = await insertFeedItemAPI(startedAt.getTime(), recordingTitle)
       const newThread = await createThread(
-        new Date().getTime(),
+        startedAt.getTime(),
         true,
         feedItemReturn.id,
         '',
-        'Untitled Meeting',
+        recordingTitle,
         ThreadType.MEETING_NOTES,
       )
       if (newThread) {
@@ -1718,69 +1728,95 @@ export function useFeed(
     }
   }
 
-  const openCalendarEvent = async (meeting: Meeting) => {
-    try {
+  // A double click (or a tray and sidebar action arriving together) must not
+  // leave an unrecorded duplicate beside the recording that actually started.
+  const createNewMeeting: IFeed['createNewMeeting'] = () => {
+    if (quickNoteCreationRef.current) return quickNoteCreationRef.current
+    const pending = createNewMeetingOnce()
+    quickNoteCreationRef.current = pending
+    const clear = () => {
+      if (quickNoteCreationRef.current === pending) quickNoteCreationRef.current = null
+    }
+    pending.then(clear, clear)
+    return pending
+  }
+
+  const ensureCalendarFeedItem = (meeting: Meeting): Promise<FeedItem> => {
+    const key = `${meeting.calendar_account_email}|${meeting.event_id}`
+    const existing = Object.values(feedContentRef.current).flat().find(item =>
+      item.id != null && item.threads?.some(t => t.threadType === ThreadType.MEETING_NOTES) &&
+      (item.calendarEvent?.event_id === meeting.event_id ||
+        (item.title === meeting.title && Math.abs(item.timestamp.getTime() - meeting.start * 1000) < 60000)),
+    ) || calendarItemRef.current.get(key)
+    if (existing) return Promise.resolve(existing)
+    const pending = calendarCreationRef.current.get(key)
+    if (pending) return pending
+
+    const creation = (async () => {
       const title = meeting.title || 'Untitled Meeting'
       const feedItemReturn = await insertFeedItemAPI(meeting.start * 1000, title)
       const newThread = await createThread(
-        meeting.start * 1000,
-        true,
-        feedItemReturn.id,
-        '',
-        title,
-        ThreadType.MEETING_NOTES,
+        meeting.start * 1000, true, feedItemReturn.id, '', title, ThreadType.MEETING_NOTES,
       )
-      if (newThread) {
-        const thread = {
-          id: newThread.id,
-          date: newThread.timestamp ? new Date(newThread.timestamp) : undefined,
-          hideFollowUp: true,
-          messages: [],
-          isLoading: true,
-          title: newThread.title,
-          subtitle: newThread.subtitle,
-          threadType: newThread.threadType,
-        } as IThread
-        const feedItem = new FeedItem({
-          id: feedItemReturn.id,
-          timestamp: new Date(feedItemReturn.timestamp),
-          threads: [thread],
-          run: undefined,
-          isLoading: false,
-          title: feedItemReturn.title,
-          calendarEvent: meeting,
-        })
-        const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
-        setFeedContent(prevState => {
-          if (!prevState[timelineKey]) {
-            prevState[timelineKey] = []
-          }
-          // Remove the calendar-only placeholder if present
-          prevState[timelineKey] = prevState[timelineKey].filter(
-            item => !(item.calendarEvent?.event_id === meeting.event_id && !item.id),
-          )
-          prevState[timelineKey].push(feedItem)
-          prevState[timelineKey] = KNDateUtils.sortByTimestamp(prevState[timelineKey])
-          return { ...prevState }
-        })
+      if (!newThread) throw new Error('Could not create meeting notes thread')
+      const thread = {
+        id: newThread.id,
+        date: newThread.timestamp ? new Date(newThread.timestamp) : undefined,
+        hideFollowUp: true,
+        messages: [],
+        isLoading: true,
+        title: newThread.title,
+        subtitle: newThread.subtitle,
+        threadType: newThread.threadType,
+      } as IThread
+      const feedItem = new FeedItem({
+        id: feedItemReturn.id,
+        timestamp: new Date(feedItemReturn.timestamp),
+        threads: [thread],
+        run: undefined,
+        isLoading: false,
+        title: feedItemReturn.title,
+        calendarEvent: meeting,
+      })
+      calendarItemRef.current.set(key, feedItem)
+      const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
+      setFeedContent(prevState => ({
+        ...prevState,
+        [timelineKey]: KNDateUtils.sortByTimestamp([
+          ...(prevState[timelineKey] || []).filter(item =>
+            !(item.calendarEvent?.event_id === meeting.event_id && !item.id) &&
+            item.id !== feedItem.id,
+          ),
+          feedItem,
+        ]),
+      }))
+      return feedItem
+    })()
+    calendarCreationRef.current.set(key, creation)
+    const clear = () => calendarCreationRef.current.delete(key)
+    creation.then(clear, clear)
+    return creation
+  }
 
-        setSelectedFeedItem(feedItem)
-        setSubTab(SubTabChoices.Workspace)
-        return { threadId: thread.id, feedItemId: feedItem.id }
-      }
+  const openCalendarEvent = async (meeting: Meeting) => {
+    try {
+      const feedItem = await ensureCalendarFeedItem(meeting)
+      const thread = feedItem.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+      if (!thread) return
+      setSelectedFeedItem(feedItem)
+      setSubTab(SubTabChoices.Workspace)
+      return { threadId: thread.id, feedItemId: feedItem.id }
     } catch (error) {
-      if (error instanceof HttpError) {
-        logError(new Error('openCalendarEvent failed'), {
-          additionalInfo: 'Error occurred while opening calendar event.',
-          error: error.message,
-        })
-        handleErrorContact('Error opening meeting, please try again later.')
-      }
+      logError(new Error('openCalendarEvent failed'), {
+        additionalInfo: 'Error occurred while opening calendar event.',
+        error: error instanceof Error ? error.message : String(error),
+      })
+      handleErrorContact('Error opening meeting, please try again later.')
       throw error
     }
   }
 
-  const startCalendarMeeting = async (item: FeedItem) => {
+  const startCalendarMeetingOnce = async (item: FeedItem) => {
     const saveTranscript = await shouldSaveTranscript()
     const parseNumericEventId = (value: unknown): number => {
       if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -1826,46 +1862,11 @@ export function useFeed(
     if (!item.calendarEvent) return
     const meeting = item.calendarEvent
     try {
-      const title = meeting.title || 'Untitled Meeting'
-      const feedItemReturn = await insertFeedItemAPI(meeting.start * 1000, title)
-      const newThread = await createThread(
-        meeting.start * 1000,
-        true,
-        feedItemReturn.id,
-        '',
-        title,
-        ThreadType.MEETING_NOTES,
-      )
-      if (!newThread) return
-      const thread = {
-        id: newThread.id,
-        date: newThread.timestamp ? new Date(newThread.timestamp) : undefined,
-        hideFollowUp: true,
-        messages: [],
-        isLoading: true,
-        title: newThread.title,
-        subtitle: newThread.subtitle,
-        threadType: newThread.threadType,
-      } as IThread
-      const feedItem = new FeedItem({
-        id: feedItemReturn.id,
-        timestamp: new Date(feedItemReturn.timestamp),
-        threads: [thread],
-        run: undefined,
-        isLoading: false,
-        title: feedItemReturn.title,
-        calendarEvent: meeting,
-      })
-      const timelineKey = KNDateUtils.timelineKeyFromTimestamp(feedItem.timestamp)
-      setFeedContent(prevState => {
-        if (!prevState[timelineKey]) prevState[timelineKey] = []
-        prevState[timelineKey] = prevState[timelineKey].filter(
-          fi => !(fi.calendarEvent?.event_id === meeting.event_id && !fi.id),
-        )
-        prevState[timelineKey].push(feedItem)
-        prevState[timelineKey] = KNDateUtils.sortByTimestamp(prevState[timelineKey])
-        return { ...prevState }
-      })
+      const feedItem = await ensureCalendarFeedItem(meeting)
+      const thread = feedItem.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+      if (!thread) return
+      // setFeedContent is asynchronous; selecting through the old render's
+      // feedContent snapshot would fail for a freshly created item.
       setSelectedFeedItem(feedItem)
       setSubTab(SubTabChoices.Workspace)
       try {
@@ -1895,6 +1896,19 @@ export function useFeed(
       handleErrorContact('Error starting meeting, please try again later.')
       throw error
     }
+  }
+
+  const startCalendarMeeting: IFeed['startCalendarMeeting'] = item => {
+    const key = item.calendarEvent
+      ? `${item.calendarEvent.calendar_account_email}|${item.calendarEvent.event_id}`
+      : `feed:${item.id}`
+    const pending = calendarRecordingRef.current.get(key)
+    if (pending) return pending
+    const recording = startCalendarMeetingOnce(item)
+    calendarRecordingRef.current.set(key, recording)
+    const clear = () => calendarRecordingRef.current.delete(key)
+    recording.then(clear, clear)
+    return recording
   }
 
   const attachNotesToCalendarEvent = async (feedItemId: number, meeting: Meeting) => {

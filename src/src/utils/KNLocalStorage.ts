@@ -35,6 +35,9 @@ export class KNLocalStorage {
   }
 
   private static async saveToFile() {
+    // The live-QA build reads the user's existing profile for realistic UI
+    // coverage, but must never persist its own test navigation or settings.
+    if (import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1') return
     const filePath = await join(this.APP_DIR, this.PROFILE_FILE)
     await writeTextFile(filePath, JSON.stringify(this.data, null, 2), {
       dir: BaseDirectory.Home,

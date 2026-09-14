@@ -30,6 +30,8 @@
     "test:snowflake-session-binding": "node --test scripts/snowflake-session-binding.test.cjs",
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
     "test:meeting-live-context": "node --test scripts/meeting-live-context.test.cjs",
+    "test:meeting-recording-routing": "node --test scripts/meeting-recording-routing.test.cjs",
+    "test:dev-intent": "node --test scripts/dev-intent.test.mjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",
     "test:verifiable-loops": "node --test scripts/gbrain-verifiable-loops.test.mjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
