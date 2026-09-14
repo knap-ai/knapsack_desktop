@@ -130,10 +130,10 @@ function resolveNpmCli() {
 function qaEnv(extra = {}) {
   const env = {
     ...process.env,
-    // Vite only exposes VITE_* values from its own process environment. Keep
-    // the frontend's local-only guards in sync with the gateway-free launcher.
-    VITE_KNAPSACK_LOCAL_QA_SAFE:
-      String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1" ? "1" : "0",
+    // Vite only exposes VITE_* values from its own process environment. Every
+    // isolated dev-QA run uses a cloned database, including gateway-backed
+    // runs, so the frontend must not schedule real background work.
+    VITE_KNAPSACK_LOCAL_QA_SAFE: "1",
     VITE_KN_API_SERVER:
       process.env.VITE_KN_API_SERVER || "https://api.knapsack.ai",
     MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID || "unused",
