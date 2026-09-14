@@ -1153,17 +1153,12 @@ async fn fetch_meeting_end_time(event_id: u64) -> Result<Option<DateTime<Utc>>, 
   }
 }
 
-async fn notify_meeting_ended(app_handle: &tauri::AppHandle) -> Result<(), Error> {
-  println!("Meeting ended before time!");
-  let window = app_handle.get_window(WINDOW_LABEL).unwrap();
-  window.emit("meeting_ended", {}).unwrap();
-
-  // Hide the floating recording indicator pill
-  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
-    let _ = indicator_window.hide();
-  }
-
-  Ok(())
+// The scheduled end is a fallback when the call's microphone activity cannot
+// be distinguished from our own. A small grace period avoids cutting off an
+// ordinary overrun; users can always stop earlier from the recording UI.
+fn auto_stop_due(now: DateTime<Utc>, end: Option<DateTime<Utc>>, mic_drop_since: Option<DateTime<Utc>>) -> bool {
+  mic_drop_since.map_or(false, |since| now - since >= ChronoDuration::seconds(10))
+    || end.map_or(false, |end| now - end >= ChronoDuration::minutes(5))
 }
 
 async fn stream_audio(
@@ -1194,7 +1189,14 @@ async fn stream_audio(
     .clone()
     .unwrap_or_default();
 
-  let meeting_end_time = fetch_meeting_end_time(data.event_id).await?;
+  // A temporary calendar DB failure must not abort microphone capture.
+  let meeting_end_time = match fetch_meeting_end_time(data.event_id).await {
+    Ok(end) => end,
+    Err(err) => {
+      log::warn!("[recording] Scheduled end unavailable: {}", err);
+      None
+    }
+  };
 
   let semaphore = recording_state.input_file_semaphore.clone();
   let is_paused = recording_state.is_paused.clone();
@@ -1324,12 +1326,15 @@ async fn stream_audio(
     .play()
     .map_err(|e| format!("Failed to start audio stream: {}", e))?;
   let start_time = Utc::now();
+  // A note started after a calendar event has already ended must not stop
+  // immediately because of that stale event's timestamp.
+  let scheduled_end = meeting_end_time.filter(|end| *end > start_time);
   let mut mic_users_after_connections = 0;
 
   let mut in_meeting = false;
-  let mut stop_event_called = false; // void duplicate signal call
-  let mut should_stop_time = Utc::now();
-  let mut should_stop_flag = false;
+  let mut mic_drop_since: Option<DateTime<Utc>> = None;
+  let mut last_stop_request: Option<DateTime<Utc>> = None;
+  let mut mic_baseline_sampled = false;
 
   // Heartbeat: every 15 minutes, generate an LLM insight from the transcript so far
   let heartbeat_interval = ChronoDuration::minutes(15);
@@ -1376,41 +1381,32 @@ async fn stream_audio(
       }
     }
 
-    if !should_stop_flag && elapsed_time >= ChronoDuration::seconds(60) {
-      if elapsed_time < ChronoDuration::seconds(61) {
-        // after 1 minute, we should have total number of apps connected to the mic
+    if elapsed_time >= ChronoDuration::seconds(60) {
+      if !mic_baseline_sampled {
         mic_users_after_connections = count_microphone_users();
+        mic_baseline_sampled = true;
       }
-      if should_stop_recording(
-        &mut in_meeting,
-        mic_users_beginning,
-        mic_users_after_connections,
-      ) {
-        should_stop_flag = true;
-        should_stop_time = Utc::now();
-      }
-    } else if should_stop_flag && !stop_event_called {
-      let should_stop: bool = should_stop_recording(
+      let mic_dropped = should_stop_recording(
         &mut in_meeting,
         mic_users_beginning,
         mic_users_after_connections,
       );
-      if !should_stop {
-        should_stop_flag = false;
-      } else if let Some(end_time) = meeting_end_time {
-        if Utc::now() > end_time {
-          handle_stop_events(&app_handle, &recording_state).await;
-          should_stop_flag = false;
-          stop_event_called = true;
-        } else if (Utc::now() - should_stop_time) >= ChronoDuration::seconds(3) {
-          notify_meeting_ended(&app_handle).await;
-          should_stop_flag = false;
-          stop_event_called = true;
-        }
-      } else if (Utc::now() - should_stop_time) >= ChronoDuration::seconds(3) {
-        notify_meeting_ended(&app_handle).await;
-        should_stop_flag = false;
-        stop_event_called = true;
+      if mic_dropped {
+        mic_drop_since.get_or_insert_with(Utc::now);
+      } else {
+        mic_drop_since = None;
+      }
+    }
+
+    let now = Utc::now();
+    if auto_stop_due(now, scheduled_end, mic_drop_since)
+      && last_stop_request.map_or(true, |last| now - last >= ChronoDuration::seconds(5))
+    {
+      // Do not declare success or hide the indicator until the stop endpoint
+      // actually clears is_recording. Re-emit if the meeting view was mounting.
+      last_stop_request = Some(now);
+      if let Err(err) = handle_stop_events(app_handle, &recording_state).await {
+        log::warn!("[recording] Automatic stop request failed: {:?}", err);
       }
     }
   }
@@ -1450,11 +1446,6 @@ async fn handle_stop_events(
       return Ok(());
     }
   };
-
-  // Hide the floating recording indicator pill
-  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
-    let _ = indicator_window.hide();
-  }
 
   let active_thread_id = {
     let thread_id_guard = recording_state.thread_id.lock().unwrap();
@@ -1716,6 +1707,17 @@ mod tests {
     // After first check, should enter meeting state
     in_meeting_state = true;
     assert_eq!(in_meeting_state, true);
+  }
+
+  #[test]
+  fn automatic_stop_requires_sustained_call_end_or_scheduled_grace() {
+    let now = Utc::now();
+    assert!(!auto_stop_due(now, None, None));
+    assert!(!auto_stop_due(now, None, Some(now - ChronoDuration::seconds(9))));
+    assert!(auto_stop_due(now, None, Some(now - ChronoDuration::seconds(10))));
+    assert!(!auto_stop_due(now, Some(now - ChronoDuration::minutes(4)), None));
+    assert!(auto_stop_due(now, Some(now - ChronoDuration::minutes(5)), None));
+    assert!(!auto_stop_due(now, Some(now + ChronoDuration::minutes(20)), None));
   }
 
   #[test]

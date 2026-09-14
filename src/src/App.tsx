@@ -808,6 +808,9 @@ function App() {
 
     const unlistenAutoOpenFeedItemPromise = listen('open_feed_item', async () => {
       feedRef.current.handleClickRecording()
+      // The meeting note view owns the auto-stop listener. Selecting the feed
+      // item alone does not mount it when the user is in Chat or Email.
+      window.dispatchEvent(new Event('clawd-open-meeting'))
     })
 
     const unlistenFetchEmailPromise = listen(
