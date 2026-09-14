@@ -116,7 +116,10 @@ final class MobileAPI {
 
   func listChats() async throws -> [MobileChatSummary] {
     do {
-      let chats: [MobileChatSummary] = try await fetch(path: "/api/knapsack/mobile/chats")
+      let chats: [MobileChatSummary] = try await fetch(
+        path: "/api/knapsack/mobile/chats",
+        timeout: 30
+      )
       try? saveFallbackChats(chats)
       return chats
     } catch {
@@ -439,9 +442,13 @@ final class MobileAPI {
     return url
   }
 
-  private func fetch<T: Codable>(path: String, queryItems: [URLQueryItem] = []) async throws -> T {
+  private func fetch<T: Codable>(
+    path: String,
+    queryItems: [URLQueryItem] = [],
+    timeout: TimeInterval? = nil
+  ) async throws -> T {
     var request = URLRequest(url: try requestURL(path: path, queryItems: queryItems))
-    request.timeoutInterval = requestTimeout
+    request.timeoutInterval = timeout ?? requestTimeout
     applyAuthentication(to: &request)
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {

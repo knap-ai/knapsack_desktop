@@ -1792,7 +1792,7 @@ fn gateway_history_message_text(message: &Value) -> Option<String> {
 }
 
 fn mobile_team_history_messages(history: &Value) -> Vec<MobileChatMessage> {
-  let now = chrono::Utc::now().timestamp_millis();
+  let now = chrono::Utc::now().timestamp();
   history
     .get("messages")
     .and_then(Value::as_array)
@@ -1805,13 +1805,7 @@ fn mobile_team_history_messages(history: &Value) -> Vec<MobileChatMessage> {
         return None;
       }
       let content = gateway_history_message_text(message)?;
-      let timestamp = message
-        .get("timestamp")
-        .and_then(|value| {
-          value
-            .as_i64()
-            .or_else(|| value.as_str().and_then(|raw| raw.parse::<i64>().ok()))
-        })
+      let timestamp = gateway_timestamp_seconds(message.get("timestamp"))
         .unwrap_or(now + index as i64);
       Some(MobileChatMessage {
         id: message.get("id").and_then(Value::as_u64),
@@ -1918,6 +1912,95 @@ fn merged_mobile_chats() -> Result<Vec<MobileChatSummary>, Error> {
   chats.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
   chats.truncate(30);
   Ok(chats)
+}
+
+const DESKTOP_CHAT_ID_FLAG: u64 = 1 << 63;
+
+fn desktop_chat_session_allowed(key: &str) -> bool {
+  let Some(suffix) = key.strip_prefix("agent:main:webchat:dm:") else {
+    return false;
+  };
+  suffix == "ui" || suffix.starts_with("ui-agent-")
+}
+
+fn desktop_chat_id(key: &str) -> u64 {
+  let hash = key.bytes().fold(0xcbf29ce484222325_u64, |hash, byte| {
+    (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+  });
+  DESKTOP_CHAT_ID_FLAG | (hash & !DESKTOP_CHAT_ID_FLAG)
+}
+
+fn desktop_chat_title(key: &str) -> String {
+  match key.strip_prefix("agent:main:webchat:dm:ui-agent-") {
+    Some(agent) => {
+      let roster = load_mobile_team_roster().unwrap_or_else(|_| starter_mobile_team_roster());
+      roster
+        .agents
+        .iter()
+        .find(|candidate| candidate.id == agent)
+        .map(|candidate| candidate.name.clone())
+        .unwrap_or_else(|| agent.replace('-', " "))
+    }
+    None => "Desktop chat".to_string(),
+  }
+}
+
+fn desktop_chat_thread(key: &str, updated_at: i64) -> Thread {
+  Thread {
+    id: Some(desktop_chat_id(key)),
+    timestamp: Some(updated_at),
+    hide_follow_up: Some(false),
+    feed_item_id: None,
+    title: Some(desktop_chat_title(key)),
+    subtitle: Some("Desktop conversation".to_string()),
+    thread_type: ThreadType::Chat,
+    recorded: Some(false),
+    saved_transcript: None,
+    prompt_template: None,
+  }
+}
+
+fn gateway_timestamp_seconds(value: Option<&Value>) -> Option<i64> {
+  let raw = value.and_then(|value| value.as_i64().or_else(|| value.as_str()?.parse().ok()))?;
+  Some(if raw > 10_000_000_000 { raw / 1000 } else { raw })
+}
+
+fn desktop_chat_detail(key: &str, history: &Value, updated_at: i64) -> MobileChatDetail {
+  let messages = mobile_team_history_messages(history);
+  let updated_at = messages.last().map(|message| message.timestamp).unwrap_or(updated_at);
+  MobileChatDetail {
+    thread: desktop_chat_thread(key, updated_at),
+    messages,
+    updated_at,
+  }
+}
+
+async fn desktop_chat_sessions() -> Result<Vec<(String, i64)>, String> {
+  let response = gateway_client::sessions_list(None, 500).await?;
+  let mut sessions = response
+    .get("sessions")
+    .and_then(Value::as_array)
+    .into_iter()
+    .flatten()
+    .filter_map(|session| {
+      let key = session.get("key")?.as_str()?;
+      desktop_chat_session_allowed(key).then(|| {
+        (
+          key.to_string(),
+          gateway_timestamp_seconds(session.get("updatedAt")).unwrap_or(0),
+        )
+      })
+    })
+    .collect::<Vec<_>>();
+  sessions.sort_by(|left, right| right.1.cmp(&left.1));
+  Ok(sessions)
+}
+
+async fn find_desktop_chat_session(thread_id: u64) -> Result<Option<(String, i64)>, String> {
+  Ok(desktop_chat_sessions()
+    .await?
+    .into_iter()
+    .find(|(key, _)| desktop_chat_id(key) == thread_id))
 }
 
 fn feed_backed_mobile_chat_detail(thread_id: u64) -> Result<Option<MobileChatDetail>, Error> {
@@ -2222,7 +2305,7 @@ pub async fn get_mobile_gbrain_page(query: web::Query<MobileBrainPageQuery>) -> 
 
 #[get("/api/knapsack/mobile/chats")]
 pub async fn list_mobile_chats() -> impl Responder {
-  let chats = match merged_mobile_chats() {
+  let mut chats = match merged_mobile_chats() {
     Ok(chats) => chats,
     Err(err) => {
       log::error!("Failed to list threads for mobile chats: {:?}", err);
@@ -2233,6 +2316,31 @@ pub async fn list_mobile_chats() -> impl Responder {
     }
   };
 
+  if let Ok(sessions) = desktop_chat_sessions().await {
+    let histories = futures_util::stream::iter(sessions.into_iter().take(12))
+      .map(|(key, updated_at)| async move {
+        let history = gateway_client::chat_history(&key, None, 100).await;
+        (key, updated_at, history)
+      })
+      .buffer_unordered(4)
+      .collect::<Vec<_>>()
+      .await;
+    for (key, updated_at, history) in histories {
+      if let Ok(history) = history {
+        let detail = desktop_chat_detail(&key, &history, updated_at);
+        if !detail.messages.is_empty() {
+          chats.push(MobileChatSummary {
+            thread: detail.thread,
+            preview: detail.messages.last().map(|message| message.content.clone()),
+            updated_at: detail.updated_at,
+            message_count: detail.messages.len(),
+          });
+        }
+      }
+    }
+    chats.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+  }
+
   HttpResponse::Ok().json(json!({
     "success": true,
     "data": chats
@@ -2242,6 +2350,18 @@ pub async fn list_mobile_chats() -> impl Responder {
 #[get("/api/knapsack/mobile/chats/{thread_id}")]
 pub async fn get_mobile_chat(path: web::Path<u64>) -> impl Responder {
   let thread_id = path.into_inner();
+  if thread_id & DESKTOP_CHAT_ID_FLAG != 0 {
+    let Ok(Some((key, updated_at))) = find_desktop_chat_session(thread_id).await else {
+      return HttpResponse::NotFound().json(json!({"success": false, "error": "Desktop chat not found"}));
+    };
+    return match gateway_client::chat_history(&key, None, 100).await {
+      Ok(history) => HttpResponse::Ok().json(json!({
+        "success": true,
+        "data": desktop_chat_detail(&key, &history, updated_at)
+      })),
+      Err(_) => HttpResponse::BadGateway().json(json!({"success": false, "error": "Desktop chat is unavailable"})),
+    };
+  }
   let detail = match Thread::find_by_id(thread_id) {
     Ok(Some(thread)) => {
       if !matches!(thread.thread_type, ThreadType::Chat) {
@@ -2363,6 +2483,26 @@ pub async fn send_mobile_chat_message(
       "success": false,
       "error": "Message text is required"
     }));
+  }
+
+  if thread_id & DESKTOP_CHAT_ID_FLAG != 0 {
+    let Ok(Some((key, updated_at))) = find_desktop_chat_session(thread_id).await else {
+      return HttpResponse::NotFound().json(json!({"success": false, "error": "Desktop chat not found"}));
+    };
+    let result = match gateway_client::agent_chat(&text, &[], None, Some("dm"), Some(&key)).await {
+      Ok(result) => result,
+      Err(_) => return HttpResponse::BadGateway().json(json!({"success": false, "error": "Desktop chat is unavailable"})),
+    };
+    if gateway_reply_from_result(&result).is_none() {
+      return HttpResponse::BadGateway().json(json!({"success": false, "error": "Desktop chat did not return a response"}));
+    }
+    return match gateway_client::chat_history(&key, None, 100).await {
+      Ok(history) => HttpResponse::Ok().json(json!({
+        "success": true,
+        "data": desktop_chat_detail(&key, &history, updated_at)
+      })),
+      Err(_) => HttpResponse::BadGateway().json(json!({"success": false, "error": "Desktop reply was sent but history could not be loaded"})),
+    };
   }
 
   let thread = match Thread::find_by_id(thread_id) {
@@ -2816,7 +2956,8 @@ pub async fn upload_mobile_recording(
 #[cfg(test)]
 mod tests {
   use super::{
-    build_mobile_chat_request, gateway_history_message_text, gateway_reply_from_result,
+    build_mobile_chat_request, desktop_chat_detail, desktop_chat_id,
+    desktop_chat_session_allowed, gateway_history_message_text, gateway_reply_from_result,
     mobile_chat_session_key, mobile_seed_history_attachment, mobile_team_history_messages,
     parse_gateway_payload_text, starter_mobile_team_roster,
   };
@@ -2924,6 +3065,28 @@ mod tests {
       mobile_chat_session_key(43),
       "agent:main:webchat:dm:mobile-chat-43"
     );
+  }
+
+  #[test]
+  fn desktop_chat_bridge_reuses_only_desktop_ui_sessions() {
+    let main = "agent:main:webchat:dm:ui";
+    let scout = "agent:main:webchat:dm:ui-agent-scout";
+    assert!(desktop_chat_session_allowed(main));
+    assert!(desktop_chat_session_allowed(scout));
+    assert!(!desktop_chat_session_allowed("agent:main:slack:channel:private"));
+    assert!(!desktop_chat_session_allowed("agent:main:webchat:dm:mobile-chat-1"));
+    assert_ne!(desktop_chat_id(main), desktop_chat_id(scout));
+
+    let history = json!({"messages": [
+      {"role": "user", "content": "Question", "timestamp": 1_780_000_000_000_i64},
+      {"role": "assistant", "content": "Answer", "timestamp": 1_780_000_001_000_i64}
+    ]});
+    let detail = desktop_chat_detail(scout, &history, 0);
+    assert_eq!(detail.thread.id, Some(desktop_chat_id(scout)));
+    assert!(detail.thread.title.as_deref().is_some_and(|title| !title.is_empty()));
+    assert_eq!(detail.messages.len(), 2);
+    assert_eq!(detail.messages[1].content, "Answer");
+    assert_eq!(detail.updated_at, 1_780_000_001);
   }
 
   #[test]

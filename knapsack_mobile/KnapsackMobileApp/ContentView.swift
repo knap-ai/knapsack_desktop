@@ -35,6 +35,7 @@ struct ContentView: View {
   @StateObject private var viewModel = MeetingListViewModel()
   @StateObject private var discovery = DesktopDiscoveryCoordinator()
   @StateObject private var recorder = PhoneRecorder()
+  @State private var activeRecordingMeetingID: UInt64?
   @StateObject private var watchSync = WatchSyncCoordinator.shared
   @State private var draftNotes = ""
   @State private var draftChatMessage = ""
@@ -251,6 +252,8 @@ struct ContentView: View {
         let reconnected = await viewModel.refreshConnectionStatus()
         if reconnected {
           await viewModel.refresh()
+        } else if selectedPane == .chats {
+          await viewModel.refreshChats()
         }
       }
     }
@@ -268,6 +271,8 @@ struct ContentView: View {
         let reconnected = await viewModel.refreshConnectionStatus()
         if reconnected {
           await viewModel.refresh()
+        } else if selectedPane == .chats {
+          await viewModel.refreshChats()
         }
       }
     }
@@ -405,6 +410,7 @@ struct ContentView: View {
     pageScrollView {
       VStack(alignment: .leading, spacing: 22) {
         notesHeader
+        adHocRecordingAction
         nextCallCard
         laterMeetingsSection
         searchBar
@@ -436,6 +442,39 @@ struct ContentView: View {
     ) {
       connectionStatusPill
     }
+  }
+
+  private var adHocRecordingAction: some View {
+    HStack(spacing: 14) {
+      Image(systemName: recorder.isRecording ? "waveform" : "mic.fill")
+        .font(.system(size: 20, weight: .semibold))
+        .foregroundStyle(recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink)
+        .frame(width: 44, height: 44)
+        .background(Circle().fill(KnapsackBrand.paper))
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(recorder.isRecording ? "Recording in progress" : "New recording")
+          .font(KnapsackBrand.inter(17, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+        Text(recorder.isRecording ? "Tap Finish to save this conversation." : "Capture a call or conversation not on your calendar.")
+          .font(KnapsackBrand.inter(13))
+          .foregroundStyle(KnapsackBrand.slate)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 0)
+
+      Button(recorder.isRecording ? "Finish" : "Record") {
+        toggleMeetingRecording(adHoc: true)
+      }
+      .brandPill(
+        background: recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink,
+        foreground: .white
+      )
+    }
+    .padding(16)
+    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white))
+    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(KnapsackBrand.line, lineWidth: 1))
   }
 
   private var autopilotHeader: some View {
@@ -2640,7 +2679,7 @@ struct ContentView: View {
   }
 
   private var recentChats: [MobileChatSummary] {
-    filteredChats.filter { !isVirtualEmployeeChat($0) }
+    filteredChats
   }
 
   private func isVirtualEmployeeChat(_ chat: MobileChatSummary) -> Bool {
@@ -3284,15 +3323,18 @@ struct ContentView: View {
       }
   }
 
-  private func toggleMeetingRecording() {
+  private func toggleMeetingRecording(adHoc: Bool = false) {
     if recorder.isRecording {
       recorder.stop()
       guard let fileURL = recorder.currentFileURL else { return }
+      let meetingID = activeRecordingMeetingID
+      activeRecordingMeetingID = nil
       Task {
         await viewModel.uploadRecording(
           fileURL: fileURL,
           startedAt: recorder.recordingStartedAt,
-          endedAt: recorder.recordingEndedAt
+          endedAt: recorder.recordingEndedAt,
+          meetingID: meetingID
         )
       }
       return
@@ -3300,11 +3342,13 @@ struct ContentView: View {
 
     Task {
       do {
-        let meeting = await viewModel.createMeetingForRecordingIfNeeded()
-        if let meetingID = meeting?.id {
-          _ = try await awaitStatusUpdate(for: meetingID, status: .recording)
-        }
+        let meeting = adHoc
+          ? await viewModel.createAdHocMeetingForRecording()
+          : await viewModel.createMeetingForRecordingIfNeeded()
+        guard let meeting else { return }
         try await recorder.start()
+        activeRecordingMeetingID = meeting.id
+        _ = try? await awaitStatusUpdate(for: meeting.id, status: .recording)
       } catch {
         viewModel.errorMessage = error.localizedDescription
       }

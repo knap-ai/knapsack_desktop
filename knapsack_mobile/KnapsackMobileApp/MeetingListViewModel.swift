@@ -429,7 +429,7 @@ final class MeetingListViewModel: ObservableObject {
           sourceDevice: "iphone"
         )
         selectedMeeting = created
-        await refresh()
+        meetings.insert(created, at: 0)
         statusMessage = "Ready to record \(created.thread.title ?? "your next meeting")."
         return created
       } catch {
@@ -443,8 +443,25 @@ final class MeetingListViewModel: ObservableObject {
     do {
       let created = try await api.createMeeting(title: "Recorded from iPhone", subtitle: nil, sourceDevice: "iphone")
       selectedMeeting = created
-      await refresh()
+      meetings.insert(created, at: 0)
       statusMessage = "Prepared meeting \(created.id) for recording."
+      return created
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+      return nil
+    }
+  }
+
+  func createAdHocMeetingForRecording() async -> MobileMeetingDetail? {
+    do {
+      let created = try await api.createMeeting(
+        title: "Ad hoc recording",
+        subtitle: Date().formatted(date: .abbreviated, time: .shortened),
+        sourceDevice: "iphone"
+      )
+      selectedMeeting = created
+      meetings.insert(created, at: 0)
+      statusMessage = "Ready to record a new conversation."
       return created
     } catch {
       errorMessage = friendlyMessage(for: error)
@@ -558,8 +575,17 @@ final class MeetingListViewModel: ObservableObject {
     }
   }
 
-  func uploadRecording(fileURL: URL, startedAt: Date?, endedAt: Date?) async {
-    guard let meeting = await createMeetingForRecordingIfNeeded() else { return }
+  func uploadRecording(fileURL: URL, startedAt: Date?, endedAt: Date?, meetingID: UInt64? = nil) async {
+    let meeting: MobileMeetingDetail?
+    if let meetingID {
+      meeting = try? await api.getMeeting(threadID: meetingID)
+    } else {
+      meeting = await createMeetingForRecordingIfNeeded()
+    }
+    guard let meeting else {
+      errorMessage = "The recording was saved on this phone, but its meeting could not be found for upload."
+      return
+    }
     do {
       _ = try await api.updateStatus(
         threadID: meeting.id,
@@ -599,6 +625,20 @@ final class MeetingListViewModel: ObservableObject {
       selectedChat = try await api.getChat(threadID: chat.id)
       statusMessage = "Loaded chat \(chat.id)."
       errorMessage = nil
+    } catch {
+      errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshChats() async {
+    guard isDesktopReachable else { return }
+    do {
+      let latest = try await api.listChats()
+      chats = latest.sorted { $0.updatedAt > $1.updatedAt }
+      if let selectedID = selectedChat?.id,
+         let refreshed = try? await api.getChat(threadID: selectedID) {
+        selectedChat = refreshed
+      }
     } catch {
       errorMessage = friendlyMessage(for: error)
     }
