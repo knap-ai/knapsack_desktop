@@ -641,7 +641,7 @@ export function useAutomations({
 
   // On load
   useEffect(() => {
-    if (userEmail) {
+    if (userEmail && import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE !== '1') {
       scheduleRuns(userEmail).finally(() => {
         syncAutomations()
       })

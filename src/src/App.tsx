@@ -67,6 +67,10 @@ import {
 } from './utils/permissions/google'
 import { hasGoogleCalendar } from 'src/api/connections'
 
+// The isolated live-QA app may read connected calendars, but must not schedule
+// production automations or proactively send work from its cloned database.
+const LOCAL_QA_SAFE = import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE === '1'
+
 export type CreateAutomationProps = {
   uuid?: string
   name: string
@@ -741,10 +745,11 @@ function App() {
           })
 
           await syncMeetings()
-          await scheduleRuns(userEmail)
-          await syncAutomations()
-          // Check for upcoming meetings that need prep notifications
-          backgroundNotificationsRef.current.handleCalendarSyncComplete()
+          if (!LOCAL_QA_SAFE) {
+            await scheduleRuns(userEmail)
+            await syncAutomations()
+            backgroundNotificationsRef.current.handleCalendarSyncComplete()
+          }
         } else {
           KNAnalytics.trackEvent('CalendarSynced', {
             source: 'google',
@@ -763,22 +768,24 @@ function App() {
       feed.refreshFeedItems()
       if (auth.profile?.email) {
         const email = auth.profile.email
-        const result = await updateLastSeen(email)
-        if (
-          auth.profile.sharing_permission === 0 &&
-          isSharingEnabled('notes', 'knapsack', result.sharing_permission)
-        ) {
-          uploadAllData(
-            auth.profile.uuid,
-            isSharingEnabled('transcripts', 'knapsack', result.sharing_permission),
-          )
-        }
-        if (result.success && result.sharing_permission !== undefined) {
-          const currentProfile = auth.profile
-          auth.updateProfile({
-            ...currentProfile,
-            sharing_permission: result.sharing_permission,
-          })
+        if (!LOCAL_QA_SAFE) {
+          const result = await updateLastSeen(email)
+          if (
+            auth.profile.sharing_permission === 0 &&
+            isSharingEnabled('notes', 'knapsack', result.sharing_permission)
+          ) {
+            uploadAllData(
+              auth.profile.uuid,
+              isSharingEnabled('transcripts', 'knapsack', result.sharing_permission),
+            )
+          }
+          if (result.success && result.sharing_permission !== undefined) {
+            const currentProfile = auth.profile
+            auth.updateProfile({
+              ...currentProfile,
+              sharing_permission: result.sharing_permission,
+            })
+          }
         }
 
         // Re-read the persisted inventory on focus. The listener otherwise
@@ -786,7 +793,10 @@ function App() {
         // which can be empty even after the account list finishes loading.
         try {
           const refreshedConnections = await fetchConnections(email)
-          await syncConnections(email, refreshedConnections)
+          await syncConnections(email, LOCAL_QA_SAFE
+            ? Object.fromEntries(Object.entries(refreshedConnections).filter(([, connection]) =>
+                connection.key === ConnectionKeys.GOOGLE_CALENDAR))
+            : refreshedConnections)
         } catch (error) {
           logError(new Error('Could not refresh connections on focus'), {
             additionalInfo: JSON.stringify(event.payload),
@@ -807,6 +817,7 @@ function App() {
         account_email?: string
         owner_email?: string
       }>) => {
+        if (LOCAL_QA_SAFE) return
         if (event.payload.success) {
           await feedRef.current.runEmailAutopilot()
           // Check if new emails warrant a background notification
@@ -1054,10 +1065,12 @@ function App() {
       const date = new Date()
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
-      handleNotificationsScheduleService(date)
-      handleAutomationsFeedScheduleService(date)
-      checkMorningBriefing(date)
-      checkProactiveCheckin(date)
+      if (!LOCAL_QA_SAFE) {
+        handleNotificationsScheduleService(date)
+        handleAutomationsFeedScheduleService(date)
+        checkMorningBriefing(date)
+        checkProactiveCheckin(date)
+      }
       updateMeetingStatuses(currentTime)
     }, MINUTE_MS)
 
@@ -1121,7 +1134,10 @@ function App() {
       const handlers = periodicSyncRef.current
       try {
         const refreshedConnections = await handlers.fetchConnections(userEmail)
-        await handlers.syncConnections(userEmail, refreshedConnections)
+        await handlers.syncConnections(userEmail, LOCAL_QA_SAFE
+          ? Object.fromEntries(Object.entries(refreshedConnections).filter(([, connection]) =>
+              connection.key === ConnectionKeys.GOOGLE_CALENDAR))
+          : refreshedConnections)
       } catch (error) {
         logError(new Error('Could not refresh connection inventory'), {
           additionalInfo: 'Periodic background sync will retry on the next cycle.',
@@ -1129,8 +1145,10 @@ function App() {
         })
       }
       await handlers.syncMeetings()
-      await handlers.scheduleRuns(userEmail)
-      await handlers.syncAutomations()
+      if (!LOCAL_QA_SAFE) {
+        await handlers.scheduleRuns(userEmail)
+        await handlers.syncAutomations()
+      }
     }
 
     // Do not leave newly launched or long-suspended apps showing a stale

@@ -3,6 +3,8 @@
 use actix_web::web::{self, Data};
 use serde_json::json;
 use std::sync::Arc;
+use std::collections::HashMap;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::{Mutex, RwLock};
 
 use actix_web::{get, post, put, web::Json, HttpResponse, Responder, Result};
@@ -11,6 +13,10 @@ use serde::{Deserialize, Serialize};
 use crate::api::document::DisplayDocument;
 use crate::clawd::service::should_defer_optional_startup_api_work;
 use crate::db::models::{calendar_event::CalendarEvent, document::Document, email::Email};
+use crate::db::models::{user::User, user_connection::UserConnection};
+use crate::connections::google::calendar::fetch_calendar;
+use crate::connections::google::constants::GOOGLE_CALENDAR_SCOPE;
+use crate::ConnectionsData;
 
 use crate::user::UserInfo;
 
@@ -22,6 +28,9 @@ pub struct RecentFile {
 
 lazy_static! {
   static ref RECENT_FILES: Mutex<Vec<RecentFile>> = Mutex::new(Vec::new());
+  // A cached calendar read can recover a missed renderer sync. Throttle failed
+  // attempts so a disconnected account does not retry on every sidebar read.
+  static ref CALENDAR_REFRESH_ATTEMPTS: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
 }
 
 const RECENT_FILES_NUM_SLICE: usize = 20;
@@ -200,7 +209,51 @@ struct CalendarGetEventsParams {
 }
 
 #[get("/api/knapsack/calendar/get_events")]
-async fn get_events(query: web::Query<CalendarGetEventsParams>) -> impl Responder {
+async fn get_events(
+  query: web::Query<CalendarGetEventsParams>,
+  app_handle: Data<tauri::AppHandle>,
+  connections_data: Data<Arc<Mutex<ConnectionsData>>>,
+) -> impl Responder {
+  // A linked account is not proof its event cache is fresh. On a cache read,
+  // request a background refresh for stale Google accounts even if the UI's
+  // periodic connection loop was missed while the machine slept.
+  let app_handle = app_handle.get_ref().clone();
+  let connections_data = connections_data.get_ref().clone();
+  tauri::async_runtime::spawn(async move {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    if let Ok(users) = User::find_all_with_email() {
+      for user in users {
+        if let Ok(connections) = UserConnection::find_calendar_connections_by_user_email(
+          user.email.clone(), GOOGLE_CALENDAR_SCOPE.to_string(),
+        ) {
+          for connection in connections {
+            if connection.last_synced.is_some_and(|synced| now.saturating_sub(synced) < 15 * 60) {
+              continue;
+            }
+            let account = connection.calendar_account_email.trim().to_string();
+            if account.is_empty() { continue; }
+            let key = format!("{}|{}", user.email, account);
+            let should_attempt = {
+              let mut attempts = CALENDAR_REFRESH_ATTEMPTS.lock().await;
+              if attempts.get(&key).is_some_and(|attempt| attempt.elapsed() < Duration::from_secs(5 * 60)) {
+                false
+              } else {
+                attempts.insert(key, Instant::now());
+                true
+              }
+            };
+            if should_attempt {
+              if let Err(error) = fetch_calendar(
+                user.email.clone(), account.clone(), app_handle.clone(), connections_data.clone(),
+              ).await {
+                log::warn!("Stale calendar refresh for {} failed: {:?}", account, error);
+              }
+            }
+          }
+        }
+      }
+    }
+  });
   let events = CalendarEvent::find_by_timestamp_range(query.start_timestamp, query.end_timestamp);
 
   let display_docs: Vec<CalendarSearchResponseDoc> = events

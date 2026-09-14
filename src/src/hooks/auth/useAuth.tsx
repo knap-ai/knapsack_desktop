@@ -76,7 +76,7 @@ export const useAuth = (): IAuth => {
   const updateProfile = useCallback(async (profile?: Profile) => {
     const updatedProfile = await fetchProfileImg(profile)
     KNLocalStorage.setItem(PROFILE_KEY, updatedProfile)
-    if (updatedProfile) {
+    if (updatedProfile && import.meta.env.VITE_KNAPSACK_LOCAL_QA_SAFE !== '1') {
       const result = await updateLastSeen(updatedProfile.email)
       if (result.success && result.sharing_permission !== undefined) {
         updatedProfile.sharing_permission = result.sharing_permission

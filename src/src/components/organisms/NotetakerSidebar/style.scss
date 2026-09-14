@@ -1171,6 +1171,68 @@ $ks-red: #c14841;
     }
   }
 
+  &__record-action {
+    color: #a2473f;
+
+    &:hover {
+      color: #87352e;
+      background: #fff1ef;
+    }
+  }
+
+  &__meeting-chats {
+    padding: 14px 16px 8px;
+    border-bottom: 1px solid $ks-border;
+  }
+
+  &__meeting-chats-heading {
+    color: $ks-text-muted;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__meeting-chat-link {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid $ks-border;
+    border-radius: 8px;
+    background: white;
+    color: $ks-text-secondary;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: $ks-bg-hover;
+    }
+
+    &--nested {
+      margin-top: 4px;
+      margin-left: 12px;
+      width: calc(100% - 12px);
+      border-color: transparent;
+      background: $ks-bg-hover;
+    }
+  }
+
+  &__meeting-chat-title {
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__meeting-chat-tag {
+    color: $ks-text-muted;
+    font-size: 10px;
+  }
+
   &__version {
     font-size: 10px;
     color: $ks-text-muted;

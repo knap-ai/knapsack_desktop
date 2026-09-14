@@ -130,6 +130,10 @@ function resolveNpmCli() {
 function qaEnv(extra = {}) {
   const env = {
     ...process.env,
+    // Vite only exposes VITE_* values from its own process environment. Every
+    // isolated dev-QA run uses a cloned database, including gateway-backed
+    // runs, so the frontend must not schedule real background work.
+    VITE_KNAPSACK_LOCAL_QA_SAFE: "1",
     VITE_KN_API_SERVER:
       process.env.VITE_KN_API_SERVER || "https://api.knapsack.ai",
     MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID || "unused",
@@ -323,6 +327,9 @@ function seedQaConfigFromProd() {
     if (prodConfig[section] !== undefined) {
       next[section] = cloneJson(prodConfig[section]);
     }
+  }
+  if (String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1") {
+    next.channels = {};
   }
 
   // Let the desktop gateway discover bundled plugins from the channel config
@@ -1119,13 +1126,16 @@ function syncDevClawdbotResources() {
 }
 
 async function main() {
+  const localOnly = String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1";
   backupExistingLaunchAgentIfNeeded();
   ensureRootNodeModules();
   runChecked(process.execPath, [path.join(projectDir, "scripts", "fix-rollup-native.cjs")]);
-  runChecked(process.execPath, [
-    path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
-  ]);
-  syncDevClawdbotResources();
+  if (!localOnly) {
+    runChecked(process.execPath, [
+      path.join(projectDir, "scripts", "ensure-clawdbot-deps.cjs"),
+    ]);
+    syncDevClawdbotResources();
+  }
   const prepareOnly = String(process.env.KNAPSACK_QA_PREPARE_ONLY || "").trim() === "1";
   const preserveQaState =
     String(process.env.KNAPSACK_QA_PRESERVE_STATE || "").trim() === "1";
@@ -1143,7 +1153,7 @@ async function main() {
   bootoutLaunchAgent();
   killStaleVitePort();
   killStaleGateways();
-  killStaleOpenClawChrome();
+  if (!localOnly) killStaleOpenClawChrome();
 
   if (binaryNeedsRebuild()) {
     const tauriConfig = JSON.stringify({
@@ -1185,7 +1195,7 @@ async function main() {
     if (app && !app.killed) app.kill("SIGTERM");
     bootoutLaunchAgent();
     killStaleGateways();
-    killStaleOpenClawChrome();
+    if (!localOnly) killStaleOpenClawChrome();
     removeQaLaunchAgentIfPresent();
     restoreLaunchAgentBackupIfPresent();
   };
@@ -1219,7 +1229,7 @@ async function main() {
   );
   bootoutLaunchAgent();
   killStaleGateways({ requireFree: true });
-  killStaleOpenClawChrome();
+  if (!localOnly) killStaleOpenClawChrome();
 
   const appEnv =
     process.platform === "darwin"
@@ -1240,14 +1250,18 @@ async function main() {
   const appStartedAt = Date.now();
   await waitForUrl("http://127.0.0.1:8897/api/clawd/service/status", 45_000);
   if (process.platform === "darwin") {
-    const launchAgent = await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
-    await waitForBundledPluginRuntimeDepsReady(60_000);
-    if (launchAgent || fs.existsSync(launchAgentPlist)) {
-      startManagedGateway();
+    if (localOnly) {
+      console.log("[qa-dev-run] gateway disabled for local-only UI QA");
     } else {
-      console.warn(
-        "[qa-dev-run] Continuing without managed direct gateway start; app bootstrap path was not local",
-      );
+      const launchAgent = await waitForFreshLaunchAgentPlist(appStartedAt, 60_000);
+      await waitForBundledPluginRuntimeDepsReady(60_000);
+      if (launchAgent || fs.existsSync(launchAgentPlist)) {
+        startManagedGateway();
+      } else {
+        console.warn(
+          "[qa-dev-run] Continuing without managed direct gateway start; app bootstrap path was not local",
+        );
+      }
     }
   }
 
@@ -1261,7 +1275,11 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error(`[qa-dev-run] ${err.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(`[qa-dev-run] ${err.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { qaEnv };

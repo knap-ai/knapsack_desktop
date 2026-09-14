@@ -134,6 +134,7 @@ function Home({
   const [autopilotForceOpen, setAutopilotForceOpen] = useState(false)
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [meetingSubView, setMeetingSubView] = useState<'meetings' | 'chat'>('meetings')
+  const [meetingChatRequest, setMeetingChatRequest] = useState({ threadId: 0, nonce: 0 })
   const [chatInitialInput] = useState('')
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [teamAgents, setTeamAgents] = useState<TeamAgent[]>(() => loadTeamRoster())
@@ -330,12 +331,15 @@ function Home({
   }, [])
 
   // Listen for system tray events
+  const quickNoteActionRef = useRef<() => void>(() => {})
+  quickNoteActionRef.current = () => {
+    setCurrentTab(TabChoices.Meeting)
+    setMeetingSubView('meetings')
+    if (isAnyRecording) feed.handleClickRecording()
+    else feed.createNewMeeting()
+  }
   useEffect(() => {
-    const unlistenQuickNote = listen('create_quick_note', () => {
-      setCurrentTab(TabChoices.Meeting)
-      setMeetingSubView('meetings')
-      feed.createNewMeeting()
-    })
+    const unlistenQuickNote = listen('create_quick_note', () => quickNoteActionRef.current())
     const unlistenSettings = listen('open_settings', () => {
       setIsSettingsDialogOpened(true)
     })
@@ -692,6 +696,7 @@ function Home({
           <NotetakerSidebar
             feed={feed}
             connections={connections}
+            isAnyRecording={isAnyRecording}
             currentTab={currentTab}
             onTabChange={(tab, subView) => {
               setCurrentTab(tab)
@@ -706,12 +711,15 @@ function Home({
               setSelectedWorkspace(ws)
             }}
             onQuickNote={() => {
-              setCurrentTab(TabChoices.Meeting)
-              setMeetingSubView('meetings')
-              feed.createNewMeeting()
+              quickNoteActionRef.current()
             }}
             onConnectCalendar={() => onConnectAccountClick([ConnectionKeys.GOOGLE_CALENDAR])}
             onMeetingSelect={() => {
+              setCurrentTab(TabChoices.Meeting)
+              setMeetingSubView('meetings')
+            }}
+            onMeetingChatSelect={threadId => {
+              setMeetingChatRequest(current => ({ threadId, nonce: current.nonce + 1 }))
               setCurrentTab(TabChoices.Meeting)
               setMeetingSubView('meetings')
             }}
@@ -1109,6 +1117,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
               {currentTab === TabChoices.Meeting && meetingSubView === 'meetings' && (
                 <MeetingsTabView
                   feed={feed}
+                  meetingChatRequest={meetingChatRequest}
                   addToLLMQueue={addToLLMQueue}
                   copyToClipboard={copyToClipboard}
                   handleErrorContact={handleErrorContact}

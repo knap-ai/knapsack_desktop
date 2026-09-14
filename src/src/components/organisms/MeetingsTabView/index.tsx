@@ -53,6 +53,7 @@ interface InsightsState {
 
 interface MeetingsTabViewProps {
   feed: IFeed
+  meetingChatRequest?: { threadId: number; nonce: number }
   addToLLMQueue: (item: LLMParams) => void
   copyToClipboard: (text: string) => void
   handleErrorContact: (message: string) => void
@@ -69,6 +70,7 @@ interface MeetingsTabViewProps {
 
 const MeetingsTabView = ({
   feed,
+  meetingChatRequest,
   addToLLMQueue,
   copyToClipboard,
   handleErrorContact,
@@ -381,6 +383,7 @@ const MeetingsTabView = ({
                       feedItemId={selectedMeeting.id}
                       item={selectedMeeting}
                       thread={notesThread}
+                      meetingChatRequest={meetingChatRequest}
                       timestamp={selectedMeeting.timestamp}
                       runParam={selectedMeeting.run ? (selectedMeeting.run?.runParams as string) : undefined}
                       meeting={selectedMeeting.getCalendarEvent()}
