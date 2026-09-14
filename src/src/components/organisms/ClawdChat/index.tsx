@@ -2280,6 +2280,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const voiceStartPendingRef = useRef(false)
   const voiceTranscriptionTokenRef = useRef(0)
   const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
+  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
@@ -3138,7 +3139,20 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     setVoiceSessionOpen(false)
     setVoiceEnabled(false)
     localStorage.setItem(VOICE_MODE_STORAGE, 'false')
+    requestAnimationFrame(() => chatInputElementRef.current?.focus())
   }, [mediaRecorder, stopCurrentAudio])
+
+  useEffect(() => {
+    if (!voiceSessionOpen || !active) return
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeVoiceSession()
+      }
+    }
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [active, closeVoiceSession, voiceSessionOpen])
 
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
     const transcriptionToken = ++voiceTranscriptionTokenRef.current
@@ -5858,7 +5872,6 @@ ${actualText}`
   clearHistoryRef.current = clearHistory
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
-  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
   useEffect(() => {
     if (!active) return
     const frame = requestAnimationFrame(() => chatInputElementRef.current?.focus())
