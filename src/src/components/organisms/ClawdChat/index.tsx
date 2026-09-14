@@ -1311,6 +1311,7 @@ type ChatInputBarProps = {
   providerReady: boolean
   hasQueuedMessage: boolean
   isRecording: boolean
+  isStartingRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
   attachedFiles: Attachment[]
@@ -1526,7 +1527,7 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
@@ -1710,7 +1711,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
             onClick={isRecording ? onStopRecording : onStartRecording}
-            disabled={busy || isTranscribing || !providerReady}
+            disabled={busy || isStartingRecording || isTranscribing || !providerReady}
             aria-label={isRecording ? 'Finish speaking' : 'Start voice conversation'}
             title={isRecording ? 'Finish speaking' : 'Start voice conversation'}
           >
@@ -2263,6 +2264,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Voice input state
   const [isRecording, setIsRecording] = useState(false)
+  const [isStartingRecording, setIsStartingRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -2275,6 +2277,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const voicePlaybackTokenRef = useRef(0)
   const discardVoiceRecordingRef = useRef(false)
   const voiceStartTokenRef = useRef(0)
+  const voiceStartPendingRef = useRef(false)
   const voiceTranscriptionTokenRef = useRef(0)
   const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
@@ -2933,7 +2936,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const MIN_RECORDING_TIME = 500 // ms minimum recording before silence detection kicks in
 
   const startRecording = useCallback(async () => {
+    if (voiceStartPendingRef.current) return
+    voiceStartPendingRef.current = true
     const startToken = ++voiceStartTokenRef.current
+    setIsStartingRecording(true)
     try {
       stopCurrentAudio()
       discardVoiceRecordingRef.current = false
@@ -3070,6 +3076,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
 
       recorder.start(100) // Collect data every 100ms for smoother silence detection
+      voiceStartPendingRef.current = false
+      setIsStartingRecording(false)
       setMediaRecorder(recorder)
       setIsRecording(true)
 
@@ -3077,6 +3085,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       requestAnimationFrame(checkSilence)
     } catch (e: any) {
       if (voiceStartTokenRef.current !== startToken) return
+      voiceStartPendingRef.current = false
+      setIsStartingRecording(false)
       setVoiceSessionOpen(false)
       pushAssistant(`🎤 Microphone access denied: ${e?.message || String(e)}`)
     }
@@ -3114,6 +3124,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const closeVoiceSession = useCallback(() => {
     discardVoiceRecordingRef.current = true
     voiceStartTokenRef.current += 1
+    voiceStartPendingRef.current = false
+    setIsStartingRecording(false)
     voiceTranscriptionTokenRef.current += 1
     voiceTranscriptionAbortRef.current?.abort()
     voiceTranscriptionAbortRef.current = null
@@ -6783,6 +6795,7 @@ ${actualText}`
         providerReady={!providerSelectionRefreshing}
         hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
+        isStartingRecording={isStartingRecording}
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         attachedFiles={attachedFiles}
@@ -6811,12 +6824,12 @@ ${actualText}`
             <div className={`ClawdVoiceMark ${isRecording ? 'listening' : isSpeaking ? 'speaking' : ''}`} aria-hidden="true">
               <img src="/assets/images/knap-logo-medium.png" alt="" />
             </div>
-            <h2>{isRecording ? 'Listening' : isTranscribing ? 'Turning speech into text' : busy ? 'Thinking' : isSpeaking ? 'Speaking' : 'Ready when you are'}</h2>
-            <p>{isRecording ? 'Speak naturally. Pause to send, or tap Done.' : isTranscribing ? 'Your words will appear in this chat.' : busy ? 'Your request is in progress.' : 'The conversation stays in this chat.'}</p>
+            <h2>{isStartingRecording ? 'Connecting microphone' : isRecording ? 'Listening' : isTranscribing ? 'Turning speech into text' : busy ? 'Thinking' : isSpeaking ? 'Speaking' : 'Ready when you are'}</h2>
+            <p>{isStartingRecording ? 'Allow microphone access if asked.' : isRecording ? 'Speak naturally. Pause to send, or tap Done.' : isTranscribing ? 'Your words will appear in this chat.' : busy ? 'Your request is in progress.' : 'The conversation stays in this chat.'}</p>
           </div>
           <div className="ClawdVoiceSessionControls">
             <button type="button" onClick={closeVoiceSession} aria-label="Switch to typing" title="Switch to typing"><PencilSquareIcon /> <span>Type</span></button>
-            <button type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
+            <button type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isStartingRecording || isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
             <button type="button" onClick={stableToggleVoiceOutput} aria-pressed={voiceEnabled} aria-label={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'} title={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'}>{voiceEnabled ? <SpeakerWaveIcon /> : <SpeakerXMarkIcon />} <span>{voiceEnabled ? 'Sound on' : 'Muted'}</span></button>
           </div>
         </section>

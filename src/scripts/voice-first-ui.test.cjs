@@ -14,10 +14,11 @@ test('the composer microphone starts listening on the first click', () => {
 })
 
 test('voice session reports real lifecycle states and keeps type and sound controls', () => {
-  assert.match(chat, /isRecording \? 'Listening' : isTranscribing \? 'Turning speech into text' : busy \? 'Thinking' : isSpeaking \? 'Speaking'/)
+  assert.match(chat, /isStartingRecording \? 'Connecting microphone' : isRecording \? 'Listening' : isTranscribing \? 'Turning speech into text' : busy \? 'Thinking' : isSpeaking \? 'Speaking'/)
   assert.match(chat, /aria-label="Switch to typing"/)
   assert.match(chat, /aria-pressed=\{voiceEnabled\}/)
   assert.match(chat, /onClick=\{isRecording \? stopRecording : openVoiceSession\}/)
+  assert.match(chat, /if \(voiceStartPendingRef\.current\) return/)
   assert.match(styles, /\.ClawdVoiceSession \{[\s\S]*?position: absolute;/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
 })
