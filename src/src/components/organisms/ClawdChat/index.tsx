@@ -3089,6 +3089,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       voiceStartPendingRef.current = false
       setIsStartingRecording(false)
       setVoiceSessionOpen(false)
+      setVoiceEnabled(false)
+      localStorage.setItem(VOICE_MODE_STORAGE, 'false')
       pushAssistant(`🎤 Microphone access denied: ${e?.message || String(e)}`)
     }
   }, [selectedInputDevice, stopCurrentAudio])
