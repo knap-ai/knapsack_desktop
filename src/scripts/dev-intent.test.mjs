@@ -15,6 +15,8 @@ test('offers developer mode for explicit software work', () => {
     'Build a mobile app for our customers',
     'Implement an API endpoint for calendar sync',
     'Fix the bug in the codebase',
+    'Fix the login bug in the mobile app',
+    'Debug this website',
     'Add a software feature to the app',
   ]) assert.equal(detectBuildIntent(request), true, request)
 })

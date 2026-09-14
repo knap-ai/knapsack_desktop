@@ -12,6 +12,12 @@ test('upcoming calendar events use the full one-week fetch window', () => {
   assert.doesNotMatch(source, /endOfTomorrow/)
 })
 
+test('deleting a calendar note evicts its cached feed item', () => {
+  const source = fs.readFileSync(path.join(sourceRoot, 'hooks/feed/useFeed.tsx'), 'utf8')
+
+  assert.match(source, /await deleteFeedItem\(itemId\)[\s\S]*?calendarItemRef\.current\.delete\(key\)[\s\S]*?setFeedContent/)
+})
+
 test('sidebar uses an abbreviated month inside a non-wrapping date label', () => {
   const component = fs.readFileSync(
     path.join(sourceRoot, 'components/organisms/NotetakerSidebar/index.tsx'),
@@ -53,7 +59,7 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
 
   assert.match(
     app,
-    /const refreshedConnections = await handlers\.fetchConnections\(userEmail\)[\s\S]*?await handlers\.syncConnections\(userEmail, refreshedConnections\)/,
+    /const refreshedConnections = await handlers\.fetchConnections\(userEmail\)[\s\S]*?await handlers\.syncConnections\(userEmail, LOCAL_QA_SAFE[\s\S]*?: refreshedConnections\)/,
   )
   assert.match(
     app,
@@ -74,7 +80,7 @@ test('periodic calendar refresh rediscovers accounts without UI-state timer chur
   )
   assert.match(
     app,
-    /listen\('custom-focus'[\s\S]*?await fetchConnections\(email\)[\s\S]*?await syncConnections\(email, refreshedConnections\)/,
+    /listen\('custom-focus'[\s\S]*?await fetchConnections\(email\)[\s\S]*?await syncConnections\(email, LOCAL_QA_SAFE[\s\S]*?: refreshedConnections\)/,
   )
   assert.doesNotMatch(app, /listen\('custom-focus'[\s\S]*?getGoogleGmailConnections\(connections\)/)
 })

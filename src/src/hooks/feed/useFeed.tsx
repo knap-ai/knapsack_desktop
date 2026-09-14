@@ -2133,6 +2133,10 @@ export function useFeed(
       try {
         await deleteFeedItem(itemId)
 
+        for (const [key, item] of calendarItemRef.current) {
+          if (item.id === itemId) calendarItemRef.current.delete(key)
+        }
+
         setFeedContent(prevState => {
           const newState = { ...prevState }
 

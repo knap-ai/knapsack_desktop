@@ -7,11 +7,14 @@ const SOFTWARE_ARTIFACT =
 const BUILD_ACTION = /\b(?:build|implement|develop|code|program|deploy|ship|create|add)\b/i
 const EXPLICIT_FEATURE = /\b(?:build|implement|develop|code|ship|deploy|add)\b.{0,100}\b(?:software\s+feature|feature\s+in\s+(?:the\s+)?(?:app|codebase)|api\s+integration)\b/i
 const EXPLICIT_CODE_FIX = /\b(?:fix|debug|refactor)\b.{0,100}\b(?:codebase|source\s+code|api\s+endpoint|ui\s+component|react\s+component)\b/i
+const EXPLICIT_APP_BUG_FIX = /\b(?:fix|debug)\b(?=[^.!?]{0,100}\bbug\b)[^.!?]{0,100}\b(?:app|application|software|website)\b/i
+const EXPLICIT_APP_DEBUG = /\bdebug\b.{0,100}\b(?:app|application|software|website)\b/i
 
 export function detectBuildIntent(message: string): boolean {
   const text = message.trim()
   if (!text || text.length > 600) return false
   return EXPLICIT_FEATURE.test(text) || EXPLICIT_CODE_FIX.test(text) ||
+    EXPLICIT_APP_BUG_FIX.test(text) || EXPLICIT_APP_DEBUG.test(text) ||
     (BUILD_ACTION.test(text) && SOFTWARE_ARTIFACT.test(text))
 }
 
