@@ -138,6 +138,165 @@
   }
 }
 
+// Voice-first conversation is a focused layer over the same durable chat.
+.ClawdVoiceSession {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(18px, 4vw, 42px);
+  color: #292d32;
+  background: #fdfcfb;
+  box-sizing: border-box;
+}
+
+.ClawdVoiceSessionTop,
+.ClawdVoiceSessionControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ClawdVoiceSessionContext {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  strong { font-size: 14px; font-weight: 650; }
+  span { font-size: 12px; color: #747980; }
+  span, strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  }
+}
+
+.ClawdVoiceSessionTop button,
+.ClawdVoiceSessionControls button {
+  border: 1px solid #e8e7e5;
+  color: #30343b;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 5px 22px rgba(35, 39, 47, 0.08);
+}
+
+.ClawdVoiceSessionTop {
+  width: min(100%, 620px);
+  align-self: center;
+  gap: 20px;
+  padding: 14px 15px 14px 20px;
+  border: 1px solid #eceae8;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(35, 39, 47, 0.08);
+  box-sizing: border-box;
+}
+
+.ClawdVoiceSessionTop button {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: none;
+
+  svg { width: 17px; height: 17px; }
+}
+
+.ClawdVoiceSessionCenter {
+  align-self: center;
+  text-align: center;
+  max-width: 380px;
+}
+
+.ClawdVoiceSessionCenter h2 {
+  margin: 18px 0 5px;
+  color: #2d3036;
+  font-size: clamp(21px, 2.5vw, 28px);
+  font-weight: 600;
+}
+
+.ClawdVoiceSessionCenter p {
+  margin: 0;
+  color: #777e87;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ClawdVoiceMark {
+  width: clamp(96px, 17vw, 148px);
+  height: clamp(96px, 17vw, 148px);
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 45%, #f9eeeb 100%);
+  box-shadow: 0 12px 36px rgba(197, 72, 65, 0.13);
+
+  img { width: 72%; height: 72%; object-fit: contain; }
+
+  &.listening,
+  &.speaking {
+    animation: clawd-voice-glow 1.8s ease-in-out infinite;
+  }
+}
+
+.ClawdVoiceSessionControls {
+  justify-content: center;
+  gap: 0;
+  align-self: center;
+  padding: 6px;
+  border: 1px solid #eeece9;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(35, 39, 47, 0.11);
+}
+
+.ClawdVoiceSessionControls button {
+  min-width: 76px;
+  height: 50px;
+  border: 0;
+  border-radius: 18px;
+  font-size: 17px;
+  font-weight: 600;
+  box-shadow: none;
+
+  svg { display: block; width: 20px; height: 20px; margin: 0 auto 2px; }
+  span { display: block; font-size: 10px; font-weight: 500; }
+  &:hover:not(:disabled) { background: #f7f2f0; }
+  &:focus-visible { outline: 2px solid #c54841; outline-offset: 2px; }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.ClawdVoiceSessionControls .ClawdVoiceSessionMic {
+  min-width: 54px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  color: #fff;
+  background: #c54841;
+  font-size: 22px;
+
+  &.recording { color: #fff; background: #a33732; }
+  &:hover:not(:disabled) { background: #ad3d37; }
+
+  svg { width: 26px; height: 26px; margin: 0 auto; }
+  .ClawdVoiceStopIcon { width: 15px; height: 15px; margin: 0 auto; border-radius: 3px; background: #fff; }
+}
+
+@keyframes clawd-voice-glow {
+  50% { box-shadow: 0 12px 48px rgba(197, 72, 65, 0.34); transform: scale(1.04); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ClawdVoiceMark { animation: none !important; }
+}
+
 .ClawdDropOverlay {
   position: absolute;
   inset: 0;

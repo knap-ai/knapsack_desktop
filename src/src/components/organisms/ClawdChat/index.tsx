@@ -2,6 +2,7 @@ import './style.scss'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
+import { MicrophoneIcon, PencilSquareIcon, SpeakerWaveIcon, SpeakerXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import remarkGfm from 'remark-gfm'
 import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
@@ -1319,7 +1320,6 @@ type ChatInputBarProps = {
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
   onStopRecording: () => void
-  onToggleVoice: () => void
   onStopGeneration: () => void
   replyToMsg?: Msg | null
   onCancelReply?: () => void
@@ -1528,7 +1528,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
     busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
-    onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
+    onStartRecording, onStopRecording, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
     inputElementRef,
   } = props
@@ -1706,22 +1706,15 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             disabled={isRecording || !providerReady}
             rows={1}
           />
-          {/* Voice mode toggle - always visible inside input like ChatGPT */}
+          {/* A single click starts listening; speaker output is controlled in the voice panel. */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
-            onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
+            onClick={isRecording ? onStopRecording : onStartRecording}
             disabled={busy || isTranscribing || !providerReady}
-            title={
-              !voiceEnabled
-                ? 'Enable voice mode'
-                : isRecording
-                  ? 'Stop recording'
-                  : isTranscribing
-                    ? 'Transcribing...'
-                    : 'Click to speak (or click again to disable voice mode)'
-            }
+            aria-label={isRecording ? 'Finish speaking' : 'Start voice conversation'}
+            title={isRecording ? 'Finish speaking' : 'Start voice conversation'}
           >
-            {isTranscribing ? '⏳' : isRecording ? '⏹️' : voiceEnabled ? '🎤' : '🎙️'}
+            {isTranscribing ? '⏳' : isRecording ? '⏹️' : '🎙️'}
           </button>
         </div>
         {busy ? (
@@ -2271,12 +2264,19 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // Voice input state
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [voiceSessionOpen, setVoiceSessionOpen] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
   const audioChunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const voicePlaybackTokenRef = useRef(0)
+  const discardVoiceRecordingRef = useRef(false)
+  const voiceStartTokenRef = useRef(0)
+  const voiceTranscriptionTokenRef = useRef(0)
+  const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
   const recordingStartedAtRef = useRef<number>(0)
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
@@ -2918,11 +2918,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Stop any currently playing audio
   const stopCurrentAudio = useCallback(() => {
+    voicePlaybackTokenRef.current += 1
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
       currentAudioRef.current.currentTime = 0
       currentAudioRef.current = null
     }
+    setIsSpeaking(false)
   }, [])
 
   // Voice input handlers with silence detection (auto-submit after 1.5s silence)
@@ -2931,11 +2933,18 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const MIN_RECORDING_TIME = 500 // ms minimum recording before silence detection kicks in
 
   const startRecording = useCallback(async () => {
+    const startToken = ++voiceStartTokenRef.current
     try {
+      stopCurrentAudio()
+      discardVoiceRecordingRef.current = false
       const constraints: MediaStreamConstraints = {
         audio: selectedInputDevice ? { deviceId: { exact: selectedInputDevice } } : true
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      if (voiceStartTokenRef.current !== startToken) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
 
       // Find a supported mime type that OpenAI Whisper accepts
       // Whisper supports: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm
@@ -3037,6 +3046,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         }
         stream.getTracks().forEach(track => track.stop())
 
+        if (discardVoiceRecordingRef.current) {
+          audioChunksRef.current = []
+          discardVoiceRecordingRef.current = false
+          return
+        }
+
         // Use the extension we determined at recording start
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
@@ -3061,9 +3076,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       // Start silence detection
       requestAnimationFrame(checkSilence)
     } catch (e: any) {
+      if (voiceStartTokenRef.current !== startToken) return
+      setVoiceSessionOpen(false)
       pushAssistant(`🎤 Microphone access denied: ${e?.message || String(e)}`)
     }
-  }, [selectedInputDevice])
+  }, [selectedInputDevice, stopCurrentAudio])
 
   const stopRecording = useCallback(() => {
     // Clean up silence detection
@@ -3085,10 +3102,40 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     }
   }, [mediaRecorder])
 
+  const openVoiceSession = useCallback(() => {
+    setVoiceSessionOpen(true)
+    if (!voiceSessionOpen && !voiceEnabled) {
+      setVoiceEnabled(true)
+      localStorage.setItem(VOICE_MODE_STORAGE, 'true')
+    }
+    void startRecording()
+  }, [startRecording, voiceEnabled, voiceSessionOpen])
+
+  const closeVoiceSession = useCallback(() => {
+    discardVoiceRecordingRef.current = true
+    voiceStartTokenRef.current += 1
+    voiceTranscriptionTokenRef.current += 1
+    voiceTranscriptionAbortRef.current?.abort()
+    voiceTranscriptionAbortRef.current = null
+    setIsTranscribing(false)
+    if (mediaRecorder?.state === 'recording') {
+      mediaRecorder.stop()
+      setIsRecording(false)
+    }
+    stopCurrentAudio()
+    setVoiceSessionOpen(false)
+    setVoiceEnabled(false)
+    localStorage.setItem(VOICE_MODE_STORAGE, 'false')
+  }, [mediaRecorder, stopCurrentAudio])
+
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
+    const transcriptionToken = ++voiceTranscriptionTokenRef.current
+    const controller = new AbortController()
+    voiceTranscriptionAbortRef.current = controller
     setIsTranscribing(true)
     try {
       const speechAuth = await getSpeechToTextAuth()
+      if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (!speechAuth) {
         pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
         setShowKeyPrompt(true)
@@ -3103,6 +3150,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       const res = await fetch(speechAuth.endpoint, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Authorization': `Bearer ${speechAuth.apiKey}`,
         },
@@ -3115,6 +3163,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
 
       const data = await res.json()
+      if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
         handleSendWithTextRef.current?.(data.text)
@@ -3122,6 +3171,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pushAssistantRef.current?.('🎤 I didn’t catch any speech. Try again and start speaking after the mic turns on.')
       }
     } catch (e: any) {
+      if (controller.signal.aborted || voiceTranscriptionTokenRef.current !== transcriptionToken) return
       const raw = e?.message || String(e)
       const lower = raw.toLowerCase()
       if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
@@ -3130,7 +3180,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pushAssistantRef.current?.(`🎤 Transcription failed: ${raw}`)
       }
     } finally {
-      setIsTranscribing(false)
+      if (voiceTranscriptionTokenRef.current === transcriptionToken) {
+        voiceTranscriptionAbortRef.current = null
+        setIsTranscribing(false)
+      }
     }
   }, [])
 
@@ -4422,6 +4475,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     if (voiceEnabled) {
       // Stop any currently playing audio first
       stopCurrentAudio()
+      const playbackToken = voicePlaybackTokenRef.current
 
       // Strip markdown formatting for cleaner speech
       const cleanText = text
@@ -4451,16 +4505,23 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             return res.blob()
           })
           .then(blob => {
+            if (voicePlaybackTokenRef.current !== playbackToken) return
             const audio = new Audio(URL.createObjectURL(blob))
             // Set output device if supported and selected
             if (selectedOutputDevice && 'setSinkId' in audio) {
               (audio as any).setSinkId(selectedOutputDevice).catch(() => {})
             }
             currentAudioRef.current = audio
-            audio.play()
+            audio.play().then(() => {
+              if (currentAudioRef.current === audio) setIsSpeaking(true)
+            }).catch(() => {
+              if (currentAudioRef.current === audio) currentAudioRef.current = null
+              setIsSpeaking(false)
+            })
             audio.onended = () => {
               if (currentAudioRef.current === audio) {
                 currentAudioRef.current = null
+                setIsSpeaking(false)
               }
             }
           })
@@ -5990,6 +6051,10 @@ ${actualText}`
     for (const m of msgs) map.set(m.id, m)
     return map
   }, [msgs])
+  const latestVoiceContext = useMemo(() => {
+    const last = [...msgs].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())
+    return last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Your conversation continues here.'
+  }, [msgs])
 
   return (
     <div className={`ClawdChatRoot ${compact ? 'ClawdChatRoot--compact' : ''}`}>
@@ -6725,15 +6790,37 @@ ${actualText}`
         onQueue={stableQueueMessage}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
-        onStartRecording={startRecording}
+        onStartRecording={openVoiceSession}
         onStopRecording={stopRecording}
-        onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
         initialValue={initialInput}
         inputElementRef={chatInputElementRef}
       />
+      {voiceSessionOpen && (
+        <section className="ClawdVoiceSession" aria-label="Voice conversation">
+          <div className="ClawdVoiceSessionTop">
+            <div className="ClawdVoiceSessionContext">
+              <strong>{agentName || title}</strong>
+              <span>{latestVoiceContext}</span>
+            </div>
+            <button type="button" onClick={closeVoiceSession} aria-label="Close voice conversation"><XMarkIcon /></button>
+          </div>
+          <div className="ClawdVoiceSessionCenter" aria-live="polite">
+            <div className={`ClawdVoiceMark ${isRecording ? 'listening' : isSpeaking ? 'speaking' : ''}`} aria-hidden="true">
+              <img src="/assets/images/knap-logo-medium.png" alt="" />
+            </div>
+            <h2>{isRecording ? 'Listening' : isTranscribing ? 'Turning speech into text' : busy ? 'Thinking' : isSpeaking ? 'Speaking' : 'Ready when you are'}</h2>
+            <p>{isRecording ? 'Speak naturally. Pause to send, or tap Done.' : isTranscribing ? 'Your words will appear in this chat.' : busy ? 'Your request is in progress.' : 'The conversation stays in this chat.'}</p>
+          </div>
+          <div className="ClawdVoiceSessionControls">
+            <button type="button" onClick={closeVoiceSession} aria-label="Switch to typing" title="Switch to typing"><PencilSquareIcon /> <span>Type</span></button>
+            <button type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
+            <button type="button" onClick={stableToggleVoiceOutput} aria-pressed={voiceEnabled} aria-label={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'} title={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'}>{voiceEnabled ? <SpeakerWaveIcon /> : <SpeakerXMarkIcon />} <span>{voiceEnabled ? 'Sound on' : 'Muted'}</span></button>
+          </div>
+        </section>
+      )}
       </div>
       </div>{/* end ClawdChatContent */}
 
