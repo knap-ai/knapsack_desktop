@@ -72,11 +72,11 @@ test('background agent replies produce unread indicators until selected', () => 
   assert.doesNotMatch(chat, /document\.querySelector<HTMLTextAreaElement>\('\.ClawdChatInput textarea'\)/)
 })
 
-test('browser launcher reserves header space instead of overlapping controls', () => {
+test('embedded browser occupies a resizable side panel instead of overlapping chat controls', () => {
   const home = fs.readFileSync(path.join(sourceRoot, 'components/templates/Home/Home.tsx'), 'utf8')
   const styles = fs.readFileSync(path.join(sourceRoot, 'components/templates/Home/Home.scss'), 'utf8')
 
-  assert.match(home, /has-embedded-browser-launcher/)
-  assert.match(styles, /\.has-embedded-browser-launcher \.ClawdChatHeader/)
-  assert.match(styles, /padding-right: 104px/)
+  assert.match(home, /className="activity-resize-handle embedded-browser-resize-handle"/)
+  assert.match(home, /className="embedded-browser-panel"[\s\S]*?width: embeddedBrowserWidth, flexBasis: embeddedBrowserWidth/)
+  assert.match(styles, /\.embedded-browser-panel \{[\s\S]*?flex-shrink: 0;/)
 })
