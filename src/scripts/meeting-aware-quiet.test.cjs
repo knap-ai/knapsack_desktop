@@ -30,7 +30,7 @@ test('users get a cancellable heads-up and existing recording controls remain au
 test('meeting capture silences voice without losing the user voice preference', () => {
   assert.match(chat, /knapsack-meeting-quiet-mode/)
   assert.match(chat, /resumeVoiceAfterMeetingRef\.current = voiceEnabled \|\| voiceSessionOpen/)
-  assert.match(chat, /if \(voiceEnabled && !meetingQuietModeRef\.current\)/)
+  assert.match(chat, /localStorage\.getItem\(VOICE_MODE_STORAGE\) === 'true' && !meetingQuietModeRef\.current/)
   assert.match(chat, /voicePaused=\{meetingQuietMode\}/)
   assert.match(chat, /Voice pauses during meeting recording/)
   assert.match(chat, /setVoiceEnabled\(true\)[\s\S]*?VOICE_MODE_STORAGE, 'true'/)
