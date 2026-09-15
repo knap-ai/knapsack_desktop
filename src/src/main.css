@@ -955,7 +955,8 @@ html, body {
   left: 16px;
   right: 16px;
   bottom: 56px;
-  height: min(460px, calc(100% - 88px));
+  height: 460px;
+  max-height: calc(100% - 88px);
   min-height: 280px;
   overflow: hidden;
   border: 1px solid #DFDDDC;
@@ -964,6 +965,7 @@ html, body {
   box-shadow: 0 -10px 36px rgba(35, 35, 35, 0.16);
   contain: layout paint;
   animation: meeting-chat-reveal 0.18s ease-out;
+  transition: height 0.16s ease-out, box-shadow 0.16s ease-out;
 }
 
 @keyframes meeting-chat-reveal {
@@ -974,13 +976,47 @@ html, body {
 .notetaker-note__chat-overlay-handle {
   position: absolute;
   z-index: 90;
+  top: 0;
+  left: 50%;
+  width: 76px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.notetaker-note__chat-overlay-handle::after {
+  content: '';
+  position: absolute;
   top: 7px;
   left: 50%;
-  width: 34px;
+  width: 36px;
   height: 4px;
   border-radius: 99px;
-  background: #D8D5D3;
+  background: #C9C5C3;
   transform: translateX(-50%);
+  transition: width 0.12s ease, background 0.12s ease;
+}
+
+.notetaker-note__chat-overlay-handle:hover::after,
+.notetaker-note__chat-overlay-handle:focus-visible::after,
+.notetaker-note__chat-overlay--resizing .notetaker-note__chat-overlay-handle::after {
+  width: 44px;
+  background: #777372;
+}
+
+.notetaker-note__chat-overlay-handle:focus-visible {
+  outline: 2px solid #6474AC;
+  outline-offset: -2px;
+  border-radius: 999px;
+}
+
+.notetaker-note__chat-overlay--resizing {
+  transition: none;
+  box-shadow: 0 -12px 42px rgba(35, 35, 35, 0.22);
 }
 
 .notetaker-note__chat-overlay-close {

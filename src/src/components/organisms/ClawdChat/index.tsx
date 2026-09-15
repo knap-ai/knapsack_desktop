@@ -1328,6 +1328,7 @@ type ChatInputBarProps = {
   replyToMsg?: Msg | null
   onCancelReply?: () => void
   initialValue?: string
+  initialValueKey?: number
   inputElementRef?: React.MutableRefObject<HTMLTextAreaElement | null>
 }
 
@@ -1533,7 +1534,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
     busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled, voicePaused = false,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onStopGeneration,
-    replyToMsg, onCancelReply, initialValue,
+    replyToMsg, onCancelReply, initialValue, initialValueKey,
     inputElementRef,
   } = props
   // Keep the draft in the native textarea instead of React state. This leaves
@@ -1561,7 +1562,7 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
       if (textareaRef.current) textareaRef.current.value = initialValue
       setTimeout(() => textareaRef.current?.focus(), 150)
     }
-  }, [initialValue])
+  }, [initialValue, initialValueKey])
 
   const clearInput = () => {
     inputRef.current = ''
@@ -1951,6 +1952,8 @@ interface ClawdChatProps {
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
   initialInput?: string
+  /** Re-applies an unchanged prefill when an external action is launched again. */
+  initialInputKey?: number
   /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
   contextPrefix?: string
   /** Render with a tighter header for embedded surfaces. */
@@ -1975,7 +1978,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -6890,6 +6893,7 @@ ${actualText}`
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
         initialValue={initialInput}
+        initialValueKey={initialInputKey}
         inputElementRef={chatInputElementRef}
       />
       {voiceSessionOpen && (
