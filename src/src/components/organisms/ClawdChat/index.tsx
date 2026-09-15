@@ -651,7 +651,6 @@ const OLLAMA_MODEL_STORAGE = 'moltbot_ollama_model'
 const TONE_STORAGE = 'moltbot_tone'
 const VOICE_MODE_STORAGE = 'moltbot_voice_mode'
 const MIN_VOICE_RECORDING_MS = 900
-const MIN_VOICE_BLOB_BYTES = 4096
 const MIN_VOICE_CHUNK_COUNT = 2
 const CHAT_HISTORY_STORAGE = 'moltbot_chat_history'
 const AUTONOMY_MODE_STORAGE = 'moltbot_autonomy_mode'
@@ -2996,6 +2995,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const recordingStartTime = Date.now()
       recordingStartedAtByRecorderRef.current.set(recorder, recordingStartTime)
       let lastSoundTime = Date.now()
+      let hasDetectedSound = false
       let silenceTimeout: ReturnType<typeof setTimeout> | null = null
 
       // Monitor audio levels for silence detection
@@ -3008,6 +3008,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
         if (average > SILENCE_THRESHOLD) {
           // Sound detected, reset silence timer
+          hasDetectedSound = true
           lastSoundTime = Date.now()
           if (silenceTimeout) {
             clearTimeout(silenceTimeout)
@@ -3019,7 +3020,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           const timeSinceStart = Date.now() - recordingStartTime
 
           // Only auto-stop if we've been recording for a bit and there's prolonged silence
-          if (timeSinceStart > MIN_RECORDING_TIME && timeSinceLastSound >= SILENCE_DURATION) {
+          if (hasDetectedSound && timeSinceStart > MIN_RECORDING_TIME && timeSinceLastSound >= SILENCE_DURATION) {
             if (!silenceTimeout) {
               // Auto-stop recording after silence
               silenceTimeout = setTimeout(() => {
@@ -3069,7 +3070,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         const audioBlob = new Blob(recordingChunks, { type: selectedMimeType })
         console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
 
-        if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size < MIN_VOICE_BLOB_BYTES || elapsedMs < MIN_VOICE_RECORDING_MS) {
+        // A valid low-gain macOS capture can be highly compressed. Let the
+        // transcription service judge its speech content instead of rejecting
+        // it solely because the encoded blob is small.
+        if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size === 0 || elapsedMs < MIN_VOICE_RECORDING_MS) {
           recordingChunks.length = 0
           pushAssistantRef.current?.('🎤 I didn’t catch enough audio. Please try again and speak for a second or two after the mic turns on.')
           return
@@ -6148,7 +6152,7 @@ ${actualText}`
   }, [msgs])
   const latestVoiceContext = useMemo(() => {
     const last = [...msgs].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())
-    return last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Your conversation continues here.'
+    return last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim() || 'Your conversation continues here.'
   }, [msgs])
 
   return (

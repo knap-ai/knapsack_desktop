@@ -33,6 +33,19 @@ test('voice session reports real lifecycle states and keeps type and sound contr
   assert.match(styles, /prefers-reduced-motion: reduce/)
 })
 
+test('voice capture waits for real sound and accepts compact low-bitrate recordings', () => {
+  assert.match(chat, /let hasDetectedSound = false/)
+  assert.match(chat, /average > SILENCE_THRESHOLD[\s\S]*?hasDetectedSound = true/)
+  assert.match(chat, /if \(hasDetectedSound && timeSinceStart > MIN_RECORDING_TIME/)
+  assert.match(chat, /audioBlob\.size === 0/)
+  assert.doesNotMatch(chat, /MIN_VOICE_BLOB_BYTES/)
+})
+
+test('voice-session status displays the complete recovery message', () => {
+  assert.doesNotMatch(chat, /trim\(\)\.slice\(0, 120\)/)
+  assert.match(styles, /\.ClawdVoiceSessionContext[\s\S]*?span \{[\s\S]*?overflow-wrap: anywhere;[\s\S]*?white-space: normal;/)
+})
+
 test('closing a voice session discards unfinished capture and stops playback', () => {
   assert.match(chat, /const discardedVoiceRecordersRef = useRef<WeakSet<MediaRecorder>>/)
   assert.match(chat, /const recordingChunks: Blob\[\] = \[\]/)
