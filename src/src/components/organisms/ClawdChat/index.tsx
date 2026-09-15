@@ -2280,7 +2280,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const voiceTranscriptionTokenRef = useRef(0)
   const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
   const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
-  const recordingStartedAtRef = useRef<number>(0)
+  const recordingStartedAtByRecorderRef = useRef<WeakMap<MediaRecorder, number>>(new WeakMap())
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
   const [selectedInputDevice, _setSelectedInputDevice] = useState<string>('')
@@ -2302,9 +2302,6 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
-  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
   const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
@@ -2978,7 +2975,6 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
       const recordingChunks: Blob[] = []
-      recordingStartedAtRef.current = Date.now()
 
       // Set up Web Audio API for silence detection
       const audioContext = new AudioContext()
@@ -2986,26 +2982,25 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 512
       source.connect(analyser)
-      audioContextRef.current = audioContext
-      analyserRef.current = analyser
-
       const recordingStartTime = Date.now()
+      recordingStartedAtByRecorderRef.current.set(recorder, recordingStartTime)
       let lastSoundTime = Date.now()
+      let silenceTimeout: ReturnType<typeof setTimeout> | null = null
 
       // Monitor audio levels for silence detection
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
       const checkSilence = () => {
-        if (!analyserRef.current || recorder.state === 'inactive') return
+        if (recorder.state === 'inactive') return
 
-        analyserRef.current.getByteFrequencyData(dataArray)
+        analyser.getByteFrequencyData(dataArray)
         const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length / 255
 
         if (average > SILENCE_THRESHOLD) {
           // Sound detected, reset silence timer
           lastSoundTime = Date.now()
-          if (silenceTimeoutRef.current) {
-            clearTimeout(silenceTimeoutRef.current)
-            silenceTimeoutRef.current = null
+          if (silenceTimeout) {
+            clearTimeout(silenceTimeout)
+            silenceTimeout = null
           }
         } else {
           // Silence detected
@@ -3014,9 +3009,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
           // Only auto-stop if we've been recording for a bit and there's prolonged silence
           if (timeSinceStart > MIN_RECORDING_TIME && timeSinceLastSound >= SILENCE_DURATION) {
-            if (!silenceTimeoutRef.current) {
+            if (!silenceTimeout) {
               // Auto-stop recording after silence
-              silenceTimeoutRef.current = setTimeout(() => {
+              silenceTimeout = setTimeout(() => {
                 if (recorder.state !== 'inactive') {
                   recorder.stop()
                   setIsRecording(false)
@@ -3040,14 +3035,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       recorder.onstop = async () => {
         // Clean up audio context
-        if (audioContextRef.current) {
-          audioContextRef.current.close()
-          audioContextRef.current = null
+        if (audioContext.state !== 'closed') {
+          void audioContext.close()
         }
-        analyserRef.current = null
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current)
-          silenceTimeoutRef.current = null
+        if (silenceTimeout) {
+          clearTimeout(silenceTimeout)
+          silenceTimeout = null
         }
         stream.getTracks().forEach(track => track.stop())
 
@@ -3060,7 +3053,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         // Use the extension we determined at recording start
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
-        const elapsedMs = Date.now() - recordingStartedAtRef.current
+        const elapsedMs = Date.now() - recordingStartTime
         const chunkCount = recordingChunks.length
         const audioBlob = new Blob(recordingChunks, { type: selectedMimeType })
         console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
@@ -3094,19 +3087,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [selectedInputDevice, stopCurrentAudio])
 
   const stopRecording = useCallback(() => {
-    // Clean up silence detection
-    if (silenceTimeoutRef.current) {
-      clearTimeout(silenceTimeoutRef.current)
-      silenceTimeoutRef.current = null
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    analyserRef.current = null
-
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      const elapsedMs = Date.now() - recordingStartedAtRef.current
+      const elapsedMs = Date.now() - (recordingStartedAtByRecorderRef.current.get(mediaRecorder) || Date.now())
       if (elapsedMs < MIN_VOICE_RECORDING_MS) return
       mediaRecorder.stop()
       setIsRecording(false)
