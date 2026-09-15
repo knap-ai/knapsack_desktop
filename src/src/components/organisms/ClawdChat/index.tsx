@@ -2280,6 +2280,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const voiceTranscriptionTokenRef = useRef(0)
   const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
   const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
+  const voiceSessionRef = useRef<HTMLElement | null>(null)
   const recordingStartedAtByRecorderRef = useRef<WeakMap<MediaRecorder, number>>(new WeakMap())
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
@@ -3128,10 +3129,29 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   useEffect(() => {
     if (!voiceSessionOpen || !active) return
+    requestAnimationFrame(() => {
+      voiceSessionRef.current?.querySelector<HTMLElement>('[data-voice-primary]')?.focus()
+    })
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
         closeVoiceSession()
+        return
+      }
+      if (event.key === 'Tab' && voiceSessionRef.current) {
+        const focusable = Array.from(
+          voiceSessionRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])'),
+        )
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
       }
     }
     window.addEventListener('keydown', onEscape)
@@ -4525,8 +4545,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             audio.play().then(() => {
               if (currentAudioRef.current === audio) setIsSpeaking(true)
             }).catch(() => {
-              if (currentAudioRef.current === audio) currentAudioRef.current = null
-              setIsSpeaking(false)
+              if (currentAudioRef.current === audio) {
+                currentAudioRef.current = null
+                setIsSpeaking(false)
+              }
             })
             audio.onended = () => {
               if (currentAudioRef.current === audio) {
@@ -6810,7 +6832,7 @@ ${actualText}`
         inputElementRef={chatInputElementRef}
       />
       {voiceSessionOpen && (
-        <section className="ClawdVoiceSession" aria-label="Voice conversation">
+        <section ref={voiceSessionRef} className="ClawdVoiceSession" role="dialog" aria-modal="true" aria-label="Voice conversation">
           <div className="ClawdVoiceSessionTop">
             <div className="ClawdVoiceSessionContext">
               <strong>{agentName || title}</strong>
@@ -6827,7 +6849,7 @@ ${actualText}`
           </div>
           <div className="ClawdVoiceSessionControls">
             <button type="button" onClick={closeVoiceSession} aria-label="Switch to typing" title="Switch to typing"><PencilSquareIcon /> <span>Type</span></button>
-            <button type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isStartingRecording || isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
+            <button data-voice-primary type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isStartingRecording || isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
             <button type="button" onClick={stableToggleVoiceOutput} aria-pressed={voiceEnabled} aria-label={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'} title={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'}>{voiceEnabled ? <SpeakerWaveIcon /> : <SpeakerXMarkIcon />} <span>{voiceEnabled ? 'Sound on' : 'Muted'}</span></button>
           </div>
         </section>
