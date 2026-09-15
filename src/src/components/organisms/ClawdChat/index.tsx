@@ -4529,7 +4529,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     ])
     onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
-    if (voiceEnabled && !meetingQuietModeRef.current) {
+    if (localStorage.getItem(VOICE_MODE_STORAGE) === 'true' && !meetingQuietModeRef.current) {
       // Stop any currently playing audio first
       stopCurrentAudio()
       const playbackToken = voicePlaybackTokenRef.current
