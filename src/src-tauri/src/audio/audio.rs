@@ -1016,10 +1016,14 @@ struct DeletedRecordingData {
   saved_transcript_paths: Vec<String>,
 }
 
-fn delete_recording_rows(
+fn delete_recording_rows<F>(
   connection: &mut Connection,
   feed_item_id: u64,
-) -> Result<DeletedRecordingData, Error> {
+  before_delete: F,
+) -> Result<DeletedRecordingData, Error>
+where
+  F: FnOnce(&DeletedRecordingData) -> Result<(), Error>,
+{
   let transaction = connection.transaction()?;
   let feed_item_exists = transaction
     .query_row(
@@ -1094,6 +1098,16 @@ fn delete_recording_rows(
     }
   }
 
+  let deleted = DeletedRecordingData {
+    thread_ids,
+    transcript_filenames,
+    saved_transcript_paths,
+  };
+  // Files are removed while the database transaction is still rollbackable.
+  // A locked or permission-denied file leaves the recording intact so the user
+  // can correct the problem and retry from Recent recordings.
+  before_delete(&deleted)?;
+
   transaction.execute(
     "DELETE FROM message_feedbacks WHERE message_id IN (\
        SELECT m.id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.feed_item_id = ?1\
@@ -1130,16 +1144,13 @@ fn delete_recording_rows(
   )?;
   transaction.commit()?;
 
-  Ok(DeletedRecordingData {
-    thread_ids,
-    transcript_filenames,
-    saved_transcript_paths,
-  })
+  Ok(deleted)
 }
 
 fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) -> Vec<PathBuf> {
   let transcript_dir = home_dir.join(".knapsack").join("transcripts");
   let notes_dir = home_dir.join(".knapsack").join("notes");
+  let audio_dir = home_dir.join(".knapsack").join("audio");
   let saved_transcript_dir = home_dir.join(".transcripts");
   let mut candidates = deleted
     .transcript_filenames
@@ -1157,6 +1168,17 @@ fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) ->
     candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
     candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
     candidates.push(notes_dir.join(thread_id.to_string()));
+    if let Ok(entries) = std::fs::read_dir(&audio_dir) {
+      let input_prefix = format!("{}_input_", thread_id);
+      let output_prefix = format!("{}_output_", thread_id);
+      candidates.extend(entries.flatten().filter_map(|entry| {
+        let path = entry.path();
+        let filename = path.file_name()?.to_str()?;
+        (path.is_file()
+          && (filename.starts_with(&input_prefix) || filename.starts_with(&output_prefix)))
+        .then_some(path)
+      }));
+    }
   }
   candidates.extend(
     deleted
@@ -1217,15 +1239,22 @@ pub async fn delete_recording(
   }
 
   let mut connection = get_db_conn();
-  match delete_recording_rows(&mut connection, feed_item_id) {
-    Ok(deleted) => {
-      let cleanup_warnings = remove_recording_files(&deleted);
-      HttpResponse::Ok().json(json!({
-        "success": true,
-        "threadIds": deleted.thread_ids,
-        "fileCleanupWarnings": cleanup_warnings,
-      }))
+  match delete_recording_rows(&mut connection, feed_item_id, |deleted| {
+    let cleanup_errors = remove_recording_files(deleted);
+    if cleanup_errors.is_empty() {
+      Ok(())
+    } else {
+      Err(Error::KSError(format!(
+        "Could not remove every recording file: {}",
+        cleanup_errors.join("; ")
+      )))
     }
+  }) {
+    Ok(deleted) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "threadIds": deleted.thread_ids,
+      "fileCleanupWarnings": [],
+    })),
     Err(Error::KSError(message)) if message == "Recording not found" => {
       HttpResponse::NotFound().json(json!({ "success": false, "message": message }))
     }
@@ -1884,18 +1913,24 @@ mod tests {
       )
       .unwrap();
 
-    let deleted = delete_recording_rows(&mut connection, 1).unwrap();
+    let deleted = delete_recording_rows(&mut connection, 1, |_| Ok(())).unwrap();
 
     assert_eq!(deleted.thread_ids, vec![10, 11]);
     assert!(deleted.transcript_filenames.is_empty());
     assert!(deleted.saved_transcript_paths.is_empty());
     let temp_home = TempDir::new().unwrap();
+    let audio_dir = temp_home.path().join(".knapsack/audio");
+    std::fs::create_dir_all(&audio_dir).unwrap();
+    std::fs::write(audio_dir.join("10_input_0.flac"), b"audio").unwrap();
+    std::fs::write(audio_dir.join("20_input_0.flac"), b"other audio").unwrap();
     let candidates = recording_file_candidates(temp_home.path(), &deleted);
     assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/10")));
     assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/11")));
     assert!(!candidates.contains(&temp_home.path().join(".knapsack/transcripts/shared.txt")));
     assert!(!candidates.contains(&temp_home.path().join(".knapsack/notes/shared.txt")));
     assert!(!candidates.contains(&PathBuf::from("/tmp/shared.txt")));
+    assert!(candidates.contains(&audio_dir.join("10_input_0.flac")));
+    assert!(!candidates.contains(&audio_dir.join("20_input_0.flac")));
     for (table, id) in [
       ("feed_items", 1),
       ("threads", 10),
@@ -1939,6 +1974,32 @@ mod tests {
       )
       .unwrap();
     assert_eq!(detached, (None, None));
+  }
+
+  #[test]
+  fn file_cleanup_failure_keeps_recording_retryable() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection.execute_batch(
+      "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, deleted INTEGER);\
+       CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+       CREATE TABLE messages (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+       CREATE TABLE message_feedbacks (id INTEGER PRIMARY KEY, message_id INTEGER);\
+       CREATE TABLE meeting_insights (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+       CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+       CREATE TABLE automation_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, feed_item_id INTEGER);\
+       INSERT INTO feed_items VALUES (1, 0);\
+       INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', NULL);\
+       INSERT INTO transcripts VALUES (100, 10, 'recording.txt');",
+    ).unwrap();
+
+    let result = delete_recording_rows(&mut connection, 1, |_| {
+      Err(Error::KSError("locked note file".to_string()))
+    });
+
+    assert!(result.is_err());
+    assert_eq!(row_count(&connection, "feed_items", 1), 1);
+    assert_eq!(row_count(&connection, "threads", 10), 1);
+    assert_eq!(row_count(&connection, "transcripts", 100), 1);
   }
 
   #[test]
