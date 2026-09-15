@@ -371,8 +371,12 @@ pub async fn start_recording(
   // Publish recording identity and active state atomically with respect to
   // recording deletion and note saves.
   let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
-  if recording_state.is_recording.load(Ordering::Relaxed) {
-    if recording_state.is_paused.load(Ordering::Relaxed) {
+  if recording_state.is_recording.load(Ordering::Relaxed)
+    || recording_state.is_stopping.load(Ordering::Relaxed)
+  {
+    if recording_state.is_recording.load(Ordering::Relaxed)
+      && recording_state.is_paused.load(Ordering::Relaxed)
+    {
       log::info!(
         "[recording] Resuming paused recording for thread_id={}",
         data.thread_id
@@ -613,6 +617,16 @@ pub struct Metadata {
   pub thread_id: Option<u64>,
 }
 
+struct StopFinalizationGuard {
+  is_stopping: Arc<AtomicBool>,
+}
+
+impl Drop for StopFinalizationGuard {
+  fn drop(&mut self) {
+    self.is_stopping.store(false, Ordering::Relaxed);
+  }
+}
+
 pub async fn get_metadata(thread_id: u64) -> Result<Metadata, Error> {
   let thread = match Thread::find_by_id(thread_id.clone()) {
     Ok(Some(t)) => t,
@@ -678,12 +692,18 @@ pub async fn stop_recording(
     data.save_transcript
   );
 
+  let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   if !recording_state.is_recording.load(Ordering::Relaxed) {
     log::warn!("[recording] stop_recording called but no recording in progress");
     return HttpResponse::BadRequest().body("No recording in progress");
   }
 
+  recording_state.is_stopping.store(true, Ordering::Relaxed);
   recording_state.is_recording.store(false, Ordering::Relaxed);
+  let _stop_finalization_guard = StopFinalizationGuard {
+    is_stopping: recording_state.is_stopping.clone(),
+  };
+  drop(lifecycle_guard);
   log::info!("[recording] is_recording set to false, waiting for threads to finish");
 
   // Hide the floating recording indicator pill
@@ -1515,7 +1535,8 @@ pub async fn delete_recording(
 ) -> HttpResponse {
   let feed_item_id = path.into_inner();
   let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
-  if recording_state.is_recording.load(Ordering::Relaxed)
+  if (recording_state.is_recording.load(Ordering::Relaxed)
+    || recording_state.is_stopping.load(Ordering::Relaxed))
     && *recording_state.feed_item_id.lock().unwrap() == Some(feed_item_id)
   {
     return HttpResponse::Conflict().json(json!({
