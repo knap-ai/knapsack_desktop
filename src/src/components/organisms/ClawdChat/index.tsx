@@ -4542,13 +4542,18 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             voice: 'nova', // Options: alloy, echo, fable, onyx, nova, shimmer
             speed: 1.0,
           }),
-        })
+          })
           .then(res => {
             if (!res.ok) throw new Error('TTS failed')
             return res.blob()
           })
           .then(blob => {
-            if (voicePlaybackTokenRef.current !== playbackToken) return
+            if (
+              voicePlaybackTokenRef.current !== playbackToken ||
+              !activeRef.current ||
+              !voiceSessionOpenRef.current ||
+              localStorage.getItem(VOICE_MODE_STORAGE) !== 'true'
+            ) return
             const audio = new Audio(URL.createObjectURL(blob))
             // Set output device if supported and selected
             if (selectedOutputDevice && 'setSinkId' in audio) {
@@ -4576,6 +4581,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
     }
   }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId, surfaceMissingStudioConnector])
+
+  useEffect(() => {
+    if (active) return
+    voiceSessionOpenRef.current = false
+    setVoiceSessionOpen(false)
+    stopCurrentAudio()
+  }, [active, stopCurrentAudio])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
