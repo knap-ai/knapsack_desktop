@@ -26,7 +26,9 @@ test('voice session reports real lifecycle states and keeps type and sound contr
 })
 
 test('closing a voice session discards unfinished capture and stops playback', () => {
-  assert.match(chat, /const closeVoiceSession = useCallback\(\(\) => \{[\s\S]*?discardVoiceRecordingRef\.current = true[\s\S]*?mediaRecorder\.stop\(\)[\s\S]*?stopCurrentAudio\(\)/)
-  assert.match(chat, /if \(discardVoiceRecordingRef\.current\) \{[\s\S]*?return/)
+  assert.match(chat, /const discardedVoiceRecordersRef = useRef<WeakSet<MediaRecorder>>/)
+  assert.match(chat, /const recordingChunks: Blob\[\] = \[\]/)
+  assert.match(chat, /const closeVoiceSession = useCallback\(\(\) => \{[\s\S]*?discardedVoiceRecordersRef\.current\.add\(mediaRecorder\)[\s\S]*?mediaRecorder\.stop\(\)[\s\S]*?stopCurrentAudio\(\)/)
+  assert.match(chat, /if \(discardedVoiceRecordersRef\.current\.has\(recorder\)\) \{[\s\S]*?return/)
   assert.match(chat, /if \(voicePlaybackTokenRef\.current !== playbackToken\) return/)
 })

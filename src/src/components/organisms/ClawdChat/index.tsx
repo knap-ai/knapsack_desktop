@@ -2272,10 +2272,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
-  const audioChunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const voicePlaybackTokenRef = useRef(0)
-  const discardVoiceRecordingRef = useRef(false)
+  const discardedVoiceRecordersRef = useRef<WeakSet<MediaRecorder>>(new WeakSet())
   const voiceStartTokenRef = useRef(0)
   const voiceStartPendingRef = useRef(false)
   const voiceTranscriptionTokenRef = useRef(0)
@@ -2943,7 +2942,6 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     setIsStartingRecording(true)
     try {
       stopCurrentAudio()
-      discardVoiceRecordingRef.current = false
       const constraints: MediaStreamConstraints = {
         audio: selectedInputDevice ? { deviceId: { exact: selectedInputDevice } } : true
       }
@@ -2979,7 +2977,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const recordingExtension = selectedExtension
 
       const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
-      audioChunksRef.current = []
+      const recordingChunks: Blob[] = []
       recordingStartedAtRef.current = Date.now()
 
       // Set up Web Audio API for silence detection
@@ -3036,7 +3034,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data)
+          recordingChunks.push(e.data)
         }
       }
 
@@ -3053,9 +3051,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         }
         stream.getTracks().forEach(track => track.stop())
 
-        if (discardVoiceRecordingRef.current) {
-          audioChunksRef.current = []
-          discardVoiceRecordingRef.current = false
+        if (discardedVoiceRecordersRef.current.has(recorder)) {
+          discardedVoiceRecordersRef.current.delete(recorder)
+          recordingChunks.length = 0
           return
         }
 
@@ -3063,12 +3061,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
         const elapsedMs = Date.now() - recordingStartedAtRef.current
-        const chunkCount = audioChunksRef.current.length
-        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
+        const chunkCount = recordingChunks.length
+        const audioBlob = new Blob(recordingChunks, { type: selectedMimeType })
         console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
 
         if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size < MIN_VOICE_BLOB_BYTES || elapsedMs < MIN_VOICE_RECORDING_MS) {
-          audioChunksRef.current = []
+          recordingChunks.length = 0
           pushAssistantRef.current?.('🎤 I didn’t catch enough audio. Please try again and speak for a second or two after the mic turns on.')
           return
         }
@@ -3125,7 +3123,6 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [startRecording, voiceEnabled, voiceSessionOpen])
 
   const closeVoiceSession = useCallback(() => {
-    discardVoiceRecordingRef.current = true
     voiceStartTokenRef.current += 1
     voiceStartPendingRef.current = false
     setIsStartingRecording(false)
@@ -3133,7 +3130,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     voiceTranscriptionAbortRef.current?.abort()
     voiceTranscriptionAbortRef.current = null
     setIsTranscribing(false)
-    if (mediaRecorder?.state === 'recording') {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      discardedVoiceRecordersRef.current.add(mediaRecorder)
       mediaRecorder.stop()
       setIsRecording(false)
     }
