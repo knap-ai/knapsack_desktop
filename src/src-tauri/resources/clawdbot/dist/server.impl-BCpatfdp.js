@@ -84,6 +84,10 @@ function startDesktopBrowserControlPlaceholder(log) {
 		close: () => new Promise((resolve) => {
 			clearPlaceholder();
 			server.close(() => resolve());
+			// Health probes may still hold accepted sockets while the real browser
+			// service takes over. server.close() waits for those sockets forever,
+			// leaving 18791 without a listener and wedging browser-control startup.
+			server.closeAllConnections?.();
 		})
 	};
 	server.once("error", (error) => {

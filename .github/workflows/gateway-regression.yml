@@ -59,6 +59,10 @@ jobs:
         working-directory: src
         run: node --test scripts/web-fetch-recovery.test.mjs
 
+      - name: Test browser-control placeholder handoff
+        working-directory: src
+        run: node --test scripts/browser-placeholder-handoff.test.cjs
+
       - name: Report clawdbot duplicates before prune
         working-directory: src
         run: node scripts/report-clawdbot-duplicates.cjs
