@@ -3107,7 +3107,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     void startRecording()
   }, [startRecording, voiceEnabled, voiceSessionOpen])
 
-  const closeVoiceSession = useCallback(() => {
+  const endVoiceCapture = useCallback(() => {
     voiceSessionOpenRef.current = false
     voiceStartTokenRef.current += 1
     voiceStartPendingRef.current = false
@@ -3125,10 +3125,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     }
     stopCurrentAudio()
     setVoiceSessionOpen(false)
+  }, [mediaRecorder, stopCurrentAudio])
+
+  const closeVoiceSession = useCallback(() => {
+    endVoiceCapture()
     setVoiceEnabled(false)
     localStorage.setItem(VOICE_MODE_STORAGE, 'false')
     requestAnimationFrame(() => chatInputElementRef.current?.focus())
-  }, [mediaRecorder, stopCurrentAudio])
+  }, [endVoiceCapture])
 
   useEffect(() => {
     if (!voiceSessionOpen || !active) return
@@ -4584,10 +4588,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   useEffect(() => {
     if (active) return
-    voiceSessionOpenRef.current = false
-    setVoiceSessionOpen(false)
-    stopCurrentAudio()
-  }, [active, stopCurrentAudio])
+    endVoiceCapture()
+  }, [active, endVoiceCapture])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
@@ -5947,6 +5949,7 @@ ${actualText}`
   useEffect(() => {
     if (!active) return
     const handleBannerKey = (e: KeyboardEvent) => {
+      if (voiceSessionOpen) return
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       // Don't intercept when user is typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName
@@ -5972,7 +5975,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleBannerKey)
     return () => window.removeEventListener('keydown', handleBannerKey)
-  }, [active, health, channelStatus.gatewayStarting])
+  }, [active, health, channelStatus.gatewayStarting, voiceSessionOpen])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
