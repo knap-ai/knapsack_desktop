@@ -2,6 +2,7 @@ import './style.scss'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
+import { MicrophoneIcon, PencilSquareIcon, SpeakerWaveIcon, SpeakerXMarkIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import remarkGfm from 'remark-gfm'
 import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
@@ -1310,6 +1311,7 @@ type ChatInputBarProps = {
   providerReady: boolean
   hasQueuedMessage: boolean
   isRecording: boolean
+  isStartingRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
   attachedFiles: Attachment[]
@@ -1319,7 +1321,6 @@ type ChatInputBarProps = {
   onRemoveFile: (index: number) => void
   onStartRecording: () => void
   onStopRecording: () => void
-  onToggleVoice: () => void
   onStopGeneration: () => void
   replyToMsg?: Msg | null
   onCancelReply?: () => void
@@ -1526,9 +1527,9 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isTranscribing, voiceEnabled,
+    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
-    onStartRecording, onStopRecording, onToggleVoice, onStopGeneration,
+    onStartRecording, onStopRecording, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
     inputElementRef,
   } = props
@@ -1706,22 +1707,15 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
             disabled={isRecording || !providerReady}
             rows={1}
           />
-          {/* Voice mode toggle - always visible inside input like ChatGPT */}
+          {/* A single click starts listening; speaker output is controlled in the voice panel. */}
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
-            onClick={isRecording ? onStopRecording : voiceEnabled ? onStartRecording : onToggleVoice}
-            disabled={busy || isTranscribing || !providerReady}
-            title={
-              !voiceEnabled
-                ? 'Enable voice mode'
-                : isRecording
-                  ? 'Stop recording'
-                  : isTranscribing
-                    ? 'Transcribing...'
-                    : 'Click to speak (or click again to disable voice mode)'
-            }
+            onClick={isRecording ? onStopRecording : onStartRecording}
+            disabled={busy || isStartingRecording || isTranscribing || !providerReady}
+            aria-label={isRecording ? 'Finish speaking' : 'Start voice conversation'}
+            title={isRecording ? 'Finish speaking' : 'Start voice conversation'}
           >
-            {isTranscribing ? '⏳' : isRecording ? '⏹️' : voiceEnabled ? '🎤' : '🎙️'}
+            {isTranscribing ? '⏳' : isRecording ? '⏹️' : '🎙️'}
           </button>
         </div>
         {busy ? (
@@ -2270,14 +2264,25 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Voice input state
   const [isRecording, setIsRecording] = useState(false)
+  const [isStartingRecording, setIsStartingRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [voiceSessionOpen, setVoiceSessionOpen] = useState(false)
+  const voiceSessionOpenRef = useRef(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
-  const audioChunksRef = useRef<Blob[]>([])
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
-  const recordingStartedAtRef = useRef<number>(0)
+  const voicePlaybackTokenRef = useRef(0)
+  const discardedVoiceRecordersRef = useRef<WeakSet<MediaRecorder>>(new WeakSet())
+  const voiceStartTokenRef = useRef(0)
+  const voiceStartPendingRef = useRef(false)
+  const voiceTranscriptionTokenRef = useRef(0)
+  const voiceTranscriptionAbortRef = useRef<AbortController | null>(null)
+  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
+  const voiceSessionRef = useRef<HTMLElement | null>(null)
+  const recordingStartedAtByRecorderRef = useRef<WeakMap<MediaRecorder, number>>(new WeakMap())
 
   // Audio device selection - using system defaults (setters kept for future device picker UI)
   const [selectedInputDevice, _setSelectedInputDevice] = useState<string>('')
@@ -2299,9 +2304,6 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const msgRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Voice silence detection refs
-  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
 
   // Refs for callbacks that need to be called from other callbacks (avoids circular dependency)
   const doSendRef = useRef<((text: string, attachmentOverride?: Attachment[]) => Promise<void>) | null>(null)
@@ -2918,11 +2920,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Stop any currently playing audio
   const stopCurrentAudio = useCallback(() => {
+    voicePlaybackTokenRef.current += 1
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
       currentAudioRef.current.currentTime = 0
       currentAudioRef.current = null
     }
+    setIsSpeaking(false)
   }, [])
 
   // Voice input handlers with silence detection (auto-submit after 1.5s silence)
@@ -2931,11 +2935,20 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const MIN_RECORDING_TIME = 500 // ms minimum recording before silence detection kicks in
 
   const startRecording = useCallback(async () => {
+    if (voiceStartPendingRef.current) return
+    voiceStartPendingRef.current = true
+    const startToken = ++voiceStartTokenRef.current
+    setIsStartingRecording(true)
     try {
+      stopCurrentAudio()
       const constraints: MediaStreamConstraints = {
         audio: selectedInputDevice ? { deviceId: { exact: selectedInputDevice } } : true
       }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      if (voiceStartTokenRef.current !== startToken) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
 
       // Find a supported mime type that OpenAI Whisper accepts
       // Whisper supports: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm
@@ -2963,8 +2976,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const recordingExtension = selectedExtension
 
       const recorder = new MediaRecorder(stream, { mimeType: selectedMimeType })
-      audioChunksRef.current = []
-      recordingStartedAtRef.current = Date.now()
+      const recordingChunks: Blob[] = []
 
       // Set up Web Audio API for silence detection
       const audioContext = new AudioContext()
@@ -2972,26 +2984,25 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const analyser = audioContext.createAnalyser()
       analyser.fftSize = 512
       source.connect(analyser)
-      audioContextRef.current = audioContext
-      analyserRef.current = analyser
-
       const recordingStartTime = Date.now()
+      recordingStartedAtByRecorderRef.current.set(recorder, recordingStartTime)
       let lastSoundTime = Date.now()
+      let silenceTimeout: ReturnType<typeof setTimeout> | null = null
 
       // Monitor audio levels for silence detection
       const dataArray = new Uint8Array(analyser.frequencyBinCount)
       const checkSilence = () => {
-        if (!analyserRef.current || recorder.state === 'inactive') return
+        if (recorder.state === 'inactive') return
 
-        analyserRef.current.getByteFrequencyData(dataArray)
+        analyser.getByteFrequencyData(dataArray)
         const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length / 255
 
         if (average > SILENCE_THRESHOLD) {
           // Sound detected, reset silence timer
           lastSoundTime = Date.now()
-          if (silenceTimeoutRef.current) {
-            clearTimeout(silenceTimeoutRef.current)
-            silenceTimeoutRef.current = null
+          if (silenceTimeout) {
+            clearTimeout(silenceTimeout)
+            silenceTimeout = null
           }
         } else {
           // Silence detected
@@ -3000,9 +3011,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
           // Only auto-stop if we've been recording for a bit and there's prolonged silence
           if (timeSinceStart > MIN_RECORDING_TIME && timeSinceLastSound >= SILENCE_DURATION) {
-            if (!silenceTimeoutRef.current) {
+            if (!silenceTimeout) {
               // Auto-stop recording after silence
-              silenceTimeoutRef.current = setTimeout(() => {
+              silenceTimeout = setTimeout(() => {
                 if (recorder.state !== 'inactive') {
                   recorder.stop()
                   setIsRecording(false)
@@ -3020,33 +3031,37 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data)
+          recordingChunks.push(e.data)
         }
       }
 
       recorder.onstop = async () => {
         // Clean up audio context
-        if (audioContextRef.current) {
-          audioContextRef.current.close()
-          audioContextRef.current = null
+        if (audioContext.state !== 'closed') {
+          void audioContext.close()
         }
-        analyserRef.current = null
-        if (silenceTimeoutRef.current) {
-          clearTimeout(silenceTimeoutRef.current)
-          silenceTimeoutRef.current = null
+        if (silenceTimeout) {
+          clearTimeout(silenceTimeout)
+          silenceTimeout = null
         }
         stream.getTracks().forEach(track => track.stop())
+
+        if (discardedVoiceRecordersRef.current.has(recorder)) {
+          discardedVoiceRecordersRef.current.delete(recorder)
+          recordingChunks.length = 0
+          return
+        }
 
         // Use the extension we determined at recording start
         console.log('[Voice] Recording stopped, using extension:', recordingExtension)
 
-        const elapsedMs = Date.now() - recordingStartedAtRef.current
-        const chunkCount = audioChunksRef.current.length
-        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType })
+        const elapsedMs = Date.now() - recordingStartTime
+        const chunkCount = recordingChunks.length
+        const audioBlob = new Blob(recordingChunks, { type: selectedMimeType })
         console.log('[Voice] Recording stats', { elapsedMs, chunkCount, mimeType: selectedMimeType, size: audioBlob.size })
 
         if (chunkCount < MIN_VOICE_CHUNK_COUNT || audioBlob.size < MIN_VOICE_BLOB_BYTES || elapsedMs < MIN_VOICE_RECORDING_MS) {
-          audioChunksRef.current = []
+          recordingChunks.length = 0
           pushAssistantRef.current?.('🎤 I didn’t catch enough audio. Please try again and speak for a second or two after the mic turns on.')
           return
         }
@@ -3055,40 +3070,115 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
 
       recorder.start(100) // Collect data every 100ms for smoother silence detection
+      voiceStartPendingRef.current = false
+      setIsStartingRecording(false)
       setMediaRecorder(recorder)
       setIsRecording(true)
 
       // Start silence detection
       requestAnimationFrame(checkSilence)
     } catch (e: any) {
+      if (voiceStartTokenRef.current !== startToken) return
+      voiceStartPendingRef.current = false
+      setIsStartingRecording(false)
+      setVoiceSessionOpen(false)
+      setVoiceEnabled(false)
+      localStorage.setItem(VOICE_MODE_STORAGE, 'false')
       pushAssistant(`🎤 Microphone access denied: ${e?.message || String(e)}`)
     }
-  }, [selectedInputDevice])
+  }, [selectedInputDevice, stopCurrentAudio])
 
   const stopRecording = useCallback(() => {
-    // Clean up silence detection
-    if (silenceTimeoutRef.current) {
-      clearTimeout(silenceTimeoutRef.current)
-      silenceTimeoutRef.current = null
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    analyserRef.current = null
-
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      const elapsedMs = Date.now() - recordingStartedAtRef.current
+      const elapsedMs = Date.now() - (recordingStartedAtByRecorderRef.current.get(mediaRecorder) || Date.now())
       if (elapsedMs < MIN_VOICE_RECORDING_MS) return
       mediaRecorder.stop()
       setIsRecording(false)
     }
   }, [mediaRecorder])
 
+  const openVoiceSession = useCallback(() => {
+    voiceSessionOpenRef.current = true
+    setVoiceSessionOpen(true)
+    if (!voiceSessionOpen && !voiceEnabled) {
+      setVoiceEnabled(true)
+      localStorage.setItem(VOICE_MODE_STORAGE, 'true')
+    }
+    void startRecording()
+  }, [startRecording, voiceEnabled, voiceSessionOpen])
+
+  const endVoiceCapture = useCallback(() => {
+    voiceSessionOpenRef.current = false
+    voiceStartTokenRef.current += 1
+    voiceStartPendingRef.current = false
+    setIsStartingRecording(false)
+    voiceTranscriptionTokenRef.current += 1
+    voiceTranscriptionAbortRef.current?.abort()
+    voiceTranscriptionAbortRef.current = null
+    setIsTranscribing(false)
+    if (mediaRecorder) {
+      discardedVoiceRecordersRef.current.add(mediaRecorder)
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop()
+        setIsRecording(false)
+      }
+    }
+    stopCurrentAudio()
+    setVoiceSessionOpen(false)
+  }, [mediaRecorder, stopCurrentAudio])
+
+  const closeVoiceSession = useCallback(() => {
+    endVoiceCapture()
+    setVoiceEnabled(false)
+    localStorage.setItem(VOICE_MODE_STORAGE, 'false')
+    requestAnimationFrame(() => chatInputElementRef.current?.focus())
+  }, [endVoiceCapture])
+
+  useEffect(() => {
+    if (!voiceSessionOpen || !active) return
+    requestAnimationFrame(() => {
+      const dialog = voiceSessionRef.current
+      const primary = dialog?.querySelector<HTMLElement>('[data-voice-primary]:not(:disabled)')
+      const firstEnabled = dialog?.querySelector<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])')
+      ;(primary || firstEnabled)?.focus()
+    })
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeVoiceSession()
+        return
+      }
+      if (event.key === 'Tab' && voiceSessionRef.current) {
+        const focusable = Array.from(
+          voiceSessionRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])'),
+        )
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (!voiceSessionRef.current.contains(document.activeElement)) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first).focus()
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [active, closeVoiceSession, voiceSessionOpen])
+
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
+    const transcriptionToken = ++voiceTranscriptionTokenRef.current
+    const controller = new AbortController()
+    voiceTranscriptionAbortRef.current = controller
     setIsTranscribing(true)
     try {
       const speechAuth = await getSpeechToTextAuth()
+      if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (!speechAuth) {
         pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
         setShowKeyPrompt(true)
@@ -3103,6 +3193,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       const res = await fetch(speechAuth.endpoint, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Authorization': `Bearer ${speechAuth.apiKey}`,
         },
@@ -3115,6 +3206,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
 
       const data = await res.json()
+      if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
         handleSendWithTextRef.current?.(data.text)
@@ -3122,6 +3214,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pushAssistantRef.current?.('🎤 I didn’t catch any speech. Try again and start speaking after the mic turns on.')
       }
     } catch (e: any) {
+      if (controller.signal.aborted || voiceTranscriptionTokenRef.current !== transcriptionToken) return
       const raw = e?.message || String(e)
       const lower = raw.toLowerCase()
       if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
@@ -3130,7 +3223,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pushAssistantRef.current?.(`🎤 Transcription failed: ${raw}`)
       }
     } finally {
-      setIsTranscribing(false)
+      if (voiceTranscriptionTokenRef.current === transcriptionToken) {
+        voiceTranscriptionAbortRef.current = null
+        setIsTranscribing(false)
+      }
     }
   }, [])
 
@@ -4419,9 +4515,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     ])
     onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
-    if (voiceEnabled) {
+    if (
+      activeRef.current &&
+      voiceSessionOpenRef.current &&
+      localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
+    ) {
       // Stop any currently playing audio first
       stopCurrentAudio()
+      const playbackToken = voicePlaybackTokenRef.current
 
       // Strip markdown formatting for cleaner speech
       const cleanText = text
@@ -4445,22 +4546,36 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
             voice: 'nova', // Options: alloy, echo, fable, onyx, nova, shimmer
             speed: 1.0,
           }),
-        })
+          })
           .then(res => {
             if (!res.ok) throw new Error('TTS failed')
             return res.blob()
           })
           .then(blob => {
+            if (
+              voicePlaybackTokenRef.current !== playbackToken ||
+              !activeRef.current ||
+              !voiceSessionOpenRef.current ||
+              localStorage.getItem(VOICE_MODE_STORAGE) !== 'true'
+            ) return
             const audio = new Audio(URL.createObjectURL(blob))
             // Set output device if supported and selected
             if (selectedOutputDevice && 'setSinkId' in audio) {
               (audio as any).setSinkId(selectedOutputDevice).catch(() => {})
             }
             currentAudioRef.current = audio
-            audio.play()
+            audio.play().then(() => {
+              if (currentAudioRef.current === audio) setIsSpeaking(true)
+            }).catch(() => {
+              if (currentAudioRef.current === audio) {
+                currentAudioRef.current = null
+                setIsSpeaking(false)
+              }
+            })
             audio.onended = () => {
               if (currentAudioRef.current === audio) {
                 currentAudioRef.current = null
+                setIsSpeaking(false)
               }
             }
           })
@@ -4470,6 +4585,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
     }
   }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId, surfaceMissingStudioConnector])
+
+  useEffect(() => {
+    if (active) return
+    endVoiceCapture()
+  }, [active, endVoiceCapture])
 
   // Keep pushAssistantRef updated for callbacks defined earlier
   pushAssistantRef.current = pushAssistant
@@ -5785,7 +5905,6 @@ ${actualText}`
   clearHistoryRef.current = clearHistory
   const openChatFindRef = useRef<() => void>(() => {})
   const closeChatFindRef = useRef<() => void>(() => {})
-  const chatInputElementRef = useRef<HTMLTextAreaElement | null>(null)
   useEffect(() => {
     if (!active) return
     const frame = requestAnimationFrame(() => chatInputElementRef.current?.focus())
@@ -5796,6 +5915,7 @@ ${actualText}`
     if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
+      if (voiceSessionOpen) return
       if (e.key === 'Escape') {
         const activeEl = document.activeElement
         if (chatFindOpen && activeEl === chatFindInputRef.current) {
@@ -5823,12 +5943,13 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [active, chatFindOpen])
+  }, [active, chatFindOpen, voiceSessionOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {
     if (!active) return
     const handleBannerKey = (e: KeyboardEvent) => {
+      if (voiceSessionOpen) return
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       // Don't intercept when user is typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName
@@ -5854,7 +5975,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleBannerKey)
     return () => window.removeEventListener('keydown', handleBannerKey)
-  }, [active, health, channelStatus.gatewayStarting])
+  }, [active, health, channelStatus.gatewayStarting, voiceSessionOpen])
 
   const toggleVoiceOutputRef = useRef(toggleVoiceOutput)
   toggleVoiceOutputRef.current = toggleVoiceOutput
@@ -5989,6 +6110,10 @@ ${actualText}`
     const map = new Map<string, Msg>()
     for (const m of msgs) map.set(m.id, m)
     return map
+  }, [msgs])
+  const latestVoiceContext = useMemo(() => {
+    const last = [...msgs].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())
+    return last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Your conversation continues here.'
   }, [msgs])
 
   return (
@@ -6718,6 +6843,7 @@ ${actualText}`
         providerReady={!providerSelectionRefreshing}
         hasQueuedMessage={hasQueuedMessage}
         isRecording={isRecording}
+        isStartingRecording={isStartingRecording}
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
         attachedFiles={attachedFiles}
@@ -6725,15 +6851,37 @@ ${actualText}`
         onQueue={stableQueueMessage}
         onFileSelect={handleFileSelect}
         onRemoveFile={removeAttachedFile}
-        onStartRecording={startRecording}
+        onStartRecording={openVoiceSession}
         onStopRecording={stopRecording}
-        onToggleVoice={stableToggleVoiceOutput}
         onStopGeneration={stableStopGeneration}
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
         initialValue={initialInput}
         inputElementRef={chatInputElementRef}
       />
+      {voiceSessionOpen && (
+        <section ref={voiceSessionRef} className="ClawdVoiceSession" role="dialog" aria-modal="true" aria-label="Voice conversation">
+          <div className="ClawdVoiceSessionTop">
+            <div className="ClawdVoiceSessionContext">
+              <strong>{agentName || title}</strong>
+              <span>{latestVoiceContext}</span>
+            </div>
+            <button type="button" onClick={closeVoiceSession} aria-label="Close voice conversation"><XMarkIcon /></button>
+          </div>
+          <div className="ClawdVoiceSessionCenter" aria-live="polite">
+            <div className={`ClawdVoiceMark ${isRecording ? 'listening' : isSpeaking ? 'speaking' : ''}`} aria-hidden="true">
+              <img src="/assets/images/knap-logo-medium.png" alt="" />
+            </div>
+            <h2>{isStartingRecording ? 'Connecting microphone' : isRecording ? 'Listening' : isTranscribing ? 'Turning speech into text' : busy ? 'Thinking' : isSpeaking ? 'Speaking' : 'Ready when you are'}</h2>
+            <p>{isStartingRecording ? 'Allow microphone access if asked.' : isRecording ? 'Speak naturally. Pause to send, or tap Done.' : isTranscribing ? 'Your words will appear in this chat.' : busy ? 'Your request is in progress.' : 'The conversation stays in this chat.'}</p>
+          </div>
+          <div className="ClawdVoiceSessionControls">
+            <button type="button" onClick={closeVoiceSession} aria-label="Switch to typing" title="Switch to typing"><PencilSquareIcon /> <span>Type</span></button>
+            <button data-voice-primary type="button" className={`ClawdVoiceSessionMic ${isRecording ? 'recording' : ''}`} onClick={isRecording ? stopRecording : openVoiceSession} disabled={isStartingRecording || isTranscribing || busy} aria-label={isRecording ? 'Done speaking' : 'Start speaking'} title={isRecording ? 'Done speaking' : 'Start speaking'}>{isRecording ? <span className="ClawdVoiceStopIcon" /> : <MicrophoneIcon />}</button>
+            <button type="button" onClick={stableToggleVoiceOutput} aria-pressed={voiceEnabled} aria-label={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'} title={voiceEnabled ? 'Mute spoken replies' : 'Play spoken replies'}>{voiceEnabled ? <SpeakerWaveIcon /> : <SpeakerXMarkIcon />} <span>{voiceEnabled ? 'Sound on' : 'Muted'}</span></button>
+          </div>
+        </section>
+      )}
       </div>
       </div>{/* end ClawdChatContent */}
 
