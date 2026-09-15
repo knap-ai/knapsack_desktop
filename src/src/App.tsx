@@ -123,9 +123,8 @@ const MEETING_MIC_PROMPT_APPS = [
   'gotomeeting',
 ]
 
-function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
-  if (!appInfo) return true
-
+function micAppHaystack(appInfo: FrontmostAppInfo | null): string {
+  if (!appInfo) return ''
   const haystack = [
     appInfo.name,
     appInfo.bundleId,
@@ -134,6 +133,19 @@ function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
+
+  return haystack
+}
+
+function isRecognizedMeetingApp(appInfo: FrontmostAppInfo | null): boolean {
+  const haystack = micAppHaystack(appInfo)
+  return Boolean(haystack && MEETING_MIC_PROMPT_APPS.some(app => haystack.includes(app)))
+}
+
+function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
+  if (!appInfo) return true
+
+  const haystack = micAppHaystack(appInfo)
 
   if (!haystack) return true
   if (EXCLUDED_MIC_PROMPT_APPS.some(app => haystack.includes(app))) return false
@@ -1396,7 +1408,9 @@ function App() {
         })
         if (!shouldShowMicPromptForApp(appInfo)) return
 
-        const scheduledMeeting = findMeetingCaptureCandidate(calendarCaptureItems(), Date.now())
+        const scheduledMeeting = isRecognizedMeetingApp(appInfo)
+          ? findMeetingCaptureCandidate(calendarCaptureItems(), Date.now())
+          : null
         if (scheduledMeeting) {
           await beginAutomaticMeetingCapture(scheduledMeeting)
           return

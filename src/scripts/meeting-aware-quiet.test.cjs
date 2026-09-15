@@ -37,6 +37,7 @@ test('calendar timing and a real meeting-audio signal gate automatic capture', (
   assert.match(capture, /item\.threads\?\.some\(thread => thread\.recorded\)/)
   assert.match(capture, /event\.google_meet_url \|\| event\.teams_url \|\| event\.zoom_url/)
   assert.match(app, /listen\('mic-activated'/)
+  assert.match(app, /const scheduledMeeting = isRecognizedMeetingApp\(appInfo\)[\s\S]*?findMeetingCaptureCandidate/)
   assert.match(app, /findMeetingCaptureCandidate\(calendarCaptureItems\(\), Date\.now\(\)\)/)
   assert.match(app, /await beginAutomaticMeetingCapture\(scheduledMeeting\)/)
 })
