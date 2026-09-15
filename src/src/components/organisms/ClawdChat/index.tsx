@@ -2267,6 +2267,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [isStartingRecording, setIsStartingRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false)
+  const voiceSessionOpenRef = useRef(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
@@ -3097,6 +3098,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [mediaRecorder])
 
   const openVoiceSession = useCallback(() => {
+    voiceSessionOpenRef.current = true
     setVoiceSessionOpen(true)
     if (!voiceSessionOpen && !voiceEnabled) {
       setVoiceEnabled(true)
@@ -3106,6 +3108,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [startRecording, voiceEnabled, voiceSessionOpen])
 
   const closeVoiceSession = useCallback(() => {
+    voiceSessionOpenRef.current = false
     voiceStartTokenRef.current += 1
     voiceStartPendingRef.current = false
     setIsStartingRecording(false)
@@ -4508,7 +4511,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     ])
     onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
-    if (localStorage.getItem(VOICE_MODE_STORAGE) === 'true') {
+    if (
+      activeRef.current &&
+      voiceSessionOpenRef.current &&
+      localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
+    ) {
       // Stop any currently playing audio first
       stopCurrentAudio()
       const playbackToken = voicePlaybackTokenRef.current
@@ -5894,8 +5901,8 @@ ${actualText}`
     if (!active) return
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
+      if (voiceSessionOpen) return
       if (e.key === 'Escape') {
-        if (voiceSessionOpen) return
         const activeEl = document.activeElement
         if (chatFindOpen && activeEl === chatFindInputRef.current) {
           e.preventDefault()
