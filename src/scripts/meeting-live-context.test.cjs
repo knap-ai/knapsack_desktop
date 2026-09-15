@@ -113,6 +113,9 @@ test("owned action items align wrapped descriptions independently from owner lab
   const styles = read("src/components/molecules/MarkdownDisplay/markdown-styles.css");
 
   assert.match(markdown, /splitOwnedActionItem/);
+  assert.match(markdown, /sliceRenderedNodesFrom\(taskContent, ownedAction\.descriptionOffset\)/);
+  assert.match(markdown, /\{renderedDescription\}/);
+  assert.doesNotMatch(markdown, /renderActionDescription/);
   assert.match(markdown, /markdown-task-action__owner/);
   assert.match(markdown, /markdown-task-action__description/);
   assert.match(styles, /grid-template-columns: max-content minmax\(0, 1fr\)/);

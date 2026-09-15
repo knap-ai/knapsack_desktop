@@ -36,16 +36,60 @@ const isMarkdownTaskListItem = (node: unknown): boolean => {
   ) === true
 }
 
-const splitOwnedActionItem = (taskText: string): { owner: string; description: string } | null => {
-  const match = taskText.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/)
-  if (!match) return null
-  return { owner: match[1].trim(), description: match[2].trim() }
+const renderedNodeText = (node: React.ReactNode): string => {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (!React.isValidElement(node)) return ''
+  return React.Children.toArray((node.props as { children?: React.ReactNode }).children)
+    .map(renderedNodeText)
+    .join('')
 }
 
-const renderActionDescription = (description: string) => {
-  const due = description.match(/^(.*?)(\s+—\s+)(Due:)(.*)$/i)
-  if (!due) return description
-  return <>{due[1]}{due[2]}<strong>{due[3]}</strong>{due[4]}</>
+const sliceRenderedNodeFrom = (node: React.ReactNode, offset: number): React.ReactNode => {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node).slice(Math.max(0, offset))
+  }
+  if (!React.isValidElement(node)) return offset <= 0 ? node : null
+
+  const element = node as React.ReactElement<{ children?: React.ReactNode }>
+  const children = React.Children.toArray(element.props.children)
+  if (children.length === 0) return offset <= 0 ? element : null
+
+  let remaining = Math.max(0, offset)
+  const slicedChildren: React.ReactNode[] = []
+  children.forEach((child) => {
+    const length = renderedNodeText(child).length
+    if (remaining >= length) {
+      remaining -= length
+      return
+    }
+    slicedChildren.push(sliceRenderedNodeFrom(child, remaining))
+    remaining = 0
+  })
+
+  return React.cloneElement(element, undefined, ...slicedChildren)
+}
+
+const sliceRenderedNodesFrom = (nodes: React.ReactNode[], offset: number): React.ReactNode[] => {
+  let remaining = Math.max(0, offset)
+  const sliced: React.ReactNode[] = []
+  nodes.forEach((node) => {
+    const length = renderedNodeText(node).length
+    if (remaining >= length) {
+      remaining -= length
+      return
+    }
+    sliced.push(sliceRenderedNodeFrom(node, remaining))
+    remaining = 0
+  })
+  return sliced
+}
+
+const splitOwnedActionItem = (
+  renderedText: string,
+): { owner: string; descriptionOffset: number } | null => {
+  const match = renderedText.match(/^\s*(.+?)\s+(?:—|–|-)\s+/)
+  if (!match) return null
+  return { owner: match[1].trim(), descriptionOffset: match[0].length }
 }
 
 const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
@@ -128,7 +172,11 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
                 React.isValidElement(child) && child.type === 'input'
               )
               const taskContent = children.filter(child => child !== checkbox)
-              const ownedAction = splitOwnedActionItem(taskText)
+              const renderedTaskText = taskContent.map(renderedNodeText).join('')
+              const ownedAction = splitOwnedActionItem(renderedTaskText)
+              const renderedDescription = ownedAction
+                ? sliceRenderedNodesFrom(taskContent, ownedAction.descriptionOffset)
+                : taskContent
 
               return (
                 <li {...props} className="mb-1 flex items-start markdown-task-action-item">
@@ -148,7 +196,7 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
                           <strong>{ownedAction.owner}</strong><span aria-hidden="true"> —</span>
                         </span>
                         <span className="markdown-task-action__description">
-                          {renderActionDescription(ownedAction.description)}
+                          {renderedDescription}
                         </span>
                       </>
                     ) : taskContent}
