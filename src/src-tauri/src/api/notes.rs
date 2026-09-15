@@ -9,7 +9,8 @@ use serde_json::json;
 use std::fs::{read_to_string, File};
 use std::io::Write;
 
-use crate::audio::audio::get_metadata;
+use crate::audio::audio::{get_metadata, RECORDING_LIFECYCLE_LOCK};
+use crate::db::models::thread::Thread;
 use crate::db::models::transcript::Transcript;
 
 #[derive(Deserialize)]
@@ -30,6 +31,12 @@ struct AllNotesResponse {
 }
 
 pub(crate) fn save_notes_to_file(thread_id: u64, notes_content: &str) -> Result<(), Error> {
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  if Thread::find_by_id(thread_id)?.is_none() {
+    return Err(Error::KSError(
+      "Cannot save notes for a deleted meeting".to_string(),
+    ));
+  }
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
   let notes_dir = knapsack_data_dir.join("notes");

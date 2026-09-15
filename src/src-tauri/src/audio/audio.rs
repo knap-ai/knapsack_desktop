@@ -33,17 +33,18 @@ use cpal::{FromSample, Sample};
 use hound::WavWriter;
 
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Handle;
 use tokio::time::{sleep, timeout, Duration, Instant};
 use uuid::Uuid;
 
 use crate::audio::utils::sanitize_filename;
+use crate::db::db::get_db_conn;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::feed_item::{FeedItem, FeedItemComplete};
 use crate::db::models::meeting_insight::MeetingInsight;
-use crate::db::models::thread::Thread;
+use crate::db::models::thread::{Thread, ThreadType};
 use crate::db::models::transcript::{Transcript, TranscriptWithContent};
 use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
@@ -57,11 +58,14 @@ use super::transcribe::{
 };
 use cpal::SizedSample;
 use hound::SampleFormat;
-use std::collections::HashMap;
+use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr;
 use tokio::sync::{mpsc, Semaphore};
+
+pub(crate) static RECORDING_LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Parser, Debug)]
 struct Opt {
@@ -364,8 +368,15 @@ pub async fn start_recording(
     })));
   }
 
-  if recording_state.is_recording.load(Ordering::Relaxed) {
-    if recording_state.is_paused.load(Ordering::Relaxed) {
+  // Publish recording identity and active state atomically with respect to
+  // recording deletion and note saves.
+  let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  if recording_state.is_recording.load(Ordering::Relaxed)
+    || recording_state.is_stopping.load(Ordering::Relaxed)
+  {
+    if recording_state.is_recording.load(Ordering::Relaxed)
+      && recording_state.is_paused.load(Ordering::Relaxed)
+    {
       log::info!(
         "[recording] Resuming paused recording for thread_id={}",
         data.thread_id
@@ -391,9 +402,18 @@ pub async fn start_recording(
     let mut output_filename_guard = recording_state.output_filename.lock().unwrap();
     *output_filename_guard = Some(output_filename.clone());
   }
+  {
+    let mut thread_id_guard = recording_state.thread_id.lock().unwrap();
+    *thread_id_guard = Some(data.thread_id);
+  }
+  {
+    let mut feed_item_id_guard = recording_state.feed_item_id.lock().unwrap();
+    *feed_item_id_guard = Some(data.feed_item_id);
+  }
 
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
+  drop(lifecycle_guard);
   log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
 
   // Show the floating recording indicator pill
@@ -422,8 +442,20 @@ pub async fn start_recording(
 
   // Setup input device
   let input_wav_path = knapsack_data_dir.join(&input_filename);
-  let (mic_input_device, mic_input_config) = setup_audio_device(&host, &opt.device, true)
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+  let (mic_input_device, mic_input_config) = match setup_audio_device(&host, &opt.device, true) {
+    Ok(device) => device,
+    Err(error) => {
+      let _startup_finalization_guard = begin_recording_finalization(&recording_state);
+      if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+        let _ = indicator_window.hide();
+      }
+      return Ok(HttpResponse::BadRequest().json(json!({
+        "error": format!("Microphone could not start: {}", error),
+        "code": "microphone_start_failed",
+        "status": "error"
+      })));
+    }
+  };
 
   let feed_item_id = data.feed_item_id;
   let thread_id = data.thread_id;
@@ -471,7 +503,7 @@ pub async fn start_recording(
         *output_thread_guard = Some(output_thread);
       }
       Ok(Some(Err(message))) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _startup_finalization_guard = begin_recording_finalization(&recording_state);
         let _ = output_thread.await;
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
@@ -483,7 +515,7 @@ pub async fn start_recording(
         })));
       }
       Ok(None) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _startup_finalization_guard = begin_recording_finalization(&recording_state);
         let _ = output_thread.await;
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
@@ -495,11 +527,15 @@ pub async fn start_recording(
         })));
       }
       Err(_) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let startup_finalization_guard = begin_recording_finalization(&recording_state);
         // A blocking Core Audio initialization cannot always be cancelled, but
-        // dropping the task handle lets this request return immediately. If it
-        // later becomes ready it observes is_recording=false and cleans up.
+        // aborting its JoinHandle cannot stop work that is already blocking.
+        // Keep deletion/start blocked until that worker actually exits.
         output_thread.abort();
+        handle.spawn(async move {
+          let _startup_finalization_guard = startup_finalization_guard;
+          let _ = output_thread.await;
+        });
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
         }
@@ -536,16 +572,6 @@ pub async fn start_recording(
     *mic_thread_guard = Some(mic_thread);
   }
 
-  {
-    let mut thread_id_guard = recording_state.thread_id.lock().unwrap();
-    *thread_id_guard = Some(thread_id.clone());
-  }
-
-  {
-    let mut feed_item_id_guard = recording_state.feed_item_id.lock().unwrap();
-    *feed_item_id_guard = Some(feed_item_id.clone());
-  }
-
   // If a transcript already exists for this thread (e.g., re-recording), delete it first
   // to avoid UNIQUE constraint violation on thread_id.
   if let Ok(Some(existing_transcript)) = Transcript::find_by_thread_id(thread_id) {
@@ -579,7 +605,15 @@ pub async fn start_recording(
     timestamp: None,
   };
   if let Err(e) = transcript.create() {
-    recording_state.is_recording.store(false, Ordering::Relaxed);
+    let _startup_finalization_guard = begin_recording_finalization(&recording_state);
+    let mic_handle = recording_state.mic_thread.lock().unwrap().take();
+    let output_handle = recording_state.output_thread.lock().unwrap().take();
+    if let Some(handle) = mic_handle {
+      let _ = handle.await;
+    }
+    if let Some(handle) = output_handle {
+      let _ = handle.await;
+    }
     log::error!("Failed to create transcript record: {:?}", e);
     return Ok(
       HttpResponse::InternalServerError()
@@ -605,6 +639,25 @@ pub struct Metadata {
   pub end_time: Option<i64>,
   pub start_time: Option<i64>,
   pub thread_id: Option<u64>,
+}
+
+struct StopFinalizationGuard {
+  is_stopping: Arc<AtomicBool>,
+}
+
+impl Drop for StopFinalizationGuard {
+  fn drop(&mut self) {
+    self.is_stopping.store(false, Ordering::Relaxed);
+  }
+}
+
+fn begin_recording_finalization(recording_state: &RecordingState) -> StopFinalizationGuard {
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  recording_state.is_stopping.store(true, Ordering::Relaxed);
+  recording_state.is_recording.store(false, Ordering::Relaxed);
+  StopFinalizationGuard {
+    is_stopping: recording_state.is_stopping.clone(),
+  }
 }
 
 pub async fn get_metadata(thread_id: u64) -> Result<Metadata, Error> {
@@ -672,12 +725,18 @@ pub async fn stop_recording(
     data.save_transcript
   );
 
+  let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   if !recording_state.is_recording.load(Ordering::Relaxed) {
     log::warn!("[recording] stop_recording called but no recording in progress");
     return HttpResponse::BadRequest().body("No recording in progress");
   }
 
+  recording_state.is_stopping.store(true, Ordering::Relaxed);
   recording_state.is_recording.store(false, Ordering::Relaxed);
+  let _stop_finalization_guard = StopFinalizationGuard {
+    is_stopping: recording_state.is_stopping.clone(),
+  };
+  drop(lifecycle_guard);
   log::info!("[recording] is_recording set to false, waiting for threads to finish");
 
   // Hide the floating recording indicator pill
@@ -700,6 +759,7 @@ pub async fn stop_recording(
   let mic_handle = recording_state.mic_thread.lock().unwrap().take();
   let output_handle = recording_state.output_thread.lock().unwrap().take();
 
+  let mut mic_error = None;
   if let Some(handle) = mic_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Mic recording task failed to complete: {:?}", e);
@@ -708,7 +768,7 @@ pub async fn stop_recording(
         None,
         Some(true),
       );
-      return HttpResponse::InternalServerError().body(err_msg);
+      mic_error = Some(err_msg);
     }
   }
 
@@ -719,6 +779,9 @@ pub async fn stop_recording(
       // and transcript are still valid and must be processed.
       log::error!("Audio output recording task failed (non-fatal): {:?}", e);
     }
+  }
+  if let Some(err_msg) = mic_error {
+    return HttpResponse::InternalServerError().body(err_msg);
   }
 
   // Periodic 150-second chunks are transcribed on detached worker threads.
@@ -1007,6 +1070,540 @@ fn delete_transcript_file(thread_id: u64) -> Result<(), Error> {
   Ok(())
 }
 
+#[derive(Debug)]
+struct DeletedRecordingData {
+  thread_ids: Vec<u64>,
+  transcript_filenames: Vec<String>,
+  saved_transcript_paths: Vec<String>,
+  file_cleanup_warnings: Vec<String>,
+}
+
+#[derive(Debug, Default)]
+struct StagedRecordingFiles {
+  paths: Vec<(PathBuf, PathBuf)>,
+  restore_on_drop: bool,
+  manifest_path: Option<PathBuf>,
+}
+
+impl StagedRecordingFiles {
+  fn restore(&mut self) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (original, staged) in self.paths.iter().rev() {
+      if let Err(error) = std::fs::rename(staged, original) {
+        errors.push(format!("{}: {}", original.display(), error));
+      }
+    }
+    errors.extend(sync_recording_directories(
+      self
+        .paths
+        .iter()
+        .filter_map(|(original, _)| original.parent()),
+    ));
+    self.restore_on_drop = false;
+    if errors.is_empty() {
+      if let Some(path) = self.manifest_path.take() {
+        if let Err(error) = std::fs::remove_file(&path) {
+          if error.kind() != std::io::ErrorKind::NotFound {
+            errors.push(format!("{}: {}", path.display(), error));
+          }
+        }
+      }
+    }
+    errors
+  }
+
+  fn finish(mut self) -> Vec<String> {
+    self.restore_on_drop = false;
+    let mut errors = self
+      .paths
+      .iter()
+      .filter_map(|(_, staged)| {
+        std::fs::remove_file(staged)
+          .err()
+          .map(|error| format!("{}: {}", staged.display(), error))
+      })
+      .collect::<Vec<_>>();
+    errors.extend(sync_recording_directories(
+      self.paths.iter().filter_map(|(_, staged)| staged.parent()),
+    ));
+    if errors.is_empty() {
+      if let Some(path) = self.manifest_path.take() {
+        if let Err(error) = std::fs::remove_file(&path) {
+          if error.kind() != std::io::ErrorKind::NotFound {
+            errors.push(format!("{}: {}", path.display(), error));
+          }
+        }
+      }
+    }
+    errors
+  }
+}
+
+fn sync_recording_directory(path: &Path) -> std::io::Result<()> {
+  #[cfg(not(target_os = "windows"))]
+  {
+    File::open(path)?.sync_all()
+  }
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x02000000;
+    std::fs::OpenOptions::new()
+      .read(true)
+      .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+      .open(path)?
+      .sync_all()
+  }
+}
+
+fn sync_recording_directories<'a>(paths: impl Iterator<Item = &'a Path>) -> Vec<String> {
+  let mut directories = paths.map(Path::to_path_buf).collect::<HashSet<_>>();
+  let mut directories = directories.drain().collect::<Vec<_>>();
+  directories.sort();
+  directories
+    .into_iter()
+    .filter_map(|directory| {
+      sync_recording_directory(&directory)
+        .err()
+        .map(|error| format!("{}: {}", directory.display(), error))
+    })
+    .collect()
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RecordingDeletionManifest {
+  feed_item_id: u64,
+  paths: Vec<(PathBuf, PathBuf)>,
+}
+
+impl Drop for StagedRecordingFiles {
+  fn drop(&mut self) {
+    if self.restore_on_drop {
+      for error in self.restore() {
+        log::error!("Failed to restore staged recording file: {}", error);
+      }
+    }
+  }
+}
+
+fn delete_recording_rows<F>(
+  connection: &mut Connection,
+  feed_item_id: u64,
+  before_delete: F,
+) -> Result<DeletedRecordingData, Error>
+where
+  F: FnOnce(&DeletedRecordingData) -> Result<StagedRecordingFiles, Error>,
+{
+  let transaction = connection.transaction()?;
+  let feed_item_exists = transaction
+    .query_row(
+      "SELECT 1 FROM feed_items WHERE id = ?1 AND (deleted IS NULL OR deleted = 0)",
+      params![feed_item_id as i64],
+      |_| Ok(()),
+    )
+    .optional()?
+    .is_some();
+  if !feed_item_exists {
+    return Err(Error::KSError("Recording not found".to_string()));
+  }
+
+  let rows = {
+    let mut statement = transaction.prepare(
+      "SELECT t.id, t.thread_type, tr.filename, t.saved_transcript \
+       FROM threads t \
+       LEFT JOIN transcripts tr ON tr.thread_id = t.id \
+       WHERE t.feed_item_id = ?1 \
+       ORDER BY t.id",
+    )?;
+    let mapped_rows = statement.query_map(params![feed_item_id as i64], |row| {
+      Ok((
+        row.get::<_, i64>(0)? as u64,
+        row.get::<_, String>(1)?,
+        row.get::<_, Option<String>>(2)?,
+        row.get::<_, Option<String>>(3)?,
+      ))
+    })?;
+    mapped_rows.collect::<std::result::Result<Vec<_>, rusqlite::Error>>()?
+  };
+
+  if !rows.iter().any(|(_, thread_type, _, _)| {
+    thread_type.eq_ignore_ascii_case(&ThreadType::MeetingNotes.to_string())
+  }) {
+    return Err(Error::KSError(
+      "Only meeting recordings can be permanently deleted from this endpoint".to_string(),
+    ));
+  }
+
+  let thread_ids = rows.iter().map(|(id, _, _, _)| *id).collect::<Vec<_>>();
+  let candidate_transcript_filenames = rows
+    .iter()
+    .filter_map(|(_, _, filename, _)| filename.clone())
+    .collect::<Vec<_>>();
+  let candidate_saved_transcript_paths = rows
+    .iter()
+    .filter_map(|(_, _, _, path)| path.clone())
+    .collect::<Vec<_>>();
+  let mut transcript_filenames = Vec::new();
+  for filename in candidate_transcript_filenames {
+    let surviving_references: i64 = transaction.query_row(
+      "SELECT COUNT(*) FROM transcripts tr \
+       JOIN threads t ON t.id = tr.thread_id \
+       WHERE tr.filename = ?1 AND t.feed_item_id != ?2",
+      params![filename, feed_item_id as i64],
+      |row| row.get(0),
+    )?;
+    if surviving_references == 0 {
+      transcript_filenames.push(filename);
+    }
+  }
+  let mut saved_transcript_paths = Vec::new();
+  for saved_path in candidate_saved_transcript_paths {
+    let surviving_references: i64 = transaction.query_row(
+      "SELECT COUNT(*) FROM threads WHERE saved_transcript = ?1 AND feed_item_id != ?2",
+      params![saved_path, feed_item_id as i64],
+      |row| row.get(0),
+    )?;
+    if surviving_references == 0 {
+      saved_transcript_paths.push(saved_path);
+    }
+  }
+
+  let deleted = DeletedRecordingData {
+    thread_ids,
+    transcript_filenames,
+    saved_transcript_paths,
+    file_cleanup_warnings: Vec::new(),
+  };
+  // Move files aside while the database transaction is still rollbackable.
+  // The guard restores every staged file if a SQL statement or commit fails.
+  let staged_files = before_delete(&deleted)?;
+
+  transaction.execute(
+    "DELETE FROM message_feedbacks WHERE message_id IN (\
+       SELECT m.id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.feed_item_id = ?1\
+     )",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM meeting_insights WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM transcripts WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM messages WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "UPDATE automation_runs SET thread_id = NULL WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "UPDATE automation_runs SET feed_item_id = NULL WHERE feed_item_id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM threads WHERE feed_item_id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM feed_items WHERE id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.commit()?;
+
+  let mut deleted = deleted;
+  deleted.file_cleanup_warnings = staged_files.finish();
+  Ok(deleted)
+}
+
+fn recording_file_candidates(
+  home_dir: &Path,
+  deleted: &DeletedRecordingData,
+) -> Result<Vec<PathBuf>, Error> {
+  let transcript_dir = home_dir.join(".knapsack").join("transcripts");
+  let notes_dir = home_dir.join(".knapsack").join("notes");
+  let audio_dir = home_dir.join(".knapsack").join("audio");
+  let saved_transcript_dir = home_dir.join(".transcripts");
+  let mut candidates = deleted
+    .transcript_filenames
+    .iter()
+    .filter(|filename| {
+      let path = Path::new(filename);
+      path
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
+        && path.components().count() == 1
+    })
+    .map(|filename| transcript_dir.join(filename))
+    .collect::<Vec<_>>();
+  for thread_id in &deleted.thread_ids {
+    candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
+    candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
+    candidates.push(notes_dir.join(thread_id.to_string()));
+    let entries = match std::fs::read_dir(&audio_dir) {
+      Ok(entries) => Some(entries),
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+      Err(error) => {
+        return Err(Error::KSError(format!(
+          "Could not inspect recording audio files in {}: {}",
+          audio_dir.display(),
+          error
+        )))
+      }
+    };
+    if let Some(entries) = entries {
+      let input_prefix = format!("{}_input_", thread_id);
+      let output_prefix = format!("{}_output_", thread_id);
+      for entry in entries {
+        let entry = entry.map_err(|error| {
+          Error::KSError(format!(
+            "Could not inspect a recording audio file in {}: {}",
+            audio_dir.display(),
+            error
+          ))
+        })?;
+        let path = entry.path();
+        let Some(filename) = path.file_name().and_then(|value| value.to_str()) else {
+          continue;
+        };
+        if path.is_file()
+          && (filename.starts_with(&input_prefix) || filename.starts_with(&output_prefix))
+        {
+          candidates.push(path);
+        }
+      }
+    }
+  }
+  candidates.extend(
+    deleted
+      .transcript_filenames
+      .iter()
+      .filter(|filename| {
+        let path = Path::new(filename);
+        path
+          .components()
+          .all(|component| matches!(component, Component::Normal(_)))
+          && path.components().count() == 1
+      })
+      .map(|filename| notes_dir.join(filename)),
+  );
+  candidates.extend(
+    deleted
+      .saved_transcript_paths
+      .iter()
+      .map(PathBuf::from)
+      .filter(|path| path.starts_with(&saved_transcript_dir)),
+  );
+
+  candidates.sort();
+  candidates.dedup();
+  Ok(candidates)
+}
+
+fn stage_recording_files(
+  feed_item_id: u64,
+  deleted: &DeletedRecordingData,
+) -> Result<StagedRecordingFiles, Error> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return Err(Error::KSError(
+      "Could not locate the home folder for transcript cleanup".to_string(),
+    ));
+  };
+  let mut staged = StagedRecordingFiles {
+    paths: Vec::new(),
+    restore_on_drop: true,
+    manifest_path: None,
+  };
+  let nonce = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_nanos();
+  let candidates = recording_file_candidates(&home_dir, deleted)?;
+  let planned_paths = candidates
+    .iter()
+    .enumerate()
+    .map(|(index, path)| {
+      let parent = path.parent().ok_or_else(|| {
+        Error::KSError(format!("Recording file has no parent: {}", path.display()))
+      })?;
+      Ok((
+        path.clone(),
+        parent.join(format!(
+          ".knapsack-recording-delete-{}-{}-{}",
+          std::process::id(),
+          nonce,
+          index
+        )),
+      ))
+    })
+    .collect::<Result<Vec<_>, Error>>()?;
+  let manifest_path = home_dir
+    .join(".knapsack")
+    .join(format!("recording-delete-{}-{}.json", feed_item_id, nonce));
+  let manifest_temp = manifest_path.with_extension("json.tmp");
+  let manifest = RecordingDeletionManifest {
+    feed_item_id,
+    paths: planned_paths.clone(),
+  };
+  let manifest_bytes =
+    serde_json::to_vec(&manifest).map_err(|error| Error::KSError(error.to_string()))?;
+  let mut manifest_file = File::create(&manifest_temp)
+    .map_err(|error| Error::KSError(format!("Could not save recording cleanup plan: {}", error)))?;
+  manifest_file
+    .write_all(&manifest_bytes)
+    .and_then(|_| manifest_file.sync_all())
+    .map_err(|error| {
+      Error::KSError(format!(
+        "Could not persist recording cleanup plan: {}",
+        error
+      ))
+    })?;
+  drop(manifest_file);
+  std::fs::rename(&manifest_temp, &manifest_path).map_err(|error| {
+    Error::KSError(format!(
+      "Could not activate recording cleanup plan: {}",
+      error
+    ))
+  })?;
+  if let Some(parent) = manifest_path.parent() {
+    sync_recording_directory(parent).map_err(|error| {
+      Error::KSError(format!(
+        "Could not persist recording cleanup plan: {}",
+        error
+      ))
+    })?;
+  }
+  staged.manifest_path = Some(manifest_path);
+
+  for (path, staged_path) in planned_paths {
+    match std::fs::metadata(&path) {
+      Ok(_) => {}
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+      Err(error) => {
+        return Err(Error::KSError(format!(
+          "Could not inspect recording file {}: {}",
+          path.display(),
+          error
+        )))
+      }
+    }
+    std::fs::rename(&path, &staged_path).map_err(|error| {
+      Error::KSError(format!(
+        "Could not stage recording file {} for deletion: {}",
+        path.display(),
+        error
+      ))
+    })?;
+    staged.paths.push((path, staged_path));
+  }
+  let sync_errors = sync_recording_directories(
+    staged
+      .paths
+      .iter()
+      .filter_map(|(original, _)| original.parent()),
+  );
+  if !sync_errors.is_empty() {
+    return Err(Error::KSError(format!(
+      "Could not persist staged recording files: {}",
+      sync_errors.join("; ")
+    )));
+  }
+  Ok(staged)
+}
+
+pub fn recover_staged_recording_deletions() -> Result<(), Error> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return Ok(());
+  };
+  let knapsack_dir = home_dir.join(".knapsack");
+  let entries = match std::fs::read_dir(&knapsack_dir) {
+    Ok(entries) => entries,
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+    Err(error) => return Err(Error::KSError(error.to_string())),
+  };
+  for entry in entries {
+    let entry = entry.map_err(|error| Error::KSError(error.to_string()))?;
+    let path = entry.path();
+    let filename = path
+      .file_name()
+      .and_then(|value| value.to_str())
+      .unwrap_or("");
+    if !filename.starts_with("recording-delete-") || !filename.ends_with(".json") {
+      continue;
+    }
+    let manifest: RecordingDeletionManifest = serde_json::from_slice(
+      &std::fs::read(&path).map_err(|error| Error::KSError(error.to_string()))?,
+    )
+    .map_err(|error| Error::KSError(error.to_string()))?;
+    let recording_exists = FeedItem::find_by_id(manifest.feed_item_id)?.is_some();
+    let mut errors = Vec::new();
+    for (original, staged) in manifest.paths.iter().rev() {
+      if !staged.exists() {
+        continue;
+      }
+      let result = if recording_exists {
+        std::fs::rename(staged, original)
+      } else {
+        std::fs::remove_file(staged)
+      };
+      if let Err(error) = result {
+        errors.push(format!("{}: {}", staged.display(), error));
+      }
+    }
+    if errors.is_empty() {
+      std::fs::remove_file(&path).map_err(|error| Error::KSError(error.to_string()))?;
+    } else {
+      return Err(Error::KSError(errors.join("; ")));
+    }
+  }
+  Ok(())
+}
+
+#[delete("/api/knapsack/recording/{feed_item_id}")]
+pub async fn delete_recording(
+  path: web::Path<u64>,
+  recording_state: web::Data<RecordingState>,
+) -> HttpResponse {
+  let feed_item_id = path.into_inner();
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  if (recording_state.is_recording.load(Ordering::Relaxed)
+    || recording_state.is_stopping.load(Ordering::Relaxed))
+    && *recording_state.feed_item_id.lock().unwrap() == Some(feed_item_id)
+  {
+    return HttpResponse::Conflict().json(json!({
+      "success": false,
+      "message": "Stop this recording before deleting it"
+    }));
+  }
+
+  let mut connection = get_db_conn();
+  match delete_recording_rows(&mut connection, feed_item_id, |deleted| {
+    stage_recording_files(feed_item_id, deleted)
+  }) {
+    Ok(deleted) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "threadIds": deleted.thread_ids,
+      "fileCleanupWarnings": deleted.file_cleanup_warnings,
+    })),
+    Err(Error::KSError(message)) if message == "Recording not found" => {
+      HttpResponse::NotFound().json(json!({ "success": false, "message": message }))
+    }
+    Err(Error::KSError(message)) if message.starts_with("Only meeting recordings") => {
+      HttpResponse::BadRequest().json(json!({ "success": false, "message": message }))
+    }
+    Err(error) => {
+      log::error!("Failed to delete recording {}: {:?}", feed_item_id, error);
+      HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "message": "The recording could not be deleted"
+      }))
+    }
+  }
+}
+
 #[delete("/api/knapsack/transcript/{thread_id}")]
 async fn delete_transcript(path: web::Path<u64>) -> impl Responder {
   let thread_id = path.into_inner();
@@ -1156,7 +1753,11 @@ async fn fetch_meeting_end_time(event_id: u64) -> Result<Option<DateTime<Utc>>, 
 // The scheduled end is a fallback when the call's microphone activity cannot
 // be distinguished from our own. A small grace period avoids cutting off an
 // ordinary overrun; users can always stop earlier from the recording UI.
-fn auto_stop_due(now: DateTime<Utc>, end: Option<DateTime<Utc>>, mic_drop_since: Option<DateTime<Utc>>) -> bool {
+fn auto_stop_due(
+  now: DateTime<Utc>,
+  end: Option<DateTime<Utc>>,
+  mic_drop_since: Option<DateTime<Utc>>,
+) -> bool {
   mic_drop_since.map_or(false, |since| now - since >= ChronoDuration::seconds(10))
     || end.map_or(false, |end| now - end >= ChronoDuration::minutes(5))
 }
@@ -1613,6 +2214,179 @@ mod tests {
   use super::*;
   use tempfile::TempDir;
 
+  fn row_count(connection: &Connection, table: &str, id: i64) -> i64 {
+    connection
+      .query_row(
+        &format!("SELECT COUNT(*) FROM {} WHERE id = ?1", table),
+        params![id],
+        |row| row.get(0),
+      )
+      .unwrap()
+  }
+
+  #[test]
+  fn deleting_one_recording_keeps_unrelated_notes_and_transcripts() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection
+      .execute_batch(
+        "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, title TEXT, timestamp INTEGER, deleted INTEGER);\
+         CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+         CREATE TABLE messages (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+         CREATE TABLE message_feedbacks (id INTEGER PRIMARY KEY, message_id INTEGER);\
+         CREATE TABLE meeting_insights (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+         CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+         CREATE TABLE automation_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, feed_item_id INTEGER);\
+         INSERT INTO feed_items VALUES (1, 'Delete me', 1, 0), (2, 'Keep me', 2, 0);\
+         INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', '/tmp/shared.txt'), (11, 1, 'CHAT', NULL), (20, 2, 'MEETING NOTES', '/tmp/shared.txt');\
+         INSERT INTO messages VALUES (100, 10), (101, 11), (200, 20);\
+         INSERT INTO message_feedbacks VALUES (1000, 100), (2000, 200);\
+         INSERT INTO meeting_insights VALUES (10000, 10), (20000, 20);\
+         INSERT INTO transcripts VALUES (100000, 10, 'shared.txt'), (200000, 20, 'shared.txt');\
+         INSERT INTO automation_runs VALUES (1000000, 10, 1), (2000000, 20, 2);",
+      )
+      .unwrap();
+
+    let deleted =
+      delete_recording_rows(&mut connection, 1, |_| Ok(StagedRecordingFiles::default())).unwrap();
+
+    assert_eq!(deleted.thread_ids, vec![10, 11]);
+    assert!(deleted.transcript_filenames.is_empty());
+    assert!(deleted.saved_transcript_paths.is_empty());
+    let temp_home = TempDir::new().unwrap();
+    let audio_dir = temp_home.path().join(".knapsack/audio");
+    std::fs::create_dir_all(&audio_dir).unwrap();
+    std::fs::write(audio_dir.join("10_input_0.flac"), b"audio").unwrap();
+    std::fs::write(audio_dir.join("20_input_0.flac"), b"other audio").unwrap();
+    let candidates = recording_file_candidates(temp_home.path(), &deleted).unwrap();
+    assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/10")));
+    assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/11")));
+    assert!(!candidates.contains(&temp_home.path().join(".knapsack/transcripts/shared.txt")));
+    assert!(!candidates.contains(&temp_home.path().join(".knapsack/notes/shared.txt")));
+    assert!(!candidates.contains(&PathBuf::from("/tmp/shared.txt")));
+    assert!(candidates.contains(&audio_dir.join("10_input_0.flac")));
+    assert!(!candidates.contains(&audio_dir.join("20_input_0.flac")));
+    for (table, id) in [
+      ("feed_items", 1),
+      ("threads", 10),
+      ("threads", 11),
+      ("messages", 100),
+      ("messages", 101),
+      ("message_feedbacks", 1000),
+      ("meeting_insights", 10000),
+      ("transcripts", 100000),
+    ] {
+      assert_eq!(
+        row_count(&connection, table, id),
+        0,
+        "{} {} should be deleted",
+        table,
+        id
+      );
+    }
+    for (table, id) in [
+      ("feed_items", 2),
+      ("threads", 20),
+      ("messages", 200),
+      ("message_feedbacks", 2000),
+      ("meeting_insights", 20000),
+      ("transcripts", 200000),
+      ("automation_runs", 2000000),
+    ] {
+      assert_eq!(
+        row_count(&connection, table, id),
+        1,
+        "{} {} should remain",
+        table,
+        id
+      );
+    }
+    let detached: (Option<i64>, Option<i64>) = connection
+      .query_row(
+        "SELECT thread_id, feed_item_id FROM automation_runs WHERE id = 1000000",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+      )
+      .unwrap();
+    assert_eq!(detached, (None, None));
+  }
+
+  #[test]
+  fn file_cleanup_failure_keeps_recording_retryable() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection.execute_batch(
+      "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, deleted INTEGER);\
+       CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+       CREATE TABLE messages (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+       CREATE TABLE message_feedbacks (id INTEGER PRIMARY KEY, message_id INTEGER);\
+       CREATE TABLE meeting_insights (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+       CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+       CREATE TABLE automation_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, feed_item_id INTEGER);\
+       INSERT INTO feed_items VALUES (1, 0);\
+       INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', NULL);\
+       INSERT INTO transcripts VALUES (100, 10, 'recording.txt');",
+    ).unwrap();
+
+    let result = delete_recording_rows(&mut connection, 1, |_| {
+      Err(Error::KSError("locked note file".to_string()))
+    });
+
+    assert!(result.is_err());
+    assert_eq!(row_count(&connection, "feed_items", 1), 1);
+    assert_eq!(row_count(&connection, "threads", 10), 1);
+    assert_eq!(row_count(&connection, "transcripts", 100), 1);
+  }
+
+  #[test]
+  fn database_failure_restores_staged_recording_files() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection.execute_batch(
+      "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, deleted INTEGER);\
+       CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+       CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+       INSERT INTO feed_items VALUES (1, 0);\
+       INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', NULL);\
+       INSERT INTO transcripts VALUES (100, 10, 'recording.txt');",
+    ).unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    let original = temp_dir.path().join("recording.txt");
+    let staged_path = temp_dir.path().join(".recording.staged");
+    std::fs::write(&original, b"notes").unwrap();
+
+    let result = delete_recording_rows(&mut connection, 1, |_| {
+      std::fs::rename(&original, &staged_path).unwrap();
+      Ok(StagedRecordingFiles {
+        paths: vec![(original.clone(), staged_path.clone())],
+        restore_on_drop: true,
+        manifest_path: None,
+      })
+    });
+
+    assert!(
+      result.is_err(),
+      "missing dependent tables should fail the SQL deletion"
+    );
+    assert_eq!(std::fs::read(&original).unwrap(), b"notes");
+    assert!(!staged_path.exists());
+    assert_eq!(row_count(&connection, "feed_items", 1), 1);
+  }
+
+  #[test]
+  fn audio_enumeration_errors_abort_recording_deletion() {
+    let temp_home = TempDir::new().unwrap();
+    let knapsack_dir = temp_home.path().join(".knapsack");
+    std::fs::create_dir_all(&knapsack_dir).unwrap();
+    std::fs::write(knapsack_dir.join("audio"), b"not a directory").unwrap();
+    let deleted = DeletedRecordingData {
+      thread_ids: vec![10],
+      transcript_filenames: Vec::new(),
+      saved_transcript_paths: Vec::new(),
+      file_cleanup_warnings: Vec::new(),
+    };
+
+    let result = recording_file_candidates(temp_home.path(), &deleted);
+    assert!(result.is_err());
+  }
+
   #[test]
   fn test_global_samples_cleared_between_recordings() {
     // Simulate leftover samples from a previous recording
@@ -1713,11 +2487,31 @@ mod tests {
   fn automatic_stop_requires_sustained_call_end_or_scheduled_grace() {
     let now = Utc::now();
     assert!(!auto_stop_due(now, None, None));
-    assert!(!auto_stop_due(now, None, Some(now - ChronoDuration::seconds(9))));
-    assert!(auto_stop_due(now, None, Some(now - ChronoDuration::seconds(10))));
-    assert!(!auto_stop_due(now, Some(now - ChronoDuration::minutes(4)), None));
-    assert!(auto_stop_due(now, Some(now - ChronoDuration::minutes(5)), None));
-    assert!(!auto_stop_due(now, Some(now + ChronoDuration::minutes(20)), None));
+    assert!(!auto_stop_due(
+      now,
+      None,
+      Some(now - ChronoDuration::seconds(9))
+    ));
+    assert!(auto_stop_due(
+      now,
+      None,
+      Some(now - ChronoDuration::seconds(10))
+    ));
+    assert!(!auto_stop_due(
+      now,
+      Some(now - ChronoDuration::minutes(4)),
+      None
+    ));
+    assert!(auto_stop_due(
+      now,
+      Some(now - ChronoDuration::minutes(5)),
+      None
+    ));
+    assert!(!auto_stop_due(
+      now,
+      Some(now + ChronoDuration::minutes(20)),
+      None
+    ));
   }
 
   #[test]

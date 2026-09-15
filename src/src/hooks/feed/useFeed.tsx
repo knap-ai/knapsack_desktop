@@ -10,6 +10,7 @@ import {
 import { getEmailThread } from 'src/api/data_source'
 import {
   deleteFeedItem,
+  deleteMeetingRecording,
   FeedItem,
   getFeedItems,
   insertFeedItemAPI,
@@ -115,6 +116,7 @@ const wasSentByMailboxOwner = (email: EmailDocument, fallbackUserEmail?: string)
 export interface IFeed {
   updateFeedItemTitle?: (key: string, itemId: number, newTitle: string) => void
   deleteFeedItemFromState?: (itemId: number) => Promise<void>
+  deleteRecordingFromState?: (item: FeedItem) => Promise<void>
   emailAutopilotStatus: {
     status:
       | 'idle'
@@ -2157,6 +2159,46 @@ export function useFeed(
     [setFeedContent, handleErrorContact],
   )
 
+  const deleteRecordingFromState = useCallback(
+    async (item: FeedItem) => {
+      if (item.id == null) throw new Error('Recording is missing its local identifier')
+      try {
+        const deleted = await deleteMeetingRecording(item.id)
+        const threadIds = new Set([
+          ...deleted.threadIds,
+          ...(item.threads || []).map(thread => thread.id),
+        ])
+        threadIds.forEach(threadId => {
+          localStorage.removeItem(`moltbot_chat_history:meeting:${threadId}`)
+        })
+
+        for (const [key, cachedItem] of calendarItemRef.current) {
+          if (cachedItem.id === item.id) calendarItemRef.current.delete(key)
+        }
+        if (selectedFeedItem?.id === item.id) setSelectedFeedItem(null)
+        setFeedContent(prevState => {
+          const newState = { ...prevState }
+          for (const key of Object.keys(newState)) {
+            newState[key] = newState[key].filter(feedItem => feedItem.id !== item.id)
+          }
+          return newState
+        })
+
+        if (deleted.fileCleanupWarnings.length > 0) {
+          console.warn('Recording note deleted with transcript cleanup warnings', deleted.fileCleanupWarnings)
+        }
+      } catch (error) {
+        logError(new Error('Failed to permanently delete recording.'), {
+          additionalInfo: `Recording ${item.id}`,
+          error: error instanceof Error ? error.toString() : String(error),
+        })
+        handleErrorContact(error instanceof Error ? error.message : 'Error deleting recording')
+        throw error
+      }
+    },
+    [handleErrorContact, selectedFeedItem?.id, setFeedContent],
+  )
+
   const takeEmailAction = (
     emailUid: string,
     action: AutopilotActions,
@@ -2316,6 +2358,7 @@ export function useFeed(
     getNextMeetId,
     updateFeedItemTitle,
     deleteFeedItemFromState,
+    deleteRecordingFromState,
     setThread,
     selectEmailCategory,
     getTodayKey,
