@@ -1,0 +1,38 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const test = require('node:test')
+
+const root = path.resolve(__dirname, '..')
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+
+test('recent recordings expose an explicit confirmed delete action', () => {
+  const sidebar = read('src/components/organisms/NotetakerSidebar/index.tsx')
+  const styles = read('src/components/organisms/NotetakerSidebar/style.scss')
+
+  assert.match(sidebar, /aria-label={`Delete \$\{item\.title \|\| 'Untitled recording'\}`}/)
+  assert.match(sidebar, /disabled=\{item\.isRecording\}/)
+  assert.match(sidebar, /Delete this recording\?/)
+  assert.match(sidebar, /transcript, notes,[\s\S]*insights, and meeting chat will be permanently removed/)
+  assert.match(sidebar, /await feed\.deleteRecordingFromState\(recordingPendingDeletion\)/)
+  assert.match(styles, /&__recording-delete/)
+})
+
+test('recording deletion uses a dedicated destructive endpoint and clears local chat state', () => {
+  const api = read('src/api/feed_items.tsx')
+  const feed = read('src/hooks/feed/useFeed.tsx')
+  const audio = read('src-tauri/src/audio/audio.rs')
+  const server = read('src-tauri/src/server/actix.rs')
+
+  assert.match(api, /\/api\/knapsack\/recording\/\$\{feedItemId\}[\s\S]*method: 'DELETE'/)
+  assert.match(feed, /localStorage\.removeItem\(`moltbot_chat_history:meeting:\$\{threadId\}`\)/)
+  assert.match(feed, /selectedFeedItem\?\.id === item\.id[\s\S]*setSelectedFeedItem\(null\)/)
+  assert.match(audio, /Stop this recording before deleting it/)
+  assert.match(audio, /DELETE FROM message_feedbacks/)
+  assert.match(audio, /DELETE FROM meeting_insights/)
+  assert.match(audio, /DELETE FROM transcripts/)
+  assert.match(audio, /DELETE FROM messages/)
+  assert.match(audio, /DELETE FROM threads WHERE feed_item_id = \?1/)
+  assert.match(audio, /DELETE FROM feed_items WHERE id = \?1/)
+  assert.match(server, /service\(audio::audio::delete_recording\)/)
+})

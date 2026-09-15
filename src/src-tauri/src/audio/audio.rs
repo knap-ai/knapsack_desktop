@@ -33,17 +33,18 @@ use cpal::{FromSample, Sample};
 use hound::WavWriter;
 
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Handle;
 use tokio::time::{sleep, timeout, Duration, Instant};
 use uuid::Uuid;
 
 use crate::audio::utils::sanitize_filename;
+use crate::db::db::get_db_conn;
 use crate::db::models::calendar_event::CalendarEvent;
 use crate::db::models::feed_item::{FeedItem, FeedItemComplete};
 use crate::db::models::meeting_insight::MeetingInsight;
-use crate::db::models::thread::Thread;
+use crate::db::models::thread::{Thread, ThreadType};
 use crate::db::models::transcript::{Transcript, TranscriptWithContent};
 use crate::error::Error;
 use crate::spotlight::WINDOW_LABEL;
@@ -57,6 +58,7 @@ use super::transcribe::{
 };
 use cpal::SizedSample;
 use hound::SampleFormat;
+use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem::size_of;
@@ -1007,6 +1009,196 @@ fn delete_transcript_file(thread_id: u64) -> Result<(), Error> {
   Ok(())
 }
 
+#[derive(Debug)]
+struct DeletedRecordingData {
+  thread_ids: Vec<u64>,
+  transcript_filenames: Vec<String>,
+  saved_transcript_paths: Vec<String>,
+}
+
+fn delete_recording_rows(
+  connection: &mut Connection,
+  feed_item_id: u64,
+) -> Result<DeletedRecordingData, Error> {
+  let transaction = connection.transaction()?;
+  let feed_item_exists = transaction
+    .query_row(
+      "SELECT 1 FROM feed_items WHERE id = ?1 AND (deleted IS NULL OR deleted = 0)",
+      params![feed_item_id as i64],
+      |_| Ok(()),
+    )
+    .optional()?
+    .is_some();
+  if !feed_item_exists {
+    return Err(Error::KSError("Recording not found".to_string()));
+  }
+
+  let rows = {
+    let mut statement = transaction.prepare(
+      "SELECT t.id, t.thread_type, tr.filename, t.saved_transcript \
+       FROM threads t \
+       LEFT JOIN transcripts tr ON tr.thread_id = t.id \
+       WHERE t.feed_item_id = ?1 \
+       ORDER BY t.id",
+    )?;
+    let mapped_rows = statement.query_map(params![feed_item_id as i64], |row| {
+      Ok((
+        row.get::<_, i64>(0)? as u64,
+        row.get::<_, String>(1)?,
+        row.get::<_, Option<String>>(2)?,
+        row.get::<_, Option<String>>(3)?,
+      ))
+    })?;
+    mapped_rows.collect::<std::result::Result<Vec<_>, rusqlite::Error>>()?
+  };
+
+  if !rows.iter().any(|(_, thread_type, _, _)| {
+    thread_type.eq_ignore_ascii_case(&ThreadType::MeetingNotes.to_string())
+  }) {
+    return Err(Error::KSError(
+      "Only meeting recordings can be permanently deleted from this endpoint".to_string(),
+    ));
+  }
+
+  let thread_ids = rows.iter().map(|(id, _, _, _)| *id).collect::<Vec<_>>();
+  let transcript_filenames = rows
+    .iter()
+    .filter_map(|(_, _, filename, _)| filename.clone())
+    .collect::<Vec<_>>();
+  let saved_transcript_paths = rows
+    .iter()
+    .filter_map(|(_, _, _, path)| path.clone())
+    .collect::<Vec<_>>();
+
+  transaction.execute(
+    "DELETE FROM message_feedbacks WHERE message_id IN (\
+       SELECT m.id FROM messages m JOIN threads t ON t.id = m.thread_id WHERE t.feed_item_id = ?1\
+     )",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM meeting_insights WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM transcripts WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM messages WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "UPDATE automation_runs SET thread_id = NULL WHERE thread_id IN (SELECT id FROM threads WHERE feed_item_id = ?1)",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "UPDATE automation_runs SET feed_item_id = NULL WHERE feed_item_id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM threads WHERE feed_item_id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.execute(
+    "DELETE FROM feed_items WHERE id = ?1",
+    params![feed_item_id as i64],
+  )?;
+  transaction.commit()?;
+
+  Ok(DeletedRecordingData {
+    thread_ids,
+    transcript_filenames,
+    saved_transcript_paths,
+  })
+}
+
+fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return vec!["Could not locate the home folder for transcript cleanup".to_string()];
+  };
+  let transcript_dir = home_dir.join(".knapsack").join("transcripts");
+  let saved_transcript_dir = home_dir.join(".transcripts");
+  let mut candidates = deleted
+    .transcript_filenames
+    .iter()
+    .filter(|filename| {
+      let path = Path::new(filename);
+      path
+        .components()
+        .all(|component| matches!(component, Component::Normal(_)))
+        && path.components().count() == 1
+    })
+    .map(|filename| transcript_dir.join(filename))
+    .collect::<Vec<_>>();
+  for thread_id in &deleted.thread_ids {
+    candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
+    candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
+  }
+  candidates.extend(
+    deleted
+      .saved_transcript_paths
+      .iter()
+      .map(PathBuf::from)
+      .filter(|path| path.starts_with(&saved_transcript_dir)),
+  );
+
+  candidates.sort();
+  candidates.dedup();
+  candidates
+    .into_iter()
+    .filter_map(|path| {
+      if !path.exists() {
+        return None;
+      }
+      std::fs::remove_file(&path)
+        .err()
+        .map(|error| format!("{}: {}", path.display(), error))
+    })
+    .collect()
+}
+
+#[delete("/api/knapsack/recording/{feed_item_id}")]
+pub async fn delete_recording(
+  path: web::Path<u64>,
+  recording_state: web::Data<RecordingState>,
+) -> HttpResponse {
+  let feed_item_id = path.into_inner();
+  if recording_state.is_recording.load(Ordering::Relaxed)
+    && *recording_state.feed_item_id.lock().unwrap() == Some(feed_item_id)
+  {
+    return HttpResponse::Conflict().json(json!({
+      "success": false,
+      "message": "Stop this recording before deleting it"
+    }));
+  }
+
+  let mut connection = get_db_conn();
+  match delete_recording_rows(&mut connection, feed_item_id) {
+    Ok(deleted) => {
+      let cleanup_warnings = remove_recording_files(&deleted);
+      HttpResponse::Ok().json(json!({
+        "success": true,
+        "threadIds": deleted.thread_ids,
+        "fileCleanupWarnings": cleanup_warnings,
+      }))
+    }
+    Err(Error::KSError(message)) if message == "Recording not found" => {
+      HttpResponse::NotFound().json(json!({ "success": false, "message": message }))
+    }
+    Err(Error::KSError(message)) if message.starts_with("Only meeting recordings") => {
+      HttpResponse::BadRequest().json(json!({ "success": false, "message": message }))
+    }
+    Err(error) => {
+      log::error!("Failed to delete recording {}: {:?}", feed_item_id, error);
+      HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "message": "The recording could not be deleted"
+      }))
+    }
+  }
+}
+
 #[delete("/api/knapsack/transcript/{thread_id}")]
 async fn delete_transcript(path: web::Path<u64>) -> impl Responder {
   let thread_id = path.into_inner();
@@ -1156,7 +1348,11 @@ async fn fetch_meeting_end_time(event_id: u64) -> Result<Option<DateTime<Utc>>, 
 // The scheduled end is a fallback when the call's microphone activity cannot
 // be distinguished from our own. A small grace period avoids cutting off an
 // ordinary overrun; users can always stop earlier from the recording UI.
-fn auto_stop_due(now: DateTime<Utc>, end: Option<DateTime<Utc>>, mic_drop_since: Option<DateTime<Utc>>) -> bool {
+fn auto_stop_due(
+  now: DateTime<Utc>,
+  end: Option<DateTime<Utc>>,
+  mic_drop_since: Option<DateTime<Utc>>,
+) -> bool {
   mic_drop_since.map_or(false, |since| now - since >= ChronoDuration::seconds(10))
     || end.map_or(false, |end| now - end >= ChronoDuration::minutes(5))
 }
@@ -1613,6 +1809,86 @@ mod tests {
   use super::*;
   use tempfile::TempDir;
 
+  fn row_count(connection: &Connection, table: &str, id: i64) -> i64 {
+    connection
+      .query_row(
+        &format!("SELECT COUNT(*) FROM {} WHERE id = ?1", table),
+        params![id],
+        |row| row.get(0),
+      )
+      .unwrap()
+  }
+
+  #[test]
+  fn deleting_one_recording_keeps_unrelated_notes_and_transcripts() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection
+      .execute_batch(
+        "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, title TEXT, timestamp INTEGER, deleted INTEGER);\
+         CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+         CREATE TABLE messages (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+         CREATE TABLE message_feedbacks (id INTEGER PRIMARY KEY, message_id INTEGER);\
+         CREATE TABLE meeting_insights (id INTEGER PRIMARY KEY, thread_id INTEGER);\
+         CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+         CREATE TABLE automation_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, feed_item_id INTEGER);\
+         INSERT INTO feed_items VALUES (1, 'Delete me', 1, 0), (2, 'Keep me', 2, 0);\
+         INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', '/tmp/delete.txt'), (11, 1, 'CHAT', NULL), (20, 2, 'MEETING NOTES', '/tmp/keep.txt');\
+         INSERT INTO messages VALUES (100, 10), (101, 11), (200, 20);\
+         INSERT INTO message_feedbacks VALUES (1000, 100), (2000, 200);\
+         INSERT INTO meeting_insights VALUES (10000, 10), (20000, 20);\
+         INSERT INTO transcripts VALUES (100000, 10, 'delete.txt'), (200000, 20, 'keep.txt');\
+         INSERT INTO automation_runs VALUES (1000000, 10, 1), (2000000, 20, 2);",
+      )
+      .unwrap();
+
+    let deleted = delete_recording_rows(&mut connection, 1).unwrap();
+
+    assert_eq!(deleted.thread_ids, vec![10, 11]);
+    for (table, id) in [
+      ("feed_items", 1),
+      ("threads", 10),
+      ("threads", 11),
+      ("messages", 100),
+      ("messages", 101),
+      ("message_feedbacks", 1000),
+      ("meeting_insights", 10000),
+      ("transcripts", 100000),
+    ] {
+      assert_eq!(
+        row_count(&connection, table, id),
+        0,
+        "{} {} should be deleted",
+        table,
+        id
+      );
+    }
+    for (table, id) in [
+      ("feed_items", 2),
+      ("threads", 20),
+      ("messages", 200),
+      ("message_feedbacks", 2000),
+      ("meeting_insights", 20000),
+      ("transcripts", 200000),
+      ("automation_runs", 2000000),
+    ] {
+      assert_eq!(
+        row_count(&connection, table, id),
+        1,
+        "{} {} should remain",
+        table,
+        id
+      );
+    }
+    let detached: (Option<i64>, Option<i64>) = connection
+      .query_row(
+        "SELECT thread_id, feed_item_id FROM automation_runs WHERE id = 1000000",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+      )
+      .unwrap();
+    assert_eq!(detached, (None, None));
+  }
+
   #[test]
   fn test_global_samples_cleared_between_recordings() {
     // Simulate leftover samples from a previous recording
@@ -1713,11 +1989,31 @@ mod tests {
   fn automatic_stop_requires_sustained_call_end_or_scheduled_grace() {
     let now = Utc::now();
     assert!(!auto_stop_due(now, None, None));
-    assert!(!auto_stop_due(now, None, Some(now - ChronoDuration::seconds(9))));
-    assert!(auto_stop_due(now, None, Some(now - ChronoDuration::seconds(10))));
-    assert!(!auto_stop_due(now, Some(now - ChronoDuration::minutes(4)), None));
-    assert!(auto_stop_due(now, Some(now - ChronoDuration::minutes(5)), None));
-    assert!(!auto_stop_due(now, Some(now + ChronoDuration::minutes(20)), None));
+    assert!(!auto_stop_due(
+      now,
+      None,
+      Some(now - ChronoDuration::seconds(9))
+    ));
+    assert!(auto_stop_due(
+      now,
+      None,
+      Some(now - ChronoDuration::seconds(10))
+    ));
+    assert!(!auto_stop_due(
+      now,
+      Some(now - ChronoDuration::minutes(4)),
+      None
+    ));
+    assert!(auto_stop_due(
+      now,
+      Some(now - ChronoDuration::minutes(5)),
+      None
+    ));
+    assert!(!auto_stop_due(
+      now,
+      Some(now + ChronoDuration::minutes(20)),
+      None
+    ));
   }
 
   #[test]

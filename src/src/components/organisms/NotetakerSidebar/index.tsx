@@ -259,6 +259,9 @@ function NotetakerSidebar({
   const [libraryResults, setLibraryResults] = useState<Workspace[]>([])
   const [composerMode, setComposerMode] = useState<TeamComposerMode | null>(null)
   const [agentPendingRemoval, setAgentPendingRemoval] = useState<TeamAgent | null>(null)
+  const [recordingPendingDeletion, setRecordingPendingDeletion] = useState<FeedItem | null>(null)
+  const [recordingDeletionError, setRecordingDeletionError] = useState<string | null>(null)
+  const [isDeletingRecording, setIsDeletingRecording] = useState(false)
   const [teamPaneHeight, setTeamPaneHeight] = useState(() => {
     const stored = Number(localStorage.getItem('knapsack.sidebar.team-height'))
     return Number.isFinite(stored) && stored > 0 ? stored : 286
@@ -872,21 +875,37 @@ function NotetakerSidebar({
           <section className="notetaker-sidebar__meeting-chats" aria-label="Local recordings">
             <h2 className="notetaker-sidebar__section-title">Recent recordings</h2>
             {localRecordings.map(({ item, key }) => (
-              <button
-                type="button"
-                key={item.id}
-                className="notetaker-sidebar__meeting-chat-link"
-                onClick={() => {
-                  feed.selectFeedItem(key, item.id)
-                  onMeetingSelect?.()
-                  onTabChange(TabChoices.Meeting, 'meetings')
-                }}
-              >
-                <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
-                <span className="notetaker-sidebar__meeting-chat-tag">
-                  {item.isRecording ? 'Recording now' : item.threads?.some(t => t.recorded) ? 'Saved in Knapsack' : 'Note · recording not started'} · {dayjs(item.timestamp).format('MMM D, h:mm A')}
-                </span>
-              </button>
+              <div className="notetaker-sidebar__recording-row" key={item.id}>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__meeting-chat-link"
+                  onClick={() => {
+                    feed.selectFeedItem(key, item.id)
+                    onMeetingSelect?.()
+                    onTabChange(TabChoices.Meeting, 'meetings')
+                  }}
+                >
+                  <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
+                  <span className="notetaker-sidebar__meeting-chat-tag">
+                    {item.isRecording ? 'Recording now' : item.threads?.some(t => t.recorded) ? 'Saved in Knapsack' : 'Note · recording not started'} · {dayjs(item.timestamp).format('MMM D, h:mm A')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__recording-delete"
+                  aria-label={`Delete ${item.title || 'Untitled recording'}`}
+                  title={item.isRecording ? 'Stop recording before deleting' : 'Delete recording'}
+                  disabled={item.isRecording}
+                  onClick={() => {
+                    setRecordingDeletionError(null)
+                    setRecordingPendingDeletion(item)
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </section>
         )}
@@ -1209,6 +1228,66 @@ function NotetakerSidebar({
           )
         })()}
       </div>
+
+      {recordingPendingDeletion && (
+        <div
+          className="notetaker-sidebar__composer-backdrop"
+          role="presentation"
+          onMouseDown={() => {
+            if (!isDeletingRecording) setRecordingPendingDeletion(null)
+          }}
+        >
+          <div
+            className="notetaker-sidebar__remove-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-recording-title"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <h2 id="delete-recording-title">Delete this recording?</h2>
+            <p>
+              “{recordingPendingDeletion.title || 'Untitled recording'}” and its transcript, notes,
+              insights, and meeting chat will be permanently removed from this Mac.
+            </p>
+            {recordingDeletionError && (
+              <p className="notetaker-sidebar__remove-warning" role="alert">{recordingDeletionError}</p>
+            )}
+            <div className="notetaker-sidebar__remove-actions">
+              <button
+                type="button"
+                disabled={isDeletingRecording}
+                onClick={() => setRecordingPendingDeletion(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="notetaker-sidebar__remove-confirm"
+                disabled={isDeletingRecording}
+                onClick={async () => {
+                  setIsDeletingRecording(true)
+                  setRecordingDeletionError(null)
+                  try {
+                    if (!feed.deleteRecordingFromState) {
+                      throw new Error('Recording deletion is not available')
+                    }
+                    await feed.deleteRecordingFromState(recordingPendingDeletion)
+                    setRecordingPendingDeletion(null)
+                  } catch (error) {
+                    setRecordingDeletionError(
+                      error instanceof Error ? error.message : 'The recording could not be deleted',
+                    )
+                  } finally {
+                    setIsDeletingRecording(false)
+                  }
+                }}
+              >
+                {isDeletingRecording ? 'Deleting…' : 'Delete recording'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {agentPendingRemoval && (
         <div

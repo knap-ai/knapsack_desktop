@@ -327,6 +327,7 @@ pub async fn start_server<'a>(
       .service(audio::audio::stop_recording)
       .service(audio::audio::get_transcript_by_thread_id)
       .service(audio::audio::delete_transcript)
+      .service(audio::audio::delete_recording)
       .service(audio::audio::get_recording_status)
       .service(audio::audio::get_live_transcript)
       .service(audio::audio::get_mic_usage)

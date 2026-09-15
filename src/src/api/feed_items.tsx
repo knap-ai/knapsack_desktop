@@ -5,7 +5,7 @@ import {
   Meeting,
   serializeCalendarEventToMeeting,
 } from 'src/hooks/dataSources/useCalendar'
-import { KN_API_FEED_ITEM } from 'src/utils/constants'
+import { KN_API_FEED_ITEM, KN_SERVER_HOST } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
 import { HttpError, retryFetch } from 'src/utils/retryUtils'
 
@@ -307,6 +307,22 @@ export async function deleteFeedItem(feedItemId: number): Promise<boolean> {
   } catch (error) {
     console.error("Error deleting feed item:", error)
     throw error
+  }
+}
+
+export async function deleteMeetingRecording(
+  feedItemId: number,
+): Promise<{ threadIds: number[]; fileCleanupWarnings: string[] }> {
+  const response = await retryFetch(`${KN_SERVER_HOST}/api/knapsack/recording/${feedItemId}`, {
+    method: 'DELETE',
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok || data?.success !== true) {
+    throw new Error(data?.message || 'Failed to delete recording')
+  }
+  return {
+    threadIds: Array.isArray(data.threadIds) ? data.threadIds : [],
+    fileCleanupWarnings: Array.isArray(data.fileCleanupWarnings) ? data.fileCleanupWarnings : [],
   }
 }
 
