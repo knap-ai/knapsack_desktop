@@ -32,7 +32,11 @@ import { RecordingContextProps } from '../MeetingNotesMode/RecordingContext'
 import Mic from '/assets/images/icons/mic-white.svg'
 import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import { logError } from 'src/utils/errorHandling'
-import { buildFollowUpEmailBody } from 'src/utils/emails'
+import {
+  buildFollowUpEmailBody,
+  buildFollowUpEmailSubject,
+  filterFollowUpRecipients,
+} from 'src/utils/emails'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 import { ScoutWatchlist, ScoutWatchlistItem } from 'src/components/organisms/ScoutWatchlist'
@@ -421,22 +425,20 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       userEmails={userEmails}
                       userName={userName}
                       onEmailClick={(notesMarkdown, meeting) => {
-                        const participants = meeting?.participants ?? []
-                        const primaryRecipient = participants.find(
-                          p => p.email && p.email !== userEmail,
+                        const recipients = filterFollowUpRecipients(
+                          meeting?.participants ?? [],
+                          userEmail,
+                          userName,
                         )
-                        const toEmails = participants
-                          .filter(p => p.email && p.email !== userEmail)
-                          .map(p => p.email)
-                          .join(', ')
-                        const subject = meeting?.title
-                          ? `Follow up: ${meeting.title}`
-                          : 'Meeting Follow Up'
+                        const primaryRecipient = recipients[0]
+                        const toEmails = recipients.map(p => p.email).join(', ')
+                        const subject = buildFollowUpEmailSubject(meeting?.title)
                         const body = buildFollowUpEmailBody(
                           notesMarkdown,
                           meeting?.title,
                           userName,
                           primaryRecipient?.name || primaryRecipient?.email,
+                          recipients.length,
                         )
                         feed.setComposedEmailDraft({ to: toEmails, subject, body })
                       }}

@@ -18,7 +18,11 @@ import { updateAutomationFeedbackAPI } from 'src/api/automations'
 import { Workspace } from 'src/api/workspaces'
 import { HomeProps } from 'src/App'
 import { KN_API_STOP_LLM_EXECUTION, PRIVACY_POLICY_LINK, TERMS_LINK } from 'src/utils/constants'
-import { buildFollowUpEmailBody } from 'src/utils/emails'
+import {
+  buildFollowUpEmailBody,
+  buildFollowUpEmailSubject,
+  filterFollowUpRecipients,
+} from 'src/utils/emails'
 //import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -1141,22 +1145,20 @@ Stay within your role: ${mountedChatAgent.personality}. Your durable chat sessio
                     setSelectedWorkspace(ws)
                   }}
                   onEmailClick={(notesMarkdown, meeting) => {
-                    const participants = meeting?.participants ?? []
-                    const primaryRecipient = participants.find(
-                      p => p.email && p.email !== userEmail,
+                    const recipients = filterFollowUpRecipients(
+                      meeting?.participants ?? [],
+                      userEmail,
+                      userName,
                     )
-                    const toEmails = participants
-                      .filter(p => p.email && p.email !== userEmail)
-                      .map(p => p.email)
-                      .join(', ')
-                    const subject = meeting?.title
-                      ? `Follow up: ${meeting.title}`
-                      : 'Meeting Follow Up'
+                    const primaryRecipient = recipients[0]
+                    const toEmails = recipients.map(p => p.email).join(', ')
+                    const subject = buildFollowUpEmailSubject(meeting?.title)
                     const body = buildFollowUpEmailBody(
                       notesMarkdown,
                       meeting?.title,
                       userName,
                       primaryRecipient?.name || primaryRecipient?.email,
+                      recipients.length,
                     )
                     feed.setComposedEmailDraft({ to: toEmails, subject, body })
                   }}

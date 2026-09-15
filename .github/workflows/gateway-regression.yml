@@ -59,6 +59,10 @@ jobs:
         working-directory: src
         run: node --test scripts/web-fetch-recovery.test.mjs
 
+      - name: Test meeting follow-up quality
+        working-directory: src
+        run: node --test scripts/meeting-follow-up.test.cjs
+
       - name: Report clawdbot duplicates before prune
         working-directory: src
         run: node scripts/report-clawdbot-duplicates.cjs

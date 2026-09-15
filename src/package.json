@@ -31,6 +31,7 @@
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
     "test:meeting-live-context": "node --test scripts/meeting-live-context.test.cjs",
     "test:meeting-recording-routing": "node --test scripts/meeting-recording-routing.test.cjs",
+    "test:meeting-follow-up": "node --test scripts/meeting-follow-up.test.cjs",
     "test:web-fetch-recovery": "node --test scripts/web-fetch-recovery.test.mjs",
     "test:dev-intent": "node --test scripts/dev-intent.test.mjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",

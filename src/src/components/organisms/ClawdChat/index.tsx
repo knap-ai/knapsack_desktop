@@ -1956,6 +1956,8 @@ interface ClawdChatProps {
   initialInputKey?: number
   /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
   contextPrefix?: string
+  /** Hide generic onboarding copy and starter prompts in contextual embedded chats. */
+  showWelcome?: boolean
   /** Render with a tighter header for embedded surfaces. */
   compact?: boolean
   title?: string
@@ -1978,7 +1980,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, contextPrefix, showWelcome = true, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -1989,7 +1991,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       try {
         const parsed = JSON.parse(stored) as Msg[]
         // Strip old-format clickable welcome prompts so fresh ones render
-        const cleaned = parsed.filter(m => m.id !== 'smart-prompt' && m.id !== 'no-auth-prompt')
+        const cleaned = parsed.filter(m =>
+          m.id !== 'smart-prompt' &&
+          m.id !== 'no-auth-prompt' &&
+          (showWelcome || !m.id.startsWith('welcome-')),
+        )
         // If only welcome shells remain, start fresh
         if (cleaned.every(m => m.id.startsWith('welcome-'))) return []
         if (cleaned.length > 0) return cleaned
@@ -2347,7 +2353,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     isChannelRuntimeConnected(channelStatus.genericChannels.irc) ||
     isChannelRuntimeConnected(channelStatus.genericChannels.googlechat)
   )
-  const showChannelBanner = hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
+  const showChannelBanner = showWelcome && hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && !hasAnyChannel && !hasAnyGenericChannel
 
   // Build channel status tooltip and button color class
   const channelButtonInfo = useMemo(() => {
@@ -2417,6 +2423,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   const welcomeMessages = useMemo(
     () => {
+      if (!showWelcome) return []
       if (paidStarterData) {
         return [
           {
@@ -2510,7 +2517,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         ],
       },
     ]},
-    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData, paidStarterData],
+    [agentName, agentPersonality, agentSuggestedPrompts, onboardingAgentsData, paidStarterData, showWelcome],
   )
 
   const checkAndPromptForKey = useCallback(async () => {
@@ -6424,7 +6431,7 @@ ${actualText}`
       {/* Channels UI removed - voice controls are now inline in the input area */}
 
       <div
-        className={`ClawdChatBody ${msgs.every(m => m.id.startsWith('welcome-')) ? 'ClawdChatBody--welcome-only' : ''}`}
+        className={`ClawdChatBody ${showWelcome && msgs.every(m => m.id.startsWith('welcome-')) ? 'ClawdChatBody--welcome-only' : ''}`}
         ref={el => { chatBodyRef.current = el }}
       >
         {chatFindOpen && (
@@ -6500,7 +6507,7 @@ ${actualText}`
           </div>
         ))}
         {/* Skills suggestion chips — shown in welcome area when eligible skills exist */}
-        {skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
+        {showWelcome && skills.filter(s => s.eligible && s.enabled !== false).length > 0 &&
           msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble">
@@ -6521,7 +6528,7 @@ ${actualText}`
           </div>
         )}
         {/* API key setup banner — shown on first launch until an API key is saved */}
-        {!hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && (
+        {showWelcome && !hasCompletedOnboarding && msgs.every(m => m.id.startsWith('welcome-')) && (
           <div className="ClawdMsg ClawdMsg-assistant">
             <div className="ClawdBubble ClawdApiKeyBanner">
               <p className="ClawdApiKeyBannerTitle">One more step to get started</p>

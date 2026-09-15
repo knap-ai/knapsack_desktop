@@ -2264,6 +2264,7 @@ Be direct, specific, and concise. No filler text.`
             title="Scout · Meeting chat"
             agentName="Scout"
             contextPrefix={meetingChatContext}
+            showWelcome={false}
             initialInput={meetingChatInitialInput}
             initialInputKey={meetingChatInputNonce}
             chatId={`meeting:${thread.id}`}
