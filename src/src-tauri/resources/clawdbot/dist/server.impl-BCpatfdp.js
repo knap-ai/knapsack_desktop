@@ -72,7 +72,10 @@ function startDesktopBrowserControlPlaceholder(log) {
 	if (process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY !== "1" || process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER === "1") return;
 	if (globalThis.__openclawDesktopBrowserControlPlaceholder) return;
 	const response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK";
+	const sockets = /* @__PURE__ */ new Set();
 	const server = createNetServer((socket) => {
+		sockets.add(socket);
+		socket.once("close", () => sockets.delete(socket));
 		socket.on("error", () => {});
 		socket.end(response);
 	});
@@ -84,10 +87,10 @@ function startDesktopBrowserControlPlaceholder(log) {
 		close: () => new Promise((resolve) => {
 			clearPlaceholder();
 			server.close(() => resolve());
-			// Health probes may still hold accepted sockets while the real browser
-			// service takes over. server.close() waits for those sockets forever,
-			// leaving 18791 without a listener and wedging browser-control startup.
-			server.closeAllConnections?.();
+			// This is a raw TCP server, so Node's HTTP-only closeAllConnections()
+			// helper is unavailable. Destroy accepted health probes explicitly or
+			// server.close() can wait forever and wedge browser-control startup.
+			for (const socket of sockets) socket.destroy();
 		})
 	};
 	server.once("error", (error) => {

@@ -20,36 +20,54 @@ function loadPlaceholderFactory(createNetServer) {
   )(createNetServer)
 }
 
-test('desktop browser placeholder force-closes accepted probes during handoff', async () => {
+test('desktop browser placeholder destroys accepted raw TCP probes during handoff', async () => {
   const previousManaged = process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY
   const previousSkip = process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER
   const previousPlaceholder = globalThis.__openclawDesktopBrowserControlPlaceholder
   process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY = '1'
   delete process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER
 
+  let connectionHandler
   let closeCallback
-  let forceClosed = false
+  let socketClosed = false
+  let socketDestroyed = false
+  const closeListeners = []
+  const fakeSocket = {
+    on() {},
+    once(event, listener) {
+      if (event === 'close') closeListeners.push(listener)
+    },
+    end() {},
+    destroy() {
+      socketDestroyed = true
+      socketClosed = true
+      for (const listener of closeListeners) listener()
+      closeCallback?.()
+    },
+  }
   const fakeServer = {
     once() {},
-    listen() {},
+    listen() {
+      connectionHandler(fakeSocket)
+    },
     close(callback) {
       closeCallback = callback
-    },
-    closeAllConnections() {
-      forceClosed = true
-      closeCallback?.()
+      if (socketClosed) callback()
     },
   }
 
   try {
-    const startPlaceholder = loadPlaceholderFactory(() => fakeServer)
+    const startPlaceholder = loadPlaceholderFactory((handler) => {
+      connectionHandler = handler
+      return fakeServer
+    })
     startPlaceholder()
     const closePromise = globalThis.__openclawDesktopBrowserControlPlaceholder.close()
     await Promise.race([
       closePromise,
       new Promise((_, reject) => setTimeout(() => reject(new Error('handoff remained blocked')), 100)),
     ])
-    assert.equal(forceClosed, true)
+    assert.equal(socketDestroyed, true)
     assert.equal(globalThis.__openclawDesktopBrowserControlPlaceholder, undefined)
   } finally {
     if (previousManaged === undefined) delete process.env.OPENCLAW_DESKTOP_MANAGED_GATEWAY
