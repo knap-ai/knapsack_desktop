@@ -125,6 +125,7 @@ test("owned action items align wrapped descriptions independently from owner lab
   assert.match(markdown, /markdown-task-action__description/);
   assert.match(styles, /grid-template-columns: max-content minmax\(0, 1fr\)/);
   assert.match(styles, /\.markdown-task-action__description[\s\S]*overflow-wrap: anywhere/);
+  assert.match(styles, /\.markdown-task-action__description > p \{\s*margin: 0;/);
   assert.match(styles, /@media \(max-width: 640px\)[\s\S]*\.markdown-task-action--owned[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 });
 

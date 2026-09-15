@@ -82,6 +82,10 @@
   overflow-wrap: anywhere;
 }
 
+.markdown-content .markdown-task-action__description > p {
+  margin: 0;
+}
+
 .markdown-content .markdown-task-action:hover,
 .markdown-content .markdown-task-action:focus-visible {
   color: #1d4ed8;
