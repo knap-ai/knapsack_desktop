@@ -583,7 +583,8 @@ const API_BASE = 'http://127.0.0.1:8897'
 // API key is now stored server-side in tokens.json (not localStorage) for security.
 // This in-memory cache avoids repeated backend calls during a single session.
 let _cachedApiKey: string | null = null
-let _cachedSpeechToTextAuth: { provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null = null
+type SpeechToTextAuth = { provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string }
+let _cachedSpeechToTextAuth: SpeechToTextAuth | null = null
 
 type GetApiKeyPayload = {
   success: boolean
@@ -614,30 +615,32 @@ async function getOpenAIKey(): Promise<string | null> {
   return null
 }
 
-async function getSpeechToTextAuth(): Promise<{ provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string } | null> {
-  if (_cachedSpeechToTextAuth) return _cachedSpeechToTextAuth
+async function getSpeechToTextAuthCandidates(): Promise<SpeechToTextAuth[]> {
   try {
     const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
+    const candidates: SpeechToTextAuth[] = []
     if (resp.openai_key) {
-      _cachedSpeechToTextAuth = {
+      candidates.push({
         provider: 'openai',
         apiKey: resp.openai_key,
         model: 'whisper-1',
         endpoint: 'https://api.openai.com/v1/audio/transcriptions',
-      }
-      return _cachedSpeechToTextAuth
+      })
     }
     if (resp.groq_key) {
-      _cachedSpeechToTextAuth = {
+      candidates.push({
         provider: 'groq',
         apiKey: resp.groq_key,
         model: 'whisper-large-v3-turbo',
         endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
-      }
-      return _cachedSpeechToTextAuth
+      })
     }
+    if (_cachedSpeechToTextAuth) {
+      candidates.sort(candidate => candidate.provider === _cachedSpeechToTextAuth?.provider ? -1 : 1)
+    }
+    return candidates
   } catch { /* backend not reachable */ }
-  return null
+  return []
 }
 
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
@@ -3213,35 +3216,39 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     voiceTranscriptionAbortRef.current = controller
     setIsTranscribing(true)
     try {
-      const speechAuth = await getSpeechToTextAuth()
+      const speechAuthCandidates = await getSpeechToTextAuthCandidates()
       if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
-      if (!speechAuth) {
+      if (speechAuthCandidates.length === 0) {
         pushAssistantRef.current?.('🎤 Voice input needs an OpenAI or Groq API key right now. Add one in Settings → AI Provider to use speech-to-text.')
         setShowKeyPrompt(true)
         return
       }
 
-      console.log('[Voice] Sending transcription request via', speechAuth.provider, 'format:', extension, 'size:', audioBlob.size)
-
-      const formData = new FormData()
-      formData.append('file', audioBlob, `recording.${extension}`)
-      formData.append('model', speechAuth.model)
-
-      const res = await fetch(speechAuth.endpoint, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Authorization': `Bearer ${speechAuth.apiKey}`,
-        },
-        body: formData,
-      })
-
-      if (!res.ok) {
+      let data: { text?: string } | null = null
+      const providerErrors: string[] = []
+      for (const speechAuth of speechAuthCandidates) {
+        console.log('[Voice] Sending transcription request via', speechAuth.provider, 'format:', extension, 'size:', audioBlob.size)
+        const formData = new FormData()
+        formData.append('file', audioBlob, `recording.${extension}`)
+        formData.append('model', speechAuth.model)
+        const res = await fetch(speechAuth.endpoint, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${speechAuth.apiKey}`,
+          },
+          body: formData,
+        })
+        if (res.ok) {
+          data = await res.json()
+          _cachedSpeechToTextAuth = speechAuth
+          break
+        }
         const errorText = await res.text().catch(() => '')
-        throw new Error(errorText || `Whisper API error: ${res.status}`)
+        providerErrors.push(`${speechAuth.provider}: ${errorText || `HTTP ${res.status}`}`)
       }
 
-      const data = await res.json()
+      if (!data) throw new Error(providerErrors.join('\n'))
       if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
@@ -3255,8 +3262,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       const lower = raw.toLowerCase()
       if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
         pushAssistantRef.current?.('🎤 I couldn’t hear usable audio in that recording. Please try again and speak for a second or two after the mic turns on.')
+      } else if (lower.includes('insufficient_quota') || lower.includes('rate_limit') || lower.includes('billing') || lower.includes('credits')) {
+        pushAssistantRef.current?.('🎤 Speech-to-text is temporarily unavailable because the connected providers have no remaining capacity. Check Settings → AI Provider, then try again.')
       } else {
-        pushAssistantRef.current?.(`🎤 Transcription failed: ${raw}`)
+        pushAssistantRef.current?.('🎤 I couldn’t transcribe that recording. Please try again, or check Settings → AI Provider if the problem continues.')
       }
     } finally {
       if (voiceTranscriptionTokenRef.current === transcriptionToken) {

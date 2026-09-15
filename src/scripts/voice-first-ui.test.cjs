@@ -41,6 +41,15 @@ test('voice capture waits for real sound and accepts compact low-bitrate recordi
   assert.doesNotMatch(chat, /MIN_VOICE_BLOB_BYTES/)
 })
 
+test('speech-to-text falls back across configured providers without exposing raw errors', () => {
+  assert.match(chat, /async function getSpeechToTextAuthCandidates\(\)/)
+  assert.match(chat, /for \(const speechAuth of speechAuthCandidates\)/)
+  assert.match(chat, /if \(res\.ok\)[\s\S]*?_cachedSpeechToTextAuth = speechAuth[\s\S]*?break/)
+  assert.match(chat, /providerErrors\.push/)
+  assert.match(chat, /Speech-to-text is temporarily unavailable because the connected providers have no remaining capacity/)
+  assert.doesNotMatch(chat, /pushAssistantRef\.current\?\.\(`🎤 Transcription failed: \$\{raw\}`\)/)
+})
+
 test('voice-session status displays the complete recovery message', () => {
   assert.doesNotMatch(chat, /trim\(\)\.slice\(0, 120\)/)
   assert.match(styles, /\.ClawdVoiceSessionContext[\s\S]*?span \{[\s\S]*?overflow-wrap: anywhere;[\s\S]*?white-space: normal;/)
