@@ -1,0 +1,45 @@
+name: KnapsackMobileCarPlayQA
+options:
+  bundleIdPrefix: ai.knapsack
+  deploymentTarget:
+    iOS: "26.4"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+targets:
+  KnapsackMobileApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: KnapsackMobileApp
+      - path: Shared
+      - path: Branding
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.carplayqa
+        INFOPLIST_FILE: KnapsackMobileApp/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KnapsackMobileApp/KnapsackMobileApp.CarPlayPrototype.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  KnapsackMobileTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: KnapsackMobileTests
+    dependencies:
+      - target: KnapsackMobileApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.carplayqa.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  KnapsackMobileCarPlayQA:
+    build:
+      targets:
+        KnapsackMobileApp: all
+        KnapsackMobileTests: [test]
+    test:
+      targets:
+        - KnapsackMobileTests

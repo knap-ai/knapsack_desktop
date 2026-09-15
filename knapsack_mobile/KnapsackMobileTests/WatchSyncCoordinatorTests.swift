@@ -72,6 +72,105 @@ final class WatchSyncCoordinatorTests: XCTestCase {
     XCTAssertTrue(event.prepPrompt.contains("Conference room"))
   }
 
+  func testRealtimeVoiceRequestUsesSharedCapabilitiesForCarPlay() throws {
+    let request = RealtimeVoiceSessionRequest(
+      target: .conversation(id: "conversation-42", title: "Scout planning"),
+      surface: "carplay",
+      resumeSessionID: "session-1"
+    )
+
+    XCTAssertEqual(request.client, "knapsack_mobile")
+    XCTAssertEqual(request.surface, "carplay")
+    XCTAssertTrue(request.capabilities.contains("interrupt"))
+    XCTAssertTrue(request.capabilities.contains("semantic_turn_detection"))
+    let data = try JSONEncoder().encode(request)
+    XCTAssertEqual(try JSONDecoder().decode(RealtimeVoiceSessionRequest.self, from: data), request)
+    let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(object["resume_session_id"] as? String, "session-1")
+  }
+
+  func testRealtimeVoiceStateAccumulatesCanonicalTranscriptDeltas() {
+    var state = RealtimeVoiceSessionState()
+    state.begin()
+    state.reduce(.connected(sessionID: "session-1", conversationID: "conversation-1"))
+    state.reduce(.inputTranscriptDelta("Call "))
+    state.reduce(.inputTranscriptDelta("Scout"))
+    state.reduce(.thinking)
+    state.reduce(.outputTranscriptDelta("I can "))
+    state.reduce(.outputTranscriptDelta("help."))
+    state.reduce(.reconnecting)
+    XCTAssertEqual(state.phase, .reconnecting)
+    state.reduce(.reconnected)
+    state.reduce(.speaking)
+
+    XCTAssertEqual(state.sessionID, "session-1")
+    XCTAssertEqual(state.conversationID, "conversation-1")
+    XCTAssertEqual(state.inputTranscript, "Call Scout")
+    XCTAssertEqual(state.outputTranscript, "I can help.")
+    XCTAssertEqual(state.phase, .speaking)
+  }
+
+  func testCarPlayDriveContentIsShortAndOrderedForDriving() {
+    XCTAssertEqual(CarPlayDriveContent.primaryActions.map(\.kind), [
+      .scout,
+      .continueChat,
+      .nextMeetingPrep,
+      .captureIdea,
+    ])
+    XCTAssertTrue(CarPlayDriveContent.primaryActions.allSatisfy { $0.title.count < 30 })
+  }
+
+  func testCarPlaySelectsNextFutureEventAndRecentChats() {
+    let now = Date(timeIntervalSince1970: 2_000)
+    let events = [
+      makeCalendarEvent(id: 1, start: 1_900, title: "Past"),
+      makeCalendarEvent(id: 2, start: 2_500, title: "Later"),
+      makeCalendarEvent(id: 3, start: 2_100, title: "Next"),
+    ]
+    XCTAssertEqual(CarPlayDriveContent.nextEvent(from: events, now: now)?.displayTitle, "Next")
+
+    let chats = [makeChat(id: 1, updatedAt: 10), makeChat(id: 2, updatedAt: 30), makeChat(id: 3, updatedAt: 20)]
+    XCTAssertEqual(CarPlayDriveContent.recentChats(from: chats, limit: 2).map(\.id), [2, 3])
+  }
+
+  private func makeCalendarEvent(id: UInt64, start: Int64, title: String) -> MobileCalendarEventSummary {
+    MobileCalendarEventSummary(
+      id: id,
+      eventId: "event-\(id)",
+      title: title,
+      description: nil,
+      location: nil,
+      start: start,
+      end: start + 300,
+      googleMeetURL: nil,
+      calendarAccountEmail: "mark@example.com",
+      meetingThreadId: nil,
+      notesPreview: nil,
+      prepChatThreadId: nil,
+      prepPreview: nil
+    )
+  }
+
+  private func makeChat(id: UInt64, updatedAt: Int64) -> MobileChatSummary {
+    MobileChatSummary(
+      thread: MobileThread(
+        id: id,
+        timestamp: updatedAt,
+        hideFollowUp: nil,
+        feedItemId: nil,
+        title: "Chat \(id)",
+        subtitle: nil,
+        threadType: "CHAT",
+        recorded: nil,
+        savedTranscript: nil,
+        promptTemplate: nil
+      ),
+      preview: "Preview",
+      updatedAt: updatedAt,
+      messageCount: 1
+    )
+  }
+
   private let appGroupOverrideEnv = "KNAPSACK_MOBILE_APP_GROUP_ROOT"
   private let mobileCacheKeys = [
     "knapsack.mobile.fallback.meetings",

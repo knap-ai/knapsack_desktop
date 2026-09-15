@@ -70,6 +70,7 @@ targets:
         excludes:
           - MobileAPI.swift
           - MobileModels.swift
+          - RealtimeVoiceContract.swift
       - path: Branding
     settings:
       base:
@@ -84,6 +85,8 @@ targets:
     sources:
       - path: KnapsackWatchWidgetsExtension
       - path: Shared
+        excludes:
+          - RealtimeVoiceContract.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.knapsack.mobile.watchkitapp.widgets

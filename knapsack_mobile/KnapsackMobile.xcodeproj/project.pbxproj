@@ -15,10 +15,12 @@
 		2E17B7E22D17181A964B8F8D /* WatchSharedBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */; };
 		2F34FE7F43080ABAA5BD1E11 /* InterVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3BB9402DFC33D2466BA206DE /* InterVariable.ttf */; };
 		3DDD92F522DE1F60E2A6F0F8 /* WatchRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B1601F3C51CC99623A3732 /* WatchRecorder.swift */; };
+		3E79B6831C6D03B1C56F4745 /* RealtimeVoiceContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150D5F88A9A99E763359D5CA /* RealtimeVoiceContract.swift */; };
 		46EE25A4FBEAEE6777CCE025 /* KnapsackBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA425947D46186029509F /* KnapsackBrand.swift */; };
 		53F673517263F332DEEB090D /* Spectral-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 549831A986A25DE25F605378 /* Spectral-Italic.ttf */; };
 		5515DB66178FC8C8135FFC50 /* KnapsackBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D2AA425947D46186029509F /* KnapsackBrand.swift */; };
 		55EDA51AB8F8B8881FAD0814 /* KnapsackWatchWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0E8383058F9558BD75ED4E /* KnapsackWatchWidgetsBundle.swift */; };
+		593262C11CDBA5291184945B /* KnapsackCarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7512BCCC226405EF4B6C03D /* KnapsackCarPlaySceneDelegate.swift */; };
 		5AAE5DD3E87AB93457C89623 /* KnapsackWatchWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 54642AEAC52A7D3B8E933CA7 /* KnapsackWatchWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5D30651F31AB031403A5CB4A /* MobileAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */; };
 		5ED94C8BF00761180C8D39AF /* MeetingListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C607E8B89964E058132DA08 /* MeetingListViewModel.swift */; };
@@ -36,6 +38,7 @@
 		9C62A84FF8C11F20CDD403D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DFCFFE08D1792432FA66E23A /* Assets.xcassets */; };
 		A0287BE38395CE71B197206A /* KnapsackComplicationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */; };
 		AC20F9791F3F58248E5AE239 /* WatchSharedBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */; };
+		C49C63E91F8E012D95611DF7 /* CarPlayDriveContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1673574B262B0F9EBCD54B0 /* CarPlayDriveContent.swift */; };
 		C6C67E15745CE0EB8DB5A397 /* WatchContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A099A3E14F8DE5E2B80972 /* WatchContentView.swift */; };
 		CBC9B3D779E1F04FE10707C2 /* WatchSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B51AADDC37DC832D1018F1C /* WatchSyncCoordinatorTests.swift */; };
 		D653D445B45B76C040CBAD63 /* InterVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3BB9402DFC33D2466BA206DE /* InterVariable.ttf */; };
@@ -109,6 +112,7 @@
 		08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSharedBridge.swift; sourceTree = "<group>"; };
 		1413CCEDA7BAD5C6208F4701 /* Spectral-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Spectral-Medium.ttf"; sourceTree = "<group>"; };
 		14BB451B15862813C199803A /* KnapsackMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KnapsackMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		150D5F88A9A99E763359D5CA /* RealtimeVoiceContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeVoiceContract.swift; sourceTree = "<group>"; };
 		19E23681745D937DDF3B615D /* KnapsackWatchWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnapsackWatchWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		25687114CB733251E531D520 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		25F6241806540E2F996754E9 /* KnapsackMobileApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KnapsackMobileApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -130,6 +134,8 @@
 		838F8F6C6620E88F147D623D /* KnapsackWatchExtensionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackWatchExtensionApp.swift; sourceTree = "<group>"; };
 		95A099A3E14F8DE5E2B80972 /* WatchContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchContentView.swift; sourceTree = "<group>"; };
 		967F83E4B4417EB278F01561 /* KnapsackWatchExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnapsackWatchExtension.entitlements; sourceTree = "<group>"; };
+		A1673574B262B0F9EBCD54B0 /* CarPlayDriveContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayDriveContent.swift; sourceTree = "<group>"; };
+		A422459916A7C6E40499E928 /* KnapsackMobileApp.CarPlayPrototype.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KnapsackMobileApp.CarPlayPrototype.entitlements; sourceTree = "<group>"; };
 		A824AD5CC350B4EBEE860B16 /* PhoneRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRecorder.swift; sourceTree = "<group>"; };
 		B4D6BAB3EE18C8AF9FA8F50B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		C07048E1782FE4606E9C5390 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -138,6 +144,7 @@
 		D71AAAACBD0BFEEE3FFAC644 /* KnapsackWatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KnapsackWatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileAPI.swift; sourceTree = "<group>"; };
 		DFCFFE08D1792432FA66E23A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E7512BCCC226405EF4B6C03D /* KnapsackCarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackCarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		F3EED218012DD8B71DFEC30E /* WatchSyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncManager.swift; sourceTree = "<group>"; };
 		F4AE4DE3F6B2E95FE20B6DF8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnapsackComplicationState.swift; sourceTree = "<group>"; };
@@ -197,6 +204,7 @@
 				F6E2886A84EEC5567EABACD0 /* KnapsackComplicationState.swift */,
 				DEC87DC848E8C1FA3CA6EF25 /* MobileAPI.swift */,
 				51EC8F25323375C0AC57BA34 /* MobileModels.swift */,
+				150D5F88A9A99E763359D5CA /* RealtimeVoiceContract.swift */,
 				08C7091C65A0C75A9C21C93A /* WatchSharedBridge.swift */,
 			);
 			path = Shared;
@@ -216,8 +224,11 @@
 			isa = PBXGroup;
 			children = (
 				31FB647E05F6B01F3C18018B /* Assets.xcassets */,
+				A1673574B262B0F9EBCD54B0 /* CarPlayDriveContent.swift */,
 				C07048E1782FE4606E9C5390 /* ContentView.swift */,
 				F4AE4DE3F6B2E95FE20B6DF8 /* Info.plist */,
+				E7512BCCC226405EF4B6C03D /* KnapsackCarPlaySceneDelegate.swift */,
+				A422459916A7C6E40499E928 /* KnapsackMobileApp.CarPlayPrototype.entitlements */,
 				54D3D7C9EFCDC82AE547C431 /* KnapsackMobileApp.entitlements */,
 				35068AE945AF546A9F3CA206 /* KnapsackMobileApp.swift */,
 				7C607E8B89964E058132DA08 /* MeetingListViewModel.swift */,
@@ -455,14 +466,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C49C63E91F8E012D95611DF7 /* CarPlayDriveContent.swift in Sources */,
 				7D01058B52305316B9405883 /* ContentView.swift in Sources */,
 				5515DB66178FC8C8135FFC50 /* KnapsackBrand.swift in Sources */,
+				593262C11CDBA5291184945B /* KnapsackCarPlaySceneDelegate.swift in Sources */,
 				A0287BE38395CE71B197206A /* KnapsackComplicationState.swift in Sources */,
 				639886A0B7541BBD7F239CC1 /* KnapsackMobileApp.swift in Sources */,
 				5ED94C8BF00761180C8D39AF /* MeetingListViewModel.swift in Sources */,
 				5D30651F31AB031403A5CB4A /* MobileAPI.swift in Sources */,
 				024D1195C461AC2EB50C15BE /* MobileModels.swift in Sources */,
 				2AA547D68193858513EAEB9F /* PhoneRecorder.swift in Sources */,
+				3E79B6831C6D03B1C56F4745 /* RealtimeVoiceContract.swift in Sources */,
 				AC20F9791F3F58248E5AE239 /* WatchSharedBridge.swift in Sources */,
 				E84F973C3E3F63420FA9D0E2 /* WatchSyncCoordinator.swift in Sources */,
 			);
