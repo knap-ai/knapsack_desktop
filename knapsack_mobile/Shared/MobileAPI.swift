@@ -16,6 +16,7 @@ final class MobileAPI {
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
   private let requestTimeout: TimeInterval = 6
+  private let inferenceRequestTimeout: TimeInterval = 300
 
   static var defaultBaseURL: URL {
 #if targetEnvironment(simulator)
@@ -115,7 +116,10 @@ final class MobileAPI {
 
   func listChats() async throws -> [MobileChatSummary] {
     do {
-      let chats: [MobileChatSummary] = try await fetch(path: "/api/knapsack/mobile/chats")
+      let chats: [MobileChatSummary] = try await fetch(
+        path: "/api/knapsack/mobile/chats",
+        timeout: 30
+      )
       try? saveFallbackChats(chats)
       return chats
     } catch {
@@ -151,7 +155,8 @@ final class MobileAPI {
     let chat: MobileChatDetail = try await send(
       path: "/api/knapsack/mobile/chats/\(threadID)/messages",
       method: "POST",
-      body: SendMobileChatMessageRequest(text: text)
+      body: SendMobileChatMessageRequest(text: text),
+      timeout: inferenceRequestTimeout
     )
     try? upsertFallbackChatSummary(from: chat)
     try? upsertFallbackChatDetail(chat)
@@ -199,7 +204,8 @@ final class MobileAPI {
     try await send(
       path: "/api/knapsack/mobile/team/\(agentID)/messages",
       method: "POST",
-      body: SendMobileChatMessageRequest(text: text)
+      body: SendMobileChatMessageRequest(text: text),
+      timeout: inferenceRequestTimeout
     )
   }
 
@@ -436,9 +442,13 @@ final class MobileAPI {
     return url
   }
 
-  private func fetch<T: Codable>(path: String, queryItems: [URLQueryItem] = []) async throws -> T {
+  private func fetch<T: Codable>(
+    path: String,
+    queryItems: [URLQueryItem] = [],
+    timeout: TimeInterval? = nil
+  ) async throws -> T {
     var request = URLRequest(url: try requestURL(path: path, queryItems: queryItems))
-    request.timeoutInterval = requestTimeout
+    request.timeoutInterval = timeout ?? requestTimeout
     applyAuthentication(to: &request)
     let (data, response) = try await URLSession.shared.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
@@ -454,9 +464,14 @@ final class MobileAPI {
     return payload
   }
 
-  private func send<T: Codable, Body: Codable>(path: String, method: String, body: Body) async throws -> T {
+  private func send<T: Codable, Body: Codable>(
+    path: String,
+    method: String,
+    body: Body,
+    timeout: TimeInterval? = nil
+  ) async throws -> T {
     var request = URLRequest(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))))
-    request.timeoutInterval = requestTimeout
+    request.timeoutInterval = timeout ?? requestTimeout
     request.httpMethod = method
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     applyAuthentication(to: &request)

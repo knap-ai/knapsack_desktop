@@ -35,6 +35,7 @@ struct ContentView: View {
   @StateObject private var viewModel = MeetingListViewModel()
   @StateObject private var discovery = DesktopDiscoveryCoordinator()
   @StateObject private var recorder = PhoneRecorder()
+  @State private var activeRecordingMeetingID: UInt64?
   @StateObject private var watchSync = WatchSyncCoordinator.shared
   @State private var draftNotes = ""
   @State private var draftChatMessage = ""
@@ -69,9 +70,6 @@ struct ContentView: View {
           Label("Chats", systemImage: "bubble.left.and.bubble.right")
         }
     }
-    .safeAreaInset(edge: .top, spacing: 0) {
-      connectionStatusBanner
-    }
     .sheet(isPresented: $isShowingSettings) {
       NavigationStack {
         ScrollView {
@@ -96,9 +94,6 @@ struct ContentView: View {
             .foregroundStyle(KnapsackBrand.ink)
           }
         }
-      }
-      .safeAreaInset(edge: .top, spacing: 0) {
-        connectionStatusBanner
       }
     }
     .sheet(item: $presentedMeeting, onDismiss: {
@@ -125,10 +120,10 @@ struct ContentView: View {
               .font(KnapsackBrand.inter(17, weight: .semibold))
               .foregroundStyle(KnapsackBrand.ink)
           }
+          ToolbarItem(placement: .topBarTrailing) {
+            connectionStatusToolbarButton
+          }
         }
-      }
-      .safeAreaInset(edge: .top, spacing: 0) {
-        connectionStatusBanner
       }
     }
     .fullScreenCover(item: $presentedChat) { chat in
@@ -157,10 +152,10 @@ struct ContentView: View {
               .font(KnapsackBrand.inter(17, weight: .semibold))
               .foregroundStyle(KnapsackBrand.ink)
           }
+          ToolbarItem(placement: .topBarTrailing) {
+            connectionStatusToolbarButton
+          }
         }
-      }
-      .safeAreaInset(edge: .top, spacing: 0) {
-        connectionStatusBanner
       }
     }
     .fullScreenCover(item: $presentedManagedAgent) { agent in
@@ -188,10 +183,10 @@ struct ContentView: View {
               .font(KnapsackBrand.inter(17, weight: .semibold))
               .foregroundStyle(KnapsackBrand.ink)
           }
+          ToolbarItem(placement: .topBarTrailing) {
+            connectionStatusToolbarButton
+          }
         }
-      }
-      .safeAreaInset(edge: .top, spacing: 0) {
-        connectionStatusBanner
       }
     }
     .sheet(item: $presentedAutopilotEmail) { detail in
@@ -257,6 +252,8 @@ struct ContentView: View {
         let reconnected = await viewModel.refreshConnectionStatus()
         if reconnected {
           await viewModel.refresh()
+        } else if selectedPane == .chats {
+          await viewModel.refreshChats()
         }
       }
     }
@@ -274,6 +271,8 @@ struct ContentView: View {
         let reconnected = await viewModel.refreshConnectionStatus()
         if reconnected {
           await viewModel.refresh()
+        } else if selectedPane == .chats {
+          await viewModel.refreshChats()
         }
       }
     }
@@ -300,50 +299,76 @@ struct ContentView: View {
     }
   }
 
-  private var connectionStatusBanner: some View {
+  private var connectionStatusPill: some View {
     let availability = viewModel.availability
     return Button {
-      if availability == .desktopOnline {
-        Task { await viewModel.refresh() }
-      } else {
-        isShowingSettings = true
-      }
+      isShowingSettings = true
     } label: {
-      HStack(spacing: 10) {
-        Image(systemName: availability.systemImage)
-          .font(.system(size: 14, weight: .semibold))
-
-        VStack(alignment: .leading, spacing: 2) {
-          Text(availability.title)
-            .font(KnapsackBrand.inter(13, weight: .semibold))
-          Text(availability.detail)
-            .font(KnapsackBrand.inter(11))
-            .lineLimit(2)
-        }
-
-        Spacer(minLength: 8)
-
+      HStack(spacing: 6) {
         if availability == .checking {
           ProgressView()
             .controlSize(.small)
         } else {
-          Text(availability == .desktopOnline ? "Refresh" : "Details")
-            .font(KnapsackBrand.inter(12, weight: .semibold))
+          Circle()
+            .fill(connectionStatusColor(for: availability))
+            .frame(width: 8, height: 8)
         }
+
+        Text(connectionStatusLabel(for: availability))
+          .font(KnapsackBrand.inter(12, weight: .semibold))
       }
       .foregroundStyle(connectionStatusForeground(for: availability))
-      .padding(.horizontal, 18)
-      .padding(.vertical, 10)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(connectionStatusBackground(for: availability))
-      .overlay(alignment: .bottom) {
-        Rectangle()
-          .fill(KnapsackBrand.line)
-          .frame(height: 1)
-      }
+      .padding(.horizontal, 11)
+      .frame(height: 34)
+      .background(Capsule().fill(KnapsackBrand.paper))
+      .overlay(Capsule().stroke(KnapsackBrand.line, lineWidth: 1))
     }
     .buttonStyle(.plain)
     .accessibilityLabel("\(availability.title). \(availability.detail)")
+  }
+
+  private var connectionStatusToolbarButton: some View {
+    Button {
+      isShowingSettings = true
+    } label: {
+      HStack(spacing: 5) {
+        Circle()
+          .fill(connectionStatusColor(for: viewModel.availability))
+          .frame(width: 7, height: 7)
+        Text(connectionStatusLabel(for: viewModel.availability))
+          .font(KnapsackBrand.inter(11, weight: .semibold))
+      }
+      .foregroundStyle(connectionStatusForeground(for: viewModel.availability))
+    }
+    .accessibilityLabel("\(viewModel.availability.title). \(viewModel.availability.detail)")
+  }
+
+  private func connectionStatusLabel(for availability: MobileServiceAvailability) -> String {
+    switch availability {
+    case .checking:
+      return "Checking"
+    case .desktopOnline:
+      return "Online"
+    case .desktopNeedsSignIn:
+      return "Sign in"
+    case .offlineReady:
+      return "Offline"
+    case .setupRequired:
+      return "Set up"
+    }
+  }
+
+  private func connectionStatusColor(for availability: MobileServiceAvailability) -> Color {
+    switch availability {
+    case .desktopOnline:
+      return Color.green
+    case .checking:
+      return KnapsackBrand.slate
+    case .desktopNeedsSignIn, .offlineReady:
+      return KnapsackBrand.amber
+    case .setupRequired:
+      return KnapsackBrand.coral
+    }
   }
 
   private func connectionStatusForeground(for availability: MobileServiceAvailability) -> Color {
@@ -354,19 +379,6 @@ struct ContentView: View {
       return KnapsackBrand.inkMuted
     case .setupRequired:
       return KnapsackBrand.coral
-    }
-  }
-
-  private func connectionStatusBackground(for availability: MobileServiceAvailability) -> Color {
-    switch availability {
-    case .desktopOnline:
-      return KnapsackBrand.mist
-    case .checking:
-      return KnapsackBrand.paper
-    case .desktopNeedsSignIn, .offlineReady:
-      return KnapsackBrand.amber.opacity(0.20)
-    case .setupRequired:
-      return KnapsackBrand.coral.opacity(0.10)
     }
   }
 
@@ -398,6 +410,7 @@ struct ContentView: View {
     pageScrollView {
       VStack(alignment: .leading, spacing: 22) {
         notesHeader
+        adHocRecordingAction
         nextCallCard
         laterMeetingsSection
         searchBar
@@ -427,8 +440,41 @@ struct ContentView: View {
       title: "Notes",
       subtitle: "Your meetings and calls, with the decisions and follow-ups that matter."
     ) {
-      headerActionButton(systemName: "gearshape")
+      connectionStatusPill
     }
+  }
+
+  private var adHocRecordingAction: some View {
+    HStack(spacing: 14) {
+      Image(systemName: recorder.isRecording ? "waveform" : "mic.fill")
+        .font(.system(size: 20, weight: .semibold))
+        .foregroundStyle(recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink)
+        .frame(width: 44, height: 44)
+        .background(Circle().fill(KnapsackBrand.paper))
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(recorder.isRecording ? "Recording in progress" : "New recording")
+          .font(KnapsackBrand.inter(17, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+        Text(recorder.isRecording ? "Tap Finish to save this conversation." : "Capture a call or conversation not on your calendar.")
+          .font(KnapsackBrand.inter(13))
+          .foregroundStyle(KnapsackBrand.slate)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      Spacer(minLength: 0)
+
+      Button(recorder.isRecording ? "Finish" : "Record") {
+        toggleMeetingRecording(adHoc: true)
+      }
+      .brandPill(
+        background: recorder.isRecording ? KnapsackBrand.coral : KnapsackBrand.ink,
+        foreground: .white
+      )
+    }
+    .padding(16)
+    .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.white))
+    .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(KnapsackBrand.line, lineWidth: 1))
   }
 
   private var autopilotHeader: some View {
@@ -437,7 +483,7 @@ struct ContentView: View {
       title: "Autopilot",
       subtitle: "See what matters across email, meetings, calendar, and chats before the day runs away from you."
     ) {
-      headerActionButton(systemName: "gearshape")
+      connectionStatusPill
     }
   }
 
@@ -447,7 +493,7 @@ struct ContentView: View {
       title: "GBrain",
       subtitle: "Stay on top of your world passively, then research the next thing before the moment passes."
     ) {
-      headerActionButton(systemName: "gearshape")
+      connectionStatusPill
     }
   }
 
@@ -468,7 +514,7 @@ struct ContentView: View {
         }
         .brandPill(background: KnapsackBrand.ink, foreground: .white)
 
-        headerActionButton(systemName: "gearshape")
+        connectionStatusPill
       }
     }
   }
@@ -767,21 +813,6 @@ struct ContentView: View {
         .foregroundStyle(KnapsackBrand.ink.opacity(0.82))
         .fixedSize(horizontal: false, vertical: true)
     }
-  }
-
-  private func headerActionButton(systemName: String) -> some View {
-    Button {
-      isShowingSettings = true
-    } label: {
-      Image(systemName: systemName)
-        .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(KnapsackBrand.ink)
-        .frame(width: 42, height: 42)
-        .background(KnapsackBrand.paper)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(KnapsackBrand.line, lineWidth: 1))
-    }
-    .buttonStyle(.plain)
   }
 
   private var searchBar: some View {
@@ -2648,7 +2679,7 @@ struct ContentView: View {
   }
 
   private var recentChats: [MobileChatSummary] {
-    filteredChats.filter { !isVirtualEmployeeChat($0) }
+    filteredChats
   }
 
   private func isVirtualEmployeeChat(_ chat: MobileChatSummary) -> Bool {
@@ -3292,15 +3323,18 @@ struct ContentView: View {
       }
   }
 
-  private func toggleMeetingRecording() {
+  private func toggleMeetingRecording(adHoc: Bool = false) {
     if recorder.isRecording {
       recorder.stop()
       guard let fileURL = recorder.currentFileURL else { return }
+      let meetingID = activeRecordingMeetingID
+      activeRecordingMeetingID = nil
       Task {
         await viewModel.uploadRecording(
           fileURL: fileURL,
           startedAt: recorder.recordingStartedAt,
-          endedAt: recorder.recordingEndedAt
+          endedAt: recorder.recordingEndedAt,
+          meetingID: meetingID
         )
       }
       return
@@ -3308,11 +3342,13 @@ struct ContentView: View {
 
     Task {
       do {
-        let meeting = await viewModel.createMeetingForRecordingIfNeeded()
-        if let meetingID = meeting?.id {
-          _ = try await awaitStatusUpdate(for: meetingID, status: .recording)
-        }
+        let meeting = adHoc
+          ? await viewModel.createAdHocMeetingForRecording()
+          : await viewModel.createMeetingForRecordingIfNeeded()
+        guard let meeting else { return }
         try await recorder.start()
+        activeRecordingMeetingID = meeting.id
+        _ = try? await awaitStatusUpdate(for: meeting.id, status: .recording)
       } catch {
         viewModel.errorMessage = error.localizedDescription
       }
