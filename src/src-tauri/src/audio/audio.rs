@@ -1014,6 +1014,49 @@ struct DeletedRecordingData {
   thread_ids: Vec<u64>,
   transcript_filenames: Vec<String>,
   saved_transcript_paths: Vec<String>,
+  file_cleanup_warnings: Vec<String>,
+}
+
+#[derive(Debug, Default)]
+struct StagedRecordingFiles {
+  paths: Vec<(PathBuf, PathBuf)>,
+  restore_on_drop: bool,
+}
+
+impl StagedRecordingFiles {
+  fn restore(&mut self) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (original, staged) in self.paths.iter().rev() {
+      if let Err(error) = std::fs::rename(staged, original) {
+        errors.push(format!("{}: {}", original.display(), error));
+      }
+    }
+    self.restore_on_drop = false;
+    errors
+  }
+
+  fn finish(mut self) -> Vec<String> {
+    self.restore_on_drop = false;
+    self
+      .paths
+      .iter()
+      .filter_map(|(_, staged)| {
+        std::fs::remove_file(staged)
+          .err()
+          .map(|error| format!("{}: {}", staged.display(), error))
+      })
+      .collect()
+  }
+}
+
+impl Drop for StagedRecordingFiles {
+  fn drop(&mut self) {
+    if self.restore_on_drop {
+      for error in self.restore() {
+        log::error!("Failed to restore staged recording file: {}", error);
+      }
+    }
+  }
 }
 
 fn delete_recording_rows<F>(
@@ -1022,7 +1065,7 @@ fn delete_recording_rows<F>(
   before_delete: F,
 ) -> Result<DeletedRecordingData, Error>
 where
-  F: FnOnce(&DeletedRecordingData) -> Result<(), Error>,
+  F: FnOnce(&DeletedRecordingData) -> Result<StagedRecordingFiles, Error>,
 {
   let transaction = connection.transaction()?;
   let feed_item_exists = transaction
@@ -1102,11 +1145,11 @@ where
     thread_ids,
     transcript_filenames,
     saved_transcript_paths,
+    file_cleanup_warnings: Vec::new(),
   };
-  // Files are removed while the database transaction is still rollbackable.
-  // A locked or permission-denied file leaves the recording intact so the user
-  // can correct the problem and retry from Recent recordings.
-  before_delete(&deleted)?;
+  // Move files aside while the database transaction is still rollbackable.
+  // The guard restores every staged file if a SQL statement or commit fails.
+  let staged_files = before_delete(&deleted)?;
 
   transaction.execute(
     "DELETE FROM message_feedbacks WHERE message_id IN (\
@@ -1144,10 +1187,15 @@ where
   )?;
   transaction.commit()?;
 
+  let mut deleted = deleted;
+  deleted.file_cleanup_warnings = staged_files.finish();
   Ok(deleted)
 }
 
-fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) -> Vec<PathBuf> {
+fn recording_file_candidates(
+  home_dir: &Path,
+  deleted: &DeletedRecordingData,
+) -> Result<Vec<PathBuf>, Error> {
   let transcript_dir = home_dir.join(".knapsack").join("transcripts");
   let notes_dir = home_dir.join(".knapsack").join("notes");
   let audio_dir = home_dir.join(".knapsack").join("audio");
@@ -1168,16 +1216,38 @@ fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) ->
     candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
     candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
     candidates.push(notes_dir.join(thread_id.to_string()));
-    if let Ok(entries) = std::fs::read_dir(&audio_dir) {
+    let entries = match std::fs::read_dir(&audio_dir) {
+      Ok(entries) => Some(entries),
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+      Err(error) => {
+        return Err(Error::KSError(format!(
+          "Could not inspect recording audio files in {}: {}",
+          audio_dir.display(),
+          error
+        )))
+      }
+    };
+    if let Some(entries) = entries {
       let input_prefix = format!("{}_input_", thread_id);
       let output_prefix = format!("{}_output_", thread_id);
-      candidates.extend(entries.flatten().filter_map(|entry| {
+      for entry in entries {
+        let entry = entry.map_err(|error| {
+          Error::KSError(format!(
+            "Could not inspect a recording audio file in {}: {}",
+            audio_dir.display(),
+            error
+          ))
+        })?;
         let path = entry.path();
-        let filename = path.file_name()?.to_str()?;
-        (path.is_file()
-          && (filename.starts_with(&input_prefix) || filename.starts_with(&output_prefix)))
-        .then_some(path)
-      }));
+        let Some(filename) = path.file_name().and_then(|value| value.to_str()) else {
+          continue;
+        };
+        if path.is_file()
+          && (filename.starts_with(&input_prefix) || filename.starts_with(&output_prefix))
+        {
+          candidates.push(path);
+        }
+      }
     }
   }
   candidates.extend(
@@ -1203,24 +1273,57 @@ fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) ->
 
   candidates.sort();
   candidates.dedup();
-  candidates
+  Ok(candidates)
 }
 
-fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
+fn stage_recording_files(deleted: &DeletedRecordingData) -> Result<StagedRecordingFiles, Error> {
   let Some(home_dir) = dirs::home_dir() else {
-    return vec!["Could not locate the home folder for transcript cleanup".to_string()];
+    return Err(Error::KSError(
+      "Could not locate the home folder for transcript cleanup".to_string(),
+    ));
   };
-  recording_file_candidates(&home_dir, deleted)
+  let mut staged = StagedRecordingFiles {
+    paths: Vec::new(),
+    restore_on_drop: true,
+  };
+  let nonce = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_nanos();
+  for (index, path) in recording_file_candidates(&home_dir, deleted)?
     .into_iter()
-    .filter_map(|path| {
-      if !path.exists() {
-        return None;
+    .enumerate()
+  {
+    match std::fs::metadata(&path) {
+      Ok(_) => {}
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+      Err(error) => {
+        return Err(Error::KSError(format!(
+          "Could not inspect recording file {}: {}",
+          path.display(),
+          error
+        )))
       }
-      std::fs::remove_file(&path)
-        .err()
-        .map(|error| format!("{}: {}", path.display(), error))
-    })
-    .collect()
+    }
+    let parent = path
+      .parent()
+      .ok_or_else(|| Error::KSError(format!("Recording file has no parent: {}", path.display())))?;
+    let staged_path = parent.join(format!(
+      ".knapsack-recording-delete-{}-{}-{}",
+      std::process::id(),
+      nonce,
+      index
+    ));
+    std::fs::rename(&path, &staged_path).map_err(|error| {
+      Error::KSError(format!(
+        "Could not stage recording file {} for deletion: {}",
+        path.display(),
+        error
+      ))
+    })?;
+    staged.paths.push((path, staged_path));
+  }
+  Ok(staged)
 }
 
 #[delete("/api/knapsack/recording/{feed_item_id}")]
@@ -1239,21 +1342,11 @@ pub async fn delete_recording(
   }
 
   let mut connection = get_db_conn();
-  match delete_recording_rows(&mut connection, feed_item_id, |deleted| {
-    let cleanup_errors = remove_recording_files(deleted);
-    if cleanup_errors.is_empty() {
-      Ok(())
-    } else {
-      Err(Error::KSError(format!(
-        "Could not remove every recording file: {}",
-        cleanup_errors.join("; ")
-      )))
-    }
-  }) {
+  match delete_recording_rows(&mut connection, feed_item_id, stage_recording_files) {
     Ok(deleted) => HttpResponse::Ok().json(json!({
       "success": true,
       "threadIds": deleted.thread_ids,
-      "fileCleanupWarnings": [],
+      "fileCleanupWarnings": deleted.file_cleanup_warnings,
     })),
     Err(Error::KSError(message)) if message == "Recording not found" => {
       HttpResponse::NotFound().json(json!({ "success": false, "message": message }))
@@ -1913,7 +2006,8 @@ mod tests {
       )
       .unwrap();
 
-    let deleted = delete_recording_rows(&mut connection, 1, |_| Ok(())).unwrap();
+    let deleted =
+      delete_recording_rows(&mut connection, 1, |_| Ok(StagedRecordingFiles::default())).unwrap();
 
     assert_eq!(deleted.thread_ids, vec![10, 11]);
     assert!(deleted.transcript_filenames.is_empty());
@@ -1923,7 +2017,7 @@ mod tests {
     std::fs::create_dir_all(&audio_dir).unwrap();
     std::fs::write(audio_dir.join("10_input_0.flac"), b"audio").unwrap();
     std::fs::write(audio_dir.join("20_input_0.flac"), b"other audio").unwrap();
-    let candidates = recording_file_candidates(temp_home.path(), &deleted);
+    let candidates = recording_file_candidates(temp_home.path(), &deleted).unwrap();
     assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/10")));
     assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/11")));
     assert!(!candidates.contains(&temp_home.path().join(".knapsack/transcripts/shared.txt")));
@@ -2000,6 +2094,56 @@ mod tests {
     assert_eq!(row_count(&connection, "feed_items", 1), 1);
     assert_eq!(row_count(&connection, "threads", 10), 1);
     assert_eq!(row_count(&connection, "transcripts", 100), 1);
+  }
+
+  #[test]
+  fn database_failure_restores_staged_recording_files() {
+    let mut connection = Connection::open_in_memory().unwrap();
+    connection.execute_batch(
+      "CREATE TABLE feed_items (id INTEGER PRIMARY KEY, deleted INTEGER);\
+       CREATE TABLE threads (id INTEGER PRIMARY KEY, feed_item_id INTEGER, thread_type TEXT, saved_transcript TEXT);\
+       CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
+       INSERT INTO feed_items VALUES (1, 0);\
+       INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', NULL);\
+       INSERT INTO transcripts VALUES (100, 10, 'recording.txt');",
+    ).unwrap();
+    let temp_dir = TempDir::new().unwrap();
+    let original = temp_dir.path().join("recording.txt");
+    let staged_path = temp_dir.path().join(".recording.staged");
+    std::fs::write(&original, b"notes").unwrap();
+
+    let result = delete_recording_rows(&mut connection, 1, |_| {
+      std::fs::rename(&original, &staged_path).unwrap();
+      Ok(StagedRecordingFiles {
+        paths: vec![(original.clone(), staged_path.clone())],
+        restore_on_drop: true,
+      })
+    });
+
+    assert!(
+      result.is_err(),
+      "missing dependent tables should fail the SQL deletion"
+    );
+    assert_eq!(std::fs::read(&original).unwrap(), b"notes");
+    assert!(!staged_path.exists());
+    assert_eq!(row_count(&connection, "feed_items", 1), 1);
+  }
+
+  #[test]
+  fn audio_enumeration_errors_abort_recording_deletion() {
+    let temp_home = TempDir::new().unwrap();
+    let knapsack_dir = temp_home.path().join(".knapsack");
+    std::fs::create_dir_all(&knapsack_dir).unwrap();
+    std::fs::write(knapsack_dir.join("audio"), b"not a directory").unwrap();
+    let deleted = DeletedRecordingData {
+      thread_ids: vec![10],
+      transcript_filenames: Vec::new(),
+      saved_transcript_paths: Vec::new(),
+      file_cleanup_warnings: Vec::new(),
+    };
+
+    let result = recording_file_candidates(temp_home.path(), &deleted);
+    assert!(result.is_err());
   }
 
   #[test]
