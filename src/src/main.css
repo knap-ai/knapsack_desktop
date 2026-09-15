@@ -1854,3 +1854,48 @@ html, body {
   background: #eeeeee;
   border-color: #bbbbbb;
 }
+.meeting-capture-notice {
+  position: fixed;
+  z-index: 1450;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 9px 12px;
+  border: 1px solid rgba(37, 96, 75, 0.18);
+  border-radius: 999px;
+  background: rgba(250, 252, 249, 0.96);
+  color: #31463d;
+  box-shadow: 0 8px 24px rgba(32, 50, 42, 0.12);
+  font-size: 13px;
+  backdrop-filter: blur(14px);
+}
+
+.meeting-capture-notice__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #c84a42;
+}
+
+.meeting-capture-notice--ready .meeting-capture-notice__dot {
+  background: #4d8269;
+}
+
+.meeting-capture-notice button {
+  border: 0;
+  border-left: 1px solid rgba(49, 70, 61, 0.16);
+  padding: 1px 2px 1px 10px;
+  background: transparent;
+  color: #596b63;
+  font: inherit;
+  cursor: pointer;
+}
+
+.meeting-capture-notice button:hover {
+  color: #263a31;
+}

@@ -66,6 +66,12 @@ import {
   parsePendingAddAccountState,
 } from './utils/permissions/google'
 import { hasGoogleCalendar } from 'src/api/connections'
+import { FeedItem } from 'src/api/feed_items'
+import { isRecordingStatus } from 'src/api/recording'
+import {
+  findMeetingCaptureCandidate,
+  meetingCaptureKey,
+} from 'src/utils/meetingCapture'
 
 // The isolated live-QA app may read connected calendars, but must not schedule
 // production automations or proactively send work from its cloned database.
@@ -117,9 +123,8 @@ const MEETING_MIC_PROMPT_APPS = [
   'gotomeeting',
 ]
 
-function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
-  if (!appInfo) return true
-
+function micAppHaystack(appInfo: FrontmostAppInfo | null): string {
+  if (!appInfo) return ''
   const haystack = [
     appInfo.name,
     appInfo.bundleId,
@@ -128,6 +133,19 @@ function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
+
+  return haystack
+}
+
+function isRecognizedMeetingApp(appInfo: FrontmostAppInfo | null): boolean {
+  const haystack = micAppHaystack(appInfo)
+  return Boolean(haystack && MEETING_MIC_PROMPT_APPS.some(app => haystack.includes(app)))
+}
+
+function shouldShowMicPromptForApp(appInfo: FrontmostAppInfo | null): boolean {
+  if (!appInfo) return true
+
+  const haystack = micAppHaystack(appInfo)
 
   if (!haystack) return true
   if (EXCLUDED_MIC_PROMPT_APPS.some(app => haystack.includes(app))) return false
@@ -359,6 +377,15 @@ function App() {
   } = useRecording()
   const isAnyRecordingRef = useRef(isAnyRecording)
   const suppressMicNotificationRef = useRef(false)
+  const ignoredMeetingCapturesRef = useRef(new Set<string>())
+  const announcedMeetingCapturesRef = useRef(new Set<string>())
+  const activeQuietCaptureRef = useRef<string | null>(null)
+  const quietCaptureObservedRecordingRef = useRef(false)
+  const [meetingCaptureNotice, setMeetingCaptureNotice] = useState<{
+    phase: 'ready' | 'recording'
+    title: string
+    key: string
+  } | null>(null)
 
   useEffect(() => {
     const email = auth.profile?.email ?? ''
@@ -1291,8 +1318,89 @@ function App() {
     return () => { unlistenPromise.then(unlisten => unlisten()) }
   }, [])
 
+  const calendarCaptureItems = useCallback((): FeedItem[] =>
+    Object.values(feedRef.current.feedContent || {}).flat() as FeedItem[], [])
+
+  const setMeetingQuietMode = useCallback((active: boolean, title?: string) => {
+    window.dispatchEvent(new CustomEvent('knapsack-meeting-quiet-mode', {
+      detail: { active, title: title || '' },
+    }))
+    if (!active) {
+      activeQuietCaptureRef.current = null
+      quietCaptureObservedRecordingRef.current = false
+      setMeetingCaptureNotice(current => current?.phase === 'recording' ? null : current)
+    }
+  }, [])
+
+  const beginAutomaticMeetingCapture = useCallback(async (item: FeedItem) => {
+    const key = meetingCaptureKey(item)
+    if (ignoredMeetingCapturesRef.current.has(key) || activeQuietCaptureRef.current) return
+    activeQuietCaptureRef.current = key
+    const title = item.title || 'Current meeting'
+    setMeetingCaptureNotice({ phase: 'recording', title, key })
+    setMeetingQuietMode(true, title)
+    try {
+      const started = await feedRef.current.startCalendarMeeting(item)
+      await new Promise(resolve => setTimeout(resolve, 300))
+      const status = await isRecordingStatus()
+      if (!status || !status.isRecording) {
+        throw new Error('Recording did not become active')
+      }
+      if (started?.threadId) setIsRecording(started.threadId, true)
+      quietCaptureObservedRecordingRef.current = true
+    } catch (error) {
+      console.error('Automatic meeting capture failed:', error)
+      setMeetingQuietMode(false)
+      handleErrorContact('Knapsack noticed the meeting, but could not start recording. Open it from Coming up to try again.')
+    }
+  }, [setIsRecording, setMeetingQuietMode])
+
+  // Give a quiet, cancellable heads-up shortly before a real meeting. Calendar
+  // timing alone never starts capture; the meeting app using the microphone is
+  // the second signal that confirms the call actually began.
+  useEffect(() => {
+    const checkUpcomingMeeting = () => {
+      if (isAnyRecordingRef.current || activeQuietCaptureRef.current) return
+      const candidate = findMeetingCaptureCandidate(calendarCaptureItems(), Date.now(), {
+        requireMicWindow: false,
+      })
+      if (!candidate) {
+        setMeetingCaptureNotice(current => current?.phase === 'ready' ? null : current)
+        return
+      }
+      const key = meetingCaptureKey(candidate)
+      if (ignoredMeetingCapturesRef.current.has(key) || announcedMeetingCapturesRef.current.has(key)) return
+      announcedMeetingCapturesRef.current.add(key)
+      setMeetingCaptureNotice({ phase: 'ready', title: candidate.title || 'Upcoming meeting', key })
+    }
+    checkUpcomingMeeting()
+    const interval = window.setInterval(checkUpcomingMeeting, 15000)
+    return () => window.clearInterval(interval)
+  }, [calendarCaptureItems])
+
+  useEffect(() => {
+    const unlistenStop = listen('stop_recording', () => setMeetingQuietMode(false))
+    return () => {
+      unlistenStop.then(unlisten => unlisten())
+    }
+  }, [setMeetingQuietMode])
+
+  useEffect(() => {
+    if (activeQuietCaptureRef.current && quietCaptureObservedRecordingRef.current && !isAnyRecording) {
+      quietCaptureObservedRecordingRef.current = false
+      setMeetingQuietMode(false)
+    }
+  }, [isAnyRecording, setMeetingQuietMode])
+
+  useEffect(() => {
+    if (meetingCaptureNotice?.phase !== 'recording') return
+    const timeout = window.setTimeout(() => setMeetingCaptureNotice(null), 6500)
+    return () => window.clearTimeout(timeout)
+  }, [meetingCaptureNotice])
+
   // Listen for mic-activated events emitted by the Rust mic monitor.
-  // Show a "Take Notes" prompt when any app activates the mic (unscheduled calls).
+  // A recognized meeting app plus a nearby calendar event starts quiet capture;
+  // unscheduled calls retain the existing explicit "Take Notes" prompt.
   useEffect(() => {
     const unlistenPromise = listen('mic-activated', async () => {
       if (isAnyRecordingRef.current || suppressMicNotificationRef.current) return
@@ -1302,6 +1410,14 @@ function App() {
           return null
         })
         if (!shouldShowMicPromptForApp(appInfo)) return
+
+        const scheduledMeeting = isRecognizedMeetingApp(appInfo)
+          ? findMeetingCaptureCandidate(calendarCaptureItems(), Date.now())
+          : null
+        if (scheduledMeeting) {
+          await beginAutomaticMeetingCapture(scheduledMeeting)
+          return
+        }
 
         await openNotificationWindow(
           undefined,
@@ -1320,7 +1436,7 @@ function App() {
     return () => {
       unlistenPromise.then(unlisten => unlisten())
     }
-  }, [openNotificationWindow])
+  }, [beginAutomaticMeetingCapture, calendarCaptureItems, openNotificationWindow])
 
   // Listen for notes_synthesized event to trigger post-meeting follow-up notifications
   useEffect(() => {
@@ -1656,6 +1772,26 @@ function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <UpdateBanner />
+      {meetingCaptureNotice && (
+        <div className={`meeting-capture-notice meeting-capture-notice--${meetingCaptureNotice.phase}`} role="status" aria-live="polite">
+          <span className="meeting-capture-notice__dot" aria-hidden="true" />
+          <span>
+            <strong>{meetingCaptureNotice.phase === 'ready' ? 'Ready to capture' : 'Recording quietly'}</strong>
+            {' · '}{meetingCaptureNotice.title}
+          </span>
+          {meetingCaptureNotice.phase === 'ready' && (
+            <button
+              type="button"
+              onClick={() => {
+                ignoredMeetingCapturesRef.current.add(meetingCaptureNotice.key)
+                setMeetingCaptureNotice(null)
+              }}
+            >
+              Skip
+            </button>
+          )}
+        </div>
+      )}
       <Snackbar
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
         open={!!toastrState.message}
