@@ -38,12 +38,15 @@
 
 .markdown-content .markdown-task-action-item {
   align-items: flex-start;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 0.55rem;
 }
 
 .markdown-content .markdown-task-action-item > input[type="checkbox"] {
   flex: 0 0 auto;
   margin-top: 0.22em;
-  margin-right: 0.55rem;
+  margin-right: 0;
 }
 
 .markdown-content .markdown-task-action {
@@ -60,6 +63,27 @@
   text-decoration-color: transparent;
   text-underline-offset: 0.16em;
   transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.markdown-content .markdown-task-action--owned {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.35rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.markdown-content .markdown-task-action__owner {
+  white-space: nowrap;
+}
+
+.markdown-content .markdown-task-action__description {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.markdown-content .markdown-task-action__description > p {
+  margin: 0;
 }
 
 .markdown-content .markdown-task-action:hover,
@@ -90,6 +114,11 @@
   .markdown-content table {
     display: block;
     overflow-x: auto;
+  }
+
+  .markdown-content .markdown-task-action--owned {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.1rem;
   }
 }
 

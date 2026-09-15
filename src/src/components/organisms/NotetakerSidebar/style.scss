@@ -1220,6 +1220,43 @@ $ks-red: #c14841;
     }
   }
 
+  &__recording-row {
+    position: relative;
+
+    .notetaker-sidebar__meeting-chat-link {
+      padding-right: 42px;
+    }
+  }
+
+  &__recording-delete {
+    position: absolute;
+    top: 17px;
+    right: 8px;
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: $ks-text-muted;
+    cursor: pointer;
+    opacity: 0.72;
+
+    svg { width: 16px; height: 16px; }
+
+    &:hover:not(:disabled), &:focus-visible {
+      background: #fff1ef;
+      color: #a4423c;
+      opacity: 1;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.32;
+    }
+  }
+
   &__meeting-chat-title {
     overflow: hidden;
     font-size: 12px;

@@ -108,6 +108,27 @@ test("current user's meeting action items open in the contextual meeting chat", 
   assert.match(markdown, /Open this action item in meeting chat/);
 });
 
+test("owned action items align wrapped descriptions independently from owner labels", () => {
+  const markdown = read("src/components/molecules/MarkdownDisplay/index.tsx");
+  const styles = read("src/components/molecules/MarkdownDisplay/markdown-styles.css");
+
+  assert.match(markdown, /splitOwnedActionItem/);
+  assert.match(markdown, /sliceRenderedNodesFrom\(taskContent, ownedAction\.descriptionOffset\)/);
+  assert.match(markdown, /const findRenderedCheckbox/);
+  assert.match(markdown, /children\.map\(findRenderedCheckbox\)\.find\(Boolean\)/);
+  assert.match(markdown, /removeRenderedNode\(child, checkbox\)/);
+  assert.match(markdown, /if \(remaining === 0\) \{\s*sliced\.push\(node\)/);
+  assert.match(markdown, /if \(remaining === 0\) \{\s*slicedChildren\.push\(child\)/);
+  assert.match(markdown, /\{renderedDescription\}/);
+  assert.doesNotMatch(markdown, /renderActionDescription/);
+  assert.match(markdown, /markdown-task-action__owner/);
+  assert.match(markdown, /markdown-task-action__description/);
+  assert.match(styles, /grid-template-columns: max-content minmax\(0, 1fr\)/);
+  assert.match(styles, /\.markdown-task-action__description[\s\S]*overflow-wrap: anywhere/);
+  assert.match(styles, /\.markdown-task-action__description > p \{\s*margin: 0;/);
+  assert.match(styles, /@media \(max-width: 640px\)[\s\S]*\.markdown-task-action--owned[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+});
+
 test("meeting notes stream visibly while synthesis is still running", () => {
   const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
   const synthesis = read("src/hooks/useMeetingMode.tsx");

@@ -36,6 +36,96 @@ const isMarkdownTaskListItem = (node: unknown): boolean => {
   ) === true
 }
 
+const renderedNodeText = (node: React.ReactNode): string => {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (!React.isValidElement(node)) return ''
+  return React.Children.toArray((node.props as { children?: React.ReactNode }).children)
+    .map(renderedNodeText)
+    .join('')
+}
+
+const findRenderedCheckbox = (node: React.ReactNode): React.ReactElement | null => {
+  if (!React.isValidElement(node)) return null
+  if (node.type === 'input' && (node.props as { type?: string }).type === 'checkbox') return node
+  for (const child of React.Children.toArray((node.props as { children?: React.ReactNode }).children)) {
+    const checkbox = findRenderedCheckbox(child)
+    if (checkbox) return checkbox
+  }
+  return null
+}
+
+const removeRenderedNode = (
+  node: React.ReactNode,
+  target: React.ReactElement | null,
+): React.ReactNode => {
+  if (node === target) return null
+  if (!React.isValidElement(node)) return node
+  const element = node as React.ReactElement<{ children?: React.ReactNode }>
+  const children = React.Children.toArray(element.props.children)
+  if (children.length === 0) return element
+  return React.cloneElement(
+    element,
+    undefined,
+    ...children.map(child => removeRenderedNode(child, target)).filter(child => child != null),
+  )
+}
+
+const sliceRenderedNodeFrom = (node: React.ReactNode, offset: number): React.ReactNode => {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node).slice(Math.max(0, offset))
+  }
+  if (!React.isValidElement(node)) return offset <= 0 ? node : null
+
+  const element = node as React.ReactElement<{ children?: React.ReactNode }>
+  const children = React.Children.toArray(element.props.children)
+  if (children.length === 0) return offset <= 0 ? element : null
+
+  let remaining = Math.max(0, offset)
+  const slicedChildren: React.ReactNode[] = []
+  children.forEach((child) => {
+    if (remaining === 0) {
+      slicedChildren.push(child)
+      return
+    }
+    const length = renderedNodeText(child).length
+    if (remaining >= length) {
+      remaining -= length
+      return
+    }
+    slicedChildren.push(sliceRenderedNodeFrom(child, remaining))
+    remaining = 0
+  })
+
+  return React.cloneElement(element, undefined, ...slicedChildren)
+}
+
+const sliceRenderedNodesFrom = (nodes: React.ReactNode[], offset: number): React.ReactNode[] => {
+  let remaining = Math.max(0, offset)
+  const sliced: React.ReactNode[] = []
+  nodes.forEach((node) => {
+    if (remaining === 0) {
+      sliced.push(node)
+      return
+    }
+    const length = renderedNodeText(node).length
+    if (remaining >= length) {
+      remaining -= length
+      return
+    }
+    sliced.push(sliceRenderedNodeFrom(node, remaining))
+    remaining = 0
+  })
+  return sliced
+}
+
+const splitOwnedActionItem = (
+  renderedText: string,
+): { owner: string; descriptionOffset: number } | null => {
+  const match = renderedText.match(/^\s*(.+?)\s+(?:—|–|-)\s+/)
+  if (!match) return null
+  return { owner: match[1].trim(), descriptionOffset: match[0].length }
+}
+
 const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
   markdown = '',
   className = '',
@@ -112,24 +202,38 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
               (!isTaskActionable || isTaskActionable(taskText))
             ) {
               const children = React.Children.toArray(props.children)
-              const checkbox = children.find(child =>
-                React.isValidElement(child) && child.type === 'input'
-              )
-              const taskContent = children.filter(child => child !== checkbox)
+              const checkbox = children.map(findRenderedCheckbox).find(Boolean) || null
+              const taskContent = children
+                .map(child => removeRenderedNode(child, checkbox))
+                .filter(child => child != null)
+              const renderedTaskText = taskContent.map(renderedNodeText).join('')
+              const ownedAction = splitOwnedActionItem(renderedTaskText)
+              const renderedDescription = ownedAction
+                ? sliceRenderedNodesFrom(taskContent, ownedAction.descriptionOffset)
+                : taskContent
 
               return (
                 <li {...props} className="mb-1 flex items-start markdown-task-action-item">
                   {checkbox}
                   <a
                     href={taskActionHref?.(taskText) || `knapsack://prompt/${encodeURIComponent(taskText)}`}
-                    className="markdown-task-action"
+                    className={`markdown-task-action${ownedAction ? ' markdown-task-action--owned' : ''}`}
                     onClick={(event) => {
                       event.preventDefault()
                       onTaskAction(taskText)
                     }}
                     title="Open this action item in meeting chat"
                   >
-                    {taskContent}
+                    {ownedAction ? (
+                      <>
+                        <span className="markdown-task-action__owner">
+                          <strong>{ownedAction.owner}</strong><span aria-hidden="true"> —</span>
+                        </span>
+                        <span className="markdown-task-action__description">
+                          {renderedDescription}
+                        </span>
+                      </>
+                    ) : taskContent}
                   </a>
                 </li>
               )
