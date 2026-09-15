@@ -44,6 +44,32 @@ const renderedNodeText = (node: React.ReactNode): string => {
     .join('')
 }
 
+const findRenderedCheckbox = (node: React.ReactNode): React.ReactElement | null => {
+  if (!React.isValidElement(node)) return null
+  if (node.type === 'input' && (node.props as { type?: string }).type === 'checkbox') return node
+  for (const child of React.Children.toArray((node.props as { children?: React.ReactNode }).children)) {
+    const checkbox = findRenderedCheckbox(child)
+    if (checkbox) return checkbox
+  }
+  return null
+}
+
+const removeRenderedNode = (
+  node: React.ReactNode,
+  target: React.ReactElement | null,
+): React.ReactNode => {
+  if (node === target) return null
+  if (!React.isValidElement(node)) return node
+  const element = node as React.ReactElement<{ children?: React.ReactNode }>
+  const children = React.Children.toArray(element.props.children)
+  if (children.length === 0) return element
+  return React.cloneElement(
+    element,
+    undefined,
+    ...children.map(child => removeRenderedNode(child, target)).filter(child => child != null),
+  )
+}
+
 const sliceRenderedNodeFrom = (node: React.ReactNode, offset: number): React.ReactNode => {
   if (typeof node === 'string' || typeof node === 'number') {
     return String(node).slice(Math.max(0, offset))
@@ -176,10 +202,10 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
               (!isTaskActionable || isTaskActionable(taskText))
             ) {
               const children = React.Children.toArray(props.children)
-              const checkbox = children.find(child =>
-                React.isValidElement(child) && child.type === 'input'
-              )
-              const taskContent = children.filter(child => child !== checkbox)
+              const checkbox = children.map(findRenderedCheckbox).find(Boolean) || null
+              const taskContent = children
+                .map(child => removeRenderedNode(child, checkbox))
+                .filter(child => child != null)
               const renderedTaskText = taskContent.map(renderedNodeText).join('')
               const ownedAction = splitOwnedActionItem(renderedTaskText)
               const renderedDescription = ownedAction

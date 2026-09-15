@@ -114,6 +114,9 @@ test("owned action items align wrapped descriptions independently from owner lab
 
   assert.match(markdown, /splitOwnedActionItem/);
   assert.match(markdown, /sliceRenderedNodesFrom\(taskContent, ownedAction\.descriptionOffset\)/);
+  assert.match(markdown, /const findRenderedCheckbox/);
+  assert.match(markdown, /children\.map\(findRenderedCheckbox\)\.find\(Boolean\)/);
+  assert.match(markdown, /removeRenderedNode\(child, checkbox\)/);
   assert.match(markdown, /if \(remaining === 0\) \{\s*sliced\.push\(node\)/);
   assert.match(markdown, /if \(remaining === 0\) \{\s*slicedChildren\.push\(child\)/);
   assert.match(markdown, /\{renderedDescription\}/);
