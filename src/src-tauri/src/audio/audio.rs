@@ -491,7 +491,7 @@ pub async fn start_recording(
         *output_thread_guard = Some(output_thread);
       }
       Ok(Some(Err(message))) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _startup_finalization_guard = begin_recording_finalization(&recording_state);
         let _ = output_thread.await;
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
@@ -503,7 +503,7 @@ pub async fn start_recording(
         })));
       }
       Ok(None) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let _startup_finalization_guard = begin_recording_finalization(&recording_state);
         let _ = output_thread.await;
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
@@ -515,11 +515,15 @@ pub async fn start_recording(
         })));
       }
       Err(_) => {
-        recording_state.is_recording.store(false, Ordering::Relaxed);
+        let startup_finalization_guard = begin_recording_finalization(&recording_state);
         // A blocking Core Audio initialization cannot always be cancelled, but
-        // dropping the task handle lets this request return immediately. If it
-        // later becomes ready it observes is_recording=false and cleans up.
+        // aborting its JoinHandle cannot stop work that is already blocking.
+        // Keep deletion/start blocked until that worker actually exits.
         output_thread.abort();
+        handle.spawn(async move {
+          let _startup_finalization_guard = startup_finalization_guard;
+          let _ = output_thread.await;
+        });
         if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
           let _ = indicator_window.hide();
         }
@@ -589,7 +593,15 @@ pub async fn start_recording(
     timestamp: None,
   };
   if let Err(e) = transcript.create() {
-    recording_state.is_recording.store(false, Ordering::Relaxed);
+    let _startup_finalization_guard = begin_recording_finalization(&recording_state);
+    let mic_handle = recording_state.mic_thread.lock().unwrap().take();
+    let output_handle = recording_state.output_thread.lock().unwrap().take();
+    if let Some(handle) = mic_handle {
+      let _ = handle.await;
+    }
+    if let Some(handle) = output_handle {
+      let _ = handle.await;
+    }
     log::error!("Failed to create transcript record: {:?}", e);
     return Ok(
       HttpResponse::InternalServerError()
@@ -624,6 +636,15 @@ struct StopFinalizationGuard {
 impl Drop for StopFinalizationGuard {
   fn drop(&mut self) {
     self.is_stopping.store(false, Ordering::Relaxed);
+  }
+}
+
+fn begin_recording_finalization(recording_state: &RecordingState) -> StopFinalizationGuard {
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
+  recording_state.is_stopping.store(true, Ordering::Relaxed);
+  recording_state.is_recording.store(false, Ordering::Relaxed);
+  StopFinalizationGuard {
+    is_stopping: recording_state.is_stopping.clone(),
   }
 }
 
@@ -1435,16 +1456,13 @@ fn stage_recording_files(
       error
     ))
   })?;
-  #[cfg(not(target_os = "windows"))]
   if let Some(parent) = manifest_path.parent() {
-    File::open(parent)
-      .and_then(|directory| directory.sync_all())
-      .map_err(|error| {
-        Error::KSError(format!(
-          "Could not persist recording cleanup plan: {}",
-          error
-        ))
-      })?;
+    sync_recording_directory(parent).map_err(|error| {
+      Error::KSError(format!(
+        "Could not persist recording cleanup plan: {}",
+        error
+      ))
+    })?;
   }
   staged.manifest_path = Some(manifest_path);
 
