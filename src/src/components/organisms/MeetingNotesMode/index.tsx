@@ -111,6 +111,26 @@ const isOwnedByCurrentUser = (taskText: string, userName?: string, userEmail?: s
   return owners.some(candidate => aliases.has(candidate))
 }
 
+const MEETING_CHAT_MIN_HEIGHT = 280
+const MEETING_CHAT_DEFAULT_HEIGHT = 460
+const MEETING_CHAT_VIEWPORT_GAP = 88
+const MEETING_CHAT_HEIGHT_STORAGE_KEY = 'knapsack:meeting-chat-height'
+
+const maxMeetingChatHeight = () => Math.max(
+  MEETING_CHAT_MIN_HEIGHT,
+  window.innerHeight - MEETING_CHAT_VIEWPORT_GAP,
+)
+
+const clampMeetingChatHeight = (height: number) => Math.min(
+  maxMeetingChatHeight(),
+  Math.max(MEETING_CHAT_MIN_HEIGHT, height),
+)
+
+const initialMeetingChatHeight = () => {
+  const saved = Number.parseFloat(localStorage.getItem(MEETING_CHAT_HEIGHT_STORAGE_KEY) || '')
+  return clampMeetingChatHeight(Number.isFinite(saved) ? saved : MEETING_CHAT_DEFAULT_HEIGHT)
+}
+
 const MenuButton: React.FC<MenuButtonProps> = ({
   isActive,
   onClick,
@@ -207,9 +227,41 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+  const [meetingChatHeight, setMeetingChatHeight] = useState(initialMeetingChatHeight)
+  const meetingChatHeightRef = useRef(meetingChatHeight)
+  const meetingChatResizeRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
+  const meetingChatDidDragRef = useRef(false)
+  const [isMeetingChatResizing, setIsMeetingChatResizing] = useState(false)
+  const [meetingChatInputNonce, setMeetingChatInputNonce] = useState(0)
+
+  const updateMeetingChatHeight = useCallback((height: number, persist = false) => {
+    const next = clampMeetingChatHeight(height)
+    meetingChatHeightRef.current = next
+    setMeetingChatHeight(next)
+    if (persist) localStorage.setItem(MEETING_CHAT_HEIGHT_STORAGE_KEY, String(Math.round(next)))
+  }, [])
+
+  const expandMeetingChat = useCallback(() => {
+    updateMeetingChatHeight(maxMeetingChatHeight(), true)
+  }, [updateMeetingChatHeight])
+
   useEffect(() => {
-    if (meetingChatRequest?.threadId === thread.id) setIsMeetingChatOpen(true)
-  }, [meetingChatRequest?.nonce, meetingChatRequest?.threadId, thread.id])
+    if (meetingChatRequest?.threadId === thread.id) {
+      expandMeetingChat()
+      setIsMeetingChatOpen(true)
+    }
+  }, [expandMeetingChat, meetingChatRequest?.nonce, meetingChatRequest?.threadId, thread.id])
+
+  useEffect(() => {
+    const handleResize = () => updateMeetingChatHeight(meetingChatHeightRef.current)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [updateMeetingChatHeight])
+
+  useEffect(() => () => {
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [])
   const [meetingChatInitialInput, setMeetingChatInitialInput] = useState(
     'What should I pay attention to in this meeting?',
   )
@@ -301,6 +353,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const openMeetingChat = async () => {
     await refreshMeetingTranscriptContext()
     setMeetingChatInitialInput('What should I pay attention to in this meeting?')
+    setMeetingChatInputNonce(value => value + 1)
     setBriefPrepExpanded(true)
     setIsMeetingChatOpen(true)
   }
@@ -325,9 +378,71 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const openActionItemInMeetingChat = useCallback(async (taskText: string) => {
     await refreshMeetingTranscriptContext()
     setMeetingChatInitialInput(actionItemPrompt(taskText))
+    setMeetingChatInputNonce(value => value + 1)
+    expandMeetingChat()
     setBriefPrepExpanded(true)
     setIsMeetingChatOpen(true)
-  }, [actionItemPrompt, refreshMeetingTranscriptContext])
+  }, [actionItemPrompt, expandMeetingChat, refreshMeetingTranscriptContext])
+
+  const toggleMeetingChatExpanded = useCallback(() => {
+    const maxHeight = maxMeetingChatHeight()
+    const isExpanded = Math.abs(meetingChatHeightRef.current - maxHeight) < 8
+    updateMeetingChatHeight(isExpanded ? MEETING_CHAT_DEFAULT_HEIGHT : maxHeight, true)
+  }, [updateMeetingChatHeight])
+
+  const handleMeetingChatResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    meetingChatResizeRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: meetingChatHeightRef.current,
+    }
+    meetingChatDidDragRef.current = false
+    setIsMeetingChatResizing(true)
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
+
+  const handleMeetingChatResizeMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = meetingChatResizeRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const delta = drag.startY - event.clientY
+    if (Math.abs(delta) > 3) meetingChatDidDragRef.current = true
+    updateMeetingChatHeight(drag.startHeight + delta)
+  }, [updateMeetingChatHeight])
+
+  const handleMeetingChatResizeEnd = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = meetingChatResizeRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    meetingChatResizeRef.current = null
+    setIsMeetingChatResizing(false)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    updateMeetingChatHeight(meetingChatHeightRef.current, true)
+  }, [updateMeetingChatHeight])
+
+  const handleMeetingChatResizeClick = useCallback(() => {
+    if (meetingChatDidDragRef.current) {
+      meetingChatDidDragRef.current = false
+      return
+    }
+    toggleMeetingChatExpanded()
+  }, [toggleMeetingChatExpanded])
+
+  const handleMeetingChatResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    let nextHeight: number | undefined
+    if (event.key === 'ArrowUp') nextHeight = meetingChatHeightRef.current + 48
+    else if (event.key === 'ArrowDown') nextHeight = meetingChatHeightRef.current - 48
+    else if (event.key === 'Home') nextHeight = MEETING_CHAT_MIN_HEIGHT
+    else if (event.key === 'End') nextHeight = maxMeetingChatHeight()
+    if (nextHeight === undefined) return
+    event.preventDefault()
+    updateMeetingChatHeight(nextHeight, true)
+  }, [updateMeetingChatHeight])
 
   useEffect(() => {
     if (!isMeetingChatOpen) return
@@ -1821,6 +1936,8 @@ Be direct, specific, and concise. No filler text.`
                     setMeetingChatInitialInput(liveTranscript.trim()
                       ? 'What did I miss? Summarize only what the live transcript and current notes show happened in this meeting. Separate confirmed discussion, decisions, and action items.'
                       : 'What did I miss? First state that no transcript text is available yet. Do not substitute email, Slack, web, or unrelated background as if it happened in this meeting.')
+                    setMeetingChatInputNonce(value => value + 1)
+                    expandMeetingChat()
                     setIsMeetingChatOpen(true)
                     setBriefPrepExpanded(true)
                   }}
@@ -2113,8 +2230,24 @@ Be direct, specific, and concise. No filler text.`
       </div>
 
       {isMeetingChatOpen && (
-        <section className="notetaker-note__chat-overlay" aria-label="Meeting chat">
-          <div className="notetaker-note__chat-overlay-handle" aria-hidden="true" />
+        <section
+          className={`notetaker-note__chat-overlay ${isMeetingChatResizing ? 'notetaker-note__chat-overlay--resizing' : ''}`}
+          aria-label="Meeting chat"
+          style={{ height: `${meetingChatHeight}px` }}
+        >
+          <button
+            type="button"
+            className="notetaker-note__chat-overlay-handle"
+            aria-label="Resize meeting chat. Drag up to expand or down to collapse."
+            aria-expanded={meetingChatHeight > MEETING_CHAT_DEFAULT_HEIGHT}
+            title="Drag to resize · Click to expand or collapse"
+            onPointerDown={handleMeetingChatResizeStart}
+            onPointerMove={handleMeetingChatResizeMove}
+            onPointerUp={handleMeetingChatResizeEnd}
+            onPointerCancel={handleMeetingChatResizeEnd}
+            onClick={handleMeetingChatResizeClick}
+            onKeyDown={handleMeetingChatResizeKeyDown}
+          />
           <button
             type="button"
             className="notetaker-note__chat-overlay-close"
@@ -2132,6 +2265,7 @@ Be direct, specific, and concise. No filler text.`
             agentName="Scout"
             contextPrefix={meetingChatContext}
             initialInput={meetingChatInitialInput}
+            initialInputKey={meetingChatInputNonce}
             chatId={`meeting:${thread.id}`}
             sessionId={`meeting:${thread.id}`}
           />
