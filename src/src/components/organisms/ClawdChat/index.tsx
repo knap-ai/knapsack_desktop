@@ -5883,6 +5883,7 @@ ${actualText}`
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
       if (e.key === 'Escape') {
+        if (voiceSessionOpen) return
         const activeEl = document.activeElement
         if (chatFindOpen && activeEl === chatFindInputRef.current) {
           e.preventDefault()
@@ -5909,7 +5910,7 @@ ${actualText}`
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [active, chatFindOpen])
+  }, [active, chatFindOpen, voiceSessionOpen])
 
   // Number-key shortcuts for gateway/browser troubleshooting banners
   useEffect(() => {

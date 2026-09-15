@@ -17,6 +17,7 @@ test('voice session reports real lifecycle states and keeps type and sound contr
   assert.match(chat, /isStartingRecording \? 'Connecting microphone' : isRecording \? 'Listening' : isTranscribing \? 'Turning speech into text' : busy \? 'Thinking' : isSpeaking \? 'Speaking'/)
   assert.match(chat, /aria-label="Switch to typing"/)
   assert.match(chat, /event\.key === 'Escape'[\s\S]*?closeVoiceSession\(\)/)
+  assert.match(chat, /if \(e\.key === 'Escape'\) \{\s*if \(voiceSessionOpen\) return/)
   assert.match(chat, /requestAnimationFrame\(\(\) => chatInputElementRef\.current\?\.focus\(\)\)/)
   assert.match(chat, /aria-pressed=\{voiceEnabled\}/)
   assert.match(chat, /onClick=\{isRecording \? stopRecording : openVoiceSession\}/)
