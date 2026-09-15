@@ -313,7 +313,10 @@ export async function deleteFeedItem(feedItemId: number): Promise<boolean> {
 export async function deleteMeetingRecording(
   feedItemId: number,
 ): Promise<{ threadIds: number[]; fileCleanupWarnings: string[] }> {
-  const response = await retryFetch(`${KN_SERVER_HOST}/api/knapsack/recording/${feedItemId}`, {
+  // Destructive requests are intentionally single-shot. Retrying after a
+  // client-side timeout can turn a successful first deletion into a misleading
+  // 404 response from the second attempt.
+  const response = await fetch(`${KN_SERVER_HOST}/api/knapsack/recording/${feedItemId}`, {
     method: 'DELETE',
   })
   const data = await response.json().catch(() => null)

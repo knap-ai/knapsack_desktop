@@ -25,6 +25,9 @@ test('recording deletion uses a dedicated destructive endpoint and clears local 
   const server = read('src-tauri/src/server/actix.rs')
 
   assert.match(api, /\/api\/knapsack\/recording\/\$\{feedItemId\}[\s\S]*method: 'DELETE'/)
+  const deleteApi = api.slice(api.indexOf('export async function deleteMeetingRecording'))
+  assert.match(deleteApi, /const response = await fetch\(`/)
+  assert.doesNotMatch(deleteApi, /retryFetch\(/)
   assert.match(feed, /localStorage\.removeItem\(`moltbot_chat_history:meeting:\$\{threadId\}`\)/)
   assert.match(feed, /selectedFeedItem\?\.id === item\.id[\s\S]*setSelectedFeedItem\(null\)/)
   assert.match(audio, /Stop this recording before deleting it/)
