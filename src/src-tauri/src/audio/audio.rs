@@ -59,11 +59,13 @@ use super::transcribe::{
 use cpal::SizedSample;
 use hound::SampleFormat;
 use rusqlite::{params, Connection, OptionalExtension};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::mem::size_of;
 use std::ptr;
 use tokio::sync::{mpsc, Semaphore};
+
+pub(crate) static RECORDING_LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Parser, Debug)]
 struct Opt {
@@ -366,6 +368,9 @@ pub async fn start_recording(
     })));
   }
 
+  // Publish recording identity and active state atomically with respect to
+  // recording deletion and note saves.
+  let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   if recording_state.is_recording.load(Ordering::Relaxed) {
     if recording_state.is_paused.load(Ordering::Relaxed) {
       log::info!(
@@ -404,6 +409,7 @@ pub async fn start_recording(
 
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
+  drop(lifecycle_guard);
   log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
 
   // Show the floating recording indicator pill
@@ -1030,6 +1036,12 @@ impl StagedRecordingFiles {
         errors.push(format!("{}: {}", original.display(), error));
       }
     }
+    errors.extend(sync_recording_directories(
+      self
+        .paths
+        .iter()
+        .filter_map(|(original, _)| original.parent()),
+    ));
     self.restore_on_drop = false;
     if errors.is_empty() {
       if let Some(path) = self.manifest_path.take() {
@@ -1054,6 +1066,9 @@ impl StagedRecordingFiles {
           .map(|error| format!("{}: {}", staged.display(), error))
       })
       .collect::<Vec<_>>();
+    errors.extend(sync_recording_directories(
+      self.paths.iter().filter_map(|(_, staged)| staged.parent()),
+    ));
     if errors.is_empty() {
       if let Some(path) = self.manifest_path.take() {
         if let Err(error) = std::fs::remove_file(&path) {
@@ -1065,6 +1080,37 @@ impl StagedRecordingFiles {
     }
     errors
   }
+}
+
+fn sync_recording_directory(path: &Path) -> std::io::Result<()> {
+  #[cfg(not(target_os = "windows"))]
+  {
+    File::open(path)?.sync_all()
+  }
+  #[cfg(target_os = "windows")]
+  {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x02000000;
+    std::fs::OpenOptions::new()
+      .read(true)
+      .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+      .open(path)?
+      .sync_all()
+  }
+}
+
+fn sync_recording_directories<'a>(paths: impl Iterator<Item = &'a Path>) -> Vec<String> {
+  let mut directories = paths.map(Path::to_path_buf).collect::<HashSet<_>>();
+  let mut directories = directories.drain().collect::<Vec<_>>();
+  directories.sort();
+  directories
+    .into_iter()
+    .filter_map(|directory| {
+      sync_recording_directory(&directory)
+        .err()
+        .map(|error| format!("{}: {}", directory.display(), error))
+    })
+    .collect()
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1399,6 +1445,18 @@ fn stage_recording_files(
     })?;
     staged.paths.push((path, staged_path));
   }
+  let sync_errors = sync_recording_directories(
+    staged
+      .paths
+      .iter()
+      .filter_map(|(original, _)| original.parent()),
+  );
+  if !sync_errors.is_empty() {
+    return Err(Error::KSError(format!(
+      "Could not persist staged recording files: {}",
+      sync_errors.join("; ")
+    )));
+  }
   Ok(staged)
 }
 
@@ -1456,6 +1514,7 @@ pub async fn delete_recording(
   recording_state: web::Data<RecordingState>,
 ) -> HttpResponse {
   let feed_item_id = path.into_inner();
+  let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   if recording_state.is_recording.load(Ordering::Relaxed)
     && *recording_state.feed_item_id.lock().unwrap() == Some(feed_item_id)
   {
