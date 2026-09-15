@@ -67,6 +67,7 @@ test('active meetings outrank upcoming meetings and the heads-up window stays na
 test('users get a cancellable heads-up and existing recording controls remain authoritative', () => {
   assert.match(app, /phase: 'ready' \| 'recording'/)
   assert.match(app, /Ready to capture/)
+  assert.match(app, /if \(!candidate\) \{[\s\S]*?current\?\.phase === 'ready' \? null : current/)
   assert.match(app, /ignoredMeetingCapturesRef\.current\.add\(meetingCaptureNotice\.key\)/)
   assert.match(app, /await isRecordingStatus\(\)/)
   assert.match(app, /listen\('stop_recording',[\s\S]*?setMeetingQuietMode\(false\)/)

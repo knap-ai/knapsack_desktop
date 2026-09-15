@@ -1364,7 +1364,10 @@ function App() {
       const candidate = findMeetingCaptureCandidate(calendarCaptureItems(), Date.now(), {
         requireMicWindow: false,
       })
-      if (!candidate) return
+      if (!candidate) {
+        setMeetingCaptureNotice(current => current?.phase === 'ready' ? null : current)
+        return
+      }
       const key = meetingCaptureKey(candidate)
       if (ignoredMeetingCapturesRef.current.has(key) || announcedMeetingCapturesRef.current.has(key)) return
       announcedMeetingCapturesRef.current.add(key)
