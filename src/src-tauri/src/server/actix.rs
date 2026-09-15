@@ -76,6 +76,12 @@ pub async fn start_server<'a>(
   is_chatting: Arc<Mutex<AtomicBool>>,
   connections_data: Arc<Mutex<ConnectionsData>>,
 ) -> std::io::Result<()> {
+  if let Err(error) = audio::audio::recover_staged_recording_deletions() {
+    log::error!(
+      "Could not recover interrupted recording deletion: {:?}",
+      error
+    );
+  }
   let handle = Arc::new(Handle::current());
   // if state.running.load(Ordering::SeqCst) {
   //   return Err("Server is already running.".to_string());

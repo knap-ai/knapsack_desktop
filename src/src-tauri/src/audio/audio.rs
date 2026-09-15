@@ -393,6 +393,14 @@ pub async fn start_recording(
     let mut output_filename_guard = recording_state.output_filename.lock().unwrap();
     *output_filename_guard = Some(output_filename.clone());
   }
+  {
+    let mut thread_id_guard = recording_state.thread_id.lock().unwrap();
+    *thread_id_guard = Some(data.thread_id);
+  }
+  {
+    let mut feed_item_id_guard = recording_state.feed_item_id.lock().unwrap();
+    *feed_item_id_guard = Some(data.feed_item_id);
+  }
 
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
@@ -536,16 +544,6 @@ pub async fn start_recording(
   {
     let mut mic_thread_guard = recording_state.mic_thread.lock().unwrap();
     *mic_thread_guard = Some(mic_thread);
-  }
-
-  {
-    let mut thread_id_guard = recording_state.thread_id.lock().unwrap();
-    *thread_id_guard = Some(thread_id.clone());
-  }
-
-  {
-    let mut feed_item_id_guard = recording_state.feed_item_id.lock().unwrap();
-    *feed_item_id_guard = Some(feed_item_id.clone());
   }
 
   // If a transcript already exists for this thread (e.g., re-recording), delete it first
@@ -1021,6 +1019,7 @@ struct DeletedRecordingData {
 struct StagedRecordingFiles {
   paths: Vec<(PathBuf, PathBuf)>,
   restore_on_drop: bool,
+  manifest_path: Option<PathBuf>,
 }
 
 impl StagedRecordingFiles {
@@ -1032,12 +1031,21 @@ impl StagedRecordingFiles {
       }
     }
     self.restore_on_drop = false;
+    if errors.is_empty() {
+      if let Some(path) = self.manifest_path.take() {
+        if let Err(error) = std::fs::remove_file(&path) {
+          if error.kind() != std::io::ErrorKind::NotFound {
+            errors.push(format!("{}: {}", path.display(), error));
+          }
+        }
+      }
+    }
     errors
   }
 
   fn finish(mut self) -> Vec<String> {
     self.restore_on_drop = false;
-    self
+    let mut errors = self
       .paths
       .iter()
       .filter_map(|(_, staged)| {
@@ -1045,8 +1053,24 @@ impl StagedRecordingFiles {
           .err()
           .map(|error| format!("{}: {}", staged.display(), error))
       })
-      .collect()
+      .collect::<Vec<_>>();
+    if errors.is_empty() {
+      if let Some(path) = self.manifest_path.take() {
+        if let Err(error) = std::fs::remove_file(&path) {
+          if error.kind() != std::io::ErrorKind::NotFound {
+            errors.push(format!("{}: {}", path.display(), error));
+          }
+        }
+      }
+    }
+    errors
   }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct RecordingDeletionManifest {
+  feed_item_id: u64,
+  paths: Vec<(PathBuf, PathBuf)>,
 }
 
 impl Drop for StagedRecordingFiles {
@@ -1276,7 +1300,10 @@ fn recording_file_candidates(
   Ok(candidates)
 }
 
-fn stage_recording_files(deleted: &DeletedRecordingData) -> Result<StagedRecordingFiles, Error> {
+fn stage_recording_files(
+  feed_item_id: u64,
+  deleted: &DeletedRecordingData,
+) -> Result<StagedRecordingFiles, Error> {
   let Some(home_dir) = dirs::home_dir() else {
     return Err(Error::KSError(
       "Could not locate the home folder for transcript cleanup".to_string(),
@@ -1285,15 +1312,73 @@ fn stage_recording_files(deleted: &DeletedRecordingData) -> Result<StagedRecordi
   let mut staged = StagedRecordingFiles {
     paths: Vec::new(),
     restore_on_drop: true,
+    manifest_path: None,
   };
   let nonce = std::time::SystemTime::now()
     .duration_since(std::time::UNIX_EPOCH)
     .unwrap_or_default()
     .as_nanos();
-  for (index, path) in recording_file_candidates(&home_dir, deleted)?
-    .into_iter()
+  let candidates = recording_file_candidates(&home_dir, deleted)?;
+  let planned_paths = candidates
+    .iter()
     .enumerate()
-  {
+    .map(|(index, path)| {
+      let parent = path.parent().ok_or_else(|| {
+        Error::KSError(format!("Recording file has no parent: {}", path.display()))
+      })?;
+      Ok((
+        path.clone(),
+        parent.join(format!(
+          ".knapsack-recording-delete-{}-{}-{}",
+          std::process::id(),
+          nonce,
+          index
+        )),
+      ))
+    })
+    .collect::<Result<Vec<_>, Error>>()?;
+  let manifest_path = home_dir
+    .join(".knapsack")
+    .join(format!("recording-delete-{}-{}.json", feed_item_id, nonce));
+  let manifest_temp = manifest_path.with_extension("json.tmp");
+  let manifest = RecordingDeletionManifest {
+    feed_item_id,
+    paths: planned_paths.clone(),
+  };
+  let manifest_bytes =
+    serde_json::to_vec(&manifest).map_err(|error| Error::KSError(error.to_string()))?;
+  let mut manifest_file = File::create(&manifest_temp)
+    .map_err(|error| Error::KSError(format!("Could not save recording cleanup plan: {}", error)))?;
+  manifest_file
+    .write_all(&manifest_bytes)
+    .and_then(|_| manifest_file.sync_all())
+    .map_err(|error| {
+      Error::KSError(format!(
+        "Could not persist recording cleanup plan: {}",
+        error
+      ))
+    })?;
+  drop(manifest_file);
+  std::fs::rename(&manifest_temp, &manifest_path).map_err(|error| {
+    Error::KSError(format!(
+      "Could not activate recording cleanup plan: {}",
+      error
+    ))
+  })?;
+  #[cfg(not(target_os = "windows"))]
+  if let Some(parent) = manifest_path.parent() {
+    File::open(parent)
+      .and_then(|directory| directory.sync_all())
+      .map_err(|error| {
+        Error::KSError(format!(
+          "Could not persist recording cleanup plan: {}",
+          error
+        ))
+      })?;
+  }
+  staged.manifest_path = Some(manifest_path);
+
+  for (path, staged_path) in planned_paths {
     match std::fs::metadata(&path) {
       Ok(_) => {}
       Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
@@ -1305,15 +1390,6 @@ fn stage_recording_files(deleted: &DeletedRecordingData) -> Result<StagedRecordi
         )))
       }
     }
-    let parent = path
-      .parent()
-      .ok_or_else(|| Error::KSError(format!("Recording file has no parent: {}", path.display())))?;
-    let staged_path = parent.join(format!(
-      ".knapsack-recording-delete-{}-{}-{}",
-      std::process::id(),
-      nonce,
-      index
-    ));
     std::fs::rename(&path, &staged_path).map_err(|error| {
       Error::KSError(format!(
         "Could not stage recording file {} for deletion: {}",
@@ -1324,6 +1400,54 @@ fn stage_recording_files(deleted: &DeletedRecordingData) -> Result<StagedRecordi
     staged.paths.push((path, staged_path));
   }
   Ok(staged)
+}
+
+pub fn recover_staged_recording_deletions() -> Result<(), Error> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return Ok(());
+  };
+  let knapsack_dir = home_dir.join(".knapsack");
+  let entries = match std::fs::read_dir(&knapsack_dir) {
+    Ok(entries) => entries,
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+    Err(error) => return Err(Error::KSError(error.to_string())),
+  };
+  for entry in entries {
+    let entry = entry.map_err(|error| Error::KSError(error.to_string()))?;
+    let path = entry.path();
+    let filename = path
+      .file_name()
+      .and_then(|value| value.to_str())
+      .unwrap_or("");
+    if !filename.starts_with("recording-delete-") || !filename.ends_with(".json") {
+      continue;
+    }
+    let manifest: RecordingDeletionManifest = serde_json::from_slice(
+      &std::fs::read(&path).map_err(|error| Error::KSError(error.to_string()))?,
+    )
+    .map_err(|error| Error::KSError(error.to_string()))?;
+    let recording_exists = FeedItem::find_by_id(manifest.feed_item_id)?.is_some();
+    let mut errors = Vec::new();
+    for (original, staged) in manifest.paths.iter().rev() {
+      if !staged.exists() {
+        continue;
+      }
+      let result = if recording_exists {
+        std::fs::rename(staged, original)
+      } else {
+        std::fs::remove_file(staged)
+      };
+      if let Err(error) = result {
+        errors.push(format!("{}: {}", staged.display(), error));
+      }
+    }
+    if errors.is_empty() {
+      std::fs::remove_file(&path).map_err(|error| Error::KSError(error.to_string()))?;
+    } else {
+      return Err(Error::KSError(errors.join("; ")));
+    }
+  }
+  Ok(())
 }
 
 #[delete("/api/knapsack/recording/{feed_item_id}")]
@@ -1342,7 +1466,9 @@ pub async fn delete_recording(
   }
 
   let mut connection = get_db_conn();
-  match delete_recording_rows(&mut connection, feed_item_id, stage_recording_files) {
+  match delete_recording_rows(&mut connection, feed_item_id, |deleted| {
+    stage_recording_files(feed_item_id, deleted)
+  }) {
     Ok(deleted) => HttpResponse::Ok().json(json!({
       "success": true,
       "threadIds": deleted.thread_ids,
@@ -2117,6 +2243,7 @@ mod tests {
       Ok(StagedRecordingFiles {
         paths: vec![(original.clone(), staged_path.clone())],
         restore_on_drop: true,
+        manifest_path: None,
       })
     });
 

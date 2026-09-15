@@ -31,6 +31,13 @@ test('recording deletion uses a dedicated destructive endpoint and clears local 
   assert.match(feed, /localStorage\.removeItem\(`moltbot_chat_history:meeting:\$\{threadId\}`\)/)
   assert.match(feed, /selectedFeedItem\?\.id === item\.id[\s\S]*setSelectedFeedItem\(null\)/)
   assert.match(audio, /Stop this recording before deleting it/)
+  assert.ok(
+    audio.indexOf('*feed_item_id_guard = Some(data.feed_item_id)') < audio.indexOf('recording_state.is_recording.store(true'),
+    'recording identity must be visible before startup is marked active',
+  )
+  assert.match(audio, /RecordingDeletionManifest/)
+  assert.match(audio, /recover_staged_recording_deletions/)
+  assert.match(server, /recover_staged_recording_deletions/)
   assert.match(audio, /DELETE FROM message_feedbacks/)
   assert.match(audio, /DELETE FROM meeting_insights/)
   assert.match(audio, /DELETE FROM transcripts/)
