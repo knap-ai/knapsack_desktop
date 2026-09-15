@@ -32,6 +32,7 @@
     "test:meeting-live-context": "node --test scripts/meeting-live-context.test.cjs",
     "test:meeting-recording-routing": "node --test scripts/meeting-recording-routing.test.cjs",
     "test:web-fetch-recovery": "node --test scripts/web-fetch-recovery.test.mjs",
+    "test:browser-placeholder-handoff": "node --test scripts/browser-placeholder-handoff.test.cjs",
     "test:dev-intent": "node --test scripts/dev-intent.test.mjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",
     "test:verifiable-loops": "node --test scripts/gbrain-verifiable-loops.test.mjs",
