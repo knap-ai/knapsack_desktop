@@ -16,6 +16,9 @@ test('the composer microphone starts listening on the first click', () => {
 test('voice session reports real lifecycle states and keeps type and sound controls', () => {
   assert.match(chat, /isStartingRecording \? 'Connecting microphone' : isRecording \? 'Listening' : isTranscribing \? 'Turning speech into text' : busy \? 'Thinking' : isSpeaking \? 'Speaking'/)
   assert.match(chat, /aria-label="Switch to typing"/)
+  assert.match(chat, /role="dialog" aria-modal="true"/)
+  assert.match(chat, /data-voice-primary/)
+  assert.match(chat, /event\.key === 'Tab'/)
   assert.match(chat, /event\.key === 'Escape'[\s\S]*?closeVoiceSession\(\)/)
   assert.match(chat, /if \(e\.key === 'Escape'\) \{\s*if \(voiceSessionOpen\) return/)
   assert.match(chat, /requestAnimationFrame\(\(\) => chatInputElementRef\.current\?\.focus\(\)\)/)
@@ -23,6 +26,7 @@ test('voice session reports real lifecycle states and keeps type and sound contr
   assert.match(chat, /onClick=\{isRecording \? stopRecording : openVoiceSession\}/)
   assert.match(chat, /if \(voiceStartPendingRef\.current\) return/)
   assert.match(styles, /\.ClawdVoiceSession \{[\s\S]*?position: absolute;/)
+  assert.match(styles, /\.ClawdChatRoot--compact \.ClawdVoiceSession/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
 })
 

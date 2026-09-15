@@ -183,6 +183,36 @@
   box-shadow: 0 5px 22px rgba(35, 39, 47, 0.08);
 }
 
+// Meeting chat can be docked into a short sheet. Keep every voice control in
+// reach without letting the center illustration crowd the header or toolbar.
+.ClawdChatRoot--compact .ClawdVoiceSession {
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.ClawdChatRoot--compact .ClawdVoiceSessionTop {
+  padding: 8px 10px 8px 14px;
+}
+
+.ClawdChatRoot--compact .ClawdVoiceMark {
+  width: clamp(52px, 18vh, 82px);
+  height: clamp(52px, 18vh, 82px);
+}
+
+.ClawdChatRoot--compact .ClawdVoiceSessionCenter h2 {
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.ClawdChatRoot--compact .ClawdVoiceSessionCenter p {
+  line-height: 1.25;
+}
+
+.ClawdChatRoot--compact .ClawdVoiceSessionControls button {
+  height: 42px;
+}
+
 .ClawdVoiceSessionTop {
   width: min(100%, 620px);
   align-self: center;
