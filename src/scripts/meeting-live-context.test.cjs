@@ -114,6 +114,8 @@ test("owned action items align wrapped descriptions independently from owner lab
 
   assert.match(markdown, /splitOwnedActionItem/);
   assert.match(markdown, /sliceRenderedNodesFrom\(taskContent, ownedAction\.descriptionOffset\)/);
+  assert.match(markdown, /if \(remaining === 0\) \{\s*sliced\.push\(node\)/);
+  assert.match(markdown, /if \(remaining === 0\) \{\s*slicedChildren\.push\(child\)/);
   assert.match(markdown, /\{renderedDescription\}/);
   assert.doesNotMatch(markdown, /renderActionDescription/);
   assert.match(markdown, /markdown-task-action__owner/);

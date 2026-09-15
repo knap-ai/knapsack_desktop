@@ -57,6 +57,10 @@ const sliceRenderedNodeFrom = (node: React.ReactNode, offset: number): React.Rea
   let remaining = Math.max(0, offset)
   const slicedChildren: React.ReactNode[] = []
   children.forEach((child) => {
+    if (remaining === 0) {
+      slicedChildren.push(child)
+      return
+    }
     const length = renderedNodeText(child).length
     if (remaining >= length) {
       remaining -= length
@@ -73,6 +77,10 @@ const sliceRenderedNodesFrom = (nodes: React.ReactNode[], offset: number): React
   let remaining = Math.max(0, offset)
   const sliced: React.ReactNode[] = []
   nodes.forEach((node) => {
+    if (remaining === 0) {
+      sliced.push(node)
+      return
+    }
     const length = renderedNodeText(node).length
     if (remaining >= length) {
       remaining -= length
