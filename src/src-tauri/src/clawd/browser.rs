@@ -780,7 +780,7 @@ pub(crate) async fn refresh_knapsack_access_token(
   Some(token)
 }
 
-async fn knapsack_bearer_token(
+pub(crate) async fn knapsack_bearer_token(
   app_handle: &tauri::AppHandle,
   email: &str,
 ) -> anyhow::Result<String> {

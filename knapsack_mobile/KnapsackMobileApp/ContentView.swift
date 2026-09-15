@@ -562,6 +562,27 @@ struct ContentView: View {
       title: "Email",
       subtitle: "A running conversation about what changed, what matters, and what deserves a reply."
     ) {
+      emailConnectionStatusPill
+    }
+  }
+
+  @ViewBuilder
+  private var emailConnectionStatusPill: some View {
+    if viewModel.isStudioEmailAvailable {
+      HStack(spacing: 6) {
+        Circle()
+          .fill(Color.green)
+          .frame(width: 8, height: 8)
+        Text("Studio online")
+          .font(KnapsackBrand.inter(12, weight: .semibold))
+      }
+      .foregroundStyle(KnapsackBrand.ink)
+      .padding(.horizontal, 11)
+      .frame(height: 34)
+      .background(Capsule().fill(KnapsackBrand.paper))
+      .overlay(Capsule().stroke(KnapsackBrand.line, lineWidth: 1))
+      .accessibilityLabel("Email is available through Knapsack Studio")
+    } else {
       connectionStatusPill
     }
   }
@@ -785,7 +806,7 @@ struct ContentView: View {
           .padding(.vertical, 11)
           .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white))
           .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(KnapsackBrand.line, lineWidth: 1))
-          .disabled(!viewModel.availability.supportsLiveActions)
+          .disabled(!viewModel.availability.supportsLiveActions && !viewModel.isStudioEmailAvailable)
 
         Button(action: sendEmailDraft) {
           Group {
@@ -813,7 +834,7 @@ struct ContentView: View {
   }
 
   private var canSendEmailDraft: Bool {
-    viewModel.availability.supportsLiveActions &&
+    (viewModel.availability.supportsLiveActions || viewModel.isStudioEmailAvailable) &&
       !viewModel.isSendingEmailMessage &&
       !draftEmailMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }

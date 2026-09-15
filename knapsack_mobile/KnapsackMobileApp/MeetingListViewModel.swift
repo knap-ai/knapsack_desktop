@@ -81,6 +81,7 @@ final class MeetingListViewModel: ObservableObject {
   @Published var isLoadingAutopilot = false
   @Published var emailConversation: MobileChatDetail?
   @Published var isSendingEmailMessage = false
+  @Published var isStudioEmailAvailable = false
   @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
   @Published var isLoadingAutopilotEmail = false
   @Published var isPerformingAutopilotEmailAction = false
@@ -265,6 +266,20 @@ final class MeetingListViewModel: ObservableObject {
   func refreshEmailExperience() async {
     await refreshAutopilot()
 
+    if await api.ensureStudioLink(expectedEmail: session?.profile?.email) {
+      isStudioEmailAvailable = true
+      do {
+        if let studioConversation = try await api.getStudioEmailConversation() {
+          emailConversation = studioConversation
+          upsertChatSummary(from: studioConversation)
+        }
+        return
+      } catch {
+        isStudioEmailAvailable = false
+      }
+    }
+    isStudioEmailAvailable = api.hasStudioSession
+
     let title = "Email"
     let summary = chats.first {
       ($0.thread.title ?? "").localizedCaseInsensitiveCompare(title) == .orderedSame
@@ -286,6 +301,27 @@ final class MeetingListViewModel: ObservableObject {
     defer { isSendingEmailMessage = false }
 
     do {
+      if await api.ensureStudioLink(expectedEmail: session?.profile?.email) {
+        isStudioEmailAvailable = true
+        let optimisticTimestamp = Int64(Date().timeIntervalSince1970)
+        if var optimisticConversation = emailConversation {
+          optimisticConversation.messages.append(MobileChatMessage(
+            id: nil,
+            timestamp: optimisticTimestamp,
+            role: "user",
+            content: trimmed
+          ))
+          optimisticConversation.updatedAt = optimisticTimestamp
+          emailConversation = optimisticConversation
+        }
+        let detail = try await api.sendStudioEmailMessage(trimmed)
+        emailConversation = detail
+        upsertChatSummary(from: detail)
+        statusMessage = "Email assistant updated through Studio."
+        errorMessage = nil
+        return true
+      }
+
       if emailConversation == nil {
         emailConversation = try await api.createChat(title: "Email")
       }

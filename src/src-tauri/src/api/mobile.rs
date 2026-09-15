@@ -192,6 +192,14 @@ pub struct MobileLinkedSession {
   pub desktop_label: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileCloudLink {
+  pub code: String,
+  pub expires_at: String,
+  pub email: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MobileCalendarEventSummary {
@@ -2067,6 +2075,97 @@ pub async fn get_mobile_session() -> impl Responder {
   HttpResponse::Ok().json(json!({
     "success": true,
     "data": build_mobile_session()
+  }))
+}
+
+#[post("/api/knapsack/mobile/cloud-link")]
+pub async fn create_mobile_cloud_link(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let Some(profile) = infer_linked_profile() else {
+    return HttpResponse::Unauthorized().json(json!({
+      "success": false,
+      "error": "Sign in to Knapsack on the desktop before linking Studio."
+    }));
+  };
+
+  let token = match crate::clawd::browser::knapsack_bearer_token(&app_handle, &profile.email).await {
+    Ok(token) => token,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Studio authentication unavailable: {error}");
+      return HttpResponse::Unauthorized().json(json!({
+        "success": false,
+        "error": "Your desktop Studio session needs to be refreshed."
+      }));
+    }
+  };
+
+  let api_server = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Could not initialize Studio client: {error}");
+      return HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "error": "Studio linking is temporarily unavailable."
+      }));
+    }
+  };
+  let response = match client
+    .post(format!("{api_server}/api/authentication/generate-one-shot-code"))
+    .bearer_auth(token)
+    .send()
+    .await
+  {
+    Ok(response) => response,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Could not reach Studio: {error}");
+      return HttpResponse::BadGateway().json(json!({
+        "success": false,
+        "error": "Studio is temporarily unavailable."
+      }));
+    }
+  };
+
+  if !response.status().is_success() {
+    log::warn!("[mobile/cloud-link] Studio rejected link request: {}", response.status());
+    return HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": "Studio could not create a secure mobile link."
+    }));
+  }
+
+  let payload = match response.json::<Value>().await {
+    Ok(payload) => payload,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Invalid Studio response: {error}");
+      return HttpResponse::BadGateway().json(json!({
+        "success": false,
+        "error": "Studio returned an invalid mobile link."
+      }));
+    }
+  };
+  let Some(code) = payload.get("code").and_then(Value::as_str) else {
+    return HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": "Studio did not return a mobile link."
+    }));
+  };
+  let expires_at = payload
+    .get("expires_at")
+    .and_then(Value::as_str)
+    .unwrap_or_default();
+
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": MobileCloudLink {
+      code: code.to_string(),
+      expires_at: expires_at.to_string(),
+      email: profile.email,
+    }
   }))
 }
 
