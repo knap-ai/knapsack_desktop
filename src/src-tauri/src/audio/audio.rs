@@ -726,6 +726,7 @@ pub async fn stop_recording(
   let mic_handle = recording_state.mic_thread.lock().unwrap().take();
   let output_handle = recording_state.output_thread.lock().unwrap().take();
 
+  let mut mic_error = None;
   if let Some(handle) = mic_handle {
     if let Err(e) = handle.await {
       let err_msg = format!("Mic recording task failed to complete: {:?}", e);
@@ -734,7 +735,7 @@ pub async fn stop_recording(
         None,
         Some(true),
       );
-      return HttpResponse::InternalServerError().body(err_msg);
+      mic_error = Some(err_msg);
     }
   }
 
@@ -745,6 +746,9 @@ pub async fn stop_recording(
       // and transcript are still valid and must be processed.
       log::error!("Audio output recording task failed (non-fatal): {:?}", e);
     }
+  }
+  if let Some(err_msg) = mic_error {
+    return HttpResponse::InternalServerError().body(err_msg);
   }
 
   // Periodic 150-second chunks are transcribed on detached worker threads.
