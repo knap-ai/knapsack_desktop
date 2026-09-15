@@ -3112,10 +3112,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     voiceTranscriptionAbortRef.current?.abort()
     voiceTranscriptionAbortRef.current = null
     setIsTranscribing(false)
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    if (mediaRecorder) {
       discardedVoiceRecordersRef.current.add(mediaRecorder)
-      mediaRecorder.stop()
-      setIsRecording(false)
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop()
+        setIsRecording(false)
+      }
     }
     stopCurrentAudio()
     setVoiceSessionOpen(false)
