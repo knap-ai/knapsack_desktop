@@ -36,6 +36,18 @@ const isMarkdownTaskListItem = (node: unknown): boolean => {
   ) === true
 }
 
+const splitOwnedActionItem = (taskText: string): { owner: string; description: string } | null => {
+  const match = taskText.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/)
+  if (!match) return null
+  return { owner: match[1].trim(), description: match[2].trim() }
+}
+
+const renderActionDescription = (description: string) => {
+  const due = description.match(/^(.*?)(\s+—\s+)(Due:)(.*)$/i)
+  if (!due) return description
+  return <>{due[1]}{due[2]}<strong>{due[3]}</strong>{due[4]}</>
+}
+
 const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
   markdown = '',
   className = '',
@@ -116,20 +128,30 @@ const MarkdownDisplay: React.FC<MarkdownDisplayProps> = ({
                 React.isValidElement(child) && child.type === 'input'
               )
               const taskContent = children.filter(child => child !== checkbox)
+              const ownedAction = splitOwnedActionItem(taskText)
 
               return (
                 <li {...props} className="mb-1 flex items-start markdown-task-action-item">
                   {checkbox}
                   <a
                     href={taskActionHref?.(taskText) || `knapsack://prompt/${encodeURIComponent(taskText)}`}
-                    className="markdown-task-action"
+                    className={`markdown-task-action${ownedAction ? ' markdown-task-action--owned' : ''}`}
                     onClick={(event) => {
                       event.preventDefault()
                       onTaskAction(taskText)
                     }}
                     title="Open this action item in meeting chat"
                   >
-                    {taskContent}
+                    {ownedAction ? (
+                      <>
+                        <span className="markdown-task-action__owner">
+                          <strong>{ownedAction.owner}</strong><span aria-hidden="true"> —</span>
+                        </span>
+                        <span className="markdown-task-action__description">
+                          {renderActionDescription(ownedAction.description)}
+                        </span>
+                      </>
+                    ) : taskContent}
                   </a>
                 </li>
               )
