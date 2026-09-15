@@ -442,8 +442,20 @@ pub async fn start_recording(
 
   // Setup input device
   let input_wav_path = knapsack_data_dir.join(&input_filename);
-  let (mic_input_device, mic_input_config) = setup_audio_device(&host, &opt.device, true)
-    .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+  let (mic_input_device, mic_input_config) = match setup_audio_device(&host, &opt.device, true) {
+    Ok(device) => device,
+    Err(error) => {
+      let _startup_finalization_guard = begin_recording_finalization(&recording_state);
+      if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+        let _ = indicator_window.hide();
+      }
+      return Ok(HttpResponse::BadRequest().json(json!({
+        "error": format!("Microphone could not start: {}", error),
+        "code": "microphone_start_failed",
+        "status": "error"
+      })));
+    }
+  };
 
   let feed_item_id = data.feed_item_id;
   let thread_id = data.thread_id;

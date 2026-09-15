@@ -43,6 +43,7 @@ test('recording deletion uses a dedicated destructive endpoint and clears local 
   assert.match(audio, /recording_state\.is_stopping\.store\(true/)
   assert.match(audio, /StopFinalizationGuard/)
   assert.match(audio, /begin_recording_finalization\(&recording_state\)/)
+  assert.match(audio, /Err\(error\) => \{[\s\S]*?begin_recording_finalization\(&recording_state\)[\s\S]*?microphone_start_failed/)
   assert.match(audio, /output_thread\.abort\(\);[\s\S]*?handle\.spawn\(async move[\s\S]*?output_thread\.await/)
   assert.match(audio, /recording_state\.is_recording\.load\(Ordering::Relaxed\)[\s\S]*?recording_state\.is_stopping\.load\(Ordering::Relaxed\)/)
   assert.match(main, /pub is_stopping: Arc<AtomicBool>/)
