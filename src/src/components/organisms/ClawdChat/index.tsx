@@ -3130,7 +3130,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   useEffect(() => {
     if (!voiceSessionOpen || !active) return
     requestAnimationFrame(() => {
-      voiceSessionRef.current?.querySelector<HTMLElement>('[data-voice-primary]')?.focus()
+      const dialog = voiceSessionRef.current
+      const primary = dialog?.querySelector<HTMLElement>('[data-voice-primary]:not(:disabled)')
+      const firstEnabled = dialog?.querySelector<HTMLElement>('button:not(:disabled), [tabindex]:not([tabindex="-1"])')
+      ;(primary || firstEnabled)?.focus()
     })
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -3145,7 +3148,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         if (focusable.length === 0) return
         const first = focusable[0]
         const last = focusable[focusable.length - 1]
-        if (event.shiftKey && document.activeElement === first) {
+        if (!voiceSessionRef.current.contains(document.activeElement)) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first).focus()
+        } else if (event.shiftKey && document.activeElement === first) {
           event.preventDefault()
           last.focus()
         } else if (!event.shiftKey && document.activeElement === last) {
