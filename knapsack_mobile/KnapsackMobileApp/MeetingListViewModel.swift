@@ -79,6 +79,8 @@ final class MeetingListViewModel: ObservableObject {
   @Published private(set) var loadingMeetingPrepIDs: Set<String> = []
   @Published var autopilotBrief: MobileAutopilotBrief?
   @Published var isLoadingAutopilot = false
+  @Published var emailConversation: MobileChatDetail?
+  @Published var isSendingEmailMessage = false
   @Published var selectedAutopilotEmail: MobileAutopilotEmailDetail?
   @Published var isLoadingAutopilotEmail = false
   @Published var isPerformingAutopilotEmailAction = false
@@ -177,6 +179,7 @@ final class MeetingListViewModel: ObservableObject {
       }
       errorMessage = nil
       await refreshManagedAgents()
+      await refreshEmailExperience()
     } catch {
       isDesktopReachable = false
       let cached = api.loadCachedWorkspace()
@@ -256,6 +259,66 @@ final class MeetingListViewModel: ObservableObject {
     } catch {
       autopilotBrief = nil
       errorMessage = friendlyMessage(for: error)
+    }
+  }
+
+  func refreshEmailExperience() async {
+    await refreshAutopilot()
+
+    let title = "Email"
+    let summary = chats.first {
+      ($0.thread.title ?? "").localizedCaseInsensitiveCompare(title) == .orderedSame
+    }
+    if let summary {
+      emailConversation = (try? await api.getChat(threadID: summary.id))
+        ?? api.cachedChat(threadID: summary.id, titled: title)
+    } else if emailConversation == nil {
+      emailConversation = api.cachedChat(threadID: nil, titled: title)
+    }
+  }
+
+  func sendEmailMessage(_ text: String) async -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, !isSendingEmailMessage else { return false }
+    let previousConversation = emailConversation
+
+    isSendingEmailMessage = true
+    defer { isSendingEmailMessage = false }
+
+    do {
+      if emailConversation == nil {
+        emailConversation = try await api.createChat(title: "Email")
+      }
+      guard let threadID = emailConversation?.id else {
+        errorMessage = "Could not start the email conversation."
+        return false
+      }
+
+      let optimisticTimestamp = Int64(Date().timeIntervalSince1970 * 1000)
+      if var optimisticConversation = emailConversation {
+        optimisticConversation.messages.append(MobileChatMessage(
+          id: nil,
+          timestamp: optimisticTimestamp,
+          role: "user",
+          content: trimmed
+        ))
+        optimisticConversation.updatedAt = optimisticTimestamp
+        emailConversation = optimisticConversation
+      }
+
+      let detail = try await api.sendChatMessage(threadID: threadID, text: trimmed)
+      emailConversation = detail
+      upsertChatSummary(from: detail)
+      statusMessage = "Email assistant updated."
+      errorMessage = nil
+      return true
+    } catch {
+      emailConversation = previousConversation
+      if error is URLError {
+        isDesktopReachable = false
+      }
+      errorMessage = friendlyMessage(for: error)
+      return false
     }
   }
 

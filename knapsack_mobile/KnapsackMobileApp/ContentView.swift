@@ -28,6 +28,7 @@ struct ContentView: View {
   private enum DesktopPane: String, CaseIterable, Identifiable {
     case notes = "Notes"
     case chats = "Chats"
+    case email = "Email"
 
     var id: String { rawValue }
   }
@@ -39,6 +40,7 @@ struct ContentView: View {
   @StateObject private var watchSync = WatchSyncCoordinator.shared
   @State private var draftNotes = ""
   @State private var draftChatMessage = ""
+  @State private var draftEmailMessage = ""
   @State private var draftAutopilotReply = ""
   @State private var gbrainDraftPrompt = ""
   @State private var searchText = ""
@@ -53,6 +55,7 @@ struct ContentView: View {
   @State private var isNextMeetingPrepExpanded = false
   @FocusState private var isNotesEditorFocused: Bool
   @FocusState private var isAutopilotReplyFocused: Bool
+  @FocusState private var isEmailComposerFocused: Bool
   @Environment(\.scenePhase) private var scenePhase
   private let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
@@ -68,6 +71,12 @@ struct ContentView: View {
         .tag(DesktopPane.chats)
         .tabItem {
           Label("Chats", systemImage: "bubble.left.and.bubble.right")
+        }
+
+      emailTab
+        .tag(DesktopPane.email)
+        .tabItem {
+          Label("Email", systemImage: "envelope")
         }
     }
     .sheet(isPresented: $isShowingSettings) {
@@ -254,6 +263,8 @@ struct ContentView: View {
           await viewModel.refresh()
         } else if selectedPane == .chats {
           await viewModel.refreshChats()
+        } else if selectedPane == .email {
+          await viewModel.refreshEmailExperience()
         }
       }
     }
@@ -273,8 +284,14 @@ struct ContentView: View {
           await viewModel.refresh()
         } else if selectedPane == .chats {
           await viewModel.refreshChats()
+        } else if selectedPane == .email {
+          await viewModel.refreshEmailExperience()
         }
       }
+    }
+    .onChange(of: selectedPane) { _, pane in
+      guard pane == .email, !isRunningTests else { return }
+      Task { await viewModel.refreshEmailExperience() }
     }
     .onChange(of: viewModel.selectedMeeting?.id) { _, _ in
       draftNotes = viewModel.selectedMeeting?.notes ?? ""
@@ -434,6 +451,26 @@ struct ContentView: View {
     }
   }
 
+  private var emailTab: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 22) {
+        emailHeader
+        emailBriefingCard
+        emailConversationSection
+      }
+      .padding(.horizontal, 20)
+      .padding(.top, 12)
+      .padding(.bottom, 36)
+    }
+    .refreshable {
+      await viewModel.refreshEmailExperience()
+    }
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      emailComposer
+    }
+    .background(Color.white.ignoresSafeArea())
+  }
+
   private var notesHeader: some View {
     sectionHeader(
       eyebrow: "Knapsack",
@@ -515,6 +552,312 @@ struct ContentView: View {
         .brandPill(background: KnapsackBrand.ink, foreground: .white)
 
         connectionStatusPill
+      }
+    }
+  }
+
+  private var emailHeader: some View {
+    sectionHeader(
+      eyebrow: "Knapsack",
+      title: "Email",
+      subtitle: "A running conversation about what changed, what matters, and what deserves a reply."
+    ) {
+      connectionStatusPill
+    }
+  }
+
+  private var emailBriefingCard: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Latest update")
+            .font(KnapsackBrand.inter(13, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.inkMuted)
+
+          if let brief = viewModel.autopilotBrief {
+            Text(emailBriefHeadline)
+              .font(KnapsackBrand.spectral(27))
+              .foregroundStyle(KnapsackBrand.ink)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Text(emailBriefTimestamp(brief.generatedAt))
+              .font(KnapsackBrand.inter(12))
+              .foregroundStyle(KnapsackBrand.slate)
+          } else if viewModel.isLoadingAutopilot {
+            Text("Checking your inbox")
+              .font(KnapsackBrand.spectral(27))
+              .foregroundStyle(KnapsackBrand.ink)
+          } else {
+            Text("Connect to load your email briefing")
+              .font(KnapsackBrand.spectral(27))
+              .foregroundStyle(KnapsackBrand.ink)
+          }
+        }
+
+        Spacer(minLength: 0)
+
+        Button {
+          Task { await viewModel.refreshEmailExperience() }
+        } label: {
+          if viewModel.isLoadingAutopilot {
+            ProgressView()
+              .tint(KnapsackBrand.ink)
+              .frame(width: 38, height: 38)
+          } else {
+            Image(systemName: "arrow.clockwise")
+              .font(.system(size: 15, weight: .semibold))
+              .frame(width: 38, height: 38)
+          }
+        }
+        .foregroundStyle(KnapsackBrand.ink)
+        .background(Circle().fill(KnapsackBrand.paper))
+        .accessibilityLabel("Refresh email update")
+      }
+
+      if viewModel.autopilotBrief != nil {
+        Text(emailBriefSummary)
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.slate)
+          .lineSpacing(3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      if emailUpdateCards.isEmpty, viewModel.autopilotBrief != nil {
+        HStack(spacing: 9) {
+          Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(Color.green)
+          Text("Nothing in the latest sync looks like it needs an immediate reply.")
+            .font(KnapsackBrand.inter(14, weight: .medium))
+            .foregroundStyle(KnapsackBrand.ink)
+        }
+      } else {
+        ForEach(emailUpdateCards.prefix(4)) { card in
+          Button {
+            openEmailCard(card)
+          } label: {
+            HStack(alignment: .top, spacing: 12) {
+              Circle()
+                .fill(KnapsackBrand.amber)
+                .frame(width: 8, height: 8)
+                .padding(.top, 7)
+
+              VStack(alignment: .leading, spacing: 5) {
+                Text(card.title)
+                  .font(KnapsackBrand.inter(16, weight: .semibold))
+                  .foregroundStyle(KnapsackBrand.ink)
+                  .multilineTextAlignment(.leading)
+                  .lineLimit(2)
+
+                Text(card.subtitle)
+                  .font(KnapsackBrand.inter(13))
+                  .foregroundStyle(KnapsackBrand.slate)
+                  .multilineTextAlignment(.leading)
+                  .lineLimit(2)
+
+                if let preview = card.preview, !preview.isEmpty {
+                  Text(preview)
+                    .font(KnapsackBrand.inter(13))
+                    .foregroundStyle(KnapsackBrand.slate)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                }
+              }
+
+              Spacer(minLength: 0)
+              Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(KnapsackBrand.inkMuted)
+                .padding(.top, 3)
+            }
+            .padding(.vertical, 4)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+    .cardStyle()
+  }
+
+  private var emailConversationSection: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("Conversation")
+        .font(KnapsackBrand.inter(26, weight: .bold))
+        .foregroundStyle(KnapsackBrand.ink)
+
+      Text("Ask what needs attention or tell Knapsack to draft a response. It will use the matching email thread and show the draft before anything is sent.")
+        .font(KnapsackBrand.inter(14))
+        .foregroundStyle(KnapsackBrand.slate)
+        .lineSpacing(3)
+        .fixedSize(horizontal: false, vertical: true)
+
+      if let conversation = viewModel.emailConversation,
+         !condensedMessages(for: conversation.messages).isEmpty {
+        ForEach(condensedMessages(for: conversation.messages), id: \.stableID) { message in
+          emailConversationBubble(message)
+        }
+      } else {
+        VStack(alignment: .leading, spacing: 12) {
+          Label("Your email assistant is ready", systemImage: "envelope.badge")
+            .font(KnapsackBrand.inter(16, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.ink)
+
+          HStack(spacing: 10) {
+            emailSuggestionButton("What needs a reply?")
+            emailSuggestionButton("Draft my follow-ups")
+          }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(KnapsackBrand.paper))
+      }
+    }
+  }
+
+  private func emailConversationBubble(_ message: MobileChatMessage) -> some View {
+    HStack(alignment: .bottom, spacing: 8) {
+      if message.role == "assistant" {
+        Image(systemName: "envelope.fill")
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(KnapsackBrand.ink)
+          .frame(width: 28, height: 28)
+          .background(Circle().fill(KnapsackBrand.paper))
+      } else {
+        Spacer(minLength: 38)
+      }
+
+      VStack(alignment: .leading, spacing: 7) {
+        if message.role == "assistant" {
+          Text("KNAPSACK")
+            .font(KnapsackBrand.inter(10, weight: .semibold))
+            .foregroundStyle(KnapsackBrand.inkMuted)
+            .tracking(0.7)
+          assistantMessageContent(message)
+        } else {
+          markdownMessageText(message.content, foreground: .white)
+        }
+      }
+      .padding(.horizontal, 15)
+      .padding(.vertical, 13)
+      .background(
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+          .fill(message.role == "user" ? KnapsackBrand.ink : KnapsackBrand.paper)
+      )
+      .frame(maxWidth: message.role == "user" ? 300 : .infinity, alignment: .leading)
+
+      if message.role == "assistant" {
+        Spacer(minLength: 20)
+      }
+    }
+  }
+
+  private func emailSuggestionButton(_ suggestion: String) -> some View {
+    Button(suggestion) {
+      draftEmailMessage = suggestion
+      isEmailComposerFocused = true
+    }
+    .font(KnapsackBrand.inter(13, weight: .semibold))
+    .foregroundStyle(KnapsackBrand.ink)
+    .padding(.horizontal, 13)
+    .padding(.vertical, 10)
+    .background(Capsule().fill(Color.white))
+    .overlay(Capsule().stroke(KnapsackBrand.line, lineWidth: 1))
+  }
+
+  private var emailComposer: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      if let error = viewModel.errorMessage, selectedPane == .email {
+        Text(error)
+          .font(KnapsackBrand.inter(12, weight: .medium))
+          .foregroundStyle(KnapsackBrand.coral)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+
+      HStack(alignment: .bottom, spacing: 10) {
+        TextField("Ask about email or request a draft", text: $draftEmailMessage, axis: .vertical)
+          .font(KnapsackBrand.inter(15))
+          .foregroundStyle(KnapsackBrand.ink)
+          .tint(KnapsackBrand.ink)
+          .lineLimit(1...4)
+          .focused($isEmailComposerFocused)
+          .submitLabel(.send)
+          .onSubmit(sendEmailDraft)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 11)
+          .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white))
+          .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(KnapsackBrand.line, lineWidth: 1))
+          .disabled(!viewModel.availability.supportsLiveActions)
+
+        Button(action: sendEmailDraft) {
+          Group {
+            if viewModel.isSendingEmailMessage {
+              ProgressView().tint(.white)
+            } else {
+              Image(systemName: "arrow.up")
+                .font(.system(size: 17, weight: .bold))
+            }
+          }
+          .frame(width: 44, height: 44)
+          .background(Circle().fill(KnapsackBrand.ink))
+          .foregroundStyle(.white)
+        }
+        .disabled(!canSendEmailDraft)
+        .opacity(canSendEmailDraft ? 1 : 0.45)
+        .accessibilityLabel(viewModel.isSendingEmailMessage ? "Sending email question" : "Send email question")
+      }
+    }
+    .padding(.horizontal, 20)
+    .padding(.top, 10)
+    .padding(.bottom, 8)
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .top) { Divider().overlay(KnapsackBrand.line) }
+  }
+
+  private var canSendEmailDraft: Bool {
+    viewModel.availability.supportsLiveActions &&
+      !viewModel.isSendingEmailMessage &&
+      !draftEmailMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private var emailUpdateCards: [MobileAutopilotCard] {
+    viewModel.autopilotBrief?.sections
+      .flatMap(\.cards)
+      .filter { $0.emailUID != nil && $0.kind != "cleanup" } ?? []
+  }
+
+  private var emailBriefHeadline: String {
+    let count = emailUpdateCards.count
+    guard count > 0 else { return "Your inbox looks under control" }
+    return "\(count) email update\(count == 1 ? "" : "s") worth your attention"
+  }
+
+  private var emailBriefSummary: String {
+    guard viewModel.session?.emailConnected == true else {
+      return "Showing the last saved update. Reconnect to check for new mail."
+    }
+    return "Knapsack checks your linked inbox for conversations and useful logistics, then keeps the important threads in view here."
+  }
+
+  private func emailBriefTimestamp(_ timestamp: Int64) -> String {
+    let date = Date(timeIntervalSince1970: normalizedUnixTimestamp(timestamp))
+    return "Updated \(date.formatted(date: .omitted, time: .shortened))"
+  }
+
+  private func openEmailCard(_ card: MobileAutopilotCard) {
+    Task {
+      await viewModel.openAutopilotCard(card)
+      if let detail = viewModel.selectedAutopilotEmail {
+        presentedAutopilotEmail = detail
+      }
+    }
+  }
+
+  private func sendEmailDraft() {
+    let pendingMessage = draftEmailMessage
+    guard canSendEmailDraft else { return }
+    draftEmailMessage = ""
+    Task {
+      if !(await viewModel.sendEmailMessage(pendingMessage)) {
+        draftEmailMessage = pendingMessage
       }
     }
   }

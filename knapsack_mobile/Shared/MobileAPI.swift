@@ -12,6 +12,7 @@ final class MobileAPI {
   private let fallbackSessionStoreKey = "knapsack.mobile.fallback.session"
   private let fallbackTeamStoreKey = "knapsack.mobile.fallback.team"
   private let fallbackTeamMessagesStoreKey = "knapsack.mobile.fallback.teamMessages"
+  private let fallbackAutopilotStoreKey = "knapsack.mobile.fallback.autopilot"
   private let baseURLStoreKey = "knapsack.mobile.baseURL"
   private let pairingTokenStoreKey = "knapsack.mobile.pairingToken"
   private let mobileTokenHeader = "x-knapsack-mobile-token"
@@ -264,7 +265,19 @@ final class MobileAPI {
   }
 
   func getAutopilotBrief() async throws -> MobileAutopilotBrief {
-    try await fetch(path: "/api/knapsack/mobile/autopilot")
+    do {
+      let brief: MobileAutopilotBrief = try await fetch(path: "/api/knapsack/mobile/autopilot")
+      if let data = try? encoder.encode(brief) {
+        UserDefaults.standard.set(data, forKey: fallbackAutopilotStoreKey)
+      }
+      return brief
+    } catch {
+      guard let data = UserDefaults.standard.data(forKey: fallbackAutopilotStoreKey),
+            let brief = try? decoder.decode(MobileAutopilotBrief.self, from: data) else {
+        throw error
+      }
+      return brief
+    }
   }
 
   func getAutopilotEmail(emailUID: String) async throws -> MobileAutopilotEmailDetail {
