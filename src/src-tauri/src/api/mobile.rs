@@ -192,6 +192,14 @@ pub struct MobileLinkedSession {
   pub desktop_label: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileCloudLink {
+  pub code: String,
+  pub expires_at: String,
+  pub email: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MobileCalendarEventSummary {
@@ -1378,6 +1386,23 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
     .filter(|chat| chat.thread.id != Some(current_thread_id))
     .take(5)
     .collect::<Vec<_>>();
+  let recent_emails = Email::get_recent_emails(40)
+    .into_iter()
+    .filter(|email| !is_deleted_or_archived(email) && !is_noise_email(email))
+    .take(12)
+    .map(|email| {
+      format!(
+        "- From: {} | Subject: {} | Date: {} | Account: {} | Email ID: {} | Thread ID: {} | {}",
+        email.sender,
+        email.subject,
+        format_mobile_timestamp(Some(email_timestamp_seconds(&email))),
+        email.account_email,
+        email.email_uid,
+        email.thread_id.unwrap_or_default(),
+        clean_email_preview(&email.body).unwrap_or_else(|| "No preview available.".to_string())
+      )
+    })
+    .collect::<Vec<_>>();
 
   let mut meeting_threads = Thread::find_all()
     .unwrap_or_default()
@@ -1471,7 +1496,7 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
     .collect::<Vec<_>>();
 
   format!(
-    "Knapsack mobile workspace context\nLinked account: {}\nConnected tools: {}\n\nUpcoming calendar\n{}\n\nRecent meetings\n{}\n\nRecent desktop chats\n{}\n\nAvailable brain pages\n{}\n\nInstructions\n- Use this context directly when answering.\n- Do not say you lack access to meetings, chats, calendar, or brain pages unless the relevant section above is empty.\n- Answer for a mobile knowledge worker: concise, concrete, and action-oriented.",
+    "Knapsack mobile workspace context\nLinked account: {}\nConnected tools: {}\n\nUpcoming calendar\n{}\n\nRecent meetings\n{}\n\nRecent desktop chats\n{}\n\nRecent email\n{}\n\nAvailable brain pages\n{}\n\nInstructions\n- Use this context directly when answering.\n- Do not say you lack access to meetings, chats, calendar, email, or brain pages unless the relevant section above is empty.\n- Answer for a mobile knowledge worker: concise, concrete, and action-oriented.",
     session
       .profile
       .as_ref()
@@ -1496,6 +1521,11 @@ fn build_mobile_gbrain_context(current_thread_id: u64) -> String {
       "- No recent chats found.".to_string()
     } else {
       chat_lines.join("\n")
+    },
+    if recent_emails.is_empty() {
+      "- No recent email found.".to_string()
+    } else {
+      recent_emails.join("\n")
     },
     if brain_entries.is_empty() {
       "- No brain pages found.".to_string()
@@ -1530,16 +1560,28 @@ fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> Str
   } else {
     ""
   };
+  let is_email_conversation = thread
+    .title
+    .as_deref()
+    .unwrap_or_default()
+    .trim()
+    .eq_ignore_ascii_case("email");
+  let email_policy = if is_email_conversation {
+    "\n\nEmail conversation mode\n- Act as a proactive inbox assistant using the supplied recent-email snapshot and conversation history.\n- Lead with what changed or the requested answer; do not dump the inbox.\n- When asked to respond, identify the matching sender and subject, then draft the complete reply in the answer.\n- Never claim an email was sent. Explain that the user can open the surfaced email thread to review and send the reply.\n- Do not call the browser merely to retrieve email already present in the snapshot."
+  } else {
+    ""
+  };
   let tool_policy = if is_meeting_prep {
     "For this meeting prep, rely only on the supplied snapshot and do not call tools."
   } else {
     "If the request needs information beyond the snapshot, use any tool that is available to you; if none is available, state the gap plainly without mentioning unavailable tools."
   };
   format!(
-    "{}\n\n{}{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. {}\n\nUser request\n{}",
+    "{}\n\n{}{}{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, email, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. {}\n\nUser request\n{}",
     build_mobile_gbrain_context(thread_id),
     mobile_presentation_instructions(),
     meeting_prep_policy,
+    email_policy,
     tool_policy,
     text
   )
@@ -2033,6 +2075,97 @@ pub async fn get_mobile_session() -> impl Responder {
   HttpResponse::Ok().json(json!({
     "success": true,
     "data": build_mobile_session()
+  }))
+}
+
+#[post("/api/knapsack/mobile/cloud-link")]
+pub async fn create_mobile_cloud_link(
+  app_handle: web::Data<tauri::AppHandle>,
+) -> impl Responder {
+  let Some(profile) = infer_linked_profile() else {
+    return HttpResponse::Unauthorized().json(json!({
+      "success": false,
+      "error": "Sign in to Knapsack on the desktop before linking Studio."
+    }));
+  };
+
+  let token = match crate::clawd::browser::knapsack_bearer_token(&app_handle, &profile.email).await {
+    Ok(token) => token,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Studio authentication unavailable: {error}");
+      return HttpResponse::Unauthorized().json(json!({
+        "success": false,
+        "error": "Your desktop Studio session needs to be refreshed."
+      }));
+    }
+  };
+
+  let api_server = option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai");
+  let client = match reqwest::Client::builder()
+    .timeout(std::time::Duration::from_secs(15))
+    .build()
+  {
+    Ok(client) => client,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Could not initialize Studio client: {error}");
+      return HttpResponse::InternalServerError().json(json!({
+        "success": false,
+        "error": "Studio linking is temporarily unavailable."
+      }));
+    }
+  };
+  let response = match client
+    .post(format!("{api_server}/api/authentication/generate-one-shot-code"))
+    .bearer_auth(token)
+    .send()
+    .await
+  {
+    Ok(response) => response,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Could not reach Studio: {error}");
+      return HttpResponse::BadGateway().json(json!({
+        "success": false,
+        "error": "Studio is temporarily unavailable."
+      }));
+    }
+  };
+
+  if !response.status().is_success() {
+    log::warn!("[mobile/cloud-link] Studio rejected link request: {}", response.status());
+    return HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": "Studio could not create a secure mobile link."
+    }));
+  }
+
+  let payload = match response.json::<Value>().await {
+    Ok(payload) => payload,
+    Err(error) => {
+      log::warn!("[mobile/cloud-link] Invalid Studio response: {error}");
+      return HttpResponse::BadGateway().json(json!({
+        "success": false,
+        "error": "Studio returned an invalid mobile link."
+      }));
+    }
+  };
+  let Some(code) = payload.get("code").and_then(Value::as_str) else {
+    return HttpResponse::BadGateway().json(json!({
+      "success": false,
+      "error": "Studio did not return a mobile link."
+    }));
+  };
+  let expires_at = payload
+    .get("expires_at")
+    .and_then(Value::as_str)
+    .unwrap_or_default();
+
+  HttpResponse::Ok().json(json!({
+    "success": true,
+    "data": MobileCloudLink {
+      code: code.to_string(),
+      expires_at: expires_at.to_string(),
+      email: profile.email,
+    }
   }))
 }
 
@@ -3040,6 +3173,28 @@ mod tests {
     assert!(request.contains("Every list item must start on its own line"));
     assert!(request.contains("## Do now"));
     assert!(request.ends_with("What is on my calendar?"));
+  }
+
+  #[test]
+  fn email_conversations_use_context_without_claiming_to_send() {
+    let thread = Thread {
+      id: Some(44),
+      timestamp: None,
+      hide_follow_up: None,
+      feed_item_id: None,
+      title: Some("Email".to_string()),
+      subtitle: None,
+      thread_type: ThreadType::Chat,
+      recorded: None,
+      saved_transcript: None,
+      prompt_template: None,
+    };
+
+    let request = build_mobile_chat_request(&thread, 44, "Reply to Gabriel");
+    assert!(request.contains("Email conversation mode"));
+    assert!(request.contains("draft the complete reply"));
+    assert!(request.contains("Never claim an email was sent"));
+    assert!(request.contains("Recent email"));
   }
 
   #[test]

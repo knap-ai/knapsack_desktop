@@ -178,6 +178,7 @@ final class WatchSyncCoordinatorTests: XCTestCase {
     "knapsack.mobile.fallback.chatDetails",
     "knapsack.mobile.fallback.calendar",
     "knapsack.mobile.fallback.session",
+    "knapsack.mobile.fallback.autopilot",
   ]
 
   override func setUp() {
@@ -398,6 +399,51 @@ final class WatchSyncCoordinatorTests: XCTestCase {
     XCTAssertEqual(cached.session?.profile?.email, "person@knapsack.test")
     XCTAssertEqual(cached.calendarEvents.first?.meetingThreadId, 501)
     XCTAssertEqual(cached.calendarEvents.first?.prepChatThreadId, 601)
+  }
+
+  func testEmailBriefRemainsAvailableOffline() async throws {
+    MobileAPI.shared.baseURL = URL(string: "https://knapsack.test")!
+    let brief = MobileAutopilotBrief(
+      headline: "Two messages need attention",
+      summary: "A concise inbox update.",
+      generatedAt: 1_780_000_000,
+      sections: [
+        MobileAutopilotSection(
+          id: "needs-attention",
+          title: "Needs attention",
+          subtitle: nil,
+          cards: [
+            MobileAutopilotCard(
+              id: "reply-1",
+              kind: "reply",
+              title: "Project timing",
+              subtitle: "Reply to Gabriel",
+              preview: "Can we start testing today?",
+              rationale: nil,
+              badge: "Needs attention",
+              timestamp: 1_780_000_000,
+              emailUID: "email-1",
+              relatedThreadID: nil,
+              relatedChatThreadID: nil,
+              suggestedPrompts: ["Draft a reply"]
+            )
+          ]
+        )
+      ]
+    )
+
+    MockURLProtocol.requestHandler = { _ in
+      try Self.jsonResponse(APIEnvelope(success: true, data: brief, error: nil))
+    }
+    _ = try await MobileAPI.shared.getAutopilotBrief()
+
+    MockURLProtocol.requestHandler = { _ in
+      throw URLError(.notConnectedToInternet)
+    }
+    let cached = try await MobileAPI.shared.getAutopilotBrief()
+
+    XCTAssertEqual(cached.headline, brief.headline)
+    XCTAssertEqual(cached.sections.first?.cards.first?.emailUID, "email-1")
   }
 
   private static func jsonResponse<T: Codable>(

@@ -95,6 +95,12 @@ struct SendMobileChatMessageRequest: Codable {
   var text: String
 }
 
+struct MobileCloudLink: Codable {
+  var code: String
+  var expiresAt: String
+  var email: String
+}
+
 struct MobileManagedAgent: Codable, Identifiable {
   var id: String
   var name: String
