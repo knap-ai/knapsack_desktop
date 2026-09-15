@@ -1314,6 +1314,7 @@ type ChatInputBarProps = {
   isStartingRecording: boolean
   isTranscribing: boolean
   voiceEnabled: boolean
+  voicePaused?: boolean
   attachedFiles: Attachment[]
   onSend: (text: string) => void
   onQueue: (text: string, attachments?: Attachment[]) => void
@@ -1527,7 +1528,7 @@ const ChatMessage = memo(function ChatMessage({
 
 const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
   const {
-    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled,
+    busy, providerReady, hasQueuedMessage: _hasQueuedMessage, isRecording, isStartingRecording, isTranscribing, voiceEnabled, voicePaused = false,
     attachedFiles, onSend, onQueue, onFileSelect, onRemoveFile,
     onStartRecording, onStopRecording, onStopGeneration,
     replyToMsg, onCancelReply, initialValue,
@@ -1711,9 +1712,9 @@ const ChatInputBar = memo(function ChatInputBar(props: ChatInputBarProps) {
           <button
             className={`ClawdVoiceToggle ${voiceEnabled ? 'active' : ''} ${isRecording ? 'recording' : ''} ${isTranscribing ? 'transcribing' : ''}`}
             onClick={isRecording ? onStopRecording : onStartRecording}
-            disabled={busy || isStartingRecording || isTranscribing || !providerReady}
-            aria-label={isRecording ? 'Finish speaking' : 'Start voice conversation'}
-            title={isRecording ? 'Finish speaking' : 'Start voice conversation'}
+            disabled={busy || isStartingRecording || isTranscribing || !providerReady || voicePaused}
+            aria-label={voicePaused ? 'Voice pauses during meeting recording' : isRecording ? 'Finish speaking' : 'Start voice conversation'}
+            title={voicePaused ? 'Voice pauses during meeting recording' : isRecording ? 'Finish speaking' : 'Start voice conversation'}
           >
             {isTranscribing ? '⏳' : isRecording ? '⏹️' : '🎙️'}
           </button>
@@ -2268,12 +2269,15 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [meetingQuietMode, setMeetingQuietMode] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(() => {
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const voicePlaybackTokenRef = useRef(0)
+  const meetingQuietModeRef = useRef(false)
+  const resumeVoiceAfterMeetingRef = useRef(false)
   const discardedVoiceRecordersRef = useRef<WeakSet<MediaRecorder>>(new WeakSet())
   const voiceStartTokenRef = useRef(0)
   const voiceStartPendingRef = useRef(false)
@@ -3114,6 +3118,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   }, [mediaRecorder])
 
   const openVoiceSession = useCallback(() => {
+    if (meetingQuietModeRef.current) return
     setVoiceSessionOpen(true)
     if (!voiceSessionOpen && !voiceEnabled) {
       setVoiceEnabled(true)
@@ -3141,6 +3146,28 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     localStorage.setItem(VOICE_MODE_STORAGE, 'false')
     requestAnimationFrame(() => chatInputElementRef.current?.focus())
   }, [mediaRecorder, stopCurrentAudio])
+
+  useEffect(() => {
+    const onMeetingQuietMode = (event: Event) => {
+      const active = (event as CustomEvent<{ active?: boolean }>).detail?.active === true
+      meetingQuietModeRef.current = active
+      setMeetingQuietMode(active)
+      if (active) {
+        resumeVoiceAfterMeetingRef.current = voiceEnabled || voiceSessionOpen
+        if (voiceSessionOpen || isRecording || isStartingRecording || isTranscribing || isSpeaking) {
+          closeVoiceSession()
+        } else {
+          stopCurrentAudio()
+        }
+      } else if (resumeVoiceAfterMeetingRef.current) {
+        resumeVoiceAfterMeetingRef.current = false
+        setVoiceEnabled(true)
+        localStorage.setItem(VOICE_MODE_STORAGE, 'true')
+      }
+    }
+    window.addEventListener('knapsack-meeting-quiet-mode', onMeetingQuietMode)
+    return () => window.removeEventListener('knapsack-meeting-quiet-mode', onMeetingQuietMode)
+  }, [closeVoiceSession, isRecording, isSpeaking, isStartingRecording, isTranscribing, stopCurrentAudio, voiceEnabled, voiceSessionOpen])
 
   useEffect(() => {
     if (!voiceSessionOpen || !active) return
@@ -4498,7 +4525,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     ])
     onAssistantMessage?.(chatId)
     // Speak the response if voice output is enabled using OpenAI TTS
-    if (voiceEnabled) {
+    if (voiceEnabled && !meetingQuietModeRef.current) {
       // Stop any currently playing audio first
       stopCurrentAudio()
       const playbackToken = voicePlaybackTokenRef.current
@@ -4962,6 +4989,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // Toggle voice mode - stop audio when disabling
   const toggleVoiceOutput = useCallback(() => {
+    if (meetingQuietModeRef.current) return
     const newValue = !voiceEnabled
     if (voiceEnabled) {
       // Turning off - stop any playing audio
@@ -6812,6 +6840,7 @@ ${actualText}`
         isStartingRecording={isStartingRecording}
         isTranscribing={isTranscribing}
         voiceEnabled={voiceEnabled}
+        voicePaused={meetingQuietMode}
         attachedFiles={attachedFiles}
         onSend={stableDoSend}
         onQueue={stableQueueMessage}
