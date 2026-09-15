@@ -352,6 +352,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const lines = [
       'You are answering from the inline meeting chat. Answer from the meeting brief, notes, transcript, and details below before using broader memory.',
       'You have the same browser, web search, native integrations, and Knapsack Studio connector tools as the main chat. Use them when they materially improve the answer or when the user asks you to look something up.',
+      'For short follow-ups, resolve the subject from the preceding conversation before answering. If a web/PDF fetch or text proxy fails, try the original official URL in the browser or an accessible official HTML page. Never invent source contents or conflate enforcement jurisdictions with current license jurisdictions; cite what you actually verified and state uncertainty plainly.',
       'For transcript or note questions, use the local meeting tools with the thread id below if the embedded snapshot is incomplete. If a required Studio connector is disconnected, explain which one is needed so the chat can offer its inline Connect action.',
       `The user is ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''}. Address the user directly and do not confuse them with external attendees.`,
       `The user's email identities are: ${Array.from(userEmailSet).join(', ') || 'unknown'}.`,
@@ -1009,10 +1010,13 @@ Be specific, compact, and useful while the user is joining the call. Never print
   const handleRecordClick = async (isStart: boolean) => {
     const saveTranscript = await shouldSaveTranscript()
     const runParamsObj = getRunParamObject()
-    let eventId = 0
-    if ('event_id' in runParamsObj) {
-      eventId = runParamsObj.event_id
-    }
+    // The recorder expects the local calendar row ID, not Google's opaque
+    // event_id string. Without it, the scheduled-end fallback has no end time.
+    const localMeetingId = Number(meeting?.id)
+    const paramId = Number(runParamsObj.event_id)
+    const eventId = Number.isSafeInteger(localMeetingId) && localMeetingId > 0
+      ? localMeetingId
+      : Number.isSafeInteger(paramId) && paramId > 0 ? paramId : 0
     try {
       await recordingHandlers.startRecording(
         setFeedIsRecording,
@@ -1080,11 +1084,10 @@ Be specific, compact, and useful while the user is joining the call. Never print
 
   const getEventId = () => {
     const runParamsObj = getRunParamObject()
-    let eventId = 0
-    if ('event_id' in runParamsObj) {
-      eventId = runParamsObj.event_id
-    }
-    return eventId
+    const localMeetingId = Number(meeting?.id)
+    if (Number.isSafeInteger(localMeetingId) && localMeetingId > 0) return localMeetingId
+    const paramId = Number(runParamsObj.event_id)
+    return Number.isSafeInteger(paramId) && paramId > 0 ? paramId : 0
   }
 
   const handleStopRecording = async (type: string) => {
