@@ -371,6 +371,7 @@ function isBrokenAgentCapabilityReply(reply: string): boolean {
   if (!text) return true
   if (text.includes('web_search tool') && text.includes('disabled')) return true
   if (text.includes('web search tool') && text.includes('disabled')) return true
+  if (text.includes('browser tool') && text.includes('not enabled for this request')) return true
   if (text.includes('direct email access') && text.includes('none of which include')) return true
   return [
     'web_search tool is disabled',
@@ -389,6 +390,7 @@ function isBrokenAgentCapabilityReply(reply: string): boolean {
     'i checked my memory.md',
     'my memory.md file',
     'browser is currently unavailable',
+    'browser tool which was not enabled for this request',
     'unable to perform web searches',
   ].some(fragment => text.includes(fragment))
 }
