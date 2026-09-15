@@ -3,6 +3,7 @@ import { l as redactToolPayloadText } from "./redact-ok5Q8nmw.js";
 import { i as resolveOsHomeDir, t as expandHomePrefix } from "./home-dir-BOPFpGo8.js";
 import { i as formatErrorMessage } from "./errors-b3ZrCRlt.js";
 import { t as createLazyImportLoader } from "./lazy-promise-Djskx0qC.js";
+import { buildDocumentHandoffText, buildReaderProxyRecoveryFailureMessage, isDocumentContentType, isLikelyDocumentUrl, isReaderProxyAccessFailure, resolveReaderProxyTarget } from "./knapsack-web-fetch-recovery.js";
 import { m as FsSafeError } from "./path-BlG8lhgR.js";
 import { S as hasEncodedFileUrlSeparator, T as trySafeFileURLToPath } from "./fs-safe-CV86zY9G.js";
 import { o as root } from "./secure-temp-dir-aidxCRgA.js";
@@ -11179,6 +11180,12 @@ async function runWebFetch(params) {
 		if (markdownTokens) logDebug(`[web-fetch] x-markdown-tokens: ${markdownTokens} (${redactUrlForDebugLog(finalUrl)})`);
 	} catch (error) {
 		if (error instanceof SsrFBlockedError) throw error;
+		if (params.readerProxyTarget) return await runWebFetch({
+			...params,
+			url: params.readerProxyTarget,
+			readerProxyTarget: void 0,
+			recoveryAttempted: true
+		});
 		const payload = await maybeFetchProviderWebFetchPayload({
 			...params,
 			urlToFetch: finalUrl,
@@ -11190,6 +11197,16 @@ async function runWebFetch(params) {
 	}
 	try {
 		if (!res.ok) {
+			if (params.readerProxyTarget && isReaderProxyAccessFailure(res.status)) {
+				if (release) await release();
+				release = null;
+				return await runWebFetch({
+					...params,
+					url: params.readerProxyTarget,
+					readerProxyTarget: void 0,
+					recoveryAttempted: true
+				});
+			}
 			const payload = await maybeFetchProviderWebFetchPayload({
 				...params,
 				urlToFetch: params.url,
@@ -11213,7 +11230,10 @@ async function runWebFetch(params) {
 		let title;
 		let extractor = "raw";
 		let text = body;
-		if (contentType.includes("text/markdown")) {
+		if (isDocumentContentType(normalizedContentType)) {
+			text = buildDocumentHandoffText(finalUrl, normalizedContentType);
+			extractor = "document-handoff";
+		} else if (contentType.includes("text/markdown")) {
 			extractor = "cf-markdown";
 			if (params.extractMode === "text") text = markdownToText(body);
 		} else if (contentType.includes("text/html")) if (params.readabilityEnabled) {
@@ -11309,7 +11329,7 @@ function createWebFetchTool(options) {
 	return {
 		label: "Web Fetch",
 		name: "web_fetch",
-		description: "Fetch URL and extract readable markdown/text. Lightweight page access; no browser automation.",
+		description: "Fetch URL and extract readable markdown/text. Use the pdf tool for PDF URLs. Jina Reader links are recovered to their original direct URL. Lightweight page access; no browser automation.",
 		parameters: WebFetchSchema,
 		execute: async (_toolCallId, args) => {
 			const { config, preferRuntimeProviders, runtimeWebFetch } = resolveWebFetchToolRuntimeContext({
@@ -11343,26 +11363,34 @@ function createWebFetchTool(options) {
 			};
 			const params = args;
 			const url = readStringParam$1(params, "url", { required: true });
+			const readerProxyTarget = resolveReaderProxyTarget(url);
+			const urlToFetch = readerProxyTarget && isLikelyDocumentUrl(readerProxyTarget) ? readerProxyTarget : url;
 			const extractMode = readStringParam$1(params, "extractMode") === "text" ? "text" : "markdown";
 			const maxChars = readNumberParam(params, "maxChars", { integer: true });
 			const maxCharsCap = resolveFetchMaxCharsCap(executionFetch);
-			return jsonResult(await runWebFetch({
-				url,
-				extractMode,
-				maxChars: resolveMaxChars(maxChars ?? executionFetch?.maxChars, DEFAULT_FETCH_MAX_CHARS, maxCharsCap),
-				maxResponseBytes,
-				maxRedirects: resolveMaxRedirects(executionFetch?.maxRedirects, DEFAULT_FETCH_MAX_REDIRECTS),
-				timeoutSeconds: resolveTimeoutSeconds(executionFetch?.timeoutSeconds, 30),
-				cacheTtlMs: resolveCacheTtlMs(executionFetch?.cacheTtlMinutes, 15),
-				userAgent,
-				readabilityEnabled,
-				config,
-				useTrustedEnvProxy: resolveFetchUseTrustedEnvProxy(executionFetch),
-				ssrfPolicy: executionFetch?.ssrfPolicy,
-				...providerCacheKey ? { providerCacheKey } : {},
-				lookupFn: options?.lookupFn,
-				resolveProviderFallback
-			}));
+			try {
+				return jsonResult(await runWebFetch({
+					url: urlToFetch,
+					...readerProxyTarget && urlToFetch === url ? { readerProxyTarget } : {},
+					extractMode,
+					maxChars: resolveMaxChars(maxChars ?? executionFetch?.maxChars, DEFAULT_FETCH_MAX_CHARS, maxCharsCap),
+					maxResponseBytes,
+					maxRedirects: resolveMaxRedirects(executionFetch?.maxRedirects, DEFAULT_FETCH_MAX_REDIRECTS),
+					timeoutSeconds: resolveTimeoutSeconds(executionFetch?.timeoutSeconds, 30),
+					cacheTtlMs: resolveCacheTtlMs(executionFetch?.cacheTtlMinutes, 15),
+					userAgent,
+					readabilityEnabled,
+					config,
+					useTrustedEnvProxy: resolveFetchUseTrustedEnvProxy(executionFetch),
+					ssrfPolicy: executionFetch?.ssrfPolicy,
+					...providerCacheKey ? { providerCacheKey } : {},
+					lookupFn: options?.lookupFn,
+					resolveProviderFallback
+				}));
+			} catch (error) {
+				if (readerProxyTarget) throw new Error(buildReaderProxyRecoveryFailureMessage(), { cause: error });
+				throw error;
+			}
 		}
 	};
 }

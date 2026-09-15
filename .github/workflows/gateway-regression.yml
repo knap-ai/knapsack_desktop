@@ -55,6 +55,10 @@ jobs:
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
 
+      - name: Test direct document fetch recovery
+        working-directory: src
+        run: node --test scripts/web-fetch-recovery.test.mjs
+
       - name: Report clawdbot duplicates before prune
         working-directory: src
         run: node scripts/report-clawdbot-duplicates.cjs
