@@ -2252,6 +2252,7 @@ struct ContentView: View {
           .foregroundStyle(KnapsackBrand.ink)
           .tint(KnapsackBrand.ink)
           .lineLimit(1...4)
+          .textInputAutocapitalization(.sentences)
           .padding(.horizontal, 16)
           .padding(.vertical, 11)
           .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(KnapsackBrand.paper))
