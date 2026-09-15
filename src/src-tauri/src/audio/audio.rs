@@ -1061,14 +1061,38 @@ fn delete_recording_rows(
   }
 
   let thread_ids = rows.iter().map(|(id, _, _, _)| *id).collect::<Vec<_>>();
-  let transcript_filenames = rows
+  let candidate_transcript_filenames = rows
     .iter()
     .filter_map(|(_, _, filename, _)| filename.clone())
     .collect::<Vec<_>>();
-  let saved_transcript_paths = rows
+  let candidate_saved_transcript_paths = rows
     .iter()
     .filter_map(|(_, _, _, path)| path.clone())
     .collect::<Vec<_>>();
+  let mut transcript_filenames = Vec::new();
+  for filename in candidate_transcript_filenames {
+    let surviving_references: i64 = transaction.query_row(
+      "SELECT COUNT(*) FROM transcripts tr \
+       JOIN threads t ON t.id = tr.thread_id \
+       WHERE tr.filename = ?1 AND t.feed_item_id != ?2",
+      params![filename, feed_item_id as i64],
+      |row| row.get(0),
+    )?;
+    if surviving_references == 0 {
+      transcript_filenames.push(filename);
+    }
+  }
+  let mut saved_transcript_paths = Vec::new();
+  for saved_path in candidate_saved_transcript_paths {
+    let surviving_references: i64 = transaction.query_row(
+      "SELECT COUNT(*) FROM threads WHERE saved_transcript = ?1 AND feed_item_id != ?2",
+      params![saved_path, feed_item_id as i64],
+      |row| row.get(0),
+    )?;
+    if surviving_references == 0 {
+      saved_transcript_paths.push(saved_path);
+    }
+  }
 
   transaction.execute(
     "DELETE FROM message_feedbacks WHERE message_id IN (\
@@ -1113,11 +1137,9 @@ fn delete_recording_rows(
   })
 }
 
-fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
-  let Some(home_dir) = dirs::home_dir() else {
-    return vec!["Could not locate the home folder for transcript cleanup".to_string()];
-  };
+fn recording_file_candidates(home_dir: &Path, deleted: &DeletedRecordingData) -> Vec<PathBuf> {
   let transcript_dir = home_dir.join(".knapsack").join("transcripts");
+  let notes_dir = home_dir.join(".knapsack").join("notes");
   let saved_transcript_dir = home_dir.join(".transcripts");
   let mut candidates = deleted
     .transcript_filenames
@@ -1134,7 +1156,21 @@ fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
   for thread_id in &deleted.thread_ids {
     candidates.push(transcript_dir.join(format!("{}_input.txt", thread_id)));
     candidates.push(transcript_dir.join(format!("{}_output.txt", thread_id)));
+    candidates.push(notes_dir.join(thread_id.to_string()));
   }
+  candidates.extend(
+    deleted
+      .transcript_filenames
+      .iter()
+      .filter(|filename| {
+        let path = Path::new(filename);
+        path
+          .components()
+          .all(|component| matches!(component, Component::Normal(_)))
+          && path.components().count() == 1
+      })
+      .map(|filename| notes_dir.join(filename)),
+  );
   candidates.extend(
     deleted
       .saved_transcript_paths
@@ -1146,6 +1182,13 @@ fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
   candidates.sort();
   candidates.dedup();
   candidates
+}
+
+fn remove_recording_files(deleted: &DeletedRecordingData) -> Vec<String> {
+  let Some(home_dir) = dirs::home_dir() else {
+    return vec!["Could not locate the home folder for transcript cleanup".to_string()];
+  };
+  recording_file_candidates(&home_dir, deleted)
     .into_iter()
     .filter_map(|path| {
       if !path.exists() {
@@ -1832,11 +1875,11 @@ mod tests {
          CREATE TABLE transcripts (id INTEGER PRIMARY KEY, thread_id INTEGER, filename TEXT);\
          CREATE TABLE automation_runs (id INTEGER PRIMARY KEY, thread_id INTEGER, feed_item_id INTEGER);\
          INSERT INTO feed_items VALUES (1, 'Delete me', 1, 0), (2, 'Keep me', 2, 0);\
-         INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', '/tmp/delete.txt'), (11, 1, 'CHAT', NULL), (20, 2, 'MEETING NOTES', '/tmp/keep.txt');\
+         INSERT INTO threads VALUES (10, 1, 'MEETING NOTES', '/tmp/shared.txt'), (11, 1, 'CHAT', NULL), (20, 2, 'MEETING NOTES', '/tmp/shared.txt');\
          INSERT INTO messages VALUES (100, 10), (101, 11), (200, 20);\
          INSERT INTO message_feedbacks VALUES (1000, 100), (2000, 200);\
          INSERT INTO meeting_insights VALUES (10000, 10), (20000, 20);\
-         INSERT INTO transcripts VALUES (100000, 10, 'delete.txt'), (200000, 20, 'keep.txt');\
+         INSERT INTO transcripts VALUES (100000, 10, 'shared.txt'), (200000, 20, 'shared.txt');\
          INSERT INTO automation_runs VALUES (1000000, 10, 1), (2000000, 20, 2);",
       )
       .unwrap();
@@ -1844,6 +1887,15 @@ mod tests {
     let deleted = delete_recording_rows(&mut connection, 1).unwrap();
 
     assert_eq!(deleted.thread_ids, vec![10, 11]);
+    assert!(deleted.transcript_filenames.is_empty());
+    assert!(deleted.saved_transcript_paths.is_empty());
+    let temp_home = TempDir::new().unwrap();
+    let candidates = recording_file_candidates(temp_home.path(), &deleted);
+    assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/10")));
+    assert!(candidates.contains(&temp_home.path().join(".knapsack/notes/11")));
+    assert!(!candidates.contains(&temp_home.path().join(".knapsack/transcripts/shared.txt")));
+    assert!(!candidates.contains(&temp_home.path().join(".knapsack/notes/shared.txt")));
+    assert!(!candidates.contains(&PathBuf::from("/tmp/shared.txt")));
     for (table, id) in [
       ("feed_items", 1),
       ("threads", 10),
