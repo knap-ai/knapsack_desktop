@@ -1805,6 +1805,7 @@ function hasBrokenAgentCapabilityReply(reply) {
     /i checked my memory\.md/i,
     /my memory\.md file/i,
     /browser .* currently unavailable/i,
+    /browser tool .*not enabled for this request/i,
     /unable to perform web searches/i,
   ];
   return patterns.some((pattern) => pattern.test(text));
@@ -2732,6 +2733,7 @@ module.exports = {
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   findManagedBrowserCommandLine,
+  hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
   providerSwitchAppliedButStillStarting,

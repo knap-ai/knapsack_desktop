@@ -8,6 +8,7 @@ const {
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   findManagedBrowserCommandLine,
+  hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
   parseListenerPids,
@@ -108,6 +109,31 @@ test("agent capabilities continue on the provider left active by the chat loop",
   ];
   assert.deepEqual(lastSuccessfulChatCheck(checks), checks[2]);
   assert.equal(lastSuccessfulChatCheck([{ ok: false }, { ok: true, skipped: true }]), null);
+});
+
+test("disabled browser-tool replies fail capability QA instead of passing as answers", () => {
+  assert.equal(
+    hasBrokenAgentCapabilityReply(
+      "Model called browser tool which was not enabled for this request",
+    ),
+    true,
+  );
+  assert.equal(hasBrokenAgentCapabilityReply("Here is the requested source summary."), false);
+});
+
+test("meeting chat retries disabled browser-tool replies through direct chat", () => {
+  const chatSource = fs.readFileSync(
+    path.join(__dirname, "../src/components/organisms/ClawdChat/index.tsx"),
+    "utf8",
+  );
+  assert.match(
+    chatSource,
+    /text\.includes\('browser tool'\) && text\.includes\('not enabled for this request'\)/,
+  );
+  assert.match(
+    chatSource,
+    /agentOut\.gateway && \(httpErrorMatch \|\| degradedCapabilityReply\)[\s\S]*?useDirectChat = true/,
+  );
 });
 
 test("group chat QA uses structured members and never runtime agent ids", () => {
