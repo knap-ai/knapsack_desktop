@@ -52,3 +52,44 @@ test('meeting brief collapses when note generation begins', () => {
   )
   assert.match(source, /onClick=\{\(\) => setBriefPrepExpanded\(prev => !prev\)\}/)
 })
+
+test('meeting navigation clears notes and rejects a late response from the previous meeting', async () => {
+  const source = fs.readFileSync(meetingNotesModePath, 'utf8')
+
+  assert.match(
+    source,
+    /React\.useLayoutEffect\(\(\) => \{[\s\S]*?setNotesMarkdown\(''\)[\s\S]*?editor\?\.commands\.setContent\('', false\)[\s\S]*?}, \[thread\.id\]\)/,
+  )
+  assert.match(source, /const notesController = new AbortController\(\)/)
+  assert.match(source, /void fetchNotes\(notesController\.signal\)/)
+  assert.match(source, /notesController\.abort\(\)/)
+  assert.match(source, /signal,[\s\S]*?activeNotesThreadIdRef\.current !== requestedThreadId/)
+
+  let activeThreadId = 1
+  let renderedNotes = ''
+  const deferred = () => {
+    let resolve
+    const promise = new Promise(done => { resolve = done })
+    return { promise, resolve }
+  }
+  const firstMeeting = deferred()
+  const secondMeeting = deferred()
+
+  const loadNotes = async (threadId, request) => {
+    const notes = await request.promise
+    if (activeThreadId !== threadId) return
+    renderedNotes = notes
+  }
+
+  const firstLoad = loadNotes(1, firstMeeting)
+  activeThreadId = 2
+  renderedNotes = ''
+  const secondLoad = loadNotes(2, secondMeeting)
+
+  secondMeeting.resolve('Notes for meeting two')
+  await secondLoad
+  firstMeeting.resolve('Private notes for meeting one')
+  await firstLoad
+
+  assert.equal(renderedNotes, 'Notes for meeting two')
+})
