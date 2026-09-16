@@ -54,6 +54,29 @@ import {
 
 type PromptAction = { label: string; prompt: string }
 
+export function detectGoalLoopSuggestions(text: string): PromptAction[] {
+  const normalized = text.toLowerCase()
+  const hasMeasure = /\b\d+(?:\.\d+)?\s*(?:%|percent|users?|customers?|meetings?|days?|weeks?|months?|dollars?|usd|mxn|\$)(?=\s|[.,;:!?)\]]|$)/.test(normalized)
+  const hasGoalSignal = /\b(?:okr|objective|key result|measurable goal|target)\b/.test(normalized)
+  const hasCadence = /\b(?:daily|weekly|monthly|quarterly|recurring|every (?:day|week|month|quarter)|each (?:day|week|month|quarter))\b/.test(normalized)
+  const hasVerification = /\b(?:verify|evidence|confirm|check|measure|report|review|sync|follow[ -]?up|success)\b/.test(normalized)
+  const actions: PromptAction[] = []
+
+  if (hasGoalSignal && hasMeasure) {
+    actions.push({
+      label: 'Review as a measurable goal',
+      prompt: 'Turn the measurable goal you just identified into a concise proposal. Do not save anything yet. Show the objective, key results, owner, target, deadline, and source, then ask me to confirm or adjust it.',
+    })
+  }
+  if (hasCadence && hasVerification) {
+    actions.push({
+      label: 'Review as a verifiable loop',
+      prompt: 'Turn the recurring workflow you just identified into a concise verifiable-loop proposal. Do not activate anything yet. Show its trigger, steps, success evidence, exceptions, cadence, and owner, then ask me to confirm or adjust it.',
+    })
+  }
+  return actions
+}
+
 const SHARE_SUPPORT_DIAGNOSTICS_ACTION =
   '[Share diagnostics with Knapsack Support](knapsack://prompt/__share_support_diagnostics__)'
 
@@ -585,6 +608,7 @@ const API_BASE = 'http://127.0.0.1:8897'
 let _cachedApiKey: string | null = null
 type SpeechToTextAuth = { provider: 'openai' | 'groq'; apiKey: string; model: string; endpoint: string }
 let _cachedSpeechToTextAuth: SpeechToTextAuth | null = null
+let _cachedSpeechToTextAuthCandidates: SpeechToTextAuth[] = []
 
 type GetApiKeyPayload = {
   success: boolean
@@ -616,31 +640,42 @@ async function getOpenAIKey(): Promise<string | null> {
 }
 
 async function getSpeechToTextAuthCandidates(): Promise<SpeechToTextAuth[]> {
-  try {
-    const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key')
-    const candidates: SpeechToTextAuth[] = []
-    if (resp.openai_key) {
-      candidates.push({
-        provider: 'openai',
-        apiKey: resp.openai_key,
-        model: 'whisper-1',
-        endpoint: 'https://api.openai.com/v1/audio/transcriptions',
-      })
+  let lastError: unknown = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key', { timeoutMs: 4000 })
+      const candidates: SpeechToTextAuth[] = []
+      if (resp.openai_key) {
+        candidates.push({
+          provider: 'openai',
+          apiKey: resp.openai_key,
+          model: 'whisper-1',
+          endpoint: 'https://api.openai.com/v1/audio/transcriptions',
+        })
+      }
+      if (resp.groq_key) {
+        candidates.push({
+          provider: 'groq',
+          apiKey: resp.groq_key,
+          model: 'whisper-large-v3-turbo',
+          endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
+        })
+      }
+      if (_cachedSpeechToTextAuth) {
+        candidates.sort(candidate => candidate.provider === _cachedSpeechToTextAuth?.provider ? -1 : 1)
+      }
+      _cachedSpeechToTextAuthCandidates = candidates
+      return candidates
+    } catch (error) {
+      lastError = error
+      if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 250 * (attempt + 1)))
     }
-    if (resp.groq_key) {
-      candidates.push({
-        provider: 'groq',
-        apiKey: resp.groq_key,
-        model: 'whisper-large-v3-turbo',
-        endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
-      })
-    }
-    if (_cachedSpeechToTextAuth) {
-      candidates.sort(candidate => candidate.provider === _cachedSpeechToTextAuth?.provider ? -1 : 1)
-    }
-    return candidates
-  } catch { /* backend not reachable */ }
-  return []
+  }
+
+  if (_cachedSpeechToTextAuthCandidates.length > 0) {
+    return [..._cachedSpeechToTextAuthCandidates]
+  }
+  throw lastError instanceof Error ? lastError : new Error('Local credential service unavailable')
 }
 
 const OPENAI_MODEL_STORAGE = 'moltbot_openai_model'
@@ -3264,6 +3299,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         pushAssistantRef.current?.('🎤 I couldn’t hear usable audio in that recording. Please try again and speak for a second or two after the mic turns on.')
       } else if (lower.includes('insufficient_quota') || lower.includes('rate_limit') || lower.includes('billing') || lower.includes('credits')) {
         pushAssistantRef.current?.('🎤 Speech-to-text is temporarily unavailable because the connected providers have no remaining capacity. Check Settings → AI Provider, then try again.')
+      } else if (lower.includes('credential service') || lower.includes('failed to fetch') || lower.includes('abort')) {
+        pushAssistantRef.current?.('🎤 Voice input is waiting for Knapsack to finish starting. Your saved API key is still available; please try again in a moment.')
       } else {
         pushAssistantRef.current?.('🎤 I couldn’t transcribe that recording. Please try again, or check Settings → AI Provider if the problem continues.')
       }
@@ -6093,12 +6130,16 @@ ${actualText}`
   // Memoize message parsing so extractPromptActions only re-runs when msgs change,
   // not on every re-render from status/health polling.
   const parsedMsgs = useMemo(() =>
-    msgs.map(m => {
+    msgs.map((m, index) => {
       if (m.promptActions) {
         return { msg: m, cleaned: m.text, actions: m.promptActions }
       }
       const { cleaned, actions } = m.isClickable ? { cleaned: m.text, actions: [] as PromptAction[] } : extractPromptActions(m.text)
-      return { msg: m, cleaned, actions }
+      const precedingUserText = msgs[index - 1]?.role === 'user' ? msgs[index - 1].text : ''
+      const contextualActions = m.role === 'assistant' && !m.id.startsWith('welcome-')
+        ? detectGoalLoopSuggestions(`${precedingUserText}\n${cleaned}`)
+        : []
+      return { msg: m, cleaned, actions: [...actions, ...contextualActions] }
     }),
     [msgs],
   )

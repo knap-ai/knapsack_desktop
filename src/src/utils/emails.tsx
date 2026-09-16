@@ -68,10 +68,12 @@ export function extractExternalEmails(myEmail: string, emailList: string[]): str
 
 function cleanMeetingLine(line: string): string {
   return line
-    .replace(/^[-*]\s*/, '')
     .replace(/^-\s*\[[ xX]\]\s*/, '')
+    .replace(/^[-*]\s+/, '')
     .replace(/^action item[s]?:\s*/i, '')
     .replace(/^action:\s*/i, '')
+    .replace(/\*\*/g, '')
+    .replace(/^\d+[.)]\s*/, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -83,31 +85,31 @@ function ensureSentence(text: string): string {
 }
 
 function extractSection(lines: string[], heading: RegExp): string[] {
-  const startIndex = lines.findIndex(line => heading.test(line.trim()))
+  const startIndex = lines.findIndex(line => heading.test(line.trim().replace(/^#{1,4}\s+/, '')))
   if (startIndex === -1) return []
   const out: string[] = []
   for (let i = startIndex + 1; i < lines.length; i += 1) {
     const line = lines[i].trim()
     if (!line) continue
-    if (/^##\s+/.test(line)) break
+    if (/^#{1,4}\s+/.test(line)) break
     out.push(line)
   }
   return out
 }
 
 function extractHighlights(lines: string[]): string[] {
-  const sectionLines = extractSection(lines, /^##\s+Highlights/i)
+  const sectionLines = extractSection(lines, /^(?:Highlights|Decisions|Key Decisions)$/i)
   return sectionLines
-    .filter(line => /^[-*]\s+/.test(line))
+    .filter(line => /^[-*]\s+/.test(line) || /^\d+[.)]\s+/.test(line))
     .map(cleanMeetingLine)
     .filter(Boolean)
     .slice(0, 3)
 }
 
 function extractActionItems(lines: string[]): string[] {
-  const explicitSection = extractSection(lines, /^##\s+Action Items/i)
+  const explicitSection = extractSection(lines, /^Action Items?$/i)
   const sectionMatches = explicitSection
-    .filter(line => /^[-*]\s+/.test(line))
+    .filter(line => /^[-*]\s+/.test(line) || /^\d+[.)]\s+/.test(line))
     .map(cleanMeetingLine)
     .filter(Boolean)
 
@@ -122,13 +124,13 @@ function extractActionItems(lines: string[]): string[] {
 }
 
 function extractSummaryParagraph(lines: string[]): string | undefined {
-  const summaryIndex = lines.findIndex(line => /^#\s+Summary/i.test(line.trim()))
+  const summaryIndex = lines.findIndex(line => /^#{1,4}\s+(?:Summary|Overview|Executive Summary)/i.test(line.trim()))
   if (summaryIndex === -1) return
   const summaryLines: string[] = []
   for (let i = summaryIndex + 1; i < lines.length; i += 1) {
     const line = lines[i].trim()
     if (!line) continue
-    if (/^##\s+/.test(line) || /^#\s+Meeting Notes/i.test(line)) break
+    if (/^#{1,4}\s+/.test(line) || /^#\s+Meeting Notes/i.test(line)) break
     if (/^[-*]\s+/.test(line)) continue
     summaryLines.push(line)
     if (summaryLines.join(' ').length > 240) break
@@ -141,6 +143,8 @@ function firstName(nameOrEmail?: string): string | undefined {
   const value = nameOrEmail?.trim()
   if (!value) return
   const beforeEmail = value.split('<')[0].trim()
+  if (!beforeEmail && value.includes('@')) return
+  if (!value.includes('<') && value.includes('@')) return
   const candidate = beforeEmail || value.split('@')[0].trim()
   const token = candidate.split(/\s+/)[0]?.trim()
   return token || undefined
@@ -163,7 +167,8 @@ export function buildFollowUpEmailBody(
 
   const greetingName = firstName(recipientName)
   const greeting = `<p>Hi${greetingName ? ` ${escHtml(greetingName)}` : ''},</p>`
-  const intro = `<p>Great meeting today${meetingTitle ? ` about <strong>${escHtml(meetingTitle)}</strong>` : ''}. Thanks again for your time.</p>`
+  const cleanTitle = meetingTitle?.replace(/\(?\s*placeholder\s*\)?/gi, '').replace(/\s+/g, ' ').trim()
+  const intro = `<p>Thanks for the conversation${cleanTitle ? ` about <strong>${escHtml(cleanTitle)}</strong>` : ''}.</p>`
 
   let body = greeting + intro
 
@@ -172,7 +177,7 @@ export function buildFollowUpEmailBody(
   }
 
   if (highlights.length > 0) {
-    body += `<p>A few quick takeaways from our conversation:</p><ul style="margin:4px 0;padding-left:20px">`
+    body += `<p><strong>What we aligned on</strong></p><ul style="margin:4px 0;padding-left:20px">`
     highlights.forEach(item => {
       body += `<li>${escHtml(ensureSentence(item))}</li>`
     })
@@ -180,13 +185,17 @@ export function buildFollowUpEmailBody(
   }
 
   if (actionItems.length > 0) {
-    body += `<p>I’ll follow up on the next steps we discussed and keep you posted on progress.</p>`
+    body += `<p><strong>Next steps</strong></p><ul style="margin:4px 0;padding-left:20px">`
+    actionItems.slice(0, 5).forEach(item => {
+      body += `<li>${escHtml(ensureSentence(item))}</li>`
+    })
+    body += `</ul>`
   } else if (highlights.length === 0 && !summary) {
-    body += `<p>I’m happy to send over anything else that would be helpful from our conversation.</p>`
+    body += `<p>I’ll send the agreed next steps separately once they are confirmed.</p>`
   }
 
-  body += `<p>Please let me know if there’s anything you’d like me to prioritize or clarify.</p>`
-  body += `<p>Best,<br>${escHtml(userName || '')}</p>`
+  body += `<p>Please reply if I missed or misstated anything.</p>`
+  body += `<p>Best${userName ? `,<br>${escHtml(userName)}` : ','}</p>`
   return body
 }
 

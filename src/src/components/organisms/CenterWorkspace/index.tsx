@@ -422,15 +422,24 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                       userName={userName}
                       onEmailClick={(notesMarkdown, meeting) => {
                         const participants = meeting?.participants ?? []
-                        const primaryRecipient = participants.find(
-                          p => p.email && p.email !== userEmail,
+                        const ownEmails = new Set(
+                          [userEmail, meeting?.calendar_account_email, ...(userEmails ?? [])]
+                            .filter(Boolean)
+                            .map(email => email!.trim().toLowerCase()),
                         )
-                        const toEmails = participants
-                          .filter(p => p.email && p.email !== userEmail)
+                        const externalParticipants = participants.filter(
+                          p => p.email && !ownEmails.has(p.email.trim().toLowerCase()),
+                        )
+                        const primaryRecipient = externalParticipants[0]
+                        const toEmails = externalParticipants
                           .map(p => p.email)
                           .join(', ')
-                        const subject = meeting?.title
-                          ? `Follow up: ${meeting.title}`
+                        const cleanTitle = meeting?.title
+                          ?.replace(/\(?\s*placeholder\s*\)?/gi, '')
+                          .replace(/\s+/g, ' ')
+                          .trim()
+                        const subject = cleanTitle
+                          ? `Follow up: ${cleanTitle}`
                           : 'Meeting Follow Up'
                         const body = buildFollowUpEmailBody(
                           notesMarkdown,

@@ -7488,6 +7488,14 @@ pub(crate) fn gateway_ready_since_last_start() -> bool {
   gateway_ready_since_last_start_from_log(&content)
 }
 
+fn gateway_effectively_ready(
+  direct_health_ok: bool,
+  gateway_listening: bool,
+  ready_marker_seen: bool,
+) -> bool {
+  direct_health_ok || (gateway_listening && ready_marker_seen)
+}
+
 pub(crate) fn gateway_health_self_heal_grace_active() -> Option<u64> {
   let first_seen = GATEWAY_UNREACHABLE_SINCE_MS.load(Ordering::Relaxed);
   if first_seen == 0 {
@@ -8036,15 +8044,21 @@ pub async fn service_health(app_handle: web::Data<tauri::AppHandle>) -> impl Res
 
     let now_ms = now_epoch_ms();
 
-    // Gateway health is intentionally unauthenticated. A bound TCP port is not
-    // enough: during startup the gateway can accept connections while the Node
-    // event loop is still too busy to answer `/health`.
-    let gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
-    let gateway_listening = if gateway_ok {
+    // Gateway health is intentionally unauthenticated. A bound TCP port alone
+    // is not enough, but OpenClaw's explicit ready marker is authoritative.
+    // Optional channel maintenance can block `/health` for minutes after that
+    // marker even though the desktop gateway and browser RPC are usable.
+    let direct_gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let gateway_listening = if direct_gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
+    let gateway_ok = gateway_effectively_ready(
+      direct_gateway_ok,
+      gateway_listening,
+      gateway_ready_since_last_start(),
+    );
     let gateway_probe_failed = !gateway_ok;
     let gateway_transient_stall =
       !gateway_ok && gateway_recently_healthy(now_ms, gateway_listening);
@@ -9037,12 +9051,17 @@ pub async fn service_status() -> impl Responder {
 
     let installed = plist_path.exists();
 
-    let port_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
-    let gateway_listening = if port_ok {
+    let direct_gateway_ok = gateway_reachable_or_ready(GATEWAY_LOCAL_HEALTH_TIMEOUT).await;
+    let gateway_listening = if direct_gateway_ok {
       true
     } else {
       gateway_tcp_port_open(std::time::Duration::from_millis(150)).await
     };
+    let port_ok = gateway_effectively_ready(
+      direct_gateway_ok,
+      gateway_listening,
+      gateway_ready_since_last_start(),
+    );
 
     // Best-effort fallback: `launchctl print gui/<uid>/<label>` exits 0 when loaded.
     let uid = unsafe { libc::getuid() };
@@ -17852,6 +17871,14 @@ mod crash_classifier_tests {
     assert!(!gateway_runtime_deps_startup_in_progress_from_log(
       &restarted_after_staging
     ));
+  }
+
+  #[test]
+  fn explicit_ready_marker_unblocks_health_only_while_gateway_is_listening() {
+    assert!(gateway_effectively_ready(true, false, false));
+    assert!(gateway_effectively_ready(false, true, true));
+    assert!(!gateway_effectively_ready(false, true, false));
+    assert!(!gateway_effectively_ready(false, false, true));
   }
 }
 

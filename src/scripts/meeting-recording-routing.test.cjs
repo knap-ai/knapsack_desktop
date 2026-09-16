@@ -25,17 +25,66 @@ test('calendar open and record share a single idempotent note creation path', ()
   assert.match(feed, /quickNoteCreationRef\.current/)
 })
 
-test('record action is immediate and meeting chats remain discoverable', () => {
+test('record action is immediate and meeting chats stay attached to meetings', () => {
   const home = source('components/templates/Home/Home.tsx')
   const sidebar = source('components/organisms/NotetakerSidebar/index.tsx')
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   assert.match(home, /if \(isAnyRecording\) feed\.handleClickRecording\(\)[\s\S]*?else feed\.createNewMeeting\(\)/)
   assert.match(sidebar, /data-testid="qa-record-action"/)
   assert.match(sidebar, /Recent recordings/)
-  assert.match(sidebar, /Meeting chats/)
   assert.match(sidebar, /moltbot_chat_history:meeting:/)
+  assert.doesNotMatch(sidebar, /Meeting chats · Scout/)
+  assert.match(sidebar, /Meeting chat available/)
+  assert.match(sidebar, /meeting-chat-indicator/)
   assert.match(notes, /meetingChatRequest\?\.threadId === thread\.id/)
   assert.match(notes, /agentName="Scout"/)
+  assert.match(notes, /hasStoredMeetingChat/)
+  assert.match(notes, /Continue meeting chat/)
+})
+
+test('recent recordings are a subtle jump target below primary meeting navigation', () => {
+  const sidebar = source('components/organisms/NotetakerSidebar/index.tsx')
+  assert.match(sidebar, /recentRecordingsRef/)
+  assert.match(sidebar, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/)
+  assert.match(sidebar, /className="notetaker-sidebar__recordings-jump"/)
+  assert.match(sidebar, /aria-label="Recently saved recordings"/)
+  assert.ok(
+    sidebar.indexOf('notetaker-sidebar__coming-up') < sidebar.indexOf('aria-label="Recently saved recordings"'),
+  )
+})
+
+test('goal and loop candidates surface as confirmation-first chat actions', () => {
+  const chat = source('components/organisms/ClawdChat/index.tsx')
+  assert.match(chat, /detectGoalLoopSuggestions/)
+  assert.match(chat, /Review as a measurable goal/)
+  assert.match(chat, /Review as a verifiable loop/)
+  assert.match(chat, /Do not save anything yet/)
+  assert.match(chat, /Do not activate anything yet/)
+})
+
+test('follow-up drafts use meeting substance and exclude all of the user identities', () => {
+  const emails = source('utils/emails.tsx')
+  const home = source('components/templates/Home/Home.tsx')
+  const workspace = source('components/organisms/CenterWorkspace/index.tsx')
+  assert.match(emails, /What we aligned on/)
+  assert.match(emails, /<strong>Next steps<\/strong>/)
+  assert.match(emails, /Decisions\|Key Decisions/)
+  assert.doesNotMatch(emails, /Great meeting today/)
+  for (const file of [home, workspace]) {
+    assert.match(file, /meeting\?\.calendar_account_email/)
+    assert.match(file, /ownEmails\.has\(p\.email\.trim\(\)\.toLowerCase\(\)\)/)
+    assert.match(file, /replace\(\/\\\(\?\\s\*placeholder/)
+  }
+})
+
+test('meeting selection keeps the current window size until recording starts', () => {
+  const notes = source('components/organisms/MeetingNotesMode/index.tsx')
+  assert.match(notes, /const isMeetingRecording = recordingHandlers\.isRecording\(thread\.id\)/)
+  assert.match(
+    notes,
+    /useEffect\(\(\) => \{\s*if \(!isMeetingRecording\) return\s*return enterMeetingWindowLayout\(\)\s*\}, \[isMeetingRecording\]\)/,
+  )
+  assert.doesNotMatch(notes, /useEffect\(\(\) => enterMeetingWindowLayout\(\), \[\]\)/)
 })
 
 test('meeting chat handle resizes, toggles, and persists panel height', () => {

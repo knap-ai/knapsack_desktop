@@ -98,6 +98,17 @@ test('connection refresh preserves provider ownership metadata', () => {
   assert.match(connectionHook, /calendarAccountEmail, ownerEmail \}/)
 })
 
+test('background sync runs on launch, focus, visibility restore, and a fallback timer', () => {
+  const app = fs.readFileSync(path.join(sourceRoot, 'src/App.tsx'), 'utf8')
+
+  assert.match(app, /void runBackgroundSync\(true\)/)
+  assert.match(app, /window\.addEventListener\('focus', handleWindowFocus\)/)
+  assert.match(app, /document\.addEventListener\('visibilitychange', handleVisibilityChange\)/)
+  assert.match(app, /setInterval\(runBackgroundSync, MINUTE_MS \* 5\)/)
+  assert.match(app, /backgroundSyncInFlightRef\.current/)
+  assert.match(app, /lastBackgroundSyncAtRef\.current/)
+})
+
 test('full Email Autopilot preserves each message provider for actions', () => {
   const autopilot = fs.readFileSync(
     path.join(sourceRoot, 'src/components/molecules/EmailAutopilot/index.tsx'),

@@ -238,7 +238,6 @@ function NotetakerSidebar({
   isAnyRecording = false,
   onConnectCalendar,
   onMeetingSelect,
-  onMeetingChatSelect,
   activeView = 'home',
   onLibraryWorkspaceOpen,
   recordingHandlers,
@@ -268,6 +267,7 @@ function NotetakerSidebar({
   })
   const searchInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const recentRecordingsRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     getAppVersion().then(v => setAppVersion(v))
@@ -418,23 +418,10 @@ function NotetakerSidebar({
     return groups
   }, [feed.feedContent, getMeetingEndTime])
 
-  // Inline meeting chats are separate sessions. Surface a return path in the
-  // persistent sidebar instead of making the user remember which note held it.
-  const meetingChats = useMemo(() => {
-    const rows: { item: FeedItem; key: string; threadId: number }[] = []
-    for (const [key, items] of Object.entries(feed.feedContent || {})) {
-      if (key === STATIONARY_ITEMS) continue
-      for (const item of items) {
-        if (item.id == null) continue
-        const thread = item.threads?.find(t =>
-          t.threadType === ThreadType.MEETING_NOTES &&
-          !!localStorage.getItem(`moltbot_chat_history:meeting:${t.id}`),
-        )
-        if (thread) rows.push({ item, key, threadId: thread.id })
-      }
-    }
-    return rows.sort((a, b) => b.item.timestamp.getTime() - a.item.timestamp.getTime()).slice(0, 4)
-  }, [feed.feedContent, currentTab])
+  const hasMeetingChat = useCallback((item: FeedItem) => item.threads?.some(
+    thread => thread.threadType === ThreadType.MEETING_NOTES &&
+      !!localStorage.getItem(`moltbot_chat_history:meeting:${thread.id}`),
+  ) ?? false, [])
 
   const localRecordings = useMemo(() =>
     Object.entries(feed.feedContent || {})
@@ -764,25 +751,6 @@ function NotetakerSidebar({
                   ×
                 </button>
               </div>
-              {meetingChats.length > 0 && (
-                <div className="notetaker-sidebar__meeting-chats" aria-label="Scout meeting chats">
-                  <div className="notetaker-sidebar__meeting-chats-heading">Meeting chats · Scout</div>
-                  {meetingChats.map(({ item, key, threadId }) => (
-                    <button
-                      type="button"
-                      key={threadId}
-                      className="notetaker-sidebar__meeting-chat-link notetaker-sidebar__meeting-chat-link--nested"
-                      onClick={() => {
-                        feed.selectFeedItem(key, item.id)
-                        onMeetingChatSelect?.(threadId)
-                      }}
-                    >
-                      <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
-                      <span className="notetaker-sidebar__meeting-chat-tag">{item.threads?.some(t => t.id === threadId && t.recorded) ? 'Recording chat' : 'Meeting chat'}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
               {teamGroups.map(group => {
                 const members = group.agentIds
                   .map(id => teamAgents.find(agent => agent.id === id))
@@ -872,42 +840,14 @@ function NotetakerSidebar({
 
         <div className="notetaker-sidebar__meeting-pane">
         {localRecordings.length > 0 && (
-          <section className="notetaker-sidebar__meeting-chats" aria-label="Local recordings">
-            <h2 className="notetaker-sidebar__section-title">Recent recordings</h2>
-            {localRecordings.map(({ item, key }) => (
-              <div className="notetaker-sidebar__recording-row" key={item.id}>
-                <button
-                  type="button"
-                  className="notetaker-sidebar__meeting-chat-link"
-                  onClick={() => {
-                    feed.selectFeedItem(key, item.id)
-                    onMeetingSelect?.()
-                    onTabChange(TabChoices.Meeting, 'meetings')
-                  }}
-                >
-                  <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
-                  <span className="notetaker-sidebar__meeting-chat-tag">
-                    {item.isRecording ? 'Recording now' : item.threads?.some(t => t.recorded) ? 'Saved in Knapsack' : 'Note · recording not started'} · {dayjs(item.timestamp).format('MMM D, h:mm A')}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="notetaker-sidebar__recording-delete"
-                  aria-label={`Delete ${item.title || 'Untitled recording'}`}
-                  title={item.isRecording ? 'Stop recording before deleting' : 'Delete recording'}
-                  disabled={item.isRecording}
-                  onClick={() => {
-                    setRecordingDeletionError(null)
-                    setRecordingPendingDeletion(item)
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                    <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </section>
+          <button
+            type="button"
+            className="notetaker-sidebar__recordings-jump"
+            onClick={() => recentRecordingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            <span>Recent recordings</span>
+            <span aria-hidden="true">{localRecordings.length} ↓</span>
+          </button>
         )}
         {/* Connect calendar prompt */}
         {!hasCalendarConnected && (
@@ -1049,6 +989,9 @@ function NotetakerSidebar({
                                         &middot; {formatTimeRange(item)}
                                     </span>
                                   )}
+                                  {hasMeetingChat(item) && (
+                                    <span className="notetaker-sidebar__meeting-chat-indicator"> · Chat</span>
+                                  )}
                                 </div>
                                 {isNow && !isActivelyRecording && (
                                   <button
@@ -1135,6 +1078,9 @@ function NotetakerSidebar({
                       <div className="notetaker-sidebar__note-title">{title}</div>
                       {subtitle && (
                         <div className="notetaker-sidebar__note-subtitle">{subtitle}</div>
+                      )}
+                      {hasMeetingChat(item) && (
+                        <div className="notetaker-sidebar__meeting-chat-tag">Meeting chat available</div>
                       )}
                     </div>
                     <div className="notetaker-sidebar__note-meta">
@@ -1227,6 +1173,49 @@ function NotetakerSidebar({
             </div>
           )
         })()}
+
+        {localRecordings.length > 0 && (
+          <section
+            ref={recentRecordingsRef}
+            className="notetaker-sidebar__meeting-chats notetaker-sidebar__meeting-chats--recent"
+            aria-label="Recently saved recordings"
+          >
+            <h2 className="notetaker-sidebar__section-title">Recently saved</h2>
+            {localRecordings.map(({ item, key }) => (
+              <div className="notetaker-sidebar__recording-row" key={item.id}>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__meeting-chat-link"
+                  onClick={() => {
+                    feed.selectFeedItem(key, item.id)
+                    onMeetingSelect?.()
+                    onTabChange(TabChoices.Meeting, 'meetings')
+                  }}
+                >
+                  <span className="notetaker-sidebar__meeting-chat-title">{item.title || 'Untitled recording'}</span>
+                  <span className="notetaker-sidebar__meeting-chat-tag">
+                    {item.isRecording ? 'Recording now' : item.threads?.some(t => t.recorded) ? 'Saved in Knapsack' : 'Note · recording not started'} · {dayjs(item.timestamp).format('MMM D, h:mm A')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="notetaker-sidebar__recording-delete"
+                  aria-label={`Delete ${item.title || 'Untitled recording'}`}
+                  title={item.isRecording ? 'Stop recording before deleting' : 'Delete recording'}
+                  disabled={item.isRecording}
+                  onClick={() => {
+                    setRecordingDeletionError(null)
+                    setRecordingPendingDeletion(item)
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                    <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
       </div>
 
       {recordingPendingDeletion && (

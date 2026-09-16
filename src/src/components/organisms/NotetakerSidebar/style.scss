@@ -433,6 +433,28 @@ $ks-red: #c14841;
     }
   }
 
+  &__recordings-jump {
+    display: flex;
+    width: calc(100% - 32px);
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 16px 10px;
+    padding: 4px 2px;
+    border: 0;
+    background: transparent;
+    color: $ks-text-muted;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: $ks-text-secondary;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+  }
+
   &__team-avatar {
     position: relative;
     width: 32px;
@@ -1183,6 +1205,20 @@ $ks-red: #c14841;
   &__meeting-chats {
     padding: 14px 16px 8px;
     border-bottom: 1px solid $ks-border;
+
+    &--recent {
+      margin-top: 14px;
+      border-top: 1px solid $ks-border;
+      border-bottom: 0;
+      scroll-margin-top: 8px;
+
+      .notetaker-sidebar__section-title {
+        color: $ks-text-secondary;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 650;
+      }
+    }
   }
 
   &__meeting-chats-heading {
@@ -1268,6 +1304,11 @@ $ks-red: #c14841;
   &__meeting-chat-tag {
     color: $ks-text-muted;
     font-size: 10px;
+  }
+
+  &__meeting-chat-indicator {
+    color: #6474ac;
+    font-weight: 600;
   }
 
   &__version {

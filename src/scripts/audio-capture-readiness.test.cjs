@@ -61,6 +61,15 @@ test('Linux keeps the supported microphone-only recording path', () => {
   assert.match(speakerStartup, /#\[cfg\(any\(target_os = "macos", target_os = "windows"\)\)\]/)
 })
 
+test('voice transcription retries the local key service and does not claim a saved key is missing', () => {
+  const source = read('src/components/organisms/ClawdChat/index.tsx')
+
+  assert.match(source, /for \(let attempt = 0; attempt < 3; attempt \+= 1\)/)
+  assert.match(source, /_cachedSpeechToTextAuthCandidates = candidates/)
+  assert.match(source, /if \(_cachedSpeechToTextAuthCandidates\.length > 0\)/)
+  assert.match(source, /Voice input is waiting for Knapsack to finish starting\. Your saved API key is still available/)
+})
+
 test('macOS tap exclusions use Core Audio process objects rather than Unix PIDs', () => {
   const macos = read('src-tauri/src/audio/macos.rs')
   const permission = read('src-tauri/src/audio/permission.rs')
