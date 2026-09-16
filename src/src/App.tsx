@@ -1123,6 +1123,8 @@ function App() {
     scheduleRuns,
     syncAutomations,
   }
+  const lastBackgroundSyncAtRef = useRef(0)
+  const backgroundSyncInFlightRef = useRef<Promise<void> | null>(null)
 
   const refreshEmailAutopilot = useCallback(async () => {
     if (!userEmail) return
@@ -1157,37 +1159,58 @@ function App() {
     if (!userEmail) return
 
     const MINUTE_MS = 60000
-    const runBackgroundSync = async () => {
+    const runBackgroundSync = async (force = false) => {
+      const now = Date.now()
+      if (!force && now - lastBackgroundSyncAtRef.current < MINUTE_MS) return
+      if (backgroundSyncInFlightRef.current) return backgroundSyncInFlightRef.current
+
       // Re-read the aggregate inventory on every cycle. Relying on the
       // renderer's connection state meant a transient startup miss (or a
       // missed completion event) could leave an account stale indefinitely.
-      const handlers = periodicSyncRef.current
+      const run = (async () => {
+        const handlers = periodicSyncRef.current
+        try {
+          const refreshedConnections = await handlers.fetchConnections(userEmail)
+          await handlers.syncConnections(userEmail, LOCAL_QA_SAFE
+            ? Object.fromEntries(Object.entries(refreshedConnections).filter(([, connection]) =>
+                connection.key === ConnectionKeys.GOOGLE_CALENDAR))
+            : refreshedConnections)
+          lastBackgroundSyncAtRef.current = Date.now()
+        } catch (error) {
+          logError(new Error('Could not refresh connection inventory'), {
+            additionalInfo: 'Periodic background sync will retry on the next cycle.',
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+        await handlers.syncMeetings()
+        if (!LOCAL_QA_SAFE) {
+          await handlers.scheduleRuns(userEmail)
+          await handlers.syncAutomations()
+        }
+      })()
+      backgroundSyncInFlightRef.current = run
       try {
-        const refreshedConnections = await handlers.fetchConnections(userEmail)
-        await handlers.syncConnections(userEmail, LOCAL_QA_SAFE
-          ? Object.fromEntries(Object.entries(refreshedConnections).filter(([, connection]) =>
-              connection.key === ConnectionKeys.GOOGLE_CALENDAR))
-          : refreshedConnections)
-      } catch (error) {
-        logError(new Error('Could not refresh connection inventory'), {
-          additionalInfo: 'Periodic background sync will retry on the next cycle.',
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-      await handlers.syncMeetings()
-      if (!LOCAL_QA_SAFE) {
-        await handlers.scheduleRuns(userEmail)
-        await handlers.syncAutomations()
+        await run
+      } finally {
+        backgroundSyncInFlightRef.current = null
       }
     }
 
     // Do not leave newly launched or long-suspended apps showing a stale
     // "caught up" state until the first five-minute timer fires.
-    void runBackgroundSync()
+    void runBackgroundSync(true)
     const fiveMinutesInterval = setInterval(runBackgroundSync, MINUTE_MS * 5)
+    const handleWindowFocus = () => void runBackgroundSync()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void runBackgroundSync()
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       clearInterval(fiveMinutesInterval)
+      window.removeEventListener('focus', handleWindowFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [userEmail])
 

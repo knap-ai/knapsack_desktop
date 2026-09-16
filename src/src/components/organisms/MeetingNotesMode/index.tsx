@@ -218,7 +218,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   userEmails = [],
   userName,
 }) => {
-  useEffect(() => enterMeetingWindowLayout(), [])
+  const isMeetingRecording = recordingHandlers.isRecording(thread.id)
+  useEffect(() => {
+    if (!isMeetingRecording) return
+    return enterMeetingWindowLayout()
+  }, [isMeetingRecording])
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
@@ -233,6 +237,9 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const meetingChatDidDragRef = useRef(false)
   const [isMeetingChatResizing, setIsMeetingChatResizing] = useState(false)
   const [meetingChatInputNonce, setMeetingChatInputNonce] = useState(0)
+  const hasStoredMeetingChat = Boolean(
+    localStorage.getItem(`moltbot_chat_history:meeting:${thread.id}`),
+  )
 
   const updateMeetingChatHeight = useCallback((height: number, persist = false) => {
     const next = clampMeetingChatHeight(height)
@@ -1629,6 +1636,18 @@ Be direct, specific, and concise. No filler text.`
                   </svg>
                   {dayjs(new Date()).isSame(dayjs(meeting?.start ? meeting.start * 1000 : undefined), 'day') ? 'Today' : dayjs(meeting?.start ? meeting.start * 1000 : undefined).format('MMM D')}
                 </span>
+                {hasStoredMeetingChat && (
+                  <button
+                    type="button"
+                    className="notetaker-note__meta-item notetaker-note__meeting-chat-chip"
+                    onClick={() => {
+                      expandMeetingChat()
+                      setIsMeetingChatOpen(true)
+                    }}
+                  >
+                    Meeting chat
+                  </button>
+                )}
                 {meeting?.participants && meeting.participants.length > 0 && (
                   <div className="notetaker-note__attendees-wrap" ref={attendeePickerRef}>
                     <button
@@ -2341,7 +2360,7 @@ Be direct, specific, and concise. No filler text.`
                 >
                   <input
                     type="text"
-                    placeholder="Continue chat"
+                    placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
                     className="notetaker-note__bottom-chat-input"
                     readOnly
                     style={{ cursor: 'pointer' }}

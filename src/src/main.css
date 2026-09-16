@@ -337,6 +337,18 @@ html, body {
   color: #A23933;
 }
 
+.notetaker-note__meeting-chat-chip {
+  border: 1px solid #d8ddeb;
+  color: #586a9f;
+  cursor: pointer;
+}
+
+.notetaker-note__meeting-chat-chip:hover,
+.notetaker-note__meeting-chat-chip:focus-visible {
+  background: #e9edf8;
+  outline: none;
+}
+
 .notetaker-note__recording-dot {
   width: 6px;
   height: 6px;
