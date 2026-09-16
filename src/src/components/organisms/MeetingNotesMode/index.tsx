@@ -281,6 +281,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefPrepTriggeredRef = useRef(false)
   const missingNotesRecoveryTriggeredRef = useRef(false)
+  const activeNotesThreadIdRef = useRef(thread.id)
+  activeNotesThreadIdRef.current = thread.id
   // The event's calendar account is available before asynchronous connection
   // discovery finishes. Treat it as the user immediately so the first brief
   // cannot classify a secondary account as another attendee.
@@ -802,25 +804,41 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
   }, [debouncedSave])
 
+  React.useLayoutEffect(() => {
+    // The editor instance is shared while navigating between meetings. Clear
+    // it before the browser paints the next meeting so private notes from the
+    // previous selection cannot flash while the new request is in flight.
+    setIsInitialLoading(true)
+    setNotesMarkdown('')
+    setMarkdown('')
+    editor?.commands.setContent('', false)
+  }, [thread.id])
+
   useEffect(() => {
+    const requestedThreadId = thread.id
+    const notesController = new AbortController()
+
     const refreshStatus = async () => {
-      const statusRecord = await statusRecordByThreadID(thread.id)
+      const statusRecord = await statusRecordByThreadID(requestedThreadId)
       const statusDisable = await isRecordingStatus()
-      recordingHandlers.setIsRecording(thread.id, statusRecord)
+      if (activeNotesThreadIdRef.current !== requestedThreadId) return
+
+      recordingHandlers.setIsRecording(requestedThreadId, statusRecord)
       if (statusDisable && statusDisable.isRecording) {
-        setDisableIsRecording(statusDisable.threadId !== thread.id)
+        setDisableIsRecording(statusDisable.threadId !== requestedThreadId)
       }
     }
 
-    if (thread.id) {
+    if (requestedThreadId) {
       // Safety timeout: if fetchNotes hangs (e.g. server temporarily busy),
       // clear the skeleton after 8 seconds so the view isn't stuck forever.
       if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
       initialLoadingTimerRef.current = setTimeout(() => setIsInitialLoading(false), 8000)
-      fetchNotes()
-      refreshStatus()
+      void fetchNotes(notesController.signal)
+      void refreshStatus()
     }
     return () => {
+      notesController.abort()
       if (initialLoadingTimerRef.current) clearTimeout(initialLoadingTimerRef.current)
     }
   }, [thread.id, isLLMLoading, synthesisState])
@@ -1058,17 +1076,25 @@ Be specific, compact, and useful while the user is joining the call. Never print
     return {}
   }
 
-  const fetchNotes = async (): Promise<string | null> => {
+  const fetchNotes = async (signal?: AbortSignal): Promise<string | null> => {
+    const requestedThreadId = thread.id
     try {
-      const response = await fetch(`${KN_API_NOTES}/${thread.id}`, {
+      const response = await fetch(`${KN_API_NOTES}/${requestedThreadId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        signal,
       })
 
       if (response.ok) {
         const data = await response.json()
+        // A slower request for the previously selected meeting must never
+        // populate the editor after navigation. Besides looking "one meeting
+        // behind", that can expose another meeting's private notes.
+        if (signal?.aborted || activeNotesThreadIdRef.current !== requestedThreadId) {
+          return null
+        }
         const notesExist = data?.data?.exists === true
         if (notesExist) {
           const normalizedNotes = normalizeMeetingNotesMarkdown(data.data.notes || '')
@@ -1104,6 +1130,9 @@ Be specific, compact, and useful while the user is joining the call. Never print
         }
       }
     } catch (error) {
+      if (signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+        return null
+      }
       if (error instanceof Error) {
         logError(error, {
           additionalInfo: 'Error fetching notes MeetingNotesMode',
@@ -1116,7 +1145,9 @@ Be specific, compact, and useful while the user is joining the call. Never print
         })
       }
     } finally {
-      setIsInitialLoading(false)
+      if (!signal?.aborted && activeNotesThreadIdRef.current === requestedThreadId) {
+        setIsInitialLoading(false)
+      }
     }
     return null
   }
