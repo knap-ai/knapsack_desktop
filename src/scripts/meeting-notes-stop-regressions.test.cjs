@@ -42,3 +42,13 @@ test('recorded meetings with a saved transcript recover missing notes once', () 
   assert.match(notesApiSource, /struct GetNotesResponse \{[\s\S]*?exists: bool/)
   assert.match(notesApiSource, /let exists = notes\.is_some\(\)/)
 })
+
+test('meeting brief collapses when note generation begins', () => {
+  const source = fs.readFileSync(meetingNotesModePath, 'utf8')
+
+  assert.match(
+    source,
+    /React\.useLayoutEffect\(\(\) => \{\s*if \(showNotesProcessing\) \{\s*setBriefPrepExpanded\(false\)\s*\}\s*\}, \[showNotesProcessing, thread\.id\]\)/,
+  )
+  assert.match(source, /onClick=\{\(\) => setBriefPrepExpanded\(prev => !prev\)\}/)
+})

@@ -1294,6 +1294,15 @@ Be specific, compact, and useful while the user is joining the call. Never print
   const [synthTimedOut, setSynthTimedOut] = useState(false)
   const showNotesProcessing = !synthTimedOut && (isEndingMeetingState || isSynthesizing())
 
+  // The brief is most useful before and during the conversation. Once note
+  // synthesis starts, make room for the live notes while leaving the drawer
+  // available for anyone who wants to expand it again.
+  React.useLayoutEffect(() => {
+    if (showNotesProcessing) {
+      setBriefPrepExpanded(false)
+    }
+  }, [showNotesProcessing, thread.id])
+
   useEffect(() => {
     if (isSynthesizing() && !synthTimedOut) {
       // Safety timeout: if synthesizing takes more than 3 minutes, stop the spinner

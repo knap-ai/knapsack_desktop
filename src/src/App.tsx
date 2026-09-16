@@ -72,6 +72,7 @@ import {
   findMeetingCaptureCandidate,
   meetingCaptureKey,
 } from 'src/utils/meetingCapture'
+import { sendNotification } from 'src/utils/permissions/notification'
 
 // The isolated live-QA app may read connected calendars, but must not schedule
 // production automations or proactively send work from its cloned database.
@@ -1394,7 +1395,19 @@ function App() {
       const key = meetingCaptureKey(candidate)
       if (ignoredMeetingCapturesRef.current.has(key) || announcedMeetingCapturesRef.current.has(key)) return
       announcedMeetingCapturesRef.current.add(key)
-      setMeetingCaptureNotice({ phase: 'ready', title: candidate.title || 'Upcoming meeting', key })
+      const title = candidate.title || 'Upcoming meeting'
+      setMeetingCaptureNotice({ phase: 'ready', title, key })
+      if (!LOCAL_QA_SAFE) {
+        const startMs = candidate.calendarEvent!.start * 1000
+        const minutesUntilStart = Math.max(0, Math.ceil((startMs - Date.now()) / 60000))
+        const timing = minutesUntilStart === 0
+          ? 'is starting now'
+          : `starts in ${minutesUntilStart} minute${minutesUntilStart === 1 ? '' : 's'}`
+        void sendNotification({
+          title: 'Meeting starting soon',
+          body: `${title} ${timing}. Knapsack is ready to record.`,
+        }).catch(error => console.warn('Could not show the upcoming meeting notification:', error))
+      }
     }
     checkUpcomingMeeting()
     const interval = window.setInterval(checkUpcomingMeeting, 15000)
