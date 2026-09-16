@@ -1074,7 +1074,12 @@ function prepareMacDevAppBundle() {
 
   const debugResources = path.join(tauriDir, "target", "debug", "resources");
   if (fs.existsSync(debugResources)) {
-    fs.symlinkSync(debugResources, path.join(resourcesDir, "resources"));
+    // Keep the generated app self-contained. A symlink that escapes the app
+    // bundle makes codesign reject it and macOS may terminate the QA app as an
+    // invalid or malicious bundle before the service API becomes available.
+    fs.cpSync(debugResources, path.join(resourcesDir, "resources"), {
+      recursive: true,
+    });
   }
 
   const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1093,6 +1098,20 @@ function prepareMacDevAppBundle() {
 </plist>
 `;
   fs.writeFileSync(path.join(contentsDir, "Info.plist"), infoPlist);
+
+  // The debug binary is linker-signed before it is copied into this generated
+  // app. Sign the completed bundle so its Info.plist and resources are sealed
+  // together and macOS can validate the executable consistently.
+  const signResult = spawnSync(
+    "codesign",
+    ["--force", "--deep", "--sign", "-", qaAppBundle],
+    { encoding: "utf8" },
+  );
+  if (signResult.status !== 0) {
+    throw new Error(
+      `Failed to sign QA app bundle: ${String(signResult.stderr || signResult.stdout || "unknown codesign error").trim()}`,
+    );
+  }
   return qaAppExecutable;
 }
 
