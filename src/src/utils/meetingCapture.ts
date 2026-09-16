@@ -39,7 +39,7 @@ export const findMeetingCaptureCandidate = <T extends MeetingCaptureItem>(
   nowMs: number,
   options: { requireMicWindow?: boolean } = {},
 ): T | null => {
-  const earlyMs = options.requireMicWindow === false ? 2 * 60 * 1000 : 10 * 60 * 1000
+  const earlyMs = options.requireMicWindow === false ? 5 * 60 * 1000 : 10 * 60 * 1000
   const lateMs = options.requireMicWindow === false ? 0 : 15 * 60 * 1000
   return items
     .filter(item => {

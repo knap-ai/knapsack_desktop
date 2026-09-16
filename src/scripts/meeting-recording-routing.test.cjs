@@ -87,6 +87,24 @@ test('meeting selection keeps the current window size until recording starts', (
   assert.doesNotMatch(notes, /useEffect\(\(\) => enterMeetingWindowLayout\(\), \[\]\)/)
 })
 
+test('upcoming meetings produce a native reminder without requiring proactive mode', () => {
+  const app = source('App.tsx')
+  const capture = source('utils/meetingCapture.ts')
+  const notifications = source('utils/permissions/notification.tsx')
+
+  assert.match(app, /import \{ sendNotification \} from 'src\/utils\/permissions\/notification'/)
+  assert.match(
+    app,
+    /announcedMeetingCapturesRef\.current\.add\(key\)[\s\S]*?if \(!LOCAL_QA_SAFE\) \{[\s\S]*?void sendNotification\(\{[\s\S]*?title: 'Meeting starting soon'/,
+  )
+  assert.doesNotMatch(
+    app,
+    /announcedMeetingCapturesRef\.current\.add\(key\)[\s\S]{0,800}moltbot_proactive_mode/,
+  )
+  assert.match(capture, /requireMicWindow === false \? 5 \* 60 \* 1000/)
+  assert.match(notifications, /await tauriSendNotification\(options\)/)
+})
+
 test('meeting chat handle resizes, toggles, and persists panel height', () => {
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   const styles = source('main.css')

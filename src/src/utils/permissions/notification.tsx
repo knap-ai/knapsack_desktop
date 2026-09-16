@@ -32,6 +32,6 @@ export const requestNotificationOSPermissions = async () => {
 
 export const sendNotification = async (options: Options | string) => {
   if (await doesUserWantNotifications()) {
-    tauriSendNotification(options)
+    await tauriSendNotification(options)
   }
 }
