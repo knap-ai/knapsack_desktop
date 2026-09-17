@@ -25,6 +25,13 @@ const LARGE_CONNECTOR_TOOL_COUNT: usize = 40;
 const DEFAULT_SEARCH_RESULT_LIMIT: usize = 5;
 const MAX_SEARCH_RESULT_LIMIT: usize = 10;
 const MAX_SEARCH_RESULT_BYTES: usize = 12_000;
+const READ_ONLY_SLACK_SEARCH_ACTIONS: &[&str] = &[
+  "SLACK_SEARCH_MESSAGES",
+  "SLACK_SEARCH_ALL",
+  "SLACKBOT_SEARCH_MESSAGES",
+  "SLACKBOT_SEARCH_ALL",
+  "SLACKBOT_SEARCH_FOR_MESSAGES_WITH_QUERY",
+];
 
 #[derive(Clone)]
 struct RefreshedStudioToken {
@@ -301,6 +308,76 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
       .cloned()
       .unwrap_or_default(),
   )
+}
+
+/// Search connected Slack workspaces for meeting-prep evidence without
+/// involving a model or exposing a general connector execution surface.
+/// Only exact, known read-only Composio actions can pass this allowlist.
+pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result<Value, String> {
+  let connectors = connected_connectors().await?;
+  let mut results = Vec::new();
+
+  for connector in connectors {
+    let Some(connector_id) = connector.get("id").and_then(Value::as_str) else {
+      continue;
+    };
+    let connector_kind = connector_id.split(':').next().unwrap_or_default();
+    if !matches!(connector_kind, "slack" | "slackbot") {
+      continue;
+    }
+
+    let catalog_path = format!(
+      "/desktop/integrations/{}/tools?limit=10&compact=true&query=search%20messages",
+      urlencoding::encode(connector_id)
+    );
+    let catalog = request_studio(reqwest::Method::GET, &catalog_path, None).await?;
+    let action_name = catalog
+      .get("tools")
+      .and_then(Value::as_array)
+      .into_iter()
+      .flatten()
+      .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+      .find(|name| READ_ONLY_SLACK_SEARCH_ACTIONS.contains(name));
+    let Some(action_name) = action_name else {
+      continue;
+    };
+
+    for query in queries.iter().take(4) {
+      let value = request_studio(
+        reqwest::Method::POST,
+        &format!(
+          "/desktop/integrations/{}/call",
+          urlencoding::encode(connector_id)
+        ),
+        Some(json!({
+          "name": action_name,
+          "arguments": {
+            "query": query,
+            "count": 50,
+            "sort": "timestamp",
+            "sort_dir": "desc"
+          }
+        })),
+      )
+      .await?;
+      let mut text = serde_json::to_string(&value).unwrap_or_default();
+      if text.len() > MAX_SEARCH_RESULT_BYTES {
+        let mut boundary = MAX_SEARCH_RESULT_BYTES;
+        while !text.is_char_boundary(boundary) {
+          boundary -= 1;
+        }
+        text.truncate(boundary);
+        text.push_str("…");
+      }
+      results.push(json!({
+        "workspace": connector_id,
+        "query": query,
+        "result": text,
+      }));
+    }
+  }
+
+  Ok(json!({ "results": results }))
 }
 
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {

@@ -704,29 +704,20 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     try {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 8000)
-      const participantQuery = otherParticipants
-        .map(participant => participant.name || participant.email)
-        .filter(Boolean)
-        .join(', ')
-      const slackPrompt = `Read-only meeting preparation. Search connected Slack workspaces for recent messages and threads relevant to "${meeting.title || thread.subtitle || 'this meeting'}" and these people: ${participantQuery || 'no named attendees'}. Return only a compact factual digest of decisions, commitments, blockers, and unresolved questions from the last 90 days. Include channel names and dates when available. Do not send, react, edit, or modify anything. If no relevant Slack evidence is found, reply exactly NO_RELEVANT_SLACK_CONTEXT.`
-      const slackResponse = await fetch(`${KN_SERVER_HOST}/api/clawd/agent-chat`, {
+      const slackQueries = [
+        meeting.title || thread.subtitle || '',
+        ...otherParticipants.flatMap(participant => [participant.name || '', participant.email]),
+      ].map(query => query.trim()).filter(Boolean).slice(0, 4)
+      const slackResponse = await fetch(`${KN_SERVER_HOST}/api/clawd/service/meeting-brief/slack-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: slackPrompt,
-            userText: slackPrompt,
-            sessionId: `meeting-brief-slack:${meeting.event_id}`,
-            conversationScope: `meeting-brief:${meeting.event_id}`,
-            noFallback: true,
-            userEmail: contextualUserEmail,
-            userName: userName || '',
-          }),
+          body: JSON.stringify({ queries: slackQueries }),
           signal: controller.signal,
         }).finally(() => clearTimeout(timeout))
       const slackBody = slackResponse.ok ? await slackResponse.json() : undefined
-      const reply = typeof slackBody?.reply === 'string' ? slackBody.reply.trim() : ''
-      if (reply && reply !== 'NO_RELEVANT_SLACK_CONTEXT' && !/no relevant slack|slack (?:is not|isn't) (?:connected|available)/i.test(reply)) {
-        addContextDocument('Recent Slack context', reply, 10000)
+      const slackResults = Array.isArray(slackBody?.data?.results) ? slackBody.data.results : []
+      if (slackResults.length > 0) {
+        addContextDocument('Recent Slack context', JSON.stringify(slackResults), 12000)
         sourceSet.add('Slack')
       }
     } catch {
@@ -1100,6 +1091,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     setIsBriefPrepGenerating(true)
     setBriefPrepSources(['Calendar'])
     let briefPrepTimeout: ReturnType<typeof setTimeout> | undefined
+    let contextGatherTimeout: ReturnType<typeof setTimeout> | undefined
     let disposed = false
     const participantList = meeting.participants
       .map(p => {
@@ -1115,7 +1107,14 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       : 'unknown time'
     const cleanedDescription = descriptionForPrompt(meeting.description || '')
     const desc = cleanedDescription ? ` Context: ${cleanedDescription}.` : ''
-    buildBriefPrepDocuments().then(({ documents, sources, additionalDocuments }) => {
+    const contextGatherDeadline = new Promise<Awaited<ReturnType<typeof buildBriefPrepDocuments>>>((resolve) => {
+      contextGatherTimeout = setTimeout(
+        () => resolve({ documents: [], sources: ['Calendar'], additionalDocuments: [] }),
+        15000,
+      )
+    })
+    Promise.race([buildBriefPrepDocuments(), contextGatherDeadline]).then(({ documents, sources, additionalDocuments }) => {
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
       if (disposed) return
       if (sources.length > 0) setBriefPrepSources(sources)
       // Context collection has its own bounded operations. Start the generation
@@ -1170,11 +1169,13 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         },
       })
     }).catch(() => {
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
       if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
       setIsBriefPrepGenerating(false)
     })
     return () => {
       disposed = true
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
       if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
     }
   }, [

@@ -758,6 +758,31 @@ function parseListenerPids(output) {
     .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid))];
 }
 
+function isProtectedInstalledKnapsackProcess(commandLine) {
+  const command = String(commandLine || "").replace(/\\/g, "/").toLowerCase();
+  return command.includes("/applications/knapsack.app/contents/macos/knapsack")
+    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command);
+}
+
+function posixProcessCommandLine(pid) {
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+    encoding: "utf8",
+  });
+  return result.status === 0 ? String(result.stdout || "").trim() : "";
+}
+
+function assertNoInstalledKnapsackListeners(pids) {
+  const protectedPids = [...pids].filter((pid) =>
+    isProtectedInstalledKnapsackProcess(posixProcessCommandLine(pid))
+  );
+  if (protectedPids.length > 0) {
+    throw new Error(
+      `QA cannot start while the installed Knapsack app owns a required local port (PID ${protectedPids.join(", ")}). `
+      + "Quit production Knapsack first; QA will never terminate it automatically.",
+    );
+  }
+}
+
 function killPosixPortListeners(ports) {
   const pids = new Set();
   for (const port of ports) {
@@ -768,6 +793,7 @@ function killPosixPortListeners(ports) {
     );
     for (const pid of parseListenerPids(result.stdout)) pids.add(pid);
   }
+  assertNoInstalledKnapsackListeners(pids);
   for (const pid of pids) {
     try {
       process.kill(pid, "SIGTERM");
@@ -2736,6 +2762,7 @@ module.exports = {
   hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
+  isProtectedInstalledKnapsackProcess,
   providerSwitchAppliedButStillStarting,
   parseListenerPids,
   qaSetProviderTimeoutMs,

@@ -11,6 +11,7 @@ const {
   hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
+  isProtectedInstalledKnapsackProcess,
   parseListenerPids,
   providerSwitchAppliedButStillStarting,
   qaSetProviderTimeoutMs,
@@ -22,6 +23,27 @@ const {
 
 test("QA port cleanup parses unique listener pids", () => {
   assert.deepEqual(parseListenerPids("123\n456\n123\ninvalid\n"), [123, 456]);
+});
+
+test("QA port cleanup protects installed production Knapsack processes", () => {
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "/Applications/Knapsack.app/Contents/MacOS/Knapsack",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "C:\\Program Files\\Knapsack\\Knapsack.exe --production",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "/private/tmp/knapsack/src/src-tauri/target/debug/knapsack",
+    ),
+    false,
+  );
 });
 
 test("interface probes retry unsuccessful HTTP responses", async () => {

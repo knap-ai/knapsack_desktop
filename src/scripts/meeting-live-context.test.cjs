@@ -42,22 +42,31 @@ test("meeting briefs fetch calendar-linked Google files through connected identi
 
 test("meeting briefs use concrete multi-source evidence and honest source badges", () => {
   const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const studio = read("src-tauri/src/clawd/studio_mcp.rs");
+  const service = read("src-tauri/src/clawd/service.rs");
+  const actix = read("src-tauri/src/server/actix.rs");
 
   assert.match(meeting, /usefulEmails\.forEach[\s\S]*?addContextDocument/);
   assert.match(meeting, /usefulDriveDocuments\.forEach[\s\S]*?addContextDocument/);
   assert.match(meeting, /fetch\(`\$\{KN_API_NOTES\}\/list`\)/);
   assert.match(meeting, /sourceSet\.add\('Previous notes'\)/);
-  assert.match(meeting, /\/api\/clawd\/agent-chat/);
-  assert.match(meeting, /Do not send, react, edit, or modify anything/);
+  assert.match(meeting, /\/api\/clawd\/service\/meeting-brief\/slack-search/);
+  assert.doesNotMatch(meeting, /meeting-brief-slack:[\s\S]*?\/api\/clawd\/agent-chat/);
   assert.match(meeting, /sourceSet\.add\('Slack'\)/);
+  assert.match(studio, /READ_ONLY_SLACK_SEARCH_ACTIONS/);
+  assert.match(studio, /search_slack_for_meeting_brief/);
+  assert.match(service, /meeting_brief_slack_search/);
+  assert.match(service, /tokio::time::timeout\([\s\S]*?Duration::from_secs\(8\)/);
+  assert.match(actix, /service\(clawd::service::meeting_brief_slack_search\)/);
   assert.match(
     meeting,
     /participantScore > 0 \|\| titleScore >= 2/,
   );
   assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
+  assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
   assert.match(
     meeting,
-    /buildBriefPrepDocuments\(\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
+    /Promise\.race\(\[buildBriefPrepDocuments\(\), contextGatherDeadline\]\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
   );
   assert.match(meeting, /additionalDocuments,/);
   assert.match(meeting, /concise but evidence-rich executive meeting brief/);
