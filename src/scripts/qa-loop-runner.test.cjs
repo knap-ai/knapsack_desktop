@@ -46,6 +46,18 @@ test("QA port cleanup protects installed production Knapsack processes", () => {
   );
   assert.equal(
     isProtectedInstalledKnapsackProcess(
+      '"C:\\Program Files\\Knapsack\\Knapsack.exe" --production',
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      '"C:\\Users\\Mark\\AppData\\Local\\Knapsack\\Knapsack.exe" --production',
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
       "/private/tmp/knapsack/src/src-tauri/target/debug/knapsack",
     ),
     false,
@@ -55,6 +67,10 @@ test("QA port cleanup protects installed production Knapsack processes", () => {
   assert.match(
     source,
     /function killWindowsPortListeners[\s\S]*?assertNoInstalledKnapsackListeners\(pids\)[\s\S]*?taskkill/,
+  );
+  assert.match(
+    source,
+    /catch \{[\s\S]*?Listener discovery is best effort[\s\S]*?return;[\s\S]*?assertNoInstalledKnapsackListeners\(pids\)/,
   );
 });
 

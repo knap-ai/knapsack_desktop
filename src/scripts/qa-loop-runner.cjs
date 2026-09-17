@@ -761,8 +761,8 @@ function parseListenerPids(output) {
 function isProtectedInstalledKnapsackProcess(commandLine) {
   const command = String(commandLine || "").replace(/\\/g, "/").toLowerCase();
   return command.includes("/applications/knapsack.app/contents/macos/knapsack")
-    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command)
-    || /\/appdata\/local\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command);
+    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command)
+    || /\/appdata\/local\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command);
 }
 
 function posixProcessCommandLine(pid) {
@@ -999,32 +999,34 @@ function summarizeStartupState(payload) {
 
 function killWindowsPortListeners(ports) {
   if (process.platform !== "win32") return;
+  let out;
   try {
-    const out = require("node:child_process")
+    out = require("node:child_process")
       .execSync("netstat -ano -p tcp")
       .toString("utf8");
-    const wanted = new Set(String(ports).split(","));
-    const pids = new Set();
-    for (const line of out.split(/\r?\n/)) {
-      if (!/LISTENING/i.test(line)) continue;
-      const parts = line.trim().split(/\s+/);
-      const local = parts[1] || "";
-      const pid = Number(parts[parts.length - 1]);
-      const port = String(local.split(":").pop());
-      if (wanted.has(port) && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
-        pids.add(pid);
-      }
-    }
-    assertNoInstalledKnapsackListeners(pids);
-    for (const pid of pids) {
-      try {
-        require("node:child_process").spawnSync("taskkill", ["/PID", String(pid), "/F", "/T"]);
-      } catch {
-        // best effort
-      }
-    }
   } catch {
-    // ignore
+    // Listener discovery is best effort; an installed-app match below is not.
+    return;
+  }
+  const wanted = new Set(String(ports).split(","));
+  const pids = new Set();
+  for (const line of out.split(/\r?\n/)) {
+    if (!/LISTENING/i.test(line)) continue;
+    const parts = line.trim().split(/\s+/);
+    const local = parts[1] || "";
+    const pid = Number(parts[parts.length - 1]);
+    const port = String(local.split(":").pop());
+    if (wanted.has(port) && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+      pids.add(pid);
+    }
+  }
+  assertNoInstalledKnapsackListeners(pids);
+  for (const pid of pids) {
+    try {
+      require("node:child_process").spawnSync("taskkill", ["/PID", String(pid), "/F", "/T"]);
+    } catch {
+      // best effort
+    }
   }
 }
 
