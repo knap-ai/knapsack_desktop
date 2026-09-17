@@ -44,8 +44,12 @@ test('note generation exposes one inline progress treatment', () => {
 
   assert.doesNotMatch(source, /notetaker-note__post-meeting-banner/)
   assert.doesNotMatch(source, /notetaker-note__processing-pill/)
+  assert.doesNotMatch(source, /notetaker-note__post-meeting-line/)
+  assert.doesNotMatch(source, /notetaker-note__post-meeting-wave/)
   assert.doesNotMatch(styles, /notetaker-note__post-meeting-banner/)
   assert.doesNotMatch(styles, /notetaker-note__processing-pill/)
+  assert.doesNotMatch(styles, /notetaker-note__post-meeting-line/)
+  assert.doesNotMatch(styles, /notetaker-note__post-meeting-wave/)
   assert.match(source, /Stream synthesized notes into the page as they arrive/)
   assert.match(source, /notetaker-note__processing/)
 })

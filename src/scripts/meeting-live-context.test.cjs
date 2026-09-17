@@ -50,6 +50,15 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   assert.match(meeting, /\/api\/clawd\/agent-chat/);
   assert.match(meeting, /Do not send, react, edit, or modify anything/);
   assert.match(meeting, /sourceSet\.add\('Slack'\)/);
+  assert.match(
+    meeting,
+    /participantScore > 0 \|\| titleScore >= 2/,
+  );
+  assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
+  assert.match(
+    meeting,
+    /buildBriefPrepDocuments\(\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
+  );
   assert.match(meeting, /additionalDocuments,/);
   assert.match(meeting, /concise but evidence-rich executive meeting brief/);
   assert.doesNotMatch(meeting, /sourceSet\.add\('Web'\)/);

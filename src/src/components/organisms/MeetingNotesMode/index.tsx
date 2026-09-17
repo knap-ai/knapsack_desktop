@@ -664,7 +664,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       const body = response.ok ? await response.json() : undefined
       const allNotes = Array.isArray(body?.data?.notes) ? body.data.notes : []
       const excludedTerms = briefMatchTerms(`${userName || ''} ${userEmail || ''} ${contextualUserEmail}`)
-      const genericTitleTerms = new Set(['meeting', 'weekly', 'bi', 'call', 'sync', 'prep', 'follow', 'update'])
+      const genericTitleTerms = new Set([
+        'meeting', 'weekly', 'bi', 'call', 'sync', 'prep', 'follow', 'update',
+        'review', 'status', 'project', 'product', 'team', 'monthly', 'quarterly',
+        'check', 'standup',
+      ])
       const titleTerms = new Set(Array.from(briefMatchTerms(meeting.title)).filter(
         term => !excludedTerms.has(term) && !genericTitleTerms.has(term),
       ))
@@ -680,9 +684,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           const participantScore = Array.from(participantTerms).filter(term => candidateTerms.has(term)).length * 3
           const titleScore = Array.from(titleTerms).filter(term => candidateTerms.has(term)).length
           const score = participantScore + titleScore
-          return { note, score }
+          return { note, participantScore, titleScore, score }
         })
-        .filter(({ score }: { score: number }) => score > 0)
+        .filter(({ participantScore, titleScore }: { participantScore: number; titleScore: number }) => (
+          participantScore > 0 || titleScore >= 2
+        ))
         .sort((a: any, b: any) => b.score - a.score || Number(b.note.start_time || 0) - Number(a.note.start_time || 0))
         .slice(0, 5)
 
@@ -697,27 +703,26 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
     try {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 18000)
+      const timeout = setTimeout(() => controller.abort(), 8000)
       const participantQuery = otherParticipants
         .map(participant => participant.name || participant.email)
         .filter(Boolean)
         .join(', ')
       const slackPrompt = `Read-only meeting preparation. Search connected Slack workspaces for recent messages and threads relevant to "${meeting.title || thread.subtitle || 'this meeting'}" and these people: ${participantQuery || 'no named attendees'}. Return only a compact factual digest of decisions, commitments, blockers, and unresolved questions from the last 90 days. Include channel names and dates when available. Do not send, react, edit, or modify anything. If no relevant Slack evidence is found, reply exactly NO_RELEVANT_SLACK_CONTEXT.`
       const slackResponse = await fetch(`${KN_SERVER_HOST}/api/clawd/agent-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: slackPrompt,
-          userText: slackPrompt,
-          sessionId: `meeting-brief-slack:${meeting.event_id}`,
-          conversationScope: `meeting-brief:${meeting.event_id}`,
-          noFallback: true,
-          userEmail: contextualUserEmail,
-          userName: userName || '',
-        }),
-        signal: controller.signal,
-      })
-      clearTimeout(timeout)
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: slackPrompt,
+            userText: slackPrompt,
+            sessionId: `meeting-brief-slack:${meeting.event_id}`,
+            conversationScope: `meeting-brief:${meeting.event_id}`,
+            noFallback: true,
+            userEmail: contextualUserEmail,
+            userName: userName || '',
+          }),
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeout))
       const slackBody = slackResponse.ok ? await slackResponse.json() : undefined
       const reply = typeof slackBody?.reply === 'string' ? slackBody.reply.trim() : ''
       if (reply && reply !== 'NO_RELEVANT_SLACK_CONTEXT' && !/no relevant slack|slack (?:is not|isn't) (?:connected|available)/i.test(reply)) {
@@ -1094,8 +1099,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
     setBriefPrepSources(['Calendar'])
-    // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
-    const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
+    let briefPrepTimeout: ReturnType<typeof setTimeout> | undefined
+    let disposed = false
     const participantList = meeting.participants
       .map(p => {
         const participant = p.name ? `${p.name} (${p.email})` : p.email
@@ -1111,7 +1116,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const cleanedDescription = descriptionForPrompt(meeting.description || '')
     const desc = cleanedDescription ? ` Context: ${cleanedDescription}.` : ''
     buildBriefPrepDocuments().then(({ documents, sources, additionalDocuments }) => {
+      if (disposed) return
       if (sources.length > 0) setBriefPrepSources(sources)
+      // Context collection has its own bounded operations. Start the generation
+      // deadline only once the request is actually queued so enrichment cannot
+      // consume the model's response window.
+      briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
       addToLLMQueue({
         prompt: `You are preparing ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''} for a meeting. Always write to this user as "you". Do not treat the user as an external customer, prospect, vendor, or attendee to research.
 
@@ -1149,21 +1159,24 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
         additionalDocuments,
         messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
         messageFinishCallback: async (response) => {
-          clearTimeout(briefPrepTimeout)
+          if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
           setBriefPrepContent(response)
           setIsBriefPrepGenerating(false)
           return undefined
         },
         errorCallback: () => {
-          clearTimeout(briefPrepTimeout)
+          if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
           setIsBriefPrepGenerating(false)
         },
       })
     }).catch(() => {
-      clearTimeout(briefPrepTimeout)
+      if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
       setIsBriefPrepGenerating(false)
     })
-    return () => clearTimeout(briefPrepTimeout)
+    return () => {
+      disposed = true
+      if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
+    }
   }, [
     meeting?.event_id,
     buildBriefPrepDocuments,
@@ -2447,55 +2460,41 @@ Be direct, specific, and concise. No filler text.`
           </>
         ) : (
           <>
-            {isEndingMeetingState ? (
-              <span className="notetaker-note__post-meeting-line">
-                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
-                  <span style={{ animationDelay: '0ms' }} />
-                  <span style={{ animationDelay: '150ms' }} />
-                  <span style={{ animationDelay: '300ms' }} />
-                  <span style={{ animationDelay: '450ms' }} />
-                </span>
-                {endingMeetingStatusText}
-              </span>
-            ) : (
-              <>
-                {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="8" x2="4" y2="16" />
-                    <line x1="8" y1="5" x2="8" y2="19" />
-                    <line x1="12" y1="2" x2="12" y2="22" />
-                    <line x1="16" y1="5" x2="16" y2="19" />
-                    <line x1="20" y1="8" x2="20" y2="16" />
-                  </svg>
-                </button>}
-                {!isMeetingChatOpen && <div
-                  className="notetaker-note__bottom-chat"
-                  onClick={openMeetingChat}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <input
-                    type="text"
-                    placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
-                    className="notetaker-note__bottom-chat-input"
-                    readOnly
-                    style={{ cursor: 'pointer' }}
-                  />
-                </div>}
-                {thread.recorded && (
-                  <button
-                    className="notetaker-note__bottom-action"
-                    onClick={() => onEmailClick?.(notesMarkdown, meeting)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-                      <path d="M9 13h6" />
-                      <path d="M9 17h3" />
-                      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                    </svg>
-                    Write follow up email
-                  </button>
-                )}
-              </>
+            {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="8" x2="4" y2="16" />
+                <line x1="8" y1="5" x2="8" y2="19" />
+                <line x1="12" y1="2" x2="12" y2="22" />
+                <line x1="16" y1="5" x2="16" y2="19" />
+                <line x1="20" y1="8" x2="20" y2="16" />
+              </svg>
+              </button>}
+            {!isMeetingChatOpen && <div
+              className="notetaker-note__bottom-chat"
+              onClick={openMeetingChat}
+              style={{ cursor: 'pointer' }}
+            >
+              <input
+                type="text"
+                placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
+                className="notetaker-note__bottom-chat-input"
+                readOnly
+                style={{ cursor: 'pointer' }}
+              />
+            </div>}
+            {thread.recorded && (
+              <button
+                className="notetaker-note__bottom-action"
+                onClick={() => onEmailClick?.(notesMarkdown, meeting)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h3" />
+                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                </svg>
+                Write follow up email
+              </button>
             )}
           </>
         )}
