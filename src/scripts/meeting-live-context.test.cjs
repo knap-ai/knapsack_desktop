@@ -62,7 +62,7 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
     meeting,
     /participantMatch \|\| titleScore >= 2/,
   );
-  assert.match(meeting, /normalizeBriefIdentity[\s\S]*?lowerMetadata\.includes\(identity\.email\)[\s\S]*?normalizedMetadata\.includes/);
+  assert.match(meeting, /briefEmails[\s\S]*?metadataEmails\.has\(identity\.email\)[\s\S]*?normalizedMetadata\.includes/);
   assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
   assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
   assert.match(meeting, /BRIEF_CONTEXT_CHAR_BUDGET = 48000/);

@@ -96,6 +96,11 @@ const normalizeBriefIdentity = (value = '') => value
   .replace(/\s+/g, ' ')
   .trim()
 
+const briefEmails = (value = '') => new Set(
+  (value.toLowerCase().match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*/g) || [])
+    .map(email => email.trim()),
+)
+
 const parseParticipantMetadata = (value: unknown): string => {
   if (typeof value !== 'string') return ''
   try {
@@ -691,10 +696,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
         .map((note: any) => {
           const metadata = `${note.filename || ''} ${parseParticipantMetadata(note.participants)}`
           const normalizedMetadata = ` ${normalizeBriefIdentity(metadata)} `
-          const lowerMetadata = metadata.toLowerCase()
+          const metadataEmails = briefEmails(metadata)
           const candidateTerms = briefMatchTerms(metadata)
           const participantMatch = participantIdentities.some(identity => (
-            (Boolean(identity.email) && lowerMetadata.includes(identity.email))
+            (Boolean(identity.email) && metadataEmails.has(identity.email))
             || (Boolean(identity.name) && normalizedMetadata.includes(` ${identity.name} `))
           ))
           const titleScore = Array.from(titleTerms).filter(term => candidateTerms.has(term)).length
