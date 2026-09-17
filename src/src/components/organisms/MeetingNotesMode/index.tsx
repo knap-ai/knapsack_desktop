@@ -577,12 +577,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const externalEmails = extractExternalEmails(contextualUserEmail, otherParticipantEmails)
     const sourceSet = new Set<string>(['Calendar'])
     const documents = new Set<number>()
-    const additionalDocuments: Array<{ title: string; content: string }> = []
+    const contextCandidates: Array<{ title: string; content: string; priority: number }> = []
+    const BRIEF_CONTEXT_CHAR_BUDGET = 48000
 
-    const addContextDocument = (title: string, content: unknown, limit = 12000) => {
+    const addContextDocument = (title: string, content: unknown, limit = 12000, priority = 0) => {
       const text = typeof content === 'string' ? content.trim() : JSON.stringify(content ?? '')
       if (!text || text === '""' || text === '{}') return false
-      additionalDocuments.push({ title, content: text.slice(0, limit) })
+      contextCandidates.push({ title, content: text.slice(0, limit), priority })
       return true
     }
 
@@ -604,7 +605,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       const usefulEmails = emailDocs
         .filter(doc => doc.body?.trim() || doc.summary?.trim())
         .sort((a, b) => (b.date || 0) - (a.date || 0))
-        .slice(0, 8)
+        .slice(0, 4)
       usefulEmails.forEach(doc => addContextDocument(
         `Email: ${doc.subject || 'Untitled'} (${doc.sender || 'unknown sender'})`,
         [
@@ -612,7 +613,8 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           doc.summary ? `Summary: ${doc.summary}` : '',
           doc.body || '',
         ].filter(Boolean).join('\n'),
-        6000,
+        3000,
+        90,
       ))
       if (usefulEmails.length > 0) sourceSet.add('Email')
     } catch {
@@ -637,11 +639,12 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       })
       const usefulDriveDocuments = driveDocuments
         .filter(doc => doc.summary?.trim() || doc.data)
-        .slice(0, 8)
+        .slice(0, 3)
       usefulDriveDocuments.forEach(doc => addContextDocument(
         `Drive: ${doc.title || 'Relevant file'}`,
         doc.summary?.trim() || doc.data,
-        8000,
+        3000,
+        60,
       ))
       if (usefulDriveDocuments.length > 0) sourceSet.add('Drive')
     } catch {
@@ -649,13 +652,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     }
 
     const linkedDriveUrls = extractGoogleDriveLinks(meeting.description || '')
-    for (const url of linkedDriveUrls.slice(0, 3)) {
+    for (const url of linkedDriveUrls.slice(0, 2)) {
       const linkedFile = await getGoogleDriveFileText(
         url,
         Array.from(userEmailSet),
       )
       if (!linkedFile?.content.trim()) continue
-      addContextDocument(`Linked Drive file: ${linkedFile.name}`, linkedFile.content, 30000)
+      addContextDocument(`Linked Drive file: ${linkedFile.name}`, linkedFile.content, 6000, 80)
       sourceSet.add('Drive')
     }
 
@@ -690,11 +693,13 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
           participantScore > 0 || titleScore >= 2
         ))
         .sort((a: any, b: any) => b.score - a.score || Number(b.note.start_time || 0) - Number(a.note.start_time || 0))
-        .slice(0, 5)
+        .slice(0, 3)
 
       relevantNotes.forEach(({ note }: any) => addContextDocument(
         `Previous meeting notes: ${note.filename || 'Meeting'}${note.start_time ? ` (${dayjs.unix(note.start_time).format('MMM D, YYYY')})` : ''}`,
         note.content,
+        5000,
+        100,
       ))
       if (relevantNotes.length > 0) sourceSet.add('Previous notes')
     } catch {
@@ -717,12 +722,22 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       const slackBody = slackResponse.ok ? await slackResponse.json() : undefined
       const slackResults = Array.isArray(slackBody?.data?.results) ? slackBody.data.results : []
       if (slackResults.length > 0) {
-        addContextDocument('Recent Slack context', JSON.stringify(slackResults), 12000)
+        addContextDocument('Recent Slack context', JSON.stringify(slackResults), 8000, 85)
         sourceSet.add('Slack')
       }
     } catch {
       // Slack context is opportunistic and has a short timeout so prep remains responsive.
     }
+
+    let remainingContextChars = BRIEF_CONTEXT_CHAR_BUDGET
+    const additionalDocuments = contextCandidates
+      .sort((a, b) => b.priority - a.priority)
+      .flatMap(({ title, content }) => {
+        if (remainingContextChars <= 0) return []
+        const boundedContent = content.slice(0, remainingContextChars)
+        remainingContextChars -= boundedContent.length
+        return boundedContent ? [{ title, content: boundedContent }] : []
+      })
 
     return {
       documents: Array.from(documents).slice(0, 12),

@@ -64,6 +64,15 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   );
   assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
   assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
+  assert.match(meeting, /BRIEF_CONTEXT_CHAR_BUDGET = 48000/);
+  assert.match(
+    meeting,
+    /remainingContextChars = BRIEF_CONTEXT_CHAR_BUDGET[\s\S]*?content\.slice\(0, remainingContextChars\)/,
+  );
+  assert.match(
+    studio,
+    /skipping unavailable Slack workspace[\s\S]*?continue;[\s\S]*?Slack search failed for one query[\s\S]*?continue;/,
+  );
   assert.match(
     meeting,
     /let requestQueued = false[\s\S]*?requestQueued = true[\s\S]*?if \(!requestQueued\) briefPrepTriggeredRef\.current = false/,

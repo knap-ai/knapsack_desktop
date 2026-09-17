@@ -330,7 +330,13 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
       "/desktop/integrations/{}/tools?limit=10&compact=true&query=search%20messages",
       urlencoding::encode(connector_id)
     );
-    let catalog = request_studio(reqwest::Method::GET, &catalog_path, None).await?;
+    let catalog = match request_studio(reqwest::Method::GET, &catalog_path, None).await {
+      Ok(catalog) => catalog,
+      Err(error) => {
+        eprintln!("[studio_mcp] skipping unavailable Slack workspace {connector_id}: {error}");
+        continue;
+      }
+    };
     let action_name = catalog
       .get("tools")
       .and_then(Value::as_array)
@@ -343,7 +349,7 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
     };
 
     for query in queries.iter().take(4) {
-      let value = request_studio(
+      let value = match request_studio(
         reqwest::Method::POST,
         &format!(
           "/desktop/integrations/{}/call",
@@ -359,7 +365,14 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
           }
         })),
       )
-      .await?;
+      .await
+      {
+        Ok(value) => value,
+        Err(error) => {
+          eprintln!("[studio_mcp] Slack search failed for one query in {connector_id}: {error}");
+          continue;
+        }
+      };
       let mut text = serde_json::to_string(&value).unwrap_or_default();
       if text.len() > MAX_SEARCH_RESULT_BYTES {
         let mut boundary = MAX_SEARCH_RESULT_BYTES;
