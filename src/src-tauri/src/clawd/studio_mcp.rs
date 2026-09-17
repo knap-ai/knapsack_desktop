@@ -316,6 +316,10 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result<Value, String> {
   let connectors = connected_connectors().await?;
   let mut results = Vec::new();
+  // Return accumulated evidence before the route's outer 8-second safety
+  // timeout can discard it. Each connector operation receives only the
+  // remaining portion of this internal budget.
+  let deadline = Instant::now() + Duration::from_secs(7);
 
   for connector in connectors {
     let Some(connector_id) = connector.get("id").and_then(Value::as_str) else {
@@ -330,12 +334,21 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
       "/desktop/integrations/{}/tools?limit=10&compact=true&query=search%20messages",
       urlencoding::encode(connector_id)
     );
-    let catalog = match request_studio(reqwest::Method::GET, &catalog_path, None).await {
-      Ok(catalog) => catalog,
-      Err(error) => {
+    let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+      return Ok(json!({ "results": results }));
+    };
+    let catalog = match tokio::time::timeout(
+      remaining,
+      request_studio(reqwest::Method::GET, &catalog_path, None),
+    )
+    .await
+    {
+      Ok(Ok(catalog)) => catalog,
+      Ok(Err(error)) => {
         eprintln!("[studio_mcp] skipping unavailable Slack workspace {connector_id}: {error}");
         continue;
       }
+      Err(_) => return Ok(json!({ "results": results })),
     };
     let action_name = catalog
       .get("tools")
@@ -349,29 +362,36 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
     };
 
     for query in queries.iter().take(4) {
-      let value = match request_studio(
-        reqwest::Method::POST,
-        &format!(
-          "/desktop/integrations/{}/call",
-          urlencoding::encode(connector_id)
+      let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+        return Ok(json!({ "results": results }));
+      };
+      let value = match tokio::time::timeout(
+        remaining,
+        request_studio(
+          reqwest::Method::POST,
+          &format!(
+            "/desktop/integrations/{}/call",
+            urlencoding::encode(connector_id)
+          ),
+          Some(json!({
+            "name": action_name,
+            "arguments": {
+              "query": query,
+              "count": 50,
+              "sort": "timestamp",
+              "sort_dir": "desc"
+            }
+          })),
         ),
-        Some(json!({
-          "name": action_name,
-          "arguments": {
-            "query": query,
-            "count": 50,
-            "sort": "timestamp",
-            "sort_dir": "desc"
-          }
-        })),
       )
       .await
       {
-        Ok(value) => value,
-        Err(error) => {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
           eprintln!("[studio_mcp] Slack search failed for one query in {connector_id}: {error}");
           continue;
         }
+        Err(_) => return Ok(json!({ "results": results })),
       };
       let mut text = serde_json::to_string(&value).unwrap_or_default();
       if text.len() > MAX_SEARCH_RESULT_BYTES {

@@ -771,9 +771,26 @@ function posixProcessCommandLine(pid) {
   return result.status === 0 ? String(result.stdout || "").trim() : "";
 }
 
+function windowsProcessCommandLine(pid) {
+  const result = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${Number(pid)}\").CommandLine`,
+    ],
+    { encoding: "utf8", windowsHide: true },
+  );
+  return result.status === 0 ? String(result.stdout || "").trim() : "";
+}
+
 function assertNoInstalledKnapsackListeners(pids) {
+  const commandLineForPid = process.platform === "win32"
+    ? windowsProcessCommandLine
+    : posixProcessCommandLine;
   const protectedPids = [...pids].filter((pid) =>
-    isProtectedInstalledKnapsackProcess(posixProcessCommandLine(pid))
+    isProtectedInstalledKnapsackProcess(commandLineForPid(pid))
   );
   if (protectedPids.length > 0) {
     throw new Error(
@@ -997,6 +1014,7 @@ function killWindowsPortListeners(ports) {
         pids.add(pid);
       }
     }
+    assertNoInstalledKnapsackListeners(pids);
     for (const pid of pids) {
       try {
         require("node:child_process").spawnSync("taskkill", ["/PID", String(pid), "/F", "/T"]);

@@ -44,6 +44,12 @@ test("QA port cleanup protects installed production Knapsack processes", () => {
     ),
     false,
   );
+
+  const source = fs.readFileSync(path.join(__dirname, "qa-loop-runner.cjs"), "utf8");
+  assert.match(
+    source,
+    /function killWindowsPortListeners[\s\S]*?assertNoInstalledKnapsackListeners\(pids\)[\s\S]*?taskkill/,
+  );
 });
 
 test("interface probes retry unsuccessful HTTP responses", async () => {

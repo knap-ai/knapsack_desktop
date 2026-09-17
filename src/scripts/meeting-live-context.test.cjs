@@ -73,6 +73,11 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
     studio,
     /skipping unavailable Slack workspace[\s\S]*?continue;[\s\S]*?Slack search failed for one query[\s\S]*?continue;/,
   );
+  assert.match(studio, /deadline = Instant::now\(\) \+ Duration::from_secs\(7\)/);
+  assert.match(
+    studio,
+    /checked_duration_since\(Instant::now\(\)\)[\s\S]*?return Ok\(json!\(\{ "results": results \}\)\)/,
+  );
   assert.match(
     meeting,
     /let requestQueued = false[\s\S]*?requestQueued = true[\s\S]*?if \(!requestQueued\) briefPrepTriggeredRef\.current = false/,
