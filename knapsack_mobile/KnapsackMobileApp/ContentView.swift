@@ -1218,6 +1218,8 @@ struct ContentView: View {
       return "Search meetings and notes"
     case .chats:
       return "Search chats and replies"
+    case .email:
+      return "Search email updates"
     }
   }
 
