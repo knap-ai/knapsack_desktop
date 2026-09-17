@@ -32,11 +32,19 @@
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
   <string>$(MARKETING_VERSION)</string>
-  <key>CFBundleVersion</key>
-  <string>$(CURRENT_PROJECT_VERSION)</string>
-  <key>WKCompanionAppBundleIdentifier</key>
-  <string>ai.knapsack.mobile</string>
-  <key>WKWatchKitApp</key>
-  <true/>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Knapsack needs microphone access to record meetings from your watch.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>InterVariable.ttf</string>
+		<string>Spectral-Medium.ttf</string>
+		<string>Spectral-Italic.ttf</string>
+	</array>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>ai.knapsack.mobile</string>
+	<key>WKApplication</key>
+	<true/>
 </dict>
 </plist>
