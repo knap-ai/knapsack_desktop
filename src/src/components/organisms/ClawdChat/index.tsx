@@ -2318,6 +2318,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     return localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
   })
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+  const currentSpeechRef = useRef<SpeechSynthesisUtterance | null>(null)
   const voicePlaybackTokenRef = useRef(0)
   const meetingQuietModeRef = useRef(false)
   const resumeVoiceAfterMeetingRef = useRef(false)
@@ -2972,6 +2973,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       currentAudioRef.current.currentTime = 0
       currentAudioRef.current = null
     }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      currentSpeechRef.current = null
+    }
     setIsSpeaking(false)
   }, [])
 
@@ -3150,14 +3155,15 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   const openVoiceSession = useCallback(() => {
     if (meetingQuietModeRef.current) return
+    const wasOpen = voiceSessionOpenRef.current
     voiceSessionOpenRef.current = true
     setVoiceSessionOpen(true)
-    if (!voiceSessionOpen && !voiceEnabled) {
+    if (!wasOpen) {
       setVoiceEnabled(true)
       localStorage.setItem(VOICE_MODE_STORAGE, 'true')
     }
     void startRecording()
-  }, [startRecording, voiceEnabled, voiceSessionOpen])
+  }, [startRecording])
 
   const endVoiceCapture = useCallback(() => {
     voiceSessionOpenRef.current = false
@@ -4612,7 +4618,33 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         .replace(/[*_~`#]/g, '')
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
-        .slice(0, 4000) // TTS has a 4096 char limit
+        .slice(0, 1200)
+
+      const speakWithSystemVoice = () => {
+        if (
+          !cleanText
+          || typeof window === 'undefined'
+          || !('speechSynthesis' in window)
+          || voicePlaybackTokenRef.current !== playbackToken
+          || !activeRef.current
+          || !voiceSessionOpenRef.current
+          || localStorage.getItem(VOICE_MODE_STORAGE) !== 'true'
+          || meetingQuietModeRef.current
+        ) return
+        const utterance = new SpeechSynthesisUtterance(cleanText)
+        currentSpeechRef.current = utterance
+        utterance.onstart = () => {
+          if (currentSpeechRef.current === utterance) setIsSpeaking(true)
+        }
+        utterance.onend = utterance.onerror = () => {
+          if (currentSpeechRef.current === utterance) {
+            currentSpeechRef.current = null
+            setIsSpeaking(false)
+          }
+        }
+        window.speechSynthesis.cancel()
+        window.speechSynthesis.speak(utterance)
+      }
 
       // Use OpenAI TTS API for better quality
       const storedKey = await getOpenAIKey()
@@ -4655,6 +4687,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
                 currentAudioRef.current = null
                 setIsSpeaking(false)
               }
+              speakWithSystemVoice()
             })
             audio.onended = () => {
               if (currentAudioRef.current === audio) {
@@ -4665,7 +4698,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           })
           .catch(err => {
             console.error('TTS error:', err)
+            speakWithSystemVoice()
           })
+      } else {
+        speakWithSystemVoice()
       }
     }
   }, [voiceEnabled, stopCurrentAudio, selectedOutputDevice, onAssistantMessage, chatId, surfaceMissingStudioConnector])
@@ -6202,7 +6238,10 @@ ${actualText}`
   }, [msgs])
   const latestVoiceContext = useMemo(() => {
     const last = [...msgs].reverse().find(msg => msg.role === 'assistant' && msg.text.trim())
-    return last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim() || 'Your conversation continues here.'
+    const clean = last?.text.replace(/\[[^\]]+\]\([^)]+\)|[*_~`#]/g, '').replace(/\s+/g, ' ').trim()
+    if (!clean) return 'Your conversation continues here.'
+    if (clean.startsWith('🎤') || clean.startsWith('⚠️') || clean.length <= 240) return clean
+    return `${clean.slice(0, 237).trimEnd()}…`
   }, [msgs])
 
   return (
@@ -6957,7 +6996,7 @@ ${actualText}`
               <strong>{agentName || title}</strong>
               <span>{latestVoiceContext}</span>
             </div>
-            <button type="button" onClick={closeVoiceSession} aria-label="Close voice conversation"><XMarkIcon /></button>
+            <button className="ClawdVoiceSessionClose" type="button" onClick={closeVoiceSession} aria-label="Close voice conversation"><XMarkIcon /></button>
           </div>
           <div className="ClawdVoiceSessionCenter" aria-live="polite">
             <div className={`ClawdVoiceMark ${isRecording ? 'listening' : isSpeaking ? 'speaking' : ''}`} aria-hidden="true">

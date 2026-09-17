@@ -5,11 +5,13 @@ const test = require('node:test')
 
 const chat = fs.readFileSync(path.join(__dirname, '..', 'src/components/organisms/ClawdChat/index.tsx'), 'utf8')
 const styles = fs.readFileSync(path.join(__dirname, '..', 'src/components/organisms/ClawdChat/style.scss'), 'utf8')
+const browser = fs.readFileSync(path.join(__dirname, '..', 'src-tauri/src/clawd/browser.rs'), 'utf8')
 
 test('the composer microphone starts listening on the first click', () => {
   assert.match(chat, /onClick=\{isRecording \? onStopRecording : onStartRecording\}/)
   assert.match(chat, /onStartRecording=\{openVoiceSession\}/)
   assert.match(chat, /const openVoiceSession = useCallback\(\(\) => \{[\s\S]*?setVoiceSessionOpen\(true\)[\s\S]*?void startRecording\(\)/)
+  assert.match(chat, /const wasOpen = voiceSessionOpenRef\.current[\s\S]*?if \(!wasOpen\)[\s\S]*?setVoiceEnabled\(true\)[\s\S]*?VOICE_MODE_STORAGE, 'true'/)
   assert.doesNotMatch(chat, /voiceEnabled \? onStartRecording : onToggleVoice/)
 })
 
@@ -31,6 +33,9 @@ test('voice session reports real lifecycle states and keeps type and sound contr
   assert.match(styles, /\.ClawdVoiceSession \{[\s\S]*?position: absolute;/)
   assert.match(styles, /\.ClawdChatRoot--compact \.ClawdVoiceSession/)
   assert.match(styles, /prefers-reduced-motion: reduce/)
+  assert.match(styles, /\.ClawdVoiceSessionTop button \{[\s\S]*?display: flex;[\s\S]*?padding: 0;/)
+  assert.match(chat, /clean\.length <= 240[\s\S]*?clean\.slice\(0, 237\)/)
+  assert.match(browser, /VOICE MODE ACTIVE[\s\S]*?no more than 75 words[\s\S]*?Never read out raw search results/)
 })
 
 test('voice capture waits for real sound and accepts compact low-bitrate recordings', () => {
@@ -65,6 +70,8 @@ test('closing a voice session discards unfinished capture and stops playback', (
   assert.match(chat, /if \(discardedVoiceRecordersRef\.current\.has\(recorder\)\) \{[\s\S]*?return/)
   assert.match(chat, /activeRef\.current &&[\s\S]*?voiceSessionOpenRef\.current &&[\s\S]*?localStorage\.getItem\(VOICE_MODE_STORAGE\) === 'true'/)
   assert.match(chat, /voicePlaybackTokenRef\.current !== playbackToken \|\|[\s\S]*?!activeRef\.current \|\|[\s\S]*?!voiceSessionOpenRef\.current/)
+  assert.match(chat, /const speakWithSystemVoice = \(\) => \{[\s\S]*?speechSynthesis\.speak\(utterance\)/)
+  assert.match(chat, /catch\(\(\) => \{[\s\S]*?speakWithSystemVoice\(\)/)
   assert.match(chat, /if \(active\) return[\s\S]*?endVoiceCapture\(\)/)
   assert.match(chat, /const openVoiceSession = useCallback\(\(\) => \{[\s\S]*?voiceSessionOpenRef\.current = true/)
   assert.match(chat, /const closeVoiceSession = useCallback\(\(\) => \{[\s\S]*?endVoiceCapture\(\)/)

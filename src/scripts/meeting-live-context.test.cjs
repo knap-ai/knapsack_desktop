@@ -53,6 +53,10 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   assert.match(meeting, /\/api\/clawd\/service\/meeting-brief\/slack-search/);
   assert.doesNotMatch(meeting, /meeting-brief-slack:[\s\S]*?\/api\/clawd\/agent-chat/);
   assert.match(meeting, /sourceSet\.add\('Slack'\)/);
+  assert.match(
+    meeting,
+    /perSlackResultLimit = Math\.max\(1, Math\.floor\(8000 \/ slackResults\.length\)\)[\s\S]*?slackResults\.forEach[\s\S]*?perSlackResultLimit/,
+  );
   assert.match(studio, /READ_ONLY_SLACK_SEARCH_ACTIONS/);
   assert.match(studio, /search_slack_for_meeting_brief/);
   assert.match(service, /meeting_brief_slack_search/);

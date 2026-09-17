@@ -236,12 +236,16 @@
   width: 32px;
   height: 32px;
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 50%;
   font-size: 20px;
   line-height: 1;
   box-shadow: none;
 
-  svg { width: 17px; height: 17px; }
+  svg { display: block; width: 17px; height: 17px; }
 }
 
 .ClawdVoiceSessionCenter {

@@ -5351,12 +5351,13 @@ pub async fn chat(
     r#"
 
 ## VOICE MODE ACTIVE
-The user is listening to your responses via text-to-speech. Keep your responses:
+The user is listening to your responses via text-to-speech. Spoken brevity overrides the normal chat style. Keep your responses:
 - **CONCISE**: Use short sentences. Get to the point quickly.
 - **CONVERSATIONAL**: Write as you would speak naturally.
 - **SCANNABLE**: Avoid long lists, markdown formatting, or code blocks when possible.
 - **ACTION-FOCUSED**: State what you're doing and key results, skip verbose explanations.
-- **BRIEF**: Aim for 2-3 sentences for simple responses. Summarize rather than enumerate.
+- **BRIEF**: Default to no more than 75 words and 2-3 sentences. Only go longer when the user explicitly asks for detail.
+- **SPOKEN, NOT RAW**: Never read out raw search results, URLs, citations, tables, or a long list. Synthesize the answer first and mention only the most useful detail.
 
 Instead of listing every item, summarize: "I found 5 emails from John, the most recent is about the project deadline tomorrow."
 Instead of detailed steps, give status updates: "I'm navigating to Gmail now... Found your inbox with 12 unread messages."

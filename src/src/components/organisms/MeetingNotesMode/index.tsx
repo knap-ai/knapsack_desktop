@@ -739,8 +739,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       const slackBody = slackResponse.ok ? await slackResponse.json() : undefined
       const slackResults = Array.isArray(slackBody?.data?.results) ? slackBody.data.results : []
       if (slackResults.length > 0) {
-        addContextDocument('Recent Slack context', JSON.stringify(slackResults), 8000, 85)
-        sourceSet.add('Slack')
+        const perSlackResultLimit = Math.max(1, Math.floor(8000 / slackResults.length))
+        let addedSlackContext = false
+        slackResults.forEach((result: unknown, index: number) => {
+          addedSlackContext = addContextDocument(
+            `Recent Slack context ${index + 1}`,
+            result,
+            perSlackResultLimit,
+            85,
+          ) || addedSlackContext
+        })
+        if (addedSlackContext) sourceSet.add('Slack')
       }
     } catch {
       // Slack context is opportunistic and has a short timeout so prep remains responsive.
