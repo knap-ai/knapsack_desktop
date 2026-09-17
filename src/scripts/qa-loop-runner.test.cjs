@@ -11,6 +11,7 @@ const {
   hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
+  isProtectedInstalledKnapsackProcess,
   parseListenerPids,
   providerSwitchAppliedButStillStarting,
   qaSetProviderTimeoutMs,
@@ -22,6 +23,55 @@ const {
 
 test("QA port cleanup parses unique listener pids", () => {
   assert.deepEqual(parseListenerPids("123\n456\n123\ninvalid\n"), [123, 456]);
+});
+
+test("QA port cleanup protects installed production Knapsack processes", () => {
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "/Applications/Knapsack.app/Contents/MacOS/Knapsack",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "C:\\Program Files\\Knapsack\\Knapsack.exe --production",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "C:\\Users\\Mark\\AppData\\Local\\Knapsack\\Knapsack.exe",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      '"C:\\Program Files\\Knapsack\\Knapsack.exe" --production',
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      '"C:\\Users\\Mark\\AppData\\Local\\Knapsack\\Knapsack.exe" --production',
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
+      "/private/tmp/knapsack/src/src-tauri/target/debug/knapsack",
+    ),
+    false,
+  );
+
+  const source = fs.readFileSync(path.join(__dirname, "qa-loop-runner.cjs"), "utf8");
+  assert.match(
+    source,
+    /function killWindowsPortListeners[\s\S]*?assertNoInstalledKnapsackListeners\(pids\)[\s\S]*?taskkill/,
+  );
+  assert.match(
+    source,
+    /catch \{[\s\S]*?Listener discovery is best effort[\s\S]*?return;[\s\S]*?assertNoInstalledKnapsackListeners\(pids\)/,
+  );
 });
 
 test("interface probes retry unsuccessful HTTP responses", async () => {

@@ -16183,6 +16183,54 @@ pub struct StudioConnectorOauthResponse {
   pub message: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct MeetingBriefSlackSearchRequest {
+  pub queries: Vec<String>,
+}
+
+/// A deliberately narrow, read-only Slack retrieval route for meeting briefs.
+/// The implementation only permits exact search action names and never gives
+/// a model access to message, filesystem, process, or connector mutation tools.
+#[post("/api/clawd/service/meeting-brief/slack-search")]
+pub async fn meeting_brief_slack_search(
+  body: web::Json<MeetingBriefSlackSearchRequest>,
+) -> impl Responder {
+  let queries = body
+    .queries
+    .iter()
+    .map(|query| query.trim())
+    .filter(|query| !query.is_empty())
+    .take(4)
+    .map(|query| query.chars().take(200).collect::<String>())
+    .collect::<Vec<_>>();
+  if queries.is_empty() {
+    return HttpResponse::BadRequest().json(serde_json::json!({
+      "success": false,
+      "message": "At least one Slack search query is required."
+    }));
+  }
+
+  match tokio::time::timeout(
+    std::time::Duration::from_secs(8),
+    crate::clawd::studio_mcp::search_slack_for_meeting_brief(&queries),
+  )
+  .await
+  {
+    Ok(Ok(value)) => HttpResponse::Ok().json(serde_json::json!({
+      "success": true,
+      "data": value,
+    })),
+    Ok(Err(message)) => HttpResponse::BadGateway().json(serde_json::json!({
+      "success": false,
+      "message": message,
+    })),
+    Err(_) => HttpResponse::GatewayTimeout().json(serde_json::json!({
+      "success": false,
+      "message": "Slack meeting context timed out."
+    })),
+  }
+}
+
 async fn studio_access_token(app_handle: &tauri::AppHandle) -> Result<String, String> {
   let tokens = load_or_create_tokens(app_handle)?;
   if !has_knapsack_runtime_auth(&tokens) {

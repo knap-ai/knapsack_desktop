@@ -32,12 +32,72 @@ test("meeting briefs fetch calendar-linked Google files through connected identi
   );
   assert.match(
     meeting,
-    /Linked Google Drive content \(authoritative when present\)/,
+    /addContextDocument\(`Linked Drive file: \$\{linkedFile\.name\}`/,
   );
   assert.match(
     dataSource,
     /for \(const email of Array\.from\(new Set\(accountEmails\.filter\(Boolean\)\)\)\)/,
   );
+});
+
+test("meeting briefs use concrete multi-source evidence and honest source badges", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+  const studio = read("src-tauri/src/clawd/studio_mcp.rs");
+  const service = read("src-tauri/src/clawd/service.rs");
+  const actix = read("src-tauri/src/server/actix.rs");
+
+  assert.match(meeting, /usefulEmails\.forEach[\s\S]*?addContextDocument/);
+  assert.match(meeting, /usefulDriveDocuments\.forEach[\s\S]*?addContextDocument/);
+  assert.match(meeting, /fetch\(`\$\{KN_API_NOTES\}\/list`\)/);
+  assert.match(meeting, /sourceSet\.add\('Previous notes'\)/);
+  assert.match(meeting, /\/api\/clawd\/service\/meeting-brief\/slack-search/);
+  assert.doesNotMatch(meeting, /meeting-brief-slack:[\s\S]*?\/api\/clawd\/agent-chat/);
+  assert.match(meeting, /sourceSet\.add\('Slack'\)/);
+  assert.match(
+    meeting,
+    /perSlackResultLimit = Math\.max\(1, Math\.floor\(8000 \/ slackResults\.length\)\)[\s\S]*?slackResults\.forEach[\s\S]*?perSlackResultLimit/,
+  );
+  assert.match(studio, /READ_ONLY_SLACK_SEARCH_ACTIONS/);
+  assert.match(studio, /search_slack_for_meeting_brief/);
+  assert.match(service, /meeting_brief_slack_search/);
+  assert.match(service, /tokio::time::timeout\([\s\S]*?Duration::from_secs\(8\)/);
+  assert.match(actix, /service\(clawd::service::meeting_brief_slack_search\)/);
+  assert.match(
+    meeting,
+    /participantMatch \|\| titleScore >= 2/,
+  );
+  assert.match(meeting, /briefEmails[\s\S]*?metadataEmails\.has\(identity\.email\)[\s\S]*?normalizedMetadata\.includes/);
+  assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
+  assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
+  assert.match(meeting, /BRIEF_CONTEXT_CHAR_BUDGET = 48000/);
+  assert.match(
+    meeting,
+    /remainingContextChars = BRIEF_CONTEXT_CHAR_BUDGET[\s\S]*?content\.slice\(0, remainingContextChars\)/,
+  );
+  assert.match(
+    studio,
+    /skipping unavailable Slack workspace[\s\S]*?continue;[\s\S]*?Slack search failed for one query[\s\S]*?continue;/,
+  );
+  assert.match(studio, /deadline = Instant::now\(\) \+ Duration::from_secs\(7\)/);
+  assert.match(
+    studio,
+    /deadline = Instant::now\(\) \+ Duration::from_secs\(7\);[\s\S]*?connected_connectors\(\)/,
+  );
+  assert.match(
+    studio,
+    /checked_duration_since\(Instant::now\(\)\)[\s\S]*?return Ok\(json!\(\{ "results": results \}\)\)/,
+  );
+  assert.match(
+    meeting,
+    /let requestQueued = false[\s\S]*?requestQueued = true[\s\S]*?if \(!requestQueued\) briefPrepTriggeredRef\.current = false/,
+  );
+  assert.match(
+    meeting,
+    /Promise\.race\(\[buildBriefPrepDocuments\(\), contextGatherDeadline\]\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
+  );
+  assert.match(meeting, /additionalDocuments,/);
+  assert.match(meeting, /concise but evidence-rich executive meeting brief/);
+  assert.doesNotMatch(meeting, /sourceSet\.add\('Web'\)/);
 });
 
 test("meeting identity is available from the calendar event before connections load", () => {

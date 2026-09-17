@@ -26,7 +26,7 @@ import { LLMParams } from 'src/App'
 import { Meeting } from 'src/hooks/dataSources/useCalendar'
 import { IFeed } from 'src/hooks/feed/useFeed'
 import { useMeetingSynthesis } from 'src/hooks/useMeetingMode'
-import { KN_API_NOTES } from 'src/utils/constants'
+import { KN_API_NOTES, KN_SERVER_HOST } from 'src/utils/constants'
 import DataFetcher from 'src/utils/data_fetch'
 import { extractExternalEmails, extractInternalEmails, extractWorkDomains } from 'src/utils/emails'
 import { logError } from 'src/utils/errorHandling'
@@ -80,6 +80,37 @@ const descriptionForPrompt = (description = ''): string => {
     clean = clean.replace(link, '[linked Google Drive file]')
   }
   return clean.replace(/\s+/g, ' ').trim()
+}
+
+const briefMatchTerms = (value = '') => new Set(
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9@.]+/g, ' ')
+    .split(/\s+/)
+    .filter(term => term.length > 2),
+)
+
+const normalizeBriefIdentity = (value = '') => value
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+
+const briefEmails = (value = '') => new Set(
+  (value.toLowerCase().match(/[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*/g) || [])
+    .map(email => email.trim()),
+)
+
+const parseParticipantMetadata = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed)
+      ? parsed.map(participant => [participant?.name, participant?.email].filter(Boolean).join(' ')).join(' ')
+      : value
+  } catch {
+    return value
+  }
 }
 
 const normalizedActionOwner = (value = '') => value
@@ -280,7 +311,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [emailContextBannerDismissed, setEmailContextBannerDismissed] = useState(false)
   const [briefPrepSources, setBriefPrepSources] = useState<string[]>(['Calendar'])
   const briefPrepTriggeredRef = useRef(false)
-  const missingNotesRecoveryTriggeredRef = useRef(false)
   const activeNotesThreadIdRef = useRef(thread.id)
   activeNotesThreadIdRef.current = thread.id
   // The event's calendar account is available before asynchronous connection
@@ -293,10 +323,6 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     [meeting?.calendar_account_email, userEmail, userEmails],
   )
   const contextualUserEmail = meeting?.calendar_account_email?.trim() || userEmail || ''
-
-  useEffect(() => {
-    missingNotesRecoveryTriggeredRef.current = false
-  }, [thread.id])
 
   useEffect(() => {
     listWorkspaces().then(res => {
@@ -550,7 +576,11 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
 
   const buildBriefPrepDocuments = useCallback(async () => {
     if (!meeting || !contextualUserEmail) {
-      return { documents: [] as number[], sources: ['Calendar'], linkedDriveContext: '' }
+      return {
+        documents: [] as number[],
+        sources: ['Calendar'],
+        additionalDocuments: [] as Array<{ title: string; content: string }>,
+      }
     }
 
     const dataFetcher = new DataFetcher()
@@ -558,7 +588,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     const externalEmails = extractExternalEmails(contextualUserEmail, otherParticipantEmails)
     const sourceSet = new Set<string>(['Calendar'])
     const documents = new Set<number>()
-    const linkedDriveSections: string[] = []
+    const contextCandidates: Array<{ title: string; content: string; priority: number }> = []
+    const BRIEF_CONTEXT_CHAR_BUDGET = 48000
+
+    const addContextDocument = (title: string, content: unknown, limit = 12000, priority = 0) => {
+      const text = typeof content === 'string' ? content.trim() : JSON.stringify(content ?? '')
+      if (!text || text === '""' || text === '{}') return false
+      contextCandidates.push({ title, content: text.slice(0, limit), priority })
+      return true
+    }
 
     try {
       const emailDocs = (
@@ -575,7 +613,21 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       emailDocs.forEach(doc => {
         if (doc.documentId) documents.add(doc.documentId)
       })
-      if (emailDocs.length > 0) sourceSet.add('Email')
+      const usefulEmails = emailDocs
+        .filter(doc => doc.body?.trim() || doc.summary?.trim())
+        .sort((a, b) => (b.date || 0) - (a.date || 0))
+        .slice(0, 4)
+      usefulEmails.forEach(doc => addContextDocument(
+        `Email: ${doc.subject || 'Untitled'} (${doc.sender || 'unknown sender'})`,
+        [
+          doc.date ? `Date: ${new Date(doc.date > 1_000_000_000_000 ? doc.date : doc.date * 1000).toISOString()}` : '',
+          doc.summary ? `Summary: ${doc.summary}` : '',
+          doc.body || '',
+        ].filter(Boolean).join('\n'),
+        3000,
+        90,
+      ))
+      if (usefulEmails.length > 0) sourceSet.add('Email')
     } catch {
       // Briefs should still render from calendar/search context if mail search is unavailable.
     }
@@ -596,33 +648,129 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       driveDocuments.forEach(doc => {
         if (doc.documentId) documents.add(doc.documentId)
       })
-      if (driveDocuments.length > 0) sourceSet.add('Drive')
+      const usefulDriveDocuments = driveDocuments
+        .filter(doc => doc.summary?.trim() || doc.data)
+        .slice(0, 3)
+      usefulDriveDocuments.forEach(doc => addContextDocument(
+        `Drive: ${doc.title || 'Relevant file'}`,
+        doc.summary?.trim() || doc.data,
+        3000,
+        60,
+      ))
+      if (usefulDriveDocuments.length > 0) sourceSet.add('Drive')
     } catch {
       // Drive is opportunistic context; do not block the meeting surface on it.
     }
 
     const linkedDriveUrls = extractGoogleDriveLinks(meeting.description || '')
-    for (const url of linkedDriveUrls.slice(0, 3)) {
+    for (const url of linkedDriveUrls.slice(0, 2)) {
       const linkedFile = await getGoogleDriveFileText(
         url,
         Array.from(userEmailSet),
       )
       if (!linkedFile?.content.trim()) continue
-      linkedDriveSections.push(
-        `Linked file: ${linkedFile.name}\n${linkedFile.content.slice(0, 30000)}`,
-      )
+      addContextDocument(`Linked Drive file: ${linkedFile.name}`, linkedFile.content, 6000, 80)
       sourceSet.add('Drive')
     }
 
-    sourceSet.add('Previous notes')
-    if (externalDomains.length > 0) sourceSet.add('Web')
+    try {
+      const response = await fetch(`${KN_API_NOTES}/list`)
+      const body = response.ok ? await response.json() : undefined
+      const allNotes = Array.isArray(body?.data?.notes) ? body.data.notes : []
+      const excludedTerms = briefMatchTerms(`${userName || ''} ${userEmail || ''} ${contextualUserEmail}`)
+      const genericTitleTerms = new Set([
+        'meeting', 'weekly', 'bi', 'call', 'sync', 'prep', 'follow', 'update',
+        'review', 'status', 'project', 'product', 'team', 'monthly', 'quarterly',
+        'check', 'standup',
+      ])
+      const titleTerms = new Set(Array.from(briefMatchTerms(meeting.title)).filter(
+        term => !excludedTerms.has(term) && !genericTitleTerms.has(term),
+      ))
+      const participantIdentities = otherParticipants.map(participant => ({
+        email: participant.email.trim().toLowerCase(),
+        name: normalizeBriefIdentity(participant.name || ''),
+      }))
+      const meetingStart = meeting.start || Number.MAX_SAFE_INTEGER
+      const relevantNotes = allNotes
+        .filter((note: any) => Number(note.thread_id) !== thread.id && Number(note.start_time || 0) < meetingStart)
+        .map((note: any) => {
+          const metadata = `${note.filename || ''} ${parseParticipantMetadata(note.participants)}`
+          const normalizedMetadata = ` ${normalizeBriefIdentity(metadata)} `
+          const metadataEmails = briefEmails(metadata)
+          const candidateTerms = briefMatchTerms(metadata)
+          const participantMatch = participantIdentities.some(identity => (
+            (Boolean(identity.email) && metadataEmails.has(identity.email))
+            || (Boolean(identity.name) && normalizedMetadata.includes(` ${identity.name} `))
+          ))
+          const titleScore = Array.from(titleTerms).filter(term => candidateTerms.has(term)).length
+          const score = (participantMatch ? 3 : 0) + titleScore
+          return { note, participantMatch, titleScore, score }
+        })
+        .filter(({ participantMatch, titleScore }: { participantMatch: boolean; titleScore: number }) => (
+          participantMatch || titleScore >= 2
+        ))
+        .sort((a: any, b: any) => b.score - a.score || Number(b.note.start_time || 0) - Number(a.note.start_time || 0))
+        .slice(0, 3)
+
+      relevantNotes.forEach(({ note }: any) => addContextDocument(
+        `Previous meeting notes: ${note.filename || 'Meeting'}${note.start_time ? ` (${dayjs.unix(note.start_time).format('MMM D, YYYY')})` : ''}`,
+        note.content,
+        5000,
+        100,
+      ))
+      if (relevantNotes.length > 0) sourceSet.add('Previous notes')
+    } catch {
+      // Local notes are useful but should not prevent a calendar/email brief.
+    }
+
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8000)
+      const slackQueries = [
+        meeting.title || thread.subtitle || '',
+        ...otherParticipants.flatMap(participant => [participant.name || '', participant.email]),
+      ].map(query => query.trim()).filter(Boolean).slice(0, 4)
+      const slackResponse = await fetch(`${KN_SERVER_HOST}/api/clawd/service/meeting-brief/slack-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ queries: slackQueries }),
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeout))
+      const slackBody = slackResponse.ok ? await slackResponse.json() : undefined
+      const slackResults = Array.isArray(slackBody?.data?.results) ? slackBody.data.results : []
+      if (slackResults.length > 0) {
+        const perSlackResultLimit = Math.max(1, Math.floor(8000 / slackResults.length))
+        let addedSlackContext = false
+        slackResults.forEach((result: unknown, index: number) => {
+          addedSlackContext = addContextDocument(
+            `Recent Slack context ${index + 1}`,
+            result,
+            perSlackResultLimit,
+            85,
+          ) || addedSlackContext
+        })
+        if (addedSlackContext) sourceSet.add('Slack')
+      }
+    } catch {
+      // Slack context is opportunistic and has a short timeout so prep remains responsive.
+    }
+
+    let remainingContextChars = BRIEF_CONTEXT_CHAR_BUDGET
+    const additionalDocuments = contextCandidates
+      .sort((a, b) => b.priority - a.priority)
+      .flatMap(({ title, content }) => {
+        if (remainingContextChars <= 0) return []
+        const boundedContent = content.slice(0, remainingContextChars)
+        remainingContextChars -= boundedContent.length
+        return boundedContent ? [{ title, content: boundedContent }] : []
+      })
 
     return {
       documents: Array.from(documents).slice(0, 12),
       sources: Array.from(sourceSet),
-      linkedDriveContext: linkedDriveSections.join('\n\n'),
+      additionalDocuments,
     }
-  }, [contextualUserEmail, externalDomains.length, meeting, otherParticipantEmails, userEmailSet])
+  }, [contextualUserEmail, meeting, otherParticipantEmails, otherParticipants, thread.id, thread.subtitle, userEmail, userEmailSet, userName])
 
   useEffect(() => {
     if (!showCalendarPicker && !showAttendeePicker) return
@@ -983,8 +1131,10 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     briefPrepTriggeredRef.current = true
     setIsBriefPrepGenerating(true)
     setBriefPrepSources(['Calendar'])
-    // Safety timeout: if the gateway doesn't respond within 30s, clear the spinner
-    const briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
+    let briefPrepTimeout: ReturnType<typeof setTimeout> | undefined
+    let contextGatherTimeout: ReturnType<typeof setTimeout> | undefined
+    let disposed = false
+    let requestQueued = false
     const participantList = meeting.participants
       .map(p => {
         const participant = p.name ? `${p.name} (${p.email})` : p.email
@@ -999,22 +1149,37 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       : 'unknown time'
     const cleanedDescription = descriptionForPrompt(meeting.description || '')
     const desc = cleanedDescription ? ` Context: ${cleanedDescription}.` : ''
-    buildBriefPrepDocuments().then(({ documents, sources, linkedDriveContext }) => {
+    const contextGatherDeadline = new Promise<Awaited<ReturnType<typeof buildBriefPrepDocuments>>>((resolve) => {
+      contextGatherTimeout = setTimeout(
+        () => resolve({ documents: [], sources: ['Calendar'], additionalDocuments: [] }),
+        15000,
+      )
+    })
+    Promise.race([buildBriefPrepDocuments(), contextGatherDeadline]).then(({ documents, sources, additionalDocuments }) => {
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
+      if (disposed) return
       if (sources.length > 0) setBriefPrepSources(sources)
+      // Context collection has its own bounded operations. Start the generation
+      // deadline only once the request is actually queued so enrichment cannot
+      // consume the model's response window.
+      briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
+      requestQueued = true
       addToLLMQueue({
         prompt: `You are preparing ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''} for a meeting. Always write to this user as "you". Do not treat the user as an external customer, prospect, vendor, or attendee to research.
 
 Use the provided calendar details, prior notes, email, drive, and semantic-search context when available.
 
-Write a concise meeting brief in markdown with no preamble and exactly this structure:
+Write a concise but evidence-rich executive meeting brief in markdown with no preamble and exactly this structure:
 
-**Why this meeting matters:** one sharp sentence from the user's point of view.
+**Executive read:** 2-3 sharp sentences explaining why the meeting matters now, what changed recently, and the likely decision or outcome. Ground every claim in the supplied evidence.
 
-**Open threads:** 2-3 bullets about commitments, unresolved topics, recent interactions, or likely stakes for the user. If context is thin, say what is known from the calendar instead of inventing.
+**Since the last touchpoint:** 2-4 bullets with concrete recent developments, decisions, or commitments. Include names, dates, numbers, and document or channel names when the evidence contains them.
 
-**People to know:** 1-3 bullets naming attendees other than the user and what the user should remember about them.
+**Open loops:** 2-4 bullets stating the unresolved question, owner, and next milestone or deadline when known.
 
-**Best move:** one direct recommendation for how the user should approach the conversation.
+**People and posture:** 1-3 bullets naming attendees other than the user, their role in the topic, and the stance or ask most likely to move the conversation forward.
+
+**Best move:** one direct recommendation followed by 2-3 specific questions the user should ask.
 
 Meeting: ${meeting.title || thread.subtitle || 'Meeting'}
 Time: ${startTime}
@@ -1023,10 +1188,8 @@ User email identities: ${Array.from(userEmailSet).join(', ') || 'unknown'}
 All participants: ${participantList}
 Participants other than the user: ${otherParticipantList || 'unknown'}${desc}
 External domains: ${externalDomains.join(', ') || 'none'}
-Linked Google Drive content (authoritative when present):
-${linkedDriveContext || 'No linked file content could be read.'}
 
-Be specific, compact, and useful while the user is joining the call. Never print raw calendar URLs; refer to them by a readable label such as "the linked management sheet".`,
+Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence base. Prefer the newest evidence when sources conflict. Do not waste space saying that context is unavailable, repeat calendar logistics as an open thread, or invent facts. If evidence is genuinely sparse, provide one short **Context gap:** line at the end naming the single highest-value missing input. Never print raw URLs; refer to files and channels by readable names.`,
         semanticSearchQuery: [
           meeting.title || thread.subtitle || 'meeting',
           otherParticipantList || participantList,
@@ -1035,23 +1198,34 @@ Be specific, compact, and useful while the user is joining the call. Never print
           'previous meeting notes recent email open threads agenda action items',
         ].filter(Boolean).join(' '),
         documents,
+        additionalDocuments,
         messageStreamCallback: (chunk) => setBriefPrepContent(prev => prev + chunk),
         messageFinishCallback: async (response) => {
-          clearTimeout(briefPrepTimeout)
+          if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
           setBriefPrepContent(response)
           setIsBriefPrepGenerating(false)
           return undefined
         },
         errorCallback: () => {
-          clearTimeout(briefPrepTimeout)
+          if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
           setIsBriefPrepGenerating(false)
         },
       })
     }).catch(() => {
-      clearTimeout(briefPrepTimeout)
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
+      if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
+      if (disposed) return
       setIsBriefPrepGenerating(false)
     })
-    return () => clearTimeout(briefPrepTimeout)
+    return () => {
+      disposed = true
+      // Dependency changes before the request is queued abandon this attempt.
+      // Let the replacement effect start with the now-current identity/calendar
+      // context instead of leaving the meeting permanently marked as triggered.
+      if (!requestQueued) briefPrepTriggeredRef.current = false
+      if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
+      if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
+    }
   }, [
     meeting?.event_id,
     buildBriefPrepDocuments,
@@ -1105,27 +1279,10 @@ Be specific, compact, and useful while the user is joining the call. Never print
         } else {
           setMarkdown('')
           editor?.commands.setContent('')
-          // A successful automatic stop can finish while the newly opened
-          // meeting view is still restoring its recording state. Older builds
-          // could therefore save the transcript without ever queuing synthesis.
-          // Recover those meetings once when they are opened instead of leaving
-          // a permanently blank summary.
-          if (
-            thread.recorded &&
-            thread.savedTranscript &&
-            !recordingHandlers.isLoadingNotes(thread.id) &&
-            !isLLMLoading &&
-            !missingNotesRecoveryTriggeredRef.current
-          ) {
-            missingNotesRecoveryTriggeredRef.current = true
-            void recordingHandlers.generateNotes(
-              thread.id,
-              synthesizeContent,
-              saveNotes,
-              '',
-              meeting,
-            )
-          }
+          // Opening a completed meeting is read-only. Note synthesis belongs to
+          // the stop-recording flow (or an explicit regenerate action), never a
+          // navigation side effect: otherwise every visit can spend tokens and
+          // overwrite notes when the notes endpoint is temporarily stale.
           return null
         }
       }
@@ -1451,25 +1608,27 @@ Be specific, compact, and useful while the user is joining the call. Never print
               </div>
             </div>
           </div>
-          {/* End-of-meeting progress */}
-          {isEndingMeetingState && (
-            <div className="notetaker-note__post-meeting-banner">
-              <div className="notetaker-note__post-meeting-line">
-                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
-                  <span style={{ animationDelay: '0ms' }} />
-                  <span style={{ animationDelay: '150ms' }} />
-                  <span style={{ animationDelay: '300ms' }} />
-                  <span style={{ animationDelay: '450ms' }} />
-                </span>
-                {endingMeetingStatusText}
+          {/* Keep one progress surface in the document while the editor loads. */}
+          {showNotesProcessing ? (
+            <section className="notetaker-note__processing" aria-busy="true" aria-live="polite">
+              <div className="notetaker-note__processing-header">
+                <span className="notetaker-note__processing-spinner" aria-hidden="true" />
+                <div>
+                  <strong>{endingMeetingStatusText}</strong>
+                  <span>The first lines will appear here shortly.</span>
+                </div>
               </div>
-              <p className="notetaker-note__post-meeting-subtext">
-                Your notes are being finalized. This should only take a moment.
-              </p>
-            </div>
-          )}
-          {/* Loading skeleton */}
-          {!recordingHandlers.isRecording(thread.id) && (
+              <div className="notetaker-note__processing-track" aria-hidden="true">
+                <span />
+              </div>
+              <div className="notetaker-note__processing-placeholder" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
+            </section>
+          ) : !recordingHandlers.isRecording(thread.id) && (
             <div className="mt-6 space-y-3 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-3/4" />
               <div className="h-4 bg-gray-200 rounded w-1/2" />
@@ -1806,30 +1965,8 @@ Be direct, specific, and concise. No filler text.`
                   isPaused={recordingHandlers.isPaused}
                 />
               )}
-              {isSynthesizing() && !isEndingMeetingState && !synthTimedOut && (
-                <div className="notetaker-note__processing-pill" role="status" aria-live="polite">
-                  <span className="notetaker-note__processing-spinner" aria-hidden="true" />
-                  {endingMeetingStatusText}
-                </div>
-              )}
             </div>
           </div>
-          {isEndingMeetingState && (
-            <div className="notetaker-note__post-meeting-banner">
-              <div className="notetaker-note__post-meeting-line">
-                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
-                  <span style={{ animationDelay: '0ms' }} />
-                  <span style={{ animationDelay: '150ms' }} />
-                  <span style={{ animationDelay: '300ms' }} />
-                  <span style={{ animationDelay: '450ms' }} />
-                </span>
-                {endingMeetingStatusText}
-              </div>
-              <p className="notetaker-note__post-meeting-subtext">
-                Your notes are being finalized. This should only take a moment.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Recording notice */}
@@ -2372,55 +2509,41 @@ Be direct, specific, and concise. No filler text.`
           </>
         ) : (
           <>
-            {isEndingMeetingState ? (
-              <span className="notetaker-note__post-meeting-line">
-                <span className="notetaker-note__post-meeting-wave" aria-hidden="true">
-                  <span style={{ animationDelay: '0ms' }} />
-                  <span style={{ animationDelay: '150ms' }} />
-                  <span style={{ animationDelay: '300ms' }} />
-                  <span style={{ animationDelay: '450ms' }} />
-                </span>
-                {endingMeetingStatusText}
-              </span>
-            ) : (
-              <>
-                {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="8" x2="4" y2="16" />
-                    <line x1="8" y1="5" x2="8" y2="19" />
-                    <line x1="12" y1="2" x2="12" y2="22" />
-                    <line x1="16" y1="5" x2="16" y2="19" />
-                    <line x1="20" y1="8" x2="20" y2="16" />
-                  </svg>
-                </button>}
-                {!isMeetingChatOpen && <div
-                  className="notetaker-note__bottom-chat"
-                  onClick={openMeetingChat}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <input
-                    type="text"
-                    placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
-                    className="notetaker-note__bottom-chat-input"
-                    readOnly
-                    style={{ cursor: 'pointer' }}
-                  />
-                </div>}
-                {thread.recorded && (
-                  <button
-                    className="notetaker-note__bottom-action"
-                    onClick={() => onEmailClick?.(notesMarkdown, meeting)}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
-                      <path d="M9 13h6" />
-                      <path d="M9 17h3" />
-                      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                    </svg>
-                    Write follow up email
-                  </button>
-                )}
-              </>
+            {!isMeetingChatOpen && <button className="notetaker-note__bottom-audio" title="Audio waveform">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="8" x2="4" y2="16" />
+                <line x1="8" y1="5" x2="8" y2="19" />
+                <line x1="12" y1="2" x2="12" y2="22" />
+                <line x1="16" y1="5" x2="16" y2="19" />
+                <line x1="20" y1="8" x2="20" y2="16" />
+              </svg>
+              </button>}
+            {!isMeetingChatOpen && <div
+              className="notetaker-note__bottom-chat"
+              onClick={openMeetingChat}
+              style={{ cursor: 'pointer' }}
+            >
+              <input
+                type="text"
+                placeholder={hasStoredMeetingChat ? 'Continue meeting chat' : 'Ask about this meeting'}
+                className="notetaker-note__bottom-chat-input"
+                readOnly
+                style={{ cursor: 'pointer' }}
+              />
+            </div>}
+            {thread.recorded && (
+              <button
+                className="notetaker-note__bottom-action"
+                onClick={() => onEmailClick?.(notesMarkdown, meeting)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.342a2 2 0 0 0-.602-1.43l-4.44-4.342A2 2 0 0 0 13.56 2H6a2 2 0 0 0-2 2z" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h3" />
+                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                </svg>
+                Write follow up email
+              </button>
             )}
           </>
         )}

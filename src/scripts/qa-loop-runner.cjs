@@ -758,6 +758,49 @@ function parseListenerPids(output) {
     .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid))];
 }
 
+function isProtectedInstalledKnapsackProcess(commandLine) {
+  const command = String(commandLine || "").replace(/\\/g, "/").toLowerCase();
+  return command.includes("/applications/knapsack.app/contents/macos/knapsack")
+    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command)
+    || /\/appdata\/local\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command);
+}
+
+function posixProcessCommandLine(pid) {
+  const result = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+    encoding: "utf8",
+  });
+  return result.status === 0 ? String(result.stdout || "").trim() : "";
+}
+
+function windowsProcessCommandLine(pid) {
+  const result = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${Number(pid)}\").CommandLine`,
+    ],
+    { encoding: "utf8", windowsHide: true },
+  );
+  return result.status === 0 ? String(result.stdout || "").trim() : "";
+}
+
+function assertNoInstalledKnapsackListeners(pids) {
+  const commandLineForPid = process.platform === "win32"
+    ? windowsProcessCommandLine
+    : posixProcessCommandLine;
+  const protectedPids = [...pids].filter((pid) =>
+    isProtectedInstalledKnapsackProcess(commandLineForPid(pid))
+  );
+  if (protectedPids.length > 0) {
+    throw new Error(
+      `QA cannot start while the installed Knapsack app owns a required local port (PID ${protectedPids.join(", ")}). `
+      + "Quit production Knapsack first; QA will never terminate it automatically.",
+    );
+  }
+}
+
 function killPosixPortListeners(ports) {
   const pids = new Set();
   for (const port of ports) {
@@ -768,6 +811,7 @@ function killPosixPortListeners(ports) {
     );
     for (const pid of parseListenerPids(result.stdout)) pids.add(pid);
   }
+  assertNoInstalledKnapsackListeners(pids);
   for (const pid of pids) {
     try {
       process.kill(pid, "SIGTERM");
@@ -955,31 +999,34 @@ function summarizeStartupState(payload) {
 
 function killWindowsPortListeners(ports) {
   if (process.platform !== "win32") return;
+  let out;
   try {
-    const out = require("node:child_process")
+    out = require("node:child_process")
       .execSync("netstat -ano -p tcp")
       .toString("utf8");
-    const wanted = new Set(String(ports).split(","));
-    const pids = new Set();
-    for (const line of out.split(/\r?\n/)) {
-      if (!/LISTENING/i.test(line)) continue;
-      const parts = line.trim().split(/\s+/);
-      const local = parts[1] || "";
-      const pid = Number(parts[parts.length - 1]);
-      const port = String(local.split(":").pop());
-      if (wanted.has(port) && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
-        pids.add(pid);
-      }
-    }
-    for (const pid of pids) {
-      try {
-        require("node:child_process").spawnSync("taskkill", ["/PID", String(pid), "/F", "/T"]);
-      } catch {
-        // best effort
-      }
-    }
   } catch {
-    // ignore
+    // Listener discovery is best effort; an installed-app match below is not.
+    return;
+  }
+  const wanted = new Set(String(ports).split(","));
+  const pids = new Set();
+  for (const line of out.split(/\r?\n/)) {
+    if (!/LISTENING/i.test(line)) continue;
+    const parts = line.trim().split(/\s+/);
+    const local = parts[1] || "";
+    const pid = Number(parts[parts.length - 1]);
+    const port = String(local.split(":").pop());
+    if (wanted.has(port) && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+      pids.add(pid);
+    }
+  }
+  assertNoInstalledKnapsackListeners(pids);
+  for (const pid of pids) {
+    try {
+      require("node:child_process").spawnSync("taskkill", ["/PID", String(pid), "/F", "/T"]);
+    } catch {
+      // best effort
+    }
   }
 }
 
@@ -2736,6 +2783,7 @@ module.exports = {
   hasBrokenAgentCapabilityReply,
   lastSuccessfulChatCheck,
   localApiHeaders,
+  isProtectedInstalledKnapsackProcess,
   providerSwitchAppliedButStillStarting,
   parseListenerPids,
   qaSetProviderTimeoutMs,
