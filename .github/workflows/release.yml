@@ -762,13 +762,36 @@ jobs:
           echo "[release] Files to upload:"
           ls -lh release-files/
 
-      - name: Create GitHub Release
+      - name: Stage and publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.bump-version.outputs.tag }}
         run: |
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            release-files/* 2>/dev/null \
-          || gh release upload "$TAG" release-files/* --clobber
+          set -euo pipefail
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            IS_DRAFT=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "[release] $TAG is already published; verifying immutable assets."
+              PUBLISHED_ASSETS=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+              for file in release-files/*; do
+                name=$(basename "$file")
+                if ! grep -Fxq "$name" <<<"$PUBLISHED_ASSETS"; then
+                  echo "Published immutable release is missing asset: $name" >&2
+                  exit 1
+                fi
+              done
+              exit 0
+            fi
+            echo "[release] Reusing existing draft for $TAG."
+          else
+            # Immutable releases cannot accept assets after publication. Create
+            # a draft first, upload everything, then publish in one final step.
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              --draft
+          fi
+
+          gh release upload "$TAG" release-files/* --clobber
+          gh release edit "$TAG" --draft=false
