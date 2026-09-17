@@ -60,8 +60,9 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   assert.match(actix, /service\(clawd::service::meeting_brief_slack_search\)/);
   assert.match(
     meeting,
-    /participantScore > 0 \|\| titleScore >= 2/,
+    /participantMatch \|\| titleScore >= 2/,
   );
+  assert.match(meeting, /normalizeBriefIdentity[\s\S]*?lowerMetadata\.includes\(identity\.email\)[\s\S]*?normalizedMetadata\.includes/);
   assert.match(meeting, /setTimeout\(\(\) => controller\.abort\(\), 8000\)/);
   assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
   assert.match(meeting, /BRIEF_CONTEXT_CHAR_BUDGET = 48000/);
@@ -74,6 +75,10 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
     /skipping unavailable Slack workspace[\s\S]*?continue;[\s\S]*?Slack search failed for one query[\s\S]*?continue;/,
   );
   assert.match(studio, /deadline = Instant::now\(\) \+ Duration::from_secs\(7\)/);
+  assert.match(
+    studio,
+    /deadline = Instant::now\(\) \+ Duration::from_secs\(7\);[\s\S]*?connected_connectors\(\)/,
+  );
   assert.match(
     studio,
     /checked_duration_since\(Instant::now\(\)\)[\s\S]*?return Ok\(json!\(\{ "results": results \}\)\)/,

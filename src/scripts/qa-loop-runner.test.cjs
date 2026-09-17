@@ -40,6 +40,12 @@ test("QA port cleanup protects installed production Knapsack processes", () => {
   );
   assert.equal(
     isProtectedInstalledKnapsackProcess(
+      "C:\\Users\\Mark\\AppData\\Local\\Knapsack\\Knapsack.exe",
+    ),
+    true,
+  );
+  assert.equal(
+    isProtectedInstalledKnapsackProcess(
       "/private/tmp/knapsack/src/src-tauri/target/debug/knapsack",
     ),
     false,

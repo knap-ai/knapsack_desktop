@@ -314,12 +314,16 @@ async fn connected_connectors() -> Result<Vec<Value>, String> {
 /// involving a model or exposing a general connector execution surface.
 /// Only exact, known read-only Composio actions can pass this allowlist.
 pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result<Value, String> {
-  let connectors = connected_connectors().await?;
   let mut results = Vec::new();
   // Return accumulated evidence before the route's outer 8-second safety
   // timeout can discard it. Each connector operation receives only the
   // remaining portion of this internal budget.
   let deadline = Instant::now() + Duration::from_secs(7);
+  let connectors = match tokio::time::timeout(Duration::from_secs(7), connected_connectors()).await
+  {
+    Ok(connectors) => connectors?,
+    Err(_) => return Ok(json!({ "results": results })),
+  };
 
   for connector in connectors {
     let Some(connector_id) = connector.get("id").and_then(Value::as_str) else {

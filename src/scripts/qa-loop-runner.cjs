@@ -761,7 +761,8 @@ function parseListenerPids(output) {
 function isProtectedInstalledKnapsackProcess(commandLine) {
   const command = String(commandLine || "").replace(/\\/g, "/").toLowerCase();
   return command.includes("/applications/knapsack.app/contents/macos/knapsack")
-    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command);
+    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command)
+    || /\/appdata\/local\/knapsack\/.*knapsack\.exe(?:\s|$)/.test(command);
 }
 
 function posixProcessCommandLine(pid) {

@@ -90,6 +90,12 @@ const briefMatchTerms = (value = '') => new Set(
     .filter(term => term.length > 2),
 )
 
+const normalizeBriefIdentity = (value = '') => value
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+
 const parseParticipantMetadata = (value: unknown): string => {
   if (typeof value !== 'string') return ''
   try {
@@ -675,22 +681,28 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       const titleTerms = new Set(Array.from(briefMatchTerms(meeting.title)).filter(
         term => !excludedTerms.has(term) && !genericTitleTerms.has(term),
       ))
-      const participantTerms = new Set(Array.from(briefMatchTerms(
-        otherParticipants.flatMap(participant => [participant.name || '', participant.email]).join(' '),
-      )).filter(term => !excludedTerms.has(term)))
+      const participantIdentities = otherParticipants.map(participant => ({
+        email: participant.email.trim().toLowerCase(),
+        name: normalizeBriefIdentity(participant.name || ''),
+      }))
       const meetingStart = meeting.start || Number.MAX_SAFE_INTEGER
       const relevantNotes = allNotes
         .filter((note: any) => Number(note.thread_id) !== thread.id && Number(note.start_time || 0) < meetingStart)
         .map((note: any) => {
           const metadata = `${note.filename || ''} ${parseParticipantMetadata(note.participants)}`
+          const normalizedMetadata = ` ${normalizeBriefIdentity(metadata)} `
+          const lowerMetadata = metadata.toLowerCase()
           const candidateTerms = briefMatchTerms(metadata)
-          const participantScore = Array.from(participantTerms).filter(term => candidateTerms.has(term)).length * 3
+          const participantMatch = participantIdentities.some(identity => (
+            (Boolean(identity.email) && lowerMetadata.includes(identity.email))
+            || (Boolean(identity.name) && normalizedMetadata.includes(` ${identity.name} `))
+          ))
           const titleScore = Array.from(titleTerms).filter(term => candidateTerms.has(term)).length
-          const score = participantScore + titleScore
-          return { note, participantScore, titleScore, score }
+          const score = (participantMatch ? 3 : 0) + titleScore
+          return { note, participantMatch, titleScore, score }
         })
-        .filter(({ participantScore, titleScore }: { participantScore: number; titleScore: number }) => (
-          participantScore > 0 || titleScore >= 2
+        .filter(({ participantMatch, titleScore }: { participantMatch: boolean; titleScore: number }) => (
+          participantMatch || titleScore >= 2
         ))
         .sort((a: any, b: any) => b.score - a.score || Number(b.note.start_time || 0) - Number(a.note.start_time || 0))
         .slice(0, 3)
