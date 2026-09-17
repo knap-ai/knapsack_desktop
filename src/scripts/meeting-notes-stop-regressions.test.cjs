@@ -26,21 +26,28 @@ test('a backend-confirmed automatic stop queues meeting-note synthesis', () => {
   assert.doesNotMatch(source, /if \(wasRecording && stopSucceeded\) \{\s*await generateNotes/)
 })
 
-test('recorded meetings with a saved transcript recover missing notes once', () => {
+test('opening a recorded meeting never regenerates notes as a navigation side effect', () => {
   const source = fs.readFileSync(meetingNotesModePath, 'utf8')
   const notesApiSource = fs.readFileSync(notesApiPath, 'utf8')
 
-  assert.match(source, /const missingNotesRecoveryTriggeredRef = useRef\(false\)/)
-  assert.match(
-    source,
-    /missingNotesRecoveryTriggeredRef\.current = false\s*\n\s*}, \[thread\.id\]\)/,
-  )
-  assert.match(
-    source,
-    /const notesExist = data\?\.data\?\.exists === true[\s\S]*?if \(notesExist\)[\s\S]*?thread\.recorded &&[\s\S]*?thread\.savedTranscript &&[\s\S]*?!missingNotesRecoveryTriggeredRef\.current[\s\S]*?missingNotesRecoveryTriggeredRef\.current = true[\s\S]*?recordingHandlers\.generateNotes\(/,
-  )
+  const fetchNotesBody = source.match(/const fetchNotes = async[\s\S]*?\n  const checkTranscriptSaved = async/)?.[0] || ''
+  assert.match(fetchNotesBody, /const notesExist = data\?\.data\?\.exists === true/)
+  assert.doesNotMatch(fetchNotesBody, /generateNotes\(/)
+  assert.doesNotMatch(source, /missingNotesRecoveryTriggeredRef/)
   assert.match(notesApiSource, /struct GetNotesResponse \{[\s\S]*?exists: bool/)
   assert.match(notesApiSource, /let exists = notes\.is_some\(\)/)
+})
+
+test('note generation exposes one inline progress treatment', () => {
+  const source = fs.readFileSync(meetingNotesModePath, 'utf8')
+  const styles = fs.readFileSync(path.resolve(__dirname, '..', 'src/main.css'), 'utf8')
+
+  assert.doesNotMatch(source, /notetaker-note__post-meeting-banner/)
+  assert.doesNotMatch(source, /notetaker-note__processing-pill/)
+  assert.doesNotMatch(styles, /notetaker-note__post-meeting-banner/)
+  assert.doesNotMatch(styles, /notetaker-note__processing-pill/)
+  assert.match(source, /Stream synthesized notes into the page as they arrive/)
+  assert.match(source, /notetaker-note__processing/)
 })
 
 test('meeting brief collapses when note generation begins', () => {

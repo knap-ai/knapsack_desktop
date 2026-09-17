@@ -32,12 +32,27 @@ test("meeting briefs fetch calendar-linked Google files through connected identi
   );
   assert.match(
     meeting,
-    /Linked Google Drive content \(authoritative when present\)/,
+    /addContextDocument\(`Linked Drive file: \$\{linkedFile\.name\}`/,
   );
   assert.match(
     dataSource,
     /for \(const email of Array\.from\(new Set\(accountEmails\.filter\(Boolean\)\)\)\)/,
   );
+});
+
+test("meeting briefs use concrete multi-source evidence and honest source badges", () => {
+  const meeting = read("src/components/organisms/MeetingNotesMode/index.tsx");
+
+  assert.match(meeting, /usefulEmails\.forEach[\s\S]*?addContextDocument/);
+  assert.match(meeting, /usefulDriveDocuments\.forEach[\s\S]*?addContextDocument/);
+  assert.match(meeting, /fetch\(`\$\{KN_API_NOTES\}\/list`\)/);
+  assert.match(meeting, /sourceSet\.add\('Previous notes'\)/);
+  assert.match(meeting, /\/api\/clawd\/agent-chat/);
+  assert.match(meeting, /Do not send, react, edit, or modify anything/);
+  assert.match(meeting, /sourceSet\.add\('Slack'\)/);
+  assert.match(meeting, /additionalDocuments,/);
+  assert.match(meeting, /concise but evidence-rich executive meeting brief/);
+  assert.doesNotMatch(meeting, /sourceSet\.add\('Web'\)/);
 });
 
 test("meeting identity is available from the calendar event before connections load", () => {
