@@ -1093,6 +1093,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
     let briefPrepTimeout: ReturnType<typeof setTimeout> | undefined
     let contextGatherTimeout: ReturnType<typeof setTimeout> | undefined
     let disposed = false
+    let requestQueued = false
     const participantList = meeting.participants
       .map(p => {
         const participant = p.name ? `${p.name} (${p.email})` : p.email
@@ -1121,6 +1122,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       // deadline only once the request is actually queued so enrichment cannot
       // consume the model's response window.
       briefPrepTimeout = setTimeout(() => setIsBriefPrepGenerating(false), 30000)
+      requestQueued = true
       addToLLMQueue({
         prompt: `You are preparing ${userName || 'the signed-in user'}${userEmail ? ` (${userEmail})` : ''} for a meeting. Always write to this user as "you". Do not treat the user as an external customer, prospect, vendor, or attendee to research.
 
@@ -1171,10 +1173,15 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }).catch(() => {
       if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
       if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
+      if (disposed) return
       setIsBriefPrepGenerating(false)
     })
     return () => {
       disposed = true
+      // Dependency changes before the request is queued abandon this attempt.
+      // Let the replacement effect start with the now-current identity/calendar
+      // context instead of leaving the meeting permanently marked as triggered.
+      if (!requestQueued) briefPrepTriggeredRef.current = false
       if (contextGatherTimeout) clearTimeout(contextGatherTimeout)
       if (briefPrepTimeout) clearTimeout(briefPrepTimeout)
     }

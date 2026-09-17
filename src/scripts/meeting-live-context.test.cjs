@@ -66,6 +66,10 @@ test("meeting briefs use concrete multi-source evidence and honest source badges
   assert.match(meeting, /contextGatherTimeout = setTimeout[\s\S]*?15000/);
   assert.match(
     meeting,
+    /let requestQueued = false[\s\S]*?requestQueued = true[\s\S]*?if \(!requestQueued\) briefPrepTriggeredRef\.current = false/,
+  );
+  assert.match(
+    meeting,
     /Promise\.race\(\[buildBriefPrepDocuments\(\), contextGatherDeadline\]\)\.then[\s\S]*?briefPrepTimeout = setTimeout/,
   );
   assert.match(meeting, /additionalDocuments,/);
