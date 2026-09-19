@@ -123,6 +123,12 @@ test('meeting chat handle resizes, toggles, and persists panel height', () => {
   assert.match(styles, /\.notetaker-note__chat-overlay--resizing/)
 })
 
+test('inline meeting chat owns the visible recording surface', () => {
+  const notes = source('components/organisms/MeetingNotesMode/index.tsx')
+  assert.match(notes, /isMeetingRecording && !isMeetingChatOpen\s*\? 'show_recording_indicator'\s*:\s*'hide_recording_indicator'/)
+  assert.match(notes, /void invoke\(command\)\.catch\(\(\) => \{\}\)/)
+})
+
 test('meeting follow-up actions visibly expand and reliably refill Scout', () => {
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   const chat = source('components/organisms/ClawdChat/index.tsx')

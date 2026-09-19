@@ -262,6 +262,17 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+
+  // The native recording pill is useful when Knapsack is in the background,
+  // but it must not float over the active in-app meeting chat. The meeting
+  // footer remains the single recording control while this overlay is open.
+  useEffect(() => {
+    const command = isMeetingRecording && !isMeetingChatOpen
+      ? 'show_recording_indicator'
+      : 'hide_recording_indicator'
+    void invoke(command).catch(() => {})
+  }, [isMeetingChatOpen, isMeetingRecording])
+
   const [meetingChatHeight, setMeetingChatHeight] = useState(initialMeetingChatHeight)
   const meetingChatHeightRef = useRef(meetingChatHeight)
   const meetingChatResizeRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
