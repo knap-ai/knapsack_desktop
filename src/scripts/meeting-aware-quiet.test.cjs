@@ -73,6 +73,13 @@ test('users get a cancellable heads-up and existing recording controls remain au
   assert.match(app, /listen\('stop_recording',[\s\S]*?setMeetingQuietMode\(false\)/)
 })
 
+test('a pre-recording heads-up cannot remain visible after recording begins', () => {
+  assert.match(
+    app,
+    /if \(!isAnyRecording\) return\s*setMeetingCaptureNotice\(current => current\?\.phase === 'ready' \? null : current\)/,
+  )
+})
+
 test('meeting capture silences voice without losing the user voice preference', () => {
   assert.match(chat, /knapsack-meeting-quiet-mode/)
   assert.match(chat, /resumeVoiceAfterMeetingRef\.current = voiceEnabled \|\| voiceSessionOpen/)

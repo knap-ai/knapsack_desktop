@@ -1428,6 +1428,14 @@ function App() {
     }
   }, [isAnyRecording, setMeetingQuietMode])
 
+  // A heads-up belongs to the pre-recording state only. Manual recording can
+  // begin while a nearby calendar event is still showing its cancellable
+  // prompt, so clear that prompt as soon as any recording becomes active.
+  useEffect(() => {
+    if (!isAnyRecording) return
+    setMeetingCaptureNotice(current => current?.phase === 'ready' ? null : current)
+  }, [isAnyRecording])
+
   useEffect(() => {
     if (meetingCaptureNotice?.phase !== 'recording') return
     const timeout = window.setTimeout(() => setMeetingCaptureNotice(null), 6500)
