@@ -117,13 +117,17 @@ struct StoredTokens {
   trustedrouter_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
-  // Ollama (local LLM) support
+  // Ollama local/Cloud support (kept in sync with service.rs tokens.json).
   #[serde(default)]
   ollama_enabled: Option<bool>,
   #[serde(default)]
   ollama_model: Option<String>,
   #[serde(default)]
   ollama_base_url: Option<String>,
+  #[serde(default)]
+  ollama_cloud_enabled: Option<bool>,
+  #[serde(default)]
+  ollama_cloud_api_key: Option<String>,
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
   #[serde(default)]
@@ -217,6 +221,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
+    ollama_cloud_enabled: None,
+    ollama_cloud_api_key: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
     knapsack_email: None,
