@@ -151,6 +151,27 @@ test('organic investment research intent keeps the standard onboarding', async (
   assert.equal(api.getPaidStarter(), null)
 })
 
+test('paid privacy variants carry experiment metadata and a safe starter', async () => {
+  const { api, storage } = await loadModule()
+  const intent = api.parseDeepLink(
+    'knapsack://onboard?role=privacy-lawyer&gclid=privacy-click&utm_source=google&utm_medium=cpc',
+  )
+  storage.set('ks_onboarding_intent', JSON.stringify(intent))
+
+  assert.equal(api.isPrivacyExperimentIntent(), true)
+  assert.equal(api.getPrivacyExperimentTrackingId(), 'privacy-click')
+  assert.equal(api.getPrivacyExperimentWeek(), 0)
+  assert.deepEqual(
+    {
+      experiment_id: api.getOnboardingAnalyticsProps().experiment_id,
+      landing_variant: api.getOnboardingAnalyticsProps().landing_variant,
+    },
+    { experiment_id: 'privacy-openclaw-2026-09', landing_variant: 'lawyer' },
+  )
+  assert.match(api.getPaidStarter().prompt, /non-sensitive material/i)
+  assert.match(api.getPaidStarter().prompt, /do not claim/i)
+})
+
 test('cold-start protocol URL is consumed from the initial process argument', async () => {
   const initialUrl =
     'knapsack://onboard?role=investment-research-analyst&gclid=cold-start-click'

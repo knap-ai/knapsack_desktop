@@ -20,6 +20,8 @@ const ACTIVATION_TRACKED_KEY = 'ks_paid_activation_tracked'
 const MAX_TRACKED_ACTIVATIONS = 20
 const activationTrackingInFlight = new Set<string>()
 const PAID_STARTER_KEY = 'ks_paid_starter'
+export const PRIVACY_EXPERIMENT_ID = 'privacy-openclaw-2026-09'
+const PRIVACY_ROLES = new Set(['privacy-advisor', 'privacy-lawyer'])
 export const ONBOARDING_INTENT_EVENT = 'knapsack-onboarding-intent'
 
 /** Landing-page role slug -> agent template id in agentTemplates.ts. */
@@ -86,6 +88,16 @@ export interface PaidStarter {
 }
 
 const PAID_STARTERS: Record<string, Omit<PaidStarter, 'role'>> = {
+  'privacy-advisor': {
+    title: 'Private OpenClaw for Advisors',
+    prompt:
+      'Help me test one narrow, client-safe workflow. Ask me to connect an approved email or calendar account, or attach a non-sensitive sample file. Then use only that source to produce a factual meeting brief or follow-up draft. Do not give investment advice.',
+  },
+  'privacy-lawyer': {
+    title: 'Private OpenClaw for Lawyers',
+    prompt:
+      'Help me test one narrow legal workflow with non-sensitive material. Ask me to attach an approved sample document or use an approved connected source, then create a factual summary, issue list, or draft for attorney review. Do not claim that using the tool preserves privilege or satisfies a firm security policy.',
+  },
   'investment-research-analyst': {
     title: 'Investment Research Analyst',
     prompt:
@@ -181,10 +193,15 @@ export function isPaidOnboardingIntent(intent: OnboardingIntent | null): boolean
   )
 }
 
+export function isPrivacyExperimentIntent(intent: OnboardingIntent | null = read()): boolean {
+  return Boolean(intent?.role && PRIVACY_ROLES.has(intent.role) && isPaidOnboardingIntent(intent))
+}
+
 export function getOnboardingAnalyticsProps(
   intent: OnboardingIntent | null = read(),
 ): Record<string, string | number> {
   if (!intent) return {}
+  const privacyVariant = intent.role?.replace(/^privacy-/, '')
   return {
     ...(intent.role ? { role: intent.role } : {}),
     ...(intent.attrId ? { attr_id: intent.attrId } : {}),
@@ -192,8 +209,23 @@ export function getOnboardingAnalyticsProps(
     ...(intent.utmSource ? { utm_source: intent.utmSource } : {}),
     ...(intent.utmMedium ? { utm_medium: intent.utmMedium } : {}),
     ...(intent.utmCampaign ? { utm_campaign: intent.utmCampaign } : {}),
+    ...(privacyVariant && PRIVACY_ROLES.has(intent.role || '')
+      ? { experiment_id: PRIVACY_EXPERIMENT_ID, landing_variant: privacyVariant }
+      : {}),
     attribution_age_seconds: Math.max(0, Math.round((Date.now() - intent.receivedAt) / 1000)),
   }
+}
+
+export function getPrivacyExperimentWeek(intent: OnboardingIntent | null = read()): number | null {
+  if (!isPrivacyExperimentIntent(intent) || !intent) return null
+  return Math.max(0, Math.floor((Date.now() - intent.receivedAt) / (7 * 24 * 60 * 60 * 1000)))
+}
+
+export function getPrivacyExperimentTrackingId(
+  intent: OnboardingIntent | null = read(),
+): string | null {
+  if (!isPrivacyExperimentIntent(intent) || !intent) return null
+  return activationTrackingKey(intent)
 }
 
 export function getPaidStarter(intent: OnboardingIntent | null = read()): PaidStarter | null {

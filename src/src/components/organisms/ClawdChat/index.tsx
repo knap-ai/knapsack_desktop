@@ -40,6 +40,8 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 import {
   claimActivationAttribution,
   getOnboardingAnalyticsProps,
+  getPrivacyExperimentTrackingId,
+  getPrivacyExperimentWeek,
   getSavedPaidStarter,
   markActivationTracked,
   releaseActivationClaim,
@@ -996,6 +998,64 @@ async function trackPaidActivation(inferenceSurface: 'agent_chat' | 'direct_chat
   })
   if (delivered) markActivationTracked(activationClaim.trackingId)
   else releaseActivationClaim(activationClaim.trackingId)
+}
+
+const privacyMetricInFlight = new Set<string>()
+
+async function trackPrivacyUsageMilestones(
+  inferenceSurface: 'agent_chat' | 'direct_chat',
+  connectedDataSource?: 'native_google_email_calendar',
+) {
+  const trackingId = getPrivacyExperimentTrackingId()
+  const experimentWeek = getPrivacyExperimentWeek()
+  if (!trackingId || experimentWeek === null) return
+
+  const events: Array<{ name: string; dedupeSuffix: string; props: Record<string, unknown> }> = [
+    {
+      name: 'desktop_privacy_weekly_active',
+      dedupeSuffix: `week:${experimentWeek}`,
+      props: { experiment_week: experimentWeek, inference_surface: inferenceSurface },
+    },
+  ]
+  if (connectedDataSource) {
+    events.push({
+      name: 'desktop_privacy_connected_data_usage',
+      dedupeSuffix: `connected:${connectedDataSource}`,
+      props: {
+        experiment_week: experimentWeek,
+        inference_surface: inferenceSurface,
+        connected_data_source: connectedDataSource,
+      },
+    })
+  }
+
+  for (const event of events) {
+    const storageKey = `ks_privacy_metric:${trackingId}:${event.dedupeSuffix}`
+    let alreadyTracked = false
+    try {
+      alreadyTracked = localStorage.getItem(storageKey) === '1'
+    } catch {
+      /* storage unavailable; in-flight dedupe still prevents concurrent duplicates */
+    }
+    if (privacyMetricInFlight.has(storageKey) || alreadyTracked) continue
+
+    privacyMetricInFlight.add(storageKey)
+    try {
+      const delivered = await KNAnalytics.trackEventAndFlush(event.name, {
+        ...getOnboardingAnalyticsProps(),
+        ...event.props,
+      })
+      if (delivered) {
+        try {
+          localStorage.setItem(storageKey, '1')
+        } catch {
+          /* analytics delivery succeeded even if durable dedupe is unavailable */
+        }
+      }
+    } finally {
+      privacyMetricInFlight.delete(storageKey)
+    }
+  }
 }
 
 const GATEWAY_DIAGNOSE_PROMPT = `The Knapsack gateway appears to be having connectivity issues. Please help me diagnose and fix this. Run these checks in order:
@@ -5835,6 +5895,7 @@ ${actualText}`
                   },
                 ])
                 void trackPaidActivation('agent_chat')
+                void trackPrivacyUsageMilestones('agent_chat')
                 onAssistantMessage?.(chatId)
               }
             } else {
@@ -5911,6 +5972,10 @@ ${actualText}`
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
               void trackPaidActivation('direct_chat')
+              void trackPrivacyUsageMilestones(
+                'direct_chat',
+                usedNativeEmailCalendarContext ? 'native_google_email_calendar' : undefined,
+              )
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory('knapsack-chat', out.reply)
