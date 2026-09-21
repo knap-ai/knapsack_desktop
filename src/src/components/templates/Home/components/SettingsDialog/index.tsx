@@ -17,6 +17,7 @@ import { KN_API_GET_USER_EMAIL, KN_SERVER_HOST } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { privacyModeStatus, setPrivacyMode } from 'src/utils/privacyMode'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
 import { openAddGoogleWorkspaceScreen } from 'src/utils/permissions/google'
 import {
@@ -751,6 +752,8 @@ export const SettingsDialog = ({
   const [selectedOllamaModel, setSelectedOllamaModel] = useState('')
   const [piiModelStatus, setPiiModelStatus] = useState<PiiModelStatus | null>(null)
   const [piiModelBusy, setPiiModelBusy] = useState(false)
+  const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => privacyModeStatus().enabled)
+  const [privacyModeBusy, setPrivacyModeBusy] = useState(false)
   const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
   const displayConnections =
     isOpen && Object.keys(settingsConnections).length > 0 ? settingsConnections : connections
@@ -956,6 +959,9 @@ export const SettingsDialog = ({
 
   useEffect(() => {
     if (!isOpen) return
+    void invoke<{ enabled: boolean }>('get_privacy_mode_status')
+      .then(value => setPrivacyModeEnabled(value.enabled))
+      .catch(() => {})
     fetch('http://127.0.0.1:8897/api/clawd/service/api-key-status')
       .then(r => r.json())
       .then(data => {
@@ -1435,6 +1441,36 @@ export const SettingsDialog = ({
               remain off until the cross-platform local inference runtime is available.
             </div>
           </div>
+        </div>
+
+        <hr className="border-zinc-200" />
+
+        <div className="p-6 flex flex-col gap-2">
+          <Typography weight={TypographyWeight.medium}>Privacy Mode</Typography>
+          <div className={styles.privacyModelDescription}>
+            Keep inference on this computer with local Ollama. Analytics and crash reporting are
+            disabled. Cloud providers, including Cloud Ollama, are blocked until you turn this off.
+          </div>
+          <InputCheckbox
+            checked={privacyModeEnabled}
+            onClick={async () => {
+              if (privacyModeBusy) return
+              setPrivacyModeBusy(true)
+              try {
+                const next = await setPrivacyMode(!privacyModeEnabled)
+                setPrivacyModeEnabled(next.enabled)
+              } finally {
+                setPrivacyModeBusy(false)
+              }
+            }}
+          >
+            {privacyModeEnabled ? 'Privacy Mode is on' : 'Enable Privacy Mode'}
+          </InputCheckbox>
+          {privacyModeEnabled && (
+            <div className={styles.privacyModelNotice}>
+              Restart Knapsack to stop native crash reporting for this session too.
+            </div>
+          )}
         </div>
 
         <hr className="border-zinc-200" />

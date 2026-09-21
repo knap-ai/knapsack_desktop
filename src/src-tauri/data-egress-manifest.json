@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "scope": "Knapsack Desktop application-controlled network traffic",
+  "privacy_mode": {
+    "inference": [
+      {"domain": "127.0.0.1:11434", "purpose": "local Ollama inference", "data": "prompt, context, generated response", "allowed": true}
+    ],
+    "telemetry": [
+      {"domain": "*.ingest.sentry.io", "purpose": "crash reporting", "allowed": false},
+      {"domain": "api2.amplitude.com", "purpose": "product analytics", "allowed": false}
+    ],
+    "oauth": [
+      {"domain": "accounts.google.com", "purpose": "direct Google authorization", "allowed": "user-initiated"},
+      {"domain": "oauth2.googleapis.com", "purpose": "direct Google token exchange", "allowed": "user-initiated"},
+      {"domain": "login.microsoftonline.com", "purpose": "Microsoft authorization", "allowed": "user-initiated"}
+    ]
+  },
+  "normal_mode": {
+    "telemetry": ["*.ingest.sentry.io", "api2.amplitude.com"],
+    "inference": ["provider selected by the user in Settings"],
+    "connected_services": ["Google APIs", "Microsoft Graph", "Slack and explicitly connected services"]
+  },
+  "notes": [
+    "Privacy Mode does not infer a provider's contractual Zero Data Retention status from an API key.",
+    "Cloud inference is fail-closed in Privacy Mode until a separately audited deployment attestation is implemented.",
+    "User-directed browser navigation is intentionally outside this manifest; it requires an explicit user request."
+  ]
+}

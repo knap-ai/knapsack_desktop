@@ -29,6 +29,7 @@ mod llm;
 mod local_fs;
 mod mcp;
 mod memory;
+mod privacy_mode;
 mod privileged_worker;
 mod pty;
 mod search;
@@ -1769,7 +1770,11 @@ async fn main() {
   create_data_dir();
   create_db_env_variable();
 
-  let maybe_sentry_dsn: Option<&'static str> = option_env!("SENTRY_DSN");
+  let maybe_sentry_dsn: Option<&'static str> = if privacy_mode::is_enabled() {
+    None
+  } else {
+    option_env!("SENTRY_DSN")
+  };
   let mut _guard = match maybe_sentry_dsn {
     Some(sentry_dsn) => Some(sentry::init((
       sentry_dsn,
@@ -1781,15 +1786,13 @@ async fn main() {
     None => None,
   };
 
-  // Tag every Rust Sentry event as coming from the desktop app.
-  sentry::configure_scope(|scope| {
-    scope.set_tag("platform", "desktop");
-    scope.set_tag("app", "knapsack_desktop");
-  });
-
-  // Wrap sentry's panic hook so we can attach recent logs + a memory snapshot
-  // to the scope before the event is captured and flushed.
-  crash_reporter::install_panic_hook();
+  if _guard.is_some() {
+    sentry::configure_scope(|scope| {
+      scope.set_tag("platform", "desktop");
+      scope.set_tag("app", "knapsack_desktop");
+    });
+    crash_reporter::install_panic_hook();
+  }
 
   // log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
   // setup_tracing();
@@ -2160,6 +2163,8 @@ async fn main() {
       kn_get_openclaw_version,
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
+      privacy_mode::get_privacy_mode_status,
+      privacy_mode::set_privacy_mode,
       kn_set_keep_awake,
       kn_prepare_updater_temp_dir,
       kn_send_composed_email,
