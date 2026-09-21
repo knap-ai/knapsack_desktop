@@ -1429,6 +1429,10 @@ fn gateway_model_ref_usable(model_ref: &str) -> bool {
 }
 
 pub fn resolve_default_model() -> String {
+  if crate::privacy_mode::is_enabled() {
+    let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
+    return format!("ollama/{}", normalize_provider_model("ollama", &model));
+  }
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let has_key = |var: &str| {
     std::env::var(var)
@@ -1631,6 +1635,9 @@ pub fn resolve_default_model() -> String {
 /// primary's provider.  Groq is preferred as a fallback because it is free and fast.
 /// Called by `build_model_config()` — prefer that over calling this directly.
 pub fn collect_fallback_models(primary: &str) -> Vec<String> {
+  if crate::privacy_mode::is_enabled() {
+    return Vec::new();
+  }
   let has_key = |var: &str| {
     std::env::var(var)
       .map(|k| !k.trim().is_empty())

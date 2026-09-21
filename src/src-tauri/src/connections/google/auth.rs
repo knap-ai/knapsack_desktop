@@ -248,12 +248,21 @@ pub async fn google_refresh_token(email: String, refresh_token: String) -> Resul
         return Err(Error::KSError(message));
       }
       Err(error) => {
+        if crate::privacy_mode::is_enabled() {
+          return Err(error);
+        }
         log::warn!(
           "Local Google token refresh failed, falling back to knap.ai backend: {:?}",
           error
         );
       }
     }
+  }
+
+  if crate::privacy_mode::is_enabled() {
+    return Err(Error::KSError(
+      "Privacy Mode requires direct Google OAuth credentials; configure GOOGLE_CLIENT_SECRET for this desktop deployment.".to_string(),
+    ));
   }
 
   refresh_token_via_backend(email, refresh_token).await
@@ -510,12 +519,21 @@ async fn post_signin(code: String) -> Result<GoogleSigninResponse, FetchError> {
         return Err(FetchError::UnknownError(message));
       }
       Err(error) => {
+        if crate::privacy_mode::is_enabled() {
+          return Err(error);
+        }
         log::warn!(
           "Local Google OAuth token exchange failed, falling back to knap.ai backend: {:?}",
           error
         );
       }
     }
+  }
+
+  if crate::privacy_mode::is_enabled() {
+    return Err(FetchError::UnknownError(
+      "Privacy Mode requires direct Google OAuth credentials; configure GOOGLE_CLIENT_SECRET for this desktop deployment.".to_string(),
+    ));
   }
 
   log::info!("Using knap.ai backend for Google OAuth token exchange");

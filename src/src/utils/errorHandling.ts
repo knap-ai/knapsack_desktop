@@ -1,8 +1,9 @@
 import * as Sentry from '@sentry/react'
 import { PROFILE_KEY } from 'src/hooks/auth/useAuth'
 
-import { KNLocalStorage } from './KNLocalStorage'
 import { pushFrontendLog } from './frontendLog'
+import { KNLocalStorage } from './KNLocalStorage'
+import { telemetryAllowed } from './privacyMode'
 
 export type ErrorInfo = {
   errorPath?: string
@@ -34,7 +35,7 @@ export const logError = async (error: Error, context?: ErrorInfo, slackFlag?: bo
 
   const userUuid = await KNLocalStorage.getItem(PROFILE_KEY)
 
-  if (typeof Sentry !== 'undefined') {
+  if (telemetryAllowed() && typeof Sentry !== 'undefined') {
     Sentry.withScope(scope => {
       if (context?.errorPath) {
         scope.setTag('errorPath', context.errorPath)

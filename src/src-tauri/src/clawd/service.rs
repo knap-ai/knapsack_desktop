@@ -6024,6 +6024,10 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       return;
     }
   };
+  if crate::privacy_mode::is_enabled() {
+    crate::privacy_mode::apply_local_inference_env();
+    return;
+  }
   if let Err(e) = sync_portable_api_key_auth_profiles(app_handle, &tokens) {
     eprintln!(
       "[clawd/service] Could not sync portable auth profiles from tokens.json: {}",
@@ -9686,6 +9690,15 @@ pub async fn set_api_key(
     }
   }
 
+  if let Err(message) =
+    crate::privacy_mode::validate_inference(&provider, tokens.ollama_base_url.as_deref())
+  {
+    return HttpResponse::Forbidden().json(SetApiKeyResponse {
+      success: false,
+      message,
+    });
+  }
+
   if key.is_empty() && payload.model.is_none() && payload.env_var.is_none() {
     if let Some(agent) = &payload.preferred_coding_agent {
       tokens.preferred_coding_agent = normalize_coding_agent(agent);
@@ -10973,6 +10986,27 @@ pub async fn ollama_configure(
       })
     }
   };
+
+  if crate::privacy_mode::is_enabled() {
+    if !payload.enabled {
+      return HttpResponse::Forbidden().json(SetApiKeyResponse {
+        success: false,
+        message: "Privacy Mode requires a local Ollama provider; turn off Privacy Mode yourself in Settings before disabling it.".to_string(),
+      });
+    }
+    if let Err(message) = crate::privacy_mode::validate_inference(
+      "ollama",
+      payload
+        .base_url
+        .as_deref()
+        .or(tokens.ollama_base_url.as_deref()),
+    ) {
+      return HttpResponse::Forbidden().json(SetApiKeyResponse {
+        success: false,
+        message,
+      });
+    }
+  }
 
   tokens.ollama_enabled = Some(payload.enabled);
   if let Some(model) = &payload.model {

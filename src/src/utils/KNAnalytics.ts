@@ -18,6 +18,12 @@ export default class KNAnalytics {
     resolveDelivery?: (delivered: boolean) => void
     cancelWaitTimeout?: () => void
   }> = []
+  static PRIVACY_MODE = false
+
+  static setPrivacyMode(enabled: boolean) {
+    this.PRIVACY_MODE = enabled
+    if (enabled) this.PENDING_EVENTS = []
+  }
 
   private static eventProperties(properties: any) {
     return {
@@ -49,6 +55,7 @@ export default class KNAnalytics {
   }
 
   static async initAnalytics(email: string, uuid: string, userUuid: string) {
+    if (this.PRIVACY_MODE) return
     const version = await getAppVersion()
     // TODO: disable for dev instances
     if (!this.HAS_LOADED) {
@@ -108,6 +115,7 @@ export default class KNAnalytics {
   }
 
   static trackEvent(event: string, properties: any): boolean {
+    if (this.PRIVACY_MODE) return false
     // TODO: currently, we need to manually set this property to
     // private in order to access the amplitude var for
     // generic logEvent like this.
@@ -142,6 +150,7 @@ export default class KNAnalytics {
    * when this returns true.
    */
   static trackEventAndFlush(event: string, properties: any): Promise<boolean> {
+    if (this.PRIVACY_MODE) return Promise.resolve(false)
     if (!this.HAS_LOADED) {
       return new Promise(resolveDelivery => {
         let settled = false
