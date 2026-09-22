@@ -1402,7 +1402,7 @@ fn has_gemini_cli_auth_profile() -> bool {
   false
 }
 
-fn gateway_model_ref_usable(model_ref: &str) -> bool {
+pub(crate) fn gateway_model_ref_usable(model_ref: &str) -> bool {
   let provider = model_ref.split('/').next().unwrap_or("").to_lowercase();
   let has = |var: &str| {
     std::env::var(var)
@@ -1419,6 +1419,7 @@ fn gateway_model_ref_usable(model_ref: &str) -> bool {
     "groq" => has("GROQ_API_KEY"),
     "xai" => has("XAI_API_KEY"),
     "openrouter" => has("OPENROUTER_API_KEY"),
+    "trustedrouter" => has("TRUSTEDROUTER_API_KEY"),
     "ollama" => has("OLLAMA_API_KEY"),
     // Desktop-only Knapsack cloud model aliases (for example `knapsack/auto`)
     // are not valid gateway model refs. The gateway must use the local bridge.
