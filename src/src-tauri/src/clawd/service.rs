@@ -5602,7 +5602,13 @@ fn sanitize_invalid_default_agent_model_config(cfg: &mut serde_json::Value) -> b
 }
 
 fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
-  if !any_provider_key_available() {
+  // The Settings model picker is the source of truth. Without an explicit
+  // picker choice, preserve custom gateway configuration.
+  let active_provider = std::env::var("KNAPSACK_ACTIVE_PROVIDER")
+    .unwrap_or_default()
+    .trim()
+    .to_lowercase();
+  if active_provider.is_empty() {
     return false;
   }
 
@@ -5615,18 +5621,36 @@ fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
     return false;
   }
 
-  let current_primary = match &current {
-    serde_json::Value::String(model) => Some(model.as_str()),
-    serde_json::Value::Object(map) => map.get("primary").and_then(|value| value.as_str()),
-    _ => None,
-  };
   let expected_primary = match &expected {
     serde_json::Value::String(model) => Some(model.as_str()),
     serde_json::Value::Object(map) => map.get("primary").and_then(|value| value.as_str()),
     _ => None,
   };
 
-  if current_primary != expected_primary {
+  let Some(expected_primary) = expected_primary else {
+    return false;
+  };
+
+  // resolve_default_model() may fall through to another provider when the
+  // selected provider is missing credentials. Do not turn that fallback into
+  // a persisted selection; wait for the user to repair the selected provider.
+  let expected_provider = expected_primary
+    .split('/')
+    .next()
+    .unwrap_or("")
+    .to_lowercase();
+  let selection_matches = match active_provider.as_str() {
+    "gemini" => matches!(expected_provider.as_str(), "google" | "gemini" | "vertex"),
+    "google-gemini-cli" => expected_provider == "google-gemini-cli",
+    "knapsack" => matches!(
+      expected_provider.as_str(),
+      "knapsack-local" | "google-gemini-cli"
+    ),
+    provider => expected_provider == provider,
+  };
+  if !selection_matches
+    || !crate::clawd::gateway_client::gateway_model_ref_usable(expected_primary)
+  {
     return false;
   }
 
@@ -5636,7 +5660,7 @@ fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
   {
     defaults.insert("model".to_string(), expected.clone());
     eprintln!(
-      "[clawd/service] Refreshed stale agents.defaults.model {:?} -> {:?}",
+      "[clawd/service] Synchronized agents.defaults.model with saved model selection {:?} -> {:?}",
       current, expected
     );
     return true;
@@ -18255,6 +18279,64 @@ mod provider_key_tests {
     assert!(fallbacks
       .iter()
       .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
+
+    clear_all();
+  }
+
+  #[test]
+  fn reconcile_default_agent_model_config_replaces_stale_primary() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "gemini");
+    std::env::set_var("GEMINI_API_KEY", "AIza-test");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+    // Both providers are valid. The saved picker choice must still win over a
+    // stale gateway primary left by an earlier selection on this computer.
+    std::env::set_var("OPENAI_API_KEY", "sk-test");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
+
+    let mut cfg = serde_json::json!({
+      "agents": {
+        "defaults": {
+          "model": {
+            "primary": "openai/gpt-5.5"
+          }
+        }
+      }
+    });
+
+    assert!(reconcile_default_agent_model_config(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/model/primary")
+        .and_then(|value| value.as_str()),
+      Some("google/gemini-2.5-flash")
+    );
+
+    clear_all();
+  }
+
+  #[test]
+  fn reconcile_default_agent_model_config_preserves_custom_config_without_picker_choice() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    clear_all();
+    std::env::set_var("OPENAI_API_KEY", "sk-test");
+
+    let mut cfg = serde_json::json!({
+      "agents": {
+        "defaults": {
+          "model": "custom/my-model"
+        }
+      }
+    });
+
+    assert!(!reconcile_default_agent_model_config(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/agents/defaults/model")
+        .and_then(|value| value.as_str()),
+      Some("custom/my-model")
+    );
 
     clear_all();
   }
