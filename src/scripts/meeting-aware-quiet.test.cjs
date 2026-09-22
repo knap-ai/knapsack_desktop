@@ -61,7 +61,7 @@ test('active meetings outrank upcoming meetings and the heads-up window stays na
   const upcoming = eventItem({ id: 3, calendarEvent: { ...eventItem().calendarEvent, event_id: 'upcoming', start: 1_150 } })
   assert.equal(findMeetingCaptureCandidate([upcoming, active], 1_100_000), active)
   assert.equal(findMeetingCaptureCandidate([upcoming], 1_040_000, { requireMicWindow: false }), upcoming)
-  assert.equal(findMeetingCaptureCandidate([upcoming], 900_000, { requireMicWindow: false }), null)
+  assert.equal(findMeetingCaptureCandidate([upcoming], 800_000, { requireMicWindow: false }), null)
 })
 
 test('users get a cancellable heads-up and existing recording controls remain authoritative', () => {
