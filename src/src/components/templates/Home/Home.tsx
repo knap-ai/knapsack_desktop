@@ -864,7 +864,13 @@ function Home({
               <div
                 className={`overflow-hidden w-full h-full flex flex-row relative${currentTab !== TabChoices.Openclaw ? ' hidden' : ''}`}
               >
-                  <div className="overflow-hidden flex-1 h-full min-w-0">
+                  <div
+                    className={`overflow-hidden flex-1 h-full min-w-0${
+                      embeddedBrowserEnabled && !showEmbeddedBrowser
+                        ? ' has-embedded-browser-launcher'
+                        : ''
+                    }`}
+                  >
                     {Array.from(mountedChatIds).map(mountedChatId => {
                       const mountedGroup = mountedChatId.startsWith('group-')
                         ? teamGroups.find(group => `group-${group.id}` === mountedChatId) ?? null
