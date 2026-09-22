@@ -994,16 +994,30 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
 /// desktop API token, so handing it a localhost URL sends it into an
 /// unauthenticated browser/tool loop. Keep this bounded and read-only: richer
 /// questions still use the selected agent.
-fn native_workspace_capability_reply(request: &str) -> Option<String> {
+fn native_workspace_capability_reply(user_email: &str, request: &str) -> Option<String> {
   let normalized = request.to_ascii_lowercase();
-  let asks_for_recent_email = ["email", "emails", "gmail", "inbox"]
+  let has_gmail_connection = connected_google_accounts_for_context(user_email)
+    .values()
+    .any(|services| services.contains(&"Gmail"));
+  let has_calendar_connection = connected_google_accounts_for_context(user_email)
+    .values()
+    .any(|services| services.contains(&"Calendar"));
+  let asks_for_recent_email = [
+    "recent emails",
+    "latest emails",
+    "email summary",
+    "inbox summary",
+  ]
+  .iter()
+  .any(|needle| normalized.contains(needle))
+    && ![
+      "reply", "respond", "draft", "send", "forward", "from ", "about ", "subject", "search",
+      "find", "archive", "delete", "label",
+    ]
     .iter()
-    .any(|needle| normalized.contains(needle))
-    && ["recent", "latest", "summarize", "summary", "check"]
-      .iter()
-      .any(|needle| normalized.contains(needle));
+    .any(|needle| normalized.contains(needle));
 
-  if asks_for_recent_email {
+  if asks_for_recent_email && has_gmail_connection {
     let emails = Email::get_recent_emails(12)
       .into_iter()
       .filter(|email| email.is_deleted != Some(true))
@@ -1047,11 +1061,37 @@ fn native_workspace_capability_reply(request: &str) -> Option<String> {
     ));
   }
 
-  let asks_for_tomorrow = normalized.contains("tomorrow")
-    && ["calendar", "schedule", "meeting", "meetings"]
-      .iter()
-      .any(|needle| normalized.contains(needle));
-  if asks_for_tomorrow {
+  let asks_for_tomorrow = [
+    "tomorrow's schedule",
+    "tomorrow schedule",
+    "tomorrow's calendar",
+    "tomorrow calendar",
+    "meetings tomorrow",
+    "tomorrow's meetings",
+    "what is on my calendar tomorrow",
+    "what's on my calendar tomorrow",
+  ]
+  .iter()
+  .any(|needle| normalized.contains(needle))
+    && ![
+      "prepare",
+      "prep",
+      "move",
+      "reschedule",
+      "draft",
+      "agenda",
+      "invite",
+      "cancel",
+      "join",
+      "record",
+      "email",
+      "send",
+      "remind",
+      "brief",
+    ]
+    .iter()
+    .any(|needle| normalized.contains(needle));
+  if asks_for_tomorrow && has_calendar_connection {
     // Calendar timestamps are UTC instants. Derive tomorrow's boundaries from
     // the desktop's local calendar day rather than rounding a Unix timestamp,
     // which would incorrectly use UTC midnight for non-UTC users.
@@ -3191,15 +3231,16 @@ pub async fn agent_chat(
   // single-agent capability shortcut and returned as a non-gateway response,
   // which the group UI correctly rejects as a runtime failure.
   if !is_group_agent_request(&body) {
-    if native_connection_owner.is_some() {
-      if let Some(reply) = native_workspace_capability_reply(user_text) {
-        return HttpResponse::Ok().json(serde_json::json!({
-          "ok": true,
-          "reply": reply,
-          "harness": "native",
-          "gateway": false,
-        }));
-      }
+    if let Some(reply) = native_connection_owner
+      .as_deref()
+      .and_then(|email| native_workspace_capability_reply(email, user_text))
+    {
+      return HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": reply,
+        "harness": "native",
+        "gateway": false,
+      }));
     }
     if let Some(reply) = native_connection_owner
       .as_deref()
