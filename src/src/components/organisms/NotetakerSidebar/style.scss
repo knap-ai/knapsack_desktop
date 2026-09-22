@@ -876,7 +876,10 @@ $ks-red: #c14841;
 
   &__calendar-date {
     flex-shrink: 0;
-    width: 62px;
+    // The date label includes a month, an optional today dot, and a weekday.
+    // Keep that label inside its own column so it can never paint over the
+    // first event's time when the sidebar is narrow.
+    width: 88px;
     text-align: left;
     overflow: hidden;
   }

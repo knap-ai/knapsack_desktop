@@ -5,6 +5,7 @@ import {
   Connection,
   ConnectionKeys,
   connectionsMap,
+  ConnectionStates,
   getConnections,
   getGoogleCalendarConnections,
   getGoogleDriveConnections,
@@ -897,6 +898,13 @@ export const SettingsDialog = ({
   )
     .map(([accountEmail, services]) => ({ accountEmail, services }))
     .sort((a, b) => a.accountEmail.localeCompare(b.accountEmail))
+
+  // Settings fetches an aggregate inventory so it can show every account, but
+  // the live connection state belongs to the app-level connection map. Match
+  // those records by id so a failed mailbox is never presented as healthy.
+  const liveConnectionStateById = new Map(
+    Object.values(connections).map(connection => [connection.id, connection.state]),
+  )
 
   useEffect(() => {
     setSettingsConnections(connections)
@@ -2173,7 +2181,15 @@ export const SettingsDialog = ({
                       className="flex justify-between items-center min-h-[28px] pl-3"
                       key={`${service}-${connection.id}-${connection.ownerEmail}`}
                     >
-                      <Typography className="text-sm text-gray-600">{service}</Typography>
+                      <div className="flex flex-col">
+                        <Typography className="text-sm text-gray-600">{service}</Typography>
+                        {(liveConnectionStateById.get(connection.id) ?? connection.state) ===
+                          ConnectionStates.FAILED && (
+                          <Typography className="text-xs text-red-600">
+                            Needs reconnect — no new data is being read
+                          </Typography>
+                        )}
+                      </div>
                       <Typography
                         className={`cursor-pointer ${styles.link}`}
                         onClick={() => handleDeleteConnection(connection)}

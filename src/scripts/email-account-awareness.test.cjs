@@ -181,6 +181,9 @@ test('settings group Google capabilities by the actual connected account', () =>
   assert.match(settings, /googleAccounts\.map\(account =>/)
   assert.match(settings, /item\.calendarAccountEmail \|\| item\.ownerEmail/)
   assert.doesNotMatch(settings, /return ` via \$\{item\.ownerEmail\}`/)
+  assert.match(settings, /liveConnectionStateById/)
+  assert.match(settings, /ConnectionStates\.FAILED/)
+  assert.match(settings, /Needs reconnect — no new data is being read/)
 })
 
 test('meeting briefs recognize every connected account as the signed-in user', () => {
