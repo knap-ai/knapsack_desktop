@@ -49,11 +49,15 @@ export default defineConfig(async () => ({
     prism({
       languages: 'all',
     }),
-    sentryVitePlugin({
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      org: "knap-cp",
-      project: "javascript-react",
-    }),
+    ...(process.env.SENTRY_AUTH_TOKEN
+      ? [
+          sentryVitePlugin({
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+            org: "knap-cp",
+            project: "javascript-react",
+          }),
+        ]
+      : []),
   ],
   css: {
     postcss: {
