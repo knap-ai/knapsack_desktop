@@ -18,7 +18,7 @@ test('deleting a calendar note evicts its cached feed item', () => {
   assert.match(source, /await deleteFeedItem\(itemId\)[\s\S]*?calendarItemRef\.current\.delete\(key\)[\s\S]*?setFeedContent/)
 })
 
-test('sidebar uses an abbreviated month inside a non-wrapping date label', () => {
+test('sidebar reserves room for an abbreviated, non-wrapping date label', () => {
   const component = fs.readFileSync(
     path.join(sourceRoot, 'components/organisms/NotetakerSidebar/index.tsx'),
     'utf8',
@@ -31,6 +31,7 @@ test('sidebar uses an abbreviated month inside a non-wrapping date label', () =>
   assert.match(component, /date\.format\('MMM'\)/)
   assert.doesNotMatch(component, /Object\.entries\(upcomingEvents\)\s*\.slice\(0, 5\)/)
   assert.match(styles, /&__calendar-date-meta\s*\{[^}]*white-space:\s*nowrap;/s)
+  assert.match(styles, /&__calendar-date\s*\{[^}]*width:\s*88px;/s)
 })
 
 test('background sync refreshes every locally connected Google account', () => {
