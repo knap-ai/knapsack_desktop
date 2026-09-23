@@ -17,6 +17,8 @@ use crate::clawd::browser_import;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
+use crate::db::models::calendar_event::CalendarEvent;
+use crate::db::models::email::Email;
 use crate::db::models::token_usage::TokenUsage;
 use crate::db::models::user::User;
 use crate::db::models::user_connection::UserConnection;
@@ -985,6 +987,146 @@ fn google_capability_reply(user_email: &str, request: &str) -> Option<String> {
     "Your native Google connections are:\n\n{}\n\nThese accounts are available simultaneously; no account switcher is required.",
     rows
   ))
+}
+
+/// Answer the small set of inbox/calendar questions that the desktop already
+/// has locally. The OpenClaw child process deliberately cannot receive the
+/// desktop API token, so handing it a localhost URL sends it into an
+/// unauthenticated browser/tool loop. Keep this bounded and read-only: richer
+/// questions still use the selected agent.
+fn native_workspace_capability_reply(user_email: &str, request: &str) -> Option<String> {
+  let normalized = request.to_ascii_lowercase();
+  let has_gmail_connection = connected_google_accounts_for_context(user_email)
+    .values()
+    .any(|services| services.contains(&"Gmail"));
+  let has_calendar_connection = connected_google_accounts_for_context(user_email)
+    .values()
+    .any(|services| services.contains(&"Calendar"));
+  let asks_for_recent_email = [
+    "recent emails",
+    "latest emails",
+    "email summary",
+    "inbox summary",
+  ]
+  .iter()
+  .any(|needle| normalized.contains(needle))
+    && ![
+      "reply", "respond", "draft", "send", "forward", "from ", "about ", "subject", "search",
+      "find", "archive", "delete", "label",
+    ]
+    .iter()
+    .any(|needle| normalized.contains(needle));
+
+  if asks_for_recent_email && has_gmail_connection {
+    let emails = Email::get_recent_emails(12)
+      .into_iter()
+      .filter(|email| email.is_deleted != Some(true))
+      .take(3)
+      .collect::<Vec<_>>();
+    if emails.is_empty() {
+      return Some(
+        "I don't have any synced email to summarize yet. Your connected inboxes may still be syncing."
+          .to_string(),
+      );
+    }
+    let bullets = emails
+      .into_iter()
+      .map(|email| {
+        let sender = email.sender.trim();
+        let subject = email.subject.trim();
+        format!(
+          "- **{}** — {}{}",
+          if sender.is_empty() {
+            "Unknown sender"
+          } else {
+            sender
+          },
+          if subject.is_empty() {
+            "(no subject)"
+          } else {
+            subject
+          },
+          if email.account_email.trim().is_empty() {
+            String::new()
+          } else {
+            format!(" · {}", email.account_email.trim())
+          }
+        )
+      })
+      .collect::<Vec<_>>()
+      .join("\n");
+    return Some(format!(
+      "Here are the most recent synced emails:\n\n{}",
+      bullets
+    ));
+  }
+
+  let asks_for_tomorrow = [
+    "tomorrow's schedule",
+    "tomorrow schedule",
+    "tomorrow's calendar",
+    "tomorrow calendar",
+    "meetings tomorrow",
+    "tomorrow's meetings",
+    "what is on my calendar tomorrow",
+    "what's on my calendar tomorrow",
+  ]
+  .iter()
+  .any(|needle| normalized.contains(needle))
+    && ![
+      "prepare",
+      "prep",
+      "move",
+      "reschedule",
+      "draft",
+      "agenda",
+      "invite",
+      "cancel",
+      "join",
+      "record",
+      "email",
+      "send",
+      "remind",
+      "brief",
+    ]
+    .iter()
+    .any(|needle| normalized.contains(needle));
+  if asks_for_tomorrow && has_calendar_connection {
+    // Calendar timestamps are UTC instants. Derive tomorrow's boundaries from
+    // the desktop's local calendar day rather than rounding a Unix timestamp,
+    // which would incorrectly use UTC midnight for non-UTC users.
+    let tomorrow = chrono::Local::now().date_naive().succ_opt()?;
+    let tomorrow_start = tomorrow
+      .and_hms_opt(0, 0, 0)?
+      .and_local_timezone(chrono::Local)
+      .single()?
+      .timestamp();
+    let tomorrow_end = tomorrow
+      .and_hms_opt(23, 59, 59)?
+      .and_local_timezone(chrono::Local)
+      .single()?
+      .timestamp();
+    let events = CalendarEvent::find_by_timestamp_range(tomorrow_start as u64, tomorrow_end as u64)
+      .into_iter()
+      .take(6)
+      .collect::<Vec<_>>();
+    if events.is_empty() {
+      return Some("I don't have any synced calendar events for tomorrow.".to_string());
+    }
+    let bullets = events
+      .into_iter()
+      .map(|event| {
+        format!(
+          "- {}",
+          event.title.unwrap_or_else(|| "Untitled event".to_string())
+        )
+      })
+      .collect::<Vec<_>>()
+      .join("\n");
+    return Some(format!("Tomorrow's synced calendar:\n\n{}", bullets));
+  }
+
+  None
 }
 
 fn is_group_agent_request(body: &JsonValue) -> bool {
@@ -3089,6 +3231,17 @@ pub async fn agent_chat(
   // single-agent capability shortcut and returned as a non-gateway response,
   // which the group UI correctly rejects as a runtime failure.
   if !is_group_agent_request(&body) {
+    if let Some(reply) = native_connection_owner
+      .as_deref()
+      .and_then(|email| native_workspace_capability_reply(email, user_text))
+    {
+      return HttpResponse::Ok().json(serde_json::json!({
+        "ok": true,
+        "reply": reply,
+        "harness": "native",
+        "gateway": false,
+      }));
+    }
     if let Some(reply) = native_connection_owner
       .as_deref()
       .and_then(|email| google_capability_reply(email, user_text))

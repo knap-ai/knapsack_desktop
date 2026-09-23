@@ -138,6 +138,30 @@ test('account-awareness does not delete legacy unscoped email history', () => {
   )
 })
 
+test('agent email and calendar capability requests use bounded native data', () => {
+  const browser = fs.readFileSync(
+    path.join(sourceRoot, 'src-tauri/src/clawd/browser.rs'),
+    'utf8',
+  )
+  const migrationsRoot = path.join(sourceRoot, 'src-tauri/src/migrations')
+  const indexMigration = fs.readFileSync(
+    path.join(migrationsRoot, '2026-09-22-000001_index_recent_email_queries/up.sql'),
+    'utf8',
+  )
+
+  assert.match(browser, /fn native_workspace_capability_reply\(user_email: &str, request: &str\)/)
+  assert.match(browser, /Email::get_recent_emails\(12\)/)
+  assert.match(browser, /CalendarEvent::find_by_timestamp_range/)
+  assert.match(browser, /native_workspace_capability_reply\(email, user_text\)/)
+  assert.match(browser, /has_gmail_connection/)
+  assert.match(browser, /has_calendar_connection/)
+  assert.match(browser, /"recent emails",[\s\S]*"latest emails",[\s\S]*"email summary",[\s\S]*"inbox summary"/)
+  assert.match(browser, /"what is on my calendar tomorrow"/)
+  assert.match(browser, /"harness": "native"/)
+  assert.match(indexMigration, /CREATE INDEX IF NOT EXISTS idx_emails_date_desc ON emails\(date DESC\)/)
+  assert.match(indexMigration, /CREATE INDEX IF NOT EXISTS idx_emails_account_date_desc ON emails\(account_email, date DESC\)/)
+})
+
 test('notification drawer preserves mailbox identity for actions', () => {
   const drawer = fs.readFileSync(
     path.join(sourceRoot, 'src/components/molecules/EmailNotificationDrawer/index.tsx'),
