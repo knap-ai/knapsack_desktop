@@ -22,6 +22,7 @@ const resolveGoogleGeminiForwardCompatModel = new Function(`
 `)()
 
 const providerStreamPath = new URL('../src-tauri/resources/clawdbot/dist/provider-stream-shared-jI_a6bxx.js', import.meta.url)
+const { g: sanitizeGoogleThinkingPayload } = await import(providerStreamPath)
 const providerStreamSource = fs.readFileSync(providerStreamPath, 'utf8')
 const flashModelSource = providerStreamSource.match(/function isGoogleGemini3FlashModel[\s\S]*?(?=function isGoogleGemini3ThinkingLevelModel)/)?.[0]
 const thinkingLevelSource = providerStreamSource.match(/function resolveGoogleGemini3ThinkingLevel[\s\S]*?(?=\/\*\* @deprecated Google provider-owned stream helper; do not use from third-party plugins\. \*\/\nfunction stripInvalidGoogleThinkingBudget)/)?.[0]
@@ -80,4 +81,30 @@ test('Gemini 3.7 Flash never sends the unsupported MINIMAL thinking level', () =
   assert.equal(resolveGeminiThinkingLevel({ modelId: 'gemini-3.7-flash', thinkingLevel: 'minimal' }), 'LOW')
   assert.equal(resolveGeminiThinkingLevel({ modelId: 'gemini-3.7-flash', thinkingLevel: 'off' }), undefined)
   assert.equal(resolveGeminiThinkingLevel({ modelId: 'gemini-3.5-flash', thinkingLevel: 'minimal' }), 'MINIMAL')
+})
+
+
+test('Gemini 3.8 Flash removes the provider MINIMAL default when thinking is off', () => {
+  const payload = {
+    config: {
+      thinkingConfig: {
+        includeThoughts: false,
+        thinkingLevel: 'MINIMAL',
+      },
+    },
+  }
+
+  sanitizeGoogleThinkingPayload({
+    payload,
+    modelId: 'gemini-3.8-flash',
+    thinkingLevel: 'off',
+  })
+
+  assert.deepEqual(payload, {
+    config: {
+      thinkingConfig: {
+        includeThoughts: false,
+      },
+    },
+  })
 })
