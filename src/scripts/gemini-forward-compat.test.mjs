@@ -22,18 +22,25 @@ const resolveGoogleGeminiForwardCompatModel = new Function(`
 `)()
 
 const providerStreamPath = new URL('../src-tauri/resources/clawdbot/dist/provider-stream-shared-jI_a6bxx.js', import.meta.url)
-const { g: sanitizeGoogleThinkingPayload } = await import(providerStreamPath)
 const providerStreamSource = fs.readFileSync(providerStreamPath, 'utf8')
 const flashModelSource = providerStreamSource.match(/function isGoogleGemini3FlashModel[\s\S]*?(?=function isGoogleGemini3ThinkingLevelModel)/)?.[0]
 const thinkingLevelSource = providerStreamSource.match(/function resolveGoogleGemini3ThinkingLevel[\s\S]*?(?=\/\*\* @deprecated Google provider-owned stream helper; do not use from third-party plugins\. \*\/\nfunction stripInvalidGoogleThinkingBudget)/)?.[0]
+const thinkingSanitizerSource = providerStreamSource.match(/function isGoogleThinkingRequiredModel[\s\S]*?(?=\/\*\* @deprecated Google provider-owned stream helper; do not use from third-party plugins\. \*\/\nfunction createGoogleThinkingPayloadWrapper)/)?.[0]
 assert.ok(flashModelSource)
 assert.ok(thinkingLevelSource)
+assert.ok(thinkingSanitizerSource)
 const resolveGeminiThinkingLevel = new Function(`
   const normalizeLowercaseStringOrEmpty = (value) => typeof value === 'string' ? value.trim().toLowerCase() : '';
   ${flashModelSource}
   const isGoogleGemini3ProModel = () => false;
   ${thinkingLevelSource}
   return resolveGoogleGemini3ThinkingLevel;
+`)()
+
+const sanitizeGoogleThinkingPayload = new Function(`
+  const normalizeLowercaseStringOrEmpty = (value) => typeof value === 'string' ? value.trim().toLowerCase() : '';
+  ${thinkingSanitizerSource}
+  return sanitizeGoogleThinkingPayload;
 `)()
 
 const template = {
@@ -104,6 +111,31 @@ test('Gemini 3.8 Flash removes the provider MINIMAL default when thinking is off
     config: {
       thinkingConfig: {
         includeThoughts: false,
+      },
+    },
+  })
+})
+
+test('Gemini 3.8 Flash preserves a provider thinking default when no override is supplied', () => {
+  const payload = {
+    config: {
+      thinkingConfig: {
+        includeThoughts: false,
+        thinkingLevel: 'MINIMAL',
+      },
+    },
+  }
+
+  sanitizeGoogleThinkingPayload({
+    payload,
+    modelId: 'gemini-3.8-flash',
+  })
+
+  assert.deepEqual(payload, {
+    config: {
+      thinkingConfig: {
+        includeThoughts: false,
+        thinkingLevel: 'MINIMAL',
       },
     },
   })
