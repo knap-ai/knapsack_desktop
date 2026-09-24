@@ -370,7 +370,7 @@ function sanitizeGoogleThinkingConfigContainer(params) {
 		});
 		delete thinkingConfigObj.thinkingBudget;
 		if (mappedLevel) thinkingConfigObj.thinkingLevel = mappedLevel;
-		else delete thinkingConfigObj.thinkingLevel;
+		else if (params.thinkingLevel === "off") delete thinkingConfigObj.thinkingLevel;
 		if (Object.keys(thinkingConfigObj).length === 0) delete configObj.thinkingConfig;
 		return;
 	}
