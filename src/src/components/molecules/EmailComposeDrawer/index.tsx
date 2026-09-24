@@ -62,7 +62,7 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
     setSending(true)
     setError('')
     try {
-      const senderName = userName || draft.userName
+      const senderName = draft.userName || userName
 
       await sendComposedEmail({
         to,
@@ -132,6 +132,14 @@ const EmailComposeDrawer = ({ draft, userEmail, userName, onDismiss }: EmailComp
 
       {/* Fields */}
       <div style={{ padding: '4px 16px 0', flexShrink: 0, borderBottom: '1px solid #e2e8f0' }}>
+        {/* From — the connected mailbox that will actually send this draft. */}
+        <div style={fieldRowStyle}>
+          <span style={labelStyle}>From</span>
+          <span style={{ ...inputStyle, color: senderEmail ? '#334155' : '#dc2626' }}>
+            {senderEmail || 'No connected sender'}
+          </span>
+        </div>
+
         {/* To */}
         <div style={fieldRowStyle}>
           <span style={labelStyle}>To</span>

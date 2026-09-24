@@ -32,7 +32,7 @@ import { RecordingContextProps } from '../MeetingNotesMode/RecordingContext'
 import Mic from '/assets/images/icons/mic-white.svg'
 import { EmailAutopilot } from 'src/components/molecules/EmailAutopilot'
 import { logError } from 'src/utils/errorHandling'
-import { buildFollowUpEmailBody } from 'src/utils/emails'
+import { buildFollowUpEmailBody, getFollowUpRecipients } from 'src/utils/emails'
 import EmailCategoryTabs from '../EmailCategoryTabs'
 import SettingsButton from 'src/components/atoms/settings-button'
 import { ScoutWatchlist, ScoutWatchlistItem } from 'src/components/organisms/ScoutWatchlist'
@@ -427,9 +427,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                             .filter(Boolean)
                             .map(email => email!.trim().toLowerCase()),
                         )
-                        const externalParticipants = participants.filter(
-                          p => p.email && !ownEmails.has(p.email.trim().toLowerCase()),
-                        )
+                        const externalParticipants = getFollowUpRecipients(participants, ownEmails)
                         const primaryRecipient = externalParticipants[0]
                         const toEmails = externalParticipants
                           .map(p => p.email)
@@ -447,7 +445,7 @@ const CenterWorkspace: React.FC<CenterWorkspaceProps> = ({
                           userName,
                           primaryRecipient?.name || primaryRecipient?.email,
                         )
-                        feed.setComposedEmailDraft({ to: toEmails, subject, body })
+                        feed.setComposedEmailDraft({ to: toEmails, subject, body, senderEmail: userEmail })
                       }}
                     />
                   </div>
