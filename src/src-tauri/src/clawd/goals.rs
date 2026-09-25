@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::db::models::{drive_document::DriveDocument, email::Email};
+
 use super::gbrain::default_brain_root;
 
 const GOAL_STORE_SCHEMA_VERSION: u32 = 1;
@@ -92,6 +94,27 @@ pub struct GoalAssessment {
   pub observations: Vec<GoalObservation>,
   pub missing_fields: Vec<String>,
   pub uncovered_key_result_ids: Vec<String>,
+}
+
+/// A bounded, source-labelled excerpt used only to propose a goal.  It is not
+/// progress evidence and it does not become part of the goal registry.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalDiscoverySource {
+  pub source_type: String,
+  pub title: String,
+  pub excerpt: String,
+  pub source_record: String,
+  pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GoalDiscoveryContext {
+  pub sources: Vec<GoalDiscoverySource>,
+  pub email_matches: usize,
+  pub drive_matches: usize,
+  pub search_summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,6 +245,67 @@ fn target_reached(result: &GoalKeyResult, value: f64) -> bool {
   result.target.is_some_and(|target| match result.direction {
     MetricDirection::Increase => value >= target,
     MetricDirection::Decrease => value <= target,
+  })
+}
+
+fn compact_excerpt(value: &str, limit: usize) -> String {
+  let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
+  if compact.chars().count() <= limit {
+    compact
+  } else {
+    format!("{}…", compact.chars().take(limit).collect::<String>())
+  }
+}
+
+/// Read actual goal-shaped records from the locally encrypted/synced Gmail and
+/// Drive indexes.  A goal proposal must always identify this as a synced-index
+/// search, because an empty local index cannot prove the remote account has no
+/// goals.
+#[tauri::command]
+pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
+  let email_sources = Email::find_goal_evidence(30)
+    .into_iter()
+    .map(|email| GoalDiscoverySource {
+      source_type: "Gmail".to_string(),
+      title: email.subject.clone(),
+      excerpt: compact_excerpt(&email.body, 1_800),
+      source_record: format!("Gmail message {} ({})", email.email_uid, email.account_email),
+      updated_at: email.date,
+    })
+    .collect::<Vec<_>>();
+  let drive_sources = DriveDocument::find_goal_evidence(20)
+    .map_err(|error| format!("Could not search the synced Drive index: {error}"))?
+    .into_iter()
+    .map(|document| GoalDiscoverySource {
+      source_type: "Google Drive".to_string(),
+      title: document.filename,
+      excerpt: compact_excerpt(&document.summary, 1_200),
+      source_record: if document.url.trim().is_empty() {
+        format!("Google Drive file {} ({})", document.drive_id, document.account_email)
+      } else {
+        document.url
+      },
+      updated_at: document.date_modified,
+    })
+    .collect::<Vec<_>>();
+  let email_matches = email_sources.len();
+  let drive_matches = drive_sources.len();
+  let search_summary = format!(
+    "Searched the synced Gmail index and Google Drive index: {} email match{} and {} Drive match{}.",
+    email_matches,
+    if email_matches == 1 { "" } else { "es" },
+    drive_matches,
+    if drive_matches == 1 { "" } else { "es" },
+  );
+
+  Ok(GoalDiscoveryContext {
+    sources: email_sources
+      .into_iter()
+      .chain(drive_sources)
+      .collect(),
+    email_matches,
+    drive_matches,
+    search_summary,
   })
 }
 
@@ -518,5 +602,11 @@ mod tests {
     assert!(kn_goal_add_observation(root_string, observation)
       .unwrap_err()
       .contains("append-only"));
+  }
+
+  #[test]
+  fn discovery_excerpts_are_bounded_and_compact() {
+    assert_eq!(compact_excerpt("  one\n two\tthree ", 40), "one two three");
+    assert_eq!(compact_excerpt("one two three four", 7), "one two…");
   }
 }

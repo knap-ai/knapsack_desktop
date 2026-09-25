@@ -212,6 +212,55 @@ impl Email {
     rows.filter_map(Result::ok).collect()
   }
 
+  /// Return messages whose subject or body contains language commonly used in
+  /// objectives, OKRs, or planning documents.  This is deliberately a local
+  /// index query: callers must not imply that an empty response proves a
+  /// connected mailbox contains no goals.
+  pub fn find_goal_evidence(limit: usize) -> Vec<Email> {
+    const GOAL_TERMS: [&str; 12] = [
+      "okr",
+      "objective",
+      "key result",
+      "goal",
+      "target",
+      "kpi",
+      "metric",
+      "milestone",
+      "north star",
+      "annual plan",
+      "strategic plan",
+      "quarterly plan",
+    ];
+
+    let connection = get_db_conn();
+    let clauses = GOAL_TERMS
+      .iter()
+      .map(|_| "(LOWER(subject) LIKE ? OR LOWER(body) LIKE ?)")
+      .collect::<Vec<_>>()
+      .join(" OR ");
+    let query = format!(
+      "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email \
+       FROM emails WHERE COALESCE(is_deleted, 0) = 0 AND ({clauses}) ORDER BY date DESC LIMIT ?"
+    );
+    let mut params = Vec::with_capacity(GOAL_TERMS.len() * 2 + 1);
+    for term in GOAL_TERMS {
+      let pattern = format!("%{term}%");
+      params.push(pattern.clone());
+      params.push(pattern);
+    }
+    params.push(limit.max(1).to_string());
+
+    let Ok(mut stmt) = connection.prepare(&query) else {
+      return Vec::new();
+    };
+    let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+      Email::build_struct_from_row(row)
+    }) else {
+      return Vec::new();
+    };
+    rows.filter_map(Result::ok).collect()
+  }
+
   pub fn count() -> Result<u64> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare("SELECT count(*) FROM emails")?;

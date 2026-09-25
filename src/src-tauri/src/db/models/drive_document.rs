@@ -160,6 +160,64 @@ impl DriveDocument {
     Ok(count)
   }
 
+  /// Return Drive files whose name or indexed summary looks likely to contain
+  /// an objective, OKR, or planning target.  The file content remains in the
+  /// protected local index; callers use this metadata only to select evidence
+  /// for a goal proposal.
+  pub fn find_goal_evidence(limit: usize) -> Result<Vec<DriveDocument>, Error> {
+    const GOAL_TERMS: [&str; 12] = [
+      "okr",
+      "objective",
+      "key result",
+      "goal",
+      "target",
+      "kpi",
+      "metric",
+      "milestone",
+      "north star",
+      "annual plan",
+      "strategic plan",
+      "quarterly plan",
+    ];
+
+    let connection = get_db_conn();
+    let clauses = GOAL_TERMS
+      .iter()
+      .map(|_| "(LOWER(filename) LIKE ? OR LOWER(summary) LIKE ?)")
+      .collect::<Vec<_>>()
+      .join(" OR ");
+    let query = format!(
+      "SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email \
+       FROM drive_documents WHERE {clauses} ORDER BY date_modified DESC LIMIT ?"
+    );
+    let mut params = Vec::with_capacity(GOAL_TERMS.len() * 2 + 1);
+    for term in GOAL_TERMS {
+      let pattern = format!("%{term}%");
+      params.push(pattern.clone());
+      params.push(pattern);
+    }
+    params.push(limit.max(1).to_string());
+
+    let mut stmt = connection.prepare(&query)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+      Ok(DriveDocument {
+        id: row.get(0)?,
+        drive_id: row.get(1)?,
+        filename: row.get(2)?,
+        file_size: row.get(3)?,
+        date_modified: row.get(4)?,
+        date_created: row.get(5)?,
+        summary: row.get(6)?,
+        checksum: row.get(7)?,
+        url: row.get(8)?,
+        timestamp: row.get(9)?,
+        content_chunks: None,
+        account_email: row.get(10).unwrap_or_default(),
+      })
+    })?;
+    Ok(rows.filter_map(Result::ok).collect())
+  }
+
   pub fn upsert(&mut self) -> Result<(), Error> {
     let connection = get_db_conn();
     let result = connection

@@ -2184,6 +2184,7 @@ async fn main() {
       clawd::gbrain::kn_brain_write_page,
       clawd::gbrain::kn_brain_default_root,
       clawd::goals::kn_goal_list,
+      clawd::goals::kn_goal_discovery_context,
       clawd::goals::kn_goal_upsert,
       clawd::goals::kn_goal_add_observation,
       clawd::goals::kn_goal_delete,
