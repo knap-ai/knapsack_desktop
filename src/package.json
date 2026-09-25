@@ -31,6 +31,7 @@
     "test:email-account-awareness": "node --test scripts/email-account-awareness.test.cjs",
     "test:meeting-live-context": "node --test scripts/meeting-live-context.test.cjs",
     "test:meeting-recording-routing": "node --test scripts/meeting-recording-routing.test.cjs",
+    "test:meeting-prep-notifications": "node --test scripts/meeting-prep-notifications.test.cjs",
     "test:web-fetch-recovery": "node --test scripts/web-fetch-recovery.test.mjs",
     "test:browser-placeholder-handoff": "node --test scripts/browser-placeholder-handoff.test.cjs",
     "test:dev-intent": "node --test scripts/dev-intent.test.mjs",

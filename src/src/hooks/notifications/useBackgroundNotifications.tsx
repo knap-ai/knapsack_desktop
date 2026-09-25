@@ -58,6 +58,15 @@ type UseBackgroundNotificationsProps = {
   addToLLMQueue: (item: LLMParams) => void
 }
 
+type UpcomingMeeting = {
+  id: string | number
+  eventId?: string
+  start: Date | string | number
+  title: string
+  participants?: { name: string; email: string }[]
+  description?: string
+}
+
 // Adaptive throttle: minimum minutes between notifications by priority
 const THROTTLE_MINUTES = {
   high: 30,
@@ -125,6 +134,21 @@ function persistPreppedMeetingId(meetingKey: string) {
   }
 }
 
+/**
+ * A recurring calendar series reuses its event ID. Include the occurrence start
+ * so tomorrow's instance is not mistaken for a meeting we already prepared.
+ */
+export function getMeetingPrepNotificationKey(meeting: UpcomingMeeting): string {
+  const occurrenceStart = new Date(meeting.start).getTime()
+  return `${meeting.eventId || meeting.id}:${occurrenceStart}`
+}
+
+/** Keep the prep alert useful without depending on an exact timer tick. */
+export function isMeetingInPrepWindow(meeting: UpcomingMeeting, now: Date): boolean {
+  const minutesUntil = (new Date(meeting.start).getTime() - now.getTime()) / (60 * 1000)
+  return minutesUntil >= 10 && minutesUntil <= 30
+}
+
 export function useBackgroundNotifications({
   userEmail,
   userName,
@@ -169,10 +193,14 @@ export function useBackgroundNotifications({
    * Uses adaptive throttling: high-priority notifications can fire more frequently.
    */
   const canSendNotification = useCallback(
-    async (priority: string): Promise<boolean> => {
-      // All proactive notifications require proactive mode to be enabled
-      const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
-      if (!isProactive) return false
+    async (priority: string, requireProactive = true): Promise<boolean> => {
+      // Meeting reminders are an explicit, scheduled user-facing feature. They
+      // remain governed by the notification preference, but are not suppressed
+      // just because conversational Proactive mode is off.
+      if (requireProactive) {
+        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+        if (!isProactive) return false
+      }
 
       const enabled = await getBackgroundNotificationsEnabled()
       if (!enabled) return false
@@ -181,6 +209,10 @@ export function useBackgroundNotifications({
       if (!notificationsEnabled) return false
 
       const withChannels = await hasChannelsAttached()
+
+      // A meeting prep is time-bound. Do not let an unrelated email alert or the
+      // general daily cap consume its chance to reach the user.
+      if (priority === 'meeting_prep') return true
 
       // Check throttle based on priority — use lower throttles when channels are attached
       const now = Date.now()
@@ -567,73 +599,88 @@ export function useBackgroundNotifications({
       notificationType: string,
       buttonHandler: string,
       buttonText: string,
-    ) => {
-      if (processingLockRef.current) return
+    ): Promise<boolean> => {
+      if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
       setIsProcessing(true)
 
-      try {
-        const fullPrompt =
-          context +
-          '\n\n' +
-          promptTemplate
-            .split('{userName}').join(userName)
-            .split('{userEmail}').join(userEmail)
+      return new Promise(resolve => {
+        try {
+          const fullPrompt =
+            context +
+            '\n\n' +
+            promptTemplate
+              .split('{userName}').join(userName)
+              .split('{userEmail}').join(userEmail)
 
-        addToLLMQueue({
-          prompt: fullPrompt,
-          documents: [],
-          messageStreamCallback: () => {},
-          messageFinishCallback: async (response: string) => {
-            processingLockRef.current = false
-            setIsProcessing(false)
-            const parsed = parseLLMResponse(response)
-            if (!parsed) return response
+          addToLLMQueue({
+            prompt: fullPrompt,
+            documents: [],
+            messageStreamCallback: () => {},
+            messageFinishCallback: async (response: string) => {
+              let delivered = false
+              try {
+                const parsed = parseLLMResponse(response)
+                if (!parsed) return response
 
-            // For email alerts, respect the shouldNotify flag from the LLM
-            if (notificationType === 'email_alert' && parsed.shouldNotify === false) {
-              return response
-            }
+                // For email alerts, respect the shouldNotify flag from the LLM
+                if (notificationType === 'email_alert' && parsed.shouldNotify === false) {
+                  return response
+                }
 
-            pendingInsightRef.current = parsed
-            await recordNotification(notificationType)
+                pendingInsightRef.current = parsed
 
-            const primaryText = parsed.suggestedActionShort || buttonText
-            await openNotificationWindow(
-              undefined,
-              [
-                { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
-                { buttonText: 'View Briefing', buttonHandler: buttonHandler },
-                { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
-              ],
-              parsed.notificationTitle,
-              parsed.notificationBody,
-            )
+                const primaryText = parsed.suggestedActionShort || buttonText
+                await openNotificationWindow(
+                  undefined,
+                  [
+                    { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
+                    { buttonText: 'View Briefing', buttonHandler: buttonHandler },
+                    { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+                  ],
+                  parsed.notificationTitle,
+                  parsed.notificationBody,
+                )
+                await recordNotification(notificationType)
+                delivered = true
 
-            // Push full briefing to connected messaging channels (non-blocking)
-            pushToChannels(
-              parsed.notificationTitle,
-              parsed.notificationBody,
-              parsed.fullAnalysis,
-              parsed.suggestedActionPrompt,
-            )
-
-            return response
-          },
-          errorCallback: () => {
-            processingLockRef.current = false
-            setIsProcessing(false)
-            console.error(`Failed to generate ${notificationType} notification`)
-          },
-        })
-      } catch (error) {
-        processingLockRef.current = false
-        setIsProcessing(false)
-        logError(new Error(`Error generating ${notificationType}`), {
-          additionalInfo: `Error in generateAndShowNotification for ${notificationType}`,
-          error: String(error),
-        })
-      }
+                // Push full briefing to connected messaging channels (non-blocking)
+                pushToChannels(
+                  parsed.notificationTitle,
+                  parsed.notificationBody,
+                  parsed.fullAnalysis,
+                  parsed.suggestedActionPrompt,
+                )
+                return response
+              } catch (error) {
+                logError(new Error(`Error showing ${notificationType} notification`), {
+                  additionalInfo: 'The meeting was left eligible for a later retry.',
+                  error: String(error),
+                })
+                return response
+              } finally {
+                processingLockRef.current = false
+                setIsProcessing(false)
+                resolve(delivered)
+              }
+            },
+            errorCallback: () => {
+              processingLockRef.current = false
+              setIsProcessing(false)
+              console.error(`Failed to generate ${notificationType} notification`)
+              resolve(false)
+            },
+          })
+        } catch (error) {
+          processingLockRef.current = false
+          setIsProcessing(false)
+          logError(new Error(`Error generating ${notificationType}`), {
+            additionalInfo: `Error in generateAndShowNotification for ${notificationType}`,
+            error: String(error),
+          })
+          resolve(false)
+        }
+      })
     },
     [
       userName,
@@ -672,11 +719,11 @@ export function useBackgroundNotifications({
   }, [userEmail, canSendNotification, gatherEmailContext, generateAndShowNotification])
 
   /**
-   * EVENT TRIGGER: Calendar sync completed.
-   * Called when the `finish_fetch_calendar` event fires.
-   * Checks for upcoming meetings that need preparation.
+   * Check the next meetings for a time-bound, concise prep notification. This
+   * runs both after calendar sync and on the minute clock: calendar sync alone
+   * is not reliable enough to hit a narrow reminder window.
    */
-  const handleCalendarSyncComplete = useCallback(async (force = false) => {
+  const checkMeetingPrep = useCallback(async (force = false) => {
     if (!userEmail || processingLockRef.current) return
 
     try {
@@ -686,28 +733,25 @@ export function useBackgroundNotifications({
       const now = new Date()
 
       // Filter out any events that have already started (safety guard for stale data)
-      const futureOnly = upcomingMeetings.filter(
-        m => new Date(m.start) > now,
-      )
+      const futureOnly = upcomingMeetings
+        .filter(m => new Date(m.start) > now)
+        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
       if (!futureOnly.length) return
 
       let meetingNeedingPrep
       if (force) {
         // When forced, pick the next upcoming future meeting regardless of time window
-        const meetingKey = futureOnly[0].eventId || String(futureOnly[0].id)
+        const meetingKey = getMeetingPrepNotificationKey(futureOnly[0])
         const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
         meetingNeedingPrep = notAlreadyPrepped ? futureOnly[0] : undefined
       } else {
-        const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
-        const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
-
-        // Find meetings starting in the next 15-30 minutes with multiple attendees
+        // Find meetings starting in the next 10-30 minutes with multiple attendees.
+        // The minute clock uses a range rather than exact equality, so a delayed
+        // renderer wake-up cannot silently skip the reminder.
         meetingNeedingPrep = futureOnly.find(meeting => {
-          const meetingStart = new Date(meeting.start)
           const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
-          const isInWindow =
-            meetingStart >= fifteenMinFromNow && meetingStart <= thirtyMinFromNow
-          const meetingKey = meeting.eventId || String(meeting.id)
+          const isInWindow = isMeetingInPrepWindow(meeting, now)
+          const meetingKey = getMeetingPrepNotificationKey(meeting)
           const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
           return hasMultipleAttendees && isInWindow && notAlreadyPrepped
         })
@@ -716,27 +760,29 @@ export function useBackgroundNotifications({
       if (!meetingNeedingPrep) return
 
       if (!force) {
-        const canSend = await canSendNotification('high')
+        const canSend = await canSendNotification('meeting_prep', false)
         if (!canSend) return
       }
 
-      // Mark meeting as prepped to avoid duplicate notifications
-      const meetingKey =
-        meetingNeedingPrep.eventId || String(meetingNeedingPrep.id)
-      preppedMeetingIdsRef.current.add(meetingKey)
-      persistPreppedMeetingId(meetingKey)
-
       const context = await gatherMeetingPrepContext(meetingNeedingPrep)
 
-      await generateAndShowNotification(
+      const wasDelivered = await generateAndShowNotification(
         context,
         PRE_MEETING_PREP_PROMPT,
         'pre_meeting_prep',
         'background_insight_notification_handler',
         'View Prep',
       )
+
+      // Only consume the meeting after a notification actually opened. A model
+      // or window failure should be eligible for a later retry in this window.
+      if (wasDelivered) {
+        const meetingKey = getMeetingPrepNotificationKey(meetingNeedingPrep)
+        preppedMeetingIdsRef.current.add(meetingKey)
+        persistPreppedMeetingId(meetingKey)
+      }
     } catch (error) {
-      logError(new Error('Error in handleCalendarSyncComplete'), {
+      logError(new Error('Error in checkMeetingPrep'), {
         additionalInfo: 'Error checking for meeting prep notifications',
         error: String(error),
       })
@@ -748,6 +794,10 @@ export function useBackgroundNotifications({
     gatherMeetingPrepContext,
     generateAndShowNotification,
   ])
+
+  // Retain the calendar-sync entry point for callers, while the minute clock
+  // below provides the reliable scheduling path.
+  const handleCalendarSyncComplete = checkMeetingPrep
 
   /**
    * TIMER TRIGGER: Morning briefing check.
@@ -1173,6 +1223,7 @@ export function useBackgroundNotifications({
   }, [])
 
   return {
+    checkMeetingPrep,
     checkMorningBriefing,
     checkProactiveCheckin,
     handleEmailSyncComplete,
