@@ -1023,7 +1023,6 @@ function App() {
     handleAutomation,
     updateAutomation,
     handleAutomationPreview,
-    handleNotificationsScheduleService,
     scheduleRuns,
     syncAutomations,
     googleAuthControls,
@@ -1040,6 +1039,7 @@ function App() {
   })
 
   const {
+    checkMeetingPrep,
     checkMorningBriefing,
     checkProactiveCheckin,
     handleEmailSyncComplete,
@@ -1092,23 +1092,29 @@ function App() {
     }
     const MINUTE_MS = 60000
 
-    const minuteInterval = setInterval(() => {
+    const tick = () => {
       const date = new Date()
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
       if (!LOCAL_QA_SAFE) {
-        handleNotificationsScheduleService(date)
+        // Meeting prep is evaluated on a forgiving time range, not a single
+        // calendar-sync event or exact minute, so reminders survive wake-ups
+        // and transient sync delays.
+        checkMeetingPrep()
         handleAutomationsFeedScheduleService(date)
         checkMorningBriefing(date)
         checkProactiveCheckin(date)
       }
       updateMeetingStatuses(currentTime)
-    }, MINUTE_MS)
+    }
+
+    tick()
+    const minuteInterval = setInterval(tick, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail, checkMorningBriefing, checkProactiveCheckin])
+  }, [userEmail, checkMeetingPrep, checkMorningBriefing, checkProactiveCheckin])
 
   const periodicSyncRef = useRef({
     fetchConnections,
