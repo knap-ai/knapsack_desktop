@@ -14,6 +14,10 @@ test('legacy Drive documents receive one account-scoped goal-index backfill', ()
     path.join(sourceRoot, 'src-tauri/src/connections/google/drive.rs'),
     'utf8',
   )
+  const goalsPanel = fs.readFileSync(
+    path.join(sourceRoot, 'src/components/organisms/GBrainView/GoalsPanel.tsx'),
+    'utf8',
+  )
 
   assert.match(model, /pub fn needs_goal_index_backfill\(account_email: &str\)/)
   assert.match(model, /drive_goal_index_backfills/)
@@ -22,5 +26,13 @@ test('legacy Drive documents receive one account-scoped goal-index backfill', ()
   assert.match(drive, /let backfill_goal_index = DriveDocument::needs_goal_index_backfill\(&account_email\)/)
   assert.match(drive, /running one-time local goal-index backfill/)
   assert.match(drive, /if backfill_goal_index \{[\s\S]*?String::new\(\)/)
+  assert.match(drive, /Result<Option<Vec<String>>, \(\)>/)
+  assert.match(drive, /let \(mut all_documents, mut backfill_content_fetches_succeeded\)/)
+  assert.match(drive, /if backfill_goal_index && backfill_content_fetches_succeeded \{/)
+  assert.match(drive, /deferred goal-index backfill completion/)
   assert.match(drive, /DriveDocument::mark_goal_index_backfill_complete\(&account_email\)/)
+  assert.match(goalsPanel, /User-provided planning note/)
+  assert.match(goalsPanel, /const fixedEvidence/)
+  assert.match(goalsPanel, /const connectedBudget/)
+  assert.doesNotMatch(goalsPanel, /evidence\.slice\(0, 30000\)/)
 })

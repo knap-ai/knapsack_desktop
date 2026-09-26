@@ -293,7 +293,7 @@ async fn get_drive_file_content(
   id: String,
   temp_dir: PathBuf,
   hub: DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
-) -> Option<Vec<String>> {
+) -> Result<Option<Vec<String>>, ()> {
   let path = temp_dir.join(format!(
     "{}.{}",
     id.clone(),
@@ -315,16 +315,20 @@ async fn get_drive_file_content(
       .await;
     return match export_result {
       Err(e) => {
-        println!("Export {id} failed {:?}", e);
-        None
+        log::warn!("Export {id} failed {:?}", e);
+        Err(())
       }
       Ok(res) => {
         let (_, body) = res.into_parts();
-        let bytes = hyper::body::to_bytes(body).await.unwrap();
-        let result = String::from_utf8(bytes.into_iter().collect()).expect("");
+        let bytes = hyper::body::to_bytes(body).await.map_err(|error| {
+          log::warn!("Export {id} could not read response body: {:?}", error);
+        })?;
+        let result = String::from_utf8(bytes.into_iter().collect()).map_err(|error| {
+          log::warn!("Export {id} returned non-text content: {:?}", error);
+        })?;
         let splitter = TextSplitter::default();
         let chunks = splitter.split_text(&result);
-        Some(chunks)
+        Ok(Some(chunks))
       }
     };
   }
@@ -337,13 +341,17 @@ async fn get_drive_file_content(
     .await;
   match export_result {
     Err(e) => {
-      println!("Download {id} failed {:?}", e);
-      None
+      log::warn!("Download {id} failed {:?}", e);
+      Err(())
     }
     Ok(res) => {
       let (_, body) = res.0.into_parts();
-      let bytes = hyper::body::to_bytes(body).await.unwrap();
-      fs::write(path.clone(), bytes.clone()).unwrap();
+      let bytes = hyper::body::to_bytes(body).await.map_err(|error| {
+        log::warn!("Download {id} could not read response body: {:?}", error);
+      })?;
+      fs::write(path.clone(), bytes.clone()).map_err(|error| {
+        log::warn!("Could not stage Drive download {id}: {:?}", error);
+      })?;
       let local_temp_file = LocalFile {
         id: None,
         filename: id.clone(),
@@ -358,16 +366,18 @@ async fn get_drive_file_content(
       };
       match local_fs::read_file_contents(&local_temp_file) {
         Ok(summary) => {
-          fs::remove_file(path).unwrap();
+          if let Err(error) = fs::remove_file(path) {
+            log::warn!("Could not remove staged Drive download {id}: {:?}", error);
+          }
           // TODO: implement chunking for DriveDocument.
           if summary.len() > 0 {
-            return Some(summary.clone());
+            return Ok(Some(summary.clone()));
           }
-          None
+          Ok(None)
         }
         Err(error) => {
-          log::error!("Could not open file: {:?}", error);
-          None
+          log::warn!("Could not open Drive file {id}: {:?}", error);
+          Err(())
         }
       }
     }
@@ -379,7 +389,7 @@ pub async fn get_or_create_drive_document_from_file(
   temp_dir: &PathBuf,
   hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
   account_email: &str,
-) -> DriveDocument {
+) -> (DriveDocument, bool) {
   let mime_type = file.mime_type.clone().unwrap();
   let drive_id = file.id.clone().unwrap();
   let filename = file.name.clone().unwrap();
@@ -394,8 +404,17 @@ pub async fn get_or_create_drive_document_from_file(
     .ok()
     .flatten();
   let url = file.web_view_link.clone().unwrap_or("".to_string());
-  let maybe_content =
-    get_drive_file_content(mime_type, drive_id.clone(), temp_dir.clone(), hub.clone()).await;
+  let (maybe_content, content_fetch_succeeded) = match get_drive_file_content(
+    mime_type,
+    drive_id.clone(),
+    temp_dir.clone(),
+    hub.clone(),
+  )
+  .await
+  {
+    Ok(content) => (content, true),
+    Err(()) => (None, false),
+  };
 
   if existing_drive_document.is_some() {
     let mut drive_document = existing_drive_document.unwrap().clone();
@@ -409,7 +428,7 @@ pub async fn get_or_create_drive_document_from_file(
       }
       drive_document.content_chunks = Some(content_chunks);
     }
-    return drive_document;
+    return (drive_document, content_fetch_succeeded);
   }
 
   let summary = maybe_content
@@ -437,7 +456,7 @@ pub async fn get_or_create_drive_document_from_file(
   if let Err(e) = insert_result {
     log::error!("Error inserting drive document: {:?}", e);
   }
-  drive_document
+  (drive_document, content_fetch_succeeded)
 }
 
 async fn list_accessible_shared_drives(
@@ -520,10 +539,11 @@ async fn fetch_drive_corpus(
   drive_id: Option<&str>,
   temp_dir: &PathBuf,
   account_email: &str,
-) -> Result<Vec<DriveDocument>, Error> {
+) -> Result<(Vec<DriveDocument>, bool), Error> {
   let semaphore = Arc::new(Semaphore::new(5));
   let mut next_page_token: Option<String> = None;
   let mut all_documents = Vec::new();
+  let mut all_content_fetches_succeeded = true;
 
   loop {
     let (files, token) =
@@ -555,18 +575,22 @@ async fn fetch_drive_corpus(
     for task in tasks {
       if let Err(err) = task.await {
         log::error!("[google-drive] worker task failed: {}", err);
+        all_content_fetches_succeeded = false;
       }
     }
 
     let mut documents = drive_documents.lock().await;
-    all_documents.append(&mut *documents);
+    for (document, content_fetch_succeeded) in documents.drain(..) {
+      all_content_fetches_succeeded &= content_fetch_succeeded;
+      all_documents.push(document);
+    }
 
     if next_page_token.is_none() {
       break;
     }
   }
 
-  Ok(all_documents)
+  Ok((all_documents, all_content_fetches_succeeded))
 }
 
 pub async fn fetch_drive(
@@ -612,7 +636,7 @@ pub async fn fetch_drive(
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");
   fs::create_dir_all(temp_dir.clone()).unwrap();
-  let mut all_documents =
+  let (mut all_documents, mut backfill_content_fetches_succeeded) =
     fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
   let shared_drives = list_accessible_shared_drives(&hub).await;
   log::info!(
@@ -636,7 +660,7 @@ pub async fn fetch_drive(
       )
       .await
       {
-        Ok(mut documents) => {
+        Ok((mut documents, content_fetches_succeeded)) => {
           log::info!(
             "[google-drive] synced shared drive account={} drive_id={} drive_name={} docs={}",
             account_email,
@@ -644,6 +668,7 @@ pub async fn fetch_drive(
             shared_drive_name,
             documents.len()
           );
+          backfill_content_fetches_succeeded &= content_fetches_succeeded;
           all_documents.append(&mut documents);
         }
         Err(error) => {
@@ -654,6 +679,7 @@ pub async fn fetch_drive(
             shared_drive_name,
             error
           );
+          backfill_content_fetches_succeeded = false;
         }
       }
     }
@@ -671,7 +697,7 @@ pub async fn fetch_drive(
   //   .add_handle_embed_finish_to_queue(ConnectionsEnum::GoogleDrive, 1)
   //   .await;
   let _ = fs::remove_dir_all(temp_dir);
-  if backfill_goal_index {
+  if backfill_goal_index && backfill_content_fetches_succeeded {
     if let Err(error) = DriveDocument::mark_goal_index_backfill_complete(&account_email) {
       log::warn!(
         "[google-drive] could not record completed goal-index backfill account={}: {:?}",
@@ -679,6 +705,11 @@ pub async fn fetch_drive(
         error
       );
     }
+  } else if backfill_goal_index {
+    log::warn!(
+      "[google-drive] deferred goal-index backfill completion account={} because one or more files could not be indexed",
+      account_email
+    );
   }
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), limit_date);
   Ok(())
@@ -879,7 +910,7 @@ async fn fetch_google_drive_files(
       .await
       .unwrap();
 
-    let drive_document =
+    let (drive_document, _) =
       get_or_create_drive_document_from_file(&file, &temp_dir, &hub, &email).await;
     let document =
       create_drive_document(drive_document.id.unwrap(), drive_document.checksum.clone());
@@ -945,6 +976,8 @@ async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, 
 
   let chunks = get_drive_file_content(mime_type.clone(), file_id.clone(), temp_dir, hub.clone())
     .await
+    .ok()
+    .flatten()
     .ok_or_else(|| error::ErrorBadRequest("Failed to export or download Drive file content"))?;
 
   let combined = chunks.join("\n");

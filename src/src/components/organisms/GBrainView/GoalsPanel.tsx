@@ -81,13 +81,23 @@ const GoalsPanel: React.FC<{
               `[${source.sourceType}] ${source.title}\nRecord: ${source.sourceRecord}\n${source.excerpt}`,
           )
           .join('\n\n')
-        const evidence = [
-          connectedEvidence,
-          sourceContext ? `Existing Brain context:\n${sourceContext}` : '',
-          extraContext.trim() ? `User-provided planning note:\n${extraContext.trim()}` : '',
-        ]
+        // A note the user deliberately pasted is stronger evidence than a
+        // long tail of automatically discovered records. Reserve space for it
+        // (and existing Brain context) before adding the bounded sync index.
+        const planningNote = extraContext.trim()
+        const fixedEvidence = [
+          planningNote ? `User-provided planning note:\n${planningNote.slice(0, 8_000)}` : '',
+          sourceContext ? `Existing Brain context:\n${sourceContext.slice(0, 4_000)}` : '',
+        ].filter(Boolean)
+        const separator = '\n\n---\n\n'
+        const fixedText = fixedEvidence.join(separator)
+        const connectedBudget = Math.max(
+          0,
+          30_000 - fixedText.length - (fixedText ? separator.length : 0),
+        )
+        const evidence = [...fixedEvidence, connectedEvidence.slice(0, connectedBudget)]
           .filter(Boolean)
-          .join('\n\n---\n\n')
+          .join(separator)
         if (!evidence) {
           setDiscoverySummary(
             `${connectedContext.searchSummary} There is no synced goal-shaped evidence to review yet. Sync a source or use a specific planning note.`,
@@ -104,7 +114,7 @@ const GoalsPanel: React.FC<{
           '{"name":"short label","objective":"outcome statement","owner":"person or empty","reason":"one sentence naming the supporting evidence","keyResults":[{"title":"measurable result","unit":"unit or empty","baseline":null,"target":null,"deadline":"YYYY-MM-DD or empty","authoritativeSource":"named system/report or empty","direction":"increase"}]}',
           'Include one to five key results. If no defensible goal exists, return {"objective":"","reason":"No explicit measurable goal found","keyResults":[]}.',
           '',
-          `Private work context:\n${evidence.slice(0, 30000)}`,
+          `Private work context:\n${evidence}`,
         ].join('\n')
         const response = await fetch(`${KN_SERVER_HOST}/api/clawd/agent-run`, {
           method: 'POST',

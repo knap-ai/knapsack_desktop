@@ -278,15 +278,15 @@ fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
     return compact;
   }
 
-  let match_at = compact
-    .char_indices()
-    .enumerate()
-    .find_map(|(char_index, (byte_index, _))| {
-      GOAL_TERMS
-        .iter()
-        .any(|term| compact[byte_index..].to_lowercase().starts_with(term))
-        .then_some(char_index)
-    });
+  // Goal terms are ASCII.  Lowercasing only ASCII therefore preserves byte
+  // offsets even when the surrounding evidence contains Unicode, while doing
+  // the normalization once rather than once per character.
+  let lowered = compact.to_ascii_lowercase();
+  let match_at = GOAL_TERMS
+    .iter()
+    .filter_map(|term| lowered.find(term))
+    .min()
+    .map(|byte_index| compact[..byte_index].chars().count());
   let Some(match_at) = match_at else {
     return compact_excerpt(&compact, limit);
   };
