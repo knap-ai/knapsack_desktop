@@ -820,6 +820,17 @@ pub async fn ollama_native_chat(
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
+  let native_tool_names: HashMap<String, String> = messages
+    .iter()
+    .filter_map(|message| match message {
+      OaiMessage::Assistant {
+        tool_calls: Some(calls),
+        ..
+      } => Some(calls.iter().map(|call| (call.id.clone(), call.function.name.clone()))),
+      _ => None,
+    })
+    .flatten()
+    .collect();
   let native_messages: Vec<JsonValue> = messages
     .iter()
     .map(|message| match message {
@@ -842,7 +853,16 @@ pub async fn ollama_native_chat(
         }
         value
       }
-      OaiMessage::Tool { content, .. } => json!({"role": "tool", "content": content}),
+      OaiMessage::Tool {
+        tool_call_id,
+        content,
+      } => {
+        let mut value = json!({"role": "tool", "content": content});
+        if let Some(tool_name) = native_tool_names.get(tool_call_id) {
+          value["tool_name"] = json!(tool_name);
+        }
+        value
+      }
     })
     .collect();
 
