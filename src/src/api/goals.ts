@@ -74,6 +74,21 @@ export interface GoalProposal {
   }>
 }
 
+export interface GoalDiscoverySource {
+  sourceType: 'Gmail' | 'Google Drive'
+  title: string
+  excerpt: string
+  sourceRecord: string
+  updatedAt: number
+}
+
+export interface GoalDiscoveryContext {
+  sources: GoalDiscoverySource[]
+  emailMatches: number
+  driveMatches: number
+  searchSummary: string
+}
+
 export const parseGoalProposalResponse = (value: string): GoalProposal => {
   const match = value.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const parsed = JSON.parse((match?.[1] ?? value).trim()) as GoalProposal
@@ -84,6 +99,9 @@ export const parseGoalProposalResponse = (value: string): GoalProposal => {
 }
 
 export const listGoals = (brainRoot = '') => invoke<GoalAssessment[]>('kn_goal_list', { brainRoot })
+
+export const getGoalDiscoveryContext = () =>
+  invoke<GoalDiscoveryContext>('kn_goal_discovery_context')
 
 export const saveGoal = (goal: GoalDefinition, brainRoot = '') =>
   invoke<GoalAssessment>('kn_goal_upsert', { brainRoot, goal })

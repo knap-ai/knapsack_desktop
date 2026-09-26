@@ -212,6 +212,74 @@ impl Email {
     rows.filter_map(Result::ok).collect()
   }
 
+  /// Return messages whose subject or body contains language commonly used in
+  /// objectives, OKRs, or planning documents.  This is deliberately a local
+  /// index query: callers must not imply that an empty response proves a
+  /// connected mailbox contains no goals.
+  pub fn find_goal_evidence(limit: usize) -> Result<Vec<Email>> {
+    const GOAL_TERMS: [&str; 12] = [
+      "okr",
+      "objective",
+      "key result",
+      "goal",
+      "target",
+      "kpi",
+      "metric",
+      "milestone",
+      "north star",
+      "annual plan",
+      "strategic plan",
+      "quarterly plan",
+    ];
+
+    let connection = get_db_conn();
+    // Apply the candidate filter before the bounded scan. Otherwise a busy
+    // inbox can hide older planning messages behind 500 unrelated messages.
+    // The rendered-text check below remains the final authority, because the
+    // stored body can contain HTML markup that should not count as evidence.
+    let candidate_conditions = GOAL_TERMS
+      .iter()
+      .map(|_| "(LOWER(subject) LIKE ? OR LOWER(body) LIKE ?)")
+      .collect::<Vec<_>>()
+      .join(" OR ");
+    let query = format!(
+      "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email \
+       FROM emails WHERE COALESCE(is_deleted, 0) = 0 AND ({candidate_conditions}) ORDER BY date DESC LIMIT 500"
+    );
+    let candidate_terms = GOAL_TERMS
+      .iter()
+      .flat_map(|term| [format!("%{term}%"), format!("%{term}%")])
+      .collect::<Vec<_>>();
+    let mut stmt = connection.prepare(&query)?;
+    let rows = stmt.query_map(
+      rusqlite::params_from_iter(candidate_terms.iter()),
+      Email::build_struct_from_row,
+    )?;
+    Ok(rows
+      .filter_map(|row| row.ok())
+      .filter_map(|mut email| {
+        let body = if email.body.trim().is_empty() {
+          String::new()
+        } else {
+          from_read(email.body.as_bytes(), email.body.len().max(1)).to_lowercase()
+        };
+        let subject = email.subject.to_lowercase();
+        let matches_goal = GOAL_TERMS
+          .iter()
+          .any(|term| subject.contains(term) || body.contains(term));
+        if matches_goal {
+          // Return the same rendered text searched above so excerpts anchor to
+          // the matching user-visible content instead of an HTML attribute.
+          email.body = body;
+          Some(email)
+        } else {
+          None
+        }
+      })
+      .take(limit.max(1))
+      .collect())
+  }
+
   pub fn count() -> Result<u64> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare("SELECT count(*) FROM emails")?;
