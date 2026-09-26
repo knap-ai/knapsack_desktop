@@ -689,6 +689,13 @@ export function useBackgroundNotifications({
                     parsed.fullAnalysis,
                     parsed.suggestedActionPrompt,
                   ).then(channelDelivered => {
+                    // An email alert sent successfully to a linked channel is
+                    // still a delivery even if another notification currently
+                    // owns the local popup. Record it once so later sync
+                    // events cannot regenerate and resend the same alert.
+                    if (channelDelivered && notificationType === 'email_alert' && !didOpen) {
+                      void recordNotification(notificationType)
+                    }
                     if (channelDelivered) {
                       void onChannelDelivered?.()
                     }
