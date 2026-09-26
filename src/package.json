@@ -35,6 +35,7 @@
     "test:browser-placeholder-handoff": "node --test scripts/browser-placeholder-handoff.test.cjs",
     "test:dev-intent": "node --test scripts/dev-intent.test.mjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",
+    "test:ollama-cloud": "node --test scripts/ollama-cloud-provider.test.cjs",
     "test:verifiable-loops": "node --test scripts/gbrain-verifiable-loops.test.mjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",

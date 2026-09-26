@@ -5729,13 +5729,18 @@ struct StoredTokens {
   #[serde(default)]
   active_provider: Option<String>,
 
-  // Ollama (local LLM) support
+  // Ollama support. Local models use a harmless marker key; Ollama Cloud uses
+  // the user's real key, stored alongside the other provider keys.
   #[serde(default)]
   ollama_enabled: Option<bool>,
   #[serde(default)]
   ollama_model: Option<String>,
   #[serde(default)]
   ollama_base_url: Option<String>,
+  #[serde(default)]
+  ollama_cloud_enabled: Option<bool>,
+  #[serde(default)]
+  ollama_cloud_api_key: Option<String>,
 
   /// When set, always run the OpenClaw session sandbox in Docker "all" mode
   /// (every session, not just non-main ones) instead of the default
@@ -5774,6 +5779,66 @@ struct StoredTokens {
   /// openclaw.json (see clawd/snowflake_mcp.rs).
   #[serde(default)]
   session_capability_secret: Option<String>,
+}
+
+const OLLAMA_LOCAL_BASE_URL: &str = "http://127.0.0.1:11434";
+const OLLAMA_CLOUD_BASE_URL: &str = "https://ollama.com";
+
+fn ollama_cloud_enabled(tokens: &StoredTokens) -> bool {
+  tokens.ollama_enabled.unwrap_or(false)
+    && tokens.ollama_cloud_enabled.unwrap_or(false)
+    && tokens
+      .ollama_cloud_api_key
+      .as_ref()
+      .is_some_and(|key| !key.trim().is_empty())
+}
+
+fn ollama_runtime_key(tokens: &StoredTokens) -> Option<String> {
+  if !tokens.ollama_enabled.unwrap_or(false) {
+    return None;
+  }
+  if ollama_cloud_enabled(tokens) {
+    return tokens
+      .ollama_cloud_api_key
+      .as_ref()
+      .map(|key| key.trim().to_string());
+  }
+  Some("ollama-local".to_string())
+}
+
+fn ollama_runtime_base_url(tokens: &StoredTokens) -> String {
+  if ollama_cloud_enabled(tokens) {
+    OLLAMA_CLOUD_BASE_URL.to_string()
+  } else {
+    tokens
+      .ollama_base_url
+      .as_deref()
+      .map(str::trim)
+      .filter(|url| !url.is_empty())
+      .unwrap_or(OLLAMA_LOCAL_BASE_URL)
+      .to_string()
+  }
+}
+
+fn propagate_ollama_env(tokens: &StoredTokens) {
+  let Some(key) = ollama_runtime_key(tokens) else {
+    std::env::remove_var("OLLAMA_API_KEY");
+    std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+    std::env::remove_var("OLLAMA_HOST");
+    return;
+  };
+  std::env::set_var("OLLAMA_API_KEY", key);
+  std::env::set_var("OLLAMA_HOST", ollama_runtime_base_url(tokens));
+  if let Some(model) = tokens
+    .ollama_model
+    .as_deref()
+    .map(str::trim)
+    .filter(|model| !model.is_empty())
+  {
+    std::env::set_var("KNAPSACK_OLLAMA_MODEL", model);
+  } else {
+    std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
+  }
 }
 
 static TOKENS_FILE_LOCK: once_cell::sync::Lazy<std::sync::Mutex<()>> =
@@ -6014,6 +6079,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
+    ollama_cloud_enabled: None,
+    ollama_cloud_api_key: None,
     force_docker_mode: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
@@ -6185,22 +6252,8 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       std::env::set_var("KNAPSACK_TRUSTEDROUTER_MODEL", m);
     }
   }
-  // Propagate Ollama settings so OpenClaw subprocess picks them up
-  if tokens.ollama_enabled.unwrap_or(false) {
-    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
-    if let Some(m) = &tokens.ollama_model {
-      let m = m.trim();
-      if !m.is_empty() {
-        std::env::set_var("KNAPSACK_OLLAMA_MODEL", m);
-      }
-    }
-    if let Some(u) = &tokens.ollama_base_url {
-      let u = u.trim();
-      if !u.is_empty() {
-        std::env::set_var("OLLAMA_HOST", u);
-      }
-    }
-  }
+  // Propagate local or Cloud Ollama settings so OpenClaw subprocess picks them up.
+  propagate_ollama_env(&tokens);
   // Propagate extra provider keys (MiniMax, ZAI/GLM, HuggingFace, etc.)
   if let Some(extra) = &tokens.extra_provider_keys {
     for (env_var, key) in extra {
@@ -9205,8 +9258,10 @@ pub struct ApiKeyStatusResponse {
   pub openrouter_key_hint: Option<String>,
   pub trustedrouter_key_hint: Option<String>,
   pub gemini_cli_email: Option<String>,
-  // Ollama (local LLM) status
+  // Ollama local/Cloud status. The key itself is never returned.
   pub ollama_enabled: bool,
+  pub ollama_cloud_enabled: bool,
+  pub ollama_cloud_key_hint: Option<String>,
   pub ollama_model: Option<String>,
   pub ollama_base_url: Option<String>,
   /// Extra providers: list of {id, env_var, has_key, key_hint}
@@ -9284,6 +9339,8 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
         trustedrouter_key_hint: None,
         gemini_cli_email: None,
         ollama_enabled: false,
+        ollama_cloud_enabled: false,
+        ollama_cloud_key_hint: None,
         ollama_model: None,
         ollama_base_url: None,
         extra_providers: vec![],
@@ -9332,6 +9389,12 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     .map(|k| !k.trim().is_empty())
     .unwrap_or(false);
   let ollama_enabled = tokens.ollama_enabled.unwrap_or(false);
+  let ollama_cloud_enabled = ollama_cloud_enabled(&tokens);
+  let ollama_cloud_hint = tokens
+    .ollama_cloud_api_key
+    .as_ref()
+    .filter(|key| !key.trim().is_empty())
+    .map(|key| mask_key(key));
   let (has_gemini_cli, gemini_cli_email) = read_gemini_cli_auth(&app_handle);
   let has_knapsack = has_knapsack_runtime_auth(&tokens);
   let knapsack_auth_expired = knapsack_auth_is_expired(&tokens);
@@ -9455,6 +9518,8 @@ pub async fn api_key_status(app_handle: web::Data<tauri::AppHandle>) -> impl Res
     trustedrouter_key_hint: trustedrouter_hint,
     gemini_cli_email,
     ollama_enabled,
+    ollama_cloud_enabled,
+    ollama_cloud_key_hint: ollama_cloud_hint,
     ollama_model: tokens.ollama_model.clone(),
     ollama_base_url: tokens.ollama_base_url.clone(),
     extra_providers,
@@ -9921,13 +9986,7 @@ pub async fn set_api_key(
     // When switching AWAY from Ollama, clear the env vars so the gateway's
     // provider discovery won't pick up a stale Ollama provider.
     if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
-      std::env::set_var("OLLAMA_API_KEY", "ollama-local");
-      if let Some(m) = &tokens.ollama_model {
-        std::env::set_var("KNAPSACK_OLLAMA_MODEL", m);
-      }
-      if let Some(u) = &tokens.ollama_base_url {
-        std::env::set_var("OLLAMA_HOST", u);
-      }
+      propagate_ollama_env(&tokens);
     } else if provider != "ollama" {
       std::env::remove_var("OLLAMA_API_KEY");
       std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
@@ -10250,13 +10309,7 @@ pub async fn set_api_key(
   // When switching away, clear the env vars so the gateway won't discover
   // a stale Ollama provider on restart.
   if provider == "ollama" && tokens.ollama_enabled.unwrap_or(false) {
-    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
-    if let Some(m) = &tokens.ollama_model {
-      std::env::set_var("KNAPSACK_OLLAMA_MODEL", m);
-    }
-    if let Some(u) = &tokens.ollama_base_url {
-      std::env::set_var("OLLAMA_HOST", u);
-    }
+    propagate_ollama_env(&tokens);
   } else if provider != "ollama" {
     std::env::remove_var("OLLAMA_API_KEY");
     std::env::remove_var("KNAPSACK_OLLAMA_MODEL");
@@ -10533,7 +10586,7 @@ pub async fn delete_extra_provider_key(
   })
 }
 
-// ── Ollama (local LLM) endpoints ───────────────────────────────────────────
+// ── Ollama local and Cloud endpoints ───────────────────────────────────────
 
 #[derive(Debug, Serialize)]
 pub struct OllamaStatusResponse {
@@ -10541,22 +10594,49 @@ pub struct OllamaStatusResponse {
   pub base_url: String,
 }
 
-/// Check whether Ollama is running on the local machine.
+#[derive(Debug, Deserialize)]
+pub struct OllamaRuntimeQuery {
+  #[serde(default)]
+  pub cloud: bool,
+}
+
+fn local_ollama_base_url(tokens: Option<&StoredTokens>) -> String {
+  tokens
+    .and_then(|tokens| tokens.ollama_base_url.as_deref())
+    .map(str::trim)
+    .filter(|url| !url.is_empty() && *url != OLLAMA_CLOUD_BASE_URL)
+    .unwrap_or(OLLAMA_LOCAL_BASE_URL)
+    .to_string()
+}
+
+/// Check whether the configured Ollama runtime is reachable.
 #[get("/api/knapsack/ollama/status")]
-pub async fn ollama_status(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+pub async fn ollama_status(
+  app_handle: web::Data<tauri::AppHandle>,
+  query: web::Query<OllamaRuntimeQuery>,
+) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = if query.cloud {
+    OLLAMA_CLOUD_BASE_URL.to_string()
+  } else {
+    local_ollama_base_url(tokens.as_ref())
+  };
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(3))
     .build()
     .unwrap_or_default();
 
-  let running = client
-    .get(format!("{}/api/tags", &base_url))
+  let mut request = client.get(format!("{}/api/tags", &base_url));
+  if query.cloud {
+    if let Some(key) = tokens
+      .as_ref()
+      .and_then(|tokens| tokens.ollama_cloud_api_key.as_deref())
+    {
+      request = request.bearer_auth(key.trim());
+    }
+  }
+  let running = request
     .send()
     .await
     .map(|r| r.status().is_success())
@@ -10580,21 +10660,34 @@ pub struct OllamaModelsResponse {
   pub message: String,
 }
 
-/// List models available in the local Ollama instance.
+/// List models from the configured local runtime or Ollama Cloud account.
 #[get("/api/knapsack/ollama/models")]
-pub async fn ollama_models(app_handle: web::Data<tauri::AppHandle>) -> impl Responder {
+pub async fn ollama_models(
+  app_handle: web::Data<tauri::AppHandle>,
+  query: web::Query<OllamaRuntimeQuery>,
+) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = if query.cloud {
+    OLLAMA_CLOUD_BASE_URL.to_string()
+  } else {
+    local_ollama_base_url(tokens.as_ref())
+  };
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(5))
     .build()
     .unwrap_or_default();
 
-  let resp = match client.get(format!("{}/api/tags", &base_url)).send().await {
+  let mut request = client.get(format!("{}/api/tags", &base_url));
+  if query.cloud {
+    if let Some(key) = tokens
+      .as_ref()
+      .and_then(|tokens| tokens.ollama_cloud_api_key.as_deref())
+    {
+      request = request.bearer_auth(key.trim());
+    }
+  }
+  let resp = match request.send().await {
     Ok(r) => r,
     Err(e) => {
       return HttpResponse::Ok().json(OllamaModelsResponse {
@@ -10648,6 +10741,14 @@ pub async fn ollama_models(app_handle: web::Data<tauri::AppHandle>) -> impl Resp
 #[derive(Debug, Deserialize)]
 pub struct OllamaConfigRequest {
   pub enabled: bool,
+  /// Omitted by older callers that only manage local Ollama settings. In that
+  /// case preserve the saved runtime mode instead of silently switching Cloud
+  /// users back to local mode.
+  #[serde(default)]
+  pub cloud: Option<bool>,
+  /// A new Cloud key. Omitted when retaining the saved key.
+  #[serde(default)]
+  pub api_key: Option<String>,
   pub model: Option<String>,
   pub base_url: Option<String>,
 }
@@ -10697,18 +10798,23 @@ fn parse_ollama_show_context_window(body: &serde_json::Value) -> Option<u64> {
   context_window
 }
 
-async fn fetch_ollama_model_context_window(base_url: &str, model: &str) -> Option<u64> {
+async fn fetch_ollama_model_context_window(
+  base_url: &str,
+  model: &str,
+  api_key: Option<&str>,
+) -> Option<u64> {
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(5))
     .build()
     .ok()?;
 
-  let response = client
+  let mut request = client
     .post(format!("{}/api/show", base_url.trim_end_matches('/')))
-    .json(&serde_json::json!({ "name": model }))
-    .send()
-    .await
-    .ok()?;
+    .json(&serde_json::json!({ "name": model }));
+  if let Some(key) = api_key.filter(|key| *key != "ollama-local") {
+    request = request.bearer_auth(key);
+  }
+  let response = request.send().await.ok()?;
 
   if !response.status().is_success() {
     return None;
@@ -10721,6 +10827,7 @@ async fn fetch_ollama_model_context_window(base_url: &str, model: &str) -> Optio
 fn upsert_ollama_provider_config(
   cfg_val: &mut serde_json::Value,
   base_url: &str,
+  api_key: &str,
   model: Option<&str>,
   context_window: Option<u64>,
 ) {
@@ -10751,7 +10858,7 @@ fn upsert_ollama_provider_config(
 
   provider.insert("baseUrl".to_string(), serde_json::json!(base_url));
   provider.insert("api".to_string(), serde_json::json!("ollama"));
-  provider.insert("apiKey".to_string(), serde_json::json!("ollama-local"));
+  provider.insert("apiKey".to_string(), serde_json::json!(api_key));
 
   let Some(model) = model.filter(|m| !m.trim().is_empty()) else {
     return;
@@ -11028,11 +11135,16 @@ pub async fn ollama_configure(
     }
   };
 
+  let was_cloud = tokens.ollama_cloud_enabled.unwrap_or(false);
+  let cloud = payload
+    .cloud
+    .unwrap_or_else(|| tokens.ollama_cloud_enabled.unwrap_or(false));
+
   if crate::privacy_mode::is_enabled() {
-    if !payload.enabled {
+    if !payload.enabled || cloud {
       return HttpResponse::Forbidden().json(SetApiKeyResponse {
         success: false,
-        message: "Privacy Mode requires a local Ollama provider; turn off Privacy Mode yourself in Settings before disabling it.".to_string(),
+        message: "Privacy Mode requires local Ollama. Turn off Privacy Mode yourself in Settings before using Cloud or disabling it.".to_string(),
       });
     }
     if let Err(message) = crate::privacy_mode::validate_inference(
@@ -11049,14 +11161,57 @@ pub async fn ollama_configure(
     }
   }
 
+  let supplied_cloud_key = payload
+    .api_key
+    .as_deref()
+    .map(str::trim)
+    .filter(|key| !key.is_empty());
+  if payload.enabled
+    && cloud
+    && supplied_cloud_key.is_none()
+    && !tokens
+      .ollama_cloud_api_key
+      .as_ref()
+      .is_some_and(|key| !key.trim().is_empty())
+  {
+    return HttpResponse::BadRequest().json(SetApiKeyResponse {
+      success: false,
+      message: "Enter an Ollama Cloud API key before enabling Cloud.".to_string(),
+    });
+  }
+  if let Some(key) = supplied_cloud_key {
+    if let Err(message) = validate_api_key_format(key) {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message,
+      });
+    }
+    tokens.ollama_cloud_api_key = Some(key.to_string());
+  }
+
   tokens.ollama_enabled = Some(payload.enabled);
+  // Runtime enablement and the selected mode are independent.  Retaining the
+  // mode lets a temporarily-disabled Cloud configuration be enabled again
+  // without silently falling back to a local marker against the Cloud URL.
+  tokens.ollama_cloud_enabled = Some(cloud);
   if let Some(model) = &payload.model {
     let m = model.trim().to_string();
     tokens.ollama_model = if m.is_empty() { None } else { Some(m) };
   }
-  if let Some(url) = &payload.base_url {
-    let u = url.trim().to_string();
-    tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
+  // Cloud's endpoint is selected by `ollama_runtime_base_url`; do not replace
+  // the saved local endpoint here.  That endpoint can be a LAN or self-hosted
+  // daemon and must be available again when the user switches back from Cloud.
+  if !cloud {
+    if let Some(url) = &payload.base_url {
+      let u = url.trim().to_string();
+      tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
+    } else if was_cloud
+      && tokens.ollama_base_url.as_deref() == Some(OLLAMA_CLOUD_BASE_URL)
+    {
+      // Migrate configurations written by earlier versions which persisted the
+      // Cloud endpoint in the local-endpoint field.
+      tokens.ollama_base_url = None;
+    }
   }
 
   sync_active_provider_for_ollama_toggle(&mut tokens, payload.enabled);
@@ -11070,15 +11225,12 @@ pub async fn ollama_configure(
 
   // Propagate env vars
   if payload.enabled {
-    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
+    propagate_ollama_env(&tokens);
     if tokens.active_provider.as_deref() == Some("ollama") {
       std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "ollama");
     }
     if let Some(m) = &tokens.ollama_model {
       std::env::set_var("KNAPSACK_OLLAMA_MODEL", m);
-    }
-    if let Some(u) = &tokens.ollama_base_url {
-      std::env::set_var("OLLAMA_HOST", u);
     }
   } else {
     std::env::remove_var("OLLAMA_API_KEY");
@@ -11093,8 +11245,11 @@ pub async fn ollama_configure(
   // the correct model on restart (same fix as set_api_key).
   let config_path = app_clawdbot_home(&app_handle).join("openclaw.json");
   let ollama_context_window = if payload.enabled {
-    match (&tokens.ollama_base_url, &tokens.ollama_model) {
-      (Some(base_url), Some(model)) => fetch_ollama_model_context_window(base_url, model).await,
+    match (&tokens.ollama_model, ollama_runtime_key(&tokens)) {
+      (Some(model), Some(api_key)) => {
+        fetch_ollama_model_context_window(&ollama_runtime_base_url(&tokens), model, Some(&api_key))
+          .await
+      }
       _ => None,
     }
   } else {
@@ -11119,13 +11274,12 @@ pub async fn ollama_configure(
         d.insert("model".to_string(), model_cfg);
       });
       if payload.enabled {
-        let base_url = tokens
-          .ollama_base_url
-          .as_deref()
-          .unwrap_or("http://127.0.0.1:11434");
+        let base_url = ollama_runtime_base_url(&tokens);
+        let api_key = ollama_runtime_key(&tokens).unwrap_or_else(|| "ollama-local".to_string());
         upsert_ollama_provider_config(
           &mut cfg_val,
-          base_url,
+          &base_url,
+          &api_key,
           tokens.ollama_model.as_deref(),
           ollama_context_window,
         );
@@ -11202,10 +11356,7 @@ pub async fn ollama_delete(
   payload: web::Json<OllamaDeleteRequest>,
 ) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = local_ollama_base_url(tokens.as_ref());
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
@@ -11252,10 +11403,7 @@ pub async fn ollama_pull(
   payload: web::Json<OllamaPullRequest>,
 ) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = local_ollama_base_url(tokens.as_ref());
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(3600)) // large models may take a while
@@ -13148,8 +13296,10 @@ async fn prepare_gateway_config(
     }
   }
   if tokens.ollama_enabled.unwrap_or(false) {
-    std::env::set_var("OLLAMA_API_KEY", "ollama-local");
-    env.push(("OLLAMA_API_KEY".to_string(), "ollama-local".to_string()));
+    propagate_ollama_env(&tokens);
+    if let Some(key) = ollama_runtime_key(&tokens) {
+      env.push(("OLLAMA_API_KEY".to_string(), key));
+    }
     if let Some(m) = tokens.ollama_model.clone() {
       let m = m.trim().to_string();
       if !m.is_empty() {
@@ -13157,13 +13307,8 @@ async fn prepare_gateway_config(
         env.push(("KNAPSACK_OLLAMA_MODEL".to_string(), m));
       }
     }
-    if let Some(u) = tokens.ollama_base_url.clone() {
-      let u = u.trim().to_string();
-      if !u.is_empty() {
-        std::env::set_var("OLLAMA_HOST", &u);
-        env.push(("OLLAMA_HOST".to_string(), u));
-      }
-    }
+    let base_url = ollama_runtime_base_url(&tokens);
+    env.push(("OLLAMA_HOST".to_string(), base_url));
   }
   // Propagate OpenRouter key
   if let Some(k) = tokens.openrouter_api_key.clone() {
@@ -15003,8 +15148,10 @@ pub async fn set_service_enabled(
 
       // Propagate Ollama settings to clawdbot subprocess
       if tokens.ollama_enabled.unwrap_or(false) {
-        std::env::set_var("OLLAMA_API_KEY", "ollama-local");
-        env.push(("OLLAMA_API_KEY".to_string(), "ollama-local".to_string()));
+        propagate_ollama_env(&tokens);
+        if let Some(key) = ollama_runtime_key(&tokens) {
+          env.push(("OLLAMA_API_KEY".to_string(), key));
+        }
         if let Some(m) = tokens.ollama_model.clone() {
           let m = m.trim().to_string();
           if !m.is_empty() {
@@ -15012,13 +15159,8 @@ pub async fn set_service_enabled(
             env.push(("KNAPSACK_OLLAMA_MODEL".to_string(), m));
           }
         }
-        if let Some(u) = tokens.ollama_base_url.clone() {
-          let u = u.trim().to_string();
-          if !u.is_empty() {
-            std::env::set_var("OLLAMA_HOST", &u);
-            env.push(("OLLAMA_HOST".to_string(), u));
-          }
-        }
+        let base_url = ollama_runtime_base_url(&tokens);
+        env.push(("OLLAMA_HOST".to_string(), base_url));
       }
 
       // Propagate OpenRouter key
@@ -18116,6 +18258,20 @@ mod provider_key_tests {
     "XAI_API_KEY",
     "OPENROUTER_API_KEY",
     "OLLAMA_API_KEY",
+    "OLLAMA_HOST",
+    "KNAPSACK_ACTIVE_PROVIDER",
+    "KNAPSACK_GEMINI_MODEL",
+    "KNAPSACK_OPENAI_MODEL",
+    "KNAPSACK_ANTHROPIC_MODEL",
+    "KNAPSACK_GROQ_MODEL",
+    "KNAPSACK_XAI_MODEL",
+    "KNAPSACK_OPENROUTER_MODEL",
+    "KNAPSACK_TRUSTEDROUTER_MODEL",
+    "KNAPSACK_OLLAMA_MODEL",
+    "KNAPSACK_KNAPSACK_MODEL",
+    "KNAPSACK_USER_EMAIL",
+    "KNAPSACK_ACCESS_TOKEN",
+    "KNAPSACK_REFRESH_TOKEN",
   ];
 
   fn clear_all() {
@@ -18411,6 +18567,8 @@ mod knapsack_runtime_auth_tests {
       ollama_enabled: None,
       ollama_model: None,
       ollama_base_url: None,
+      ollama_cloud_enabled: None,
+      ollama_cloud_api_key: None,
       force_docker_mode: None,
       extra_provider_keys: None,
       preferred_coding_agent: None,

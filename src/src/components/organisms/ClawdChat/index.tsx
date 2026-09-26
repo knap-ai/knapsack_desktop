@@ -512,6 +512,8 @@ type ApiKeyStatus = {
   openrouter_key_hint?: string
   trustedrouter_key_hint?: string
   ollama_enabled?: boolean
+  ollama_cloud_enabled?: boolean
+  ollama_cloud_key_hint?: string
   ollama_model?: string
   ollama_base_url?: string
   extra_providers?: Array<{ env_var: string; has_key: boolean; key_hint?: string }>
@@ -2155,6 +2157,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''
   })
+  const [ollamaMode, setOllamaMode] = useState<'local' | 'cloud'>('local')
+  const [ollamaCloudApiKey, setOllamaCloudApiKey] = useState('')
   const [selectedKnapsackModel, setSelectedKnapsackModel] = useState<string>(() => {
     const stored = localStorage.getItem(KNAPSACK_MODEL_STORAGE)
     return KNAPSACK_MODELS.some(model => model.id === stored) ? stored! : 'auto'
@@ -2608,6 +2612,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         xai: keyStatus.xai_key_hint,
         openrouter: keyStatus.openrouter_key_hint,
         trustedrouter: keyStatus.trustedrouter_key_hint,
+        ollama: keyStatus.ollama_cloud_key_hint,
       })
       setSavedProviderKeys({
         knapsack: Boolean(keyStatus.has_knapsack),
@@ -3792,14 +3797,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
   // ── Ollama auto-detect ────────────────────────────────────────────────────
   useEffect(() => {
-    if (selectedProvider !== 'ollama' || !showKeyPrompt) return
+    if (selectedProvider !== 'ollama' || !showKeyPrompt || ollamaMode !== 'local') return
     setOllamaRunning(null)
     const checkOllama = async () => {
       try {
-        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status?cloud=false')
         setOllamaRunning(s.running)
         if (s.running) {
-          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
           if (m.success) {
             setOllamaModels(m.models)
             if (m.models.length > 0 && !selectedOllamaModel) {
@@ -3812,7 +3817,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       }
     }
     checkOllama()
-  }, [selectedProvider, showKeyPrompt])
+  }, [selectedProvider, showKeyPrompt, ollamaMode])
 
   // ── Background AI (heartbeat) config fetch ─────────────────────────────
   useEffect(() => {
@@ -3879,7 +3884,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       // Pull complete — refresh model list
       setOllamaPullProgress('Download complete!')
       setOllamaPullPercent(100)
-      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
       if (m.success) {
         setOllamaModels(m.models)
         // Auto-select the model we just pulled
@@ -3907,6 +3912,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         xai: keyStatus.xai_key_hint,
         openrouter: keyStatus.openrouter_key_hint,
         trustedrouter: keyStatus.trustedrouter_key_hint,
+        ollama: keyStatus.ollama_cloud_key_hint,
       })
       setSavedProviderKeys({
         knapsack: Boolean(keyStatus.has_knapsack),
@@ -3917,7 +3923,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         xai: Boolean(keyStatus.has_xai_key),
         openrouter: Boolean(keyStatus.has_openrouter_key),
         trustedrouter: Boolean(keyStatus.has_trustedrouter_key),
+        ollama: Boolean(keyStatus.ollama_enabled),
       })
+      setOllamaMode(keyStatus.ollama_cloud_enabled ? 'cloud' : 'local')
       setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
       setKnapsackConnectError(
         keyStatus.knapsack_auth_expired
@@ -4013,13 +4021,20 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // Ollama uses a separate save flow (ollama/configure endpoint, no API key)
   const saveOllamaProvider = useCallback(async () => {
     if (!selectedOllamaModel) return
+    if (ollamaMode === 'cloud' && !ollamaCloudApiKey.trim() && !keyHints.ollama) return
     setSavingKey(true)
     try {
       await apiPost('/api/knapsack/ollama/configure', {
         enabled: true,
+        cloud: ollamaMode === 'cloud',
+        api_key: ollamaMode === 'cloud' && ollamaCloudApiKey.trim() ? ollamaCloudApiKey.trim() : undefined,
         model: selectedOllamaModel,
+        // Keep a configured LAN/self-hosted local endpoint intact. The
+        // backend resets Cloud back to its local default when switching modes.
+        base_url: ollamaMode === 'cloud' ? 'https://ollama.com' : undefined,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
+      setOllamaCloudApiKey('')
       setSelectedProvider('ollama')
       setConfirmedProvider('ollama')
       localStorage.setItem(ACTIVE_PROVIDER_STORAGE, 'ollama')
@@ -4030,16 +4045,20 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       try {
         await apiPost('/api/clawd/service/enable', { enabled: true })
         await refreshStatus()
-        pushAssistant(`Great! I'm all set up with Ollama (${selectedOllamaModel}) running locally. No API costs! Try asking me to browse a website!`)
+        pushAssistant(ollamaMode === 'cloud'
+          ? `Ollama Cloud is ready with ${selectedOllamaModel}.`
+          : `Great! I'm all set up with Ollama (${selectedOllamaModel}) running locally. No API costs! Try asking me to browse a website!`)
       } catch {
-        pushAssistant('Ollama enabled! You can now use local AI models.')
+        pushAssistant(ollamaMode === 'cloud'
+          ? 'Ollama Cloud is enabled. It may take a moment to finish connecting.'
+          : 'Ollama enabled! You can now use local AI models.')
       }
     } catch (e: any) {
-      pushAssistant(`Failed to enable Ollama: ${e?.message || String(e)}. Please try again.`)
+      pushAssistant(`Failed to enable Ollama ${ollamaMode === 'cloud' ? 'Cloud' : ''}: ${e?.message || String(e)}. Please try again.`)
     } finally {
       setSavingKey(false)
     }
-  }, [selectedOllamaModel, syncProviderSelectionFromBackend])
+  }, [keyHints.ollama, ollamaCloudApiKey, ollamaMode, selectedOllamaModel, syncProviderSelectionFromBackend])
 
   const saveApiKey = useCallback(async () => {
     if (selectedProvider === 'ollama') { saveOllamaProvider(); return }
@@ -8834,6 +8853,44 @@ ${actualText}`
                   <svg className="ClawdAccordionChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                 </button>
                 <div className="ClawdAccordionBody">
+                  <div className="ClawdModelSelector" style={{ marginBottom: 12 }}>
+                    <button className={`ClawdModelOption${ollamaMode === 'local' ? ' selected' : ''}`} onClick={() => { setOllamaMode('local'); setSelectedOllamaModel('') }} disabled={savingKey}>
+                      <span className="ClawdModelName">On this Mac</span>
+                      <span className="ClawdModelDesc">Private, local models</span>
+                    </button>
+                    <button className={`ClawdModelOption${ollamaMode === 'cloud' ? ' selected' : ''}`} onClick={() => { setOllamaMode('cloud'); setSelectedOllamaModel('kimi-k2.5:cloud') }} disabled={savingKey}>
+                      <span className="ClawdModelName">Ollama Cloud</span>
+                      <span className="ClawdModelDesc">Hosted models with your Ollama key</span>
+                    </button>
+                  </div>
+                  {ollamaMode === 'cloud' ? (
+                    <>
+                      <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 10px' }}>Run hosted Ollama models without installing Ollama on this Mac. Your key stays on this device.</p>
+                      <label className="ClawdKeyPromptLabel">Ollama Cloud API key</label>
+                      <input
+                        type="password"
+                        value={ollamaCloudApiKey}
+                        onChange={e => setOllamaCloudApiKey(e.target.value)}
+                        placeholder={keyHints.ollama ? `Saved key ${keyHints.ollama}` : 'Paste your Ollama API key'}
+                        className="ClawdKeyPromptInput"
+                        autoComplete="off"
+                      />
+                      <label className="ClawdKeyPromptLabel" style={{ marginTop: 10 }}>Model</label>
+                      <input
+                        type="text"
+                        value={selectedOllamaModel}
+                        onChange={e => setSelectedOllamaModel(e.target.value)}
+                        placeholder="kimi-k2.5:cloud"
+                        className="ClawdKeyPromptInput"
+                      />
+                      <p className="ClawdKeyPromptHelp">Create a key at <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer">ollama.com/settings/keys</a>.</p>
+                      <div className="ClawdAccordionActions">
+                        <button className="ClawdChannelCardAction ClawdChannelCardAction--connect" onClick={saveOllamaProvider} disabled={savingKey || !selectedOllamaModel || (!ollamaCloudApiKey.trim() && !keyHints.ollama)}>
+                          {savingKey ? 'Saving...' : 'Use Ollama Cloud'}
+                        </button>
+                      </div>
+                    </>
+                  ) : <>
                   <div className="ClawdOllamaStatus">
                     {ollamaRunning === null ? (
                       <span className="ClawdOllamaStatusChecking">Checking for Ollama...</span>
@@ -8858,11 +8915,11 @@ ${actualText}`
                         After installing, launch Ollama and come back here.{' '}
                         <button className="ClawdOllamaRetry" onClick={() => {
                           setOllamaRunning(null)
-                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status?cloud=false')
                             .then(s => {
                               setOllamaRunning(s.running)
                               if (s.running) {
-                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
                                   .then(m => { if (m.success) setOllamaModels(m.models) })
                               }
                             })
@@ -8943,6 +9000,7 @@ ${actualText}`
                       {savingKey ? 'Saving...' : 'Select'}
                     </button>
                   </div>
+                  </>}
                 </div>
               </div>
             </div>

@@ -12,8 +12,8 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::clawd::chat_agent;
 use crate::clawd::browser_import;
+use crate::clawd::chat_agent;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -117,13 +117,17 @@ struct StoredTokens {
   trustedrouter_model: Option<String>,
   #[serde(default)]
   active_provider: Option<String>,
-  // Ollama (local LLM) support
+  // Ollama local/Cloud support (kept in sync with service.rs tokens.json).
   #[serde(default)]
   ollama_enabled: Option<bool>,
   #[serde(default)]
   ollama_model: Option<String>,
   #[serde(default)]
   ollama_base_url: Option<String>,
+  #[serde(default)]
+  ollama_cloud_enabled: Option<bool>,
+  #[serde(default)]
+  ollama_cloud_api_key: Option<String>,
   #[serde(default)]
   extra_provider_keys: Option<std::collections::HashMap<String, String>>,
   #[serde(default)]
@@ -217,6 +221,8 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     ollama_enabled: None,
     ollama_model: None,
     ollama_base_url: None,
+    ollama_cloud_enabled: None,
+    ollama_cloud_api_key: None,
     extra_provider_keys: None,
     preferred_coding_agent: None,
     knapsack_email: None,
@@ -1348,6 +1354,29 @@ fn ollama_base_url(app_handle: &tauri::AppHandle) -> String {
     .ok()
     .and_then(|t| t.ollama_base_url)
     .unwrap_or_else(|| "http://localhost:11434".to_string())
+}
+
+fn ollama_api_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  let tokens = load_or_create_tokens(app_handle).ok()?;
+  if tokens.ollama_cloud_enabled.unwrap_or(false) {
+    return tokens
+      .ollama_cloud_api_key
+      .filter(|key| !key.trim().is_empty());
+  }
+  Some("ollama-local".to_string())
+}
+
+fn ollama_cloud_is_active(app_handle: &tauri::AppHandle) -> bool {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .is_some_and(|tokens| {
+      tokens.ollama_enabled.unwrap_or(false)
+        && tokens.ollama_cloud_enabled.unwrap_or(false)
+        && tokens
+          .ollama_cloud_api_key
+          .as_deref()
+          .is_some_and(|key| !key.trim().is_empty())
+    })
 }
 
 fn ollama_model(app_handle: &tauri::AppHandle) -> String {
@@ -2677,14 +2706,8 @@ pub async fn set_browser_presentation(
     "profile": "openclaw",
     "headless": payload.embedded,
   });
-  if let Err(error) = gateway_client::browser_request_unlocked(
-    "POST",
-    "/start",
-    Some(start_query),
-    None,
-    None,
-  )
-  .await
+  if let Err(error) =
+    gateway_client::browser_request_unlocked("POST", "/start", Some(start_query), None, None).await
   {
     if gateway_client::is_transient_browser_error(&error) {
       return HttpResponse::Accepted().json(BrowserPresentationResponse {
@@ -3865,7 +3888,15 @@ pub async fn chat(
           "message": "Ollama is not enabled. Enable it in Settings and Save, then re-enable."
         }));
       }
-      "ollama-local".to_string()
+      match ollama_api_key(&app_handle) {
+        Some(key) => key,
+        None => {
+          return HttpResponse::BadRequest().json(serde_json::json!({
+            "ok": false,
+            "message": "Ollama Cloud API key is not set. Add it in Settings and Save, then re-enable."
+          }));
+        }
+      }
     }
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
@@ -5843,7 +5874,10 @@ No email account is directly connected via the send_email tool. However, you CAN
     )
   };
 
-  let use_compact_local_prompt = provider == "ollama";
+  // Cloud-hosted Ollama models have the same practical context and tool
+  // capability expectations as our other hosted providers.  Only a true local
+  // daemon receives the intentionally compact, no-tools prompt.
+  let use_compact_local_prompt = provider == "ollama" && !ollama_cloud_is_active(&app_handle);
 
   let system_content = if qa_smoke {
     "You are a Knapsack QA readiness probe. Reply with exactly READY.".to_string()
@@ -6380,10 +6414,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       "xai" => {
         chat_agent::openai_compatible_chat(key, model, "https://api.x.ai/v1", msgs, tls).await
       }
-      "ollama" => {
-        let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
-        chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
-      }
+      "ollama" => chat_agent::ollama_native_chat(key, model, ollama_base, msgs, tls).await,
       "openrouter" => {
         chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
           .await
@@ -6920,7 +6951,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           );
           let disable_paid = is_paid_fallback_disabled();
           let ollama_key = if ollama_is_enabled(&app_handle) {
-            Some("ollama-local".to_string())
+            ollama_api_key(&app_handle)
           } else {
             None
           };
