@@ -54,7 +54,7 @@ type UseBackgroundNotificationsProps = {
     buttonConfigs: ButtonConfig[],
     title: string,
     time: string,
-  ) => Promise<void>
+  ) => Promise<boolean>
   addToLLMQueue: (item: LLMParams) => void
 }
 
@@ -631,7 +631,7 @@ export function useBackgroundNotifications({
                 pendingInsightRef.current = parsed
 
                 const primaryText = parsed.suggestedActionShort || buttonText
-                await openNotificationWindow(
+                const didOpen = await openNotificationWindow(
                   undefined,
                   [
                     { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
@@ -641,6 +641,7 @@ export function useBackgroundNotifications({
                   parsed.notificationTitle,
                   parsed.notificationBody,
                 )
+                if (!didOpen) return response
                 await recordNotification(notificationType)
                 delivered = true
 

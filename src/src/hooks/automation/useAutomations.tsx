@@ -532,24 +532,26 @@ export function useAutomations({
       title: string,
       time: string,
       brief?: string,
-    ) => {
-      if (!isNotificationWindowShowing) {
-        try {
-          await invoke('show_notification_window', {
-            eventId,
-            buttonConfigs,
-            title,
-            time,
-            brief,
-          })
-          setIsNotificationWindowShowing(true)
-        } catch (error) {
-          console.error(error)
-          logError(new Error('Error showing notification window'), {
-            additionalInfo: `Error showing notification window for eventId: ${eventId}`,
-            error: error as string,
-          })
-        }
+    ): Promise<boolean> => {
+      if (isNotificationWindowShowing) return false
+
+      try {
+        await invoke('show_notification_window', {
+          eventId,
+          buttonConfigs,
+          title,
+          time,
+          brief,
+        })
+        setIsNotificationWindowShowing(true)
+        return true
+      } catch (error) {
+        console.error(error)
+        logError(new Error('Error showing notification window'), {
+          additionalInfo: `Error showing notification window for eventId: ${eventId}`,
+          error: error as string,
+        })
+        return false
       }
     },
     [isNotificationWindowShowing],

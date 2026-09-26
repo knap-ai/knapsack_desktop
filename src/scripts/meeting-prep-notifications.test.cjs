@@ -19,6 +19,14 @@ test('the minute clock uses rich meeting prep rather than the generic exact-minu
   assert.doesNotMatch(app, /handleNotificationsScheduleService\(date\)/)
   assert.match(notifications, /canSendNotification\('meeting_prep', false\)/)
   assert.match(notifications, /if \(wasDelivered\)[\s\S]*?persistPreppedMeetingId/)
+  assert.match(notifications, /const didOpen = await openNotificationWindow\([\s\S]*?if \(!didOpen\) return response[\s\S]*?await recordNotification/)
+})
+
+test('a notification is considered delivered only when its window opens', () => {
+  const automations = read('src/hooks/automation/useAutomations.tsx')
+  assert.match(automations, /if \(isNotificationWindowShowing\) return false/)
+  assert.match(automations, /setIsNotificationWindowShowing\(true\)\s*return true/)
+  assert.match(automations, /Error showing notification window[\s\S]*?return false/)
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {
