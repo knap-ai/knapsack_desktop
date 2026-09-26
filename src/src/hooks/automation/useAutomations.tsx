@@ -533,14 +533,19 @@ export function useAutomations({
       title: string,
       time: string,
       brief?: string,
+      replaceExisting = false,
     ): Promise<boolean> => {
-      if (notificationWindowReservedRef.current) return false
-      // Reserve synchronously before crossing the native bridge. State updates
-      // are asynchronous, so state alone cannot prevent two concurrent callers
-      // from replacing the singleton notification payload.
-      notificationWindowReservedRef.current = true
-
       try {
+        if (notificationWindowReservedRef.current) {
+          if (!replaceExisting) return false
+          await invoke('close_notification_window')
+          notificationWindowReservedRef.current = false
+          setIsNotificationWindowShowing(false)
+        }
+        // Reserve synchronously before crossing the native bridge. State updates
+        // are asynchronous, so state alone cannot prevent two concurrent callers
+        // from replacing the singleton notification payload.
+        notificationWindowReservedRef.current = true
         const didShow = await invoke<boolean>('show_notification_window', {
           eventId,
           buttonConfigs,
@@ -583,7 +588,11 @@ export function useAutomations({
 
           const leadTime = await getNotificationLeadTimeMin()
           if (
-            minutesUntil === leadTime &&
+            // The rich prep generation can take longer than a minute. Keep the
+            // configured join-and-record alert eligible through the remaining
+            // pre-start window instead of depending on one exact clock tick.
+            minutesUntil <= leadTime &&
+            minutesUntil > 0 &&
             !service.sentIdentifiers.includes(meeting.eventId) &&
             !notificationWindowReservedRef.current
           ) {
@@ -613,6 +622,7 @@ export function useAutomations({
                 meeting.title,
                 startTime.format('h:mm A'),
                 buildMeetingNotificationBrief(meeting, userEmail),
+                true,
               )
               if (didShow) {
                 setNotificationServices(prev =>

@@ -54,6 +54,8 @@ type UseBackgroundNotificationsProps = {
     buttonConfigs: ButtonConfig[],
     title: string,
     time: string,
+    brief?: string,
+    replaceExisting?: boolean,
   ) => Promise<boolean>
   addToLLMQueue: (item: LLMParams) => void
 }
@@ -172,6 +174,7 @@ export function useBackgroundNotifications({
       }
     })(),
   )
+  const inFlightMeetingChannelIdsRef = useRef<Set<string>>(new Set())
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -304,7 +307,12 @@ export function useBackgroundNotifications({
    * full briefing content (stripped of markdown links for channel readability).
    */
   const pushToChannels = useCallback(
-    async (title: string, body: string, fullAnalysis?: string, suggestedAction?: string) => {
+    async (
+      title: string,
+      body: string,
+      fullAnalysis?: string,
+      suggestedAction?: string,
+    ): Promise<boolean> => {
       let text: string
 
       if (fullAnalysis) {
@@ -330,32 +338,40 @@ export function useBackgroundNotifications({
           getIMessageStatus().catch(() => null),
         ])
 
-        const sends: Promise<unknown>[] = []
+        const sends: Promise<boolean>[] = []
 
         // WhatsApp: send to the linked account's own number (self-chat)
         if (waStatus?.enabled && waStatus?.linked && waStatus?.account) {
           sends.push(
-            sendChannelMessage('whatsapp', waStatus.account, text).catch(err =>
-              console.warn('[notifications] WhatsApp send failed:', err),
-            ),
+            sendChannelMessage('whatsapp', waStatus.account, text)
+              .then(result => result.success)
+              .catch(err => {
+                console.warn('[notifications] WhatsApp send failed:', err)
+                return false
+              }),
           )
         }
 
         // iMessage: send to the user's own email
         if (imStatus?.enabled && imStatus?.configured && userEmail) {
           sends.push(
-            sendChannelMessage('imessage', userEmail, text).catch(err =>
-              console.warn('[notifications] iMessage send failed:', err),
-            ),
+            sendChannelMessage('imessage', userEmail, text)
+              .then(result => result.success)
+              .catch(err => {
+                console.warn('[notifications] iMessage send failed:', err)
+                return false
+              }),
           )
         }
 
         if (sends.length > 0) {
-          await Promise.all(sends)
+          return (await Promise.all(sends)).some(Boolean)
         }
+        return false
       } catch (err) {
         // Never let channel sends block the notification flow
         console.warn('[notifications] pushToChannels error:', err)
+        return false
       }
     },
     [userEmail],
@@ -659,21 +675,27 @@ export function useBackgroundNotifications({
                 // meeting occurrence, independently of the local retry.
                 if (
                   !channelDeliveryKey ||
-                  !preppedMeetingChannelIdsRef.current.has(channelDeliveryKey)
+                  (!preppedMeetingChannelIdsRef.current.has(channelDeliveryKey) &&
+                    !inFlightMeetingChannelIdsRef.current.has(channelDeliveryKey))
                 ) {
                   if (channelDeliveryKey) {
-                    preppedMeetingChannelIdsRef.current.add(channelDeliveryKey)
-                    localStorage.setItem(
-                      KN_PREPPED_MEETING_CHANNEL_IDS,
-                      JSON.stringify([...preppedMeetingChannelIdsRef.current]),
-                    )
+                    inFlightMeetingChannelIdsRef.current.add(channelDeliveryKey)
                   }
                   void pushToChannels(
                     parsed.notificationTitle,
                     parsed.notificationBody,
                     parsed.fullAnalysis,
                     parsed.suggestedActionPrompt,
-                  )
+                  ).then(channelDelivered => {
+                    if (!channelDeliveryKey) return
+                    inFlightMeetingChannelIdsRef.current.delete(channelDeliveryKey)
+                    if (!channelDelivered) return
+                    preppedMeetingChannelIdsRef.current.add(channelDeliveryKey)
+                    localStorage.setItem(
+                      KN_PREPPED_MEETING_CHANNEL_IDS,
+                      JSON.stringify([...preppedMeetingChannelIdsRef.current]),
+                    )
+                  })
                 }
                 // Meeting prep remains eligible for an in-app retry unless the
                 // native alert was actually displayed; channel delivery is
