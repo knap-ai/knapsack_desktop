@@ -2707,6 +2707,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           xai: keyStatus.xai_key_hint,
           openrouter: keyStatus.openrouter_key_hint,
           trustedrouter: keyStatus.trustedrouter_key_hint,
+          ollama: keyStatus.ollama_cloud_key_hint,
         })
         // Track which providers have saved keys
         setSavedProviderKeys({
@@ -2718,6 +2719,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           xai: !!keyStatus.has_xai_key,
           openrouter: !!keyStatus.has_openrouter_key,
           trustedrouter: !!keyStatus.has_trustedrouter_key,
+          ollama: !!keyStatus.ollama_cloud_key_hint,
         })
         setKnapsackEmail(keyStatus.has_knapsack ? keyStatus.knapsack_email || '' : '')
         if (keyStatus.knapsack_auth_expired) {

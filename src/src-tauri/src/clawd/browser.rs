@@ -1379,6 +1379,17 @@ fn ollama_cloud_is_active(app_handle: &tauri::AppHandle) -> bool {
     })
 }
 
+/// The configured local endpoint is retained while Cloud is active so a user can
+/// switch back without re-entering it. Requests, however, must always use the
+/// hosted endpoint while a valid Cloud key is enabled.
+fn ollama_runtime_base_url(app_handle: &tauri::AppHandle) -> String {
+  if ollama_cloud_is_active(app_handle) {
+    "https://ollama.com".to_string()
+  } else {
+    ollama_base_url(app_handle)
+  }
+}
+
 fn ollama_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
@@ -6348,7 +6359,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       _ => super::service::get_openai_model(&app_handle),
     },
   };
-  let current_ollama_base = ollama_base_url(&app_handle);
+  let current_ollama_base = ollama_runtime_base_url(&app_handle);
   eprintln!(
     "[clawd/chat] Using provider={} model={}",
     current_provider, current_model
