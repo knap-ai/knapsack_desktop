@@ -70,6 +70,13 @@ test('morning briefing is marked sent only after it is delivered', () => {
   assert.ok(delivery >= 0 && marker > delivery)
 })
 
+test('morning channel delivery is marked separately when no popup can open', () => {
+  assert.match(notifications, /KN_MORNING_BRIEFING_CHANNEL_DATE/)
+  assert.match(notifications, /morningBriefingChannelDate === today/)
+  assert.match(notifications, /if \(channelDelivered\) \{[\s\S]*?onChannelDelivered/)
+  assert.match(notifications, /KNLocalStorage\.setItem\([\s\S]*?KN_MORNING_BRIEFING_CHANNEL_DATE/)
+})
+
 test('meeting prep notifications request concise, evidence-grounded key points', () => {
   assert.match(prompt, /2 or 3 short, concrete prep points separated by bullets/)
   assert.match(prompt, /why the meeting matters, the most important open thread, and the best move/)
