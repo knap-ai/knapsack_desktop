@@ -658,6 +658,15 @@ export function useBackgroundNotifications({
 
                 pendingInsightRef.current = parsed
 
+                // The same recent-email batch can surface through multiple
+                // sync events. Keep its channel delivery identity stable even
+                // when no local notification window is available.
+                const resolvedChannelDeliveryKey =
+                  channelDeliveryKey ||
+                  (notificationType === 'email_alert'
+                    ? `email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`
+                    : undefined)
+
                 const primaryText = parsed.suggestedActionShort || buttonText
                 const didOpen = await openNotificationWindow(
                   undefined,
@@ -674,19 +683,20 @@ export function useBackgroundNotifications({
                 // A linked phone should receive that prep only once per
                 // meeting occurrence, independently of the local retry.
                 if (
-                  !channelDeliveryKey ||
-                  (!preppedMeetingChannelIdsRef.current.has(channelDeliveryKey) &&
-                    !inFlightMeetingChannelIdsRef.current.has(channelDeliveryKey))
+                  !resolvedChannelDeliveryKey ||
+                  (!preppedMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey) &&
+                    !inFlightMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey))
                 ) {
-                  if (channelDeliveryKey) {
-                    inFlightMeetingChannelIdsRef.current.add(channelDeliveryKey)
+                  if (resolvedChannelDeliveryKey) {
+                    inFlightMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
                   }
-                  void pushToChannels(
-                    parsed.notificationTitle,
-                    parsed.notificationBody,
-                    parsed.fullAnalysis,
-                    parsed.suggestedActionPrompt,
-                  ).then(channelDelivered => {
+                  const deliverToChannels = async (retryOnFailure: boolean) => {
+                    const channelDelivered = await pushToChannels(
+                      parsed.notificationTitle,
+                      parsed.notificationBody,
+                      parsed.fullAnalysis,
+                      parsed.suggestedActionPrompt,
+                    )
                     // An email alert sent successfully to a linked channel is
                     // still a delivery even if another notification currently
                     // owns the local popup. Record it once so later sync
@@ -694,15 +704,32 @@ export function useBackgroundNotifications({
                     if (channelDelivered && notificationType === 'email_alert' && !didOpen) {
                       void recordNotification(notificationType)
                     }
-                    if (!channelDeliveryKey) return
-                    inFlightMeetingChannelIdsRef.current.delete(channelDeliveryKey)
-                    if (!channelDelivered) return
-                    preppedMeetingChannelIdsRef.current.add(channelDeliveryKey)
+                    if (!resolvedChannelDeliveryKey) return
+                    inFlightMeetingChannelIdsRef.current.delete(resolvedChannelDeliveryKey)
+                    if (!channelDelivered) {
+                      // A successful local prep must not permanently abandon a
+                      // transient channel failure. Retry once without creating
+                      // another local popup or regenerating the model output.
+                      if (retryOnFailure && notificationType === 'pre_meeting_prep') {
+                        window.setTimeout(() => {
+                          if (
+                            !preppedMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey) &&
+                            !inFlightMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey)
+                          ) {
+                            inFlightMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
+                            void deliverToChannels(false)
+                          }
+                        }, 30_000)
+                      }
+                      return
+                    }
+                    preppedMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
                     localStorage.setItem(
                       KN_PREPPED_MEETING_CHANNEL_IDS,
                       JSON.stringify([...preppedMeetingChannelIdsRef.current]),
                     )
-                  })
+                  }
+                  void deliverToChannels(true)
                 }
                 // Meeting prep remains eligible for an in-app retry unless the
                 // native alert was actually displayed; channel delivery is
