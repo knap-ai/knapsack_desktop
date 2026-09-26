@@ -54,10 +54,7 @@ impl DriveDocument {
   pub fn needs_goal_index_backfill(account_email: &str) -> Result<bool, Error> {
     let connection = get_db_conn();
     let mut stmt = connection.prepare(
-      "SELECT EXISTS(
-        SELECT 1 FROM drive_documents
-        WHERE account_email = ?1 OR account_email = ''
-      ) AND NOT EXISTS(
+      "SELECT NOT EXISTS(
         SELECT 1 FROM drive_goal_index_backfills WHERE account_email = ?1
       )",
     )?;

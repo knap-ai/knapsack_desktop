@@ -424,6 +424,9 @@ pub async fn get_or_create_drive_document_from_file(
         drive_document.summary = summary;
         if let Err(error) = drive_document.update_summary() {
           log::warn!("Could not refresh the local Drive text index: {:?}", error);
+          // A successful remote download is not enough to complete a one-time
+          // backfill. Leave the account eligible so this row is retried.
+          return (drive_document, false);
         }
       }
       drive_document.content_chunks = Some(content_chunks);
@@ -461,7 +464,7 @@ pub async fn get_or_create_drive_document_from_file(
 
 async fn list_accessible_shared_drives(
   hub: &DriveHub<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
-) -> Vec<SharedDrive> {
+) -> (Vec<SharedDrive>, bool) {
   let mut next_page_token: Option<String> = None;
   let mut shared_drives = Vec::new();
 
@@ -491,12 +494,12 @@ async fn list_accessible_shared_drives(
           "[google-drive] failed to enumerate shared drives: {:?}",
           error
         );
-        break;
+        return (shared_drives, false);
       }
     }
   }
 
-  shared_drives
+  (shared_drives, true)
 }
 
 async fn fetch_drive_page(
@@ -638,7 +641,9 @@ pub async fn fetch_drive(
   fs::create_dir_all(temp_dir.clone()).unwrap();
   let (mut all_documents, mut backfill_content_fetches_succeeded) =
     fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
-  let shared_drives = list_accessible_shared_drives(&hub).await;
+  let (shared_drives, shared_drive_enumeration_succeeded) =
+    list_accessible_shared_drives(&hub).await;
+  backfill_content_fetches_succeeded &= shared_drive_enumeration_succeeded;
   log::info!(
     "[google-drive] syncing account={} shared_drive_count={}",
     account_email,
