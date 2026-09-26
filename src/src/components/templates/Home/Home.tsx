@@ -18,7 +18,7 @@ import { updateAutomationFeedbackAPI } from 'src/api/automations'
 import { Workspace } from 'src/api/workspaces'
 import { HomeProps } from 'src/App'
 import { KN_API_STOP_LLM_EXECUTION, PRIVACY_POLICY_LINK, TERMS_LINK } from 'src/utils/constants'
-import { buildFollowUpEmailBody } from 'src/utils/emails'
+import { buildFollowUpEmailBody, getFollowUpRecipients, normalizeFollowUpEmailVoice } from 'src/utils/emails'
 //import { RecordingProvider } from 'src/components/organisms/MeetingNotesMode/RecordingContext'
 import { logError } from 'src/utils/errorHandling'
 import KNAnalytics from 'src/utils/KNAnalytics'
@@ -360,9 +360,24 @@ function Home({
       const gmailSenderEmail = getGoogleGmailConnections(connections)
         .map(connection => connection.calendarAccountEmail?.trim())
         .find(Boolean)
+      const connectedGmailSenders = getGoogleGmailConnections(connections)
+        .map(connection => connection.calendarAccountEmail?.trim())
+        .filter((email): email is string => Boolean(email))
+      const requestedSender = typeof detail?.senderEmail === 'string'
+        ? detail.senderEmail.trim()
+        : ''
+      // A browser/tool payload can carry the signed-in Knapsack profile rather
+      // than the Gmail account that is authorized to send. Only honor a
+      // requested sender when it is one of the connected Gmail mailboxes.
+      const verifiedRequestedSender = connectedGmailSenders.find(
+        email => email.toLowerCase() === requestedSender.toLowerCase(),
+      )
       feed.setComposedEmailDraft({
         ...detail,
-        senderEmail: detail?.senderEmail || gmailSenderEmail || userEmail,
+        body: detail?.isMeetingFollowUp
+          ? normalizeFollowUpEmailVoice(detail?.body || '')
+          : detail?.body || '',
+        senderEmail: verifiedRequestedSender || gmailSenderEmail || userEmail,
       })
       setCurrentTab(TabChoices.Openclaw)
     }
@@ -1145,9 +1160,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                         .filter(Boolean)
                         .map(email => email!.trim().toLowerCase()),
                     )
-                    const externalParticipants = participants.filter(
-                      p => p.email && !ownEmails.has(p.email.trim().toLowerCase()),
-                    )
+                    const externalParticipants = getFollowUpRecipients(participants, ownEmails)
                     const primaryRecipient = externalParticipants[0]
                     const toEmails = externalParticipants
                       .map(p => p.email)
@@ -1165,7 +1178,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                       userName,
                       primaryRecipient?.name || primaryRecipient?.email,
                     )
-                    feed.setComposedEmailDraft({ to: toEmails, subject, body })
+                    feed.setComposedEmailDraft({ to: toEmails, subject, body, senderEmail: userEmail })
                   }}
                 />
               )}

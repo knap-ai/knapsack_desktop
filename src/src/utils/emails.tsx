@@ -143,11 +143,96 @@ function firstName(nameOrEmail?: string): string | undefined {
   const value = nameOrEmail?.trim()
   if (!value) return
   const beforeEmail = value.split('<')[0].trim()
-  if (!beforeEmail && value.includes('@')) return
-  if (!value.includes('<') && value.includes('@')) return
+  if (!beforeEmail && value.includes('@')) {
+    const localPart = value.split('@')[0]?.split(/[._+-]/)[0]?.trim()
+    return localPart ? `${localPart.charAt(0).toUpperCase()}${localPart.slice(1)}` : undefined
+  }
+  if (!value.includes('<') && value.includes('@')) {
+    const localPart = value.split('@')[0]?.split(/[._+-]/)[0]?.trim()
+    return localPart ? `${localPart.charAt(0).toUpperCase()}${localPart.slice(1)}` : undefined
+  }
   const candidate = beforeEmail || value.split('@')[0].trim()
   const token = candidate.split(/\s+/)[0]?.trim()
   return token || undefined
+}
+
+export interface MeetingEmailParticipant {
+  name?: string
+  email?: string
+}
+
+/**
+ * Calendar resources are attendees in Google Calendar, but never people to
+ * include in a meeting follow-up. Keep this deliberately narrow: mailing
+ * lists and normal group inboxes are still valid recipients.
+ */
+export function isCalendarResourceEmail(email?: string): boolean {
+  const address = email?.trim().toLowerCase() || ''
+  return (
+    address.endsWith('@resource.calendar.google.com') ||
+    address.endsWith('@group.calendar.google.com')
+  )
+}
+
+/** Return distinct, human meeting attendees suitable for an email draft. */
+export function getFollowUpRecipients(
+  participants: MeetingEmailParticipant[],
+  ownEmails: Iterable<string | undefined | null>,
+): MeetingEmailParticipant[] {
+  const ownAddresses = new Set(
+    Array.from(ownEmails)
+      .map(email => email?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email)),
+  )
+  const seen = new Set<string>()
+
+  return participants.filter(participant => {
+    const address = participant.email?.trim()
+    const normalized = address?.toLowerCase()
+    if (!address || !normalized || ownAddresses.has(normalized) || isCalendarResourceEmail(address)) {
+      return false
+    }
+    if (seen.has(normalized)) return false
+    seen.add(normalized)
+    return true
+  })
+}
+
+function lowerCaseFirst(value: string): string {
+  return value ? `${value.charAt(0).toLowerCase()}${value.slice(1)}` : value
+}
+
+/**
+ * Meeting notes use "You" as an internal ownership label. A follow-up email
+ * is sent in the owner's voice, so normalize only those unambiguous phrases.
+ */
+export function normalizeFollowUpEmailVoice(body: string): string {
+  return body
+    .replace(/\bYou decided\b/gi, 'We agreed')
+    .replace(/\bYou agreed\b/gi, 'We agreed')
+    .replace(/(^|>\s*)You\s+(?:—|–|-)\s+([A-Za-z])/gim, (_match, prefix, initial) =>
+      `${prefix}I’ll ${initial.toLowerCase()}`,
+    )
+    .replace(/(^|>\s*)You will\s+([A-Za-z])/gim, (_match, prefix, initial) =>
+      `${prefix}I’ll ${initial.toLowerCase()}`,
+    )
+}
+
+function conversationalActionItem(item: string): string {
+  const cleaned = cleanMeetingLine(item)
+  const ownerAction = cleaned.match(/^you\s+(?:—|–|-)\s+(.+)$/i)
+  if (ownerAction) return `I’ll ${lowerCaseFirst(ownerAction[1])}`
+
+  // Treat a dash as an ownership delimiter only when it is separated by
+  // whitespace. That preserves ordinary hyphenated prose and names.
+  const namedOwner = cleaned.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/)
+  if (namedOwner) {
+    const owner = namedOwner[1].trim()
+    const action = namedOwner[2].trim()
+    return `${owner} will ${lowerCaseFirst(action)}`
+  }
+
+  return cleaned
 }
 
 /**
@@ -187,7 +272,7 @@ export function buildFollowUpEmailBody(
   if (actionItems.length > 0) {
     body += `<p><strong>Next steps</strong></p><ul style="margin:4px 0;padding-left:20px">`
     actionItems.slice(0, 5).forEach(item => {
-      body += `<li>${escHtml(ensureSentence(item))}</li>`
+      body += `<li>${escHtml(ensureSentence(conversationalActionItem(item)))}</li>`
     })
     body += `</ul>`
   } else if (highlights.length === 0 && !summary) {
@@ -196,7 +281,7 @@ export function buildFollowUpEmailBody(
 
   body += `<p>Please reply if I missed or misstated anything.</p>`
   body += `<p>Best${userName ? `,<br>${escHtml(userName)}` : ','}</p>`
-  return body
+  return normalizeFollowUpEmailVoice(body)
 }
 
 /**

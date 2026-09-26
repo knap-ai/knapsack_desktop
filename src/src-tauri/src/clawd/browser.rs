@@ -1518,6 +1518,37 @@ struct PendingEmail {
 static PENDING_EMAILS: Lazy<Mutex<HashMap<String, PendingEmail>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Calendar rooms/resources are valid calendar attendees but are not human
+/// email recipients. Keep recipient filtering at the native send boundary so
+/// a model-generated draft cannot accidentally address a room or the sender.
+fn sanitize_email_recipients(value: &str, sender_email: &str) -> String {
+  let sender = sender_email.trim().to_ascii_lowercase();
+  let mut recipients = Vec::new();
+
+  for raw in value.split([',', ';', '\n']) {
+    let trimmed = raw.trim();
+    let address = trimmed
+      .rsplit_once('<')
+      .and_then(|(_, rest)| rest.strip_suffix('>'))
+      .unwrap_or(trimmed)
+      .trim();
+    let normalized = address.to_ascii_lowercase();
+    let is_calendar_resource = normalized.ends_with("@resource.calendar.google.com")
+      || normalized.ends_with("@group.calendar.google.com");
+    let is_basic_email = normalized.contains('@') && !normalized.contains(char::is_whitespace);
+
+    if is_basic_email
+      && !is_calendar_resource
+      && normalized != sender
+      && !recipients.iter().any(|existing: &String| existing.eq_ignore_ascii_case(address))
+    {
+      recipients.push(address.to_string());
+    }
+  }
+
+  recipients.join(", ")
+}
+
 static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -5353,7 +5384,7 @@ pub async fn chat(
         .unwrap_or("")
         .trim()
         .to_string();
-      let cc = args_map
+      let mut cc = args_map
         .get("cc")
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string());
@@ -5388,8 +5419,14 @@ pub async fn chat(
         }
       }
 
+      to = sanitize_email_recipients(&to, user_email);
+      cc = cc
+        .as_deref()
+        .map(|value| sanitize_email_recipients(value, user_email))
+        .filter(|value| !value.is_empty());
+
       if to.is_empty() || subject.is_empty() || body_html.is_empty() {
-        anyhow::bail!("to, subject, and body are all required");
+        anyhow::bail!("A human recipient, subject, and body are all required");
       }
 
       let pid = format!("email_{}", uuid::Uuid::new_v4().simple());
@@ -5774,6 +5811,11 @@ Your email account is connected. You have a **send_email** tool that sends email
 2. **Tell the user** their draft is ready in the Email tab: e.g. "I've drafted your email — it's ready to review and send in the **Email tab**."
 3. The user reviews and sends from the Email tab. You do NOT need to ask for chat confirmation.
 4. If the user explicitly says "send it" or "yes send" in chat, call send_email again with `confirmed: true` and the `pending_id`.
+
+### Draft quality
+- Write in the sender's first person: use **I** or **we**, never an internal ownership label such as "You decided" or "You —".
+- Make it a concise, natural follow-up rather than a meeting-notes export: a warm opening, the one or two decisions that matter, and clear owner-aware next steps.
+- Address the people by name when that is known. Never put calendar rooms, resource addresses (`@resource.calendar.google.com`), bots, or the sender's own address in `to` or `cc`.
 
 CRITICAL: NEVER use browser automation for email when this tool is available. NEVER navigate to gmail.com or outlook.com to send email."#.to_string()
   } else {
@@ -8025,7 +8067,8 @@ mod tests {
     load_seed_history_from_request, local_file_request_requires_inspection,
     provider_compaction_limits, provider_context_recovery_limits,
     read_embedded_browser_preference_at, retain_top_level_page_tabs,
-    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
+    sanitize_email_recipients, should_attempt_fallback_for_provider_error,
+    write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
@@ -8061,6 +8104,17 @@ mod tests {
       .filter_map(|tab| tab["targetId"].as_str())
       .collect::<Vec<_>>();
     assert_eq!(ids, vec!["page-1", "legacy-page"]);
+  }
+
+  #[test]
+  fn email_recipient_sanitization_excludes_resources_sender_and_duplicates() {
+    assert_eq!(
+      sanitize_email_recipients(
+        "mark@bankaya.com.mx, jm@getxerpa.com, c_room@resource.calendar.google.com; JM@getxerpa.com\nMijael <mijael@getxerpa.com>",
+        "mark@bankaya.com.mx",
+      ),
+      "jm@getxerpa.com, mijael@getxerpa.com",
+    );
   }
 
   #[test]
