@@ -3801,10 +3801,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     setOllamaRunning(null)
     const checkOllama = async () => {
       try {
-        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+        const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status?cloud=false')
         setOllamaRunning(s.running)
         if (s.running) {
-          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+          const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
           if (m.success) {
             setOllamaModels(m.models)
             if (m.models.length > 0 && !selectedOllamaModel) {
@@ -3884,7 +3884,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       // Pull complete — refresh model list
       setOllamaPullProgress('Download complete!')
       setOllamaPullPercent(100)
-      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+      const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
       if (m.success) {
         setOllamaModels(m.models)
         // Auto-select the model we just pulled
@@ -8856,7 +8856,7 @@ ${actualText}`
                       <span className="ClawdModelName">On this Mac</span>
                       <span className="ClawdModelDesc">Private, local models</span>
                     </button>
-                    <button className={`ClawdModelOption${ollamaMode === 'cloud' ? ' selected' : ''}`} onClick={() => { setOllamaMode('cloud'); if (!selectedOllamaModel) setSelectedOllamaModel('gpt-oss:120b') }} disabled={savingKey}>
+                    <button className={`ClawdModelOption${ollamaMode === 'cloud' ? ' selected' : ''}`} onClick={() => { setOllamaMode('cloud'); if (!selectedOllamaModel) setSelectedOllamaModel('kimi-k2.5:cloud') }} disabled={savingKey}>
                       <span className="ClawdModelName">Ollama Cloud</span>
                       <span className="ClawdModelDesc">Hosted models with your Ollama key</span>
                     </button>
@@ -8878,7 +8878,7 @@ ${actualText}`
                         type="text"
                         value={selectedOllamaModel}
                         onChange={e => setSelectedOllamaModel(e.target.value)}
-                        placeholder="gpt-oss:120b"
+                        placeholder="kimi-k2.5:cloud"
                         className="ClawdKeyPromptInput"
                       />
                       <p className="ClawdKeyPromptHelp">Create a key at <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer">ollama.com/settings/keys</a>.</p>
@@ -8913,11 +8913,11 @@ ${actualText}`
                         After installing, launch Ollama and come back here.{' '}
                         <button className="ClawdOllamaRetry" onClick={() => {
                           setOllamaRunning(null)
-                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status')
+                          apiGet<{ running: boolean }>('/api/knapsack/ollama/status?cloud=false')
                             .then(s => {
                               setOllamaRunning(s.running)
                               if (s.running) {
-                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models')
+                                apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
                                   .then(m => { if (m.success) setOllamaModels(m.models) })
                               }
                             })

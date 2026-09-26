@@ -21,4 +21,14 @@ test('the provider chooser distinguishes local Ollama from Ollama Cloud without 
   assert.match(chat, /Your key stays on this device/)
   assert.match(chat, /type="password"/)
   assert.match(chat, /Use Ollama Cloud/)
+  assert.match(chat, /ollama\/status\?cloud=false/)
+  assert.match(chat, /ollama\/models\?cloud=false/)
+  assert.match(chat, /kimi-k2\.5:cloud/)
+})
+
+test('local probes do not inherit a saved Cloud endpoint', () => {
+  const service = read('src-tauri/src/clawd/service.rs')
+  assert.match(service, /pub struct OllamaRuntimeQuery/)
+  assert.match(service, /fn local_ollama_base_url/)
+  assert.match(service, /query\.cloud/)
 })
