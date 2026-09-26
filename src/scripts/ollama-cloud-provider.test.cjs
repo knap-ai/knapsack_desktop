@@ -96,3 +96,12 @@ test('self-hosted LAN endpoints retain local behavior when Cloud is toggled', ()
   assert.match(agent, /ip\.is_private\(\)/)
   assert.match(agent, /let is_local = is_local_ollama_endpoint\(base_url\)/)
 })
+
+test('switching from local Ollama to Cloud cancels a stale local-model probe', () => {
+  const chat = read('src/components/organisms/ClawdChat/index.tsx')
+  assert.match(chat, /let cancelled = false/)
+  assert.match(chat, /await apiGet<\{ running: boolean \}>\([\s\S]*?if \(cancelled\) return/)
+  assert.match(chat, /await apiGet<\{ success: boolean; models:[\s\S]*?if \(cancelled\) return/)
+  assert.match(chat, /setSelectedOllamaModel\(currentModel => currentModel \|\| m\.models\[0\]\.name\)/)
+  assert.match(chat, /return \(\) => \{ cancelled = true \}/)
+})

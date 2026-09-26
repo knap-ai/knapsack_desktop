@@ -3800,25 +3800,30 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // ── Ollama auto-detect ────────────────────────────────────────────────────
   useEffect(() => {
     if (selectedProvider !== 'ollama' || !showKeyPrompt || ollamaMode !== 'local') return
+    let cancelled = false
     setOllamaRunning(null)
     const checkOllama = async () => {
       try {
         const s = await apiGet<{ running: boolean }>('/api/knapsack/ollama/status?cloud=false')
+        if (cancelled) return
         setOllamaRunning(s.running)
         if (s.running) {
           const m = await apiGet<{ success: boolean; models: Array<{ name: string; parameter_size?: string }> }>('/api/knapsack/ollama/models?cloud=false')
+          if (cancelled) return
           if (m.success) {
             setOllamaModels(m.models)
-            if (m.models.length > 0 && !selectedOllamaModel) {
-              setSelectedOllamaModel(m.models[0].name)
+            if (m.models.length > 0) {
+              setSelectedOllamaModel(currentModel => currentModel || m.models[0].name)
             }
           }
         }
       } catch {
+        if (cancelled) return
         setOllamaRunning(false)
       }
     }
     checkOllama()
+    return () => { cancelled = true }
   }, [selectedProvider, showKeyPrompt, ollamaMode])
 
   // ── Background AI (heartbeat) config fetch ─────────────────────────────
