@@ -398,7 +398,7 @@ export function useBackgroundNotifications({
           const dateStr = new Date(email.date * 1000).toLocaleString()
           const preview = (email.summary || email.body || '').slice(0, 200)
           contextParts.push(
-            `- **SOURCE KEY:** ${emailDeliveryKey(email)} | **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+            `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
           )
         }
       }
@@ -505,7 +505,7 @@ export function useBackgroundNotifications({
           const dateStr = new Date(email.date * 1000).toLocaleString()
           const preview = (email.summary || email.body || '').slice(0, 300)
           contextParts.push(
-            `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+            `- **SOURCE KEY:** ${emailDeliveryKey(email)} | **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
           )
         }
 
