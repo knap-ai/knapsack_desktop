@@ -8,7 +8,8 @@ const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), '
 test('Ollama Cloud uses the hosted endpoint and an authenticated provider configuration', () => {
   const service = read('src-tauri/src/clawd/service.rs')
   assert.match(service, /OLLAMA_CLOUD_BASE_URL: &str = "https:\/\/ollama\.com"/)
-  assert.match(service, /pub cloud: bool/)
+  assert.match(service, /pub cloud: Option<bool>/)
+  assert.match(service, /unwrap_or_else\(\|\| tokens\.ollama_cloud_enabled\.unwrap_or\(false\)\)/)
   assert.match(service, /ollama_cloud_api_key/)
   assert.match(service, /request = request\.bearer_auth\(key\)/)
   assert.match(service, /upsert_ollama_provider_config\([\s\S]*?api_key/)
@@ -24,6 +25,8 @@ test('the provider chooser distinguishes local Ollama from Ollama Cloud without 
   assert.match(chat, /ollama\/status\?cloud=false/)
   assert.match(chat, /ollama\/models\?cloud=false/)
   assert.match(chat, /kimi-k2\.5:cloud/)
+  assert.match(chat, /setOllamaMode\('local'\); setSelectedOllamaModel\(''\)/)
+  assert.match(chat, /setOllamaMode\('cloud'\); setSelectedOllamaModel\('kimi-k2\.5:cloud'\)/)
 })
 
 test('local probes do not inherit a saved Cloud endpoint', () => {
@@ -31,4 +34,13 @@ test('local probes do not inherit a saved Cloud endpoint', () => {
   assert.match(service, /pub struct OllamaRuntimeQuery/)
   assert.match(service, /fn local_ollama_base_url/)
   assert.match(service, /query\.cloud/)
+})
+
+test('ordinary Cloud chat uses the saved Cloud credential instead of the local marker', () => {
+  const browser = read('src-tauri/src/clawd/browser.rs')
+  assert.match(browser, /fn ollama_api_key\(app_handle: &tauri::AppHandle\) -> Option<String>/)
+  assert.match(browser, /tokens\.ollama_cloud_enabled\.unwrap_or\(false\)/)
+  assert.match(browser, /ollama_cloud_api_key/)
+  assert.match(browser, /Some\("ollama-local"\.to_string\(\)\)/)
+  assert.match(browser, /"Ollama Cloud API key is not set/)
 })

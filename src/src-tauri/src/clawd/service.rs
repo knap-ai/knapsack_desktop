@@ -10741,8 +10741,11 @@ pub async fn ollama_models(
 #[derive(Debug, Deserialize)]
 pub struct OllamaConfigRequest {
   pub enabled: bool,
+  /// Omitted by older callers that only manage local Ollama settings. In that
+  /// case preserve the saved runtime mode instead of silently switching Cloud
+  /// users back to local mode.
   #[serde(default)]
-  pub cloud: bool,
+  pub cloud: Option<bool>,
   /// A new Cloud key. Omitted when retaining the saved key.
   #[serde(default)]
   pub api_key: Option<String>,
@@ -11132,8 +11135,12 @@ pub async fn ollama_configure(
     }
   };
 
+  let cloud = payload
+    .cloud
+    .unwrap_or_else(|| tokens.ollama_cloud_enabled.unwrap_or(false));
+
   if crate::privacy_mode::is_enabled() {
-    if !payload.enabled || payload.cloud {
+    if !payload.enabled || cloud {
       return HttpResponse::Forbidden().json(SetApiKeyResponse {
         success: false,
         message: "Privacy Mode requires local Ollama. Turn off Privacy Mode yourself in Settings before using Cloud or disabling it.".to_string(),
@@ -11159,7 +11166,7 @@ pub async fn ollama_configure(
     .map(str::trim)
     .filter(|key| !key.is_empty());
   if payload.enabled
-    && payload.cloud
+    && cloud
     && supplied_cloud_key.is_none()
     && !tokens
       .ollama_cloud_api_key
@@ -11182,12 +11189,12 @@ pub async fn ollama_configure(
   }
 
   tokens.ollama_enabled = Some(payload.enabled);
-  tokens.ollama_cloud_enabled = Some(payload.enabled && payload.cloud);
+  tokens.ollama_cloud_enabled = Some(payload.enabled && cloud);
   if let Some(model) = &payload.model {
     let m = model.trim().to_string();
     tokens.ollama_model = if m.is_empty() { None } else { Some(m) };
   }
-  if payload.cloud {
+  if cloud {
     tokens.ollama_base_url = Some(OLLAMA_CLOUD_BASE_URL.to_string());
   } else if let Some(url) = &payload.base_url {
     let u = url.trim().to_string();

@@ -8852,11 +8852,11 @@ ${actualText}`
                 </button>
                 <div className="ClawdAccordionBody">
                   <div className="ClawdModelSelector" style={{ marginBottom: 12 }}>
-                    <button className={`ClawdModelOption${ollamaMode === 'local' ? ' selected' : ''}`} onClick={() => setOllamaMode('local')} disabled={savingKey}>
+                    <button className={`ClawdModelOption${ollamaMode === 'local' ? ' selected' : ''}`} onClick={() => { setOllamaMode('local'); setSelectedOllamaModel('') }} disabled={savingKey}>
                       <span className="ClawdModelName">On this Mac</span>
                       <span className="ClawdModelDesc">Private, local models</span>
                     </button>
-                    <button className={`ClawdModelOption${ollamaMode === 'cloud' ? ' selected' : ''}`} onClick={() => { setOllamaMode('cloud'); if (!selectedOllamaModel) setSelectedOllamaModel('kimi-k2.5:cloud') }} disabled={savingKey}>
+                    <button className={`ClawdModelOption${ollamaMode === 'cloud' ? ' selected' : ''}`} onClick={() => { setOllamaMode('cloud'); setSelectedOllamaModel('kimi-k2.5:cloud') }} disabled={savingKey}>
                       <span className="ClawdModelName">Ollama Cloud</span>
                       <span className="ClawdModelDesc">Hosted models with your Ollama key</span>
                     </button>

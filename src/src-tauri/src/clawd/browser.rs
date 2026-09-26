@@ -12,8 +12,8 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::clawd::chat_agent;
 use crate::clawd::browser_import;
+use crate::clawd::chat_agent;
 use crate::clawd::gateway_client;
 use crate::clawd::harness;
 use crate::clawd::sidecar::SharedClawdbotConfig;
@@ -1356,6 +1356,16 @@ fn ollama_base_url(app_handle: &tauri::AppHandle) -> String {
     .unwrap_or_else(|| "http://localhost:11434".to_string())
 }
 
+fn ollama_api_key(app_handle: &tauri::AppHandle) -> Option<String> {
+  let tokens = load_or_create_tokens(app_handle).ok()?;
+  if tokens.ollama_cloud_enabled.unwrap_or(false) {
+    return tokens
+      .ollama_cloud_api_key
+      .filter(|key| !key.trim().is_empty());
+  }
+  Some("ollama-local".to_string())
+}
+
 fn ollama_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
@@ -2652,14 +2662,8 @@ pub async fn set_browser_presentation(
     "profile": "openclaw",
     "headless": payload.embedded,
   });
-  if let Err(error) = gateway_client::browser_request_unlocked(
-    "POST",
-    "/start",
-    Some(start_query),
-    None,
-    None,
-  )
-  .await
+  if let Err(error) =
+    gateway_client::browser_request_unlocked("POST", "/start", Some(start_query), None, None).await
   {
     if gateway_client::is_transient_browser_error(&error) {
       return HttpResponse::Accepted().json(BrowserPresentationResponse {
@@ -3840,7 +3844,15 @@ pub async fn chat(
           "message": "Ollama is not enabled. Enable it in Settings and Save, then re-enable."
         }));
       }
-      "ollama-local".to_string()
+      match ollama_api_key(&app_handle) {
+        Some(key) => key,
+        None => {
+          return HttpResponse::BadRequest().json(serde_json::json!({
+            "ok": false,
+            "message": "Ollama Cloud API key is not set. Add it in Settings and Save, then re-enable."
+          }));
+        }
+      }
     }
     "anthropic" => match anthropic_key(&app_handle) {
       Some(k) => k,
