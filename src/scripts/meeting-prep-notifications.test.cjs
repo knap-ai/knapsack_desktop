@@ -51,14 +51,14 @@ test('a notification is considered delivered only when its window opens', () => 
 
 test('channel delivery does not depend on opening a local notification window', () => {
   const didOpen = notifications.indexOf('const didOpen = await openNotificationWindow(')
-  const channels = notifications.indexOf('void pushToChannels(', didOpen)
+  const channels = notifications.indexOf('const deliverToChannels = async', didOpen)
   const retry = notifications.indexOf('if (!didOpen) return response', didOpen)
   assert.ok(didOpen >= 0 && channels > didOpen && retry > channels)
 })
 
 test('meeting prep channel delivery is deduplicated while the local surface retries', () => {
   assert.match(notifications, /KN_PREPPED_MEETING_CHANNEL_IDS/)
-  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(channelDeliveryKey\)/)
+  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(resolvedChannelDeliveryKey\)/)
   assert.match(notifications, /getMeetingPrepNotificationKey\(meetingNeedingPrep\)/)
   assert.match(notifications, /JSON\.stringify\(\[\.\.\.preppedMeetingChannelIdsRef\.current\]\)/)
   assert.match(notifications, /inFlightMeetingChannelIdsRef/)
@@ -83,6 +83,14 @@ test('channel-only email alerts update the notification throttle', () => {
     notifications,
     /channelDelivered && notificationType === 'email_alert' && !didOpen[\s\S]*?recordNotification\(notificationType\)/,
   )
+})
+
+test('channel delivery retries separately from a successful local prep and deduplicates email batches', () => {
+  assert.match(notifications, /const resolvedChannelDeliveryKey/)
+  assert.match(notifications, /email-alert:\$\{parsed\.notificationTitle\}:\$\{parsed\.notificationBody\}/)
+  assert.match(notifications, /const deliverToChannels = async \(retryOnFailure: boolean\)/)
+  assert.match(notifications, /retryOnFailure && notificationType === 'pre_meeting_prep'/)
+  assert.match(notifications, /void deliverToChannels\(false\)/)
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {
