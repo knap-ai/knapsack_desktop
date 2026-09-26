@@ -581,6 +581,7 @@ export function useAutomations({
         for (const meeting of meetings) {
           const startTime = dayjs(meeting.start)
           const minutesUntil = Math.ceil(startTime.diff(dayjs(now), 'minute', true))
+          const occurrenceIdentifier = `${meeting.eventId || meeting.id}:${startTime.valueOf()}`
 
           const leadTime = await getNotificationLeadTimeMin()
           if (
@@ -589,7 +590,7 @@ export function useAutomations({
             // pre-start window instead of depending on one exact clock tick.
             minutesUntil <= leadTime &&
             minutesUntil > 0 &&
-            !service.sentIdentifiers.includes(meeting.eventId || meeting.id.toString())
+            !service.sentIdentifiers.includes(occurrenceIdentifier)
           ) {
             KNAnalytics.trackEvent('notificationPush', {
               meetingStart: startTime.format('MM/DD/YYYY HH:mm::ss'),
@@ -627,7 +628,7 @@ export function useAutomations({
                           ...s,
                           sentIdentifiers: [
                             ...s.sentIdentifiers,
-                            meeting.eventId || meeting.id.toString(),
+                            occurrenceIdentifier,
                           ],
                         }
                       : s,

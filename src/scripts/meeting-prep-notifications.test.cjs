@@ -45,8 +45,9 @@ test('a notification is considered delivered only when its window opens', () => 
   assert.match(native, /async fn show_notification_window[\s\S]*?\) -> bool/)
   assert.match(native, /if let Ok\(Some\(monitor\)\) = window\.current_monitor\(\)/)
   assert.match(native, /return false;[\s\S]*?window\.show\(\)\.is_err\(\)/)
-  assert.match(automations, /includes\(meeting\.eventId \|\| meeting\.id\.toString\(\)\)/)
-  assert.match(automations, /sentIdentifiers: \[[\s\S]*?meeting\.eventId \|\| meeting\.id\.toString\(\)/)
+  assert.match(automations, /const occurrenceIdentifier = `\$\{meeting\.eventId \|\| meeting\.id\}:\$\{startTime\.valueOf\(\)\}`/)
+  assert.match(automations, /includes\(occurrenceIdentifier\)/)
+  assert.match(automations, /sentIdentifiers: \[[\s\S]*?occurrenceIdentifier/)
 })
 
 test('channel delivery does not depend on opening a local notification window', () => {
@@ -63,7 +64,7 @@ test('meeting prep channel delivery is deduplicated while the local surface retr
   assert.match(notifications, /JSON\.stringify\(\[\.\.\.preppedMeetingChannelIdsRef\.current\]\)/)
   assert.match(notifications, /inFlightMeetingChannelIdsRef/)
   assert.match(notifications, /Promise<boolean>/)
-  assert.match(notifications, /if \(!channelDelivered\) return/)
+  assert.match(notifications, /if \(!channelDelivered\) \{[\s\S]*?retryOnFailure/)
 })
 
 test('morning briefing is marked sent only after it is delivered', () => {
@@ -89,7 +90,7 @@ test('channel delivery retries separately from a successful local prep and dedup
   assert.match(notifications, /const resolvedChannelDeliveryKey/)
   assert.match(notifications, /email-alert:\$\{parsed\.notificationTitle\}:\$\{parsed\.notificationBody\}/)
   assert.match(notifications, /const deliverToChannels = async \(retryOnFailure: boolean\)/)
-  assert.match(notifications, /retryOnFailure && notificationType === 'pre_meeting_prep'/)
+  assert.match(notifications, /notificationType === 'pre_meeting_prep' \|\| notificationType === 'morning_briefing'/)
   assert.match(notifications, /void deliverToChannels\(false\)/)
 })
 

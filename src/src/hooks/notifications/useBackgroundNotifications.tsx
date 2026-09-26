@@ -710,7 +710,10 @@ export function useBackgroundNotifications({
                       // A successful local prep must not permanently abandon a
                       // transient channel failure. Retry once without creating
                       // another local popup or regenerating the model output.
-                      if (retryOnFailure && notificationType === 'pre_meeting_prep') {
+                      if (
+                        retryOnFailure &&
+                        (notificationType === 'pre_meeting_prep' || notificationType === 'morning_briefing')
+                      ) {
                         window.setTimeout(() => {
                           if (
                             !preppedMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey) &&
