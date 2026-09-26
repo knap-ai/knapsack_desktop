@@ -400,7 +400,7 @@ pub async fn get_or_create_drive_document_from_file(
     .md5_checksum
     .clone()
     .or(file.version.clone().map(|f| f.to_string()));
-  let existing_drive_document = DriveDocument::find_by_drive_id(&drive_id.clone())
+  let existing_drive_document = DriveDocument::find_by_drive_id_for_account(&drive_id, account_email)
     .ok()
     .flatten();
   let url = file.web_view_link.clone().unwrap_or("".to_string());
@@ -641,7 +641,7 @@ pub async fn fetch_drive(
     }
   }
   let query = format!(
-    "({}){}",
+    "({}){} and trashed = false",
     DRIVE_ALLOWED_MIME_TYPES
       .clone()
       .into_iter()

@@ -44,7 +44,7 @@ impl DriveDocument {
     connection.execute(
       "UPDATE drive_documents SET filename = ?1, file_size = ?2,
        date_modified = ?3, date_created = ?4, summary = ?5, checksum = ?6,
-       url = ?7, account_email = ?8 WHERE drive_id = ?9",
+       url = ?7, account_email = ?8 WHERE drive_id = ?9 AND account_email = ?8",
       params![
         &self.filename,
         self.file_size,
@@ -150,6 +150,28 @@ impl DriveDocument {
       })
       .optional()?;
 
+    Ok(drive_document)
+  }
+
+  pub fn find_by_drive_id_for_account(
+    drive_id: &str,
+    account_email: &str,
+  ) -> Result<Option<DriveDocument>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email
+       FROM drive_documents WHERE drive_id = ?1 AND account_email = ?2",
+    )?;
+    let drive_document = stmt
+      .query_row(params![drive_id, account_email], |row| {
+        Ok(DriveDocument {
+          id: row.get(0)?, drive_id: row.get(1)?, filename: row.get(2)?, file_size: row.get(3)?,
+          date_modified: row.get(4)?, date_created: row.get(5)?, summary: row.get(6)?,
+          checksum: row.get(7)?, url: row.get(8)?, timestamp: row.get(9)?, content_chunks: None,
+          account_email: row.get(10).unwrap_or_default(),
+        })
+      })
+      .optional()?;
     Ok(drive_document)
   }
 
