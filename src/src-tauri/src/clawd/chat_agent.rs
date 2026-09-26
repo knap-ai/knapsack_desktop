@@ -601,6 +601,32 @@ fn strip_images(messages: Vec<OaiMessage>) -> Vec<OaiMessage> {
     .collect()
 }
 
+/// Local Ollama can run on loopback, a private LAN address, or a `.local`
+/// hostname.  Treat all of those as local so they receive the more forgiving
+/// timeout and local-model no-tools retry.
+fn is_local_ollama_endpoint(base_url: &str) -> bool {
+  let Ok(url) = reqwest::Url::parse(base_url) else {
+    return false;
+  };
+  let Some(host) = url.host_str() else {
+    return false;
+  };
+  if host.eq_ignore_ascii_case("localhost") || host.ends_with(".local") {
+    return true;
+  }
+  let Ok(ip) = host.parse::<std::net::IpAddr>() else {
+    return false;
+  };
+  match ip {
+    std::net::IpAddr::V4(ip) => {
+      ip.is_loopback()
+        || ip.is_private()
+        || ip.is_link_local()
+    }
+    std::net::IpAddr::V6(ip) => ip.is_loopback() || ip.is_unicast_link_local(),
+  }
+}
+
 pub async fn openai_compatible_chat(
   api_key: &str,
   model: &str,
@@ -609,7 +635,7 @@ pub async fn openai_compatible_chat(
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
   // Use a longer timeout for local providers (Ollama) which may need more time
-  let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
+  let is_local = is_local_ollama_endpoint(base_url);
   let timeout_secs = if is_local { 300 } else { 60 };
   let mut client_builder = reqwest::Client::builder().timeout(Duration::from_secs(timeout_secs));
   if base_url.contains("trustedrouter.com") {
@@ -815,7 +841,7 @@ pub async fn ollama_native_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
+  let is_local = is_local_ollama_endpoint(base_url);
   let timeout_secs = if is_local { 300 } else { 60 };
   let client = reqwest::Client::builder()
     .timeout(Duration::from_secs(timeout_secs))

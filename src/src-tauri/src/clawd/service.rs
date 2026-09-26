@@ -11198,15 +11198,20 @@ pub async fn ollama_configure(
     let m = model.trim().to_string();
     tokens.ollama_model = if m.is_empty() { None } else { Some(m) };
   }
-  if cloud {
-    tokens.ollama_base_url = Some(OLLAMA_CLOUD_BASE_URL.to_string());
-  } else if let Some(url) = &payload.base_url {
-    let u = url.trim().to_string();
-    tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
-  } else if was_cloud {
-    // A Cloud URL is not a valid local runtime. Fall back to the normal local
-    // default while preserving an existing local LAN/self-hosted URL.
-    tokens.ollama_base_url = None;
+  // Cloud's endpoint is selected by `ollama_runtime_base_url`; do not replace
+  // the saved local endpoint here.  That endpoint can be a LAN or self-hosted
+  // daemon and must be available again when the user switches back from Cloud.
+  if !cloud {
+    if let Some(url) = &payload.base_url {
+      let u = url.trim().to_string();
+      tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
+    } else if was_cloud
+      && tokens.ollama_base_url.as_deref() == Some(OLLAMA_CLOUD_BASE_URL)
+    {
+      // Migrate configurations written by earlier versions which persisted the
+      // Cloud endpoint in the local-endpoint field.
+      tokens.ollama_base_url = None;
+    }
   }
 
   sync_active_provider_for_ollama_toggle(&mut tokens, payload.enabled);
