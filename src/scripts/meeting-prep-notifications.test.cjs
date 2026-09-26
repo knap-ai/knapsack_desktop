@@ -16,7 +16,8 @@ test('meeting prep reminders are occurrence-specific and tolerant of delayed tic
 
 test('the minute clock uses rich prep and retains the configured join-and-record reminder', () => {
   assert.match(app, /checkMeetingPrep\(\)/)
-  assert.match(app, /await handleNotificationsScheduleService\(date\)/)
+  assert.match(app, /void handleNotificationsScheduleService\(date\)\.catch/)
+  assert.doesNotMatch(app, /await handleNotificationsScheduleService\(date\)/)
   assert.match(app, /let tickInFlight = false/)
   assert.match(notifications, /canSendNotification\('meeting_prep', false\)/)
   assert.match(notifications, /if \(wasDelivered\)[\s\S]*?persistPreppedMeetingId/)

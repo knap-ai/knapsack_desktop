@@ -1109,7 +1109,12 @@ function App() {
           // generation delay the near-start recorder alert or other
           // minute-based schedulers.
           void checkMeetingPrep()
-          await handleNotificationsScheduleService(date)
+          // The notifications service can wait on calendar I/O. Keep it
+          // independent from the minute clock so a stalled request cannot
+          // suppress later recorder or meeting-status updates.
+          void handleNotificationsScheduleService(date).catch((error) => {
+            console.warn('[notifications] scheduled check failed', error)
+          })
           // These two flows can wait on the model. They must not hold the
           // minute clock hostage or suppress meeting-status updates.
           void checkMorningBriefing(date)
