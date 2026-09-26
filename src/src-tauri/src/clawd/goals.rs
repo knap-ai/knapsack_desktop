@@ -311,6 +311,7 @@ fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
 #[tauri::command]
 pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
   let email_sources = Email::find_goal_evidence(30)
+    .map_err(|error| format!("Could not search the synced Gmail index: {error}"))?
     .into_iter()
     .map(|email| GoalDiscoverySource {
       source_type: "Gmail".to_string(),

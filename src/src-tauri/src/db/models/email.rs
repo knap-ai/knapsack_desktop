@@ -216,7 +216,7 @@ impl Email {
   /// objectives, OKRs, or planning documents.  This is deliberately a local
   /// index query: callers must not imply that an empty response proves a
   /// connected mailbox contains no goals.
-  pub fn find_goal_evidence(limit: usize) -> Vec<Email> {
+  pub fn find_goal_evidence(limit: usize) -> Result<Vec<Email>> {
     const GOAL_TERMS: [&str; 12] = [
       "okr",
       "objective",
@@ -233,32 +233,34 @@ impl Email {
     ];
 
     let connection = get_db_conn();
-    let Ok(mut stmt) = connection.prepare(
+    let mut stmt = connection.prepare(
       "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email \
        FROM emails WHERE COALESCE(is_deleted, 0) = 0 ORDER BY date DESC LIMIT 500",
-    ) else {
-      return Vec::new();
-    };
-    let Ok(rows) = stmt.query_map([], |row| {
-      Email::build_struct_from_row(row)
-    }) else {
-      return Vec::new();
-    };
-    rows
-      .filter_map(Result::ok)
-      .filter(|email| {
+    )?;
+    let rows = stmt.query_map([], Email::build_struct_from_row)?;
+    Ok(rows
+      .filter_map(|row| row.ok())
+      .filter_map(|mut email| {
         let body = if email.body.trim().is_empty() {
           String::new()
         } else {
           from_read(email.body.as_bytes(), email.body.len().max(1)).to_lowercase()
         };
         let subject = email.subject.to_lowercase();
-        GOAL_TERMS
+        let matches_goal = GOAL_TERMS
           .iter()
-          .any(|term| subject.contains(term) || body.contains(term))
+          .any(|term| subject.contains(term) || body.contains(term));
+        if matches_goal {
+          // Return the same rendered text searched above so excerpts anchor to
+          // the matching user-visible content instead of an HTML attribute.
+          email.body = body;
+          Some(email)
+        } else {
+          None
+        }
       })
       .take(limit.max(1))
-      .collect()
+      .collect())
   }
 
   pub fn count() -> Result<u64> {
