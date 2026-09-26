@@ -1105,7 +1105,10 @@ function App() {
         // Meeting prep is evaluated on a forgiving time range, not a single
         // calendar-sync event or exact minute, so reminders survive wake-ups
         // and transient sync delays.
-          await checkMeetingPrep()
+          // Prep can require an LLM request. Do not let a slow or stalled
+          // generation delay the near-start recorder alert or other
+          // minute-based schedulers.
+          void checkMeetingPrep()
           await handleNotificationsScheduleService(date)
           await checkMorningBriefing(date)
           await checkProactiveCheckin(date)

@@ -575,10 +575,6 @@ export function useAutomations({
   // -- Notification handling starts here --
   const handleMeetingNotesNotification = useCallback(
     async (now: Date, service: NotificationService, notificationIndex: number) => {
-      if (notificationWindowReservedRef.current) {
-        return
-      }
-
       const meetings = await dataFetcher.getRecentCalendarEvents()
 
       if (meetings?.length) {
@@ -593,8 +589,7 @@ export function useAutomations({
             // pre-start window instead of depending on one exact clock tick.
             minutesUntil <= leadTime &&
             minutesUntil > 0 &&
-            !service.sentIdentifiers.includes(meeting.eventId) &&
-            !notificationWindowReservedRef.current
+            !service.sentIdentifiers.includes(meeting.eventId || meeting.id.toString())
           ) {
             KNAnalytics.trackEvent('notificationPush', {
               meetingStart: startTime.format('MM/DD/YYYY HH:mm::ss'),
@@ -630,7 +625,10 @@ export function useAutomations({
                     idx === notificationIndex
                       ? {
                           ...s,
-                          sentIdentifiers: [...s.sentIdentifiers, meeting.id],
+                          sentIdentifiers: [
+                            ...s.sentIdentifiers,
+                            meeting.eventId || meeting.id.toString(),
+                          ],
                         }
                       : s,
                   ),
