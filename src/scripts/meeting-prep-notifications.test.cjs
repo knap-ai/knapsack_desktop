@@ -57,6 +57,12 @@ test('channel delivery does not depend on opening a local notification window', 
   assert.ok(didOpen >= 0 && channels > didOpen && retry > channels)
 })
 
+test('a blocked notification cannot replace the visible notification payload', () => {
+  const didOpen = notifications.indexOf('const didOpen = await openNotificationWindow(')
+  const pendingUpdate = notifications.indexOf('if (didOpen) {\n                  pendingInsightRef.current = parsed', didOpen)
+  assert.ok(didOpen >= 0 && pendingUpdate > didOpen)
+})
+
 test('meeting prep channel delivery is deduplicated while the local surface retries', () => {
   assert.match(notifications, /KN_PREPPED_MEETING_CHANNEL_IDS/)
   assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(resolvedChannelDeliveryKey\)/)
