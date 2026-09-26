@@ -4726,11 +4726,37 @@ pub async fn chat(
       if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || existing_schedule.is_none() || schedule_changed.is_none() || timezone.is_none() || payload.is_none() || enabled.is_none() {
         return Ok(json!({"ok": false, "error": "id, name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, and the existing task payload are required"}));
       }
-      let mut payload = payload.expect("payload was checked above");
-      let payload_kind = payload.get("kind").and_then(|value| value.as_str()).unwrap_or("");
-      if !matches!(payload_kind, "systemEvent" | "agentTurn") {
+      let expected_schedule = existing_schedule.expect("existing_schedule was checked above");
+      let payload = payload.expect("payload was checked above");
+      let payload_kind = payload
+        .get("kind")
+        .and_then(|value| value.as_str())
+        .unwrap_or("")
+        .to_string();
+      if !matches!(payload_kind.as_str(), "systemEvent" | "agentTurn") {
         return Ok(json!({"ok": false, "error": "payload.kind must be the existing systemEvent or agentTurn kind"}));
       }
+      // The proposal may have been reviewed for some time before confirmation.
+      // Reject a stale snapshot instead of overwriting a task another client
+      // just changed (including its cadence, payload, or enabled state).
+      let current_tasks = match gateway_ws::cron_list_all(None).await {
+        Ok(tasks) => tasks,
+        Err(error) => return Ok(json!({"ok": false, "error": format!("Could not verify the current scheduled task before updating: {}", error)})),
+      };
+      let current_task = current_tasks
+        .get("jobs")
+        .and_then(|jobs| jobs.as_array())
+        .and_then(|jobs| jobs.iter().find(|job| job.get("id").and_then(|id| id.as_str()) == Some(task_id)));
+      let Some(current_task) = current_task else {
+        return Ok(json!({"ok": false, "error": "The scheduled task no longer exists. No changes were saved; list scheduled tasks and propose again."}));
+      };
+      if current_task.get("schedule") != Some(&expected_schedule)
+        || current_task.get("payload") != Some(&payload)
+        || current_task.get("enabled").and_then(|value| value.as_bool()) != enabled
+      {
+        return Ok(json!({"ok": false, "error": "The scheduled task changed after this proposal was prepared. No changes were saved; list scheduled tasks and ask the user to confirm a fresh proposal."}));
+      }
+      let mut payload = payload;
       if let Some(message) = args_map.get("message").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty()) {
         let message_key = if payload_kind == "agentTurn" { "message" } else { "text" };
         payload[message_key] = json!(message);
@@ -4743,7 +4769,7 @@ pub async fn chat(
       } else {
         // A content-only update must not recreate an `every` schedule from
         // prose, which would silently discard its server-provided anchorMs.
-        existing_schedule.expect("existing_schedule was checked above")
+        expected_schedule
       };
 
       let patch = json!({

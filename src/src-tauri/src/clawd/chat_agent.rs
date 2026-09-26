@@ -401,7 +401,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
             "name": { "type": "string", "description": "Confirmed replacement name" },
             "schedule": { "type": "string", "description": "Confirmed replacement schedule" },
             "existing_schedule": { "type": "object", "description": "Exact schedule object returned by list_scheduled_tasks for this task" },
-            "schedule_changed": { "type": "boolean", "description": "True only if the user directly confirmed a cadence change. False preserves existing_schedule exactly." },
+            "schedule_changed": { "type": "boolean", "description": "True only if the user directly confirmed a cadence or timezone change. False preserves existing_schedule exactly." },
             "timezone": { "type": "string", "description": "Timezone from the existing task or the directly confirmed replacement" },
             "enabled": { "type": "boolean", "description": "Directly confirmed enabled state. Use the existing state unless the user specifically confirmed re-enabling or disabling it." },
             "message": { "type": "string", "description": "Optional directly confirmed replacement report instructions" },
