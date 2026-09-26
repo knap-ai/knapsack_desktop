@@ -399,9 +399,23 @@ pub async fn get_or_create_drive_document_from_file(
 
   if existing_drive_document.is_some() {
     let mut drive_document = existing_drive_document.unwrap().clone();
-    drive_document.content_chunks = maybe_content;
+    if let Some(content_chunks) = maybe_content {
+      let summary = DriveDocument::summary_from_content_chunks(&content_chunks);
+      if !summary.trim().is_empty() {
+        drive_document.summary = summary;
+        if let Err(error) = drive_document.update_summary() {
+          log::warn!("Could not refresh the local Drive text index: {:?}", error);
+        }
+      }
+      drive_document.content_chunks = Some(content_chunks);
+    }
     return drive_document;
   }
+
+  let summary = maybe_content
+    .as_deref()
+    .map(DriveDocument::summary_from_content_chunks)
+    .unwrap_or_default();
 
   let mut drive_document = DriveDocument {
     id: None,
@@ -410,7 +424,7 @@ pub async fn get_or_create_drive_document_from_file(
     file_size,
     date_created,
     date_modified,
-    summary: String::from(""),
+    summary,
     checksum: checksum.unwrap_or("0".to_string()),
     url,
     timestamp: None,

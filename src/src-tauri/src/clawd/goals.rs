@@ -257,6 +257,44 @@ fn compact_excerpt(value: &str, limit: usize) -> String {
   }
 }
 
+fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
+  const GOAL_TERMS: [&str; 12] = [
+    "okr",
+    "objective",
+    "key result",
+    "goal",
+    "target",
+    "kpi",
+    "metric",
+    "milestone",
+    "north star",
+    "annual plan",
+    "strategic plan",
+    "quarterly plan",
+  ];
+
+  let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
+  if compact.chars().count() <= limit {
+    return compact;
+  }
+
+  let lowered = compact.to_lowercase();
+  let match_at = GOAL_TERMS
+    .iter()
+    .filter_map(|term| lowered.find(term).map(|index| lowered[..index].chars().count()))
+    .min();
+  let Some(match_at) = match_at else {
+    return compact_excerpt(&compact, limit);
+  };
+
+  let characters = compact.chars().collect::<Vec<_>>();
+  let start = match_at.saturating_sub(limit / 3);
+  let end = (start + limit).min(characters.len());
+  let prefix = if start > 0 { "…" } else { "" };
+  let suffix = if end < characters.len() { "…" } else { "" };
+  format!("{}{}{}", prefix, characters[start..end].iter().collect::<String>(), suffix)
+}
+
 /// Read actual goal-shaped records from the locally encrypted/synced Gmail and
 /// Drive indexes.  A goal proposal must always identify this as a synced-index
 /// search, because an empty local index cannot prove the remote account has no
@@ -268,7 +306,7 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
     .map(|email| GoalDiscoverySource {
       source_type: "Gmail".to_string(),
       title: email.subject.clone(),
-      excerpt: compact_excerpt(&email.body, 1_800),
+      excerpt: goal_evidence_excerpt(&email.body, 1_800),
       source_record: format!("Gmail message {} ({})", email.email_uid, email.account_email),
       updated_at: email.date,
     })
@@ -279,7 +317,7 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
     .map(|document| GoalDiscoverySource {
       source_type: "Google Drive".to_string(),
       title: document.filename,
-      excerpt: compact_excerpt(&document.summary, 1_200),
+      excerpt: goal_evidence_excerpt(&document.summary, 1_200),
       source_record: if document.url.trim().is_empty() {
         format!("Google Drive file {} ({})", document.drive_id, document.account_email)
       } else {
@@ -608,5 +646,13 @@ mod tests {
   fn discovery_excerpts_are_bounded_and_compact() {
     assert_eq!(compact_excerpt("  one\n two\tthree ", 40), "one two three");
     assert_eq!(compact_excerpt("one two three four", 7), "one two…");
+  }
+
+  #[test]
+  fn discovery_excerpt_keeps_the_goal_term_visible() {
+    let evidence = format!("{} Objective: reach 1,000 active users by December.", "intro ".repeat(400));
+    let excerpt = goal_evidence_excerpt(&evidence, 100);
+    assert!(excerpt.contains("Objective: reach 1,000 active users"));
+    assert!(excerpt.chars().count() <= 102);
   }
 }

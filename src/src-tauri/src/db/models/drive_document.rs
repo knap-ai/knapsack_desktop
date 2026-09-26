@@ -25,6 +25,29 @@ pub struct DriveDocument {
 }
 
 impl DriveDocument {
+  /// Keep a bounded, locally persisted text index for features that need to
+  /// find a Drive file by its contents without making a remote Drive call.
+  /// The full content still lives in the vector index; this is only enough to
+  /// select useful evidence for short, source-labelled experiences such as
+  /// goal discovery.
+  pub fn summary_from_content_chunks(content_chunks: &[String]) -> String {
+    const LIMIT: usize = 12_000;
+    content_chunks
+      .iter()
+      .flat_map(|chunk| chunk.chars())
+      .take(LIMIT)
+      .collect()
+  }
+
+  pub fn update_summary(&self) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE drive_documents SET summary = ?1 WHERE drive_id = ?2",
+      params![&self.summary, &self.drive_id],
+    )?;
+    Ok(())
+  }
+
   pub fn find_by_id(id: u64) -> Result<Option<DriveDocument>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
@@ -160,10 +183,9 @@ impl DriveDocument {
     Ok(count)
   }
 
-  /// Return Drive files whose name or indexed summary looks likely to contain
-  /// an objective, OKR, or planning target.  The file content remains in the
-  /// protected local index; callers use this metadata only to select evidence
-  /// for a goal proposal.
+  /// Return Drive files whose name or locally persisted text index looks
+  /// likely to contain an objective, OKR, or planning target. Callers use this
+  /// metadata only to select evidence for a goal proposal.
   pub fn find_goal_evidence(limit: usize) -> Result<Vec<DriveDocument>, Error> {
     const GOAL_TERMS: [&str; 12] = [
       "okr",
