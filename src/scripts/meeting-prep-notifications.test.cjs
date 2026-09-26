@@ -94,6 +94,12 @@ test('channel-only email alerts update the notification throttle', () => {
   )
 })
 
+test('channel-only proactive check-ins advance their delivery cadence', () => {
+  assert.match(notifications, /onChannelDelivered\?: \(\) => void \| Promise<void>/)
+  assert.match(notifications, /if \(channelDelivered\) \{\s*void onChannelDelivered\?\.\(\)/)
+  assert.match(notifications, /KN_LAST_PROACTIVE_CHECKIN, now\.toISOString\(\)/)
+})
+
 test('an email alert marks only the model-selected source message as delivered', () => {
   const prompts = read('src/prompts.ts')
   assert.match(prompts, /"sourceEmailKey": "<the exact SOURCE KEY/)

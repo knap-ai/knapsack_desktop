@@ -645,6 +645,7 @@ export function useBackgroundNotifications({
       buttonHandler: string,
       buttonText: string,
       channelDeliveryKeys?: string[],
+      onChannelDelivered?: () => void | Promise<void>,
     ): Promise<boolean> => {
       if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
@@ -746,6 +747,9 @@ export function useBackgroundNotifications({
                     // events cannot regenerate and resend the same alert.
                     if (channelDelivered && notificationType === 'email_alert' && !didOpen) {
                       void recordNotification(notificationType)
+                    }
+                    if (channelDelivered) {
+                      void onChannelDelivered?.()
                     }
                     if (resolvedChannelDeliveryKeys.length === 0) return
                     resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.delete(key))
@@ -1076,6 +1080,10 @@ export function useBackgroundNotifications({
         'proactive_checkin',
         'background_insight_notification_handler',
         'Take Action',
+        undefined,
+        force
+          ? undefined
+          : () => KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString()),
       )
       if (delivered && !force) {
         await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
