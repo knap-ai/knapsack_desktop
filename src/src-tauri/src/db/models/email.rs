@@ -41,11 +41,14 @@ impl Email {
       body: row.get(5)?,
       recipient: row.get(6)?,
       cc: row.get(7)?,
-      thread_id: Some(row.get(8)?),
+      // Older local databases can contain NULL before these fields were made
+      // optional. Decode them as optional so historical synced evidence is not
+      // silently dropped by callers that iterate rows.
+      thread_id: row.get(8)?,
       is_starred: row.get(9)?,
       is_read: row.get(10)?,
       is_archived: row.get(11)?,
-      is_deleted: Some(row.get(12)?),
+      is_deleted: row.get(12)?,
       account_email: row.get(13).unwrap_or_default(),
     })
   }
