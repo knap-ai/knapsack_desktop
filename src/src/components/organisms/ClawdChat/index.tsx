@@ -4029,7 +4029,9 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         cloud: ollamaMode === 'cloud',
         api_key: ollamaMode === 'cloud' && ollamaCloudApiKey.trim() ? ollamaCloudApiKey.trim() : undefined,
         model: selectedOllamaModel,
-        base_url: ollamaMode === 'cloud' ? 'https://ollama.com' : 'http://127.0.0.1:11434',
+        // Keep a configured LAN/self-hosted local endpoint intact. The
+        // backend resets Cloud back to its local default when switching modes.
+        base_url: ollamaMode === 'cloud' ? 'https://ollama.com' : undefined,
       })
       localStorage.setItem(OLLAMA_MODEL_STORAGE, selectedOllamaModel)
       setOllamaCloudApiKey('')

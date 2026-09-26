@@ -12,6 +12,8 @@ test('Ollama Cloud uses the hosted endpoint and an authenticated provider config
   assert.match(service, /unwrap_or_else\(\|\| tokens\.ollama_cloud_enabled\.unwrap_or\(false\)\)/)
   assert.match(service, /ollama_cloud_api_key/)
   assert.match(service, /tokens\.ollama_cloud_enabled = Some\(cloud\)/)
+  assert.match(service, /let was_cloud = tokens\.ollama_cloud_enabled\.unwrap_or\(false\);/)
+  assert.match(service, /else if was_cloud \{[\s\S]*?tokens\.ollama_base_url = None/)
   assert.match(service, /request = request\.bearer_auth\(key\)/)
   assert.match(service, /upsert_ollama_provider_config\([\s\S]*?api_key/)
 })
@@ -28,6 +30,7 @@ test('the provider chooser distinguishes local Ollama from Ollama Cloud without 
   assert.match(chat, /kimi-k2\.5:cloud/)
   assert.match(chat, /setOllamaMode\('local'\); setSelectedOllamaModel\(''\)/)
   assert.match(chat, /setOllamaMode\('cloud'\); setSelectedOllamaModel\('kimi-k2\.5:cloud'\)/)
+  assert.match(chat, /base_url: ollamaMode === 'cloud' \? 'https:\/\/ollama\.com' : undefined/)
 })
 
 test('local probes do not inherit a saved Cloud endpoint', () => {
@@ -74,5 +77,8 @@ test('Cloud chats retain hosted capabilities and use Ollama native tool calling'
   assert.match(agent, /matches!\(prefix\.to_ascii_lowercase\(\)\.as_str\(\), "function" \| "functions" \| "tool" \| "tools"\)/)
   assert.match(agent, /if is_local && !tools\.is_empty\(\) && status\.is_client_error\(\)/)
   assert.match(agent, /parse_ollama_native_response\(&retry_text, &\[\]\)/)
+  assert.match(agent, /if status\.as_u16\(\) == 429 && attempt \+ 1 < max_attempts/)
+  assert.match(agent, /filter_map\(\|separator\| raw_name\.split_once\(\*separator\)\)/)
+  assert.match(agent, /find_map\(\|\(prefix, candidate\)\|/)
   assert.match(browser, /let ollama_key = if ollama_is_enabled\(&app_handle\) \{\s*ollama_api_key\(&app_handle\)/)
 })

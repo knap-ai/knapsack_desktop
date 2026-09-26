@@ -877,15 +877,34 @@ pub async fn ollama_native_chat(
     body["tools"] = json!(tools);
   }
 
-  let response = client
-    .post(format!("{}/api/chat", base_url.trim_end_matches('/')))
-    .bearer_auth(api_key)
-    .json(&body)
-    .send()
-    .await?;
-  let status = response.status();
-  let text = response.text().await.unwrap_or_default();
-  if !status.is_success() {
+  let max_attempts = 3;
+  let mut last_rate_limit = String::new();
+  for attempt in 0..max_attempts {
+    let response = client
+      .post(format!("{}/api/chat", base_url.trim_end_matches('/')))
+      .bearer_auth(api_key)
+      .json(&body)
+      .send()
+      .await?;
+    let status = response.status();
+    let text = response.text().await.unwrap_or_default();
+    if status.is_success() {
+      return parse_ollama_native_response(&text, &tools);
+    }
+
+    if status.as_u16() == 429 && attempt + 1 < max_attempts {
+      let wait_secs = parse_retry_after(&text).unwrap_or(5.0 + (attempt as f64 * 2.0));
+      eprintln!(
+        "Ollama rate limit hit (attempt {}/{}), waiting {:.1}s before retry...",
+        attempt + 1,
+        max_attempts,
+        wait_secs,
+      );
+      last_rate_limit = text;
+      tokio::time::sleep(Duration::from_secs_f64(wait_secs)).await;
+      continue;
+    }
+
     // Older local models commonly reject tool definitions outright. Keep the
     // historical local-only fallback without weakening hosted Cloud tool use.
     if is_local && !tools.is_empty() && status.is_client_error() {
@@ -894,7 +913,7 @@ pub async fn ollama_native_chat(
         .bearer_auth(api_key)
         .json(&json!({
           "model": model,
-          "messages": native_messages,
+          "messages": native_messages.clone(),
           "stream": false,
           "options": {"temperature": 0.2},
         }))
@@ -909,7 +928,7 @@ pub async fn ollama_native_chat(
     anyhow::bail!("Ollama HTTP {}: {}", status, text);
   }
 
-  parse_ollama_native_response(&text, &tools)
+  anyhow::bail!("Ollama HTTP 429: {}", last_rate_limit)
 }
 
 fn parse_ollama_native_response(
@@ -934,12 +953,12 @@ fn parse_ollama_native_response(
           let raw_name = function.get("name")?.as_str()?.trim();
           let name = ['.', '/', '_', '-']
             .iter()
-            .find_map(|separator| raw_name.split_once(*separator))
-            .filter(|(prefix, candidate)| {
-              matches!(prefix.to_ascii_lowercase().as_str(), "function" | "functions" | "tool" | "tools")
-                && available_tool_names.contains(candidate)
+            .filter_map(|separator| raw_name.split_once(*separator))
+            .find_map(|(prefix, candidate)| {
+              (matches!(prefix.to_ascii_lowercase().as_str(), "function" | "functions" | "tool" | "tools")
+                && available_tool_names.contains(candidate))
+                .then_some(candidate)
             })
-            .map(|(_, candidate)| candidate)
             .unwrap_or(raw_name)
             .to_string();
           let raw_arguments = function

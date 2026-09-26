@@ -11135,6 +11135,7 @@ pub async fn ollama_configure(
     }
   };
 
+  let was_cloud = tokens.ollama_cloud_enabled.unwrap_or(false);
   let cloud = payload
     .cloud
     .unwrap_or_else(|| tokens.ollama_cloud_enabled.unwrap_or(false));
@@ -11202,6 +11203,10 @@ pub async fn ollama_configure(
   } else if let Some(url) = &payload.base_url {
     let u = url.trim().to_string();
     tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
+  } else if was_cloud {
+    // A Cloud URL is not a valid local runtime. Fall back to the normal local
+    // default while preserving an existing local LAN/self-hosted URL.
+    tokens.ollama_base_url = None;
   }
 
   sync_active_provider_for_ollama_toggle(&mut tokens, payload.enabled);
