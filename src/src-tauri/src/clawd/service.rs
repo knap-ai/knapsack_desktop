@@ -18274,10 +18274,31 @@ mod provider_key_tests {
     "KNAPSACK_USER_EMAIL",
   ];
 
-  fn clear_all() {
+  struct RestoreEnv(Vec<(&'static str, Option<std::ffi::OsString>)>);
+
+  impl Drop for RestoreEnv {
+    fn drop(&mut self) {
+      for (name, value) in self.0.drain(..) {
+        match value {
+          Some(value) => std::env::set_var(name, value),
+          None => std::env::remove_var(name),
+        }
+      }
+    }
+  }
+
+  /// Clears the test's provider state and restores the caller's process
+  /// environment when the test returns. The desktop test suite shares one
+  /// process, so leaving these values cleared leaks into unrelated tests.
+  fn clear_all() -> RestoreEnv {
+    let previous = ALL_VARS
+      .iter()
+      .map(|name| (*name, std::env::var_os(name)))
+      .collect();
     for v in ALL_VARS {
       std::env::remove_var(v);
     }
+    RestoreEnv(previous)
   }
 
   #[test]
@@ -18301,14 +18322,14 @@ mod provider_key_tests {
   #[test]
   fn no_keys_means_no_provider_available() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     assert!(!any_provider_key_available());
   }
 
   #[test]
   fn anthropic_key_alone_counts_as_available() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
     assert!(any_provider_key_available());
     std::env::remove_var("ANTHROPIC_API_KEY");
@@ -18317,7 +18338,7 @@ mod provider_key_tests {
   #[test]
   fn empty_or_whitespace_key_does_not_count() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("ANTHROPIC_API_KEY", "   ");
     assert!(!any_provider_key_available());
     std::env::remove_var("ANTHROPIC_API_KEY");
@@ -18326,7 +18347,7 @@ mod provider_key_tests {
   #[test]
   fn model_ref_without_matching_key_is_detected() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     // User selected OpenAI model but has no OpenAI key — the stored model
     // is stale and should be re-resolved.
     assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
@@ -18340,7 +18361,7 @@ mod provider_key_tests {
   #[test]
   fn model_ref_with_matching_key_is_recognized() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
     assert!(model_ref_has_key("anthropic/claude-opus-5-5"));
     assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
@@ -18351,7 +18372,7 @@ mod provider_key_tests {
   #[test]
   fn xai_model_ref_recognizes_xai_key() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("XAI_API_KEY", "xai-test");
     assert!(model_ref_has_key("xai/grok-4.7"));
     assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
@@ -18361,7 +18382,7 @@ mod provider_key_tests {
   #[test]
   fn gemini_model_ref_recognizes_either_env_var() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
     assert!(model_ref_has_key("google/gemini-3.8-flash"));
     assert!(model_ref_has_key("gemini/gemini-3.8-flash"));
@@ -18374,7 +18395,7 @@ mod provider_key_tests {
   #[test]
   fn unknown_provider_prefix_is_trusted() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     // Don't clobber custom providers the user may have configured out-of-band.
     assert!(model_ref_has_key("custom/my-model"));
     assert!(model_ref_has_key("minimax/m2.5"));
@@ -18392,7 +18413,7 @@ mod provider_key_tests {
   #[test]
   fn sanitize_invalid_default_agent_model_config_repairs_knapsack_auto() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "knapsack");
     std::env::set_var("KNAPSACK_KNAPSACK_MODEL", "auto");
     std::env::set_var("KNAPSACK_ACCESS_TOKEN", "token");
@@ -18428,13 +18449,12 @@ mod provider_key_tests {
       .filter_map(|value| value.as_str())
       .any(|value| value.eq_ignore_ascii_case("openrouter/auto")));
 
-    clear_all();
   }
 
   #[test]
   fn reconcile_default_agent_model_config_refreshes_stale_fallbacks() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
     std::env::set_var("OPENAI_API_KEY", "sk-test");
     std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.6-terra");
@@ -18467,13 +18487,12 @@ mod provider_key_tests {
       .iter()
       .any(|value| value.as_str() == Some("google/gemini-3.8-flash")));
 
-    clear_all();
   }
 
   #[test]
   fn reconcile_default_agent_model_config_replaces_stale_primary() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "gemini");
     std::env::set_var("GEMINI_API_KEY", "AIza-test");
     std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
@@ -18500,13 +18519,12 @@ mod provider_key_tests {
       Some("google/gemini-2.5-flash")
     );
 
-    clear_all();
   }
 
   #[test]
   fn reconcile_default_agent_model_config_preserves_custom_config_without_picker_choice() {
     let _guard = ENV_LOCK.lock().unwrap();
-    clear_all();
+    let _restore = clear_all();
     std::env::set_var("OPENAI_API_KEY", "sk-test");
 
     let mut cfg = serde_json::json!({
@@ -18525,7 +18543,6 @@ mod provider_key_tests {
       Some("custom/my-model")
     );
 
-    clear_all();
   }
 }
 
