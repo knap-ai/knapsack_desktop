@@ -656,8 +656,6 @@ export function useBackgroundNotifications({
                   return response
                 }
 
-                pendingInsightRef.current = parsed
-
                 // The same recent-email batch can surface through multiple
                 // sync events. Keep its channel delivery identity stable even
                 // when no local notification window is available.
@@ -678,6 +676,13 @@ export function useBackgroundNotifications({
                   parsed.notificationTitle,
                   parsed.notificationBody,
                 )
+
+                // The action handlers read this shared ref. Do not replace
+                // the payload for an already-visible notification when this
+                // notification could not claim the local window.
+                if (didOpen) {
+                  pendingInsightRef.current = parsed
+                }
 
                 // Local windows can retry while the native surface is hidden.
                 // A linked phone should receive that prep only once per
