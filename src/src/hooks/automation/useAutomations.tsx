@@ -536,13 +536,14 @@ export function useAutomations({
       if (isNotificationWindowShowing) return false
 
       try {
-        await invoke('show_notification_window', {
+        const didShow = await invoke<boolean>('show_notification_window', {
           eventId,
           buttonConfigs,
           title,
           time,
           brief,
         })
+        if (!didShow) return false
         setIsNotificationWindowShowing(true)
         return true
       } catch (error) {

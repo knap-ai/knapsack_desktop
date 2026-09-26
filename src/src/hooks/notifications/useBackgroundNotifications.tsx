@@ -641,17 +641,20 @@ export function useBackgroundNotifications({
                   parsed.notificationTitle,
                   parsed.notificationBody,
                 )
-                if (!didOpen) return response
-                await recordNotification(notificationType)
-                delivered = true
 
                 // Push full briefing to connected messaging channels (non-blocking)
-                pushToChannels(
+                void pushToChannels(
                   parsed.notificationTitle,
                   parsed.notificationBody,
                   parsed.fullAnalysis,
                   parsed.suggestedActionPrompt,
                 )
+                // Meeting prep remains eligible for an in-app retry unless the
+                // native alert was actually displayed; channel delivery is
+                // intentionally independent of that local surface.
+                if (!didOpen) return response
+                await recordNotification(notificationType)
+                delivered = true
                 return response
               } catch (error) {
                 logError(new Error(`Error showing ${notificationType} notification`), {
