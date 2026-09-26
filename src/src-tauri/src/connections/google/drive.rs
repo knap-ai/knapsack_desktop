@@ -399,23 +399,15 @@ pub async fn get_or_create_drive_document_from_file(
 
   if existing_drive_document.is_some() {
     let mut drive_document = existing_drive_document.unwrap().clone();
-    let mut indexed = false;
     if let Some(content_chunks) = maybe_content {
       let summary = DriveDocument::summary_from_content_chunks(&content_chunks);
       if !summary.trim().is_empty() {
         drive_document.summary = summary;
         if let Err(error) = drive_document.update_summary() {
           log::warn!("Could not refresh the local Drive text index: {:?}", error);
-        } else {
-          indexed = true;
         }
       }
       drive_document.content_chunks = Some(content_chunks);
-    }
-    if !indexed {
-      if let Err(error) = drive_document.mark_content_indexed() {
-        log::warn!("Could not mark Drive content as indexed: {:?}", error);
-      }
     }
     return drive_document;
   }
@@ -679,6 +671,15 @@ pub async fn fetch_drive(
   //   .add_handle_embed_finish_to_queue(ConnectionsEnum::GoogleDrive, 1)
   //   .await;
   let _ = fs::remove_dir_all(temp_dir);
+  if backfill_goal_index {
+    if let Err(error) = DriveDocument::mark_goal_index_backfill_complete(&account_email) {
+      log::warn!(
+        "[google-drive] could not record completed goal-index backfill account={}: {:?}",
+        account_email,
+        error
+      );
+    }
+  }
   UserConnection::update_last_sync_by_id(user_connection.id.unwrap(), limit_date);
   Ok(())
 }

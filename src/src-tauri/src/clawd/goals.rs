@@ -278,11 +278,15 @@ fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
     return compact;
   }
 
-  let lowered = compact.to_lowercase();
-  let match_at = GOAL_TERMS
-    .iter()
-    .filter_map(|term| lowered.find(term).map(|index| lowered[..index].chars().count()))
-    .min();
+  let match_at = compact
+    .char_indices()
+    .enumerate()
+    .find_map(|(char_index, (byte_index, _))| {
+      GOAL_TERMS
+        .iter()
+        .any(|term| compact[byte_index..].to_lowercase().starts_with(term))
+        .then_some(char_index)
+    });
   let Some(match_at) = match_at else {
     return compact_excerpt(&compact, limit);
   };
@@ -292,7 +296,12 @@ fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
   let end = (start + limit).min(characters.len());
   let prefix = if start > 0 { "…" } else { "" };
   let suffix = if end < characters.len() { "…" } else { "" };
-  format!("{}{}{}", prefix, characters[start..end].iter().collect::<String>(), suffix)
+  format!(
+    "{}{}{}",
+    prefix,
+    characters[start..end].iter().collect::<String>(),
+    suffix
+  )
 }
 
 /// Read actual goal-shaped records from the locally encrypted/synced Gmail and
@@ -307,7 +316,10 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
       source_type: "Gmail".to_string(),
       title: email.subject.clone(),
       excerpt: goal_evidence_excerpt(&email.body, 1_800),
-      source_record: format!("Gmail message {} ({})", email.email_uid, email.account_email),
+      source_record: format!(
+        "Gmail message {} ({})",
+        email.email_uid, email.account_email
+      ),
       updated_at: email.date,
     })
     .collect::<Vec<_>>();
@@ -319,7 +331,10 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
       title: document.filename,
       excerpt: goal_evidence_excerpt(&document.summary, 1_200),
       source_record: if document.url.trim().is_empty() {
-        format!("Google Drive file {} ({})", document.drive_id, document.account_email)
+        format!(
+          "Google Drive file {} ({})",
+          document.drive_id, document.account_email
+        )
       } else {
         document.url
       },
@@ -337,10 +352,7 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
   );
 
   Ok(GoalDiscoveryContext {
-    sources: email_sources
-      .into_iter()
-      .chain(drive_sources)
-      .collect(),
+    sources: email_sources.into_iter().chain(drive_sources).collect(),
     email_matches,
     drive_matches,
     search_summary,
@@ -650,9 +662,19 @@ mod tests {
 
   #[test]
   fn discovery_excerpt_keeps_the_goal_term_visible() {
-    let evidence = format!("{} Objective: reach 1,000 active users by December.", "intro ".repeat(400));
+    let evidence = format!(
+      "{} Objective: reach 1,000 active users by December.",
+      "intro ".repeat(400)
+    );
     let excerpt = goal_evidence_excerpt(&evidence, 100);
     assert!(excerpt.contains("Objective: reach 1,000 active users"));
     assert!(excerpt.chars().count() <= 102);
+  }
+
+  #[test]
+  fn discovery_excerpt_handles_unicode_before_goal_terms() {
+    let evidence = format!("{} objective: raise retention", "İ".repeat(500));
+    let excerpt = goal_evidence_excerpt(&evidence, 100);
+    assert!(excerpt.to_lowercase().contains("objective"));
   }
 }
