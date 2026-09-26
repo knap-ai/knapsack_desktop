@@ -472,7 +472,7 @@ pub async fn cron_list_all(token: Option<&str>) -> Result<Value, String> {
   for _ in 0..100 {
     let page = gateway_request(
       "cron.list",
-      Some(serde_json::json!({ "includeDisabled": true, "limit": 200, "offset": offset })),
+      Some(serde_json::json!({ "includeDisabled": true, "limit": 200, "offset": offset, "sortBy": "name" })),
       token,
     )
     .await?;

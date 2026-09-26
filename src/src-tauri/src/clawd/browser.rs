@@ -4708,6 +4708,7 @@ pub async fn chat(
 
       let task_id = args_map.get("id").and_then(|v| v.as_str()).unwrap_or("").trim();
       let task_name = args_map.get("name").and_then(|v| v.as_str()).unwrap_or("").trim();
+      let existing_name = args_map.get("existing_name").and_then(|v| v.as_str()).unwrap_or("").trim();
       let schedule_str = args_map
         .get("schedule")
         .and_then(|v| v.as_str())
@@ -4723,8 +4724,9 @@ pub async fn chat(
       let schedule_changed = args_map.get("schedule_changed").and_then(|value| value.as_bool());
       let payload = args_map.get("payload").filter(|value| value.is_object()).cloned();
       let enabled = args_map.get("enabled").and_then(|value| value.as_bool());
-      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || existing_schedule.is_none() || schedule_changed.is_none() || timezone.is_none() || payload.is_none() || enabled.is_none() {
-        return Ok(json!({"ok": false, "error": "id, name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, and the existing task payload are required"}));
+      let existing_enabled = args_map.get("existing_enabled").and_then(|value| value.as_bool());
+      if task_id.is_empty() || task_name.is_empty() || existing_name.is_empty() || schedule_str.is_empty() || existing_schedule.is_none() || schedule_changed.is_none() || timezone.is_none() || payload.is_none() || enabled.is_none() || existing_enabled.is_none() {
+        return Ok(json!({"ok": false, "error": "id, name, existing name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, existing enabled state, and the existing task payload are required"}));
       }
       let expected_schedule = existing_schedule.expect("existing_schedule was checked above");
       let payload = payload.expect("payload was checked above");
@@ -4752,7 +4754,8 @@ pub async fn chat(
       };
       if current_task.get("schedule") != Some(&expected_schedule)
         || current_task.get("payload") != Some(&payload)
-        || current_task.get("enabled").and_then(|value| value.as_bool()) != enabled
+        || current_task.get("enabled").and_then(|value| value.as_bool()) != existing_enabled
+        || current_task.get("name").and_then(|value| value.as_str()) != Some(existing_name)
       {
         return Ok(json!({"ok": false, "error": "The scheduled task changed after this proposal was prepared. No changes were saved; list scheduled tasks and ask the user to confirm a fresh proposal."}));
       }
