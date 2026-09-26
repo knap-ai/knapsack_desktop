@@ -18,7 +18,8 @@ test('meeting follow-up drafts exclude calendar resources and show the sender ma
   assert.match(home, /getFollowUpRecipients\(participants, ownEmails\)/)
   assert.match(workspace, /getFollowUpRecipients\(participants, ownEmails\)/)
   assert.match(home, /senderEmail: userEmail/)
-  assert.match(home, /detail\?\.userEmail/)
+  assert.match(home, /verifiedRequestedSender \|\| gmailSenderEmail/)
+  assert.doesNotMatch(home, /detail\?\.userEmail \|\| gmailSenderEmail/)
   assert.match(workspace, /senderEmail: userEmail/)
   assert.match(drawer, />From<\/span>/)
   assert.match(drawer, /No connected sender/)
@@ -35,4 +36,10 @@ test('follow-up drafts normalize internal ownership language into sender voice',
   assert.match(browser, /sanitize_email_recipients/)
   assert.match(browser, /A human recipient, subject, and body are all required/)
   assert.match(browser, /Write in the sender's first person/)
+})
+
+test('generic AI drafts preserve their wording while meeting follow-ups use sender voice', () => {
+  const home = read('src/components/templates/Home/Home.tsx')
+  assert.match(home, /detail\?\.isMeetingFollowUp\s*\?\s*normalizeFollowUpEmailVoice/)
+  assert.match(home, /: detail\?\.body \|\| ''/)
 })

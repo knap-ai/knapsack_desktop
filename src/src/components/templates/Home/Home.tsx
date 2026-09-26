@@ -360,10 +360,24 @@ function Home({
       const gmailSenderEmail = getGoogleGmailConnections(connections)
         .map(connection => connection.calendarAccountEmail?.trim())
         .find(Boolean)
+      const connectedGmailSenders = getGoogleGmailConnections(connections)
+        .map(connection => connection.calendarAccountEmail?.trim())
+        .filter((email): email is string => Boolean(email))
+      const requestedSender = typeof detail?.senderEmail === 'string'
+        ? detail.senderEmail.trim()
+        : ''
+      // A browser/tool payload can carry the signed-in Knapsack profile rather
+      // than the Gmail account that is authorized to send. Only honor a
+      // requested sender when it is one of the connected Gmail mailboxes.
+      const verifiedRequestedSender = connectedGmailSenders.find(
+        email => email.toLowerCase() === requestedSender.toLowerCase(),
+      )
       feed.setComposedEmailDraft({
         ...detail,
-        body: normalizeFollowUpEmailVoice(detail?.body || ''),
-        senderEmail: detail?.senderEmail || detail?.userEmail || gmailSenderEmail || userEmail,
+        body: detail?.isMeetingFollowUp
+          ? normalizeFollowUpEmailVoice(detail?.body || '')
+          : detail?.body || '',
+        senderEmail: verifiedRequestedSender || gmailSenderEmail || userEmail,
       })
       setCurrentTab(TabChoices.Openclaw)
     }

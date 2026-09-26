@@ -72,7 +72,7 @@ test('follow-up drafts use meeting substance and exclude all of the user identit
   assert.doesNotMatch(emails, /Great meeting today/)
   for (const file of [home, workspace]) {
     assert.match(file, /meeting\?\.calendar_account_email/)
-    assert.match(file, /ownEmails\.has\(p\.email\.trim\(\)\.toLowerCase\(\)\)/)
+    assert.match(file, /getFollowUpRecipients\(participants, ownEmails\)/)
     assert.match(file, /replace\(\/\\\(\?\\s\*placeholder/)
   }
 })
