@@ -23,6 +23,11 @@ test('the minute clock uses rich prep and retains the configured join-and-record
   assert.match(notifications, /const didOpen = await openNotificationWindow\([\s\S]*?if \(!didOpen\) return response[\s\S]*?await recordNotification/)
 })
 
+test('slow prep generation cannot block the time-sensitive minute scheduler', () => {
+  assert.match(app, /void checkMeetingPrep\(\)/)
+  assert.doesNotMatch(app, /await checkMeetingPrep\(\)/)
+})
+
 test('a notification is considered delivered only when its window opens', () => {
   const automations = read('src/hooks/automation/useAutomations.tsx')
   const native = read('src-tauri/src/main.rs')
@@ -38,6 +43,8 @@ test('a notification is considered delivered only when its window opens', () => 
   assert.match(native, /async fn show_notification_window[\s\S]*?\) -> bool/)
   assert.match(native, /if let Ok\(Some\(monitor\)\) = window\.current_monitor\(\)/)
   assert.match(native, /return false;[\s\S]*?window\.show\(\)\.is_err\(\)/)
+  assert.match(automations, /includes\(meeting\.eventId \|\| meeting\.id\.toString\(\)\)/)
+  assert.match(automations, /sentIdentifiers: \[[\s\S]*?meeting\.eventId \|\| meeting\.id\.toString\(\)/)
 })
 
 test('channel delivery does not depend on opening a local notification window', () => {
