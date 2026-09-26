@@ -19,7 +19,8 @@ test('the minute clock uses rich prep and retains the configured join-and-record
   assert.match(app, /void handleNotificationsScheduleService\(date\)\.catch/)
   assert.doesNotMatch(app, /await handleNotificationsScheduleService\(date\)/)
   assert.match(app, /let tickInFlight = false/)
-  assert.match(notifications, /canSendNotification\('meeting_prep', false\)/)
+  assert.match(notifications, /canSendNotification\('meeting_prep'\)/)
+  assert.doesNotMatch(notifications, /canSendNotification\('meeting_prep', false\)/)
   assert.match(notifications, /if \(wasDelivered\)[\s\S]*?persistPreppedMeetingId/)
   assert.match(notifications, /const didOpen = await openNotificationWindow\([\s\S]*?if \(!didOpen\) return response[\s\S]*?await recordNotification/)
 })
@@ -95,7 +96,9 @@ test('channel-only email alerts update the notification throttle', () => {
 
 test('channel delivery retries separately from a successful local prep and deduplicates email batches', () => {
   assert.match(notifications, /const resolvedChannelDeliveryKey/)
-  assert.match(notifications, /email-alert:\$\{parsed\.notificationTitle\}:\$\{parsed\.notificationBody\}/)
+  assert.match(notifications, /email-alert:\$\{recentEmails/)
+  assert.match(notifications, /email\.accountEmail.*email\.emailUid.*email\.documentId/)
+  assert.match(notifications, /deliveryKey,\n    \)/)
   assert.match(notifications, /const deliverToChannels = async \(retryOnFailure: boolean\)/)
   assert.match(notifications, /notificationType === 'pre_meeting_prep' \|\| notificationType === 'morning_briefing'/)
   assert.match(notifications, /void deliverToChannels\(false\)/)

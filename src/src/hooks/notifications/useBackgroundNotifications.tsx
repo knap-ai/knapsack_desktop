@@ -474,7 +474,7 @@ export function useBackgroundNotifications({
    * Only includes recent emails (last 6 hours) to focus on what just arrived.
    */
   const gatherEmailContext = useCallback(
-    async (): Promise<{ context: string; emailCount: number }> => {
+    async (): Promise<{ context: string; emailCount: number; deliveryKey?: string }> => {
       try {
         const emails = await dataFetcher.getRecentGmailMessages(1, 20)
         if (!emails?.length) return { context: '', emailCount: 0 }
@@ -495,7 +495,15 @@ export function useBackgroundNotifications({
           )
         }
 
-        return { context: contextParts.join('\n'), emailCount: recentEmails.length }
+        // Delivery must be tied to the source messages rather than generated
+        // prose: the model may paraphrase a message differently on a later
+        // sync, but that still must not send the same phone alert again.
+        const deliveryKey = `email-alert:${recentEmails
+          .slice(0, 10)
+          .map(email => `${(email.accountEmail || 'unknown').toLowerCase()}:${email.emailUid || email.documentId}`)
+          .sort()
+          .join('|')}`
+        return { context: contextParts.join('\n'), emailCount: recentEmails.length, deliveryKey }
       } catch (err) {
         console.warn('Failed to gather email context:', err)
         return { context: '', emailCount: 0 }
@@ -800,7 +808,7 @@ export function useBackgroundNotifications({
       if (!canSend) return
     }
 
-    const { context, emailCount } = await gatherEmailContext()
+    const { context, emailCount, deliveryKey } = await gatherEmailContext()
     if (!context || emailCount === 0) return
 
     await generateAndShowNotification(
@@ -809,6 +817,7 @@ export function useBackgroundNotifications({
       'email_alert',
       'background_insight_notification_handler',
       'View Details',
+      deliveryKey,
     )
   }, [userEmail, canSendNotification, gatherEmailContext, generateAndShowNotification])
 
@@ -854,7 +863,7 @@ export function useBackgroundNotifications({
       if (!meetingNeedingPrep) return
 
       if (!force) {
-        const canSend = await canSendNotification('meeting_prep', false)
+        const canSend = await canSendNotification('meeting_prep')
         if (!canSend) return
       }
 
