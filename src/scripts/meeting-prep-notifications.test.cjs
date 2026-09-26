@@ -72,11 +72,10 @@ test('morning briefing is marked sent only after it is delivered', () => {
   assert.ok(delivery >= 0 && marker > delivery)
 })
 
-test('morning channel delivery is marked separately when no popup can open', () => {
-  assert.match(notifications, /KN_MORNING_BRIEFING_CHANNEL_DATE/)
-  assert.match(notifications, /morningBriefingChannelDate === today/)
-  assert.match(notifications, /if \(channelDelivered\) \{[\s\S]*?onChannelDelivered/)
-  assert.match(notifications, /KNLocalStorage\.setItem\([\s\S]*?KN_MORNING_BRIEFING_CHANNEL_DATE/)
+test('morning channel delivery is deduplicated without suppressing local retries', () => {
+  assert.match(notifications, /`morning-briefing:\$\{dayjs\(now\)\.format\('YYYY-MM-DD'\)\}`/)
+  assert.match(notifications, /KN_PREPPED_MEETING_CHANNEL_IDS/)
+  assert.doesNotMatch(notifications, /KN_MORNING_BRIEFING_CHANNEL_DATE/)
 })
 
 test('channel-only email alerts update the notification throttle', () => {
