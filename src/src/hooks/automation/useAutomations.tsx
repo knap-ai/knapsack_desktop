@@ -215,7 +215,7 @@ export function useAutomations({
     { type: NotificationTypes.MEETING_PREP, sentIdentifiers: [], minutesToNotify: 10 },
     { type: NotificationTypes.MEETING_NOTES, sentIdentifiers: [], minutesToNotify: 1 },
   ])
-  const [isNotificationWindowShowing, setIsNotificationWindowShowing] = useState(false)
+  const [, setIsNotificationWindowShowing] = useState(false)
   const notificationWindowReservedRef = useRef(false)
   //const [nextMeeting, setNextMeeting] = useState<CalendarEvents | null>(null)
 
