@@ -458,6 +458,15 @@ pub async fn cron_list(token: Option<&str>) -> Result<Value, String> {
   gateway_request("cron.list", None, token).await
 }
 
+/// List every scheduled job, including disabled tasks. Use this when a user is
+/// reviewing or updating a schedule so an inactive existing task cannot be
+/// mistaken for a missing one.
+pub async fn cron_list_all(token: Option<&str>) -> Result<Value, String> {
+  let env_token = get_gateway_token();
+  let token = token.or(env_token.as_deref());
+  gateway_request("cron.list", Some(serde_json::json!({ "includeDisabled": true })), token).await
+}
+
 /// Add a new scheduled job
 /// schedule can be: { kind: "at", atMs: number } | { kind: "every", everyMs: number, anchorMs?: number } | { kind: "cron", expr: string, tz?: string }
 /// payload: { kind: "systemEvent" | "agentTurn", text: string }
