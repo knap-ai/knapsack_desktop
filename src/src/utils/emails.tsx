@@ -210,20 +210,22 @@ export function normalizeFollowUpEmailVoice(body: string): string {
   return body
     .replace(/\bYou decided\b/gi, 'We agreed')
     .replace(/\bYou agreed\b/gi, 'We agreed')
-    .replace(/(^|>\s*)You\s*[—–-]\s*([A-Z])/gim, (_match, prefix, initial) =>
+    .replace(/(^|>\s*)You\s+(?:—|–|-)\s+([A-Za-z])/gim, (_match, prefix, initial) =>
       `${prefix}I’ll ${initial.toLowerCase()}`,
     )
-    .replace(/(^|>\s*)You will\s+([A-Z])/gim, (_match, prefix, initial) =>
+    .replace(/(^|>\s*)You will\s+([A-Za-z])/gim, (_match, prefix, initial) =>
       `${prefix}I’ll ${initial.toLowerCase()}`,
     )
 }
 
 function conversationalActionItem(item: string): string {
   const cleaned = cleanMeetingLine(item)
-  const ownerAction = cleaned.match(/^you\s*[—–-]\s*(.+)$/i)
+  const ownerAction = cleaned.match(/^you\s+(?:—|–|-)\s+(.+)$/i)
   if (ownerAction) return `I’ll ${lowerCaseFirst(ownerAction[1])}`
 
-  const namedOwner = cleaned.match(/^([^—–-]+)\s*[—–-]\s*(.+)$/)
+  // Treat a dash as an ownership delimiter only when it is separated by
+  // whitespace. That preserves ordinary hyphenated prose and names.
+  const namedOwner = cleaned.match(/^(.+?)\s+(?:—|–|-)\s+(.+)$/)
   if (namedOwner) {
     const owner = namedOwner[1].trim()
     const action = namedOwner[2].trim()

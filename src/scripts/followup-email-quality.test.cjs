@@ -32,6 +32,9 @@ test('follow-up drafts normalize internal ownership language into sender voice',
 
   assert.match(emailUtils, /export function normalizeFollowUpEmailVoice/)
   assert.match(emailUtils, /You decided/)
+  assert.match(emailUtils, /You\\s\+\(\?:—\|–\|-\)\\s\+\(\[A-Za-z\]\)/)
+  assert.match(emailUtils, /You will\\s\+\(\[A-Za-z\]\)/)
+  assert.match(emailUtils, /\^\(\.\+\?\)\\s\+\(\?:—\|–\|-\)\\s\+\(\.\+\)\$/)
   assert.match(emailUtils, /I’ll/)
   assert.match(browser, /sanitize_email_recipients/)
   assert.match(browser, /A human recipient, subject, and body are all required/)
