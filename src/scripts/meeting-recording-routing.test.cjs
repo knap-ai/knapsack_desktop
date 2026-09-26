@@ -127,6 +127,7 @@ test('inline meeting chat owns the visible recording surface', () => {
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   assert.match(notes, /isMeetingRecording && !isMeetingChatOpen\s*\? 'show_recording_indicator'\s*:\s*'hide_recording_indicator'/)
   assert.match(notes, /void invoke\(command\)\.catch\(\(\) => \{\}\)/)
+  assert.match(notes, /return \(\) => \{\s*if \(isMeetingRecording\) \{\s*void invoke\('show_recording_indicator'\)\.catch\(\(\) => \{\}\)/)
 })
 
 test('meeting follow-up actions visibly expand and reliably refill Scout', () => {

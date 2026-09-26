@@ -271,6 +271,15 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
       ? 'show_recording_indicator'
       : 'hide_recording_indicator'
     void invoke(command).catch(() => {})
+
+    // Recording is owned by the app-level provider and can continue after this
+    // meeting detail unmounts. Restore the persistent native control so a user
+    // who navigates away from inline chat never loses the way to stop it.
+    return () => {
+      if (isMeetingRecording) {
+        void invoke('show_recording_indicator').catch(() => {})
+      }
+    }
   }, [isMeetingChatOpen, isMeetingRecording])
 
   const [meetingChatHeight, setMeetingChatHeight] = useState(initialMeetingChatHeight)
