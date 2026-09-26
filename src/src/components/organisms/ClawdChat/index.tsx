@@ -1253,6 +1253,12 @@ function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
     || lowerText.includes('open ')
     || lowerText.includes('click ')
     || lowerText.includes('navigate')
+    // A bounded "recent inbox" fetch is useful for a briefing, but it is
+    // not a substitute for an explicit mailbox search.  Treat search terms,
+    // named senders, and historical requests as browser work so a stale
+    // two-day native cache cannot end the task before the visible Gmail tab
+    // is consulted.
+    || /\b(search|find|look\s*for|from|sender|older|last\s+week|last\s+month)\b/.test(lowerText)
 
   return (mentionsEmail || mentionsCalendar) && !browserSpecific
 }

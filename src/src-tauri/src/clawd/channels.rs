@@ -2466,7 +2466,10 @@ fn slack_default_account_state(slack: &serde_json::Value) -> (bool, bool) {
 
   if slack.get("mode").and_then(serde_json::Value::as_str) == Some("http") {
     let has_signing_secret = configured_secret_present(slack.get("signingSecret"));
-    return (has_signing_secret, has_signing_secret && !config_bot && environment_bot);
+    return (
+      has_signing_secret,
+      has_signing_secret && !config_bot && environment_bot,
+    );
   }
 
   let config_app = configured_secret_present(slack.get("appToken"));
@@ -2500,7 +2503,10 @@ pub async fn slack_accounts() -> impl Responder {
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let mut accounts = Vec::new();
   let (default_configured, environment_default) = slack_default_account_state(&slack);
-  let channel_enabled = slack.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true);
+  let channel_enabled = slack
+    .get("enabled")
+    .and_then(|value| value.as_bool())
+    .unwrap_or(true);
   let named_accounts = slack.get("accounts").and_then(|value| value.as_object());
   let has_named_default = named_accounts.is_some_and(|accounts| accounts.contains_key("default"));
 
@@ -2524,7 +2530,10 @@ pub async fn slack_accounts() -> impl Responder {
       accounts.push(SlackAccountSummary {
         id: id.clone(),
         enabled: channel_enabled
-          && account.get("enabled").and_then(|value| value.as_bool()).unwrap_or(true),
+          && account
+            .get("enabled")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true),
         legacy: false,
         managed_by_environment,
       });
@@ -2532,7 +2541,10 @@ pub async fn slack_accounts() -> impl Responder {
   }
 
   accounts.sort_by(|left, right| left.id.cmp(&right.id));
-  HttpResponse::Ok().json(SlackAccountsResponse { success: true, accounts })
+  HttpResponse::Ok().json(SlackAccountsResponse {
+    success: true,
+    accounts,
+  })
 }
 
 /// Configure a generic channel by patching gateway config.
@@ -2567,9 +2579,9 @@ pub async fn generic_channel_configure(
     }
   }
 
-  // Merge the user-provided config with standard channel defaults.
-  // Discord, Slack, and GoogleChat use nested dm: { policy, allowFrom };
-  // Telegram and Signal use top-level dmPolicy / allowFrom.
+  // Merge the user-provided config with standard channel defaults. Slack's
+  // canonical DM policy is top-level `dmPolicy` / `allowFrom`; its nested
+  // `dm.policy` / `dm.allowFrom` form is only a legacy compatibility path.
   fn propagate_telegram_allow_from_to_accounts(
     obj: &mut serde_json::Map<String, serde_json::Value>,
   ) {
@@ -2607,7 +2619,9 @@ pub async fn generic_channel_configure(
     if !valid_channel_account_id(account_id) {
       return HttpResponse::BadRequest().json(GenericResponse {
         success: false,
-        message: Some("Workspace name must use only letters, numbers, dashes, or underscores.".to_string()),
+        message: Some(
+          "Workspace name must use only letters, numbers, dashes, or underscores.".to_string(),
+        ),
         configured: None,
         linked: None,
       });
@@ -2622,7 +2636,7 @@ pub async fn generic_channel_configure(
     match channel.as_str() {
       // Channels whose schema uses a nested `dm` object (strict zod schema
       // rejects top-level dmPolicy / allowFrom).
-      "discord" | "slack" | "googlechat" => {
+      "discord" | "googlechat" => {
         // Strip top-level allowFrom/dmPolicy — these are invalid for
         // strict schemas that use nested dm: { policy, allowFrom }.
         obj.remove("allowFrom");
@@ -2645,38 +2659,52 @@ pub async fn generic_channel_configure(
             }
           }
         }
-
-        if channel == "slack" {
-          obj.insert("groupPolicy".to_string(), serde_json::json!("open"));
-          obj.insert(
-            "typingReaction".to_string(),
-            serde_json::json!("hourglass_flowing_sand"),
-          );
-          if !obj.contains_key("replyToModeByChatType") {
-            obj.insert(
-              "replyToModeByChatType".to_string(),
-              serde_json::json!({
-                "group": "all",
-                "channel": "all"
-              }),
-            );
+      }
+      "slack" => {
+        // If a caller still supplied the old nested form, carry it forward
+        // into Slack's canonical fields. Do not remove `dm`: it can still
+        // contain valid non-policy options such as `enabled`.
+        if !obj.contains_key("dmPolicy") {
+          if let Some(policy) = obj.get("dm").and_then(|dm| dm.get("policy")).cloned() {
+            obj.insert("dmPolicy".to_string(), policy);
+          } else {
+            obj.insert("dmPolicy".to_string(), serde_json::json!("pairing"));
           }
+        }
+        if !obj.contains_key("allowFrom") {
+          if let Some(allow_from) = obj.get("dm").and_then(|dm| dm.get("allowFrom")).cloned() {
+            obj.insert("allowFrom".to_string(), allow_from);
+          }
+        }
+        obj.insert("groupPolicy".to_string(), serde_json::json!("open"));
+        obj.insert(
+          "typingReaction".to_string(),
+          serde_json::json!("hourglass_flowing_sand"),
+        );
+        if !obj.contains_key("replyToModeByChatType") {
           obj.insert(
-            "streaming".to_string(),
+            "replyToModeByChatType".to_string(),
             serde_json::json!({
-              "mode": "progress",
-              "nativeTransport": true,
-              "preview": {
-                "toolProgress": false,
-                "commandText": "status"
-              },
-              "progress": {
-                "toolProgress": false,
-                "commandText": "status"
-              }
+              "group": "all",
+              "channel": "all"
             }),
           );
         }
+        obj.insert(
+          "streaming".to_string(),
+          serde_json::json!({
+            "mode": "progress",
+            "nativeTransport": true,
+            "preview": {
+              "toolProgress": false,
+              "commandText": "status"
+            },
+            "progress": {
+              "toolProgress": false,
+              "commandText": "status"
+            }
+          }),
+        );
       }
       // Signal uses "account" (not "phoneNumber") and has top-level
       // dmPolicy / allowFrom.
@@ -2808,7 +2836,9 @@ pub struct SlackAccountDisconnectRequest {
 }
 
 #[post("/api/clawd/channels/slack/accounts/disconnect")]
-pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequest>) -> impl Responder {
+pub async fn slack_account_disconnect(
+  body: web::Json<SlackAccountDisconnectRequest>,
+) -> impl Responder {
   // Preserve the exact configured key. Existing OpenClaw account IDs may
   // legitimately contain whitespace or punctuation even though Knapsack's
   // new-workspace UI generates conservative slugs.
@@ -2825,14 +2855,12 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
   let slack = configured_channel("slack").unwrap_or_else(|| serde_json::json!({}));
   let has_legacy_credentials = has_slack_legacy_credentials(&slack);
   let (default_configured, environment_default) = slack_default_account_state(&slack);
-  let named_accounts = slack
-    .get("accounts")
-    .and_then(serde_json::Value::as_object);
+  let named_accounts = slack.get("accounts").and_then(serde_json::Value::as_object);
   let named_account_count = named_accounts.map_or(0, serde_json::Map::len);
-  let named_account_exists = named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
-  let is_legacy_default = account_id == "default"
-    && has_legacy_credentials
-    && !named_account_exists;
+  let named_account_exists =
+    named_accounts.is_some_and(|accounts| accounts.contains_key(&account_id));
+  let is_legacy_default =
+    account_id == "default" && has_legacy_credentials && !named_account_exists;
   if account_id == "default" && environment_default && !named_account_exists {
     return HttpResponse::BadRequest().json(GenericResponse {
       success: false,
@@ -2852,8 +2880,7 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
   if is_legacy_default && named_account_count == 0 {
     return disconnect_channel("slack", "default").await;
   }
-  let removing_last_workspace = named_account_count <= 1
-    && !default_configured;
+  let removing_last_workspace = named_account_count <= 1 && !default_configured;
 
   if !gateway_reachable().await {
     gateway_client::ensure_gateway_and_wait().await;
@@ -2901,7 +2928,10 @@ pub async fn slack_account_disconnect(body: web::Json<SlackAccountDisconnectRequ
         patch["channels"]["slack"]["accounts"][&account_id] = serde_json::Value::Null;
       }
       let patch_json = serde_json::to_string(&patch).unwrap();
-      if config_patch_with_reconnect(&snapshot, move |_| patch_json.clone()).await.is_ok() {
+      if config_patch_with_reconnect(&snapshot, move |_| patch_json.clone())
+        .await
+        .is_ok()
+      {
         gateway_client::invalidate();
         return HttpResponse::Ok().json(GenericResponse {
           success: true,
@@ -3675,11 +3705,32 @@ struct AllowlistUpdateRequest {
 }
 
 /// Read the current DM policy and allowlist for a channel from gateway config.
+fn channel_uses_legacy_nested_dm(channel: &str) -> bool {
+  matches!(channel, "discord" | "googlechat")
+}
+
 fn read_channel_allowlist(config: &serde_json::Value, channel: &str) -> (String, Vec<String>) {
   let ch = &config["config"]["channels"][channel];
 
-  // Some channels (discord, slack, googlechat) use nested dm: { policy, allowFrom }
-  let (policy, allow) = if ch.get("dm").is_some() {
+  // For Slack the top-level fields are canonical. A legacy `dm` object must
+  // not shadow the actual policy shown in Knapsack's settings UI.
+  let (policy, allow) = if !channel_uses_legacy_nested_dm(channel) && ch.get("dmPolicy").is_some() {
+    (
+      ch.get("dmPolicy")
+        .and_then(|v| v.as_str())
+        .unwrap_or("allowlist")
+        .to_string(),
+      ch.get("allowFrom")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+          arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect()
+        })
+        .unwrap_or_default(),
+    )
+  } else if ch.get("dm").is_some() {
     let dm = &ch["dm"];
     (
       dm.get("policy")
@@ -3719,6 +3770,49 @@ fn read_channel_allowlist(config: &serde_json::Value, channel: &str) -> (String,
     allow
   };
   (policy, allow)
+}
+
+#[cfg(test)]
+mod slack_allowlist_tests {
+  use super::*;
+
+  #[test]
+  fn slack_settings_prefer_canonical_top_level_policy_over_legacy_dm() {
+    let config = serde_json::json!({
+      "config": {
+        "channels": {
+          "slack": {
+            "dmPolicy": "open",
+            "allowFrom": ["*"],
+            "dm": { "policy": "allowlist", "allowFrom": ["U_LEGACY"] }
+          }
+        }
+      }
+    });
+
+    assert_eq!(
+      read_channel_allowlist(&config, "slack"),
+      ("open".to_string(), vec!["*".to_string()])
+    );
+  }
+
+  #[test]
+  fn slack_settings_still_read_legacy_policy_when_canonical_fields_are_absent() {
+    let config = serde_json::json!({
+      "config": {
+        "channels": {
+          "slack": {
+            "dm": { "policy": "allowlist", "allowFrom": ["U_LEGACY"] }
+          }
+        }
+      }
+    });
+
+    assert_eq!(
+      read_channel_allowlist(&config, "slack"),
+      ("allowlist".to_string(), vec!["U_LEGACY".to_string()])
+    );
+  }
 }
 
 /// Get the allowlist and DM policy for any channel.
@@ -3764,7 +3858,9 @@ pub async fn channel_allowlist_update(
       // what actually recovers a broken install instead of just describing
       // the problem to the user.
       if config_snapshot.get("valid").and_then(Value::as_bool) == Some(false) {
-        if let Err(reset_error) = service::force_reset_invalid_gateway_config_sections(&config_snapshot) {
+        if let Err(reset_error) =
+          service::force_reset_invalid_gateway_config_sections(&config_snapshot)
+        {
           eprintln!("[clawd/channels] Could not force-reset invalid gateway config: {reset_error}");
         } else {
           config_snapshot = match gateway_client::config_get(None).await {
@@ -3814,7 +3910,7 @@ pub async fn channel_allowlist_update(
         });
       }
 
-      let uses_nested_dm = matches!(channel.as_str(), "discord" | "slack" | "googlechat");
+      let uses_nested_dm = channel_uses_legacy_nested_dm(&channel);
 
       let mut patch_inner = serde_json::Map::new();
 

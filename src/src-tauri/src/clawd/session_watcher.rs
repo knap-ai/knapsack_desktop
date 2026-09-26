@@ -1,37 +1,31 @@
 //! Keeps Rust aware of live Slack-triggered gateway sessions so the
 //! Snowflake MCP tool can bind each query to a real, verified sender email
-//! (never a model-supplied argument), and so per-sender Docker sandbox
-//! containers get destroyed right after each turn instead of staying warm.
+//! (never a model-supplied argument). The gateway owns the lifecycle of its
+//! per-sender Docker sandboxes: the watcher must never remove a container
+//! after a turn, because a live session can retain that container reference
+//! for its next tool call.
 //!
 //! There is no push/event-subscription plumbing in `gateway_client.rs` today
 //! (it only supports request/response RPC over the pooled connection), and
 //! building a second persistent WS listener just for this is more moving
 //! parts than the payoff justifies here. Instead this polls the existing
 //! `sessions.list` RPC (confirmed present in the bundle's WS method table)
-//! on an interval, diffing against what it saw last poll.
+//! on an interval.
 //!
 //! `sessionId`, `key`, `origin.accountId`, and Slack sender detection
 //! (`extract_slack_sender`) are confirmed against a live `sessions.list`
-//! response (2026-08-11). `hasActiveRun`/`endedAt` are still an unverified
-//! guess from static reads of minified JS — verify against a real gateway
-//! response before relying on the sandbox-teardown path in production.
+//! response (2026-08-11).
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use super::gateway_client;
-use super::service::{app_clawdbot_home, clawdbot_home_headless, resource_path};
+use super::service::{app_clawdbot_home, clawdbot_home_headless};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
-
-#[derive(Debug, Clone, Default)]
-struct TrackedSession {
-  has_active_run: bool,
-  scope_key: Option<String>,
-}
 
 /// The writer (`write_identity`, called from `poll_once` inside the main
 /// Tauri app) and the reader (`lookup_authorized_session`, called from the
@@ -306,9 +300,8 @@ pub(crate) fn resolve_bound_authorized_session(
   scope_key: &str,
 ) -> Result<(String, String), String> {
   let clawdbot_home = clawdbot_home_headless()?;
-  let (email, verified_scope_key) = read_identity_at(&clawdbot_home, session_id).map_err(|_| {
-    format!("No verified Slack session on record for gateway session {session_id}")
-  })?;
+  let (email, verified_scope_key) = read_identity_at(&clawdbot_home, session_id)
+    .map_err(|_| format!("No verified Slack session on record for gateway session {session_id}"))?;
   if verified_scope_key != scope_key {
     return Err(format!(
       "Verified Slack session scope mismatch for gateway session {session_id}; refusing rather than guessing"
@@ -340,12 +333,9 @@ pub(crate) async fn resolve_bound_authorized_session_with_slack_context(
     // never authorization for a background/continuation turn that lacks the
     // current event sender.
     let normalized_scope = scope_key.to_ascii_lowercase();
-    if normalized_scope.contains(":slack:channel:")
-      || normalized_scope.contains(":slack:group:")
-    {
+    if normalized_scope.contains(":slack:channel:") || normalized_scope.contains(":slack:group:") {
       return Err(
-        "Cannot authorize shared Slack request: missing trusted current event sender"
-          .to_string(),
+        "Cannot authorize shared Slack request: missing trusted current event sender".to_string(),
       );
     }
     return resolve_bound_authorized_session(session_id, scope_key);
@@ -477,13 +467,6 @@ fn extract_str<'a>(row: &'a Value, keys: &[&str]) -> Option<&'a str> {
     .iter()
     .find_map(|key| row.get(key))
     .and_then(|v| v.as_str())
-}
-
-fn extract_bool(row: &Value, keys: &[&str]) -> Option<bool> {
-  keys
-    .iter()
-    .find_map(|key| row.get(key))
-    .and_then(|v| v.as_bool())
 }
 
 /// `origin.from` is provider-prefixed (e.g. `"slack:U0BPJ321V9P"`), not a
@@ -645,45 +628,6 @@ fn slack_bot_token_for_account<'a>(cfg: &'a Value, account_id: &str) -> Option<&
     .filter(|token| !token.is_empty())
 }
 
-async fn run_sandbox_recreate(
-  openclaw_bin: &std::path::Path,
-  node_bin: Option<&std::path::Path>,
-  scope_key: &str,
-) {
-  // `openclaw sandbox recreate --session <scopeKey>` — documented CLI escape
-  // hatch (docs/gateway/sandboxing.md), wraps removeSandboxContainer(). Shell
-  // out to the bundled openclaw.mjs rather than reimplementing container
-  // discovery/removal in Rust.
-  let mut command = match node_bin {
-    Some(node_bin) if node_bin.exists() => tokio::process::Command::new(node_bin),
-    _ => tokio::process::Command::new("node"), // fall back to a system node in dev builds
-  };
-  let result = command
-    .arg(openclaw_bin)
-    .arg("sandbox")
-    .arg("recreate")
-    .arg("--session")
-    .arg(scope_key)
-    .output()
-    .await;
-  match result {
-    Ok(output) if !output.status.success() => {
-      eprintln!(
-        "[session_watcher] sandbox recreate --session {} failed: {}",
-        scope_key,
-        String::from_utf8_lossy(&output.stderr)
-      );
-    }
-    Err(error) => {
-      eprintln!(
-        "[session_watcher] unable to run sandbox recreate --session {}: {}",
-        scope_key, error
-      );
-    }
-    _ => {}
-  }
-}
-
 /// `openclaw sandbox create --session <scopeKey>` — KNAPSACK PATCH (see
 /// `sandbox-cli-UJaskEDu.js`): the bundled OpenClaw CLI never exposed a way
 /// to force sandbox creation on demand, only `recreate` (which only
@@ -722,9 +666,8 @@ async fn run_sandbox_create(
   Ok(())
 }
 
-/// Headless variant for the `--internal-mcp-snowflake` subprocess (mirrors
-/// `recreate_sandbox_session_headless` — see its comment for the resource-dir
-/// derivation rationale). Best-effort: on dev builds outside a signed `.app`
+/// Headless variant for the `--internal-mcp-snowflake` subprocess. Best-effort:
+/// on dev builds outside a signed `.app`
 /// bundle this may not resolve, in which case the caller should fall back to
 /// the HTTPS path rather than block on it.
 ///
@@ -756,61 +699,7 @@ pub(crate) async fn ensure_sandbox_session_headless(scope_key: &str) -> Result<(
   run_sandbox_create(&openclaw_bin, Some(node_bin.as_path()), scope_key).await
 }
 
-/// Destroy+recreate the sandbox container for a given session's `scopeKey`,
-/// called from within the main app process (the `session_watcher` poll
-/// loop), which has a real Tauri `AppHandle` and can use its resource
-/// resolver — the same one the gateway's own LaunchAgent plist generation
-/// uses (see `expected_clawdbot_entry_for_plist` / the node quarantine
-/// check in `service.rs`). The bundled resource dir is a different path
-/// from the writable runtime `clawdbot_home` state dir.
-pub(crate) async fn recreate_sandbox_session(app_handle: &tauri::AppHandle, scope_key: &str) {
-  let openclaw_bin = resource_path(app_handle, "resources/clawdbot/openclaw.mjs");
-  let node_bin = app_handle
-    .path_resolver()
-    .resource_dir()
-    .map(|dir| dir.join("resources").join("node").join("node"));
-  run_sandbox_recreate(&openclaw_bin, node_bin.as_deref(), scope_key).await;
-}
-
-/// Headless variant for the `--internal-mcp-snowflake` subprocess, which has
-/// no Tauri `AppHandle` at all (main.rs intercepts before Tauri starts).
-/// Derives the `.app` bundle's `Contents/Resources` dir from the running
-/// executable's own path (mirrors the layout Tauri's resource resolver uses
-/// on macOS) rather than requiring an AppHandle. Best-effort: on dev builds
-/// that aren't inside a signed `.app` bundle, this may not resolve — that's
-/// acceptable since the caller only logs a failure here, it never blocks
-/// returning the query result to the model.
-/// Currently unused: `snowflake_mcp` was its only caller and no longer tears
-/// down the sandbox (that teardown removed the session's container, which is
-/// part of why the container query path could never work). Kept as the
-/// headless counterpart to `recreate_sandbox_session` for future callers.
-#[allow(dead_code)]
-pub(crate) async fn recreate_sandbox_session_headless(scope_key: &str) {
-  let Ok(exe) = std::env::current_exe() else {
-    eprintln!("[session_watcher] unable to resolve current_exe for headless sandbox recreate");
-    return;
-  };
-  // macOS .app bundle layout: Contents/MacOS/<exe> -> Contents/Resources/<rel>
-  let Some(resources_dir) = exe
-    .parent()
-    .and_then(|p| p.parent())
-    .map(|p| p.join("Resources"))
-  else {
-    eprintln!(
-      "[session_watcher] unable to resolve bundle Resources dir from {}",
-      exe.display()
-    );
-    return;
-  };
-  let openclaw_bin = resources_dir
-    .join("resources")
-    .join("clawdbot")
-    .join("openclaw.mjs");
-  let node_bin = resources_dir.join("resources").join("node").join("node");
-  run_sandbox_recreate(&openclaw_bin, Some(node_bin.as_path()), scope_key).await;
-}
-
-async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, TrackedSession>) {
+async fn poll_once(app_handle: &tauri::AppHandle) {
   // Piggy-backs on this loop rather than adding another timer: an npm install
   // can delete the gateway runtime's `node_modules/openclaw` self-link at any
   // time, which silently kills every inbound Slack message until it is put
@@ -850,11 +739,6 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
     current_ids.insert(session_id.clone());
 
     let scope_key = extract_str(row, &["key", "sessionKey", "scopeKey"]).map(|s| s.to_string());
-    let has_active_run = extract_bool(row, &["hasActiveRun"]).unwrap_or(false);
-    let ended_at = row.get("endedAt").map(|v| !v.is_null()).unwrap_or(false);
-
-    let previously_tracked = seen.get(&session_id).cloned();
-
     // Re-assert the identity whenever the record is missing, not just the
     // first time a session is seen. This self-heals deleted/corrupt local
     // state while the independently verified gateway session remains live.
@@ -886,31 +770,7 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
         }
       }
     }
-
-    let was_active = previously_tracked
-      .as_ref()
-      .map(|t| t.has_active_run)
-      .unwrap_or(false);
-    if was_active && (!has_active_run || ended_at) {
-      if let Some(scope_key) = scope_key.clone().or_else(|| {
-        previously_tracked
-          .as_ref()
-          .and_then(|t| t.scope_key.clone())
-      }) {
-        recreate_sandbox_session(app_handle, &scope_key).await;
-      }
-    }
-
-    seen.insert(
-      session_id,
-      TrackedSession {
-        has_active_run,
-        scope_key,
-      },
-    );
   }
-
-  seen.retain(|id, _| current_ids.contains(id));
 
   // Drop identity records for sessions that no longer exist. Only meaningful
   // once we have actually seen a session list — an empty/failed response must
@@ -926,9 +786,8 @@ async fn poll_once(app_handle: &tauri::AppHandle, seen: &mut HashMap<String, Tra
 /// retried on the next tick.
 pub fn spawn(app_handle: tauri::AppHandle) {
   tokio::spawn(async move {
-    let mut seen: HashMap<String, TrackedSession> = HashMap::new();
     loop {
-      poll_once(&app_handle, &mut seen).await;
+      poll_once(&app_handle).await;
       tokio::time::sleep(POLL_INTERVAL).await;
     }
   });
@@ -1318,7 +1177,13 @@ mod tests {
       "agent:main:slack:channel:c0blhtjkd2p:thread:1787861309.855509",
       "agent:main:slack:group:g0example:thread:1787861309.855509",
     ] {
-      write_identity(tempdir.path(), "shared-session", "other@bankaya.com.mx", scope).unwrap();
+      write_identity(
+        tempdir.path(),
+        "shared-session",
+        "other@bankaya.com.mx",
+        scope,
+      )
+      .unwrap();
 
       let error = resolve_bound_authorized_session_with_slack_context(
         "shared-session",

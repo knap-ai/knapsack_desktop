@@ -154,13 +154,6 @@ function Home({
     () => teamGroups.find(group => group.id === activeGroupId) ?? null,
     [activeGroupId, teamGroups],
   )
-  const activeGroupAgents = useMemo(
-    () =>
-      activeGroup?.agentIds
-        .map(id => teamAgents.find(agent => agent.id === id))
-        .filter((agent): agent is TeamAgent => Boolean(agent)) ?? [],
-    [activeGroup, teamAgents],
-  )
   const activeChatId = activeGroup
     ? `group-${activeGroup.id}`
     : activeAgent
@@ -180,11 +173,11 @@ function Home({
       return next
     })
   }, [activeChatId, currentTab])
-  // Preserve the established main browser profile (and its cookies/logins)
-  // when presenting main as Scout. Only secondary agents get new profiles.
-  const activeBrowserProfile = activeGroup
-    ? (activeGroupAgents[0]?.browserProfile ?? 'openclaw')
-    : (activeAgent?.browserProfile ?? 'openclaw')
+  // Chats can have distinct roles and histories, but the desktop has one
+  // user-facing browser surface.  Keeping it on the shared managed profile
+  // means an agent can act on the authenticated tab the user is looking at
+  // instead of silently switching to an empty agent-specific profile.
+  const activeBrowserProfile = 'openclaw'
   const userEmail = useMemo(() => auth.profile?.email ?? '', [auth.profile])
   const userEmails = useMemo(
     () => getConnectedIdentityEmails(connections, userEmail),
@@ -745,7 +738,7 @@ function Home({
               })
               setActiveAgentId(agent.id)
               setActiveGroupId(null)
-              setEmbeddedBrowserProfile(agent.browserProfile)
+              setEmbeddedBrowserProfile('openclaw')
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
             }}
@@ -788,10 +781,7 @@ function Home({
               })
               setActiveAgentId(null)
               setActiveGroupId(group.id)
-              const leadProfile = group.agentIds
-                .map(id => teamAgents.find(agent => agent.id === id)?.browserProfile)
-                .find(Boolean)
-              setEmbeddedBrowserProfile(leadProfile || 'openclaw')
+              setEmbeddedBrowserProfile('openclaw')
               setCurrentTab(TabChoices.Openclaw)
               setMeetingSubView('chat')
             }}
@@ -883,14 +873,16 @@ function Home({
                           .map(id => teamAgents.find(agent => agent.id === id))
                           .filter((agent): agent is TeamAgent => Boolean(agent)) ?? []
                       const mountedChatAgent = mountedGroup ? null : (mountedAgent ?? primaryAgent)
-                      const mountedBrowserProfile = mountedGroup
-                        ? (mountedGroupAgents[0]?.browserProfile ?? 'openclaw')
-                        : (mountedAgent?.browserProfile ?? 'openclaw')
+                      // All desktop chats operate the same visible browser.
+                      // Agent-specific profiles strand Google sessions in a
+                      // hidden profile and make the agent miss the tab the
+                      // user has already authenticated in.
+                      const mountedBrowserProfile = 'openclaw'
                       const mountedContext =
                         !mountedGroup && mountedChatAgent
                           ? `You are ${mountedChatAgent.name}, ${mountedAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${mountedChatAgent.soul}
 
-Stay within your role: ${mountedChatAgent.personality}. Your durable chat session and browser workspace are private to this agent. When using the browser tool, always select browser profile "${mountedBrowserProfile}". Never use or copy another agent's cookies, tabs, or credentials.`
+Stay within your role: ${mountedChatAgent.personality}. Your chat history is private to this agent. The user has one shared, visible browser workspace. When browser work is required, use browser profile "${mountedBrowserProfile}" and continue in the authenticated tab already visible to the user whenever possible.`
                           : undefined
                       const isActiveChat = mountedChatId === activeChatId
 
