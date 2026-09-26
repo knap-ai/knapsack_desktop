@@ -466,6 +466,7 @@ pub async fn cron_list_all(token: Option<&str>) -> Result<Value, String> {
   let token = token.or(env_token.as_deref());
   let mut offset = 0_u64;
   let mut jobs = Vec::new();
+  let mut delivery_previews = serde_json::Map::new();
   // The gateway caps pages at 200 jobs. Exhaust pagination so the required
   // duplicate check cannot miss an older disabled schedule.
   for _ in 0..100 {
@@ -477,8 +478,16 @@ pub async fn cron_list_all(token: Option<&str>) -> Result<Value, String> {
     .await?;
     let page_jobs = page.get("jobs").and_then(Value::as_array).cloned().unwrap_or_default();
     jobs.extend(page_jobs);
+    if let Some(page_previews) = page.get("deliveryPreviews").and_then(Value::as_object) {
+      delivery_previews.extend(page_previews.clone());
+    }
     if !page.get("hasMore").and_then(Value::as_bool).unwrap_or(false) {
-      return Ok(serde_json::json!({ "jobs": jobs, "total": jobs.len(), "includeDisabled": true }));
+      return Ok(serde_json::json!({
+        "jobs": jobs,
+        "total": jobs.len(),
+        "includeDisabled": true,
+        "deliveryPreviews": delivery_previews,
+      }));
     }
     let next_offset = page.get("nextOffset").and_then(Value::as_u64)
       .ok_or_else(|| "Gateway returned a paginated cron list without nextOffset".to_string())?;

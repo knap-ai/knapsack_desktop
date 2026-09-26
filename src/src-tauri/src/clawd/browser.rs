@@ -4719,10 +4719,12 @@ pub async fn chat(
         .and_then(|v| v.as_str())
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+      let existing_schedule = args_map.get("existing_schedule").filter(|value| value.is_object()).cloned();
+      let schedule_changed = args_map.get("schedule_changed").and_then(|value| value.as_bool());
       let payload = args_map.get("payload").filter(|value| value.is_object()).cloned();
       let enabled = args_map.get("enabled").and_then(|value| value.as_bool());
-      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || timezone.is_none() || payload.is_none() || enabled.is_none() {
-        return Ok(json!({"ok": false, "error": "id, name, schedule, timezone, enabled state, and the existing task payload are required"}));
+      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || existing_schedule.is_none() || schedule_changed.is_none() || timezone.is_none() || payload.is_none() || enabled.is_none() {
+        return Ok(json!({"ok": false, "error": "id, name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, and the existing task payload are required"}));
       }
       let mut payload = payload.expect("payload was checked above");
       let payload_kind = payload.get("kind").and_then(|value| value.as_str()).unwrap_or("");
@@ -4733,8 +4735,15 @@ pub async fn chat(
         let message_key = if payload_kind == "agentTurn" { "message" } else { "text" };
         payload[message_key] = json!(message);
       }
-      let Some(schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
-        return Ok(json!({"ok": false, "error": "Unsupported schedule. No changes were saved; use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+      let schedule = if schedule_changed.expect("schedule_changed was checked above") {
+        let Some(parsed_schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
+          return Ok(json!({"ok": false, "error": "Unsupported schedule. No changes were saved; use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+        };
+        parsed_schedule
+      } else {
+        // A content-only update must not recreate an `every` schedule from
+        // prose, which would silently discard its server-provided anchorMs.
+        existing_schedule.expect("existing_schedule was checked above")
       };
 
       let patch = json!({

@@ -393,19 +393,21 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "update_scheduled_task".to_string(),
-        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, current enabled state, and existing payload. A confirmed message replaces the report instructions while preserving the existing payload kind and session target, so the old job is updated without creating a duplicate. This tool cannot change a task's delivery destination. Do not create a replacement or cancel the existing task for a destination change; explain the limitation instead.".to_string(),
+        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, current enabled state, existing schedule, and existing payload. Set schedule_changed to false when only the name or report instructions change; this preserves an interval task's anchor. A confirmed message replaces the report instructions while preserving the existing payload kind and session target, so the old job is updated without creating a duplicate. This tool cannot change a task's delivery destination. Do not create a replacement or cancel the existing task for a destination change; explain the limitation instead.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
             "id": { "type": "string", "description": "Existing task ID returned by list_scheduled_tasks" },
             "name": { "type": "string", "description": "Confirmed replacement name" },
             "schedule": { "type": "string", "description": "Confirmed replacement schedule" },
+            "existing_schedule": { "type": "object", "description": "Exact schedule object returned by list_scheduled_tasks for this task" },
+            "schedule_changed": { "type": "boolean", "description": "True only if the user directly confirmed a cadence change. False preserves existing_schedule exactly." },
             "timezone": { "type": "string", "description": "Timezone from the existing task or the directly confirmed replacement" },
             "enabled": { "type": "boolean", "description": "Directly confirmed enabled state. Use the existing state unless the user specifically confirmed re-enabling or disabling it." },
             "message": { "type": "string", "description": "Optional directly confirmed replacement report instructions" },
             "payload": { "type": "object", "description": "Existing payload returned by list_scheduled_tasks, preserving kind and session target" }
           },
-          "required": ["id", "name", "schedule", "timezone", "enabled", "payload"],
+          "required": ["id", "name", "schedule", "existing_schedule", "schedule_changed", "timezone", "enabled", "payload"],
           "additionalProperties": false
         }),
       },
