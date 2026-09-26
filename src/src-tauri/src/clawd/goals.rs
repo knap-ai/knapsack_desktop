@@ -304,21 +304,23 @@ fn goal_evidence_excerpt(value: &str, limit: usize) -> String {
   )
 }
 
-/// Read actual goal-shaped records from the locally encrypted/synced Gmail and
-/// Drive indexes.  A goal proposal must always identify this as a synced-index
+/// Read actual goal-shaped records from the locally encrypted/synced email and
+/// Drive indexes.  Outlook and Gmail share the local email store, so describe
+/// the source accurately instead of mislabeling Outlook evidence as Gmail.
+/// A goal proposal must always identify this as a synced-index
 /// search, because an empty local index cannot prove the remote account has no
 /// goals.
 #[tauri::command]
 pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
   let email_sources = Email::find_goal_evidence(30)
-    .map_err(|error| format!("Could not search the synced Gmail index: {error}"))?
+    .map_err(|error| format!("Could not search the synced email index: {error}"))?
     .into_iter()
     .map(|email| GoalDiscoverySource {
-      source_type: "Gmail".to_string(),
+      source_type: "Connected email".to_string(),
       title: email.subject.clone(),
       excerpt: goal_evidence_excerpt(&email.body, 1_800),
       source_record: format!(
-        "Gmail message {} ({})",
+        "Connected email {} ({})",
         email.email_uid, email.account_email
       ),
       updated_at: email.date,
@@ -345,7 +347,7 @@ pub fn kn_goal_discovery_context() -> Result<GoalDiscoveryContext, String> {
   let email_matches = email_sources.len();
   let drive_matches = drive_sources.len();
   let search_summary = format!(
-    "Searched the synced Gmail index and Google Drive index: {} email match{} and {} Drive match{}.",
+    "Searched the synced email index and Google Drive index: {} email match{} and {} Drive match{}.",
     email_matches,
     if email_matches == 1 { "" } else { "es" },
     drive_matches,

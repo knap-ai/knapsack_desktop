@@ -552,10 +552,9 @@ async fn fetch_drive_corpus(
   drive_id: Option<&str>,
   temp_dir: &PathBuf,
   account_email: &str,
-) -> Result<(Vec<DriveDocument>, bool), Error> {
+) -> Result<bool, Error> {
   let semaphore = Arc::new(Semaphore::new(5));
   let mut next_page_token: Option<String> = None;
-  let mut all_documents = Vec::new();
   let mut all_content_fetches_succeeded = true;
 
   loop {
@@ -563,24 +562,24 @@ async fn fetch_drive_corpus(
       fetch_drive_page(hub, query, next_page_token.as_ref(), corpora, drive_id).await?;
     next_page_token = token;
 
-    let drive_documents = Arc::new(Mutex::new(Vec::new()));
+    let content_fetch_results = Arc::new(Mutex::new(Vec::new()));
     let mut tasks = Vec::new();
     for file in files {
       let semaphore_clone = Arc::clone(&semaphore);
       let temp_dir_clone = temp_dir.clone();
       let hub_clone = hub.clone();
-      let drive_documents_clone = drive_documents.clone();
+      let content_fetch_results_clone = content_fetch_results.clone();
       let account_email_clone = account_email.to_string();
       let task = tauri::async_runtime::spawn(async move {
         let _permit = semaphore_clone.acquire().await.unwrap();
-        let drive_document = get_or_create_drive_document_from_file(
+        let (_, content_fetch_succeeded) = get_or_create_drive_document_from_file(
           &file,
           &temp_dir_clone,
           &hub_clone,
           &account_email_clone,
         )
         .await;
-        drive_documents_clone.lock().await.push(drive_document);
+        content_fetch_results_clone.lock().await.push(content_fetch_succeeded);
       });
       tasks.push(task);
     }
@@ -592,10 +591,9 @@ async fn fetch_drive_corpus(
       }
     }
 
-    let mut documents = drive_documents.lock().await;
-    for (document, content_fetch_succeeded) in documents.drain(..) {
+    let mut results = content_fetch_results.lock().await;
+    for content_fetch_succeeded in results.drain(..) {
       all_content_fetches_succeeded &= content_fetch_succeeded;
-      all_documents.push(document);
     }
 
     if next_page_token.is_none() {
@@ -603,7 +601,7 @@ async fn fetch_drive_corpus(
     }
   }
 
-  Ok((all_documents, all_content_fetches_succeeded))
+  Ok(all_content_fetches_succeeded)
 }
 
 pub async fn fetch_drive(
@@ -658,7 +656,7 @@ pub async fn fetch_drive(
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");
   fs::create_dir_all(temp_dir.clone()).unwrap();
-  let (mut all_documents, mut backfill_content_fetches_succeeded) =
+  let mut backfill_content_fetches_succeeded =
     fetch_drive_corpus(&hub, &query, "user", None, &temp_dir, &account_email).await?;
   let (shared_drives, shared_drive_enumeration_succeeded) =
     list_accessible_shared_drives(&hub).await;
@@ -684,16 +682,14 @@ pub async fn fetch_drive(
       )
       .await
       {
-        Ok((mut documents, content_fetches_succeeded)) => {
+        Ok(content_fetches_succeeded) => {
           log::info!(
-            "[google-drive] synced shared drive account={} drive_id={} drive_name={} docs={}",
+            "[google-drive] synced shared drive account={} drive_id={} drive_name={}",
             account_email,
             shared_drive_id,
-            shared_drive_name,
-            documents.len()
+            shared_drive_name
           );
           backfill_content_fetches_succeeded &= content_fetches_succeeded;
-          all_documents.append(&mut documents);
         }
         Err(error) => {
           log::warn!(
@@ -707,11 +703,6 @@ pub async fn fetch_drive(
         }
       }
     }
-  }
-
-  let mut sliced_documents: Vec<HashMap<String, serde_json::Value>> = Vec::new();
-  for document in &all_documents {
-    sliced_documents.append(&mut document.get_documents());
   }
 
   // let maybe_locked_semantic_service = semantic_service.lock().await;
