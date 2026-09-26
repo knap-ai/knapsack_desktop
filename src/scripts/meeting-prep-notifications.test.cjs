@@ -14,9 +14,10 @@ test('meeting prep reminders are occurrence-specific and tolerant of delayed tic
   assert.match(notifications, /return minutesUntil >= 10 && minutesUntil <= 30/)
 })
 
-test('the minute clock uses rich meeting prep rather than the generic exact-minute reminder', () => {
+test('the minute clock uses rich prep and retains the configured join-and-record reminder', () => {
   assert.match(app, /checkMeetingPrep\(\)/)
-  assert.doesNotMatch(app, /handleNotificationsScheduleService\(date\)/)
+  assert.match(app, /await handleNotificationsScheduleService\(date\)/)
+  assert.match(app, /let tickInFlight = false/)
   assert.match(notifications, /canSendNotification\('meeting_prep', false\)/)
   assert.match(notifications, /if \(wasDelivered\)[\s\S]*?persistPreppedMeetingId/)
   assert.match(notifications, /const didOpen = await openNotificationWindow\([\s\S]*?if \(!didOpen\) return response[\s\S]*?await recordNotification/)
@@ -25,9 +26,11 @@ test('the minute clock uses rich meeting prep rather than the generic exact-minu
 test('a notification is considered delivered only when its window opens', () => {
   const automations = read('src/hooks/automation/useAutomations.tsx')
   const native = read('src-tauri/src/main.rs')
-  assert.match(automations, /if \(isNotificationWindowShowing\) return false/)
+  assert.match(automations, /const notificationWindowReservedRef = useRef\(false\)/)
+  assert.match(automations, /if \(notificationWindowReservedRef\.current\) return false/)
+  assert.match(automations, /notificationWindowReservedRef\.current = true/)
   assert.match(automations, /const didShow = await invoke<boolean>\('show_notification_window'/)
-  assert.match(automations, /if \(!didShow\) return false\s*setIsNotificationWindowShowing\(true\)\s*return true/)
+  assert.match(automations, /if \(!didShow\) \{[\s\S]*?return false[\s\S]*?setIsNotificationWindowShowing\(true\)\s*return true/)
   assert.match(automations, /Error showing notification window[\s\S]*?return false/)
   assert.match(native, /async fn show_notification_window[\s\S]*?\) -> bool/)
   assert.match(native, /if let Ok\(Some\(monitor\)\) = window\.current_monitor\(\)/)
@@ -39,6 +42,19 @@ test('channel delivery does not depend on opening a local notification window', 
   const channels = notifications.indexOf('void pushToChannels(', didOpen)
   const retry = notifications.indexOf('if (!didOpen) return response', didOpen)
   assert.ok(didOpen >= 0 && channels > didOpen && retry > channels)
+})
+
+test('meeting prep channel delivery is deduplicated while the local surface retries', () => {
+  assert.match(notifications, /KN_PREPPED_MEETING_CHANNEL_IDS/)
+  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(channelDeliveryKey\)/)
+  assert.match(notifications, /getMeetingPrepNotificationKey\(meetingNeedingPrep\)/)
+  assert.match(notifications, /JSON\.stringify\(\[\.\.\.preppedMeetingChannelIdsRef\.current\]\)/)
+})
+
+test('morning briefing is marked sent only after it is delivered', () => {
+  const delivery = notifications.indexOf("const delivered = await generateAndShowNotification(")
+  const marker = notifications.indexOf('if (delivered && !force)', delivery)
+  assert.ok(delivery >= 0 && marker > delivery)
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {

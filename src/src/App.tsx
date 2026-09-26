@@ -1027,6 +1027,7 @@ function App() {
     syncAutomations,
     googleAuthControls,
     openNotificationWindow,
+    handleNotificationsScheduleService,
   } = useAutomations({
     userEmail,
     connections,
@@ -1092,20 +1093,28 @@ function App() {
     }
     const MINUTE_MS = 60000
 
+    let tickInFlight = false
     const tick = () => {
+      if (tickInFlight) return
+      tickInFlight = true
       const date = new Date()
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
-      if (!LOCAL_QA_SAFE) {
+      void (async () => {
+        if (!LOCAL_QA_SAFE) {
         // Meeting prep is evaluated on a forgiving time range, not a single
         // calendar-sync event or exact minute, so reminders survive wake-ups
         // and transient sync delays.
-        checkMeetingPrep()
-        handleAutomationsFeedScheduleService(date)
-        checkMorningBriefing(date)
-        checkProactiveCheckin(date)
-      }
-      updateMeetingStatuses(currentTime)
+          await checkMeetingPrep()
+          await handleNotificationsScheduleService(date)
+          await checkMorningBriefing(date)
+          await checkProactiveCheckin(date)
+          handleAutomationsFeedScheduleService(date)
+        }
+        updateMeetingStatuses(currentTime)
+      })().finally(() => {
+        tickInFlight = false
+      })
     }
 
     tick()
@@ -1114,7 +1123,15 @@ function App() {
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail, checkMeetingPrep, checkMorningBriefing, checkProactiveCheckin])
+  }, [
+    userEmail,
+    checkMeetingPrep,
+    checkMorningBriefing,
+    checkProactiveCheckin,
+    handleNotificationsScheduleService,
+    handleAutomationsFeedScheduleService,
+    updateMeetingStatuses,
+  ])
 
   const periodicSyncRef = useRef({
     fetchConnections,
