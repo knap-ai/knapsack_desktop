@@ -4711,7 +4711,6 @@ pub async fn chat(
 
       let task_id = args_map.get("id").and_then(|v| v.as_str()).unwrap_or("").trim();
       let task_name = args_map.get("name").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let message = args_map.get("message").and_then(|v| v.as_str()).unwrap_or("").trim();
       let schedule_str = args_map
         .get("schedule")
         .and_then(|v| v.as_str())
@@ -4721,15 +4720,25 @@ pub async fn chat(
       let timezone = args_map
         .get("timezone")
         .and_then(|v| v.as_str())
-        .map(|value| value.trim().to_string());
-      if task_id.is_empty() || task_name.is_empty() || message.is_empty() || schedule_str.is_empty() {
-        return Ok(json!({"ok": false, "error": "id, name, message, and schedule are required"}));
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+      let payload = args_map.get("payload").filter(|value| value.is_object()).cloned();
+      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || timezone.is_none() || payload.is_none() {
+        return Ok(json!({"ok": false, "error": "id, name, schedule, timezone, and the existing task payload are required"}));
+      }
+      let payload = payload.expect("payload was checked above");
+      let payload_kind = payload.get("kind").and_then(|value| value.as_str()).unwrap_or("");
+      if !matches!(payload_kind, "systemEvent" | "agentTurn") {
+        return Ok(json!({"ok": false, "error": "payload.kind must be the existing systemEvent or agentTurn kind"}));
       }
 
       let patch = json!({
         "name": task_name,
         "schedule": parse_schedule_to_cron(&schedule_str, timezone.as_deref()),
-        "payload": {"kind": "systemEvent", "text": message},
+        // Updating a schedule must preserve whether it is an isolated agent
+        // turn or a system event. The agent copies this payload from the task
+        // returned by list_scheduled_tasks instead of silently changing it.
+        "payload": payload,
       });
       match gateway_ws::cron_update(task_id, patch, None).await {
         Ok(result) => return Ok(json!({
