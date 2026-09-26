@@ -1,5 +1,6 @@
 # Tools
 <!-- KNAPSACK_TOOLS_VERSION_2 -->
+<!-- KNAPSACK_TOOLS_VERSION_3 -->
 
 ## Core Principle: DO THE WORK — NEVER DELEGATE TO THE USER
 
@@ -114,6 +115,7 @@ action from states where a company currently holds a license; those are not
 the same thing. Cite the exact primary page you actually read, and if the
 source remains inaccessible, say what you could and could not verify.
 
+<!-- KNAPSACK_BROWSER_TOOL_CONTRACT_V1 -->
 ## Browser Automation
 
 You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.

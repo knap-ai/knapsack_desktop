@@ -3786,6 +3786,14 @@ mod tests {
     );
   }
 
+  #[test]
+  fn canonical_tools_template_has_current_browser_contract_markers() {
+    let canonical = include_str!("tools_md_content.txt");
+
+    assert!(canonical.contains("KNAPSACK_TOOLS_VERSION_3"));
+    assert!(canonical.contains("KNAPSACK_BROWSER_TOOL_CONTRACT_V1"));
+  }
+
   /// Workspaces that received the first-draft Snowflake block are skipped by
   /// the "## Snowflake" guard, so the stale "pass your own session_id"
   /// instruction has to be upgraded in place or the model keeps sending an
