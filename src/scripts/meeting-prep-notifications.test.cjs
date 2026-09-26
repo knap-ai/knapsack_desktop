@@ -67,7 +67,7 @@ test('a blocked notification cannot replace the visible notification payload', (
 
 test('meeting prep channel delivery is deduplicated while the local surface retries', () => {
   assert.match(notifications, /KN_PREPPED_MEETING_CHANNEL_IDS/)
-  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(resolvedChannelDeliveryKey\)/)
+  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(key\)/)
   assert.match(notifications, /getMeetingPrepNotificationKey\(meetingNeedingPrep\)/)
   assert.match(notifications, /JSON\.stringify\(\[\.\.\.preppedMeetingChannelIdsRef\.current\]\)/)
   assert.match(notifications, /inFlightMeetingChannelIdsRef/)
@@ -94,14 +94,23 @@ test('channel-only email alerts update the notification throttle', () => {
   )
 })
 
-test('channel delivery retries separately from a successful local prep and deduplicates email batches', () => {
-  assert.match(notifications, /const resolvedChannelDeliveryKey/)
-  assert.match(notifications, /email-alert:\$\{recentEmails/)
-  assert.match(notifications, /email\.accountEmail.*email\.emailUid.*email\.documentId/)
-  assert.match(notifications, /deliveryKey,\n    \)/)
+test('channel delivery retries separately from a successful local prep and deduplicates each source email', () => {
+  assert.match(notifications, /const resolvedChannelDeliveryKeys/)
+  assert.match(notifications, /const emailDeliveryKey = \(email: any\)/)
+  assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(emailDeliveryKey\(email\)\)/)
+  assert.match(notifications, /email\.accountEmail[\s\S]*?email\.emailUid[\s\S]*?email\.documentId/)
+  assert.match(notifications, /deliveryKeys,\n    \)/)
   assert.match(notifications, /const deliverToChannels = async \(retryOnFailure: boolean\)/)
   assert.match(notifications, /notificationType === 'pre_meeting_prep' \|\| notificationType === 'morning_briefing'/)
   assert.match(notifications, /void deliverToChannels\(false\)/)
+})
+
+test('competing scheduled reminders do not replace each other, and proactive cadence starts on delivery', () => {
+  const automations = read('src/hooks/automation/useAutomations.tsx')
+  assert.match(automations, /buildMeetingNotificationBrief\(meeting, userEmail\),\n\s+false,/)
+  const generated = notifications.indexOf('const delivered = await generateAndShowNotification(', notifications.indexOf('const checkProactiveCheckin'))
+  const marked = notifications.indexOf('if (delivered && !force)', generated)
+  assert.ok(generated >= 0 && marked > generated)
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {

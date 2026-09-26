@@ -618,7 +618,7 @@ export function useAutomations({
                 meeting.title,
                 startTime.format('h:mm A'),
                 buildMeetingNotificationBrief(meeting, userEmail),
-                true,
+                false,
               )
               if (didShow) {
                 setNotificationServices(prev =>

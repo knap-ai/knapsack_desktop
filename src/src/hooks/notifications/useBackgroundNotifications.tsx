@@ -474,7 +474,7 @@ export function useBackgroundNotifications({
    * Only includes recent emails (last 6 hours) to focus on what just arrived.
    */
   const gatherEmailContext = useCallback(
-    async (): Promise<{ context: string; emailCount: number; deliveryKey?: string }> => {
+    async (): Promise<{ context: string; emailCount: number; deliveryKeys?: string[] }> => {
       try {
         const emails = await dataFetcher.getRecentGmailMessages(1, 20)
         if (!emails?.length) return { context: '', emailCount: 0 }
@@ -486,8 +486,20 @@ export function useBackgroundNotifications({
         )
         if (!recentEmails.length) return { context: '', emailCount: 0 }
 
+        // Deliver each source email only once. A changing six-hour window must
+        // not make an already-alerted message look new when another message
+        // arrives or ages out.
+        const emailDeliveryKey = (email: any) =>
+          `email-alert:${(email.accountEmail || 'unknown').toLowerCase()}:${
+            email.emailUid || email.documentId || `${email.sender || ''}:${email.subject || ''}:${email.date || ''}`
+          }`
+        const undeliveredEmails = recentEmails.filter(
+          email => !preppedMeetingChannelIdsRef.current.has(emailDeliveryKey(email)),
+        )
+        if (!undeliveredEmails.length) return { context: '', emailCount: 0 }
+
         const contextParts: string[] = ['## Recent Emails (Last 6 Hours)\n']
-        for (const email of recentEmails.slice(0, 10)) {
+        for (const email of undeliveredEmails.slice(0, 10)) {
           const dateStr = new Date(email.date * 1000).toLocaleString()
           const preview = (email.summary || email.body || '').slice(0, 300)
           contextParts.push(
@@ -498,12 +510,8 @@ export function useBackgroundNotifications({
         // Delivery must be tied to the source messages rather than generated
         // prose: the model may paraphrase a message differently on a later
         // sync, but that still must not send the same phone alert again.
-        const deliveryKey = `email-alert:${recentEmails
-          .slice(0, 10)
-          .map(email => `${(email.accountEmail || 'unknown').toLowerCase()}:${email.emailUid || email.documentId}`)
-          .sort()
-          .join('|')}`
-        return { context: contextParts.join('\n'), emailCount: recentEmails.length, deliveryKey }
+        const deliveryKeys = undeliveredEmails.slice(0, 10).map(emailDeliveryKey)
+        return { context: contextParts.join('\n'), emailCount: undeliveredEmails.length, deliveryKeys }
       } catch (err) {
         console.warn('Failed to gather email context:', err)
         return { context: '', emailCount: 0 }
@@ -634,7 +642,7 @@ export function useBackgroundNotifications({
       notificationType: string,
       buttonHandler: string,
       buttonText: string,
-      channelDeliveryKey?: string,
+      channelDeliveryKeys?: string[],
     ): Promise<boolean> => {
       if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
@@ -667,11 +675,11 @@ export function useBackgroundNotifications({
                 // The same recent-email batch can surface through multiple
                 // sync events. Keep its channel delivery identity stable even
                 // when no local notification window is available.
-                const resolvedChannelDeliveryKey =
-                  channelDeliveryKey ||
-                  (notificationType === 'email_alert'
-                    ? `email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`
-                    : undefined)
+                const resolvedChannelDeliveryKeys = channelDeliveryKeys?.length
+                  ? channelDeliveryKeys
+                  : notificationType === 'email_alert'
+                    ? [`email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`]
+                    : []
 
                 const primaryText = parsed.suggestedActionShort || buttonText
                 const didOpen = await openNotificationWindow(
@@ -696,13 +704,14 @@ export function useBackgroundNotifications({
                 // A linked phone should receive that prep only once per
                 // meeting occurrence, independently of the local retry.
                 if (
-                  !resolvedChannelDeliveryKey ||
-                  (!preppedMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey) &&
-                    !inFlightMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey))
+                  resolvedChannelDeliveryKeys.length === 0 ||
+                  resolvedChannelDeliveryKeys.some(
+                    key =>
+                      !preppedMeetingChannelIdsRef.current.has(key) &&
+                      !inFlightMeetingChannelIdsRef.current.has(key),
+                  )
                 ) {
-                  if (resolvedChannelDeliveryKey) {
-                    inFlightMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
-                  }
+                  resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.add(key))
                   const deliverToChannels = async (retryOnFailure: boolean) => {
                     const channelDelivered = await pushToChannels(
                       parsed.notificationTitle,
@@ -717,8 +726,8 @@ export function useBackgroundNotifications({
                     if (channelDelivered && notificationType === 'email_alert' && !didOpen) {
                       void recordNotification(notificationType)
                     }
-                    if (!resolvedChannelDeliveryKey) return
-                    inFlightMeetingChannelIdsRef.current.delete(resolvedChannelDeliveryKey)
+                    if (resolvedChannelDeliveryKeys.length === 0) return
+                    resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.delete(key))
                     if (!channelDelivered) {
                       // A successful local prep must not permanently abandon a
                       // transient channel failure. Retry once without creating
@@ -729,17 +738,20 @@ export function useBackgroundNotifications({
                       ) {
                         window.setTimeout(() => {
                           if (
-                            !preppedMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey) &&
-                            !inFlightMeetingChannelIdsRef.current.has(resolvedChannelDeliveryKey)
+                            resolvedChannelDeliveryKeys.some(
+                              key =>
+                                !preppedMeetingChannelIdsRef.current.has(key) &&
+                                !inFlightMeetingChannelIdsRef.current.has(key),
+                            )
                           ) {
-                            inFlightMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
+                            resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.add(key))
                             void deliverToChannels(false)
                           }
                         }, 30_000)
                       }
                       return
                     }
-                    preppedMeetingChannelIdsRef.current.add(resolvedChannelDeliveryKey)
+                    resolvedChannelDeliveryKeys.forEach(key => preppedMeetingChannelIdsRef.current.add(key))
                     localStorage.setItem(
                       KN_PREPPED_MEETING_CHANNEL_IDS,
                       JSON.stringify([...preppedMeetingChannelIdsRef.current]),
@@ -808,7 +820,7 @@ export function useBackgroundNotifications({
       if (!canSend) return
     }
 
-    const { context, emailCount, deliveryKey } = await gatherEmailContext()
+    const { context, emailCount, deliveryKeys } = await gatherEmailContext()
     if (!context || emailCount === 0) return
 
     await generateAndShowNotification(
@@ -817,7 +829,7 @@ export function useBackgroundNotifications({
       'email_alert',
       'background_insight_notification_handler',
       'View Details',
-      deliveryKey,
+      deliveryKeys,
     )
   }, [userEmail, canSendNotification, gatherEmailContext, generateAndShowNotification])
 
@@ -875,7 +887,7 @@ export function useBackgroundNotifications({
         'pre_meeting_prep',
         'background_insight_notification_handler',
         'View Prep',
-        getMeetingPrepNotificationKey(meetingNeedingPrep),
+        [getMeetingPrepNotificationKey(meetingNeedingPrep)],
       )
 
       // Only consume the meeting after a notification actually opened. A model
@@ -994,7 +1006,7 @@ export function useBackgroundNotifications({
         'morning_briefing',
         'background_insight_notification_handler',
         'View Briefing',
-        `morning-briefing:${dayjs(now).format('YYYY-MM-DD')}`,
+        [`morning-briefing:${dayjs(now).format('YYYY-MM-DD')}`],
       )
       if (delivered && !force) {
         await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, dayjs(now).format('YYYY-MM-DD'))
@@ -1034,18 +1046,19 @@ export function useBackgroundNotifications({
         if (!canSend) return
       }
 
-      await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
-
       const context = await gatherFullContext()
       if (!context) return
 
-      await generateAndShowNotification(
+      const delivered = await generateAndShowNotification(
         context,
         PROACTIVE_CHECKIN_PROMPT,
         'proactive_checkin',
         'background_insight_notification_handler',
         'Take Action',
       )
+      if (delivered && !force) {
+        await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
+      }
     },
     [userEmail, hasChannelsAttached, canSendNotification, gatherFullContext, generateAndShowNotification],
   )
