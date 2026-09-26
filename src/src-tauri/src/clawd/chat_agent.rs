@@ -393,7 +393,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "update_scheduled_task".to_string(),
-        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, and existing payload. A confirmed message replaces the report instructions while preserving the existing payload kind and session target, so the old job is updated without creating a duplicate. This tool cannot change a task's delivery destination; propose a separate reviewed task for a destination change.".to_string(),
+        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, and existing payload. A confirmed message replaces the report instructions while preserving the existing payload kind and session target, so the old job is updated without creating a duplicate. This tool cannot change a task's delivery destination. Do not create a replacement or cancel the existing task for a destination change; explain the limitation instead.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
