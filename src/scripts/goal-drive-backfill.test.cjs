@@ -46,6 +46,7 @@ test('legacy Drive documents receive one account-scoped goal-index backfill', ()
     path.join(sourceRoot, 'src-tauri/src/db/models/email.rs'),
     'utf8',
   )
-  assert.match(email, /from_read\(email\.body\.as_bytes\(\), email\.body\.len\(\)\)/)
+  assert.match(email, /email\.body\.trim\(\)\.is_empty\(\)/)
+  assert.match(email, /email\.body\.len\(\)\.max\(1\)/)
   assert.match(email, /FROM emails WHERE COALESCE\(is_deleted, 0\) = 0 ORDER BY date DESC LIMIT 500/)
 })

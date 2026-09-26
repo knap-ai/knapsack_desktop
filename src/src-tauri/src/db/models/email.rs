@@ -247,7 +247,11 @@ impl Email {
     rows
       .filter_map(Result::ok)
       .filter(|email| {
-        let body = from_read(email.body.as_bytes(), email.body.len()).to_lowercase();
+        let body = if email.body.trim().is_empty() {
+          String::new()
+        } else {
+          from_read(email.body.as_bytes(), email.body.len().max(1)).to_lowercase()
+        };
         let subject = email.subject.to_lowercase();
         GOAL_TERMS
           .iter()

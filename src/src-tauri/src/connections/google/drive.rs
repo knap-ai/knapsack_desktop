@@ -425,13 +425,13 @@ pub async fn get_or_create_drive_document_from_file(
     drive_document.checksum = checksum.unwrap_or_else(|| drive_document.checksum.clone());
     drive_document.url = url;
     drive_document.account_email = account_email.to_string();
-    if let Some(content_chunks) = maybe_content {
-      let summary = DriveDocument::summary_from_content_chunks(&content_chunks);
-      if !summary.trim().is_empty() {
-        drive_document.summary = summary;
-      }
-      drive_document.content_chunks = Some(content_chunks);
+    if content_fetch_succeeded {
+      drive_document.summary = maybe_content
+        .as_deref()
+        .map(DriveDocument::summary_from_content_chunks)
+        .unwrap_or_default();
     }
+    drive_document.content_chunks = maybe_content;
     if let Err(error) = drive_document.update_summary() {
       log::warn!("Could not refresh the local Drive text index: {:?}", error);
       return (drive_document, false);
