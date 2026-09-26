@@ -263,24 +263,28 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
 
-  // The native recording pill is useful when Knapsack is in the background,
-  // but it must not float over the active in-app meeting chat. The meeting
-  // footer remains the single recording control while this overlay is open.
-  useEffect(() => {
-    const command = isMeetingRecording && !isMeetingChatOpen
-      ? 'show_recording_indicator'
-      : 'hide_recording_indicator'
-    void invoke(command).catch(() => {})
+  const isAnyRecordingRef = useRef(recordingHandlers.isAnyRecording)
+  isAnyRecordingRef.current = recordingHandlers.isAnyRecording
 
-    // Recording is owned by the app-level provider and can continue after this
-    // meeting detail unmounts. Restore the persistent native control so a user
-    // who navigates away from inline chat never loses the way to stop it.
+  // The native recording pill is useful when Knapsack is in the background,
+  // but it must not float over the active recording's in-app meeting chat.
+  // A different meeting detail must never hide the global stop control.
+  useEffect(() => {
+    const command = isMeetingRecording && isMeetingChatOpen
+      ? 'hide_recording_indicator'
+      : 'restore_recording_indicator'
+    void invoke(command).catch(() => {})
+  }, [isMeetingChatOpen, isMeetingRecording, recordingHandlers.isAnyRecording])
+
+  // Recording belongs to the app-level provider and can outlive this detail.
+  // Restore the stop control only on unmount, not on every chat toggle.
+  useEffect(() => {
     return () => {
-      if (isMeetingRecording) {
-        void invoke('show_recording_indicator').catch(() => {})
+      if (isAnyRecordingRef.current) {
+        void invoke('restore_recording_indicator').catch(() => {})
       }
     }
-  }, [isMeetingChatOpen, isMeetingRecording])
+  }, [])
 
   const [meetingChatHeight, setMeetingChatHeight] = useState(initialMeetingChatHeight)
   const meetingChatHeightRef = useRef(meetingChatHeight)

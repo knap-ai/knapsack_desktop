@@ -125,9 +125,13 @@ test('meeting chat handle resizes, toggles, and persists panel height', () => {
 
 test('inline meeting chat owns the visible recording surface', () => {
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
-  assert.match(notes, /isMeetingRecording && !isMeetingChatOpen\s*\? 'show_recording_indicator'\s*:\s*'hide_recording_indicator'/)
+  const spotlight = source('../src-tauri/src/spotlight.rs')
+  assert.match(notes, /isMeetingRecording && isMeetingChatOpen\s*\? 'hide_recording_indicator'\s*:\s*'restore_recording_indicator'/)
+  assert.match(notes, /recordingHandlers\.isAnyRecording/)
   assert.match(notes, /void invoke\(command\)\.catch\(\(\) => \{\}\)/)
-  assert.match(notes, /return \(\) => \{\s*if \(isMeetingRecording\) \{\s*void invoke\('show_recording_indicator'\)\.catch\(\(\) => \{\}\)/)
+  assert.match(notes, /if \(isAnyRecordingRef\.current\) \{\s*void invoke\('restore_recording_indicator'\)\.catch\(\(\) => \{\}\)/)
+  assert.match(spotlight, /pub fn restore_recording_indicator[\s\S]*?window\.show\(\)/)
+  assert.doesNotMatch(spotlight.match(/pub fn restore_recording_indicator[\s\S]*?(?=\n\#\[tauri::command\]|$)/)?.[0] || '', /recording-indicator-show/)
 })
 
 test('meeting follow-up actions visibly expand and reliably refill Scout', () => {
