@@ -2986,7 +2986,7 @@ pub async fn act(
 }
 
 /// Parse a natural language schedule string into a cron schedule JSON value
-fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_json::Value {
+fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Option<serde_json::Value> {
   let s = schedule_str.to_lowercase();
 
   // Check for interval patterns like "every hour", "every 30 minutes"
@@ -3007,12 +3007,12 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
         "day" => num * 24 * 60 * 60 * 1000,
         _ => num * 60 * 60 * 1000, // default to hours
       };
-      return json!({ "kind": "every", "everyMs": ms });
+      return Some(json!({ "kind": "every", "everyMs": ms }));
     }
 
     // Every hour (simple)
     if s.contains("hour") && !s.contains("at") {
-      return json!({ "kind": "every", "everyMs": 3600000 }); // 1 hour
+      return Some(json!({ "kind": "every", "everyMs": 3600000 })); // 1 hour
     }
 
     // Every day at X
@@ -3040,7 +3040,7 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
       if let Some(tz) = timezone {
         result["tz"] = json!(tz);
       }
-      return result;
+      return Some(result);
     }
 
     // Every [weekday] at X
@@ -3091,7 +3091,7 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
         if let Some(tz) = timezone {
           result["tz"] = json!(tz);
         }
-        return result;
+        return Some(result);
       }
     }
   }
@@ -3104,11 +3104,12 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> serde_j
     if let Some(tz) = timezone {
       result["tz"] = json!(tz);
     }
-    return result;
+    return Some(result);
   }
 
-  // Default to every hour if we can't parse
-  json!({ "kind": "every", "everyMs": 3600000 })
+  // A schedule change must never turn into a more frequent job merely because
+  // the natural-language parser did not recognize it.
+  None
 }
 
 /// Extract text from a PDF that's encoded as a base64 data URL
@@ -4686,7 +4687,9 @@ pub async fn chat(
       }
 
       // Parse natural language schedule into cron format or interval
-      let schedule = parse_schedule_to_cron(&schedule_str, timezone.as_deref());
+      let Some(schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
+        return Ok(json!({"ok": false, "error": "Unsupported schedule. Use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+      };
 
       let payload = json!({
         "kind": "systemEvent",
@@ -4727,18 +4730,25 @@ pub async fn chat(
       if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || timezone.is_none() || payload.is_none() {
         return Ok(json!({"ok": false, "error": "id, name, schedule, timezone, and the existing task payload are required"}));
       }
-      let payload = payload.expect("payload was checked above");
+      let mut payload = payload.expect("payload was checked above");
       let payload_kind = payload.get("kind").and_then(|value| value.as_str()).unwrap_or("");
       if !matches!(payload_kind, "systemEvent" | "agentTurn") {
         return Ok(json!({"ok": false, "error": "payload.kind must be the existing systemEvent or agentTurn kind"}));
       }
+      if let Some(message) = args_map.get("message").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty()) {
+        let message_key = if payload_kind == "agentTurn" { "message" } else { "text" };
+        payload[message_key] = json!(message);
+      }
+      let Some(schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
+        return Ok(json!({"ok": false, "error": "Unsupported schedule. No changes were saved; use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+      };
 
       let patch = json!({
         "name": task_name,
-        "schedule": parse_schedule_to_cron(&schedule_str, timezone.as_deref()),
+        "schedule": schedule,
         // Updating a schedule must preserve whether it is an isolated agent
-        // turn or a system event. The agent copies this payload from the task
-        // returned by list_scheduled_tasks instead of silently changing it.
+        // turn or a system event, while allowing directly confirmed report
+        // instructions to replace its text.
         "payload": payload,
       });
       match gateway_ws::cron_update(task_id, patch, None).await {

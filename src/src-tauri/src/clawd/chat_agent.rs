@@ -393,7 +393,7 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
       kind: "function".to_string(),
       function: OaiToolSpecFn {
         name: "update_scheduled_task".to_string(),
-        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, and the existing payload unchanged so the old job is updated without changing its execution mode or creating a duplicate.".to_string(),
+        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID, explicit timezone, and existing payload. A confirmed message replaces the report instructions while preserving the existing payload kind and session target, so the old job is updated without creating a duplicate.".to_string(),
         parameters: json!({
           "type": "object",
           "properties": {
@@ -401,7 +401,8 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
             "name": { "type": "string", "description": "Confirmed replacement name" },
             "schedule": { "type": "string", "description": "Confirmed replacement schedule" },
             "timezone": { "type": "string", "description": "Timezone from the existing task or the directly confirmed replacement" },
-            "payload": { "type": "object", "description": "Exact existing payload returned by list_scheduled_tasks, preserving kind and session target" }
+            "message": { "type": "string", "description": "Optional directly confirmed replacement report instructions" },
+            "payload": { "type": "object", "description": "Existing payload returned by list_scheduled_tasks, preserving kind and session target" }
           },
           "required": ["id", "name", "schedule", "timezone", "payload"],
           "additionalProperties": false
