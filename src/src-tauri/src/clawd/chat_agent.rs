@@ -355,9 +355,9 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
             "name": { "type": "string", "description": "A descriptive name for this scheduled task" },
             "message": { "type": "string", "description": "The message/task to execute (what you want Clawd to do)" },
             "schedule": { "type": "string", "description": "When to run: 'every hour', 'every day at 9am', 'every Monday at 3pm', or cron expression like '0 9 * * *'" },
-            "timezone": { "type": "string", "description": "Timezone for the schedule (default: local). E.g., 'America/New_York', 'Europe/London'" }
+            "timezone": { "type": "string", "description": "Confirmed timezone for the schedule. E.g., 'America/New_York', 'Europe/London'" }
           },
-          "required": ["name", "message", "schedule"],
+          "required": ["name", "message", "schedule", "timezone"],
           "additionalProperties": false
         }),
       },

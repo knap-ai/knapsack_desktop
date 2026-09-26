@@ -4678,10 +4678,11 @@ pub async fn chat(
       let timezone = args_map
         .get("timezone")
         .and_then(|v| v.as_str())
-        .map(|s| s.trim().to_string());
+        .map(|s| s.trim().to_string())
+        .filter(|value| !value.is_empty());
 
-      if message.is_empty() || schedule_str.is_empty() {
-        return Ok(json!({"ok": false, "error": "message and schedule are required"}));
+      if message.is_empty() || schedule_str.is_empty() || timezone.is_none() {
+        return Ok(json!({"ok": false, "error": "message, schedule, and timezone are required"}));
       }
 
       // Parse natural language schedule into cron format or interval
