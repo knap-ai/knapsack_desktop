@@ -869,7 +869,7 @@ pub async fn ollama_native_chat(
 
   let mut body = json!({
     "model": model,
-    "messages": native_messages,
+    "messages": native_messages.clone(),
     "stream": false,
     "options": {"temperature": 0.2},
   });
@@ -886,8 +886,36 @@ pub async fn ollama_native_chat(
   let status = response.status();
   let text = response.text().await.unwrap_or_default();
   if !status.is_success() {
+    // Older local models commonly reject tool definitions outright. Keep the
+    // historical local-only fallback without weakening hosted Cloud tool use.
+    if is_local && !tools.is_empty() && status.is_client_error() {
+      let retry = client
+        .post(format!("{}/api/chat", base_url.trim_end_matches('/')))
+        .bearer_auth(api_key)
+        .json(&json!({
+          "model": model,
+          "messages": native_messages,
+          "stream": false,
+          "options": {"temperature": 0.2},
+        }))
+        .send()
+        .await?;
+      let retry_status = retry.status();
+      let retry_text = retry.text().await.unwrap_or_default();
+      if retry_status.is_success() {
+        return parse_ollama_native_response(&retry_text, &[]);
+      }
+    }
     anyhow::bail!("Ollama HTTP {}: {}", status, text);
   }
+
+  parse_ollama_native_response(&text, &tools)
+}
+
+fn parse_ollama_native_response(
+  text: &str,
+  tools: &[OaiToolSpec],
+) -> anyhow::Result<OaiChatResp> {
 
   let parsed = parse_json_value_with_escape_repair(&text)?;
   let message = parsed.get("message").cloned().unwrap_or_else(|| json!({}));
@@ -903,11 +931,15 @@ pub async fn ollama_native_chat(
         .iter()
         .filter_map(|call| {
           let function = call.get("function")?;
-          let raw_name = function.get("name")?.as_str()?;
-          let name = ["functions.", "tools/"]
+          let raw_name = function.get("name")?.as_str()?.trim();
+          let name = ['.', '/', '_', '-']
             .iter()
-            .find_map(|prefix| raw_name.strip_prefix(prefix))
-            .filter(|candidate| available_tool_names.contains(candidate))
+            .find_map(|separator| raw_name.split_once(*separator))
+            .filter(|(prefix, candidate)| {
+              matches!(prefix.to_ascii_lowercase().as_str(), "function" | "functions" | "tool" | "tools")
+                && available_tool_names.contains(candidate)
+            })
+            .map(|(_, candidate)| candidate)
             .unwrap_or(raw_name)
             .to_string();
           let raw_arguments = function
