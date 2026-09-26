@@ -837,7 +837,7 @@ pub async fn ollama_native_chat(
           value["tool_calls"] = json!(calls.iter().map(|call| {
             let arguments = serde_json::from_str::<JsonValue>(&call.function.arguments)
               .unwrap_or_else(|_| json!({}));
-            json!({"function": {"name": call.function.name, "arguments": arguments}})
+            json!({"id": call.id, "function": {"name": call.function.name, "arguments": arguments}})
           }).collect::<Vec<_>>());
         }
         value
@@ -880,11 +880,19 @@ pub async fn ollama_native_chat(
         .filter_map(|(index, call)| {
           let function = call.get("function")?;
           let name = function.get("name")?.as_str()?.to_string();
-          let arguments = function
+          let raw_arguments = function
             .get("arguments")
             .cloned()
-            .unwrap_or_else(|| json!({}))
-            .to_string();
+            .unwrap_or_else(|| json!({}));
+          // Ollama may return native arguments as an object or as a JSON
+          // string. Normalize both forms to the object string expected by the
+          // existing tool dispatcher.
+          let arguments = match raw_arguments {
+            JsonValue::String(serialized) => serde_json::from_str::<JsonValue>(&serialized)
+              .unwrap_or(JsonValue::String(serialized))
+              .to_string(),
+            value => value.to_string(),
+          };
           Some(OaiToolCall {
             id: call
               .get("id")
