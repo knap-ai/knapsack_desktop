@@ -399,15 +399,23 @@ pub async fn get_or_create_drive_document_from_file(
 
   if existing_drive_document.is_some() {
     let mut drive_document = existing_drive_document.unwrap().clone();
+    let mut indexed = false;
     if let Some(content_chunks) = maybe_content {
       let summary = DriveDocument::summary_from_content_chunks(&content_chunks);
       if !summary.trim().is_empty() {
         drive_document.summary = summary;
         if let Err(error) = drive_document.update_summary() {
           log::warn!("Could not refresh the local Drive text index: {:?}", error);
+        } else {
+          indexed = true;
         }
       }
       drive_document.content_chunks = Some(content_chunks);
+    }
+    if !indexed {
+      if let Err(error) = drive_document.mark_content_indexed() {
+        log::warn!("Could not mark Drive content as indexed: {:?}", error);
+      }
     }
     return drive_document;
   }
@@ -578,15 +586,36 @@ pub async fn fetch_drive(
   let hub = DriveHub::new(get_https_client(), access_token);
   let days_in_month = 30;
   let limit_date = chrono::Utc::now() - chrono::Duration::days(days_in_month);
+  let backfill_goal_index = DriveDocument::needs_goal_index_backfill(&account_email)
+    .unwrap_or_else(|error| {
+      log::warn!(
+        "[google-drive] unable to determine whether a goal-index backfill is needed account={}: {:?}",
+        account_email,
+        error
+      );
+      false
+    });
+  let date_filter = if backfill_goal_index {
+    log::info!(
+      "[google-drive] running one-time local goal-index backfill account={}",
+      account_email
+    );
+    String::new()
+  } else {
+    format!(
+      " and (modifiedTime > '{}')",
+      limit_date.format("%Y-%m-%dT%H:%M:%S")
+    )
+  };
   let query = format!(
-    "({}) and (modifiedTime > '{}')",
+    "({}){}",
     DRIVE_ALLOWED_MIME_TYPES
       .clone()
       .into_iter()
       .map(|f| format!("mimeType='{f}'"))
       .collect::<Vec<_>>()
       .join(" or "),
-    limit_date.format("%Y-%m-%dT%H:%M:%S")
+    date_filter
   );
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let temp_dir = home_dir.join("knapsack_temp");

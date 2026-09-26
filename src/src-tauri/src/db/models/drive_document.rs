@@ -42,10 +42,39 @@ impl DriveDocument {
   pub fn update_summary(&self) -> Result<(), Error> {
     let connection = get_db_conn();
     connection.execute(
-      "UPDATE drive_documents SET summary = ?1 WHERE drive_id = ?2",
+      "UPDATE drive_documents SET summary = ?1, timestamp = strftime('%s','now') WHERE drive_id = ?2",
       params![&self.summary, &self.drive_id],
     )?;
     Ok(())
+  }
+
+  /// Legacy Drive rows predate the local text index.  Marking an attempted
+  /// index means the one-time backfill does not repeatedly download files
+  /// that have no extractable text.
+  pub fn mark_content_indexed(&self) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE drive_documents SET timestamp = strftime('%s','now') WHERE drive_id = ?1",
+      params![&self.drive_id],
+    )?;
+    Ok(())
+  }
+
+  /// Return true only for legacy rows that have never had their Drive content
+  /// considered for the persisted goal-discovery index.  This deliberately
+  /// scopes the one-time catch-up to the connected account.
+  pub fn needs_goal_index_backfill(account_email: &str) -> Result<bool, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT EXISTS(
+        SELECT 1 FROM drive_documents
+        WHERE timestamp IS NULL
+          AND (account_email = ?1 OR account_email = '')
+      )",
+    )?;
+    stmt
+      .query_row(params![account_email], |row| row.get(0))
+      .map_err(Into::into)
   }
 
   pub fn find_by_id(id: u64) -> Result<Option<DriveDocument>, Error> {
@@ -151,7 +180,7 @@ impl DriveDocument {
     let connection = get_db_conn();
     let result = connection
       .execute(
-        "INSERT INTO drive_documents (id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, account_email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO drive_documents (id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, strftime('%s','now'), ?10)",
         (
           &self.id,
           &self.drive_id,
