@@ -25,6 +25,119 @@ pub struct DriveDocument {
 }
 
 impl DriveDocument {
+  /// Keep a bounded, locally persisted text index for features that need to
+  /// find a Drive file by its contents without making a remote Drive call.
+  /// The full content still lives in the vector index; this is only enough to
+  /// select useful evidence for short, source-labelled experiences such as
+  /// goal discovery.
+  pub fn summary_from_content_chunks(content_chunks: &[String]) -> String {
+    const LIMIT: usize = 12_000;
+    const PREFIX_LIMIT: usize = 9_000;
+    const EVIDENCE_WINDOW: usize = 1_000;
+    const GOAL_TERMS: [&str; 12] = [
+      "okr", "objective", "key result", "goal", "target", "kpi", "metric", "milestone",
+      "north star", "annual plan", "strategic plan", "quarterly plan",
+    ];
+
+    let full_text = content_chunks.join("\n");
+    if full_text.chars().count() <= LIMIT {
+      return full_text;
+    }
+
+    let mut summary = full_text
+      .chars()
+      .take(PREFIX_LIMIT)
+      .collect::<String>();
+    let mut remaining = LIMIT.saturating_sub(summary.chars().count());
+
+    // Preserve focused windows from later chunks so a long generic document
+    // remains discoverable when its OKR or planning language is not in the
+    // opening pages. This is still a bounded local index, not a full copy.
+    for chunk in content_chunks {
+      if remaining == 0 {
+        break;
+      }
+      let normalized = chunk.to_ascii_lowercase();
+      let Some(match_at) = GOAL_TERMS.iter().find_map(|term| normalized.find(term)) else {
+        continue;
+      };
+      let prefix_chars = chunk[..match_at].chars().count();
+      let start = prefix_chars.saturating_sub(EVIDENCE_WINDOW / 4);
+      let window = chunk
+        .chars()
+        .skip(start)
+        .take(EVIDENCE_WINDOW.min(remaining))
+        .collect::<String>();
+      if window.trim().is_empty() || summary.contains(&window) {
+        continue;
+      }
+      summary.push_str("\n\n[Goal-related section]\n");
+      summary.push_str(&window);
+      remaining = LIMIT.saturating_sub(summary.chars().count());
+    }
+    summary.chars().take(LIMIT).collect()
+  }
+
+  pub fn update_summary(&self) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE drive_documents SET filename = ?1, file_size = ?2,
+       date_modified = ?3, date_created = ?4, summary = ?5, checksum = ?6,
+       url = ?7, account_email = ?8 WHERE drive_id = ?9 AND account_email = ?8",
+      params![
+        &self.filename,
+        self.file_size,
+        self.date_modified,
+        self.date_created,
+        &self.summary,
+        &self.checksum,
+        &self.url,
+        &self.account_email,
+        &self.drive_id,
+      ],
+    )?;
+    Ok(())
+  }
+
+  /// A separate per-account marker makes the historical content catch-up
+  /// explicit. `timestamp` cannot serve this purpose because legacy rows have
+  /// always received a creation timestamp from SQLite.
+  pub fn needs_goal_index_backfill(account_email: &str) -> Result<bool, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT NOT EXISTS(
+        SELECT 1 FROM drive_goal_index_backfills WHERE account_email = ?1
+      ) AND (
+        NOT EXISTS(SELECT 1 FROM drive_goal_index_backfill_attempts WHERE account_email = ?1)
+        OR COALESCE((SELECT attempted_at FROM drive_goal_index_backfill_attempts WHERE account_email = ?1), 0)
+           < strftime('%s','now') - 86400
+      )",
+    )?;
+    stmt
+      .query_row(params![account_email], |row| row.get(0))
+      .map_err(Into::into)
+  }
+
+  pub fn mark_goal_index_backfill_complete(account_email: &str) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "INSERT OR REPLACE INTO drive_goal_index_backfills (account_email, completed_at)
+       VALUES (?1, strftime('%s','now'))",
+      params![account_email],
+    )?;
+    Ok(())
+  }
+
+  pub fn record_goal_index_backfill_attempt(account_email: &str) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "INSERT OR REPLACE INTO drive_goal_index_backfill_attempts (account_email, attempted_at)
+       VALUES (?1, strftime('%s','now'))",
+      params![account_email],
+    )?;
+    Ok(())
+  }
+
   pub fn find_by_id(id: u64) -> Result<Option<DriveDocument>, Error> {
     let connection = get_db_conn();
     let mut stmt = connection
@@ -77,6 +190,40 @@ impl DriveDocument {
       .optional()?;
 
     Ok(drive_document)
+  }
+
+  pub fn find_by_drive_id_for_account(
+    drive_id: &str,
+    account_email: &str,
+  ) -> Result<Option<DriveDocument>, Error> {
+    let connection = get_db_conn();
+    let mut stmt = connection.prepare(
+      "SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email
+       FROM drive_documents WHERE drive_id = ?1 AND account_email = ?2",
+    )?;
+    let drive_document = stmt
+      .query_row(params![drive_id, account_email], |row| {
+        Ok(DriveDocument {
+          id: row.get(0)?, drive_id: row.get(1)?, filename: row.get(2)?, file_size: row.get(3)?,
+          date_modified: row.get(4)?, date_created: row.get(5)?, summary: row.get(6)?,
+          checksum: row.get(7)?, url: row.get(8)?, timestamp: row.get(9)?, content_chunks: None,
+          account_email: row.get(10).unwrap_or_default(),
+        })
+      })
+      .optional()?;
+    Ok(drive_document)
+  }
+
+  pub fn claim_unscoped_drive_id_for_account(
+    drive_id: &str,
+    account_email: &str,
+  ) -> Result<Option<DriveDocument>, Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE drive_documents SET account_email = ?2 WHERE drive_id = ?1 AND TRIM(account_email) = ''",
+      params![drive_id, account_email],
+    )?;
+    Self::find_by_drive_id_for_account(drive_id, account_email)
   }
 
   pub fn find_by_ids(ids: Vec<String>) -> Result<Vec<DriveDocument>, Error> {
@@ -158,6 +305,63 @@ impl DriveDocument {
     let count = stmt.query_row(params![], |row| Ok(row.get::<_, u64>(0)?))?;
 
     Ok(count)
+  }
+
+  /// Return Drive files whose name or locally persisted text index looks
+  /// likely to contain an objective, OKR, or planning target. Callers use this
+  /// metadata only to select evidence for a goal proposal.
+  pub fn find_goal_evidence(limit: usize) -> Result<Vec<DriveDocument>, Error> {
+    const GOAL_TERMS: [&str; 12] = [
+      "okr",
+      "objective",
+      "key result",
+      "goal",
+      "target",
+      "kpi",
+      "metric",
+      "milestone",
+      "north star",
+      "annual plan",
+      "strategic plan",
+      "quarterly plan",
+    ];
+
+    let connection = get_db_conn();
+    let clauses = GOAL_TERMS
+      .iter()
+      .map(|_| "(LOWER(filename) LIKE ? OR LOWER(summary) LIKE ?)")
+      .collect::<Vec<_>>()
+      .join(" OR ");
+    let query = format!(
+      "SELECT id, drive_id, filename, file_size, date_modified, date_created, summary, checksum, url, timestamp, account_email \
+       FROM drive_documents WHERE {clauses} ORDER BY date_modified DESC LIMIT ?"
+    );
+    let mut params = Vec::with_capacity(GOAL_TERMS.len() * 2 + 1);
+    for term in GOAL_TERMS {
+      let pattern = format!("%{term}%");
+      params.push(pattern.clone());
+      params.push(pattern);
+    }
+    params.push(limit.max(1).to_string());
+
+    let mut stmt = connection.prepare(&query)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+      Ok(DriveDocument {
+        id: row.get(0)?,
+        drive_id: row.get(1)?,
+        filename: row.get(2)?,
+        file_size: row.get(3)?,
+        date_modified: row.get(4)?,
+        date_created: row.get(5)?,
+        summary: row.get(6)?,
+        checksum: row.get(7)?,
+        url: row.get(8)?,
+        timestamp: row.get(9)?,
+        content_chunks: None,
+        account_email: row.get(10).unwrap_or_default(),
+      })
+    })?;
+    Ok(rows.filter_map(Result::ok).collect())
   }
 
   pub fn upsert(&mut self) -> Result<(), Error> {

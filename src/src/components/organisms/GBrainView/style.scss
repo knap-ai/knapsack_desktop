@@ -1018,6 +1018,17 @@
   font-size: 12px;
 }
 
+.GoalDiscoveryStatus {
+  margin: 0 1.5rem 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgba(121, 96, 45, 0.22);
+  border-radius: 0.75rem;
+  background: #fffdf8;
+  color: #66552d;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
 .GoalImport,
 .GoalProposal,
 .GoalBuilder,
