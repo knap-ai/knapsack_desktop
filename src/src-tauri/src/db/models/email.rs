@@ -233,11 +233,28 @@ impl Email {
     ];
 
     let connection = get_db_conn();
-    let mut stmt = connection.prepare(
+    // Apply the candidate filter before the bounded scan. Otherwise a busy
+    // inbox can hide older planning messages behind 500 unrelated messages.
+    // The rendered-text check below remains the final authority, because the
+    // stored body can contain HTML markup that should not count as evidence.
+    let candidate_conditions = GOAL_TERMS
+      .iter()
+      .map(|_| "(LOWER(subject) LIKE ? OR LOWER(body) LIKE ?)")
+      .collect::<Vec<_>>()
+      .join(" OR ");
+    let query = format!(
       "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email \
-       FROM emails WHERE COALESCE(is_deleted, 0) = 0 ORDER BY date DESC LIMIT 500",
+       FROM emails WHERE COALESCE(is_deleted, 0) = 0 AND ({candidate_conditions}) ORDER BY date DESC LIMIT 500"
+    );
+    let candidate_terms = GOAL_TERMS
+      .iter()
+      .flat_map(|term| [format!("%{term}%"), format!("%{term}%")])
+      .collect::<Vec<_>>();
+    let mut stmt = connection.prepare(&query)?;
+    let rows = stmt.query_map(
+      rusqlite::params_from_iter(candidate_terms.iter()),
+      Email::build_struct_from_row,
     )?;
-    let rows = stmt.query_map([], Email::build_struct_from_row)?;
     Ok(rows
       .filter_map(|row| row.ok())
       .filter_map(|mut email| {
