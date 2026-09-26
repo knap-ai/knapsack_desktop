@@ -24,9 +24,21 @@ test('the minute clock uses rich meeting prep rather than the generic exact-minu
 
 test('a notification is considered delivered only when its window opens', () => {
   const automations = read('src/hooks/automation/useAutomations.tsx')
+  const native = read('src-tauri/src/main.rs')
   assert.match(automations, /if \(isNotificationWindowShowing\) return false/)
-  assert.match(automations, /setIsNotificationWindowShowing\(true\)\s*return true/)
+  assert.match(automations, /const didShow = await invoke<boolean>\('show_notification_window'/)
+  assert.match(automations, /if \(!didShow\) return false\s*setIsNotificationWindowShowing\(true\)\s*return true/)
   assert.match(automations, /Error showing notification window[\s\S]*?return false/)
+  assert.match(native, /async fn show_notification_window[\s\S]*?\) -> bool/)
+  assert.match(native, /if let Ok\(Some\(monitor\)\) = window\.current_monitor\(\)/)
+  assert.match(native, /return false;[\s\S]*?window\.show\(\)\.is_err\(\)/)
+})
+
+test('channel delivery does not depend on opening a local notification window', () => {
+  const didOpen = notifications.indexOf('const didOpen = await openNotificationWindow(')
+  const channels = notifications.indexOf('void pushToChannels(', didOpen)
+  const retry = notifications.indexOf('if (!didOpen) return response', didOpen)
+  assert.ok(didOpen >= 0 && channels > didOpen && retry > channels)
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {

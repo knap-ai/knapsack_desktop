@@ -760,80 +760,92 @@ async fn show_notification_window(
   title: String,
   time: String,
   brief: Option<String>,
-) {
+) -> bool {
   if let Some(window) = app.get_window("notification") {
-    if let Ok(monitor) = window.current_monitor() {
-      if let Some(monitor) = monitor {
-        let screen_size = monitor.size();
-        let scale_factor = monitor.scale_factor();
+    if let Ok(Some(monitor)) = window.current_monitor() {
+      let screen_size = monitor.size();
+      let scale_factor = monitor.scale_factor();
 
-        // Convert logical notification dimensions to physical pixels
-        let physical_notif_width = (NOTIF_WIDTH * scale_factor) as i32;
-        let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
-        let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
+      // Convert logical notification dimensions to physical pixels
+      let physical_notif_width = (NOTIF_WIDTH * scale_factor) as i32;
+      let physical_end_offset = (NOTIF_END_X_OFFSET as f64 * scale_factor) as i32;
+      let physical_start_offset = (NOTIF_START_X_OFFSET as f64 * scale_factor) as i32;
 
-        let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
+      let y_position = (NOTIF_Y_OFFSET * scale_factor) as i32;
 
-        // Size the notification window to just fit its content
-        window
-          .set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: NOTIF_WIDTH,
-            height: NOTIF_HEIGHT,
-          }))
-          .unwrap();
+      // Size the notification window to just fit its content
+      if window
+        .set_size(tauri::Size::Logical(tauri::LogicalSize {
+          width: NOTIF_WIDTH,
+          height: NOTIF_HEIGHT,
+        }))
+        .is_err()
+      {
+        return false;
+      }
 
-        let start_x = screen_size.width as i32 + physical_start_offset;
+      let start_x = screen_size.width as i32 + physical_start_offset;
 
-        window
+      if window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+          x: start_x,
+          y: y_position,
+        }))
+        .is_err()
+      {
+        return false;
+      }
+
+      if window
+        .emit(
+          "notification_event_id",
+          json!({
+            "event_id": event_id,
+            "button_configs": button_configs,
+            "title": title,
+            "time": time,
+            "brief": brief,
+          }),
+        )
+        .is_err()
+      {
+        return false;
+      }
+
+      let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
+
+      for i in 0..=NOTIF_ANIMATION_DURATION {
+        let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
+
+        let ease = if t < 0.5 {
+          4.0 * t * t * t
+        } else {
+          1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
+        };
+
+        let current_x = start_x + ((final_x - start_x) as f32 * ease) as i32;
+
+        if window
           .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-            x: start_x,
+            x: current_x,
             y: y_position,
           }))
-          .unwrap();
-
-        window
-          .emit(
-            "notification_event_id",
-            json!({
-              "event_id": event_id,
-              "button_configs": button_configs,
-              "title": title,
-              "time": time,
-              "brief": brief,
-            }),
-          )
-          .unwrap();
-
-        let final_x = screen_size.width as i32 - physical_notif_width - physical_end_offset;
-
-        for i in 0..=NOTIF_ANIMATION_DURATION {
-          let t = i as f32 / NOTIF_ANIMATION_DURATION as f32;
-
-          let ease = if t < 0.5 {
-            4.0 * t * t * t
-          } else {
-            1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
-          };
-
-          let current_x = start_x + ((final_x - start_x) as f32 * ease) as i32;
-
-          window
-            .set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-              x: current_x,
-              y: y_position,
-            }))
-            .unwrap();
-          window.show();
-          tokio::time::sleep(std::time::Duration::from_millis(NOTIF_FRAME_TIME)).await;
+          .is_err()
+          || window.show().is_err()
+        {
+          return false;
         }
-
-        // On macOS, always-on-top transparent windows are floating panels that
-        // don't become the key window on click. Without key status, WKWebView
-        // won't forward mouse events to JavaScript, making buttons unclickable.
-        window.set_focus().ok();
+        tokio::time::sleep(std::time::Duration::from_millis(NOTIF_FRAME_TIME)).await;
       }
+
+      // On macOS, always-on-top transparent windows are floating panels that
+      // don't become the key window on click. Without key status, WKWebView
+      // won't forward mouse events to JavaScript, making buttons unclickable.
+      window.set_focus().ok();
+      return true;
     }
   }
+  false
 }
 
 #[tauri::command]
