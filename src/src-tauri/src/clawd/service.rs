@@ -11189,7 +11189,10 @@ pub async fn ollama_configure(
   }
 
   tokens.ollama_enabled = Some(payload.enabled);
-  tokens.ollama_cloud_enabled = Some(payload.enabled && cloud);
+  // Runtime enablement and the selected mode are independent.  Retaining the
+  // mode lets a temporarily-disabled Cloud configuration be enabled again
+  // without silently falling back to a local marker against the Cloud URL.
+  tokens.ollama_cloud_enabled = Some(cloud);
   if let Some(model) = &payload.model {
     let m = model.trim().to_string();
     tokens.ollama_model = if m.is_empty() { None } else { Some(m) };
@@ -11343,10 +11346,7 @@ pub async fn ollama_delete(
   payload: web::Json<OllamaDeleteRequest>,
 ) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = local_ollama_base_url(tokens.as_ref());
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
@@ -11393,10 +11393,7 @@ pub async fn ollama_pull(
   payload: web::Json<OllamaPullRequest>,
 ) -> impl Responder {
   let tokens = load_or_create_tokens(&app_handle).ok();
-  let base_url = tokens
-    .as_ref()
-    .and_then(|t| t.ollama_base_url.clone())
-    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+  let base_url = local_ollama_base_url(tokens.as_ref());
 
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(3600)) // large models may take a while
