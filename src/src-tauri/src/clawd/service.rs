@@ -270,11 +270,7 @@ fn kill_process_on_port(port: u16) {
 }
 
 #[cfg(any(not(target_os = "windows"), test))]
-fn managed_browser_pids_from_ps(
-  output: &str,
-  user_data_dir: &Path,
-  current_pid: u32,
-) -> Vec<i32> {
+fn managed_browser_pids_from_ps(output: &str, user_data_dir: &Path, current_pid: u32) -> Vec<i32> {
   let marker = format!("--user-data-dir={}", user_data_dir.to_string_lossy());
   let mut pids = output
     .lines()
@@ -1721,7 +1717,10 @@ mod knapsack_tools_allow_tests {
 
     assert!(ensure_knapsack_tool_allow(&mut cfg));
     for pointer in ["/tools/allow", "/tools/sandbox/tools/allow"] {
-      let allow = cfg.pointer(pointer).and_then(|value| value.as_array()).unwrap();
+      let allow = cfg
+        .pointer(pointer)
+        .and_then(|value| value.as_array())
+        .unwrap();
       for tool in ["sessions_spawn", "sessions_yield", "subagents"] {
         assert!(
           allow.iter().any(|item| item.as_str() == Some(tool)),
@@ -1821,9 +1820,7 @@ fn ensure_knapsack_tool_allow(cfg: &mut serde_json::Value) -> bool {
   }
 
   if patched {
-    eprintln!(
-      "[clawd/service] Reconciled Knapsack tools.allow / tools.sandbox.tools.allow"
-    );
+    eprintln!("[clawd/service] Reconciled Knapsack tools.allow / tools.sandbox.tools.allow");
   }
 
   patched
@@ -1928,7 +1925,11 @@ fn ensure_knapsack_studio_tool_allow(cfg: &mut serde_json::Value) -> bool {
 pub(crate) fn force_reset_invalid_gateway_config_sections(
   config_snapshot: &serde_json::Value,
 ) -> Result<Vec<String>, String> {
-  if config_snapshot.get("valid").and_then(serde_json::Value::as_bool) != Some(false) {
+  if config_snapshot
+    .get("valid")
+    .and_then(serde_json::Value::as_bool)
+    != Some(false)
+  {
     return Ok(vec![]);
   }
   let config_path = config_snapshot
@@ -1952,8 +1953,7 @@ pub(crate) fn force_reset_invalid_gateway_config_sections(
   reset_paths.dedup();
   if reset_paths.is_empty() {
     return Err(
-      "config is invalid but the gateway reported no resettable (non-root) issue path"
-        .to_string(),
+      "config is invalid but the gateway reported no resettable (non-root) issue path".to_string(),
     );
   }
 
@@ -2203,6 +2203,23 @@ fn ensure_knapsack_channel_runtime_defaults(cfg: &mut serde_json::Value) -> bool
     .pointer_mut("/channels/slack")
     .and_then(|value| value.as_object_mut())
   {
+    // The bundled Slack integration reads these canonical top-level fields.
+    // Older Knapsack builds wrote a nested `dm` object instead, leaving a
+    // configured allowlist invisible to the running gateway. Preserve the
+    // legacy object but migrate its policy fields once at startup.
+    if slack.get("dmPolicy").is_none() {
+      if let Some(policy) = slack.get("dm").and_then(|dm| dm.get("policy")).cloned() {
+        slack.insert("dmPolicy".to_string(), policy);
+        patched = true;
+      }
+    }
+    if slack.get("allowFrom").is_none() {
+      if let Some(allow_from) = slack.get("dm").and_then(|dm| dm.get("allowFrom")).cloned() {
+        slack.insert("allowFrom".to_string(), allow_from);
+        patched = true;
+      }
+    }
+
     let desired_reply_modes = serde_json::json!({
       "group": "all",
       "channel": "all"
@@ -5648,8 +5665,7 @@ fn reconcile_default_agent_model_config(cfg: &mut serde_json::Value) -> bool {
     ),
     provider => expected_provider == provider,
   };
-  if !selection_matches
-    || !crate::clawd::gateway_client::gateway_model_ref_usable(expected_primary)
+  if !selection_matches || !crate::clawd::gateway_client::gateway_model_ref_usable(expected_primary)
   {
     return false;
   }
@@ -7506,7 +7522,8 @@ pub(crate) fn last_docker_sandbox_error_from_logs() -> Option<String> {
       .map(|line| line.trim().to_string())
   };
 
-  last_match(&read_tail(gateway_stderr_log())).or_else(|| last_match(&read_tail(gateway_stdout_log())))
+  last_match(&read_tail(gateway_stderr_log()))
+    .or_else(|| last_match(&read_tail(gateway_stdout_log())))
 }
 
 pub(crate) fn gateway_ready_since_last_start() -> bool {
@@ -12016,7 +12033,11 @@ async fn prepare_gateway_config(
         if ensure_knapsack_plugin_allowlist(&mut cfg_val) {
           patched = true;
         }
-        if ensure_knapsack_session_isolation(&mut cfg_val, docker_sandbox_available, force_docker_mode) {
+        if ensure_knapsack_session_isolation(
+          &mut cfg_val,
+          docker_sandbox_available,
+          force_docker_mode,
+        ) {
           eprintln!(
             "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
             docker_sandbox_available
@@ -12024,7 +12045,9 @@ async fn prepare_gateway_config(
           patched = true;
         }
         if ensure_knapsack_sandbox_browser_host_control(&mut cfg_val) {
-          eprintln!("[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser");
+          eprintln!(
+            "[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser"
+          );
           patched = true;
         }
         if ensure_knapsack_channel_runtime_defaults(&mut cfg_val) {
@@ -14122,7 +14145,11 @@ pub async fn set_service_enabled(
                 reason
               );
             }
-            if ensure_knapsack_session_isolation(&mut cfg, docker_sandbox_available, force_docker_mode) {
+            if ensure_knapsack_session_isolation(
+              &mut cfg,
+              docker_sandbox_available,
+              force_docker_mode,
+            ) {
               eprintln!(
                 "[clawd/service] Patched shared-channel isolation (per-peer sessions; Docker sandbox available={})",
                 docker_sandbox_available
@@ -14130,7 +14157,9 @@ pub async fn set_service_enabled(
               patched = true;
             }
             if ensure_knapsack_sandbox_browser_host_control(&mut cfg) {
-              eprintln!("[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser");
+              eprintln!(
+                "[clawd/service] Allowed sandboxed Scout sessions to use the managed host browser"
+              );
               patched = true;
             }
             if ensure_knapsack_channel_runtime_defaults(&mut cfg) {
@@ -16350,7 +16379,9 @@ pub async fn start_studio_connector_oauth(
       return HttpResponse::InternalServerError().json(StudioConnectorOauthResponse {
         success: false,
         url: None,
-        message: Some(format!("Could not initialize the Studio connection: {error}")),
+        message: Some(format!(
+          "Could not initialize the Studio connection: {error}"
+        )),
       })
     }
   };
@@ -18347,12 +18378,12 @@ mod knapsack_runtime_auth_tests {
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,
-    ensure_knapsack_progress_draft_labels, ensure_knapsack_session_isolation,
-    ensure_knapsack_sandbox_browser_host_control,
-    ensure_knapsack_snowflake_mcp_server, ensure_knapsack_studio_mcp_server,
-    ensure_knapsack_studio_tool_allow, has_knapsack_runtime_auth, knapsack_auth_is_expired,
-    parse_studio_connector_catalog, sync_active_provider_for_ollama_toggle, StoredTokens,
-    KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS, KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
+    ensure_knapsack_progress_draft_labels, ensure_knapsack_sandbox_browser_host_control,
+    ensure_knapsack_session_isolation, ensure_knapsack_snowflake_mcp_server,
+    ensure_knapsack_studio_mcp_server, ensure_knapsack_studio_tool_allow,
+    has_knapsack_runtime_auth, knapsack_auth_is_expired, parse_studio_connector_catalog,
+    sync_active_provider_for_ollama_toggle, StoredTokens, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS,
+    KNAPSACK_OPENCLAW_SANDBOX_DOCKERFILE,
   };
   use std::path::PathBuf;
 
@@ -18835,7 +18866,9 @@ mod knapsack_runtime_auth_tests {
     assert!(!ensure_knapsack_progress_draft_labels(&mut cfg));
     for channel in ["whatsapp", "googlechat", "signal", "imessage"] {
       assert!(
-        cfg.pointer(&format!("/channels/{channel}/streaming")).is_none(),
+        cfg
+          .pointer(&format!("/channels/{channel}/streaming"))
+          .is_none(),
         "{channel} must not get a streaming field injected"
       );
     }
@@ -18954,6 +18987,54 @@ mod knapsack_runtime_auth_tests {
     assert!(cfg
       .pointer("/channels/slack/streaming/progress/nativeTaskCards")
       .is_none());
+  }
+
+  #[test]
+  fn runtime_defaults_migrate_legacy_slack_dm_policy_without_overwriting_canonical_values() {
+    let mut cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "dm": { "policy": "open", "allowFrom": ["*"] }
+        }
+      }
+    });
+
+    assert!(ensure_knapsack_channel_runtime_defaults(&mut cfg));
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/dmPolicy")
+        .and_then(|value| value.as_str()),
+      Some("open")
+    );
+    assert_eq!(
+      cfg
+        .pointer("/channels/slack/allowFrom/0")
+        .and_then(|value| value.as_str()),
+      Some("*")
+    );
+
+    let mut canonical_cfg = serde_json::json!({
+      "channels": {
+        "slack": {
+          "dmPolicy": "pairing",
+          "allowFrom": ["U_CANONICAL"],
+          "dm": { "policy": "open", "allowFrom": ["*"] }
+        }
+      }
+    });
+    ensure_knapsack_channel_runtime_defaults(&mut canonical_cfg);
+    assert_eq!(
+      canonical_cfg
+        .pointer("/channels/slack/dmPolicy")
+        .and_then(|value| value.as_str()),
+      Some("pairing")
+    );
+    assert_eq!(
+      canonical_cfg
+        .pointer("/channels/slack/allowFrom/0")
+        .and_then(|value| value.as_str()),
+      Some("U_CANONICAL")
+    );
   }
 
   #[test]
@@ -19111,7 +19192,10 @@ mod service_status_message_tests {
       812 helper --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data\n\
       813 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/tmp/Knapsack QA/browser/openclaw/user-data-backup\n";
 
-    assert_eq!(managed_browser_pids_from_ps(output, profile, 812), vec![810]);
+    assert_eq!(
+      managed_browser_pids_from_ps(output, profile, 812),
+      vec![810]
+    );
   }
 
   #[test]
@@ -19131,8 +19215,7 @@ mod service_status_message_tests {
 
   #[test]
   fn ready_launch_agent_is_reported_as_running() {
-    let (running, message) =
-      mac_service_status_summary(true, true, true, true, None, None, false);
+    let (running, message) = mac_service_status_summary(true, true, true, true, None, None, false);
 
     assert!(running);
     assert_eq!(message, "Clawdbot service is running");

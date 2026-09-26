@@ -4005,7 +4005,11 @@ pub async fn chat(
         format!("https://{}", url_raw)
       };
 
-      // Try gateway RPC first, fall back to system shell open immediately
+      // The desktop's managed browser is presented in-app.  Falling back to
+      // the system shell here opens a second Chrome window with the same URL
+      // whenever the control RPC is briefly unavailable, leaving the user
+      // with two divergent browser sessions.  Fail the tool call instead so
+      // the agent can retry the managed workspace without creating a popup.
       let out = match do_post(
         "/tabs/open",
         serde_json::json!({"url": url.clone()}),
@@ -4016,19 +4020,10 @@ pub async fn chat(
         Ok(v) => v,
         Err(e) => {
           eprintln!(
-            "[clawd/chat] open_url gateway failed ({}), falling back to Chrome",
+            "[clawd/chat] open_url gateway failed; leaving the managed browser in place: {}",
             e
           );
-          match fallback_open_url(&app_handle, &url) {
-            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
-            Err(shell_err) => {
-              anyhow::bail!(
-                "Failed to open URL via gateway ({}) and Chrome fallback ({})",
-                e,
-                shell_err
-              );
-            }
-          }
+          anyhow::bail!("Managed browser could not open the URL: {}", e);
         }
       };
       return Ok(json!({"ok": true, "result": out}));
@@ -4066,24 +4061,16 @@ pub async fn chat(
         }
         p
       };
-      // Try gateway RPC, fall back to shell open immediately
+      // Keep navigation in the existing managed tab.  A shell fallback would
+      // create a second visible browser window and break the embedded view.
       let out = match do_post("/navigate", mk_payload(), &query).await {
         Ok(v) => v,
         Err(e) => {
           eprintln!(
-            "[clawd/chat] navigate gateway failed ({}), falling back to Chrome",
+            "[clawd/chat] navigate gateway failed; leaving the managed browser in place: {}",
             e
           );
-          match fallback_open_url(&app_handle, &url) {
-            Ok(_) => format!("Opened in Chrome (fallback): {}", url),
-            Err(shell_err) => {
-              anyhow::bail!(
-                "Failed to navigate via gateway ({}) and Chrome fallback ({})",
-                e,
-                shell_err
-              );
-            }
-          }
+          anyhow::bail!("Managed browser could not navigate to the URL: {}", e);
         }
       };
       return Ok(json!({"ok": true, "result": out}));

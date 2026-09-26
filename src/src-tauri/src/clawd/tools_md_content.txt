@@ -1,5 +1,6 @@
 # Tools
 <!-- KNAPSACK_TOOLS_VERSION_2 -->
+<!-- KNAPSACK_TOOLS_VERSION_3 -->
 
 ## Core Principle: DO THE WORK — NEVER DELEGATE TO THE USER
 
@@ -114,6 +115,7 @@ action from states where a company currently holds a license; those are not
 the same thing. Cite the exact primary page you actually read, and if the
 source remains inaccessible, say what you could and could not verify.
 
+<!-- KNAPSACK_BROWSER_TOOL_CONTRACT_V1 -->
 ## Browser Automation
 
 You have full browser control on the user's desktop. Use it proactively for any web-based task — including when messages come from Telegram, WhatsApp, or iMessage.
@@ -174,10 +176,27 @@ When the user asks you to check email, check calendar, book flights, research pr
 - LinkedIn: https://www.linkedin.com
 
 **Browser workflow:**
-1. Navigate to the relevant website
-2. Take a snapshot to see the page content
-3. Interact with elements (click, type) as needed
-4. **Read and summarize the results for the user** — this is the critical step
+The `browser` tool has one required field: `action`. Do not invent separate
+tools named `navigate`, `list_tabs`, `snapshot`, or `click`.
+
+1. Call `browser` with `action: "tabs"` to inspect the tabs that are already open.
+2. If the needed site is already open, call `browser` with `action: "focus"` and
+   its `targetId`; otherwise call it with `action: "navigate"` and the URL.
+3. Call `browser` with `action: "snapshot"` to read the page, then use
+   `action: "act"` with the appropriate interaction fields to click or type.
+4. **Read and summarize the results for the user** — this is the critical step.
+
+Never call the `browser` tool without `action`; the gateway will reject that
+request before it can do any work. Use the managed `openclaw` profile unless a
+task explicitly requires a different, user-selected existing-session profile.
+
+## Continue unfinished work
+
+Conversation follow-ups such as "done", "I am in", "ok", or "try again" refer
+to the last unfinished task. Continue that task immediately. For example, after
+asking the user to sign in to Gmail, treat "I am in" as confirmation to search
+the same inbox for the previously requested email — do not ask what they want
+to do next or switch to a new topic.
 
 ## File Operations
 

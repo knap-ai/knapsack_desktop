@@ -449,6 +449,46 @@ fn migrate_tools_md_security_guidance(content: &str) -> String {
     updated = updated.replacen("# Tools", "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->", 1);
   }
 
+  // The bundled OpenClaw browser plugin exposes a single `browser` tool with
+  // a required `action` field. Older desktop workspaces only described the
+  // browser capability in prose, so models often emitted a bare browser call
+  // (or invented `navigate` / `list_tabs` tools) that the gateway rejected
+  // before execution. Migrate existing workspaces as well as fresh installs.
+  if !updated.contains("KNAPSACK_BROWSER_TOOL_CONTRACT_V1") {
+    let browser_contract = r#"
+
+<!-- KNAPSACK_BROWSER_TOOL_CONTRACT_V1 -->
+## Browser tool contract
+
+The `browser` tool always requires an `action` field. Call `browser` with
+`action: "tabs"` first to inspect open tabs. Use `action: "focus"` with a
+`targetId` to reuse an existing tab, or `action: "navigate"` with `url` to
+reuse the current tab. Use `action: "snapshot"` to read a page and
+`action: "act"` for clicks and typing. Never call `browser` without `action`,
+and never invent separate tools named `navigate`, `list_tabs`, `snapshot`, or
+`click`.
+
+## Continue unfinished work
+
+"done", "I am in", "ok", and "try again" continue the most recent unfinished
+task. After the user confirms a Gmail sign-in, immediately continue the
+previous inbox search rather than asking for a new request.
+"#;
+    if updated.contains("## Browser Automation") {
+      updated = updated.replacen(
+        "## Browser Automation",
+        &format!("{}\n\n## Browser Automation", browser_contract),
+        1,
+      );
+    } else {
+      updated.push_str(browser_contract);
+    }
+  }
+
+  if !updated.contains("KNAPSACK_TOOLS_VERSION_3") {
+    updated = updated.replacen("# Tools", "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_3 -->", 1);
+  }
+
   // Without this, the model has no documented reason to trust an unfamiliar
   // `snowflake_query` tool over its own training-data assumption that
   // "Snowflake access" always means an OAuth/credentials setup step — so it
@@ -3725,6 +3765,33 @@ mod tests {
     let migrated_again = migrate_tools_md_security_guidance(&migrated);
     assert_eq!(migrated_again.matches("## Snowflake").count(), 1);
     assert!(!migrated.contains("with your own `session_id`"));
+  }
+
+  #[test]
+  fn tools_md_migration_adds_browser_action_contract_and_followup_guidance() {
+    let existing = "# Tools\n<!-- KNAPSACK_TOOLS_VERSION_2 -->\n\n## Browser Automation\nUse the browser.\n\n<!-- LOCAL_API_VIA_EXEC -->\n**Channel-specific notes:**\n\n## SELF-REVIEW: Check Every Response Before Sending\n";
+    let migrated = migrate_tools_md_security_guidance(existing);
+
+    assert!(migrated.contains("KNAPSACK_TOOLS_VERSION_3"));
+    assert!(migrated.contains("KNAPSACK_BROWSER_TOOL_CONTRACT_V1"));
+    assert!(migrated.contains("requires an `action` field"));
+    assert!(migrated.contains("continue the most recent unfinished"));
+
+    let migrated_again = migrate_tools_md_security_guidance(&migrated);
+    assert_eq!(
+      migrated_again
+        .matches("KNAPSACK_BROWSER_TOOL_CONTRACT_V1")
+        .count(),
+      1
+    );
+  }
+
+  #[test]
+  fn canonical_tools_template_has_current_browser_contract_markers() {
+    let canonical = include_str!("tools_md_content.txt");
+
+    assert!(canonical.contains("KNAPSACK_TOOLS_VERSION_3"));
+    assert!(canonical.contains("KNAPSACK_BROWSER_TOOL_CONTRACT_V1"));
   }
 
   /// Workspaces that received the first-draft Snowflake block are skipped by
