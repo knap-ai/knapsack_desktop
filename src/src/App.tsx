@@ -1023,11 +1023,11 @@ function App() {
     handleAutomation,
     updateAutomation,
     handleAutomationPreview,
-    handleNotificationsScheduleService,
     scheduleRuns,
     syncAutomations,
     googleAuthControls,
     openNotificationWindow,
+    handleNotificationsScheduleService,
   } = useAutomations({
     userEmail,
     connections,
@@ -1040,6 +1040,7 @@ function App() {
   })
 
   const {
+    checkMeetingPrep,
     checkMorningBriefing,
     checkProactiveCheckin,
     handleEmailSyncComplete,
@@ -1092,23 +1093,55 @@ function App() {
     }
     const MINUTE_MS = 60000
 
-    const minuteInterval = setInterval(() => {
+    let tickInFlight = false
+    const tick = () => {
+      if (tickInFlight) return
+      tickInFlight = true
       const date = new Date()
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
-      if (!LOCAL_QA_SAFE) {
-        handleNotificationsScheduleService(date)
-        handleAutomationsFeedScheduleService(date)
-        checkMorningBriefing(date)
-        checkProactiveCheckin(date)
-      }
-      updateMeetingStatuses(currentTime)
-    }, MINUTE_MS)
+      void (async () => {
+        if (!LOCAL_QA_SAFE) {
+        // Meeting prep is evaluated on a forgiving time range, not a single
+        // calendar-sync event or exact minute, so reminders survive wake-ups
+        // and transient sync delays.
+          // Prep can require an LLM request. Do not let a slow or stalled
+          // generation delay the near-start recorder alert or other
+          // minute-based schedulers.
+          void checkMeetingPrep()
+          // The notifications service can wait on calendar I/O. Keep it
+          // independent from the minute clock so a stalled request cannot
+          // suppress later recorder or meeting-status updates.
+          void handleNotificationsScheduleService(date).catch((error) => {
+            console.warn('[notifications] scheduled check failed', error)
+          })
+          // These two flows can wait on the model. They must not hold the
+          // minute clock hostage or suppress meeting-status updates.
+          void checkMorningBriefing(date)
+          void checkProactiveCheckin(date)
+          handleAutomationsFeedScheduleService(date)
+        }
+        updateMeetingStatuses(currentTime)
+      })().finally(() => {
+        tickInFlight = false
+      })
+    }
+
+    tick()
+    const minuteInterval = setInterval(tick, MINUTE_MS)
 
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [userEmail, checkMorningBriefing, checkProactiveCheckin])
+  }, [
+    userEmail,
+    checkMeetingPrep,
+    checkMorningBriefing,
+    checkProactiveCheckin,
+    handleNotificationsScheduleService,
+    handleAutomationsFeedScheduleService,
+    updateMeetingStatuses,
+  ])
 
   const periodicSyncRef = useRef({
     fetchConnections,

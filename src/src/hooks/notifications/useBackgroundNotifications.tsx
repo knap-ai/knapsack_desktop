@@ -54,8 +54,19 @@ type UseBackgroundNotificationsProps = {
     buttonConfigs: ButtonConfig[],
     title: string,
     time: string,
-  ) => Promise<void>
+    brief?: string,
+    replaceExisting?: boolean,
+  ) => Promise<boolean>
   addToLLMQueue: (item: LLMParams) => void
+}
+
+type UpcomingMeeting = {
+  id: string | number
+  eventId?: string
+  start: Date | string | number
+  title: string
+  participants?: { name: string; email: string }[]
+  description?: string
 }
 
 // Adaptive throttle: minimum minutes between notifications by priority
@@ -84,6 +95,7 @@ const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
 const KN_PREPPED_MEETING_IDS = 'kn_prepped_meeting_ids'
+const KN_PREPPED_MEETING_CHANNEL_IDS = 'kn_prepped_meeting_channel_ids'
 
 /** Load persisted prepped-meeting IDs from localStorage, pruning any older than 7 days. */
 function loadPreppedMeetingIds(): Set<string> {
@@ -125,6 +137,21 @@ function persistPreppedMeetingId(meetingKey: string) {
   }
 }
 
+/**
+ * A recurring calendar series reuses its event ID. Include the occurrence start
+ * so tomorrow's instance is not mistaken for a meeting we already prepared.
+ */
+export function getMeetingPrepNotificationKey(meeting: UpcomingMeeting): string {
+  const occurrenceStart = new Date(meeting.start).getTime()
+  return `${meeting.eventId || meeting.id}:${occurrenceStart}`
+}
+
+/** Keep the prep alert useful without depending on an exact timer tick. */
+export function isMeetingInPrepWindow(meeting: UpcomingMeeting, now: Date): boolean {
+  const minutesUntil = (new Date(meeting.start).getTime() - now.getTime()) / (60 * 1000)
+  return minutesUntil >= 10 && minutesUntil <= 30
+}
+
 export function useBackgroundNotifications({
   userEmail,
   userName,
@@ -137,6 +164,17 @@ export function useBackgroundNotifications({
   const pendingFollowupRef = useRef<BackgroundNotificationResult | null>(null)
   const lastNotificationTimeRef = useRef<number>(0)
   const preppedMeetingIdsRef = useRef<Set<string>>(loadPreppedMeetingIds())
+  const preppedMeetingChannelIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const raw = localStorage.getItem(KN_PREPPED_MEETING_CHANNEL_IDS)
+        return new Set<string>(raw ? JSON.parse(raw) : [])
+      } catch {
+        return new Set<string>()
+      }
+    })(),
+  )
+  const inFlightMeetingChannelIdsRef = useRef<Set<string>>(new Set())
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -169,10 +207,14 @@ export function useBackgroundNotifications({
    * Uses adaptive throttling: high-priority notifications can fire more frequently.
    */
   const canSendNotification = useCallback(
-    async (priority: string): Promise<boolean> => {
-      // All proactive notifications require proactive mode to be enabled
-      const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
-      if (!isProactive) return false
+    async (priority: string, requireProactive = true): Promise<boolean> => {
+      // Meeting reminders are an explicit, scheduled user-facing feature. They
+      // remain governed by the notification preference, but are not suppressed
+      // just because conversational Proactive mode is off.
+      if (requireProactive) {
+        const isProactive = localStorage.getItem('moltbot_proactive_mode') === 'true'
+        if (!isProactive) return false
+      }
 
       const enabled = await getBackgroundNotificationsEnabled()
       if (!enabled) return false
@@ -181,6 +223,10 @@ export function useBackgroundNotifications({
       if (!notificationsEnabled) return false
 
       const withChannels = await hasChannelsAttached()
+
+      // A meeting prep is time-bound. Do not let an unrelated email alert or the
+      // general daily cap consume its chance to reach the user.
+      if (priority === 'meeting_prep') return true
 
       // Check throttle based on priority — use lower throttles when channels are attached
       const now = Date.now()
@@ -261,7 +307,12 @@ export function useBackgroundNotifications({
    * full briefing content (stripped of markdown links for channel readability).
    */
   const pushToChannels = useCallback(
-    async (title: string, body: string, fullAnalysis?: string, suggestedAction?: string) => {
+    async (
+      title: string,
+      body: string,
+      fullAnalysis?: string,
+      suggestedAction?: string,
+    ): Promise<boolean> => {
       let text: string
 
       if (fullAnalysis) {
@@ -287,32 +338,40 @@ export function useBackgroundNotifications({
           getIMessageStatus().catch(() => null),
         ])
 
-        const sends: Promise<unknown>[] = []
+        const sends: Promise<boolean>[] = []
 
         // WhatsApp: send to the linked account's own number (self-chat)
         if (waStatus?.enabled && waStatus?.linked && waStatus?.account) {
           sends.push(
-            sendChannelMessage('whatsapp', waStatus.account, text).catch(err =>
-              console.warn('[notifications] WhatsApp send failed:', err),
-            ),
+            sendChannelMessage('whatsapp', waStatus.account, text)
+              .then(result => result.success)
+              .catch(err => {
+                console.warn('[notifications] WhatsApp send failed:', err)
+                return false
+              }),
           )
         }
 
         // iMessage: send to the user's own email
         if (imStatus?.enabled && imStatus?.configured && userEmail) {
           sends.push(
-            sendChannelMessage('imessage', userEmail, text).catch(err =>
-              console.warn('[notifications] iMessage send failed:', err),
-            ),
+            sendChannelMessage('imessage', userEmail, text)
+              .then(result => result.success)
+              .catch(err => {
+                console.warn('[notifications] iMessage send failed:', err)
+                return false
+              }),
           )
         }
 
         if (sends.length > 0) {
-          await Promise.all(sends)
+          return (await Promise.all(sends)).some(Boolean)
         }
+        return false
       } catch (err) {
         // Never let channel sends block the notification flow
         console.warn('[notifications] pushToChannels error:', err)
+        return false
       }
     },
     [userEmail],
@@ -415,7 +474,7 @@ export function useBackgroundNotifications({
    * Only includes recent emails (last 6 hours) to focus on what just arrived.
    */
   const gatherEmailContext = useCallback(
-    async (): Promise<{ context: string; emailCount: number }> => {
+    async (): Promise<{ context: string; emailCount: number; deliveryKeys?: string[] }> => {
       try {
         const emails = await dataFetcher.getRecentGmailMessages(1, 20)
         if (!emails?.length) return { context: '', emailCount: 0 }
@@ -427,8 +486,20 @@ export function useBackgroundNotifications({
         )
         if (!recentEmails.length) return { context: '', emailCount: 0 }
 
+        // Deliver each source email only once. A changing six-hour window must
+        // not make an already-alerted message look new when another message
+        // arrives or ages out.
+        const emailDeliveryKey = (email: any) =>
+          `email-alert:${(email.accountEmail || 'unknown').toLowerCase()}:${
+            email.emailUid || email.documentId || `${email.sender || ''}:${email.subject || ''}:${email.date || ''}`
+          }`
+        const undeliveredEmails = recentEmails.filter(
+          email => !preppedMeetingChannelIdsRef.current.has(emailDeliveryKey(email)),
+        )
+        if (!undeliveredEmails.length) return { context: '', emailCount: 0 }
+
         const contextParts: string[] = ['## Recent Emails (Last 6 Hours)\n']
-        for (const email of recentEmails.slice(0, 10)) {
+        for (const email of undeliveredEmails.slice(0, 10)) {
           const dateStr = new Date(email.date * 1000).toLocaleString()
           const preview = (email.summary || email.body || '').slice(0, 300)
           contextParts.push(
@@ -436,7 +507,11 @@ export function useBackgroundNotifications({
           )
         }
 
-        return { context: contextParts.join('\n'), emailCount: recentEmails.length }
+        // Delivery must be tied to the source messages rather than generated
+        // prose: the model may paraphrase a message differently on a later
+        // sync, but that still must not send the same phone alert again.
+        const deliveryKeys = undeliveredEmails.slice(0, 10).map(emailDeliveryKey)
+        return { context: contextParts.join('\n'), emailCount: undeliveredEmails.length, deliveryKeys }
       } catch (err) {
         console.warn('Failed to gather email context:', err)
         return { context: '', emailCount: 0 }
@@ -567,73 +642,159 @@ export function useBackgroundNotifications({
       notificationType: string,
       buttonHandler: string,
       buttonText: string,
-    ) => {
-      if (processingLockRef.current) return
+      channelDeliveryKeys?: string[],
+    ): Promise<boolean> => {
+      if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
       setIsProcessing(true)
 
-      try {
-        const fullPrompt =
-          context +
-          '\n\n' +
-          promptTemplate
-            .split('{userName}').join(userName)
-            .split('{userEmail}').join(userEmail)
+      return new Promise(resolve => {
+        try {
+          const fullPrompt =
+            context +
+            '\n\n' +
+            promptTemplate
+              .split('{userName}').join(userName)
+              .split('{userEmail}').join(userEmail)
 
-        addToLLMQueue({
-          prompt: fullPrompt,
-          documents: [],
-          messageStreamCallback: () => {},
-          messageFinishCallback: async (response: string) => {
-            processingLockRef.current = false
-            setIsProcessing(false)
-            const parsed = parseLLMResponse(response)
-            if (!parsed) return response
+          addToLLMQueue({
+            prompt: fullPrompt,
+            documents: [],
+            messageStreamCallback: () => {},
+            messageFinishCallback: async (response: string) => {
+              let delivered = false
+              try {
+                const parsed = parseLLMResponse(response)
+                if (!parsed) return response
 
-            // For email alerts, respect the shouldNotify flag from the LLM
-            if (notificationType === 'email_alert' && parsed.shouldNotify === false) {
-              return response
-            }
+                // For email alerts, respect the shouldNotify flag from the LLM
+                if (notificationType === 'email_alert' && parsed.shouldNotify === false) {
+                  return response
+                }
 
-            pendingInsightRef.current = parsed
-            await recordNotification(notificationType)
+                // The same recent-email batch can surface through multiple
+                // sync events. Keep its channel delivery identity stable even
+                // when no local notification window is available.
+                const resolvedChannelDeliveryKeys = channelDeliveryKeys?.length
+                  ? channelDeliveryKeys
+                  : notificationType === 'email_alert'
+                    ? [`email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`]
+                    : []
 
-            const primaryText = parsed.suggestedActionShort || buttonText
-            await openNotificationWindow(
-              undefined,
-              [
-                { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
-                { buttonText: 'View Briefing', buttonHandler: buttonHandler },
-                { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
-              ],
-              parsed.notificationTitle,
-              parsed.notificationBody,
-            )
+                const primaryText = parsed.suggestedActionShort || buttonText
+                const didOpen = await openNotificationWindow(
+                  undefined,
+                  [
+                    { buttonText: primaryText, buttonHandler: 'suggested_action_notification_handler' },
+                    { buttonText: 'View Briefing', buttonHandler: buttonHandler },
+                    { buttonText: 'Dismiss', buttonHandler: 'dismiss_notification_handler' },
+                  ],
+                  parsed.notificationTitle,
+                  parsed.notificationBody,
+                )
 
-            // Push full briefing to connected messaging channels (non-blocking)
-            pushToChannels(
-              parsed.notificationTitle,
-              parsed.notificationBody,
-              parsed.fullAnalysis,
-              parsed.suggestedActionPrompt,
-            )
+                // The action handlers read this shared ref. Do not replace
+                // the payload for an already-visible notification when this
+                // notification could not claim the local window.
+                if (didOpen) {
+                  pendingInsightRef.current = parsed
+                }
 
-            return response
-          },
-          errorCallback: () => {
-            processingLockRef.current = false
-            setIsProcessing(false)
-            console.error(`Failed to generate ${notificationType} notification`)
-          },
-        })
-      } catch (error) {
-        processingLockRef.current = false
-        setIsProcessing(false)
-        logError(new Error(`Error generating ${notificationType}`), {
-          additionalInfo: `Error in generateAndShowNotification for ${notificationType}`,
-          error: String(error),
-        })
-      }
+                // Local windows can retry while the native surface is hidden.
+                // A linked phone should receive that prep only once per
+                // meeting occurrence, independently of the local retry.
+                if (
+                  resolvedChannelDeliveryKeys.length === 0 ||
+                  resolvedChannelDeliveryKeys.some(
+                    key =>
+                      !preppedMeetingChannelIdsRef.current.has(key) &&
+                      !inFlightMeetingChannelIdsRef.current.has(key),
+                  )
+                ) {
+                  resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.add(key))
+                  const deliverToChannels = async (retryOnFailure: boolean) => {
+                    const channelDelivered = await pushToChannels(
+                      parsed.notificationTitle,
+                      parsed.notificationBody,
+                      parsed.fullAnalysis,
+                      parsed.suggestedActionPrompt,
+                    )
+                    // An email alert sent successfully to a linked channel is
+                    // still a delivery even if another notification currently
+                    // owns the local popup. Record it once so later sync
+                    // events cannot regenerate and resend the same alert.
+                    if (channelDelivered && notificationType === 'email_alert' && !didOpen) {
+                      void recordNotification(notificationType)
+                    }
+                    if (resolvedChannelDeliveryKeys.length === 0) return
+                    resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.delete(key))
+                    if (!channelDelivered) {
+                      // A successful local prep must not permanently abandon a
+                      // transient channel failure. Retry once without creating
+                      // another local popup or regenerating the model output.
+                      if (
+                        retryOnFailure &&
+                        (notificationType === 'pre_meeting_prep' || notificationType === 'morning_briefing')
+                      ) {
+                        window.setTimeout(() => {
+                          if (
+                            resolvedChannelDeliveryKeys.some(
+                              key =>
+                                !preppedMeetingChannelIdsRef.current.has(key) &&
+                                !inFlightMeetingChannelIdsRef.current.has(key),
+                            )
+                          ) {
+                            resolvedChannelDeliveryKeys.forEach(key => inFlightMeetingChannelIdsRef.current.add(key))
+                            void deliverToChannels(false)
+                          }
+                        }, 30_000)
+                      }
+                      return
+                    }
+                    resolvedChannelDeliveryKeys.forEach(key => preppedMeetingChannelIdsRef.current.add(key))
+                    localStorage.setItem(
+                      KN_PREPPED_MEETING_CHANNEL_IDS,
+                      JSON.stringify([...preppedMeetingChannelIdsRef.current]),
+                    )
+                  }
+                  void deliverToChannels(true)
+                }
+                // Meeting prep remains eligible for an in-app retry unless the
+                // native alert was actually displayed; channel delivery is
+                // intentionally independent of that local surface.
+                if (!didOpen) return response
+                await recordNotification(notificationType)
+                delivered = true
+                return response
+              } catch (error) {
+                logError(new Error(`Error showing ${notificationType} notification`), {
+                  additionalInfo: 'The meeting was left eligible for a later retry.',
+                  error: String(error),
+                })
+                return response
+              } finally {
+                processingLockRef.current = false
+                setIsProcessing(false)
+                resolve(delivered)
+              }
+            },
+            errorCallback: () => {
+              processingLockRef.current = false
+              setIsProcessing(false)
+              console.error(`Failed to generate ${notificationType} notification`)
+              resolve(false)
+            },
+          })
+        } catch (error) {
+          processingLockRef.current = false
+          setIsProcessing(false)
+          logError(new Error(`Error generating ${notificationType}`), {
+            additionalInfo: `Error in generateAndShowNotification for ${notificationType}`,
+            error: String(error),
+          })
+          resolve(false)
+        }
+      })
     },
     [
       userName,
@@ -659,7 +820,7 @@ export function useBackgroundNotifications({
       if (!canSend) return
     }
 
-    const { context, emailCount } = await gatherEmailContext()
+    const { context, emailCount, deliveryKeys } = await gatherEmailContext()
     if (!context || emailCount === 0) return
 
     await generateAndShowNotification(
@@ -668,15 +829,16 @@ export function useBackgroundNotifications({
       'email_alert',
       'background_insight_notification_handler',
       'View Details',
+      deliveryKeys,
     )
   }, [userEmail, canSendNotification, gatherEmailContext, generateAndShowNotification])
 
   /**
-   * EVENT TRIGGER: Calendar sync completed.
-   * Called when the `finish_fetch_calendar` event fires.
-   * Checks for upcoming meetings that need preparation.
+   * Check the next meetings for a time-bound, concise prep notification. This
+   * runs both after calendar sync and on the minute clock: calendar sync alone
+   * is not reliable enough to hit a narrow reminder window.
    */
-  const handleCalendarSyncComplete = useCallback(async (force = false) => {
+  const checkMeetingPrep = useCallback(async (force = false) => {
     if (!userEmail || processingLockRef.current) return
 
     try {
@@ -686,28 +848,25 @@ export function useBackgroundNotifications({
       const now = new Date()
 
       // Filter out any events that have already started (safety guard for stale data)
-      const futureOnly = upcomingMeetings.filter(
-        m => new Date(m.start) > now,
-      )
+      const futureOnly = upcomingMeetings
+        .filter(m => new Date(m.start) > now)
+        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
       if (!futureOnly.length) return
 
       let meetingNeedingPrep
       if (force) {
         // When forced, pick the next upcoming future meeting regardless of time window
-        const meetingKey = futureOnly[0].eventId || String(futureOnly[0].id)
+        const meetingKey = getMeetingPrepNotificationKey(futureOnly[0])
         const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
         meetingNeedingPrep = notAlreadyPrepped ? futureOnly[0] : undefined
       } else {
-        const thirtyMinFromNow = new Date(now.getTime() + 30 * 60 * 1000)
-        const fifteenMinFromNow = new Date(now.getTime() + 15 * 60 * 1000)
-
-        // Find meetings starting in the next 15-30 minutes with multiple attendees
+        // Find meetings starting in the next 10-30 minutes with multiple attendees.
+        // The minute clock uses a range rather than exact equality, so a delayed
+        // renderer wake-up cannot silently skip the reminder.
         meetingNeedingPrep = futureOnly.find(meeting => {
-          const meetingStart = new Date(meeting.start)
           const hasMultipleAttendees = (meeting.participants?.length || 0) >= 2
-          const isInWindow =
-            meetingStart >= fifteenMinFromNow && meetingStart <= thirtyMinFromNow
-          const meetingKey = meeting.eventId || String(meeting.id)
+          const isInWindow = isMeetingInPrepWindow(meeting, now)
+          const meetingKey = getMeetingPrepNotificationKey(meeting)
           const notAlreadyPrepped = !preppedMeetingIdsRef.current.has(meetingKey)
           return hasMultipleAttendees && isInWindow && notAlreadyPrepped
         })
@@ -716,27 +875,30 @@ export function useBackgroundNotifications({
       if (!meetingNeedingPrep) return
 
       if (!force) {
-        const canSend = await canSendNotification('high')
+        const canSend = await canSendNotification('meeting_prep')
         if (!canSend) return
       }
 
-      // Mark meeting as prepped to avoid duplicate notifications
-      const meetingKey =
-        meetingNeedingPrep.eventId || String(meetingNeedingPrep.id)
-      preppedMeetingIdsRef.current.add(meetingKey)
-      persistPreppedMeetingId(meetingKey)
-
       const context = await gatherMeetingPrepContext(meetingNeedingPrep)
 
-      await generateAndShowNotification(
+      const wasDelivered = await generateAndShowNotification(
         context,
         PRE_MEETING_PREP_PROMPT,
         'pre_meeting_prep',
         'background_insight_notification_handler',
         'View Prep',
+        [getMeetingPrepNotificationKey(meetingNeedingPrep)],
       )
+
+      // Only consume the meeting after a notification actually opened. A model
+      // or window failure should be eligible for a later retry in this window.
+      if (wasDelivered) {
+        const meetingKey = getMeetingPrepNotificationKey(meetingNeedingPrep)
+        preppedMeetingIdsRef.current.add(meetingKey)
+        persistPreppedMeetingId(meetingKey)
+      }
     } catch (error) {
-      logError(new Error('Error in handleCalendarSyncComplete'), {
+      logError(new Error('Error in checkMeetingPrep'), {
         additionalInfo: 'Error checking for meeting prep notifications',
         error: String(error),
       })
@@ -748,6 +910,10 @@ export function useBackgroundNotifications({
     gatherMeetingPrepContext,
     generateAndShowNotification,
   ])
+
+  // Retain the calendar-sync entry point for callers, while the minute clock
+  // below provides the reliable scheduling path.
+  const handleCalendarSyncComplete = checkMeetingPrep
 
   /**
    * TIMER TRIGGER: Morning briefing check.
@@ -829,20 +995,22 @@ export function useBackgroundNotifications({
         const canSend = await canSendNotification('medium')
         if (!canSend) return
 
-        // Mark morning briefing as sent for today
-        await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, today)
       }
 
       const context = await gatherFullContext()
       if (!context) return
 
-      await generateAndShowNotification(
+      const delivered = await generateAndShowNotification(
         context,
         MORNING_BRIEFING_PROMPT,
         'morning_briefing',
         'background_insight_notification_handler',
         'View Briefing',
+        [`morning-briefing:${dayjs(now).format('YYYY-MM-DD')}`],
       )
+      if (delivered && !force) {
+        await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, dayjs(now).format('YYYY-MM-DD'))
+      }
     },
     [userEmail, canSendNotification, gatherFullContext, generateAndShowNotification],
   )
@@ -878,18 +1046,19 @@ export function useBackgroundNotifications({
         if (!canSend) return
       }
 
-      await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
-
       const context = await gatherFullContext()
       if (!context) return
 
-      await generateAndShowNotification(
+      const delivered = await generateAndShowNotification(
         context,
         PROACTIVE_CHECKIN_PROMPT,
         'proactive_checkin',
         'background_insight_notification_handler',
         'Take Action',
       )
+      if (delivered && !force) {
+        await KNLocalStorage.setItem(KN_LAST_PROACTIVE_CHECKIN, now.toISOString())
+      }
     },
     [userEmail, hasChannelsAttached, canSendNotification, gatherFullContext, generateAndShowNotification],
   )
@@ -1173,6 +1342,7 @@ export function useBackgroundNotifications({
   }, [])
 
   return {
+    checkMeetingPrep,
     checkMorningBriefing,
     checkProactiveCheckin,
     handleEmailSyncComplete,

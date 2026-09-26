@@ -522,7 +522,7 @@ Your prep should include:
 Your response MUST be a JSON object with this exact format:
 {
   "notificationTitle": "<8 words max, plain text only, no markdown - mention the meeting>",
-  "notificationBody": "<24 words max, plain text only, no markdown - one Granola-style prep sentence naming the attendee/context and the most useful open thread>",
+  "notificationBody": "<42 words max, plain text only, no markdown - 2 or 3 short, concrete prep points separated by bullets: why it matters, the most important open thread, and the best move>",
   "fullAnalysis": "<Meeting prep briefing in Markdown: attendee context, relevant recent emails, suggested talking points, open items. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Build Meeting Brief for Acme Sync](knapsack://prompt/Compile a detailed brief for the Acme sync meeting including recent project updates, open items from last meeting, and key discussion points). The action should be the most helpful prep task the user can do right now.>",
   "suggestedActionShort": "<exactly 2 words - verb + noun summarizing the suggested action, e.g. Build Brief, Review Notes, Prep Agenda>",
   "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
@@ -534,7 +534,7 @@ Your response MUST be a JSON object with this exact format:
 Rules:
 - Use natural time expressions (e.g. "in about an hour", "in 20 minutes") — never raw minute counts like "in 239 minutes"
 - Reference specific attendees and any recent email exchanges with them
-- Make notificationBody useful on its own: summarize why this meeting exists or the single most important open thread. Never write generic text such as "Prepare for your meeting".
+- Make notificationBody useful on its own: give 2 or 3 short concrete prep points, separated by bullets. Include why the meeting matters, the most important open thread, and the best move when the evidence supports each. Never write generic text such as "Prepare for your meeting".
 - Prefer concrete relationship context (for example, first meeting, introduced by someone, last discussed a named project, awaiting a named deliverable) when the evidence supports it.
 - Highlight any unresolved items from previous conversations with these people
 - Suggest concrete talking points based on available context

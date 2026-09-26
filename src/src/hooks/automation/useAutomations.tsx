@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import {
@@ -215,7 +215,8 @@ export function useAutomations({
     { type: NotificationTypes.MEETING_PREP, sentIdentifiers: [], minutesToNotify: 10 },
     { type: NotificationTypes.MEETING_NOTES, sentIdentifiers: [], minutesToNotify: 1 },
   ])
-  const [isNotificationWindowShowing, setIsNotificationWindowShowing] = useState(false)
+  const [, setIsNotificationWindowShowing] = useState(false)
+  const notificationWindowReservedRef = useRef(false)
   //const [nextMeeting, setNextMeeting] = useState<CalendarEvents | null>(null)
 
   const dataFetcher = useMemo(() => new DataFetcher(), [])
@@ -532,48 +533,64 @@ export function useAutomations({
       title: string,
       time: string,
       brief?: string,
-    ) => {
-      if (!isNotificationWindowShowing) {
-        try {
-          await invoke('show_notification_window', {
-            eventId,
-            buttonConfigs,
-            title,
-            time,
-            brief,
-          })
-          setIsNotificationWindowShowing(true)
-        } catch (error) {
-          console.error(error)
-          logError(new Error('Error showing notification window'), {
-            additionalInfo: `Error showing notification window for eventId: ${eventId}`,
-            error: error as string,
-          })
+      replaceExisting = false,
+    ): Promise<boolean> => {
+      try {
+        if (notificationWindowReservedRef.current) {
+          if (!replaceExisting) return false
+          await invoke('close_notification_window')
+          notificationWindowReservedRef.current = false
+          setIsNotificationWindowShowing(false)
         }
+        // Reserve synchronously before crossing the native bridge. State updates
+        // are asynchronous, so state alone cannot prevent two concurrent callers
+        // from replacing the singleton notification payload.
+        notificationWindowReservedRef.current = true
+        const didShow = await invoke<boolean>('show_notification_window', {
+          eventId,
+          buttonConfigs,
+          title,
+          time,
+          brief,
+        })
+        if (!didShow) {
+          notificationWindowReservedRef.current = false
+          return false
+        }
+        setIsNotificationWindowShowing(true)
+        return true
+      } catch (error) {
+        notificationWindowReservedRef.current = false
+        console.error(error)
+        logError(new Error('Error showing notification window'), {
+          additionalInfo: `Error showing notification window for eventId: ${eventId}`,
+          error: error as string,
+        })
+        return false
       }
     },
-    [isNotificationWindowShowing],
+    [],
   )
 
   // -- Notification handling starts here --
   const handleMeetingNotesNotification = useCallback(
     async (now: Date, service: NotificationService, notificationIndex: number) => {
-      if (isNotificationWindowShowing) {
-        return
-      }
-
       const meetings = await dataFetcher.getRecentCalendarEvents()
 
       if (meetings?.length) {
         for (const meeting of meetings) {
           const startTime = dayjs(meeting.start)
           const minutesUntil = Math.ceil(startTime.diff(dayjs(now), 'minute', true))
+          const occurrenceIdentifier = `${meeting.eventId || meeting.id}:${startTime.valueOf()}`
 
           const leadTime = await getNotificationLeadTimeMin()
           if (
-            minutesUntil === leadTime &&
-            !service.sentIdentifiers.includes(meeting.eventId) &&
-            !isNotificationWindowShowing
+            // The rich prep generation can take longer than a minute. Keep the
+            // configured join-and-record alert eligible through the remaining
+            // pre-start window instead of depending on one exact clock tick.
+            minutesUntil <= leadTime &&
+            minutesUntil > 0 &&
+            !service.sentIdentifiers.includes(occurrenceIdentifier)
           ) {
             KNAnalytics.trackEvent('notificationPush', {
               meetingStart: startTime.format('MM/DD/YYYY HH:mm::ss'),
@@ -582,7 +599,7 @@ export function useAutomations({
             })
 
             try {
-              openNotificationWindow(
+              const didShow = await openNotificationWindow(
                 meeting.id.toString(),
                 [
                   {
@@ -601,18 +618,25 @@ export function useAutomations({
                 meeting.title,
                 startTime.format('h:mm A'),
                 buildMeetingNotificationBrief(meeting, userEmail),
+                false,
               )
-              setNotificationServices(prev =>
-                prev.map((s, idx) =>
-                  idx === notificationIndex
-                    ? {
-                        ...s,
-                        sentIdentifiers: [...s.sentIdentifiers, meeting.id],
-                      }
-                    : s,
-                ),
-              )
+              if (didShow) {
+                setNotificationServices(prev =>
+                  prev.map((s, idx) =>
+                    idx === notificationIndex
+                      ? {
+                          ...s,
+                          sentIdentifiers: [
+                            ...s.sentIdentifiers,
+                            occurrenceIdentifier,
+                          ],
+                        }
+                      : s,
+                  ),
+                )
+              }
             } catch (error) {
+              notificationWindowReservedRef.current = false
               setIsNotificationWindowShowing(false)
             }
             break
@@ -620,7 +644,7 @@ export function useAutomations({
         }
       }
     },
-    [dataFetcher, isNotificationWindowShowing, openNotificationWindow, userEmail],
+    [dataFetcher, openNotificationWindow, userEmail],
   )
 
   const handleNotificationsScheduleService = useCallback(
@@ -630,13 +654,13 @@ export function useAutomations({
         return
       }
 
-      notificationServices.forEach(async (notification, index) => {
+      for (const [index, notification] of notificationServices.entries()) {
         if (notification.type === NotificationTypes.MEETING_NOTES) {
           await handleMeetingNotesNotification(now, notification, index)
         }
-      })
+      }
     },
-    [handleMeetingNotesNotification, notificationServices, isNotificationWindowShowing],
+    [handleMeetingNotesNotification, notificationServices],
   )
 
   // On load
@@ -648,6 +672,7 @@ export function useAutomations({
     }
 
     const unlistenPromisse = listen('close-notification', () => {
+      notificationWindowReservedRef.current = false
       setIsNotificationWindowShowing(false)
     })
 
