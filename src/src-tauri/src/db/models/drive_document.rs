@@ -42,8 +42,20 @@ impl DriveDocument {
   pub fn update_summary(&self) -> Result<(), Error> {
     let connection = get_db_conn();
     connection.execute(
-      "UPDATE drive_documents SET summary = ?1 WHERE drive_id = ?2",
-      params![&self.summary, &self.drive_id],
+      "UPDATE drive_documents SET filename = ?1, file_size = ?2,
+       date_modified = ?3, date_created = ?4, summary = ?5, checksum = ?6,
+       url = ?7, account_email = ?8 WHERE drive_id = ?9",
+      params![
+        &self.filename,
+        self.file_size,
+        self.date_modified,
+        self.date_created,
+        &self.summary,
+        &self.checksum,
+        &self.url,
+        &self.account_email,
+        &self.drive_id,
+      ],
     )?;
     Ok(())
   }
@@ -56,6 +68,10 @@ impl DriveDocument {
     let mut stmt = connection.prepare(
       "SELECT NOT EXISTS(
         SELECT 1 FROM drive_goal_index_backfills WHERE account_email = ?1
+      ) AND (
+        NOT EXISTS(SELECT 1 FROM drive_goal_index_backfill_attempts WHERE account_email = ?1)
+        OR COALESCE((SELECT attempted_at FROM drive_goal_index_backfill_attempts WHERE account_email = ?1), 0)
+           < strftime('%s','now') - 86400
       )",
     )?;
     stmt
@@ -67,6 +83,16 @@ impl DriveDocument {
     let connection = get_db_conn();
     connection.execute(
       "INSERT OR REPLACE INTO drive_goal_index_backfills (account_email, completed_at)
+       VALUES (?1, strftime('%s','now'))",
+      params![account_email],
+    )?;
+    Ok(())
+  }
+
+  pub fn record_goal_index_backfill_attempt(account_email: &str) -> Result<(), Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "INSERT OR REPLACE INTO drive_goal_index_backfill_attempts (account_email, attempted_at)
        VALUES (?1, strftime('%s','now'))",
       params![account_email],
     )?;

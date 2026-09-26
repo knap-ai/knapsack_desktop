@@ -418,18 +418,23 @@ pub async fn get_or_create_drive_document_from_file(
 
   if existing_drive_document.is_some() {
     let mut drive_document = existing_drive_document.unwrap().clone();
+    drive_document.filename = filename;
+    drive_document.file_size = file_size;
+    drive_document.date_created = date_created;
+    drive_document.date_modified = date_modified;
+    drive_document.checksum = checksum.unwrap_or_else(|| drive_document.checksum.clone());
+    drive_document.url = url;
+    drive_document.account_email = account_email.to_string();
     if let Some(content_chunks) = maybe_content {
       let summary = DriveDocument::summary_from_content_chunks(&content_chunks);
       if !summary.trim().is_empty() {
         drive_document.summary = summary;
-        if let Err(error) = drive_document.update_summary() {
-          log::warn!("Could not refresh the local Drive text index: {:?}", error);
-          // A successful remote download is not enough to complete a one-time
-          // backfill. Leave the account eligible so this row is retried.
-          return (drive_document, false);
-        }
       }
       drive_document.content_chunks = Some(content_chunks);
+    }
+    if let Err(error) = drive_document.update_summary() {
+      log::warn!("Could not refresh the local Drive text index: {:?}", error);
+      return (drive_document, false);
     }
     return (drive_document, content_fetch_succeeded);
   }
@@ -626,6 +631,15 @@ pub async fn fetch_drive(
       limit_date.format("%Y-%m-%dT%H:%M:%S")
     )
   };
+  if backfill_goal_index {
+    if let Err(error) = DriveDocument::record_goal_index_backfill_attempt(&account_email) {
+      log::warn!(
+        "[google-drive] could not record goal-index backfill attempt account={}: {:?}",
+        account_email,
+        error
+      );
+    }
+  }
   let query = format!(
     "({}){}",
     DRIVE_ALLOWED_MIME_TYPES

@@ -233,32 +233,28 @@ impl Email {
     ];
 
     let connection = get_db_conn();
-    let clauses = GOAL_TERMS
-      .iter()
-      .map(|_| "(LOWER(subject) LIKE ? OR LOWER(body) LIKE ?)")
-      .collect::<Vec<_>>()
-      .join(" OR ");
-    let query = format!(
+    let Ok(mut stmt) = connection.prepare(
       "SELECT id, email_uid, subject, date, sender, body, recipient, cc, thread_id, is_starred, is_read, is_archived, is_deleted, account_email \
-       FROM emails WHERE COALESCE(is_deleted, 0) = 0 AND ({clauses}) ORDER BY date DESC LIMIT ?"
-    );
-    let mut params = Vec::with_capacity(GOAL_TERMS.len() * 2 + 1);
-    for term in GOAL_TERMS {
-      let pattern = format!("%{term}%");
-      params.push(pattern.clone());
-      params.push(pattern);
-    }
-    params.push(limit.max(1).to_string());
-
-    let Ok(mut stmt) = connection.prepare(&query) else {
+       FROM emails WHERE COALESCE(is_deleted, 0) = 0 ORDER BY date DESC LIMIT 500",
+    ) else {
       return Vec::new();
     };
-    let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(params), |row| {
+    let Ok(rows) = stmt.query_map([], |row| {
       Email::build_struct_from_row(row)
     }) else {
       return Vec::new();
     };
-    rows.filter_map(Result::ok).collect()
+    rows
+      .filter_map(Result::ok)
+      .filter(|email| {
+        let body = from_read(email.body.as_bytes(), email.body.len()).to_lowercase();
+        let subject = email.subject.to_lowercase();
+        GOAL_TERMS
+          .iter()
+          .any(|term| subject.contains(term) || body.contains(term))
+      })
+      .take(limit.max(1))
+      .collect()
   }
 
   pub fn count() -> Result<u64> {

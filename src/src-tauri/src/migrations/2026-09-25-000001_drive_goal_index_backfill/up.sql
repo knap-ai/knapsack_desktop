@@ -5,3 +5,8 @@ CREATE TABLE IF NOT EXISTS drive_goal_index_backfills (
   account_email TEXT PRIMARY KEY NOT NULL,
   completed_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS drive_goal_index_backfill_attempts (
+  account_email TEXT PRIMARY KEY NOT NULL,
+  attempted_at INTEGER NOT NULL
+);
