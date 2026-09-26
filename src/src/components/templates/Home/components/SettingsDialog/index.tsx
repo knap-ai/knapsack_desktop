@@ -692,6 +692,7 @@ export const SettingsDialog = ({
     has_knapsack?: boolean
     knapsack_email?: string
     ollama_enabled?: boolean
+    ollama_cloud_enabled?: boolean
     ollama_model?: string
     ollama_base_url?: string
     extra_providers?: Array<{ id: string; env_var: string; has_key: boolean }>
@@ -983,6 +984,7 @@ export const SettingsDialog = ({
           has_knapsack: data.has_knapsack,
           knapsack_email: data.knapsack_email,
           ollama_enabled: data.ollama_enabled,
+          ollama_cloud_enabled: data.ollama_cloud_enabled,
           ollama_model: data.ollama_model,
           ollama_base_url: data.ollama_base_url,
           extra_providers: data.extra_providers,
@@ -1024,22 +1026,25 @@ export const SettingsDialog = ({
     }
   }, [browserPresentationBusy, embeddedBrowserEnabled])
 
-  // Check Ollama status + fetch models when the Ollama accordion is expanded
+  const ollamaCloudActive = !!providerStatus?.ollama_cloud_enabled
+
+  // Check the selected Ollama runtime when the Ollama accordion is expanded.
   useEffect(() => {
     if (expandedProvider !== 'ollama') return
     setOllamaRunning(null)
-    fetch('http://127.0.0.1:8897/api/knapsack/ollama/status')
+    const query = ollamaCloudActive ? '?cloud=true' : '?cloud=false'
+    fetch(`http://127.0.0.1:8897/api/knapsack/ollama/status${query}`)
       .then(r => r.json())
       .then(data => setOllamaRunning(data.running))
       .catch(() => setOllamaRunning(false))
 
-    fetch('http://127.0.0.1:8897/api/knapsack/ollama/models')
+    fetch(`http://127.0.0.1:8897/api/knapsack/ollama/models${query}`)
       .then(r => r.json())
       .then(data => {
         if (data.success) setOllamaModels(data.models)
       })
       .catch(() => {})
-  }, [expandedProvider])
+  }, [expandedProvider, ollamaCloudActive])
 
   const loadPiiModelStatus = useCallback(async () => {
     try {
@@ -1176,6 +1181,7 @@ export const SettingsDialog = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: enable,
+          cloud: ollamaCloudActive,
           model: selectedOllamaModel || null,
         }),
       })
@@ -1209,6 +1215,7 @@ export const SettingsDialog = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: true,
+          cloud: ollamaCloudActive,
           model,
         }),
       })
@@ -1664,9 +1671,9 @@ export const SettingsDialog = ({
               )
             })}
 
-            {/* Ollama (local LLM) */}
+            {/* Ollama local or Cloud runtime */}
             <ProviderAccordion
-              title="Ollama (Local)"
+              title={ollamaCloudActive ? 'Ollama Cloud' : 'Ollama (Local)'}
               isActive={providerStatus?.active_provider === 'ollama'}
               isConnected={!!providerStatus?.ollama_enabled}
               expanded={expandedProvider === 'ollama'}
@@ -1675,21 +1682,21 @@ export const SettingsDialog = ({
               {/* Connection status */}
               <div style={{ marginBottom: 6 }}>
                 {ollamaRunning === null ? (
-                  <span className={styles.ollamaStatusChecking}>Checking Ollama...</span>
+                  <span className={styles.ollamaStatusChecking}>Checking {ollamaCloudActive ? 'Ollama Cloud' : 'Ollama'}...</span>
                 ) : ollamaRunning ? (
                   <span className={styles.ollamaStatusGreen}>
                     <span className={styles.ollamaStatusDotGreen} />
-                    Ollama running
+                    {ollamaCloudActive ? 'Ollama Cloud connected' : 'Ollama running'}
                   </span>
                 ) : (
                   <span className={styles.ollamaStatusRed}>
                     <span className={styles.ollamaStatusDotRed} />
-                    Ollama not detected
+                    {ollamaCloudActive ? 'Ollama Cloud unavailable' : 'Ollama not detected'}
                   </span>
                 )}
               </div>
 
-              {!ollamaRunning && ollamaRunning !== null && (
+              {!ollamaCloudActive && !ollamaRunning && ollamaRunning !== null && (
                 <div className={styles.ollamaHint}>
                   Install Ollama from{' '}
                   <a
@@ -1716,7 +1723,7 @@ export const SettingsDialog = ({
                     value={selectedOllamaModel || ollamaModels[0]?.name || ''}
                     onChange={handleOllamaModelChange}
                   />
-                  <div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>
+                  {!ollamaCloudActive && <><div className={styles.ollamaModelLabel} style={{ marginTop: 10 }}>
                     Installed Models
                   </div>
                   <div className={styles.ollamaModelList}>
@@ -1751,10 +1758,11 @@ export const SettingsDialog = ({
                       )
                     })}
                   </div>
+                  </>}
                 </div>
               )}
 
-              {ollamaRunning && ollamaModels.length === 0 && (
+              {!ollamaCloudActive && ollamaRunning && ollamaModels.length === 0 && (
                 <div className={styles.ollamaNoModels}>
                   No models found. Run{' '}
                   <code className={styles.ollamaNoModelsCode}>ollama pull llama3.1</code> to
@@ -1763,7 +1771,7 @@ export const SettingsDialog = ({
               )}
 
               {/* Enable / Disable toggle */}
-              {ollamaRunning && (
+              {(ollamaRunning || ollamaCloudActive) && (
                 <div className={styles.ollamaToggleRow}>
                   <span className={styles.ollamaToggleLabel}>
                     {providerStatus?.ollama_enabled ? 'Ollama is enabled' : 'Use Ollama for AI'}
@@ -1787,7 +1795,9 @@ export const SettingsDialog = ({
               )}
 
               {providerStatus?.ollama_enabled && (
-                <div className={styles.ollamaFreeHint}>Free local execution — no API costs</div>
+                <div className={styles.ollamaFreeHint}>
+                  {ollamaCloudActive ? 'Cloud execution using your saved Ollama key' : 'Free local execution — no API costs'}
+                </div>
               )}
             </ProviderAccordion>
           </div>

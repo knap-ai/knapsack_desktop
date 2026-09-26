@@ -206,7 +206,8 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
         std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
       return Ok(ResolvedProvider {
         name: "ollama".into(),
-        api_key: "ollama-local".into(),
+        // Local Ollama accepts the marker; Ollama Cloud needs the saved bearer key.
+        api_key: ollama_key.unwrap_or_else(|| "ollama-local".to_string()),
         model: ollama_model,
         base_url: format!("{}/v1", ollama_base),
         is_anthropic: false,
