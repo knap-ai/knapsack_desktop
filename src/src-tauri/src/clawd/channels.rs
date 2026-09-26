@@ -5907,8 +5907,8 @@ mod reconnect_retry_tests {
     std::env::set_var("GEMINI_API_KEY", "AIza-test");
     std::env::set_var("GROQ_API_KEY", "groq-test");
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
-    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
-    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.6-terra");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-3.8-flash");
     std::env::set_var("KNAPSACK_GROQ_MODEL", "openai/gpt-oss-120b");
 
     let patch = build_enable_patch(
@@ -5919,7 +5919,7 @@ mod reconnect_retry_tests {
 
     assert_eq!(
       patch.pointer("/agents/defaults/model/primary"),
-      Some(&serde_json::json!("openai/gpt-5.5"))
+      Some(&serde_json::json!("openai/gpt-5.6-terra"))
     );
     let fallbacks = patch
       .pointer("/agents/defaults/model/fallbacks")
@@ -5931,7 +5931,7 @@ mod reconnect_retry_tests {
       .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
     assert!(fallbacks
       .iter()
-      .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
+      .any(|value| value.as_str() == Some("google/gemini-3.8-flash")));
 
     if let Some(value) = openai {
       std::env::set_var("OPENAI_API_KEY", value);

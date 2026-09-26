@@ -5998,16 +5998,16 @@ fn load_or_create_tokens(app_handle: &tauri::AppHandle) -> Result<StoredTokens, 
     mobile_pairing_token,
     groq_api_key: None,
     openai_api_key: None, // User must provide their own API key
-    openai_model: None,   // Defaults to gpt-5.4
+    openai_model: None,   // Defaults to gpt-5.6-terra
     anthropic_api_key: None,
-    anthropic_model: None, // Defaults to claude-sonnet-4-5-20250929
+    anthropic_model: None, // Defaults to claude-opus-5-5
     gemini_api_key: None,
-    gemini_model: None, // Defaults to gemini-3.5-flash
-    groq_model: None,   // Defaults to meta-llama/llama-4-scout-17b-16e-instruct
+    gemini_model: None, // Defaults to gemini-3.8-flash
+    groq_model: None,   // Defaults to openai/gpt-oss-120b
     xai_api_key: None,
-    xai_model: None, // Defaults to grok-code-fast-1
+    xai_model: None, // Defaults to grok-4.7
     openrouter_api_key: None,
-    openrouter_model: None, // Defaults to meta-llama/llama-3.3-70b-instruct:free
+    openrouter_model: None, // Defaults to qwen/qwen3.8-27b:free
     trustedrouter_api_key: None,
     trustedrouter_model: None, // Defaults to trustedrouter/auto
     active_provider: None,     // Defaults to openai
@@ -6660,13 +6660,13 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
     if prefix == canonical_provider {
       let bare = bare.trim();
       if provider == "openrouter" && bare.eq_ignore_ascii_case("free") {
-        return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+        return "qwen/qwen3.8-27b:free".to_string();
       }
       return bare.to_string();
     }
   }
   if provider == "openrouter" && model.eq_ignore_ascii_case("free") {
-    return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+    return "qwen/qwen3.8-27b:free".to_string();
   }
   model.to_string()
 }
@@ -6744,54 +6744,54 @@ async fn gateway_ready_with_fallback(
   (false, false, false)
 }
 
-/// Get the configured OpenAI model (defaults to gpt-5.4 if not set)
+/// Get the configured OpenAI model (defaults to GPT-5.6 Terra if not set)
 pub fn get_openai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openai_model)
     .map(|model| normalize_provider_model("openai", &model))
     .filter(|model| !model.trim().is_empty())
-    .unwrap_or_else(|| "gpt-5.5".to_string())
+    .unwrap_or_else(|| "gpt-5.6-terra".to_string())
 }
 
-/// Get the configured Anthropic model (defaults to claude-sonnet-4-5-20250929 if not set)
+/// Get the configured Anthropic model (defaults to Claude Opus 5.5 if not set)
 pub fn get_anthropic_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.anthropic_model)
-    .unwrap_or_else(|| "claude-sonnet-4-5-20250929".to_string())
+    .unwrap_or_else(|| "claude-opus-5-5".to_string())
 }
 
-/// Get the configured Gemini model (defaults to gemini-3.5-flash if not set)
+/// Get the configured Gemini model (defaults to Gemini 3.8 Flash if not set)
 pub fn get_gemini_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.gemini_model)
-    .unwrap_or_else(|| "gemini-3.5-flash".to_string())
+    .unwrap_or_else(|| "gemini-3.8-flash".to_string())
 }
 
-/// Get the configured Groq model (defaults to meta-llama/llama-4-scout-17b-16e-instruct if not set)
+/// Get the configured Groq model (defaults to GPT-OSS 120B if not set)
 pub fn get_groq_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.groq_model)
-    .unwrap_or_else(|| "meta-llama/llama-4-scout-17b-16e-instruct".to_string())
+    .unwrap_or_else(|| "openai/gpt-oss-120b".to_string())
 }
 
-/// Get the configured xAI/Grok model (defaults to grok-code-fast-1 if not set)
+/// Get the configured xAI/Grok model (defaults to Grok 4.7 if not set)
 pub fn get_xai_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.xai_model)
-    .unwrap_or_else(|| "grok-code-fast-1".to_string())
+    .unwrap_or_else(|| "grok-4.7".to_string())
 }
 
-/// Get the configured OpenRouter model (defaults to meta-llama/llama-3.3-70b-instruct:free if not set)
+/// Get the configured OpenRouter model (defaults to Qwen 3.8 27B Free if not set)
 pub fn get_openrouter_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
     .and_then(|t| t.openrouter_model)
-    .unwrap_or_else(|| "meta-llama/llama-3.3-70b-instruct:free".to_string())
+    .unwrap_or_else(|| "qwen/qwen3.8-27b:free".to_string())
 }
 
 /// Get the configured TrustedRouter model (defaults to trustedrouter/auto if not set)
@@ -18173,11 +18173,11 @@ mod provider_key_tests {
     clear_all();
     // User selected OpenAI model but has no OpenAI key — the stored model
     // is stale and should be re-resolved.
-    assert!(!model_ref_has_key("openai/gpt-5.4"));
-    assert!(!model_ref_has_key("anthropic/claude-opus-4-6"));
-    assert!(!model_ref_has_key("google/gemini-2.5-pro"));
-    assert!(!model_ref_has_key("groq/llama-3.3-70b-versatile"));
-    assert!(!model_ref_has_key("xai/grok-code-fast-1"));
+    assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
+    assert!(!model_ref_has_key("anthropic/claude-opus-5-5"));
+    assert!(!model_ref_has_key("google/gemini-3.8-flash"));
+    assert!(!model_ref_has_key("groq/openai/gpt-oss-120b"));
+    assert!(!model_ref_has_key("xai/grok-4.7"));
     assert!(!model_ref_has_key("knapsack/auto"));
   }
 
@@ -18186,9 +18186,9 @@ mod provider_key_tests {
     let _guard = ENV_LOCK.lock().unwrap();
     clear_all();
     std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
-    assert!(model_ref_has_key("anthropic/claude-opus-4-6"));
-    assert!(!model_ref_has_key("openai/gpt-5.4"));
-    assert!(!model_ref_has_key("xai/grok-code-fast-1"));
+    assert!(model_ref_has_key("anthropic/claude-opus-5-5"));
+    assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
+    assert!(!model_ref_has_key("xai/grok-4.7"));
     std::env::remove_var("ANTHROPIC_API_KEY");
   }
 
@@ -18197,8 +18197,8 @@ mod provider_key_tests {
     let _guard = ENV_LOCK.lock().unwrap();
     clear_all();
     std::env::set_var("XAI_API_KEY", "xai-test");
-    assert!(model_ref_has_key("xai/grok-code-fast-1"));
-    assert!(!model_ref_has_key("openai/gpt-5.4"));
+    assert!(model_ref_has_key("xai/grok-4.7"));
+    assert!(!model_ref_has_key("openai/gpt-5.6-terra"));
     std::env::remove_var("XAI_API_KEY");
   }
 
@@ -18207,11 +18207,11 @@ mod provider_key_tests {
     let _guard = ENV_LOCK.lock().unwrap();
     clear_all();
     std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
-    assert!(model_ref_has_key("google/gemini-2.5-pro"));
-    assert!(model_ref_has_key("gemini/gemini-3.5-flash"));
+    assert!(model_ref_has_key("google/gemini-3.8-flash"));
+    assert!(model_ref_has_key("gemini/gemini-3.8-flash"));
     std::env::remove_var("GOOGLE_API_KEY");
     std::env::set_var("GEMINI_API_KEY", "AIzaTest");
-    assert!(model_ref_has_key("google/gemini-2.5-pro"));
+    assert!(model_ref_has_key("google/gemini-3.8-flash"));
     std::env::remove_var("GEMINI_API_KEY");
   }
 
@@ -18281,17 +18281,17 @@ mod provider_key_tests {
     clear_all();
     std::env::set_var("KNAPSACK_ACTIVE_PROVIDER", "openai");
     std::env::set_var("OPENAI_API_KEY", "sk-test");
-    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.5");
+    std::env::set_var("KNAPSACK_OPENAI_MODEL", "gpt-5.6-terra");
     std::env::set_var("GROQ_API_KEY", "groq-test");
     std::env::set_var("KNAPSACK_GROQ_MODEL", "openai/gpt-oss-120b");
     std::env::set_var("GEMINI_API_KEY", "AIza-test");
-    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-2.5-flash");
+    std::env::set_var("KNAPSACK_GEMINI_MODEL", "gemini-3.8-flash");
 
     let mut cfg = serde_json::json!({
       "agents": {
         "defaults": {
           "model": {
-            "primary": "openai/gpt-5.5",
+            "primary": "openai/gpt-5.6-terra",
             "fallbacks": ["groq/openai/gpt-oss-120b"]
           }
         }
@@ -18309,7 +18309,7 @@ mod provider_key_tests {
       .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
     assert!(fallbacks
       .iter()
-      .any(|value| value.as_str() == Some("google/gemini-2.5-flash")));
+      .any(|value| value.as_str() == Some("google/gemini-3.8-flash")));
 
     clear_all();
   }

@@ -604,9 +604,9 @@ fn openai_compatible_client(base_url: &str) -> Result<reqwest::Client, reqwest::
 /// has configured for chat — background checks don't need expensive models.
 ///
 /// Cheapest models per provider:
-///   Groq: free (llama-3.3-70b-versatile)
-///   Gemini: gemini-3.5-flash (fast, low-cost)
-///   OpenAI: gpt-4o-mini (~$0.15/1M input)
+///   Groq: openai/gpt-oss-20b (fast, low-cost)
+///   Gemini: gemini-3.5-flash-lite (fast, low-cost)
+///   OpenAI: gpt-5.6-luna (fast, low-cost)
 ///   Anthropic: claude-haiku-4-5 (~$0.25/1M input)
 ///   OpenRouter: free tier model
 ///
@@ -644,7 +644,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "groq".into(),
         api_key: groq_key.unwrap(),
-        model: "llama-3.3-70b-versatile".into(),
+        model: "openai/gpt-oss-20b".into(),
         base_url: "https://api.groq.com/openai/v1".into(),
         is_anthropic: false,
       });
@@ -653,7 +653,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "gemini".into(),
         api_key: gemini_key.unwrap(),
-        model: "gemini-3.5-flash".into(),
+        model: "gemini-3.5-flash-lite".into(),
         base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
         is_anthropic: false,
       });
@@ -662,7 +662,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "openai".into(),
         api_key: openai_key.unwrap(),
-        model: "gpt-4o-mini".into(), // cheapest, NOT the user's chat model
+        model: "gpt-5.6-luna".into(), // cheapest, NOT the user's chat model
         base_url: "https://api.openai.com/v1".into(),
         is_anthropic: false,
       });
@@ -671,7 +671,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "anthropic".into(),
         api_key: anthropic_key.unwrap(),
-        model: "claude-haiku-4-5-20251001".into(), // cheapest, NOT Sonnet/Opus
+        model: "claude-haiku-4-5".into(), // cheapest, NOT Sonnet/Opus
         base_url: "https://api.anthropic.com/v1".into(),
         is_anthropic: true,
       });
@@ -680,7 +680,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "openrouter".into(),
         api_key: openrouter_key.unwrap(),
-        model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+        model: "qwen/qwen3.8-27b:free".into(),
         base_url: "https://openrouter.ai/api/v1".into(),
         is_anthropic: false,
       });
@@ -711,7 +711,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
     return Ok(HeartbeatProvider {
       name: "groq".into(),
       api_key: key,
-      model: "llama-3.3-70b-versatile".into(),
+      model: "openai/gpt-oss-20b".into(),
       base_url: "https://api.groq.com/openai/v1".into(),
       is_anthropic: false,
     });
@@ -720,7 +720,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
     return Ok(HeartbeatProvider {
       name: "gemini".into(),
       api_key: key,
-      model: "gemini-3.5-flash".into(),
+      model: "gemini-3.5-flash-lite".into(),
       base_url: "https://generativelanguage.googleapis.com/v1beta/openai".into(),
       is_anthropic: false,
     });
@@ -729,7 +729,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
     return Ok(HeartbeatProvider {
       name: "openrouter".into(),
       api_key: key,
-      model: "meta-llama/llama-3.3-70b-instruct:free".into(),
+      model: "qwen/qwen3.8-27b:free".into(),
       base_url: "https://openrouter.ai/api/v1".into(),
       is_anthropic: false,
     });
@@ -749,7 +749,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "openai".into(),
         api_key: key,
-        model: "gpt-4o-mini".into(),
+        model: "gpt-5.6-luna".into(),
         base_url: "https://api.openai.com/v1".into(),
         is_anthropic: false,
       });
@@ -758,7 +758,7 @@ fn resolve_heartbeat_provider() -> Result<HeartbeatProvider, String> {
       return Ok(HeartbeatProvider {
         name: "anthropic".into(),
         api_key: key,
-        model: "claude-haiku-4-5-20251001".into(),
+        model: "claude-haiku-4-5".into(),
         base_url: "https://api.anthropic.com/v1".into(),
         is_anthropic: true,
       });

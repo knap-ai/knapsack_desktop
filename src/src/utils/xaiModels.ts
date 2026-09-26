@@ -9,9 +9,7 @@ export type XaiModelOption = {
 }
 
 export const XAI_MODELS: XaiModelOption[] = [
-  { id: 'grok-4.20-beta-latest-reasoning', name: 'Grok 4.20 Reasoning', description: 'Newest Grok reasoning model for complex work', vision: true },
-  { id: 'grok-4.20-beta-latest-non-reasoning', name: 'Grok 4.20 Fast', description: 'Fast Grok 4.20 variant for everyday tasks', vision: true },
-  { id: 'grok-code-fast-1', name: 'Grok Code Fast 1', description: 'xAI coding model for fast agentic code work' },
-  { id: 'grok-4.3-latest', name: 'Grok 4.3', description: 'Latest flagship general-purpose Grok model', vision: true },
-  { id: 'grok-4', name: 'Grok 4', description: 'Stable flagship Grok fallback' },
+  { id: 'grok-4.7', name: 'Grok 4.7', description: 'Current xAI flagship for code, tool calling, and general work', vision: true },
+  { id: 'grok-build-0.1', name: 'Grok Build 0.1', description: 'Specialized xAI model for agentic coding and web development', vision: true },
+  { id: 'grok-4.3', name: 'Grok 4.3', description: 'Prior stable Grok option for compatibility', vision: true },
 ]

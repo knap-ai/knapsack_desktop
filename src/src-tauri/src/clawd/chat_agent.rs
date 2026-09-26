@@ -1270,6 +1270,39 @@ pub async fn gemini_chat(
   gemini_chat_with_retries(api_key, model, messages, tools, 6).await
 }
 
+/// Returns a valid Gemini 3 thinking level for a user preference.
+///
+/// Gemini 3.8 and 3.7 do not accept `minimal`; Gemini 2.5 still uses the
+/// legacy thinking-budget contract. Omitting this setting keeps the provider's
+/// documented default, which is safer than sending an incompatible parameter.
+fn gemini_thinking_level(model: &str, requested: &str) -> Option<&'static str> {
+  let model = model.trim().to_ascii_lowercase();
+  let requested = requested.trim().to_ascii_lowercase();
+
+  if requested.is_empty()
+    || matches!(requested.as_str(), "auto" | "none" | "off")
+    || model.contains("-live")
+    || !model.contains("gemini-3")
+  {
+    return None;
+  }
+
+  match requested.as_str() {
+    "low" => Some("low"),
+    "medium" => Some("medium"),
+    "high" => Some("high"),
+    "minimal"
+      if model.contains("gemini-3.8")
+        || model.contains("gemini-3.7")
+        || model.contains("gemini-3.1-pro") =>
+    {
+      Some("low")
+    }
+    "minimal" => Some("minimal"),
+    _ => None,
+  }
+}
+
 /// Call Google Gemini API with an explicit retry count.
 pub async fn gemini_chat_with_retries(
   api_key: &str,
@@ -1392,6 +1425,13 @@ pub async fn gemini_chat_with_retries(
   });
   if !system_text.is_empty() {
     body["systemInstruction"] = json!({"parts": [{"text": system_text}]});
+  }
+  if let Ok(requested_level) = std::env::var("KNAPSACK_GEMINI_THINKING_LEVEL") {
+    if let Some(thinking_level) = gemini_thinking_level(model, &requested_level) {
+      body["generationConfig"] = json!({
+        "thinkingConfig": { "thinkingLevel": thinking_level }
+      });
+    }
   }
 
   let url = format!(
@@ -1585,5 +1625,28 @@ mod tests {
       OaiMessage::Tool { content, .. } => assert_eq!(content, "tool result"),
       other => panic!("expected Tool, got {other:?}"),
     }
+  }
+
+  #[test]
+  fn normalizes_gemini_3_thinking_levels_without_sending_unsupported_values() {
+    assert_eq!(
+      gemini_thinking_level("gemini-3.8-flash", "minimal"),
+      Some("low")
+    );
+    assert_eq!(
+      gemini_thinking_level("gemini-3.8-flash", "medium"),
+      Some("medium")
+    );
+    assert_eq!(
+      gemini_thinking_level("gemini-3.5-flash-lite", "minimal"),
+      Some("minimal")
+    );
+    assert_eq!(
+      gemini_thinking_level("gemini-3.1-pro-preview", "minimal"),
+      Some("low")
+    );
+    assert_eq!(gemini_thinking_level("gemini-2.5-flash", "high"), None);
+    assert_eq!(gemini_thinking_level("gemini-3.8-live", "high"), None);
+    assert_eq!(gemini_thinking_level("gemini-3.8-flash", "none"), None);
   }
 }
