@@ -2154,6 +2154,7 @@ async fn main() {
       spotlight::hide_overlay_window,
       spotlight::toggle_overlay_window,
       spotlight::show_recording_indicator,
+      spotlight::restore_recording_indicator,
       spotlight::hide_recording_indicator,
       update_tray_menu,
       update_tray_title,

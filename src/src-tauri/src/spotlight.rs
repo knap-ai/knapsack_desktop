@@ -177,6 +177,16 @@ pub fn show_recording_indicator(app_handle: AppHandle<Wry>) {
   }
 }
 
+/// Restore the persistent pill after a meeting-only surface has hidden it.
+/// Unlike the recording-start command, this deliberately does not emit the
+/// start event, so an in-progress elapsed timer is preserved.
+#[tauri::command]
+pub fn restore_recording_indicator(app_handle: AppHandle<Wry>) {
+  if let Some(window) = app_handle.get_window("recording-indicator") {
+    let _ = window.show();
+  }
+}
+
 #[tauri::command]
 pub fn hide_recording_indicator(app_handle: AppHandle<Wry>) {
   if let Some(window) = app_handle.get_window("recording-indicator") {

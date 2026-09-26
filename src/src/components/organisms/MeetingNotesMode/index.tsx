@@ -262,6 +262,30 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
   const [personWorkspaces, setPersonWorkspaces] = useState<Record<string, Workspace>>({})
   const [isMeetingChatOpen, setIsMeetingChatOpen] = useState(false)
+
+  const isAnyRecordingRef = useRef(recordingHandlers.isAnyRecording)
+  isAnyRecordingRef.current = recordingHandlers.isAnyRecording
+
+  // The native recording pill is useful when Knapsack is in the background,
+  // but it must not float over the active recording's in-app meeting chat.
+  // A different meeting detail must never hide the global stop control.
+  useEffect(() => {
+    const command = isMeetingRecording && isMeetingChatOpen
+      ? 'hide_recording_indicator'
+      : 'restore_recording_indicator'
+    void invoke(command).catch(() => {})
+  }, [isMeetingChatOpen, isMeetingRecording, recordingHandlers.isAnyRecording])
+
+  // Recording belongs to the app-level provider and can outlive this detail.
+  // Restore the stop control only on unmount, not on every chat toggle.
+  useEffect(() => {
+    return () => {
+      if (isAnyRecordingRef.current) {
+        void invoke('restore_recording_indicator').catch(() => {})
+      }
+    }
+  }, [])
+
   const [meetingChatHeight, setMeetingChatHeight] = useState(initialMeetingChatHeight)
   const meetingChatHeightRef = useRef(meetingChatHeight)
   const meetingChatResizeRef = useRef<{ pointerId: number; startY: number; startHeight: number } | null>(null)
