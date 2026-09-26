@@ -91,6 +91,7 @@ const MAX_DAILY_NOTIFICATIONS_WITH_CHANNELS = 15
 
 // LocalStorage keys for notification state
 const KN_MORNING_BRIEFING_DATE = 'kn_morning_briefing_date'
+const KN_MORNING_BRIEFING_CHANNEL_DATE = 'kn_morning_briefing_channel_date'
 const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
@@ -627,6 +628,7 @@ export function useBackgroundNotifications({
       buttonHandler: string,
       buttonText: string,
       channelDeliveryKey?: string,
+      onChannelDelivered?: () => void | Promise<void>,
     ): Promise<boolean> => {
       if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
@@ -687,6 +689,9 @@ export function useBackgroundNotifications({
                     parsed.fullAnalysis,
                     parsed.suggestedActionPrompt,
                   ).then(channelDelivered => {
+                    if (channelDelivered) {
+                      void onChannelDelivered?.()
+                    }
                     if (!channelDeliveryKey) return
                     inFlightMeetingChannelIdsRef.current.delete(channelDeliveryKey)
                     if (!channelDelivered) return
@@ -868,7 +873,10 @@ export function useBackgroundNotifications({
         // Check if already sent today
         const today = dayjs(now).format('YYYY-MM-DD')
         const morningBriefingDate = await KNLocalStorage.getItem(KN_MORNING_BRIEFING_DATE)
-        if (morningBriefingDate === today) return
+        const morningBriefingChannelDate = await KNLocalStorage.getItem(
+          KN_MORNING_BRIEFING_CHANNEL_DATE,
+        )
+        if (morningBriefingDate === today || morningBriefingChannelDate === today) return
 
         const currentHour = now.getHours()
         const currentMinute = now.getMinutes()
@@ -943,6 +951,15 @@ export function useBackgroundNotifications({
         'morning_briefing',
         'background_insight_notification_handler',
         'View Briefing',
+        undefined,
+        async () => {
+          if (!force) {
+            await KNLocalStorage.setItem(
+              KN_MORNING_BRIEFING_CHANNEL_DATE,
+              dayjs(now).format('YYYY-MM-DD'),
+            )
+          }
+        },
       )
       if (delivered && !force) {
         await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, dayjs(now).format('YYYY-MM-DD'))
