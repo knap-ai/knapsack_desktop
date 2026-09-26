@@ -6909,7 +6909,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           );
           let disable_paid = is_paid_fallback_disabled();
           let ollama_key = if ollama_is_enabled(&app_handle) {
-            Some("ollama-local".to_string())
+            ollama_api_key(&app_handle)
           } else {
             None
           };

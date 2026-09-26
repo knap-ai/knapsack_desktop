@@ -69,4 +69,7 @@ test('Cloud chats retain hosted capabilities and use Ollama native tool calling'
   assert.match(agent, /JsonValue::String\(serialized\)/)
   assert.match(agent, /native_tool_names: HashMap<String, String>/)
   assert.match(agent, /\["tool_name"\] = json!\(tool_name\)/)
+  assert.match(agent, /Uuid::new_v4\(\)/)
+  assert.match(agent, /\["functions\.", "tools\/"\]/)
+  assert.match(browser, /let ollama_key = if ollama_is_enabled\(&app_handle\) \{\s*ollama_api_key\(&app_handle\)/)
 })

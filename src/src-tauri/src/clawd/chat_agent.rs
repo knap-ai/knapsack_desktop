@@ -3,6 +3,7 @@ use serde_json::json;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// An image attachment to include in a vision-capable LLM request.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -890,16 +891,25 @@ pub async fn ollama_native_chat(
 
   let parsed = parse_json_value_with_escape_repair(&text)?;
   let message = parsed.get("message").cloned().unwrap_or_else(|| json!({}));
+  let available_tool_names = tools
+    .iter()
+    .map(|tool| tool.function.name.as_str())
+    .collect::<std::collections::HashSet<_>>();
   let tool_calls = message
     .get("tool_calls")
     .and_then(JsonValue::as_array)
     .map(|calls| {
       calls
         .iter()
-        .enumerate()
-        .filter_map(|(index, call)| {
+        .filter_map(|call| {
           let function = call.get("function")?;
-          let name = function.get("name")?.as_str()?.to_string();
+          let raw_name = function.get("name")?.as_str()?;
+          let name = ["functions.", "tools/"]
+            .iter()
+            .find_map(|prefix| raw_name.strip_prefix(prefix))
+            .filter(|candidate| available_tool_names.contains(candidate))
+            .unwrap_or(raw_name)
+            .to_string();
           let raw_arguments = function
             .get("arguments")
             .cloned()
@@ -918,7 +928,7 @@ pub async fn ollama_native_chat(
               .get("id")
               .and_then(JsonValue::as_str)
               .map(str::to_string)
-              .unwrap_or_else(|| format!("ollama-tool-{}", index)),
+              .unwrap_or_else(|| format!("ollama-tool-{}", Uuid::new_v4())),
             kind: "function".to_string(),
             function: OaiToolFn { name, arguments },
           })
