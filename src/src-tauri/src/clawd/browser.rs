@@ -2987,7 +2987,7 @@ pub async fn act(
 
 /// Parse a natural language schedule string into a cron schedule JSON value
 fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Option<serde_json::Value> {
-  let s = schedule_str.to_lowercase();
+  let s = schedule_str.trim().to_lowercase();
 
   // Monthly calendar language cannot be represented safely by the limited
   // natural-language parser below. In particular, the short weekday alias
@@ -3024,7 +3024,7 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Option<
     }
 
     // Every day at X
-    if let Some(caps) = regex::Regex::new(r"every\s+day\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?")
+    if let Some(caps) = regex::Regex::new(r"^every\s+day\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$")
       .ok()
       .and_then(|re| re.captures(&s))
     {
@@ -3051,56 +3051,41 @@ fn parse_schedule_to_cron(schedule_str: &str, timezone: Option<&str>) -> Option<
       return Some(result);
     }
 
-    // Every [weekday] at X
-    let days = [
-      ("sunday", "0"),
-      ("monday", "1"),
-      ("tuesday", "2"),
-      ("wednesday", "3"),
-      ("thursday", "4"),
-      ("friday", "5"),
-      ("saturday", "6"),
-      ("sun", "0"),
-      ("mon", "1"),
-      ("tue", "2"),
-      ("wed", "3"),
-      ("thu", "4"),
-      ("fri", "5"),
-      ("sat", "6"),
-    ];
-    for (day_name, day_num) in days {
-      if s.contains(day_name) {
-        // Try to extract time
-        let hour_minute = regex::Regex::new(r"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?")
-          .ok()
-          .and_then(|re| re.captures(&s));
-        let (hour, minute) = if let Some(caps) = hour_minute {
-          let mut h: u32 = caps
-            .get(1)
-            .and_then(|m| m.as_str().parse().ok())
-            .unwrap_or(9);
-          let m: u32 = caps
-            .get(2)
-            .and_then(|m| m.as_str().parse().ok())
-            .unwrap_or(0);
-          let ampm = caps.get(3).map(|m| m.as_str());
-          if ampm == Some("pm") && h < 12 {
-            h += 12;
-          }
-          if ampm == Some("am") && h == 12 {
-            h = 0;
-          }
-          (h, m)
-        } else {
-          (9, 0) // default 9am
-        };
-        let cron_expr = format!("{} {} * * {}", minute, hour, day_num);
-        let mut result = json!({ "kind": "cron", "expr": cron_expr });
-        if let Some(tz) = timezone {
-          result["tz"] = json!(tz);
-        }
-        return Some(result);
+    // A single weekday at a time is the only weekday phrase this safe parser
+    // supports. Anchoring the entire expression means `Tuesday and Thursday`
+    // cannot be silently reduced to Tuesday.
+    if let Some(caps) = regex::Regex::new(
+      r"^every\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$",
+    )
+    .ok()
+    .and_then(|re| re.captures(&s)) {
+      let day_num = match caps.get(1).map(|m| m.as_str())? {
+        "sunday" | "sun" => "0",
+        "monday" | "mon" => "1",
+        "tuesday" | "tue" => "2",
+        "wednesday" | "wed" => "3",
+        "thursday" | "thu" => "4",
+        "friday" | "fri" => "5",
+        "saturday" | "sat" => "6",
+        _ => return None,
+      };
+      let mut hour: u32 = caps.get(2)?.as_str().parse().ok()?;
+      let minute: u32 = caps
+        .get(3)
+        .and_then(|m| m.as_str().parse().ok())
+        .unwrap_or(0);
+      let ampm = caps.get(4).map(|m| m.as_str());
+      if ampm == Some("pm") && hour < 12 {
+        hour += 12;
       }
+      if ampm == Some("am") && hour == 12 {
+        hour = 0;
+      }
+      let mut result = json!({ "kind": "cron", "expr": format!("{} {} * * {}", minute, hour, day_num) });
+      if let Some(tz) = timezone {
+        result["tz"] = json!(tz);
+      }
+      return Some(result);
     }
   }
 
@@ -4735,8 +4720,9 @@ pub async fn chat(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
       let payload = args_map.get("payload").filter(|value| value.is_object()).cloned();
-      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || timezone.is_none() || payload.is_none() {
-        return Ok(json!({"ok": false, "error": "id, name, schedule, timezone, and the existing task payload are required"}));
+      let enabled = args_map.get("enabled").and_then(|value| value.as_bool());
+      if task_id.is_empty() || task_name.is_empty() || schedule_str.is_empty() || timezone.is_none() || payload.is_none() || enabled.is_none() {
+        return Ok(json!({"ok": false, "error": "id, name, schedule, timezone, enabled state, and the existing task payload are required"}));
       }
       let mut payload = payload.expect("payload was checked above");
       let payload_kind = payload.get("kind").and_then(|value| value.as_str()).unwrap_or("");
@@ -4754,6 +4740,9 @@ pub async fn chat(
       let patch = json!({
         "name": task_name,
         "schedule": schedule,
+        // The user-approved replacement can deliberately reactivate a
+        // disabled task; never leave the state implicit in an update.
+        "enabled": enabled.expect("enabled was checked above"),
         // Updating a schedule must preserve whether it is an isolated agent
         // turn or a system event, while allowing directly confirmed report
         // instructions to replace its text.
