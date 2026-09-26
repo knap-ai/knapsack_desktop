@@ -1110,8 +1110,10 @@ function App() {
           // minute-based schedulers.
           void checkMeetingPrep()
           await handleNotificationsScheduleService(date)
-          await checkMorningBriefing(date)
-          await checkProactiveCheckin(date)
+          // These two flows can wait on the model. They must not hold the
+          // minute clock hostage or suppress meeting-status updates.
+          void checkMorningBriefing(date)
+          void checkProactiveCheckin(date)
           handleAutomationsFeedScheduleService(date)
         }
         updateMeetingStatuses(currentTime)

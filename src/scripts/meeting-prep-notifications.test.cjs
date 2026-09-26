@@ -26,6 +26,8 @@ test('the minute clock uses rich prep and retains the configured join-and-record
 test('slow prep generation cannot block the time-sensitive minute scheduler', () => {
   assert.match(app, /void checkMeetingPrep\(\)/)
   assert.doesNotMatch(app, /await checkMeetingPrep\(\)/)
+  assert.match(app, /void checkMorningBriefing\(date\)/)
+  assert.match(app, /void checkProactiveCheckin\(date\)/)
 })
 
 test('a notification is considered delivered only when its window opens', () => {
@@ -75,6 +77,13 @@ test('morning channel delivery is marked separately when no popup can open', () 
   assert.match(notifications, /morningBriefingChannelDate === today/)
   assert.match(notifications, /if \(channelDelivered\) \{[\s\S]*?onChannelDelivered/)
   assert.match(notifications, /KNLocalStorage\.setItem\([\s\S]*?KN_MORNING_BRIEFING_CHANNEL_DATE/)
+})
+
+test('channel-only email alerts update the notification throttle', () => {
+  assert.match(
+    notifications,
+    /channelDelivered && notificationType === 'email_alert' && !didOpen[\s\S]*?recordNotification\(notificationType\)/,
+  )
 })
 
 test('meeting prep notifications request concise, evidence-grounded key points', () => {
