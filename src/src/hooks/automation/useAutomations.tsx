@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import {
@@ -216,6 +216,7 @@ export function useAutomations({
     { type: NotificationTypes.MEETING_NOTES, sentIdentifiers: [], minutesToNotify: 1 },
   ])
   const [isNotificationWindowShowing, setIsNotificationWindowShowing] = useState(false)
+  const notificationWindowReservedRef = useRef(false)
   //const [nextMeeting, setNextMeeting] = useState<CalendarEvents | null>(null)
 
   const dataFetcher = useMemo(() => new DataFetcher(), [])
@@ -533,7 +534,11 @@ export function useAutomations({
       time: string,
       brief?: string,
     ): Promise<boolean> => {
-      if (isNotificationWindowShowing) return false
+      if (notificationWindowReservedRef.current) return false
+      // Reserve synchronously before crossing the native bridge. State updates
+      // are asynchronous, so state alone cannot prevent two concurrent callers
+      // from replacing the singleton notification payload.
+      notificationWindowReservedRef.current = true
 
       try {
         const didShow = await invoke<boolean>('show_notification_window', {
@@ -543,10 +548,14 @@ export function useAutomations({
           time,
           brief,
         })
-        if (!didShow) return false
+        if (!didShow) {
+          notificationWindowReservedRef.current = false
+          return false
+        }
         setIsNotificationWindowShowing(true)
         return true
       } catch (error) {
+        notificationWindowReservedRef.current = false
         console.error(error)
         logError(new Error('Error showing notification window'), {
           additionalInfo: `Error showing notification window for eventId: ${eventId}`,
@@ -555,13 +564,13 @@ export function useAutomations({
         return false
       }
     },
-    [isNotificationWindowShowing],
+    [],
   )
 
   // -- Notification handling starts here --
   const handleMeetingNotesNotification = useCallback(
     async (now: Date, service: NotificationService, notificationIndex: number) => {
-      if (isNotificationWindowShowing) {
+      if (notificationWindowReservedRef.current) {
         return
       }
 
@@ -576,7 +585,7 @@ export function useAutomations({
           if (
             minutesUntil === leadTime &&
             !service.sentIdentifiers.includes(meeting.eventId) &&
-            !isNotificationWindowShowing
+            !notificationWindowReservedRef.current
           ) {
             KNAnalytics.trackEvent('notificationPush', {
               meetingStart: startTime.format('MM/DD/YYYY HH:mm::ss'),
@@ -585,7 +594,7 @@ export function useAutomations({
             })
 
             try {
-              openNotificationWindow(
+              const didShow = await openNotificationWindow(
                 meeting.id.toString(),
                 [
                   {
@@ -605,17 +614,20 @@ export function useAutomations({
                 startTime.format('h:mm A'),
                 buildMeetingNotificationBrief(meeting, userEmail),
               )
-              setNotificationServices(prev =>
-                prev.map((s, idx) =>
-                  idx === notificationIndex
-                    ? {
-                        ...s,
-                        sentIdentifiers: [...s.sentIdentifiers, meeting.id],
-                      }
-                    : s,
-                ),
-              )
+              if (didShow) {
+                setNotificationServices(prev =>
+                  prev.map((s, idx) =>
+                    idx === notificationIndex
+                      ? {
+                          ...s,
+                          sentIdentifiers: [...s.sentIdentifiers, meeting.id],
+                        }
+                      : s,
+                  ),
+                )
+              }
             } catch (error) {
+              notificationWindowReservedRef.current = false
               setIsNotificationWindowShowing(false)
             }
             break
@@ -623,7 +635,7 @@ export function useAutomations({
         }
       }
     },
-    [dataFetcher, isNotificationWindowShowing, openNotificationWindow, userEmail],
+    [dataFetcher, openNotificationWindow, userEmail],
   )
 
   const handleNotificationsScheduleService = useCallback(
@@ -633,13 +645,13 @@ export function useAutomations({
         return
       }
 
-      notificationServices.forEach(async (notification, index) => {
+      for (const [index, notification] of notificationServices.entries()) {
         if (notification.type === NotificationTypes.MEETING_NOTES) {
           await handleMeetingNotesNotification(now, notification, index)
         }
-      })
+      }
     },
-    [handleMeetingNotesNotification, notificationServices, isNotificationWindowShowing],
+    [handleMeetingNotesNotification, notificationServices],
   )
 
   // On load
@@ -651,6 +663,7 @@ export function useAutomations({
     }
 
     const unlistenPromisse = listen('close-notification', () => {
+      notificationWindowReservedRef.current = false
       setIsNotificationWindowShowing(false)
     })
 

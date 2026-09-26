@@ -93,6 +93,7 @@ const KN_DAILY_NOTIFICATION_COUNT = 'kn_daily_notification_count'
 const KN_DAILY_NOTIFICATION_DATE = 'kn_daily_notification_date'
 const KN_LAST_PROACTIVE_CHECKIN = 'kn_last_proactive_checkin'
 const KN_PREPPED_MEETING_IDS = 'kn_prepped_meeting_ids'
+const KN_PREPPED_MEETING_CHANNEL_IDS = 'kn_prepped_meeting_channel_ids'
 
 /** Load persisted prepped-meeting IDs from localStorage, pruning any older than 7 days. */
 function loadPreppedMeetingIds(): Set<string> {
@@ -161,6 +162,16 @@ export function useBackgroundNotifications({
   const pendingFollowupRef = useRef<BackgroundNotificationResult | null>(null)
   const lastNotificationTimeRef = useRef<number>(0)
   const preppedMeetingIdsRef = useRef<Set<string>>(loadPreppedMeetingIds())
+  const preppedMeetingChannelIdsRef = useRef<Set<string>>(
+    (() => {
+      try {
+        const raw = localStorage.getItem(KN_PREPPED_MEETING_CHANNEL_IDS)
+        return new Set<string>(raw ? JSON.parse(raw) : [])
+      } catch {
+        return new Set<string>()
+      }
+    })(),
+  )
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -599,6 +610,7 @@ export function useBackgroundNotifications({
       notificationType: string,
       buttonHandler: string,
       buttonText: string,
+      channelDeliveryKey?: string,
     ): Promise<boolean> => {
       if (processingLockRef.current) return Promise.resolve(false)
       processingLockRef.current = true
@@ -642,13 +654,27 @@ export function useBackgroundNotifications({
                   parsed.notificationBody,
                 )
 
-                // Push full briefing to connected messaging channels (non-blocking)
-                void pushToChannels(
-                  parsed.notificationTitle,
-                  parsed.notificationBody,
-                  parsed.fullAnalysis,
-                  parsed.suggestedActionPrompt,
-                )
+                // Local windows can retry while the native surface is hidden.
+                // A linked phone should receive that prep only once per
+                // meeting occurrence, independently of the local retry.
+                if (
+                  !channelDeliveryKey ||
+                  !preppedMeetingChannelIdsRef.current.has(channelDeliveryKey)
+                ) {
+                  if (channelDeliveryKey) {
+                    preppedMeetingChannelIdsRef.current.add(channelDeliveryKey)
+                    localStorage.setItem(
+                      KN_PREPPED_MEETING_CHANNEL_IDS,
+                      JSON.stringify([...preppedMeetingChannelIdsRef.current]),
+                    )
+                  }
+                  void pushToChannels(
+                    parsed.notificationTitle,
+                    parsed.notificationBody,
+                    parsed.fullAnalysis,
+                    parsed.suggestedActionPrompt,
+                  )
+                }
                 // Meeting prep remains eligible for an in-app retry unless the
                 // native alert was actually displayed; channel delivery is
                 // intentionally independent of that local surface.
@@ -776,6 +802,7 @@ export function useBackgroundNotifications({
         'pre_meeting_prep',
         'background_insight_notification_handler',
         'View Prep',
+        getMeetingPrepNotificationKey(meetingNeedingPrep),
       )
 
       // Only consume the meeting after a notification actually opened. A model
@@ -883,20 +910,21 @@ export function useBackgroundNotifications({
         const canSend = await canSendNotification('medium')
         if (!canSend) return
 
-        // Mark morning briefing as sent for today
-        await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, today)
       }
 
       const context = await gatherFullContext()
       if (!context) return
 
-      await generateAndShowNotification(
+      const delivered = await generateAndShowNotification(
         context,
         MORNING_BRIEFING_PROMPT,
         'morning_briefing',
         'background_insight_notification_handler',
         'View Briefing',
       )
+      if (delivered && !force) {
+        await KNLocalStorage.setItem(KN_MORNING_BRIEFING_DATE, dayjs(now).format('YYYY-MM-DD'))
+      }
     },
     [userEmail, canSendNotification, gatherFullContext, generateAndShowNotification],
   )
