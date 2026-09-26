@@ -389,6 +389,25 @@ pub fn default_tools() -> Vec<OaiToolSpec> {
         }),
       },
     },
+    OaiToolSpec {
+      kind: "function".to_string(),
+      function: OaiToolSpecFn {
+        name: "update_scheduled_task".to_string(),
+        description: "Update one existing recurring task after the user directly confirms the exact revised proposal. Use list_scheduled_tasks first, then pass the returned task ID so the old job is updated instead of creating a duplicate.".to_string(),
+        parameters: json!({
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "description": "Existing task ID returned by list_scheduled_tasks" },
+            "name": { "type": "string", "description": "Confirmed replacement name" },
+            "message": { "type": "string", "description": "Confirmed replacement task content" },
+            "schedule": { "type": "string", "description": "Confirmed replacement schedule" },
+            "timezone": { "type": "string", "description": "Timezone for the replacement schedule" }
+          },
+          "required": ["id", "name", "message", "schedule"],
+          "additionalProperties": false
+        }),
+      },
+    },
     // Meeting context tools
     OaiToolSpec {
       kind: "function".to_string(),
