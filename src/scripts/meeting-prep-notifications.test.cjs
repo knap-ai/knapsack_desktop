@@ -27,8 +27,11 @@ test('a notification is considered delivered only when its window opens', () => 
   const automations = read('src/hooks/automation/useAutomations.tsx')
   const native = read('src-tauri/src/main.rs')
   assert.match(automations, /const notificationWindowReservedRef = useRef\(false\)/)
-  assert.match(automations, /if \(notificationWindowReservedRef\.current\) return false/)
+  assert.match(automations, /if \(notificationWindowReservedRef\.current\) \{[\s\S]*?if \(!replaceExisting\) return false/)
   assert.match(automations, /notificationWindowReservedRef\.current = true/)
+  assert.match(automations, /replaceExisting = false/)
+  assert.match(automations, /await invoke\('close_notification_window'\)/)
+  assert.match(automations, /minutesUntil <= leadTime[\s\S]*?minutesUntil > 0/)
   assert.match(automations, /const didShow = await invoke<boolean>\('show_notification_window'/)
   assert.match(automations, /if \(!didShow\) \{[\s\S]*?return false[\s\S]*?setIsNotificationWindowShowing\(true\)\s*return true/)
   assert.match(automations, /Error showing notification window[\s\S]*?return false/)
@@ -49,6 +52,9 @@ test('meeting prep channel delivery is deduplicated while the local surface retr
   assert.match(notifications, /preppedMeetingChannelIdsRef\.current\.has\(channelDeliveryKey\)/)
   assert.match(notifications, /getMeetingPrepNotificationKey\(meetingNeedingPrep\)/)
   assert.match(notifications, /JSON\.stringify\(\[\.\.\.preppedMeetingChannelIdsRef\.current\]\)/)
+  assert.match(notifications, /inFlightMeetingChannelIdsRef/)
+  assert.match(notifications, /Promise<boolean>/)
+  assert.match(notifications, /if \(!channelDelivered\) return/)
 })
 
 test('morning briefing is marked sent only after it is delivered', () => {
