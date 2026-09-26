@@ -94,6 +94,16 @@ test('channel-only email alerts update the notification throttle', () => {
   )
 })
 
+test('an email alert marks only the model-selected source message as delivered', () => {
+  const prompts = read('src/prompts.ts')
+  assert.match(prompts, /"sourceEmailKey": "<the exact SOURCE KEY/)
+  assert.match(prompts, /sourceEmailKey MUST exactly match the SOURCE KEY/)
+  assert.match(notifications, /\*\*SOURCE KEY:\*\* \$\{emailDeliveryKey\(email\)\}/)
+  assert.match(notifications, /channelDeliveryKeys\.includes\(parsed\.sourceEmailKey\)/)
+  assert.match(notifications, /\? \[parsed\.sourceEmailKey\]/)
+  assert.match(notifications, /Email alert omitted a valid sourceEmailKey/)
+})
+
 test('channel delivery retries separately from a successful local prep and deduplicates each source email', () => {
   assert.match(notifications, /const resolvedChannelDeliveryKeys/)
   assert.match(notifications, /const emailDeliveryKey = \(email: any\)/)

@@ -484,6 +484,7 @@ Your response MUST be a JSON object with this exact format:
   "fullAnalysis": "<Analysis in Markdown: describe the ONE email that needs a reply — who sent it, what they need, and why it's time-sensitive. Suggest a reply approach. Do NOT mention other emails. IMPORTANT: End with a single suggested next action as a markdown link in the format [Descriptive Action Label](knapsack://prompt/detailed instruction for the action). For example: [Draft Reply to Sarah's Budget Request](knapsack://prompt/Draft a reply to Sarah's email about the Q3 budget request, confirming the timeline and asking for the revised numbers).>",
   "suggestedActionShort": "<exactly 2 words - verb + noun, e.g. Draft Reply, Review Email, Send Update>",
   "suggestedActionPrompt": "<the full detailed instruction for the suggested action, matching what's in the knapsack://prompt/ link>",
+  "sourceEmailKey": "<the exact SOURCE KEY from the selected email; required when shouldNotify is true>",
   "category": "email_alert",
   "priority": "<high if response needed urgently, medium if important but not urgent>",
   "shouldNotify": <true or false - only true if at least one email GENUINELY and URGENTLY needs a response right now>
@@ -491,6 +492,7 @@ Your response MUST be a JSON object with this exact format:
 
 Rules:
 - ONE email per notification. Do not bundle or list multiple emails.
+- When shouldNotify is true, sourceEmailKey MUST exactly match the SOURCE KEY for the one selected email. Do not invent, alter, or omit it.
 - Set shouldNotify to FALSE if no emails urgently need a response (all are FYI, marketing, automated, or can wait)
 - Be more aggressive about setting shouldNotify to false — routine emails that can wait a few hours should NOT trigger a notification
 - NEVER mention marketing, newsletters, FYI, or informational emails — pretend they don't exist

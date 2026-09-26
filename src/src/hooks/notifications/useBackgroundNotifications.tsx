@@ -42,6 +42,8 @@ type BackgroundNotificationResult = {
   actionItemCount?: number
   meetingTitle?: string
   shouldNotify?: boolean
+  /** Stable source identity selected by the email-alert prompt. */
+  sourceEmailKey?: string
   suggestedActionShort?: string
   suggestedActionPrompt?: string
 }
@@ -396,7 +398,7 @@ export function useBackgroundNotifications({
           const dateStr = new Date(email.date * 1000).toLocaleString()
           const preview = (email.summary || email.body || '').slice(0, 200)
           contextParts.push(
-            `- **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
+            `- **SOURCE KEY:** ${emailDeliveryKey(email)} | **From:** ${email.sender} | **Subject:** ${email.subject} | **Date:** ${dateStr}\n  ${preview}\n`,
           )
         }
       }
@@ -675,11 +677,30 @@ export function useBackgroundNotifications({
                 // The same recent-email batch can surface through multiple
                 // sync events. Keep its channel delivery identity stable even
                 // when no local notification window is available.
-                const resolvedChannelDeliveryKeys = channelDeliveryKeys?.length
-                  ? channelDeliveryKeys
-                  : notificationType === 'email_alert'
-                    ? [`email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`]
-                    : []
+                // The email prompt chooses one source message. Never mark an
+                // entire batch delivered merely because one alert was sent.
+                const resolvedChannelDeliveryKeys =
+                  notificationType === 'email_alert' && channelDeliveryKeys?.length
+                    ? parsed.sourceEmailKey && channelDeliveryKeys.includes(parsed.sourceEmailKey)
+                      ? [parsed.sourceEmailKey]
+                      : []
+                    : channelDeliveryKeys?.length
+                      ? channelDeliveryKeys
+                      : notificationType === 'email_alert'
+                        ? [`email-alert:${parsed.notificationTitle}:${parsed.notificationBody}`]
+                        : []
+
+                // A response without a verifiable source cannot safely claim
+                // delivery for an email. Skip it and allow a later scan to
+                // produce a correctly attributed alert.
+                if (
+                  notificationType === 'email_alert' &&
+                  channelDeliveryKeys?.length &&
+                  resolvedChannelDeliveryKeys.length === 0
+                ) {
+                  console.warn('Email alert omitted a valid sourceEmailKey')
+                  return response
+                }
 
                 const primaryText = parsed.suggestedActionShort || buttonText
                 const didOpen = await openNotificationWindow(
