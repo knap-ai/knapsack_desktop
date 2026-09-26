@@ -32,11 +32,50 @@ impl DriveDocument {
   /// goal discovery.
   pub fn summary_from_content_chunks(content_chunks: &[String]) -> String {
     const LIMIT: usize = 12_000;
-    content_chunks
-      .iter()
-      .flat_map(|chunk| chunk.chars())
-      .take(LIMIT)
-      .collect()
+    const PREFIX_LIMIT: usize = 9_000;
+    const EVIDENCE_WINDOW: usize = 1_000;
+    const GOAL_TERMS: [&str; 12] = [
+      "okr", "objective", "key result", "goal", "target", "kpi", "metric", "milestone",
+      "north star", "annual plan", "strategic plan", "quarterly plan",
+    ];
+
+    let full_text = content_chunks.join("\n");
+    if full_text.chars().count() <= LIMIT {
+      return full_text;
+    }
+
+    let mut summary = full_text
+      .chars()
+      .take(PREFIX_LIMIT)
+      .collect::<String>();
+    let mut remaining = LIMIT.saturating_sub(summary.chars().count());
+
+    // Preserve focused windows from later chunks so a long generic document
+    // remains discoverable when its OKR or planning language is not in the
+    // opening pages. This is still a bounded local index, not a full copy.
+    for chunk in content_chunks {
+      if remaining == 0 {
+        break;
+      }
+      let normalized = chunk.to_ascii_lowercase();
+      let Some(match_at) = GOAL_TERMS.iter().find_map(|term| normalized.find(term)) else {
+        continue;
+      };
+      let prefix_chars = chunk[..match_at].chars().count();
+      let start = prefix_chars.saturating_sub(EVIDENCE_WINDOW / 4);
+      let window = chunk
+        .chars()
+        .skip(start)
+        .take(EVIDENCE_WINDOW.min(remaining))
+        .collect::<String>();
+      if window.trim().is_empty() || summary.contains(&window) {
+        continue;
+      }
+      summary.push_str("\n\n[Goal-related section]\n");
+      summary.push_str(&window);
+      remaining = LIMIT.saturating_sub(summary.chars().count());
+    }
+    summary.chars().take(LIMIT).collect()
   }
 
   pub fn update_summary(&self) -> Result<(), Error> {
@@ -173,6 +212,18 @@ impl DriveDocument {
       })
       .optional()?;
     Ok(drive_document)
+  }
+
+  pub fn claim_unscoped_drive_id_for_account(
+    drive_id: &str,
+    account_email: &str,
+  ) -> Result<Option<DriveDocument>, Error> {
+    let connection = get_db_conn();
+    connection.execute(
+      "UPDATE drive_documents SET account_email = ?2 WHERE drive_id = ?1 AND TRIM(account_email) = ''",
+      params![drive_id, account_email],
+    )?;
+    Self::find_by_drive_id_for_account(drive_id, account_email)
   }
 
   pub fn find_by_ids(ids: Vec<String>) -> Result<Vec<DriveDocument>, Error> {

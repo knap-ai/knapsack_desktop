@@ -402,7 +402,12 @@ pub async fn get_or_create_drive_document_from_file(
     .or(file.version.clone().map(|f| f.to_string()));
   let existing_drive_document = DriveDocument::find_by_drive_id_for_account(&drive_id, account_email)
     .ok()
-    .flatten();
+    .flatten()
+    .or_else(|| {
+      DriveDocument::claim_unscoped_drive_id_for_account(&drive_id, account_email)
+        .ok()
+        .flatten()
+    });
   let url = file.web_view_link.clone().unwrap_or("".to_string());
   let (maybe_content, content_fetch_succeeded) = match get_drive_file_content(
     mime_type,
