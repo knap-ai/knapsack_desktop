@@ -458,6 +458,47 @@ pub async fn cron_list(token: Option<&str>) -> Result<Value, String> {
   gateway_request("cron.list", None, token).await
 }
 
+/// List every scheduled job, including disabled tasks. Use this when a user is
+/// reviewing or updating a schedule so an inactive existing task cannot be
+/// mistaken for a missing one.
+pub async fn cron_list_all(token: Option<&str>) -> Result<Value, String> {
+  let env_token = get_gateway_token();
+  let token = token.or(env_token.as_deref());
+  let mut offset = 0_u64;
+  let mut jobs = Vec::new();
+  let mut delivery_previews = serde_json::Map::new();
+  // The gateway caps pages at 200 jobs. Exhaust pagination so the required
+  // duplicate check cannot miss an older disabled schedule.
+  for _ in 0..100 {
+    let page = gateway_request(
+      "cron.list",
+      Some(serde_json::json!({ "includeDisabled": true, "limit": 200, "offset": offset, "sortBy": "name" })),
+      token,
+    )
+    .await?;
+    let page_jobs = page.get("jobs").and_then(Value::as_array).cloned().unwrap_or_default();
+    jobs.extend(page_jobs);
+    if let Some(page_previews) = page.get("deliveryPreviews").and_then(Value::as_object) {
+      delivery_previews.extend(page_previews.clone());
+    }
+    if !page.get("hasMore").and_then(Value::as_bool).unwrap_or(false) {
+      return Ok(serde_json::json!({
+        "jobs": jobs,
+        "total": jobs.len(),
+        "includeDisabled": true,
+        "deliveryPreviews": delivery_previews,
+      }));
+    }
+    let next_offset = page.get("nextOffset").and_then(Value::as_u64)
+      .ok_or_else(|| "Gateway returned a paginated cron list without nextOffset".to_string())?;
+    if next_offset <= offset {
+      return Err("Gateway cron pagination did not advance".to_string());
+    }
+    offset = next_offset;
+  }
+  Err("Gateway cron pagination exceeded 100 pages".to_string())
+}
+
 /// Add a new scheduled job
 /// schedule can be: { kind: "at", atMs: number } | { kind: "every", everyMs: number, anchorMs?: number } | { kind: "cron", expr: string, tz?: string }
 /// payload: { kind: "systemEvent" | "agentTurn", text: string }
