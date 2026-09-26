@@ -1366,6 +1366,19 @@ fn ollama_api_key(app_handle: &tauri::AppHandle) -> Option<String> {
   Some("ollama-local".to_string())
 }
 
+fn ollama_cloud_is_active(app_handle: &tauri::AppHandle) -> bool {
+  load_or_create_tokens(app_handle)
+    .ok()
+    .is_some_and(|tokens| {
+      tokens.ollama_enabled.unwrap_or(false)
+        && tokens.ollama_cloud_enabled.unwrap_or(false)
+        && tokens
+          .ollama_cloud_api_key
+          .as_deref()
+          .is_some_and(|key| !key.trim().is_empty())
+    })
+}
+
 fn ollama_model(app_handle: &tauri::AppHandle) -> String {
   load_or_create_tokens(app_handle)
     .ok()
@@ -5819,7 +5832,10 @@ No email account is directly connected via the send_email tool. However, you CAN
     )
   };
 
-  let use_compact_local_prompt = provider == "ollama";
+  // Cloud-hosted Ollama models have the same practical context and tool
+  // capability expectations as our other hosted providers.  Only a true local
+  // daemon receives the intentionally compact, no-tools prompt.
+  let use_compact_local_prompt = provider == "ollama" && !ollama_cloud_is_active(&app_handle);
 
   let system_content = if qa_smoke {
     "You are a Knapsack QA readiness probe. Reply with exactly READY.".to_string()
@@ -6356,10 +6372,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       "xai" => {
         chat_agent::openai_compatible_chat(key, model, "https://api.x.ai/v1", msgs, tls).await
       }
-      "ollama" => {
-        let base = format!("{}/v1", ollama_base.trim_end_matches('/'));
-        chat_agent::openai_compatible_chat(key, model, &base, msgs, tls).await
-      }
+      "ollama" => chat_agent::ollama_native_chat(key, model, ollama_base, msgs, tls).await,
       "openrouter" => {
         chat_agent::openai_compatible_chat(key, model, "https://openrouter.ai/api/v1", msgs, tls)
           .await

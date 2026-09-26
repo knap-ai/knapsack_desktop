@@ -55,3 +55,14 @@ test('ordinary Cloud chat uses the saved Cloud credential instead of the local m
   assert.match(browser, /Some\("ollama-local"\.to_string\(\)\)/)
   assert.match(browser, /"Ollama Cloud API key is not set/)
 })
+
+test('Cloud chats retain hosted capabilities and use Ollama native tool calling', () => {
+  const browser = read('src-tauri/src/clawd/browser.rs')
+  const agent = read('src-tauri/src/clawd/chat_agent.rs')
+  assert.match(browser, /fn ollama_cloud_is_active/)
+  assert.match(browser, /provider == "ollama" && !ollama_cloud_is_active/)
+  assert.match(browser, /chat_agent::ollama_native_chat\(key, model, ollama_base, msgs, tls\)/)
+  assert.match(agent, /pub async fn ollama_native_chat/)
+  assert.match(agent, /\/api\/chat/)
+  assert.match(agent, /"tool_calls"/)
+})

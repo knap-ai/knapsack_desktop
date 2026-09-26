@@ -804,6 +804,124 @@ pub async fn openai_compatible_chat(
   anyhow::bail!("LLM error after {} retries: {}", max_retries, last_error)
 }
 
+/// Call Ollama's native `/api/chat` endpoint.  Ollama Cloud supports the same
+/// API shape as a local daemon, including structured tool calls; its OpenAI
+/// compatibility endpoint is not a safe substitute for tool-using chats.
+pub async fn ollama_native_chat(
+  api_key: &str,
+  model: &str,
+  base_url: &str,
+  messages: Vec<OaiMessage>,
+  tools: Vec<OaiToolSpec>,
+) -> anyhow::Result<OaiChatResp> {
+  let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
+  let timeout_secs = if is_local { 300 } else { 60 };
+  let client = reqwest::Client::builder()
+    .timeout(Duration::from_secs(timeout_secs))
+    .build()?;
+
+  let native_messages: Vec<JsonValue> = messages
+    .iter()
+    .map(|message| match message {
+      OaiMessage::System { content } => json!({"role": "system", "content": content}),
+      OaiMessage::User { content, images } => {
+        let mut value = json!({"role": "user", "content": content});
+        if !images.is_empty() {
+          value["images"] = json!(images.iter().map(|image| image.data.clone()).collect::<Vec<_>>());
+        }
+        value
+      }
+      OaiMessage::Assistant { content, tool_calls } => {
+        let mut value = json!({"role": "assistant", "content": content.clone().unwrap_or_default()});
+        if let Some(calls) = tool_calls {
+          value["tool_calls"] = json!(calls.iter().map(|call| {
+            let arguments = serde_json::from_str::<JsonValue>(&call.function.arguments)
+              .unwrap_or_else(|_| json!({}));
+            json!({"function": {"name": call.function.name, "arguments": arguments}})
+          }).collect::<Vec<_>>());
+        }
+        value
+      }
+      OaiMessage::Tool { content, .. } => json!({"role": "tool", "content": content}),
+    })
+    .collect();
+
+  let mut body = json!({
+    "model": model,
+    "messages": native_messages,
+    "stream": false,
+    "options": {"temperature": 0.2},
+  });
+  if !tools.is_empty() {
+    body["tools"] = json!(tools);
+  }
+
+  let response = client
+    .post(format!("{}/api/chat", base_url.trim_end_matches('/')))
+    .bearer_auth(api_key)
+    .json(&body)
+    .send()
+    .await?;
+  let status = response.status();
+  let text = response.text().await.unwrap_or_default();
+  if !status.is_success() {
+    anyhow::bail!("Ollama HTTP {}: {}", status, text);
+  }
+
+  let parsed = parse_json_value_with_escape_repair(&text)?;
+  let message = parsed.get("message").cloned().unwrap_or_else(|| json!({}));
+  let tool_calls = message
+    .get("tool_calls")
+    .and_then(JsonValue::as_array)
+    .map(|calls| {
+      calls
+        .iter()
+        .enumerate()
+        .filter_map(|(index, call)| {
+          let function = call.get("function")?;
+          let name = function.get("name")?.as_str()?.to_string();
+          let arguments = function
+            .get("arguments")
+            .cloned()
+            .unwrap_or_else(|| json!({}))
+            .to_string();
+          Some(OaiToolCall {
+            id: call
+              .get("id")
+              .and_then(JsonValue::as_str)
+              .map(str::to_string)
+              .unwrap_or_else(|| format!("ollama-tool-{}", index)),
+            kind: "function".to_string(),
+            function: OaiToolFn { name, arguments },
+          })
+        })
+        .collect()
+    })
+    .unwrap_or_default();
+
+  Ok(OaiChatResp {
+    choices: vec![OaiChoice {
+      message: OaiChoiceMsg {
+        content: message
+          .get("content")
+          .and_then(JsonValue::as_str)
+          .map(str::to_string),
+        tool_calls,
+      },
+    }],
+    usage: Some(OaiUsage {
+      prompt_tokens: parsed
+        .get("prompt_eval_count")
+        .and_then(JsonValue::as_i64)
+        .unwrap_or_default(),
+      completion_tokens: parsed
+        .get("eval_count")
+        .and_then(JsonValue::as_i64)
+        .unwrap_or_default(),
+    }),
+  })
+}
+
 /// Parse the retry-after time from OpenAI rate limit error messages
 fn parse_retry_after(text: &str) -> Option<f64> {
   // Look for patterns like "Please try again in 4.183s" or "retry in X seconds"
