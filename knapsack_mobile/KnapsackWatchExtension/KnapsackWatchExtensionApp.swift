@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct KnapsackWatchExtensionApp: App {
+struct KnapsackWatchApp: App {
   var body: some Scene {
     WindowGroup {
       WatchContentView()
