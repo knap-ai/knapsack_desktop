@@ -1152,7 +1152,7 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   if provider.eq_ignore_ascii_case("openai")
     && (model.eq_ignore_ascii_case("gpt-5.4-pro") || model.eq_ignore_ascii_case("gpt-5.5-pro"))
   {
-    return "gpt-5.5".to_string();
+    return "gpt-5.6-terra".to_string();
   }
   model.to_string()
 }
@@ -4888,14 +4888,14 @@ pub async fn chat(
           #[cfg(target_os = "windows")]
           {
             format!(
-              "npx -y opencode-ai run --model xai/grok-code-fast-1 \"{}\"",
+              "npx -y opencode-ai run --model xai/grok-build-0.1 \"{}\"",
               prompt.replace('"', "\\\"")
             )
           }
           #[cfg(not(target_os = "windows"))]
           {
             format!(
-              "npx -y opencode-ai run --model xai/grok-code-fast-1 '{}'",
+              "npx -y opencode-ai run --model xai/grok-build-0.1 '{}'",
               prompt.replace('\'', "'\\''")
             )
           }

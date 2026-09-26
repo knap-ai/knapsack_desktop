@@ -10,13 +10,15 @@ export type OpenRouterModelOption = {
 
 export const OPENROUTER_MODELS: OpenRouterModelOption[] = [
   { id: 'openrouter/auto', name: 'Auto (Smart Routing)', description: 'Automatically picks the best model for each request', vision: true },
-  { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS (Free)', description: 'Free open-weight flagship with strong coding and tool use' },
-  { id: 'qwen/qwen3-coder:free', name: 'Qwen Coder (Free)', description: 'Free open-source coding model via OpenRouter' },
-  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', description: 'Free, versatile general-purpose open model' },
-  { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro (Paid)', description: 'Paid, strong open model for complex reasoning and coding' },
-  { id: 'deepseek/deepseek-v4-flash', name: 'DeepSeek V4 Flash (Paid)', description: 'Paid, fast 1M-context variant for agent loops' },
-  { id: 'anthropic/claude-opus-4.8', name: 'Claude Opus (Paid)', description: 'Paid Anthropic flagship via OpenRouter', vision: true },
-  { id: 'openai/gpt-5.5', name: 'GPT-5 (Paid)', description: 'Paid OpenAI frontier model via OpenRouter', vision: true },
+  { id: 'qwen/qwen3.8-27b:free', name: 'Qwen 3.8 27B (Free)', description: 'Current free reasoning model with tool use and structured output' },
+  { id: 'openai/gpt-5.6-sol', name: 'GPT-5.6 Sol', description: 'OpenAI frontier model for demanding coding and reasoning', vision: true },
+  { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus', description: 'Anthropic flagship via OpenRouter', vision: true },
+  { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash', description: 'Google’s newest stable Flash model for agentic work', vision: true },
+  { id: 'x-ai/grok-4.7', name: 'Grok 4.7', description: 'xAI flagship for tool calling and agentic work', vision: true },
+  { id: 'deepseek/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', description: 'Fast long-context open model for agent loops' },
+  { id: 'z-ai/glm-5.3-flash', name: 'GLM 5.3 Flash', description: 'Fast open model for coding and agentic workflows' },
+  { id: 'moonshotai/kimi-k3', name: 'Kimi K3', description: 'Moonshot’s current long-context reasoning model' },
+  { id: 'minimax/minimax-m3', name: 'MiniMax M3', description: 'Current MiniMax model for coding and autonomous work' },
 ]
 
-export const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-oss-120b:free'
+export const DEFAULT_OPENROUTER_MODEL = 'qwen/qwen3.8-27b:free'

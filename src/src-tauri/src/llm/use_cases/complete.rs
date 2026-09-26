@@ -88,11 +88,11 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     .ok()
     .filter(|k| !k.trim().is_empty());
   let openai_model =
-    std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
-  let anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-    .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+    std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
+  let anthropic_model =
+    std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-5-5".to_string());
   let gemini_model =
-    std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+    std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
 
   // Try the user's active provider first
   match active.as_str() {
@@ -124,8 +124,8 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
       })
     }
     "groq" if groq_key.is_some() => {
-      let groq_model = std::env::var("KNAPSACK_GROQ_MODEL")
-        .unwrap_or_else(|_| "meta-llama/llama-4-maverick-17b-128e-instruct".to_string());
+      let groq_model =
+        std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
       return Ok(ResolvedProvider {
         name: "groq".into(),
         api_key: groq_key.unwrap(),
@@ -136,7 +136,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     }
     "openrouter" if openrouter_key.is_some() => {
       let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+        .unwrap_or_else(|_| "qwen/qwen3.8-27b:free".to_string());
       let key = openrouter_key.unwrap();
       log::debug!(
         "[resolve_provider] openrouter selected: key_len={} model={} key_starts={} key_ends={}",
@@ -279,7 +279,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     return Ok(ResolvedProvider {
       name: "groq".into(),
       api_key: key,
-      model: "meta-llama/llama-4-maverick-17b-128e-instruct".into(),
+      model: "openai/gpt-oss-120b".into(),
       base_url: "https://api.groq.com/openai/v1".into(),
       is_anthropic: false,
     });
@@ -325,7 +325,7 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
   }
   if let Some(key) = openrouter_key {
     let openrouter_model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      .unwrap_or_else(|_| "qwen/qwen3.8-27b:free".to_string());
     log::debug!(
       "[resolve_provider] openrouter fallback: key_len={} model={} key_starts={} key_ends={}",
       key.len(),
@@ -386,7 +386,7 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
         // Only cross-route if the configured OpenRouter model is a free one
         if openrouter_model.contains(":free") || openrouter_model.is_empty() {
           let model = if openrouter_model.is_empty() {
-            "meta-llama/llama-3.3-70b-instruct:free".to_string()
+            "qwen/qwen3.8-27b:free".to_string()
           } else {
             openrouter_model
           };
@@ -408,10 +408,10 @@ fn apply_model_routing(provider: &mut ResolvedProvider, prompt: &str) {
 
     // Fallback: downgrade to cheapest model within each provider
     let (new_model, label) = match provider.name.as_str() {
-      "openai" => ("o3-mini".to_string(), "o3-mini"),
-      "anthropic" => ("claude-haiku-4-5-20251001".to_string(), "Haiku"),
-      "gemini" => ("gemini-3.5-flash".to_string(), "Flash"), // already cheap
-      "groq" => (provider.model.clone(), "Groq"),            // already cheap
+      "openai" => ("gpt-5.6-luna".to_string(), "Luna"),
+      "anthropic" => ("claude-haiku-4-5".to_string(), "Haiku"),
+      "gemini" => ("gemini-3.5-flash-lite".to_string(), "Flash-Lite"),
+      "groq" => (provider.model.clone(), "Groq"), // already cheap
       "knapsack" => (provider.model.clone(), "Knapsack"),
       "trustedrouter" => (provider.model.clone(), "TrustedRouter"),
       "openrouter" => (provider.model.clone(), "OpenRouter"), // user chose this
@@ -1124,11 +1124,11 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
         .ok()
         .filter(|k| !k.trim().is_empty());
       let fb_openai_model =
-        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
-      let fb_anthropic_model = std::env::var("KNAPSACK_ANTHROPIC_MODEL")
-        .unwrap_or_else(|_| "claude-sonnet-4-5-20250929".to_string());
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
+      let fb_anthropic_model =
+        std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-5-5".to_string());
       let fb_gemini_model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
       let fb_knapsack_model =
         std::env::var("KNAPSACK_KNAPSACK_MODEL").unwrap_or_else(|_| "auto".to_string());
       let fb_knapsack_model = {
@@ -1183,7 +1183,7 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
         (
           "groq",
           &fb_groq_key,
-          "meta-llama/llama-4-maverick-17b-128e-instruct".to_string(),
+          "openai/gpt-oss-120b".to_string(),
           "https://api.groq.com/openai/v1",
           false,
         ),
@@ -1236,7 +1236,7 @@ pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<Stri
       // Also try Groq SDK as last resort (may have different key source)
       if provider.name != "groq" {
         if let Ok(groq) = GroqLlm::new() {
-          let primary = "meta-llama/llama-4-maverick-17b-128e-instruct".to_string();
+          let primary = "openai/gpt-oss-120b".to_string();
           match groq
             .chat_completion(ChatCompletionArgs {
               model: primary.clone(),

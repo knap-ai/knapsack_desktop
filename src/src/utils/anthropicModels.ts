@@ -17,7 +17,8 @@ export type KnapsackTierModelOption = {
 export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-fable-5-1', name: 'Claude Fable 5.1', description: 'Anthropic frontier flagship for advanced coding and long-running agentic work', vision: true },
   { id: 'claude-fable-5', name: 'Claude Fable 5', description: 'Earlier Fable release, still excellent for high-end agentic workloads', vision: true },
-  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', description: 'Current Opus flagship, excellent for complex coding, reasoning, and vision', vision: true },
+  { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', description: 'Current Opus flagship, excellent for complex coding, reasoning, and vision', vision: true },
+  { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
   { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
   { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
   { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', description: 'Earlier Opus release, still excellent for complex tasks', vision: true },
@@ -32,14 +33,14 @@ export const ANTHROPIC_MODELS: AnthropicModelOption[] = [
   { id: 'claude-haiku-3-5', name: 'Claude Haiku 3.5', description: 'Earlier Haiku release, optimized for low-latency affordable tasks', vision: true },
 ]
 
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-4-8'
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5'
 
-export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 4.8, Sonnet 5, Haiku 4.5'
+export const ANTHROPIC_PROVIDER_DESCRIPTION = 'Claude Fable 5.1, Opus 5.5, Sonnet 5, Haiku 4.5'
 
 export const KNAPSACK_ANTHROPIC_TIER_MODELS: KnapsackTierModelOption[] = [
   { id: 'anthropic/claude-haiku-4-5', name: 'Standard', description: 'Fast, efficient — great for everyday tasks' },
   { id: 'anthropic/claude-sonnet-5', name: 'Plus', description: 'Balanced performance and capability' },
-  { id: 'anthropic/claude-opus-4-8', name: 'Premium', description: 'Most powerful — best for complex work' },
+  { id: 'anthropic/claude-opus-5-5', name: 'Premium', description: 'Most powerful — best for complex work' },
 ]
 
 export const DEFAULT_KNAPSACK_ANTHROPIC_MODEL = 'anthropic/claude-haiku-4-5'

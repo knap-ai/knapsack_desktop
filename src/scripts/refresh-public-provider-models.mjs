@@ -451,41 +451,53 @@ function buildOpenRouterSource(ids) {
       vision: true,
     },
     {
-      id: pickPresent(ids, ['openai/gpt-oss-120b:free', 'openai/gpt-oss-20b:free'], 'openai/gpt-oss-120b:free'),
-      name: 'GPT-OSS (Free)',
-      description: 'Free open-weight flagship with strong coding and tool use',
+      id: pickPresent(ids, ['qwen/qwen3.8-27b:free', 'openai/gpt-oss-120b:free'], 'qwen/qwen3.8-27b:free'),
+      name: 'Qwen 3.8 27B (Free)',
+      description: 'Current free reasoning model with tool use and structured output',
     },
     {
-      id: pickPresent(ids, ['qwen/qwen3-coder:free', 'qwen/qwen3-next-80b-a3b-instruct:free'], 'qwen/qwen3-coder:free'),
-      name: 'Qwen Coder (Free)',
-      description: 'Free open-source coding model via OpenRouter',
-    },
-    {
-      id: pickPresent(ids, ['meta-llama/llama-3.3-70b-instruct:free'], 'meta-llama/llama-3.3-70b-instruct:free'),
-      name: 'Llama 3.3 70B (Free)',
-      description: 'Free, versatile general-purpose open model',
-    },
-    {
-      id: pickPresent(ids, ['deepseek/deepseek-v4-pro'], 'deepseek/deepseek-v4-pro'),
-      name: 'DeepSeek V4 Pro (Paid)',
-      description: 'Paid, strong open model for complex reasoning and coding',
-    },
-    {
-      id: pickPresent(ids, ['deepseek/deepseek-v4-flash'], 'deepseek/deepseek-v4-flash'),
-      name: 'DeepSeek V4 Flash (Paid)',
-      description: 'Paid, fast 1M-context variant for agent loops',
-    },
-    {
-      id: pickPresent(ids, ['anthropic/claude-opus-4.8', 'anthropic/claude-opus-4.7'], 'anthropic/claude-opus-4.8'),
-      name: 'Claude Opus (Paid)',
-      description: 'Paid Anthropic flagship via OpenRouter',
+      id: pickPresent(ids, ['openai/gpt-5.6-sol', 'openai/gpt-5.5'], 'openai/gpt-5.6-sol'),
+      name: 'GPT-5.6 Sol',
+      description: 'OpenAI frontier model for demanding coding and reasoning',
       vision: true,
     },
     {
-      id: pickPresent(ids, ['openai/gpt-5.5', 'openai/gpt-5.4'], 'openai/gpt-5.5'),
-      name: 'GPT-5 (Paid)',
-      description: 'Paid OpenAI frontier model via OpenRouter',
+      id: pickPresent(ids, ['anthropic/claude-opus-5.5', 'anthropic/claude-opus-4.8'], 'anthropic/claude-opus-5.5'),
+      name: 'Claude Opus',
+      description: 'Anthropic flagship via OpenRouter',
       vision: true,
+    },
+    {
+      id: pickPresent(ids, ['google/gemini-3.8-flash', 'google/gemini-3.7-flash'], 'google/gemini-3.8-flash'),
+      name: 'Gemini 3.8 Flash',
+      description: 'Google’s newest stable Flash model for agentic work',
+      vision: true,
+    },
+    {
+      id: pickPresent(ids, ['x-ai/grok-4.7', 'x-ai/grok-4.3'], 'x-ai/grok-4.7'),
+      name: 'Grok 4.7',
+      description: 'xAI flagship for tool calling and agentic work',
+      vision: true,
+    },
+    {
+      id: pickPresent(ids, ['deepseek/deepseek-v4.1-flash', 'deepseek/deepseek-v4-flash'], 'deepseek/deepseek-v4.1-flash'),
+      name: 'DeepSeek V4.1 Flash',
+      description: 'Fast long-context open model for agent loops',
+    },
+    {
+      id: pickPresent(ids, ['z-ai/glm-5.3-flash', 'z-ai/glm-5.2'], 'z-ai/glm-5.3-flash'),
+      name: 'GLM 5.3 Flash',
+      description: 'Fast open model for coding and agentic workflows',
+    },
+    {
+      id: pickPresent(ids, ['moonshotai/kimi-k3', 'moonshotai/kimi-k2.7-code'], 'moonshotai/kimi-k3'),
+      name: 'Kimi K3',
+      description: 'Moonshot’s current long-context reasoning model',
+    },
+    {
+      id: pickPresent(ids, ['minimax/minimax-m3', 'minimax/minimax-m2.7'], 'minimax/minimax-m3'),
+      name: 'MiniMax M3',
+      description: 'Current MiniMax model for coding and autonomous work',
     },
   ]
 
@@ -503,7 +515,7 @@ export const OPENROUTER_MODELS: OpenRouterModelOption[] = [
 ${choices.map((model) => `  { id: '${escapeSingleQuotes(model.id)}', name: '${escapeSingleQuotes(model.name)}', description: '${escapeSingleQuotes(model.description)}'${model.vision ? ', vision: true' : ''} },`).join('\n')}
 ]
 
-export const DEFAULT_OPENROUTER_MODEL = '${escapeSingleQuotes(choices[1]?.id ?? 'openai/gpt-oss-120b:free')}'
+export const DEFAULT_OPENROUTER_MODEL = '${escapeSingleQuotes(choices[1]?.id ?? 'qwen/qwen3.8-27b:free')}'
 `
 }
 
@@ -511,32 +523,22 @@ function buildXaiSource(html) {
   const has = (needle) => html.includes(needle)
   const choices = [
     {
-      id: has('grok-4.20-beta-latest-reasoning') ? 'grok-4.20-beta-latest-reasoning' : 'grok-4.20-reasoning-latest',
-      name: 'Grok 4.20 Reasoning',
-      description: 'Newest Grok reasoning model for complex work',
+      id: has('grok-4.7') ? 'grok-4.7' : 'grok-4.3',
+      name: 'Grok 4.7',
+      description: 'Current xAI flagship for code, tool calling, and general work',
       vision: true,
     },
     {
-      id: has('grok-4.20-beta-latest-non-reasoning') ? 'grok-4.20-beta-latest-non-reasoning' : 'grok-4.20-non-reasoning-latest',
-      name: 'Grok 4.20 Fast',
-      description: 'Fast Grok 4.20 variant for everyday tasks',
+      id: has('grok-build-0.1') ? 'grok-build-0.1' : 'grok-4.3',
+      name: 'Grok Build 0.1',
+      description: 'Specialized xAI model for agentic coding and web development',
       vision: true,
     },
     {
-      id: has('grok-code-fast-1') ? 'grok-code-fast-1' : 'grok-code-fast',
-      name: 'Grok Code Fast 1',
-      description: 'xAI coding model for fast agentic code work',
-    },
-    {
-      id: has('grok-4.3-latest') ? 'grok-4.3-latest' : 'grok-4',
+      id: 'grok-4.3',
       name: 'Grok 4.3',
-      description: 'Latest flagship general-purpose Grok model',
+      description: 'Prior stable Grok option for compatibility',
       vision: true,
-    },
-    {
-      id: 'grok-4',
-      name: 'Grok 4',
-      description: 'Stable flagship Grok fallback',
     },
   ]
 

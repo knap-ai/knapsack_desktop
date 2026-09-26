@@ -15,12 +15,14 @@ import {
   KNAPSACK_ANTHROPIC_TIER_MODELS,
 } from 'src/utils/anthropicModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
-import { GEMINI_MODELS, GEMINI_PROVIDER_DESCRIPTION } from 'src/utils/geminiModels'
 import {
+  DEFAULT_GEMINI_MODEL,
   DEFAULT_OPENAI_MODEL,
+  DEFAULT_TRUSTEDROUTER_MODEL,
+  GEMINI_MODELS,
   OPENAI_MODELS,
-  OPENAI_PROVIDER_DESCRIPTION,
-} from 'src/utils/openaiModels'
+  TRUSTEDROUTER_MODELS,
+} from 'src/utils/providerModels'
 import KNAnalytics from 'src/utils/KNAnalytics'
 
 import styles from './styles.module.scss'
@@ -60,7 +62,7 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    description: OPENAI_PROVIDER_DESCRIPTION,
+    description: 'GPT-5.6 Sol, Terra, Luna',
     keyPrefix: 'sk-',
     helpUrl: 'https://platform.openai.com/api-keys',
     helpLabel: 'platform.openai.com/api-keys',
@@ -94,24 +96,18 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     keyPrefix: 'sk-tr-',
     helpUrl: 'https://trustedrouter.com/console/api-keys',
     helpLabel: 'trustedrouter.com/console/api-keys',
-    models: [
-      { id: 'trustedrouter/auto', name: 'Auto', description: 'TrustedRouter selects the best healthy route for each request' },
-      { id: 'trustedrouter/zdr', name: 'Zero Data Retention', description: 'Routes through zero-retention providers where available' },
-      { id: 'trustedrouter/e2e', name: 'End-to-End Encrypted', description: 'Routes to end-to-end encrypted provider paths where available' },
-      { id: 'trustedrouter/fast', name: 'Fast', description: 'Low-latency route for quick agent loops' },
-      { id: 'trustedrouter/synth', name: 'Synth', description: 'Panel synthesis across multiple open models' },
-    ],
-    defaultModel: 'trustedrouter/auto',
+    models: TRUSTEDROUTER_MODELS,
+    defaultModel: DEFAULT_TRUSTEDROUTER_MODEL,
   },
   {
     id: 'gemini',
     name: 'Gemini',
-    description: `${GEMINI_PROVIDER_DESCRIPTION} — sign in with Google`,
+    description: 'Gemini 3.8 Flash, 3.7 Flash, 3.5 Flash-Lite — sign in with Google',
     keyPrefix: 'AIza',
     helpUrl: 'https://aistudio.google.com/apikey',
     helpLabel: 'aistudio.google.com/apikey',
-    models: GEMINI_MODELS,
-    defaultModel: 'gemini-2.5-flash',
+    models: GEMINI_MODELS.map(model => ({ ...model, id: `gemini/${model.id}` })),
+    defaultModel: `gemini/${DEFAULT_GEMINI_MODEL}`,
   },
 ]
 
@@ -482,7 +478,7 @@ export const ProviderSignInDialog = ({
         setSelectedModel(config.defaultModel)
       } else if (data.active_provider === 'google-gemini-cli') {
         setSelectedProvider('gemini')
-        setSelectedModel('gemini-2.5-flash')
+        setSelectedModel(`gemini/${DEFAULT_GEMINI_MODEL}`)
       } else if (data.active_provider === 'knapsack') {
         setSelectedProvider('knapsack')
         const config = PROVIDER_CONFIGS.find(p => p.id === 'knapsack')!

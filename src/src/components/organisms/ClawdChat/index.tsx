@@ -23,11 +23,20 @@ import { detectBuildIntent, extractProjectDescription } from 'src/utils/devInten
 import { dispatchDevPopulate, dispatchOpenDevPanel } from 'src/utils/devModeEvents'
 import { getAgentMemory, saveAgentMemory } from 'src/automations/agentMemory'
 import { buildSupportDiagnosticsDraft } from 'src/utils/supportDiagnostics'
-import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION } from 'src/utils/anthropicModels'
-import { GEMINI_MODELS, GEMINI_PROVIDER_DESCRIPTION } from 'src/utils/geminiModels'
-import { OPENAI_MODELS } from 'src/utils/openaiModels'
+import { ANTHROPIC_MODELS, ANTHROPIC_PROVIDER_DESCRIPTION, DEFAULT_ANTHROPIC_MODEL } from 'src/utils/anthropicModels'
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
-import { XAI_MODELS } from 'src/utils/xaiModels'
+import {
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GROQ_MODEL,
+  DEFAULT_OPENAI_MODEL,
+  DEFAULT_TRUSTEDROUTER_MODEL,
+  DEFAULT_XAI_MODEL,
+  GEMINI_MODELS,
+  GROQ_MODELS,
+  OPENAI_MODELS,
+  TRUSTEDROUTER_MODELS,
+  XAI_MODELS,
+} from 'src/utils/providerModels'
 import {
   detectStudioConnectorSuggestion,
   isStudioConnectIntent,
@@ -542,50 +551,14 @@ const KNAPSACK_MODEL_STORAGE = 'knapsack_knapsack_model'
 
 const PROVIDERS: ProviderOption[] = [
   { id: 'knapsack', name: 'Knapsack', description: 'Powered by Knapsack — no API key needed', keyPrefix: '', helpUrl: 'https://studio.knapsack.ai' },
-  { id: 'openai', name: 'OpenAI', description: 'GPT-5.5, GPT-5.4, o3', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'openai', name: 'OpenAI', description: 'GPT-5.6 Sol, Terra, Luna', keyPrefix: 'sk-', helpUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Anthropic', description: ANTHROPIC_PROVIDER_DESCRIPTION, keyPrefix: 'sk-ant-', helpUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'gemini', name: 'Google', description: GEMINI_PROVIDER_DESCRIPTION, keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
-  { id: 'groq', name: 'Groq', description: 'GPT-OSS, Llama 4, Kimi K2 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
-  { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.20, Grok 4 Fast, Grok Code Fast', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
+  { id: 'gemini', name: 'Google', description: 'Gemini 3.8 Flash, 3.7 Flash, 3.5 Flash-Lite', keyPrefix: 'AI', helpUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'groq', name: 'Groq', description: 'GPT-OSS, Qwen 3.8, MiniMax M2.7 — ultra-fast', keyPrefix: 'gsk_', helpUrl: 'https://console.groq.com/keys' },
+  { id: 'xai', name: 'Grok (xAI)', description: 'Grok 4.7 and Grok Build', keyPrefix: 'xai-', helpUrl: 'https://console.x.ai/' },
   { id: 'openrouter', name: 'OpenRouter', description: 'Free & paid models from many providers', keyPrefix: 'sk-or-', helpUrl: 'https://openrouter.ai/keys' },
   { id: 'trustedrouter', name: 'TrustedRouter', description: 'OpenAI-compatible attested routing through TrustedRouter', keyPrefix: 'sk-tr-', helpUrl: 'https://trustedrouter.com/console/api-keys' },
   { id: 'ollama', name: 'Ollama', description: 'Local models — free, private, no API key', keyPrefix: '', helpUrl: 'https://ollama.com' },
-]
-
-type GroqModelOption = {
-  id: string
-  name: string
-  description: string
-  vision?: boolean
-}
-
-const GROQ_MODELS: GroqModelOption[] = [
-  { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', description: 'OpenAI open-weight flagship, tools built-in' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout', description: 'Multimodal MoE, 10M context window', vision: true },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick', description: 'Largest Llama 4, 128 experts, 1M context', vision: true },
-  { id: 'moonshotai/kimi-k2-instruct-0905', name: 'Kimi K2', description: '1T params, agentic coding, 256K context' },
-  { id: 'qwen/qwen-3-32b', name: 'Qwen 3 32B', description: 'Latest Qwen, strong reasoning' },
-  { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 Distill', description: 'Reasoning model, great for logic' },
-  { id: 'qwen-qwq-32b', name: 'Qwen QwQ 32B', description: 'Reasoning model, chain-of-thought' },
-  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Versatile general-purpose model' },
-]
-
-type OpenRouterModelOption = {
-  id: string
-  name: string
-  description: string
-  vision?: boolean
-}
-
-const TRUSTEDROUTER_MODELS: OpenRouterModelOption[] = [
-  { id: 'trustedrouter/auto', name: 'Auto', description: 'TrustedRouter selects the best healthy route for each request', vision: true },
-  { id: 'trustedrouter/zdr', name: 'Zero Data Retention', description: 'Routes through providers with zero-retention policies where available', vision: true },
-  { id: 'trustedrouter/e2e', name: 'End-to-End Encrypted', description: 'Routes to end-to-end encrypted provider paths where available', vision: true },
-  { id: 'trustedrouter/fast', name: 'Fast', description: 'Low-latency route for quick agent loops' },
-  { id: 'trustedrouter/synth', name: 'Synth', description: 'Panel synthesis across multiple open models' },
-  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Balanced coding and reasoning via TrustedRouter', vision: true },
-  { id: 'zai/glm-5.2', name: 'GLM 5.2', description: 'Strong open model for coding and agentic work' },
-  { id: 'moonshotai/kimi-k2.7-code', name: 'Kimi K2.7 Code', description: 'Open model optimized for coding workflows' },
 ]
 
 // Recommended models to offer for download when Ollama has none installed
@@ -706,9 +679,9 @@ const APP_VERSION = '0.9.600'
 
 function normalizeOpenAIModelSelection(model: string | null | undefined): string {
   const trimmed = model?.trim()
-  if (!trimmed) return 'gpt-5.5'
+  if (!trimmed) return DEFAULT_OPENAI_MODEL
   if (trimmed === 'gpt-5.4-pro' || trimmed === 'gpt-5.5-pro') {
-    return 'gpt-5.5'
+    return DEFAULT_OPENAI_MODEL
   }
   return trimmed
 }
@@ -2162,22 +2135,22 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     return normalizeOpenAIModelSelection(localStorage.getItem(OPENAI_MODEL_STORAGE))
   })
   const [selectedAnthropicModel, setSelectedAnthropicModel] = useState<string>(() => {
-    return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || 'claude-sonnet-4-5-20250929'
+    return localStorage.getItem(ANTHROPIC_MODEL_STORAGE) || DEFAULT_ANTHROPIC_MODEL
   })
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
-    return localStorage.getItem(GEMINI_MODEL_STORAGE) || 'gemini-2.5-flash'
+    return localStorage.getItem(GEMINI_MODEL_STORAGE) || DEFAULT_GEMINI_MODEL
   })
   const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() => {
-    return localStorage.getItem(GROQ_MODEL_STORAGE) || 'meta-llama/llama-4-scout-17b-16e-instruct'
+    return localStorage.getItem(GROQ_MODEL_STORAGE) || DEFAULT_GROQ_MODEL
   })
   const [selectedXaiModel, setSelectedXaiModel] = useState<string>(() => {
-    return localStorage.getItem(XAI_MODEL_STORAGE) || 'grok-code-fast-1'
+    return localStorage.getItem(XAI_MODEL_STORAGE) || DEFAULT_XAI_MODEL
   })
   const [selectedOpenRouterModel, setSelectedOpenRouterModel] = useState<string>(() => {
     return localStorage.getItem(OPENROUTER_MODEL_STORAGE) || DEFAULT_OPENROUTER_MODEL
   })
   const [selectedTrustedRouterModel, setSelectedTrustedRouterModel] = useState<string>(() => {
-    return localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || 'trustedrouter/auto'
+    return localStorage.getItem(TRUSTEDROUTER_MODEL_STORAGE) || DEFAULT_TRUSTEDROUTER_MODEL
   })
   const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>(() => {
     return localStorage.getItem(OLLAMA_MODEL_STORAGE) || ''

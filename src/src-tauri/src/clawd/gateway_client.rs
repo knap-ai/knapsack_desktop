@@ -1367,13 +1367,13 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
     if prefix.eq_ignore_ascii_case(canonical_provider) {
       let bare = bare.trim();
       if provider == "openrouter" && bare.eq_ignore_ascii_case("free") {
-        return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+        return "qwen/qwen3.8-27b:free".to_string();
       }
       return bare.to_string();
     }
   }
   if provider == "openrouter" && model.eq_ignore_ascii_case("free") {
-    return "meta-llama/llama-3.3-70b-instruct:free".to_string();
+    return "qwen/qwen3.8-27b:free".to_string();
   }
   model.to_string()
 }
@@ -1505,7 +1505,7 @@ pub fn resolve_default_model() -> String {
       }
       if has_gemini_cli_auth_profile() {
         let model =
-          std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+          std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
         return format!(
           "google-gemini-cli/{}",
           normalize_provider_model("google-gemini-cli", &model)
@@ -1520,7 +1520,7 @@ pub fn resolve_default_model() -> String {
     }
     "openrouter" => {
       let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-        .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+        .unwrap_or_else(|_| "qwen/qwen3.8-27b:free".to_string());
       return format!(
         "openrouter/{}",
         normalize_provider_model("openrouter", &model)
@@ -1540,7 +1540,7 @@ pub fn resolve_default_model() -> String {
     }
     "anthropic" if has_key("ANTHROPIC_API_KEY") => {
       let model =
-        std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
+        std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-5-5".to_string());
       return format!(
         "anthropic/{}",
         normalize_provider_model("anthropic", &model)
@@ -1548,28 +1548,27 @@ pub fn resolve_default_model() -> String {
     }
     "openai" if has_key("OPENAI_API_KEY") => {
       let model =
-        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
       return format!("openai/{}", normalize_provider_model("openai", &model));
     }
     "groq" if has_key("GROQ_API_KEY") => {
-      let model = std::env::var("KNAPSACK_GROQ_MODEL")
-        .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+      let model =
+        std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
       return format!("groq/{}", normalize_provider_model("groq", &model));
     }
     "xai" if has_key("XAI_API_KEY") => {
-      let model =
-        std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
+      let model = std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-4.7".to_string());
       return format!("xai/{}", normalize_provider_model("xai", &model));
     }
     "gemini" if has_gemini_key() => {
       let model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
       return format!("google/{}", normalize_provider_model("google", &model));
     }
     // Google OAuth CLI auth (no API key env var — credentials stored in auth-profiles.json).
     "google-gemini-cli" => {
       let model =
-        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string());
+        std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
       return format!(
         "google-gemini-cli/{}",
         normalize_provider_model("google-gemini-cli", &model)
@@ -1593,7 +1592,7 @@ pub fn resolve_default_model() -> String {
   if !disable_paid || !active_is_free {
     if has_key("ANTHROPIC_API_KEY") {
       let model =
-        std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
+        std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-5".to_string());
       log::warn!(
         "[resolve_default_model] Falling back to anthropic/{} (active={})",
         model,
@@ -1606,7 +1605,7 @@ pub fn resolve_default_model() -> String {
     }
     if has_key("OPENAI_API_KEY") {
       let model =
-        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5-mini".to_string());
+        std::env::var("KNAPSACK_OPENAI_MODEL").unwrap_or_else(|_| "gpt-5.6-terra".to_string());
       log::warn!(
         "[resolve_default_model] Falling back to openai/{} (active={})",
         model,
@@ -1629,23 +1628,22 @@ pub fn resolve_default_model() -> String {
     }
   }
   if has_key("GROQ_API_KEY") {
-    let model = std::env::var("KNAPSACK_GROQ_MODEL")
-      .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+    let model =
+      std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
     return format!("groq/{}", normalize_provider_model("groq", &model));
   }
   if has_key("XAI_API_KEY") {
-    let model =
-      std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
+    let model = std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-4.7".to_string());
     return format!("xai/{}", normalize_provider_model("xai", &model));
   }
   if has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
     return format!("google/{}", normalize_provider_model("google", &model));
   }
   if has_key("OPENROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      .unwrap_or_else(|_| "qwen/qwen3.8-27b:free".to_string());
     return format!(
       "openrouter/{}",
       normalize_provider_model("openrouter", &model)
@@ -1663,11 +1661,11 @@ pub fn resolve_default_model() -> String {
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
     return format!("ollama/{}", normalize_provider_model("ollama", &model));
   }
-  // Final fallback: use Groq free model instead of expensive Anthropic Opus
+  // Final fallback: use the fast Groq default rather than an unconfigured paid provider.
   log::warn!(
-    "[resolve_default_model] No provider keys found, defaulting to groq/llama-3.3-70b-versatile"
+    "[resolve_default_model] No provider keys found, defaulting to groq/openai/gpt-oss-120b"
   );
-  "groq/llama-3.3-70b-versatile".to_string()
+  "groq/openai/gpt-oss-120b".to_string()
 }
 
 /// Return fallback model refs to try when the primary model is rate-limited or overloaded.
@@ -1694,33 +1692,32 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   // auth failures even though a healthy Anthropic key is available.
   if primary_provider != "anthropic" && has_key("ANTHROPIC_API_KEY") {
     let model =
-      std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-4-6".to_string());
+      std::env::var("KNAPSACK_ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-opus-5-5".to_string());
     fallbacks.push(format!("anthropic/{}", model));
   }
 
-  // Groq first: free, fast, and a good rate-limit escape hatch.
+  // Groq first: fast and a good rate-limit escape hatch.
   if primary_provider != "groq" && has_key("GROQ_API_KEY") {
-    let model = std::env::var("KNAPSACK_GROQ_MODEL")
-      .unwrap_or_else(|_| "llama-3.3-70b-versatile".to_string());
+    let model =
+      std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
     fallbacks.push(format!("groq/{}", normalize_provider_model("groq", &model)));
   }
 
   if primary_provider != "xai" && has_key("XAI_API_KEY") {
-    let model =
-      std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-code-fast-1".to_string());
+    let model = std::env::var("KNAPSACK_XAI_MODEL").unwrap_or_else(|_| "grok-4.7".to_string());
     fallbacks.push(format!("xai/{}", normalize_provider_model("xai", &model)));
   }
 
   // Google/Gemini as fallback when the primary is not already a Google provider.
-  // Use 2.5 Pro as the quality floor when no explicit Gemini model is set so
-  // quota fallbacks do not silently degrade into a materially weaker default.
+  // Gemini 3.8 Flash is the current stable agentic default, so fallback quality
+  // remains aligned with a fresh direct Gemini configuration.
   let is_google_primary = matches!(
     primary_provider.as_str(),
     "google" | "gemini" | "google-gemini-cli"
   );
   if !is_google_primary && has_gemini_key() {
     let model =
-      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-2.5-pro".to_string());
+      std::env::var("KNAPSACK_GEMINI_MODEL").unwrap_or_else(|_| "gemini-3.8-flash".to_string());
     fallbacks.push(format!(
       "google/{}",
       normalize_provider_model("google", &model)
@@ -1729,7 +1726,7 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
 
   if primary_provider != "openrouter" && has_key("OPENROUTER_API_KEY") {
     let model = std::env::var("KNAPSACK_OPENROUTER_MODEL")
-      .unwrap_or_else(|_| "meta-llama/llama-3.3-70b-instruct:free".to_string());
+      .unwrap_or_else(|_| "qwen/qwen3.8-27b:free".to_string());
     fallbacks.push(format!(
       "openrouter/{}",
       normalize_provider_model("openrouter", &model)
