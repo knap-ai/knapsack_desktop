@@ -100,6 +100,14 @@ test('channel-only proactive check-ins advance their delivery cadence', () => {
   assert.match(notifications, /KN_LAST_PROACTIVE_CHECKIN, now\.toISOString\(\)/)
 })
 
+test('channel retry timers are cleared on account changes and recheck notification preference', () => {
+  assert.match(notifications, /const channelRetryTimersRef = useRef<Set<number>>\(new Set\(\)\)/)
+  assert.match(notifications, /channelRetryTimersRef\.current\.forEach\(timer => window\.clearTimeout\(timer\)\)/)
+  assert.match(notifications, /channelRetryTimersRef\.current\.clear\(\)/)
+  assert.match(notifications, /channelRetryTimersRef\.current\.add\(retryTimer\)/)
+  assert.match(notifications, /await getBackgroundNotificationsEnabled\(\)/)
+})
+
 test('an email alert marks only the model-selected source message as delivered', () => {
   const prompts = read('src/prompts.ts')
   assert.match(prompts, /"sourceEmailKey": "<the exact SOURCE KEY/)

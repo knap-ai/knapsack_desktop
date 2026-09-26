@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import dayjs from 'dayjs'
 import { insertFeedItemAPI } from 'src/api/feed_items'
@@ -177,6 +177,14 @@ export function useBackgroundNotifications({
     })(),
   )
   const inFlightMeetingChannelIdsRef = useRef<Set<string>>(new Set())
+  const channelRetryTimersRef = useRef<Set<number>>(new Set())
+
+  // A retry is scoped to the current account. Never let a pending channel
+  // delivery survive logout, account switching, or this hook unmounting.
+  useEffect(() => () => {
+    channelRetryTimersRef.current.forEach(timer => window.clearTimeout(timer))
+    channelRetryTimersRef.current.clear()
+  }, [userEmail])
   const processingLockRef = useRef<boolean>(false)
   const channelsAttachedRef = useRef<boolean | null>(null)
 
@@ -761,7 +769,9 @@ export function useBackgroundNotifications({
                         retryOnFailure &&
                         (notificationType === 'pre_meeting_prep' || notificationType === 'morning_briefing')
                       ) {
-                        window.setTimeout(() => {
+                        const retryTimer = window.setTimeout(async () => {
+                          channelRetryTimersRef.current.delete(retryTimer)
+                          if (!(await getBackgroundNotificationsEnabled())) return
                           if (
                             resolvedChannelDeliveryKeys.some(
                               key =>
@@ -773,6 +783,7 @@ export function useBackgroundNotifications({
                             void deliverToChannels(false)
                           }
                         }, 30_000)
+                        channelRetryTimersRef.current.add(retryTimer)
                       }
                       return
                     }
