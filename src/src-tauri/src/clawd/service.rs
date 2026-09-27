@@ -593,6 +593,13 @@ fn qa_direct_gateway_mode() -> bool {
   std::env::var("KNAPSACK_QA_DIRECT_GATEWAY").ok().as_deref() == Some("1")
 }
 
+/// A QA launch uses a disposable OpenClaw state directory. It must never
+/// "repair" the user's CLI state under `~/.openclaw`, even if that state is
+/// present on the machine running the test.
+fn should_manage_global_cli_state(qa_direct: bool) -> bool {
+  !qa_direct
+}
+
 fn should_restart_gateway_via_launchd(qa_direct: bool) -> bool {
   !qa_direct
 }
@@ -1656,6 +1663,12 @@ pub fn knapsack_sandbox_tools_allow() -> Vec<&'static str> {
 #[cfg(test)]
 mod knapsack_tools_allow_tests {
   use super::*;
+
+  #[test]
+  fn qa_direct_runs_do_not_manage_global_cli_state() {
+    assert!(!should_manage_global_cli_state(true));
+    assert!(should_manage_global_cli_state(false));
+  }
 
   /// Regression test for the 2026-08-11 incident: the snowflake MCP tool's
   /// allow entry was added to `ensure_knapsack_snowflake_tool_allow` but not
@@ -4680,7 +4693,9 @@ fn ensure_knapsack_agent_defaults(cfg: &mut serde_json::Value, clawdbot_home: &P
 pub fn patch_paired_json_scopes(app_handle: &tauri::AppHandle) {
   let clawdbot_home = app_clawdbot_home(app_handle);
 
-  // Paths to check: app state, app-nested OpenClaw state, and fallback ~/.openclaw.
+  // Paths to check: app state and app-nested OpenClaw state. Normal desktop
+  // runs also repair the CLI fallback; direct QA must not mutate that real
+  // user-owned state.
   let mut candidates: Vec<PathBuf> = Vec::new();
   candidates.push(clawdbot_home.join("devices").join("paired.json"));
   candidates.push(
@@ -4689,8 +4704,10 @@ pub fn patch_paired_json_scopes(app_handle: &tauri::AppHandle) {
       .join("devices")
       .join("paired.json"),
   );
-  if let Some(home) = dirs::home_dir() {
-    candidates.push(home.join(".openclaw").join("devices").join("paired.json"));
+  if should_manage_global_cli_state(qa_direct_gateway_mode()) {
+    if let Some(home) = dirs::home_dir() {
+      candidates.push(home.join(".openclaw").join("devices").join("paired.json"));
+    }
   }
 
   for paired_path in &candidates {
@@ -7049,7 +7066,11 @@ fn classify_gateway_crash(log_tail: &str) -> &'static str {
   }
 }
 
-fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle, bundle_version: Option<&str>) {
+fn sanitize_known_gateway_configs(
+  app_handle: &tauri::AppHandle,
+  bundle_version: Option<&str>,
+  manage_global_cli_state: bool,
+) {
   let mut candidates = vec![
     app_clawdbot_home(app_handle).join("openclaw.json"),
     app_clawdbot_home(app_handle)
@@ -7058,9 +7079,11 @@ fn sanitize_known_gateway_configs(app_handle: &tauri::AppHandle, bundle_version:
     app_clawdbot_home(app_handle).join("clawdbot.json"),
   ];
 
-  if let Some(home) = dirs::home_dir() {
-    candidates.push(home.join(".openclaw").join("openclaw.json"));
-    candidates.push(home.join(".clawdbot").join("clawdbot.json"));
+  if manage_global_cli_state {
+    if let Some(home) = dirs::home_dir() {
+      candidates.push(home.join(".openclaw").join("openclaw.json"));
+      candidates.push(home.join(".clawdbot").join("clawdbot.json"));
+    }
   }
 
   for path in candidates {
@@ -7263,7 +7286,11 @@ async fn run_gateway_self_heal_cycle(
     }
   };
 
-  sanitize_known_gateway_configs(&app_handle, None);
+  sanitize_known_gateway_configs(
+    &app_handle,
+    None,
+    should_manage_global_cli_state(qa_direct_gateway_mode()),
+  );
   let doctor_ok = if std::env::var_os("KNAPSACK_RUN_OPENCLAW_DOCTOR_ON_SELF_HEAL").is_some() {
     run_openclaw_doctor_fix(&setup, "self-heal")
   } else {
@@ -7271,7 +7298,11 @@ async fn run_gateway_self_heal_cycle(
   };
   // Some doctor versions write config migrations that the bundled gateway does
   // not yet accept. Re-apply our compatibility sanitizers after doctor runs.
-  sanitize_known_gateway_configs(&app_handle, None);
+  sanitize_known_gateway_configs(
+    &app_handle,
+    None,
+    should_manage_global_cli_state(qa_direct_gateway_mode()),
+  );
 
   if gateway_startup_in_progress() {
     eprintln!("[clawd/service] self-heal: gateway startup is still in progress; deferring restart");
@@ -11205,9 +11236,7 @@ pub async fn ollama_configure(
     if let Some(url) = &payload.base_url {
       let u = url.trim().to_string();
       tokens.ollama_base_url = if u.is_empty() { None } else { Some(u) };
-    } else if was_cloud
-      && tokens.ollama_base_url.as_deref() == Some(OLLAMA_CLOUD_BASE_URL)
-    {
+    } else if was_cloud && tokens.ollama_base_url.as_deref() == Some(OLLAMA_CLOUD_BASE_URL) {
       // Migrate configurations written by earlier versions which persisted the
       // Cloud endpoint in the local-endpoint field.
       tokens.ollama_base_url = None;
@@ -11949,7 +11978,11 @@ async fn prepare_gateway_config(
     "off"
   };
   let bundle_version = read_clawdbot_bundle_version(&clawdbot_bundle_dir(app_handle));
-  sanitize_known_gateway_configs(&app_handle, Some(bundle_version.trim()));
+  sanitize_known_gateway_configs(
+    &app_handle,
+    Some(bundle_version.trim()),
+    should_manage_global_cli_state(qa_direct_gateway_mode()),
+  );
   if legacy_config_path.exists() && !config_path.exists() {
     match fs::rename(&legacy_config_path, &config_path) {
       Ok(_) => eprintln!("[clawd/service] Migrated config from clawdbot.json to openclaw.json"),
@@ -12985,18 +13018,20 @@ async fn prepare_gateway_config(
   // 10s first-launch readiness budget before the gateway is even started.
   schedule_state_subtree_hardening(&clawdbot_home, "prepare_gateway_config app state");
 
-  // ── Auto-heal global ~/.openclaw/openclaw.json ────────────────────
-  // The global config is used by the CLI (`openclaw logs`, `status`, etc.)
-  // and is separate from the app runtime config above.  Patch it too so
-  // CLI commands never hit a fatal allowlist validation error.
-  if let Some(home_dir) = dirs::home_dir() {
-    let global_state_dir = home_dir.join(".openclaw");
-    let global_config_path = global_state_dir.join("openclaw.json");
-    if global_config_path.exists() {
-      sanitize_config_file_allowlist(&global_config_path, None);
-    }
-    if global_state_dir.exists() {
-      schedule_state_subtree_hardening(&global_state_dir, "prepare_gateway_config global state");
+  if should_manage_global_cli_state(qa_direct_gateway_mode()) {
+    // ── Auto-heal global ~/.openclaw/openclaw.json ──────────────────
+    // The global config is used by the CLI (`openclaw logs`, `status`, etc.)
+    // and is separate from the app runtime config above. Patch it too so
+    // CLI commands never hit a fatal allowlist validation error.
+    if let Some(home_dir) = dirs::home_dir() {
+      let global_state_dir = home_dir.join(".openclaw");
+      let global_config_path = global_state_dir.join("openclaw.json");
+      if global_config_path.exists() {
+        sanitize_config_file_allowlist(&global_config_path, None);
+      }
+      if global_state_dir.exists() {
+        schedule_state_subtree_hardening(&global_state_dir, "prepare_gateway_config global state");
+      }
     }
   }
 
@@ -14871,21 +14906,23 @@ pub async fn set_service_enabled(
       // 10s first-launch readiness budget before the gateway is even started.
       schedule_state_subtree_hardening(&clawdbot_home, "prepare_gateway_config app state");
 
-      // ── Auto-heal global ~/.openclaw/openclaw.json ──────────────────
-      // CLI commands read the global config independently of OPENCLAW_HOME.
-      // Patch it here so `openclaw logs`, `openclaw status`, etc. don't
-      // hit a fatal allowlist validation error even when no app config exists.
-      if let Some(home_dir) = dirs::home_dir() {
-        let global_state_dir = home_dir.join(".openclaw");
-        let global_config_path = global_state_dir.join("openclaw.json");
-        if global_config_path.exists() {
-          sanitize_config_file_allowlist(&global_config_path, None);
-        }
-        if global_state_dir.exists() {
-          schedule_state_subtree_hardening(
-            &global_state_dir,
-            "prepare_gateway_config global state",
-          );
+      if should_manage_global_cli_state(qa_direct_gateway_mode()) {
+        // ── Auto-heal global ~/.openclaw/openclaw.json ────────────────
+        // CLI commands read the global config independently of OPENCLAW_HOME.
+        // Patch it here so `openclaw logs`, `openclaw status`, etc. don't
+        // hit a fatal allowlist validation error even when no app config exists.
+        if let Some(home_dir) = dirs::home_dir() {
+          let global_state_dir = home_dir.join(".openclaw");
+          let global_config_path = global_state_dir.join("openclaw.json");
+          if global_config_path.exists() {
+            sanitize_config_file_allowlist(&global_config_path, None);
+          }
+          if global_state_dir.exists() {
+            schedule_state_subtree_hardening(
+              &global_state_dir,
+              "prepare_gateway_config global state",
+            );
+          }
         }
       }
 
@@ -18448,7 +18485,6 @@ mod provider_key_tests {
       .iter()
       .filter_map(|value| value.as_str())
       .any(|value| value.eq_ignore_ascii_case("openrouter/auto")));
-
   }
 
   #[test]
@@ -18486,7 +18522,6 @@ mod provider_key_tests {
     assert!(fallbacks
       .iter()
       .any(|value| value.as_str() == Some("google/gemini-3.8-flash")));
-
   }
 
   #[test]
@@ -18518,7 +18553,6 @@ mod provider_key_tests {
         .and_then(|value| value.as_str()),
       Some("google/gemini-2.5-flash")
     );
-
   }
 
   #[test]
@@ -18542,7 +18576,6 @@ mod provider_key_tests {
         .and_then(|value| value.as_str()),
       Some("custom/my-model")
     );
-
   }
 }
 
