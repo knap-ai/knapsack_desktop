@@ -11,6 +11,7 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
+const { assertNoInstalledKnapsackListeners } = require("./qa-process-safety.cjs");
 
 const projectDir = path.resolve(__dirname, "..");
 const packageVersion = require(path.join(projectDir, "package.json")).version;
@@ -604,6 +605,9 @@ function bootoutLaunchAgent() {
   if (process.platform !== "darwin") return;
   const uid = process.getuid?.();
   if (typeof uid !== "number") return;
+  // Never unload the installed background service, even if it is between restarts.
+  if (!fs.existsSync(launchAgentPlist) || !launchAgentTargetsThisCheckout(readLaunchAgentPlist())) return;
+  assertNoInstalledKnapsackListeners(gatewayRuntimePortHolderPids());
   const domain = `gui/${uid}`;
   const service = `${domain}/ai.knap.knapsack.clawdbot`;
   spawnSync("launchctl", ["bootout", service], { stdio: "ignore" });
@@ -666,12 +670,9 @@ function killStaleGateways({ requireFree = false } = {}) {
     return;
   }
   if (process.platform !== "darwin") return;
-  spawnSync("pkill", ["-TERM", "-f", "openclaw-gateway"], { stdio: "ignore" });
-  // Current OpenClaw builds set the gateway process title to exactly
-  // "openclaw", so the historical openclaw-gateway pattern does not match
-  // orphaned instances. Those stale processes can retain the browser-control
-  // port and an old auth token even after their original supervisor exits.
-  spawnSync("pkill", ["-TERM", "-x", "openclaw"], { stdio: "ignore" });
+  const initialHolders = gatewayRuntimePortHolderPids();
+  assertNoInstalledKnapsackListeners(initialHolders);
+  if (initialHolders.length) spawnSync("kill", ["-TERM", ...initialHolders], { stdio: "ignore" });
 
   const deadline = Date.now() + 3_000;
   while (Date.now() < deadline) {
@@ -682,6 +683,7 @@ function killStaleGateways({ requireFree = false } = {}) {
 
   const holders = gatewayRuntimePortHolderPids();
   if (holders.length > 0) {
+    assertNoInstalledKnapsackListeners(holders);
     console.warn(
       `[qa-dev-run] Force-killing stale gateway/browser-control port holder(s): ${holders.join(", ")}`,
     );
@@ -1160,6 +1162,9 @@ function syncDevClawdbotResources() {
 }
 
 async function main() {
+  if (process.platform === "darwin") {
+    assertNoInstalledKnapsackListeners([8897, 18789, 18791].flatMap(listeningPortHolderPids));
+  }
   const localOnly = String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1";
   backupExistingLaunchAgentIfNeeded();
   ensureRootNodeModules();
@@ -1227,11 +1232,16 @@ async function main() {
     if (!vite.killed) vite.kill("SIGTERM");
     if (gateway && !gateway.killed) gateway.kill("SIGTERM");
     if (app && !app.killed) app.kill("SIGTERM");
-    bootoutLaunchAgent();
-    killStaleGateways();
-    if (!localOnly) killStaleOpenClawChrome();
-    removeQaLaunchAgentIfPresent();
-    restoreLaunchAgentBackupIfPresent();
+    try {
+      bootoutLaunchAgent();
+      killStaleGateways();
+      if (!localOnly) killStaleOpenClawChrome();
+      removeQaLaunchAgentIfPresent();
+    } catch (error) {
+      console.warn(`[qa-dev-run] leaving protected service running: ${error.message}`);
+    } finally {
+      restoreLaunchAgentBackupIfPresent();
+    }
   };
   process.on("SIGINT", () => {
     cleanup();

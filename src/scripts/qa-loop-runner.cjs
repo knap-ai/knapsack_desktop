@@ -6,6 +6,7 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const process = require("node:process");
+const { isProtectedInstalledKnapsackProcess, assertNoInstalledKnapsackListeners } = require("./qa-process-safety.cjs");
 
 const API_BASE = "http://127.0.0.1:8897";
 const UI_BASE = "http://127.0.0.1:1420";
@@ -756,49 +757,6 @@ function parseListenerPids(output) {
     .split(/\r?\n/)
     .map((value) => Number(value.trim()))
     .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid))];
-}
-
-function isProtectedInstalledKnapsackProcess(commandLine) {
-  const command = String(commandLine || "").replace(/\\/g, "/").toLowerCase();
-  return command.includes("/applications/knapsack.app/contents/macos/knapsack")
-    || /\/program files(?: \(x86\))?\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command)
-    || /\/appdata\/local\/knapsack\/.*knapsack\.exe(?:["']|\s|$)/.test(command);
-}
-
-function posixProcessCommandLine(pid) {
-  const result = spawnSync("ps", ["-p", String(pid), "-o", "command="], {
-    encoding: "utf8",
-  });
-  return result.status === 0 ? String(result.stdout || "").trim() : "";
-}
-
-function windowsProcessCommandLine(pid) {
-  const result = spawnSync(
-    "powershell.exe",
-    [
-      "-NoProfile",
-      "-NonInteractive",
-      "-Command",
-      `(Get-CimInstance Win32_Process -Filter \"ProcessId = ${Number(pid)}\").CommandLine`,
-    ],
-    { encoding: "utf8", windowsHide: true },
-  );
-  return result.status === 0 ? String(result.stdout || "").trim() : "";
-}
-
-function assertNoInstalledKnapsackListeners(pids) {
-  const commandLineForPid = process.platform === "win32"
-    ? windowsProcessCommandLine
-    : posixProcessCommandLine;
-  const protectedPids = [...pids].filter((pid) =>
-    isProtectedInstalledKnapsackProcess(commandLineForPid(pid))
-  );
-  if (protectedPids.length > 0) {
-    throw new Error(
-      `QA cannot start while the installed Knapsack app owns a required local port (PID ${protectedPids.join(", ")}). `
-      + "Quit production Knapsack first; QA will never terminate it automatically.",
-    );
-  }
 }
 
 function killPosixPortListeners(ports) {
@@ -2414,9 +2372,13 @@ async function runMode(mode, opts = {}) {
         await runCommand("taskkill", ["/F", "/T", "/PID", String(proc.pid)]);
       }
     }
-    await killOpenClawProcessesForQa();
-    await ensureCleanPorts([8897, 1420, 18789, 18791, 18800]);
-    await killOpenClawProcessesForQa();
+    try {
+      await killOpenClawProcessesForQa();
+      await ensureCleanPorts([8897, 1420, 18789, 18791, 18800]);
+      await killOpenClawProcessesForQa();
+    } catch (error) {
+      console.warn(`[qa-loop] leaving protected service running: ${error.message}`);
+    }
     if (restoreQaTokens) {
       const restore = restoreQaTokens;
       restoreQaTokens = null;
