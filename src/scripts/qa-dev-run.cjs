@@ -1299,6 +1299,8 @@ async function main() {
     }
   }
 
+  console.log("[qa-dev-run] runtime ownership established");
+
   app.on("exit", (code, signal) => {
     cleanup();
     if (signal) {

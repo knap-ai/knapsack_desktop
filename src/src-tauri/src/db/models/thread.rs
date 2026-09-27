@@ -157,6 +157,8 @@ impl Thread {
          WHERE id = ?1",
     )?;
     let thread = stmt.query_row([id], |row| Thread::build_struct_from_row(row))?;
+    drop(stmt);
+    drop(connection);
     let messages = Message::find_by_thread_id(thread.id.unwrap())?;
     let thread_with_messages = ThreadWithMessages { thread, messages };
     Ok(thread_with_messages)

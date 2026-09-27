@@ -2326,6 +2326,16 @@ async function checkInterfaceAccess(includeUi, startupState) {
   };
 }
 
+async function waitForQaRuntimeOwnership(proc, logs, timeoutMs, pollMs = 100) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (logs.join("\n").includes("[qa-dev-run] runtime ownership established")) return { ok: true };
+    if (proc.exitCode !== null) return { ok: false, message: "QA launcher exited before establishing runtime ownership" };
+    await sleep(pollMs);
+  }
+  return { ok: false, message: "QA launcher did not finish establishing runtime ownership" };
+}
+
 async function runMode(mode, opts = {}) {
   const isProd = mode === "prod";
   const debugBinary = path.join(
@@ -2434,6 +2444,14 @@ async function runMode(mode, opts = {}) {
 
   if (!isProd) {
     const devLaunchTimeoutMs = Number(process.env.KNAPSACK_QA_DEV_LAUNCH_TIMEOUT_MS || 300_000);
+    // The desktop can expose its API and a temporary gateway before the QA
+    // launcher replaces it with its supervised gateway. Starting tests before
+    // that handoff interrupts in-flight agent requests about a minute later.
+    const ownership = await waitForQaRuntimeOwnership(proc, startupLog, devLaunchTimeoutMs);
+    if (!ownership.ok) {
+      await cleanup();
+      return { ok: false, phase: "launch", message: ownership.message, startupLog };
+    }
     const serviceApi = await waitForServiceApiAvailable(proc, devLaunchTimeoutMs);
     if (!serviceApi.ok) {
       await cleanup();
@@ -2781,6 +2799,7 @@ if (require.main === module) {
 
 module.exports = {
   runConcurrentFeedSmoke,
+  waitForQaRuntimeOwnership,
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   findManagedBrowserCommandLine,

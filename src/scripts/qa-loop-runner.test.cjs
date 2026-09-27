@@ -288,3 +288,17 @@ test("concurrent feed smoke detects pool starvation and malformed successes", as
 test('Knapsack QA startup uses the registered gateway proxy rather than a desktop alias', () => {
   assert.equal(require('./qa-loop-runner.cjs').qaStartupModelForProvider('knapsack'), 'knapsack-local/default')
 })
+
+
+test('QA waits for supervised runtime ownership rather than early API readiness', async () => {
+  const { waitForQaRuntimeOwnership } = require('./qa-loop-runner.cjs')
+  const logs = ['HTTP server ready', 'gateway healthy']
+  let finished = false
+  const waiting = waitForQaRuntimeOwnership({ exitCode: null }, logs, 1000, 1).then(r => { finished = true; return r })
+  await new Promise(resolve => setTimeout(resolve, 5))
+  assert.equal(finished, false)
+  logs.push('[qa-dev-run] runtime ownership established')
+  assert.equal((await waiting).ok, true)
+  assert.equal((await waitForQaRuntimeOwnership({ exitCode: 1 }, [], 100, 1)).ok, false)
+  assert.equal((await waitForQaRuntimeOwnership({ exitCode: null }, [], 5, 1)).ok, false)
+})
