@@ -64,7 +64,10 @@ fn scheduled_task_summaries(value: &JsonValue) -> Vec<ScheduledTaskSummary> {
           .and_then(JsonValue::as_bool)
           .unwrap_or(false),
         schedule: job.get("schedule").cloned().unwrap_or(JsonValue::Null),
-        next_run_at_ms: job.get("nextRunAtMs").and_then(JsonValue::as_i64),
+        next_run_at_ms: job
+          .get("state")
+          .and_then(|state| state.get("nextRunAtMs"))
+          .and_then(JsonValue::as_i64),
         delivery: job.get("delivery").cloned().unwrap_or(JsonValue::Null),
       })
     })
@@ -130,7 +133,7 @@ mod scheduled_task_tests {
       "name": "Daily report",
       "enabled": true,
       "schedule": {"kind": "cron", "expr": "0 8 * * *", "tz": "America/Los_Angeles"},
-      "nextRunAtMs": 1_800_000_000_000_i64,
+      "state": {"nextRunAtMs": 1_800_000_000_000_i64},
       "delivery": {"mode": "announce"},
       "payload": {"text": "private report instruction"}
     }]});

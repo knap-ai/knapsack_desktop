@@ -207,8 +207,9 @@ const formatScheduledTaskCadence = (schedule: ScheduledTask['schedule']) => {
     const minutes = Math.round(schedule.everyMs / 60_000)
     return minutes % 60 === 0 ? `Every ${minutes / 60}h` : `Every ${minutes} min`
   }
-  if (schedule.kind === 'at' && typeof schedule.atMs === 'number') {
-    return `Once · ${new Date(schedule.atMs).toLocaleString()}`
+  if (schedule.kind === 'at' && typeof schedule.at === 'string') {
+    const at = new Date(schedule.at)
+    return Number.isNaN(at.getTime()) ? 'Once · scheduled time unavailable' : `Once · ${at.toLocaleString()}`
   }
   return 'Custom schedule'
 }
