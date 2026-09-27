@@ -188,6 +188,38 @@ type PiiModelStatus = {
   error?: string | null
 }
 
+type ScheduledTask = {
+  id: string
+  name: string
+  enabled: boolean
+  schedule: Record<string, unknown> | null
+  next_run_at_ms: number | null
+  delivery: Record<string, unknown> | null
+}
+
+const formatScheduledTaskCadence = (schedule: ScheduledTask['schedule']) => {
+  if (!schedule) return 'Schedule unavailable'
+  if (schedule.kind === 'cron') {
+    const timezone = typeof schedule.tz === 'string' ? ` · ${schedule.tz}` : ''
+    return `Cron: ${String(schedule.expr ?? 'custom')}${timezone}`
+  }
+  if (schedule.kind === 'every' && typeof schedule.everyMs === 'number') {
+    const minutes = Math.round(schedule.everyMs / 60_000)
+    return minutes % 60 === 0 ? `Every ${minutes / 60}h` : `Every ${minutes} min`
+  }
+  if (schedule.kind === 'at' && typeof schedule.atMs === 'number') {
+    return `Once · ${new Date(schedule.atMs).toLocaleString()}`
+  }
+  return 'Custom schedule'
+}
+
+const formatScheduledTaskDelivery = (delivery: ScheduledTask['delivery']) => {
+  if (!delivery) return 'Delivered in this chat'
+  if (typeof delivery.channel === 'string') return `Delivered to ${delivery.channel}`
+  if (typeof delivery.mode === 'string') return `Delivery: ${delivery.mode}`
+  return 'Custom delivery'
+}
+
 // ── Update section ───────────────────────────────────────────────────────────
 
 const UpdateSection = () => {
@@ -756,6 +788,10 @@ export const SettingsDialog = ({
   const [piiModelBusy, setPiiModelBusy] = useState(false)
   const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => privacyModeStatus().enabled)
   const [privacyModeBusy, setPrivacyModeBusy] = useState(false)
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([])
+  const [scheduledTasksLoading, setScheduledTasksLoading] = useState(false)
+  const [scheduledTasksMessage, setScheduledTasksMessage] = useState('')
+  const [scheduledTaskBusy, setScheduledTaskBusy] = useState<string | null>(null)
   const [backendPrimaryEmail, setBackendPrimaryEmail] = useState('')
   const displayConnections =
     isOpen && Object.keys(settingsConnections).length > 0 ? settingsConnections : connections
@@ -965,6 +1001,70 @@ export const SettingsDialog = ({
       })
       .catch(() => {})
   }, [isOpen])
+
+  const loadScheduledTasks = useCallback(async () => {
+    if (!isOpen) return
+    setScheduledTasksLoading(true)
+    setScheduledTasksMessage('')
+    try {
+      const response = await fetch('http://127.0.0.1:8897/api/clawd/scheduled-tasks')
+      const body = await response.json()
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.message || 'Could not load scheduled work.')
+      }
+      setScheduledTasks(Array.isArray(body.tasks) ? body.tasks : [])
+    } catch (error) {
+      setScheduledTasks([])
+      setScheduledTasksMessage(error instanceof Error ? error.message : 'Could not load scheduled work.')
+    } finally {
+      setScheduledTasksLoading(false)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    void loadScheduledTasks()
+  }, [loadScheduledTasks])
+
+  const toggleScheduledTask = useCallback(
+    async (task: ScheduledTask) => {
+      const action = task.enabled ? 'pause' : 'resume'
+      if (!window.confirm(`${action[0].toUpperCase()}${action.slice(1)} “${task.name}”?`)) return
+      setScheduledTaskBusy(task.id)
+      setScheduledTasksMessage('')
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8897/api/clawd/scheduled-tasks/${encodeURIComponent(task.id)}/enabled`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: !task.enabled }),
+          },
+        )
+        const body = await response.json()
+        if (!response.ok || !body?.success) {
+          throw new Error(body?.message || `Could not ${action} scheduled work.`)
+        }
+        setScheduledTasks(current =>
+          current.map(item => (item.id === task.id ? { ...item, enabled: !task.enabled } : item)),
+        )
+      } catch (error) {
+        setScheduledTasksMessage(error instanceof Error ? error.message : `Could not ${action} scheduled work.`)
+      } finally {
+        setScheduledTaskBusy(null)
+      }
+    },
+    [],
+  )
+
+  const copyScheduledTaskEditRequest = useCallback(async (task: ScheduledTask) => {
+    const request = `Update the scheduled task “${task.name}”. I want to change its schedule or instructions. Show me the exact proposed change before applying it.`
+    try {
+      await navigator.clipboard.writeText(request)
+      setScheduledTasksMessage('Edit request copied. Paste it into Scout chat to propose the change.')
+    } catch {
+      setScheduledTasksMessage('Open Scout chat and ask to update this scheduled task. Scout will show the exact proposal before changing it.')
+    }
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -2373,6 +2473,85 @@ export const SettingsDialog = ({
 
         <hr className="border-zinc-200" />
         <HeartbeatSettings />
+        <hr className="border-zinc-200" />
+        <div className="DocumentsContainer p-6 flex flex-col gap-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Typography weight={TypographyWeight.medium}>Scheduled work</Typography>
+              <Typography className="mt-1 text-xs text-zinc-500 leading-5">
+                Review the recurring reports and reminders that are actually scheduled in your
+                Knapsack gateway.
+              </Typography>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-sm text-red-600 hover:text-red-700 font-medium disabled:text-zinc-400"
+              onClick={() => void loadScheduledTasks()}
+              disabled={scheduledTasksLoading}
+            >
+              {scheduledTasksLoading ? 'Refreshing…' : 'Refresh'}
+            </button>
+          </div>
+
+          {scheduledTasksMessage && (
+            <Typography className="text-xs text-zinc-500 leading-5">{scheduledTasksMessage}</Typography>
+          )}
+
+          {!scheduledTasksLoading && !scheduledTasksMessage && scheduledTasks.length === 0 && (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm text-zinc-600">
+              No scheduled work found. Ask Scout to propose a recurring report or reminder.
+            </div>
+          )}
+
+          {scheduledTasks.map(task => (
+            <div key={task.id} className="rounded-lg border border-zinc-200 px-3 py-3 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Typography className="font-medium text-sm truncate">{task.name}</Typography>
+                  <Typography className="mt-1 text-xs text-zinc-500">
+                    {formatScheduledTaskCadence(task.schedule)}
+                  </Typography>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    task.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-600'
+                  }`}
+                >
+                  {task.enabled ? 'Active' : 'Paused'}
+                </span>
+              </div>
+              <Typography className="text-xs text-zinc-500">
+                {task.next_run_at_ms
+                  ? `Next run: ${new Date(task.next_run_at_ms).toLocaleString()}`
+                  : 'No next run is scheduled'}
+                {' · '}
+                {formatScheduledTaskDelivery(task.delivery)}
+              </Typography>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <button
+                  type="button"
+                  className="text-sm text-red-600 hover:text-red-700 font-medium disabled:text-zinc-400"
+                  disabled={scheduledTaskBusy === task.id}
+                  onClick={() => void toggleScheduledTask(task)}
+                >
+                  {scheduledTaskBusy === task.id ? 'Saving…' : task.enabled ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  type="button"
+                  className="text-sm text-zinc-700 hover:text-black font-medium"
+                  onClick={() => void copyScheduledTaskEditRequest(task)}
+                >
+                  Change in Scout
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <Typography className="text-xs text-zinc-500 leading-5">
+            Changes to a report’s content, timing, or destination are proposed in Scout first, so
+            you can review the exact change before it is applied.
+          </Typography>
+        </div>
         <hr className="border-zinc-200" />
         <MobilePairingSection />
         <hr className="border-zinc-200" />

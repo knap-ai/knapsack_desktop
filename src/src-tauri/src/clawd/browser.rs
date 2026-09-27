@@ -26,6 +26,124 @@ use crate::llm::cost::{calculate_cost, estimate_tokens, get_pricing};
 
 const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// A deliberately narrow representation of a gateway cron job for the desktop
+/// settings screen. The raw payload can contain the full agent instruction, so
+/// it stays in the gateway and is edited through the confirmed chat flow.
+#[derive(Debug, Serialize)]
+struct ScheduledTaskSummary {
+  id: String,
+  name: String,
+  enabled: bool,
+  schedule: JsonValue,
+  next_run_at_ms: Option<i64>,
+  delivery: JsonValue,
+}
+
+#[derive(Debug, Deserialize)]
+struct ScheduledTaskEnabledRequest {
+  enabled: bool,
+}
+
+fn scheduled_task_summaries(value: &JsonValue) -> Vec<ScheduledTaskSummary> {
+  value
+    .get("jobs")
+    .and_then(JsonValue::as_array)
+    .into_iter()
+    .flatten()
+    .filter_map(|job| {
+      let id = job.get("id")?.as_str()?.to_string();
+      Some(ScheduledTaskSummary {
+        id,
+        name: job
+          .get("name")
+          .and_then(JsonValue::as_str)
+          .unwrap_or("Untitled scheduled task")
+          .to_string(),
+        enabled: job
+          .get("enabled")
+          .and_then(JsonValue::as_bool)
+          .unwrap_or(false),
+        schedule: job.get("schedule").cloned().unwrap_or(JsonValue::Null),
+        next_run_at_ms: job.get("nextRunAtMs").and_then(JsonValue::as_i64),
+        delivery: job.get("delivery").cloned().unwrap_or(JsonValue::Null),
+      })
+    })
+    .collect()
+}
+
+/// Lists gateway-owned scheduled jobs for the desktop UI. This endpoint does
+/// not expose the job payload: report instructions are edited via Scout, which
+/// preserves the existing confirmation and stale-snapshot safeguards.
+#[get("/api/clawd/scheduled-tasks")]
+pub async fn list_scheduled_tasks_api() -> impl Responder {
+  match crate::clawd::gateway_ws::cron_list_all(None).await {
+    Ok(tasks) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "tasks": scheduled_task_summaries(&tasks),
+    })),
+    Err(error) => HttpResponse::ServiceUnavailable().json(json!({
+      "success": false,
+      "message": format!("Could not load scheduled work: {error}"),
+    })),
+  }
+}
+
+/// A user may pause or resume a job directly in Settings. Schedule and report
+/// changes intentionally remain in Scout so the user sees the exact proposal
+/// before it is applied.
+#[post("/api/clawd/scheduled-tasks/{id}/enabled")]
+pub async fn set_scheduled_task_enabled_api(
+  path: web::Path<String>,
+  payload: web::Json<ScheduledTaskEnabledRequest>,
+) -> impl Responder {
+  let id = path.into_inner();
+  if id.trim().is_empty() {
+    return HttpResponse::BadRequest().json(json!({
+      "success": false,
+      "message": "A scheduled task ID is required.",
+    }));
+  }
+
+  match crate::clawd::gateway_ws::cron_update(&id, json!({ "enabled": payload.enabled }), None)
+    .await
+  {
+    Ok(_) => HttpResponse::Ok().json(json!({
+      "success": true,
+      "id": id,
+      "enabled": payload.enabled,
+    })),
+    Err(error) => HttpResponse::ServiceUnavailable().json(json!({
+      "success": false,
+      "message": format!("Could not update scheduled work: {error}"),
+    })),
+  }
+}
+
+#[cfg(test)]
+mod scheduled_task_tests {
+  use super::*;
+
+  #[test]
+  fn summaries_exclude_private_payloads_and_keep_job_status() {
+    let tasks = json!({"jobs": [{
+      "id": "daily-report",
+      "name": "Daily report",
+      "enabled": true,
+      "schedule": {"kind": "cron", "expr": "0 8 * * *", "tz": "America/Los_Angeles"},
+      "nextRunAtMs": 1_800_000_000_000_i64,
+      "delivery": {"mode": "announce"},
+      "payload": {"text": "private report instruction"}
+    }]});
+
+    let summaries = scheduled_task_summaries(&tasks);
+    assert_eq!(summaries.len(), 1);
+    assert_eq!(summaries[0].id, "daily-report");
+    assert!(summaries[0].enabled);
+    assert_eq!(summaries[0].next_run_at_ms, Some(1_800_000_000_000));
+    assert_eq!(summaries[0].schedule["kind"], "cron");
+  }
+}
+
 /// Record token usage from a chat API response (best-effort, never panics).
 fn record_chat_usage(
   provider: &str,
@@ -1580,7 +1698,9 @@ fn sanitize_email_recipients(value: &str, sender_email: &str) -> String {
     if is_basic_email
       && !is_calendar_resource
       && normalized != sender
-      && !recipients.iter().any(|existing: &String| existing.eq_ignore_ascii_case(address))
+      && !recipients
+        .iter()
+        .any(|existing: &String| existing.eq_ignore_ascii_case(address))
     {
       recipients.push(address.to_string());
     }
@@ -4723,7 +4843,9 @@ pub async fn chat(
 
       // Parse natural language schedule into cron format or interval
       let Some(schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
-        return Ok(json!({"ok": false, "error": "Unsupported schedule. Use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+        return Ok(
+          json!({"ok": false, "error": "Unsupported schedule. Use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}),
+        );
       };
 
       let payload = json!({
@@ -4748,9 +4870,21 @@ pub async fn chat(
     if name == "update_scheduled_task" {
       use crate::clawd::gateway_ws;
 
-      let task_id = args_map.get("id").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let task_name = args_map.get("name").and_then(|v| v.as_str()).unwrap_or("").trim();
-      let existing_name = args_map.get("existing_name").and_then(|v| v.as_str()).unwrap_or("").trim();
+      let task_id = args_map
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+      let task_name = args_map
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
+      let existing_name = args_map
+        .get("existing_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim();
       let schedule_str = args_map
         .get("schedule")
         .and_then(|v| v.as_str())
@@ -4762,14 +4896,37 @@ pub async fn chat(
         .and_then(|v| v.as_str())
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-      let existing_schedule = args_map.get("existing_schedule").filter(|value| value.is_object()).cloned();
-      let schedule_changed = args_map.get("schedule_changed").and_then(|value| value.as_bool());
-      let payload = args_map.get("payload").filter(|value| value.is_object()).cloned();
+      let existing_schedule = args_map
+        .get("existing_schedule")
+        .filter(|value| value.is_object())
+        .cloned();
+      let schedule_changed = args_map
+        .get("schedule_changed")
+        .and_then(|value| value.as_bool());
+      let payload = args_map
+        .get("payload")
+        .filter(|value| value.is_object())
+        .cloned();
       let enabled = args_map.get("enabled").and_then(|value| value.as_bool());
-      let existing_enabled = args_map.get("existing_enabled").and_then(|value| value.as_bool());
+      let existing_enabled = args_map
+        .get("existing_enabled")
+        .and_then(|value| value.as_bool());
       let existing_delivery = args_map.get("existing_delivery").cloned();
-      if task_id.is_empty() || task_name.is_empty() || existing_name.is_empty() || schedule_str.is_empty() || existing_schedule.is_none() || schedule_changed.is_none() || timezone.is_none() || payload.is_none() || enabled.is_none() || existing_enabled.is_none() || existing_delivery.is_none() {
-        return Ok(json!({"ok": false, "error": "id, name, existing name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, existing enabled state, existing delivery, and the existing task payload are required"}));
+      if task_id.is_empty()
+        || task_name.is_empty()
+        || existing_name.is_empty()
+        || schedule_str.is_empty()
+        || existing_schedule.is_none()
+        || schedule_changed.is_none()
+        || timezone.is_none()
+        || payload.is_none()
+        || enabled.is_none()
+        || existing_enabled.is_none()
+        || existing_delivery.is_none()
+      {
+        return Ok(
+          json!({"ok": false, "error": "id, name, existing name, schedule, existing schedule, whether the cadence changed, timezone, enabled state, existing enabled state, existing delivery, and the existing task payload are required"}),
+        );
       }
       let expected_schedule = existing_schedule.expect("existing_schedule was checked above");
       let expected_delivery = existing_delivery.expect("existing_delivery was checked above");
@@ -4780,38 +4937,70 @@ pub async fn chat(
         .unwrap_or("")
         .to_string();
       if !matches!(payload_kind.as_str(), "systemEvent" | "agentTurn") {
-        return Ok(json!({"ok": false, "error": "payload.kind must be the existing systemEvent or agentTurn kind"}));
+        return Ok(
+          json!({"ok": false, "error": "payload.kind must be the existing systemEvent or agentTurn kind"}),
+        );
       }
       // The proposal may have been reviewed for some time before confirmation.
       // Reject a stale snapshot instead of overwriting a task another client
       // just changed (including its cadence, payload, or enabled state).
       let current_tasks = match gateway_ws::cron_list_all(None).await {
         Ok(tasks) => tasks,
-        Err(error) => return Ok(json!({"ok": false, "error": format!("Could not verify the current scheduled task before updating: {}", error)})),
+        Err(error) => {
+          return Ok(
+            json!({"ok": false, "error": format!("Could not verify the current scheduled task before updating: {}", error)}),
+          )
+        }
       };
       let current_task = current_tasks
         .get("jobs")
         .and_then(|jobs| jobs.as_array())
-        .and_then(|jobs| jobs.iter().find(|job| job.get("id").and_then(|id| id.as_str()) == Some(task_id)));
+        .and_then(|jobs| {
+          jobs
+            .iter()
+            .find(|job| job.get("id").and_then(|id| id.as_str()) == Some(task_id))
+        });
       let Some(current_task) = current_task else {
-        return Ok(json!({"ok": false, "error": "The scheduled task no longer exists. No changes were saved; list scheduled tasks and propose again."}));
+        return Ok(
+          json!({"ok": false, "error": "The scheduled task no longer exists. No changes were saved; list scheduled tasks and propose again."}),
+        );
       };
       if current_task.get("schedule") != Some(&expected_schedule)
         || current_task.get("payload") != Some(&payload)
-        || current_task.get("enabled").and_then(|value| value.as_bool()) != existing_enabled
+        || current_task
+          .get("enabled")
+          .and_then(|value| value.as_bool())
+          != existing_enabled
         || current_task.get("name").and_then(|value| value.as_str()) != Some(existing_name)
-        || current_task.get("delivery").unwrap_or(&serde_json::Value::Null) != &expected_delivery
+        || current_task
+          .get("delivery")
+          .unwrap_or(&serde_json::Value::Null)
+          != &expected_delivery
       {
-        return Ok(json!({"ok": false, "error": "The scheduled task changed after this proposal was prepared. No changes were saved; list scheduled tasks and ask the user to confirm a fresh proposal."}));
+        return Ok(
+          json!({"ok": false, "error": "The scheduled task changed after this proposal was prepared. No changes were saved; list scheduled tasks and ask the user to confirm a fresh proposal."}),
+        );
       }
       let mut payload = payload;
-      if let Some(message) = args_map.get("message").and_then(|value| value.as_str()).map(str::trim).filter(|value| !value.is_empty()) {
-        let message_key = if payload_kind == "agentTurn" { "message" } else { "text" };
+      if let Some(message) = args_map
+        .get("message")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+      {
+        let message_key = if payload_kind == "agentTurn" {
+          "message"
+        } else {
+          "text"
+        };
         payload[message_key] = json!(message);
       }
       let schedule = if schedule_changed.expect("schedule_changed was checked above") {
-        let Some(parsed_schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref()) else {
-          return Ok(json!({"ok": false, "error": "Unsupported schedule. No changes were saved; use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}));
+        let Some(parsed_schedule) = parse_schedule_to_cron(&schedule_str, timezone.as_deref())
+        else {
+          return Ok(
+            json!({"ok": false, "error": "Unsupported schedule. No changes were saved; use an explicit interval, daily or weekday time, or a 5/6-field cron expression."}),
+          );
         };
         parsed_schedule
       } else {
@@ -4832,15 +5021,19 @@ pub async fn chat(
         "payload": payload,
       });
       match gateway_ws::cron_update(task_id, patch, None).await {
-        Ok(result) => return Ok(json!({
-          "ok": true,
-          "message": format!("Scheduled task '{}' updated successfully", task_id),
-          "result": result,
-        })),
-        Err(error) => return Ok(json!({
-          "ok": false,
-          "error": format!("Failed to update scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", error),
-        })),
+        Ok(result) => {
+          return Ok(json!({
+            "ok": true,
+            "message": format!("Scheduled task '{}' updated successfully", task_id),
+            "result": result,
+          }))
+        }
+        Err(error) => {
+          return Ok(json!({
+            "ok": false,
+            "error": format!("Failed to update scheduled task: {}. Note: Scheduling requires the Clawdbot gateway to be running.", error),
+          }))
+        }
       }
     }
 
@@ -8207,9 +8400,8 @@ mod tests {
     is_transient_or_internal_provider_error, jwt_expiry_unix, knapsack_token_is_expired,
     load_seed_history_from_request, local_file_request_requires_inspection,
     provider_compaction_limits, provider_context_recovery_limits,
-    read_embedded_browser_preference_at, retain_top_level_page_tabs,
-    sanitize_email_recipients, should_attempt_fallback_for_provider_error,
-    write_embedded_browser_preference,
+    read_embedded_browser_preference_at, retain_top_level_page_tabs, sanitize_email_recipients,
+    should_attempt_fallback_for_provider_error, write_embedded_browser_preference,
   };
   use crate::clawd::chat_agent::OaiMessage;
   use serde_json::{json, Value as JsonValue};
