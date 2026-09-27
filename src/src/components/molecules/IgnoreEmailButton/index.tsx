@@ -124,17 +124,17 @@ const IgnoreEmailButton = ({
   }, []);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative shrink-0" ref={dropdownRef}>
       <button
         onClick={handleIgnore}
         disabled={isIgnoring}
-        className={`pl-3 pr-2 py-1.5 rounded-full bg-ks-warm-grey-200 hover:bg-ks-warm-grey-300 text-gray-700 flex items-center gap-2 ${
+        className={`pl-3 pr-2 py-1.5 whitespace-nowrap rounded-full bg-ks-warm-grey-200 hover:bg-ks-warm-grey-300 text-gray-700 flex items-center gap-2 ${
           isIgnoring ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
         <div className="text-sm text-[#000000] font-medium my-0 ml-1">{labelByValue[localAction]}</div>
         <img
-          className="w-6 h-6 ml-1"
+          className="shrink-0 w-6 h-6 ml-1"
           src="/assets/images/drop_down_black.svg"
           onClick={(e) => {
             e.stopPropagation();

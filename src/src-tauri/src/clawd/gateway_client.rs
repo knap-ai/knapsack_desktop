@@ -517,6 +517,33 @@ previous inbox search rather than asking for a new request.
     );
   }
 
+  if !updated.contains("KNAPSACK_NATIVE_DATA_FIRST_V1") {
+    let guidance = include_str!("native_data_guidance.txt");
+    updated = format!("{}\n{}", guidance, updated);
+    updated = updated.replace(
+      "5. **IMMEDIATELY** use the `browser` tool to navigate to the relevant website, take a snapshot, read the content, interact with forms, and report the results.",
+      "5. For connected email/calendar, use native context and Studio connector tools first. Use the browser for web-only tasks.",
+    ).replace(
+      "6. You are authorized by the user to access their accounts. The browser is already logged in.",
+      "6. Browser login and connected API authorization are separate; check the actual tool result.",
+    ).replace(
+      "- \"Any important emails?\" → Use browser to navigate to Gmail, snapshot, scan for urgent items and summarize",
+      "- \"Any important emails?\" → Query native context or a connected email API first.",
+    ).replace(
+      "blocks private and localhost addresses. If the local API fails, retry once\nwith `curl`, then fall back to the managed browser.",
+      "blocks private and localhost addresses. If the local API fails, try a connected Studio API; do not ask for API tokens.",
+    ).replace(
+      "1. Local Knapsack API via `exec` and `curl`\n2. Browser using the managed `openclaw` profile\n3. Existing-session Chrome only if the task truly depends on the user's current signed-in browser state",
+      "1. Native context and authenticated Studio connector tools\n2. Authorized local Knapsack APIs\n3. Browser only for explicitly requested web UI or operations unsupported by connected APIs",
+    ).replace(
+      "use the browser only if the needed message is not in local results",
+      "use connected Studio email tools if the needed message is not in local results",
+    ).replace(
+      "before falling back to the browser",
+      "and discover connected Studio tools if more data is needed",
+    );
+  }
+
   updated
 }
 
@@ -3893,7 +3920,17 @@ mod tests {
   }
 
   #[test]
-  fn collect_fallback_models_uses_gemini_pro_quality_floor() {
+  fn native_data_migration_is_idempotent_and_keeps_custom_guidance() {
+    let original = "Custom workspace instructions\n5. **IMMEDIATELY** use the `browser` tool to navigate to the relevant website, take a snapshot, read the content, interact with forms, and report the results.";
+    let migrated = migrate_tools_md_security_guidance(original);
+    assert!(migrated.contains("KNAPSACK_NATIVE_DATA_FIRST_V1"));
+    assert!(migrated.contains("Custom workspace instructions"));
+    assert!(!migrated.contains("**IMMEDIATELY** use the `browser`"));
+    assert_eq!(migrate_tools_md_security_guidance(&migrated), migrated);
+  }
+
+  #[test]
+  fn collect_fallback_models_uses_current_gemini_default() {
     std::env::remove_var("KNAPSACK_GEMINI_MODEL");
     std::env::set_var("GOOGLE_API_KEY", "AIzaTest");
 
@@ -3901,8 +3938,8 @@ mod tests {
     assert!(
       fallbacks
         .iter()
-        .any(|model| model == "google/gemini-2.5-pro"),
-      "expected Gemini fallback quality floor to default to 2.5 Pro"
+        .any(|model| model == "google/gemini-3.8-flash"),
+      "expected Gemini fallback to match the current default"
     );
 
     std::env::remove_var("GOOGLE_API_KEY");

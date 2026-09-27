@@ -469,6 +469,11 @@ function App() {
       errorCallback,
       threadId,
     }: LLMParams) => {
+      // Account sync can queue background AI work before model setup is finished.
+      if (!(await getHasOnboarded())) {
+        errorCallback?.(new Error('Complete onboarding before running background AI work.'))
+        return
+      }
       KNAnalytics.trackEvent('chatMessagesAskBot', { threadId: threadId })
       try {
         const reader = await dataFetcher.getChatCompletionStream(

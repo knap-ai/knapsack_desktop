@@ -2177,6 +2177,7 @@ async fn main() {
       clawd::service::get_desktop_api_token,
       clawd::service::get_mobile_pairing_token,
       privacy_mode::get_privacy_mode_status,
+      privacy_mode::get_local_model_hardware,
       privacy_mode::set_privacy_mode,
       kn_set_keep_awake,
       kn_prepare_updater_temp_dir,

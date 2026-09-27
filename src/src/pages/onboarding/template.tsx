@@ -17,6 +17,7 @@ import { open } from '@tauri-apps/api/shell'
 import AgentPickerScreen, { AgentSelection } from './AgentPickerScreen'
 import { TelegramAccountsScreen, AgentTelegramEntry } from './TelegramAccountsScreen'
 import styles from './styles.module.scss'
+import PrivacySetup from './PrivacySetup'
 import KnapsackLogoMedium from '/assets/images/knap-logo-medium.png'
 // import NotificationDefault from '/assets/images/notification-default.png'
 import HipaaLogo from '/assets/images/OnboardingGraphics.svg'
@@ -47,7 +48,7 @@ const OnboardingScreenContainer = ({
   return (
     <div
       className={cn(
-        'w-full max-w-6xl mx-auto flex flex-col justify-center items-center h-full',
+        'w-full max-w-6xl mx-auto flex flex-col items-center h-full overflow-y-auto px-4 py-6',
         className,
         {
           hidden: currentSlideInScreen !== index && currentSlideOutScreen !== index,
@@ -177,8 +178,9 @@ const DataSourcePermissionsScreen = ({
         Step 1 of 2
       </div> */}
       <div className=" mt-2 text-center text-black text-4xl font-semibold font-Lora leading-10">
-        Let's connect <br /> your work calendar
+        Let's connect <br /> your email and calendar
       </div>
+      <p className="mt-5 max-w-xl text-center text-zinc-600">Your synced emails and calendar events are stored on this device, not in a Knapsack server-side mailbox or calendar. Cloud AI can receive selected context; turn on Privacy Mode to keep inference local. You choose which accounts to connect.</p>
       <OnboardingPrimaryButton
         label="Connect with Google"
         className="mt-14"
@@ -300,35 +302,9 @@ const PrivacyMessageScreen = ({
       currentSlideInScreen={currentSlideInScreen}
       currentSlideOutScreen={currentSlideOutScreen}
       index={index}
-      className="flex flex-col justify-center items-center flex-1"
+      className="flex flex-col !justify-start items-center flex-1"
     >
-      <div className="text-center text-zinc-900 text-4xl font-semibold font-Lora leading-10">
-        <span>Knapsack is </span>
-        <span className="text-[#b54707] text-4xl font-semibold font-Lora leading-10">private</span>
-        <span>.</span>
-        <br />
-        <span>
-          Your files, events, and emails <br /> are{' '}
-        </span>
-        <span className="text-[#b54707] text-4xl font-semibold font-Lora leading-10">
-          never shared with us
-        </span>
-        <span>.</span>
-      </div>
-      <OnboardingPrimaryButton label="Next" className="mt-14" onClick={() => onNextClick(index)} />
-      <div
-        className="text-blue-700 mt-8 cursor-pointer flex flex-row gap-[8px]"
-        onClick={() => onHowClick()}
-      >
-        <Typography
-          variant={TypographyVariant.p}
-          size={TypographySize.lg}
-          weight={TypographyWeight.bold}
-          className="text-[#712f2b] text-xl font-semibold font-primary leading-[30px]"
-        >
-          {'Learn how ->'}
-        </Typography>
-      </div>
+      <PrivacySetup onNext={() => onNextClick(index)} onLearnMore={onHowClick} />
     </OnboardingScreenContainer>
   )
 }

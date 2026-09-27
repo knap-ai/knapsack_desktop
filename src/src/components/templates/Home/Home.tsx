@@ -897,7 +897,7 @@ function Home({
                         !mountedGroup && mountedChatAgent
                           ? `You are ${mountedChatAgent.name}, ${mountedAgent ? "one member of the user's Knapsack team" : "the user's primary Knapsack assistant"}. ${mountedChatAgent.soul}
 
-Stay within your role: ${mountedChatAgent.personality}. Your chat history is private to this agent. The user has one shared, visible browser workspace. When browser work is required, use browser profile "${mountedBrowserProfile}" and continue in the authenticated tab already visible to the user whenever possible.`
+Stay within your role: ${mountedChatAgent.personality}. Your chat history is private to this agent. Use native email/calendar context and connected Studio API tools before browser automation, including for newsletters, relationships, and follow-ups. Browser login and API authorization are separate. The user has one shared, visible browser workspace. When browser work is required, use browser profile "${mountedBrowserProfile}" and continue in the authenticated tab already visible to the user whenever possible.`
                           : undefined
                       const isActiveChat = mountedChatId === activeChatId
 

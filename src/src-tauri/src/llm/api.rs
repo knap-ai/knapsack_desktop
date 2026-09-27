@@ -40,6 +40,9 @@ async fn llm_complete(
       .keep_alive()
       .streaming(stream),
     Err(error) => match error {
+      LLMError::ProviderNotConfigured(message) => HttpResponse::BadRequest().json(
+        json!({ "success": false, "error_code": "MODEL_NOT_CONFIGURED", "message": message }),
+      ),
       LLMError::TooManyRequests(e) => {
         let message = format!("{}", e);
         HttpResponse::TooManyRequests().json(

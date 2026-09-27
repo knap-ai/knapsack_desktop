@@ -42,13 +42,13 @@ const TakeActionButton = ({ email, label = 'Take Action' }: TakeActionButtonProp
   return (
     <button
       onClick={handleClick}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold font-InterTight transition-colors"
+      className="inline-flex min-w-0 max-w-full flex-1 basis-48 items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold font-InterTight transition-colors"
       title="Take a non-email action on this request via chat"
     >
       <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
-      {label}
+      <span className="min-w-0 break-words text-left">{label}</span>
     </button>
   )
 }

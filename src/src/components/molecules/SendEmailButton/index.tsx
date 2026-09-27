@@ -163,11 +163,11 @@ const SendEmailButton = ({
   }, [shouldSend])
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative shrink-0" ref={dropdownRef}>
       <button
         onClick={handleSend}
         disabled={isSending}
-        className={`inline-flex items-center pl-2 pr-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-ks-red-800 hover:bg-ks-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ks-red-500 gap-2 ${
+        className={`inline-flex items-center pl-2 pr-3 py-1.5 whitespace-nowrap border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-ks-red-800 hover:bg-ks-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ks-red-500 gap-2 ${
           isSending ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
@@ -182,7 +182,7 @@ const SendEmailButton = ({
         ) : (
           <>
           <img
-            className="w-6 h-6 ml-0"
+            className="shrink-0 w-6 h-6 ml-0"
             src="/assets/images/drop_down_white.svg"
             onClick={(e) => {
               e.stopPropagation();

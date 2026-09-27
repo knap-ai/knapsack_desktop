@@ -112,9 +112,12 @@ pub fn validate_inference(provider: &str, ollama_base_url: Option<&str>) -> Resu
     .unwrap_or("http://127.0.0.1:11434")
     .trim()
     .to_lowercase();
-  let local = ["http://127.0.0.1", "http://localhost", "http://[::1]"]
-    .iter()
-    .any(|prefix| url.starts_with(prefix));
+  let local = reqwest::Url::parse(&url).ok().is_some_and(|url| {
+    url.scheme() == "http"
+      && url.username().is_empty()
+      && url.password().is_none()
+      && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+  });
   if local {
     Ok(())
   } else {
@@ -189,6 +192,9 @@ mod tests {
     assert!(validate_inference("ollama", Some("http://127.0.0.1:11434")).is_ok());
     assert!(validate_inference("ollama", Some("https://api.ollama.com")).is_err());
     assert!(validate_inference("openai", None).is_err());
+    assert!(validate_inference("ollama", Some("http://localhost.evil.test:11434")).is_err());
+    assert!(validate_inference("ollama", Some("http://127.0.0.1@evil.test:11434")).is_err());
+    assert!(validate_inference("ollama", Some("http://[::1]:11434")).is_ok());
     ENABLED.store(false, Ordering::Release);
   }
 
@@ -196,4 +202,18 @@ mod tests {
   fn manifest_has_a_stable_audit_hash() {
     assert_eq!(manifest_sha256().len(), 64);
   }
+}
+
+/// Only hardware capacity, never identifiers or personal content.
+#[tauri::command]
+pub fn get_local_model_hardware() -> serde_json::Value {
+  let mut system = sysinfo::System::new();
+  system.refresh_memory();
+  system.refresh_cpu_all();
+  serde_json::json!({
+    "memory_bytes": system.total_memory(),
+    "available_memory_bytes": system.available_memory(),
+    "architecture": std::env::consts::ARCH,
+    "cpu": system.cpus().first().map(|cpu| cpu.brand()).unwrap_or("Unknown CPU"),
+  })
 }

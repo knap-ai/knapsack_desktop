@@ -50,6 +50,8 @@ pub type BoxedFuture<'a, T> = Box<dyn Future<Output = T> + Send + Unpin + 'a>;
 
 #[derive(Serialize, Error, Debug)]
 pub enum LLMError {
+  #[error("{0}")]
+  ProviderNotConfigured(String),
   #[error("failed to advance context: {0}")]
   Advance(String),
   #[error("failed to load the model: {0}")]

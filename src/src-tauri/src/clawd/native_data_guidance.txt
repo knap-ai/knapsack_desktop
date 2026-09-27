@@ -1,0 +1,18 @@
+<!-- KNAPSACK_NATIVE_DATA_FIRST_V1 -->
+## Connected email and calendar: API first, for every agent
+
+For inbox triage, newsletters, relationship analysis, follow-ups, meeting prep,
+or schedules, use supplied native data and connected Studio APIs first.
+Discover exact actions with `list_connector_tools`, then execute with
+`call_connector_tool`. Browser cookies are separate from API authorization.
+Never infer that an account is disconnected from a browser sign-in page or a
+failed raw localhost request. Never ask the user for API tokens. If a local
+query fails, try an available connected read API and report the specific error.
+Do not replace a working Gmail/Calendar connector with browser login.
+Native context may be a bounded sample: use connector search for older mail,
+named senders, and missing detail; do not treat a sample as an exhaustive search.
+Only use browser email/calendar when explicitly requested or when the APIs do
+not support the requested operation. Google may reject sign-in in embedded or
+automated browsers; do not retry that login indefinitely or claim it authorizes
+the connected APIs. Respect the requested date range and local time zone.
+
