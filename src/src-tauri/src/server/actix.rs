@@ -413,6 +413,8 @@ pub async fn start_server<'a>(
       .service(clawd::browser::navigate_browser)
       .service(clawd::browser::get_browser_presentation)
       .service(clawd::browser::set_browser_presentation)
+      .service(clawd::browser::list_scheduled_tasks_api)
+      .service(clawd::browser::set_scheduled_task_enabled_api)
       .service(clawd::browser_import::chrome_import_status)
       .service(clawd::browser_import::import_chrome_data)
       .service(clawd::browser::list_tabs)
