@@ -11,28 +11,8 @@ export type ProviderModelOption = {
   vision?: boolean
 }
 
-export const OPENAI_MODELS: ProviderModelOption[] = [
-  { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', description: 'Frontier reasoning and coding for complex professional work', vision: true },
-  { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra', description: 'Best balance of intelligence, speed, and cost for most work', vision: true },
-  { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna', description: 'Fast, economical model for high-volume everyday tasks', vision: true },
-]
-
-export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-terra'
-
-export const GEMINI_MODELS: ProviderModelOption[] = [
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', description: 'Newest stable Flash model for agents, coding, and complex enterprise work', vision: true },
-  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', description: 'Previous-generation stable Flash model for reliable multi-step work', vision: true },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', description: 'Stable Flash option for production compatibility', vision: true },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', description: 'Fast, broadly capable model for general work', vision: true },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', description: 'Lowest-cost current Gemini option for high-volume tasks', vision: true },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Preview)', description: 'Advanced reasoning and agentic coding for evaluation workloads', vision: true },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', description: 'Preview frontier-class Flash performance', vision: true },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite', description: 'Earlier low-cost Gemini 3 option', vision: true },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Legacy access for existing projects that already use Gemini 2.5', vision: true },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Legacy access for existing projects that already use Gemini 2.5', vision: true },
-  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', description: 'Legacy low-cost option for existing Gemini 2.5 projects', vision: true },
-]
-
+export { OPENAI_MODELS, DEFAULT_OPENAI_MODEL } from './openaiModels'
+export { GEMINI_MODELS } from './geminiModels'
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash'
 
 export const GROQ_MODELS: ProviderModelOption[] = [

@@ -1,3 +1,5 @@
+import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
+import { GEMINI_MODELS } from 'src/utils/geminiModels'
 import { privacyModeStatus } from 'src/utils/privacyMode'
 import { SLACK_GUIDED_SETUP_PROMPT } from 'src/utils/slackGuidedSetup'
 import './style.scss'
@@ -32,12 +34,9 @@ import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRoute
 import {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_GROQ_MODEL,
-  DEFAULT_OPENAI_MODEL,
   DEFAULT_TRUSTEDROUTER_MODEL,
   DEFAULT_XAI_MODEL,
-  GEMINI_MODELS,
   GROQ_MODELS,
-  OPENAI_MODELS,
   TRUSTEDROUTER_MODELS,
   XAI_MODELS,
 } from 'src/utils/providerModels'
@@ -1951,6 +1950,7 @@ interface ClawdChatProps {
   userEmail?: string
   userName?: string
   onBusyChange?: (busy: boolean) => void
+  onInferenceReadyChange?: (engine: { provider: string; model: string } | null) => void
   onProviderPanelOpenChange?: (open: boolean) => void
   onAssistantMessage?: (chatId: string) => void
   onOpenBrowser?: () => void
@@ -1987,7 +1987,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -4814,9 +4814,27 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     autoTriggeredBriefingRef.current = false
   }, [chatHistoryStorage, welcomeMessages])
 
+  useEffect(() => {
+    const model = {
+      knapsack: selectedKnapsackModel, ollama: selectedOllamaModel,
+      openai: selectedModel, anthropic: selectedAnthropicModel,
+      gemini: selectedGeminiModel, groq: selectedGroqModel, xai: selectedXaiModel,
+      openrouter: selectedOpenRouterModel, trustedrouter: selectedTrustedRouterModel,
+    }[confirmedProvider]
+    onInferenceReadyChange?.(hasCompletedOnboarding && health?.gateway_ok && model
+      ? { provider: confirmedProvider, model } : null)
+  }, [onInferenceReadyChange, hasCompletedOnboarding, health?.gateway_ok, confirmedProvider,
+    selectedKnapsackModel, selectedOllamaModel, selectedModel, selectedAnthropicModel,
+    selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel,
+    selectedTrustedRouterModel])
+
   const setupTaskSent = useRef(false)
   useEffect(() => {
-    if (!active || !setupTask || setupTaskSent.current || !hasCompletedOnboarding || !health?.gateway_ok || busy) return
+    if (!setupTask) {
+      setupTaskSent.current = false
+      return
+    }
+    if (!active || setupTaskSent.current || !hasCompletedOnboarding || !health?.gateway_ok || busy) return
     const timer = setTimeout(() => {
       if (!handleSendWithTextRef.current) return
       setupTaskSent.current = true

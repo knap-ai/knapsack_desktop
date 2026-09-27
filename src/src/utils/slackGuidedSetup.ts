@@ -47,3 +47,35 @@ When finished:
 4. If any step requires a human admin click or approval, stop and give me one crisp instruction at a time.
 
 Do not send test messages or contact anyone. If browser login or workspace approval requires me, pause for that action. Please drive this in the browser and keep going until Slack is fully configured or you hit a real human-only blocker.`
+
+/** Verify the same tool-capable runtime used by Slack setup, never a direct-chat fallback. */
+export async function verifySlackSetupEngine(
+  engine: { provider: string; model: string },
+  signal: AbortSignal,
+  request: typeof fetch = fetch,
+): Promise<void> {
+  const response = await request('http://127.0.0.1:8897/api/clawd/agent-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      provider: engine.provider,
+      model: engine.model,
+      text: 'Reply with exactly SETUP_READY. This is an inference connectivity check; do not use tools.',
+      sessionId: 'onboarding-inference-check',
+      noFallback: true,
+    }),
+  })
+  const data = await response.json()
+  if (
+    !response.ok ||
+    data.ok !== true ||
+    !data.harness ||
+    typeof data.reply !== 'string' ||
+    !data.reply.includes('SETUP_READY')
+  ) {
+    throw new Error(
+      'The selected AI engine could not run the setup assistant. Connect or change the engine below, then try again.',
+    )
+  }
+}

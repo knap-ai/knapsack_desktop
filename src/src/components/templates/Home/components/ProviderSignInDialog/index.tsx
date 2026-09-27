@@ -1,3 +1,5 @@
+import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
+import { GEMINI_MODELS } from 'src/utils/geminiModels'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { open as openExternalUrl } from '@tauri-apps/api/shell'
 import { listen } from '@tauri-apps/api/event'
@@ -17,10 +19,7 @@ import {
 import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRouterModels'
 import {
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_MODEL,
   DEFAULT_TRUSTEDROUTER_MODEL,
-  GEMINI_MODELS,
-  OPENAI_MODELS,
   TRUSTEDROUTER_MODELS,
 } from 'src/utils/providerModels'
 import KNAnalytics from 'src/utils/KNAnalytics'

@@ -265,3 +265,26 @@ test("existing isolated OAuth state is preserved unless explicitly disabled", ()
   );
   fs.rmSync(stateDir, { recursive: true, force: true });
 });
+
+
+test("concurrent feed smoke detects pool starvation and malformed successes", async () => {
+  const { runConcurrentFeedSmoke } = require('./qa-loop-runner.cjs');
+  const pending = [];
+  const check = runConcurrentFeedSmoke(() => new Promise(resolve => pending.push(resolve)));
+  assert.equal(pending.length, 12);
+  pending.forEach(resolve => resolve({ ok: true, body: { success: true, data: [] } }));
+  assert.equal((await check).ok, true);
+  let calls = 0;
+  const failed = await runConcurrentFeedSmoke(async () => {
+    if (++calls === 4) throw new Error('request timed out');
+    return { ok: true, body: { success: true, data: [] } };
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.passed, 11);
+  assert.equal((await runConcurrentFeedSmoke(async () => ({ ok: true, body: {} }))).ok, false);
+});
+
+
+test('Knapsack QA startup uses the registered gateway proxy rather than a desktop alias', () => {
+  assert.equal(require('./qa-loop-runner.cjs').qaStartupModelForProvider('knapsack'), 'knapsack-local/default')
+})

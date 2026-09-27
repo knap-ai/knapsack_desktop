@@ -138,9 +138,11 @@ impl Thread {
     )?;
     let thread_iter = stmt.query_map([], |row| Thread::build_struct_from_row(row))?;
 
+    let threads = thread_iter.collect::<Result<Vec<_>, _>>()?;
+    drop(stmt);
+    drop(connection);
     let mut threads_with_messages = Vec::new();
-    for thread_result in thread_iter {
-      let thread = thread_result?;
+    for thread in threads {
       let messages = Message::find_by_thread_id(thread.id.unwrap())?;
       let thread_with_messages = ThreadWithMessages { thread, messages };
       threads_with_messages.push(thread_with_messages);
@@ -264,9 +266,11 @@ impl Thread {
 
     let thread_iter = stmt.query_map(params![id], |row| Thread::build_struct_from_row(row))?;
 
+    let threads = thread_iter.collect::<Result<Vec<_>, _>>()?;
+    drop(stmt);
+    drop(connection);
     let mut threads_with_messages = Vec::new();
-    for thread_result in thread_iter {
-      let thread = thread_result?;
+    for thread in threads {
       let messages = Message::find_by_thread_id(thread.id.unwrap())?;
       let thread_with_messages = ThreadWithMessages { thread, messages };
       threads_with_messages.push(thread_with_messages);

@@ -109,3 +109,26 @@ test('model download handles split progress, errors and truncated streams', asyn
   await assert.rejects(() => readPullProgress(response(['{"error":"model not found"}\n']), () => {}), /model not found/)
   await assert.rejects(() => readPullProgress(response(['{"status":"pulling"}\n']), () => {}), /before completion/)
 })
+
+
+test('Slack setup verifies the agent runtime with fallback disabled', async () => {
+  const { verifySlackSetupEngine } = await loadUtility('slackGuidedSetup')
+  const signal = new AbortController().signal
+  await verifySlackSetupEngine({ provider: 'knapsack', model: 'auto' }, signal, async (url, init) => {
+    assert.match(url, /\/agent-chat$/)
+    assert.equal(init.signal, signal)
+    assert.equal(JSON.parse(init.body).noFallback, true)
+    return { ok: true, json: async () => ({ ok: true, harness: 'openclaw', reply: 'SETUP_READY' }) }
+  })
+  for (const data of [
+    { reply: 'SETUP_READY' }, // Plain chat success must not qualify.
+    { ok: true, harness: 'openclaw', reply: 'Please connect a provider' },
+    { ok: false, harness: 'openclaw', reply: 'SETUP_READY' },
+  ]) {
+    await assert.rejects(verifySlackSetupEngine({ provider: 'ollama', model: 'qwen3:4b' }, signal,
+      async () => ({ ok: true, json: async () => data })), /could not run the setup assistant/)
+  }
+  await assert.rejects(verifySlackSetupEngine({ provider: 'knapsack', model: 'auto' }, signal,
+    async () => ({ ok: false, json: async () => ({ ok: true, harness: 'openclaw', reply: 'SETUP_READY' }) })),
+    /could not run the setup assistant/)
+})

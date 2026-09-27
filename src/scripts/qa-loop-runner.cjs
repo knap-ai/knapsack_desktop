@@ -243,7 +243,7 @@ function qaStartupModelForProvider(provider) {
     google: "google/gemini-2.5-flash",
     ollama: "ollama/markheynen/knapsack-7b-chat-metal:latest",
     groq: "groq/llama-3.3-70b-versatile",
-    knapsack: "knapsack/auto",
+    knapsack: "knapsack-local/default",
     openai: "openai/gpt-5.5",
     openrouter: "openrouter/auto",
     xai: "xai/grok-4",
@@ -1858,6 +1858,20 @@ function hasBrokenAgentCapabilityReply(reply) {
   return patterns.some((pattern) => pattern.test(text));
 }
 
+// More concurrent requests than the 10-connection pool catches nested
+// acquisition deadlocks that a single API health request cannot expose.
+async function runConcurrentFeedSmoke(request = () => httpJsonWithTimeout(
+  `${API_BASE}/api/knapsack/feed_items`, { method: "GET" }, 20000,
+)) {
+  const start = Date.now();
+  const results = await Promise.allSettled(Array.from({ length: 12 }, () => request()));
+  const passed = results.filter(result => result.status === "fulfilled"
+    && result.value.ok && result.value.body?.success === true
+    && Array.isArray(result.value.body?.data)).length;
+  return { ok: passed === 12, passed, total: 12, latencyMs: Date.now() - start,
+    detail: `${passed}/12 concurrent feed requests completed successfully` };
+}
+
 async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
   const startedAt = Date.now();
   let res;
@@ -1868,7 +1882,7 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
       body: JSON.stringify({
         text: prompt,
         sessionId: `qa-agent-${label}`.replace(/[^A-Za-z0-9._-]/g, "-"),
-        disableFallback: true,
+        noFallback: true,
       }),
     }, timeoutMs);
   } catch (error) {
@@ -1985,7 +1999,10 @@ async function createMockMeeting() {
   const requestTimeoutMs = 30_000;
   const requestWithRetry = async (name, init) => {
     let lastError = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // A timed-out POST may already have taken effect. Do not start another
+    // recording or create duplicate rows while its first response is pending.
+    const attempts = (init.options?.method || "GET") === "GET" ? 3 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const response = await fetchWithTimeout(init.url, init.options, requestTimeoutMs);
         return response;
@@ -1993,7 +2010,7 @@ async function createMockMeeting() {
         lastError = error;
         const message = normalizeResult(error?.message || error);
         if (message.includes("aborted") || message.includes("timed out") || message.includes("ETIMEDOUT")) {
-          if (attempt < 2) {
+          if (attempt + 1 < attempts) {
             await sleep(1_000);
             continue;
           }
@@ -2071,8 +2088,7 @@ async function createMockMeeting() {
   });
   if (!start.ok) {
     const alreadyRecording =
-      typeof start.body?.error === "string" &&
-      start.body.error.toLowerCase().includes("already in progress");
+      normalizeResult(start.body).toLowerCase().includes("already in progress");
     if (alreadyRecording) {
       const stopRecovery = await requestWithRetry("stop_recording", {
         url: `${API_BASE}/api/knapsack/stop_recording`,
@@ -2533,6 +2549,11 @@ async function runMode(mode, opts = {}) {
         };
       }
 
+      functionalProgress.step = "concurrent feed reads";
+      const feedReads = await runConcurrentFeedSmoke();
+      functionalProgress.feedReads = feedReads;
+      if (!feedReads.ok) return { ok: false, phase: "database-concurrency", message: feedReads.detail, chatChecks };
+
       functionalProgress.step = "agent capability checks";
       // The final successful chat check already left its provider/model active.
       // Restarting back to the first provider adds a fifth gateway restart and
@@ -2556,45 +2577,24 @@ async function runMode(mode, opts = {}) {
           prompt: "What is on my calendar tomorrow? Use connected Knapsack calendar data first.",
         },
       ];
+      const functionalFailures = [];
       const agentFailures = [];
+      functionalProgress.agentCapabilities = [];
       for (const capability of agentCapabilityChecks) {
         const check = await runAgentCapabilitySmoke(capability);
+        functionalProgress.agentCapabilities.push(check);
         if (!check.ok) {
           agentFailures.push(`${capability.label}: ${check.detail}`);
         }
       }
       if (agentFailures.length > 0) {
-        return {
-          ok: false,
-          phase: "agent-capabilities",
-          message: `agent capability check failed: ${agentFailures.join(" | ")}`,
-          chatChecks,
-        };
+        functionalFailures.push(`agent capability check failed: ${agentFailures.join(" | ")}`);
       }
 
       functionalProgress.step = "multi-agent group chat";
       const groupChat = await runGroupChatSmoke();
       functionalProgress.groupChat = groupChat;
-      if (!groupChat.ok) {
-        return {
-          ok: false,
-          phase: "group-chat",
-          message: groupChat.detail,
-          chatChecks,
-        };
-      }
-
-      functionalProgress.step = "mock meeting";
-      const meeting = await createMockMeeting();
-      if (!meeting.ok) {
-        return {
-          ok: false,
-          phase: "recording",
-          message: meeting.detail,
-          chatChecks,
-        };
-      }
-      functionalProgress.mockMeeting = meeting;
+      if (!groupChat.ok) functionalFailures.push(groupChat.detail);
 
       let interfaces = null;
       for (let interfaceAttempt = 1; interfaceAttempt <= 3; interfaceAttempt++) {
@@ -2606,13 +2606,16 @@ async function runMode(mode, opts = {}) {
         }
       }
       if (!interfaces || !interfaces.ok) {
-        return {
-          ok: false,
-          phase: "interfaces",
-          message: interfaces ? interfaces.failures.join(", ") : "interface check did not return",
-          chatChecks,
-          interfaceCoverage: interfaces?.coverage,
-        };
+        functionalFailures.push(interfaces ? interfaces.failures.join(", ") : "interface check did not return");
+      }
+      functionalProgress.interfaceCoverage = interfaces?.coverage;
+      functionalProgress.step = "mock meeting";
+      const meeting = await createMockMeeting();
+      functionalProgress.mockMeeting = meeting;
+      if (!meeting.ok) functionalFailures.push(meeting.detail);
+      if (functionalFailures.length) {
+        return { ok: false, phase: "functional", message: functionalFailures.join(" | "),
+          chatChecks, interfaceCoverage: interfaces?.coverage };
       }
 
       return {
@@ -2777,6 +2780,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  runConcurrentFeedSmoke,
   buildGroupChatQaRequest,
   evaluateBrowserPersistenceCapabilities,
   findManagedBrowserCommandLine,
@@ -2788,6 +2792,7 @@ module.exports = {
   parseListenerPids,
   qaSetProviderTimeoutMs,
   qaDevClawdbotDir,
+  qaStartupModelForProvider,
   readinessProviderModels,
   retrySuccessfulResultWithDelay,
   shouldPreserveExistingQaState,

@@ -143,6 +143,10 @@ function qaEnv(extra = {}) {
     VITE_GOOGLE_DEVELOPER_KEY: process.env.VITE_GOOGLE_DEVELOPER_KEY || "",
     ...extra,
   };
+  if (String(env.KNAPSACK_QA_ENABLE_LIVE_CHANNELS || "") !== "1") {
+    env.OPENCLAW_SKIP_CHANNELS = "1";
+    env.OPENCLAW_DESKTOP_AUTO_START_CHANNELS = "0";
+  }
   for (const key of Object.keys(env)) {
     if (key === "CODEX_SANDBOX_NETWORK_DISABLED" || key.startsWith("CODEX_")) {
       delete env[key];
@@ -330,6 +334,17 @@ function seedQaConfigFromProd() {
   }
   if (String(process.env.KNAPSACK_QA_SKIP_GATEWAY || "") === "1") {
     next.channels = {};
+  }
+
+  // QA must not consume live Slack events or send proactive messages just
+  // because the installed app has a connected channel. Transport testing is
+  // an explicit opt-in against a test workspace.
+  if (String(process.env.KNAPSACK_QA_ENABLE_LIVE_CHANNELS || "") !== "1") {
+    next.channels = {};
+    next.cron = { ...(next.cron || {}), enabled: false };
+    if (next.agents?.defaults) {
+      next.agents.defaults.heartbeat = { ...(next.agents.defaults.heartbeat || {}), every: "0m" };
+    }
   }
 
   // Let the desktop gateway discover bundled plugins from the channel config
