@@ -1834,6 +1834,7 @@ async function runConcurrentFeedSmoke(request = () => httpJsonWithTimeout(
 
 async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
   const startedAt = Date.now();
+  const sessionId = `qa-agent-${label}-${require('node:crypto').randomUUID()}`.replace(/[^A-Za-z0-9._-]/g, "-");
   let res;
   try {
     res = await fetchWithTimeout(`${API_BASE}/api/clawd/agent-chat`, {
@@ -1841,7 +1842,7 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: prompt,
-        sessionId: `qa-agent-${label}`.replace(/[^A-Za-z0-9._-]/g, "-"),
+        sessionId,
         noFallback: true,
       }),
     }, timeoutMs);
@@ -1882,11 +1883,10 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
     };
   }
 
-  return {
-    label,
-    ok: true,
-    latencyMs: Date.now() - startedAt,
-  };
+  const evidence = label === "native-gmail-tool"
+    ? require('./qa-native-gmail-evidence.cjs').readNativeGmailEvidence(apiAuthStateDir(), sessionId)
+    : { ok: true };
+  return { label, ...evidence, latencyMs: Date.now() - startedAt };
 }
 
 function buildGroupChatQaRequest(sessionId = `qa-group-${Date.now()}`) {

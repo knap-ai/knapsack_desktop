@@ -461,6 +461,11 @@ async fn native_gmail_tool(arguments: &Value) -> Result<Value, String> {
 
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   authorize_studio_request(arguments).await?;
+  // tools/list is cached by MCP clients. Discover accounts on demand as well
+  // so a transient startup timeout never freezes an empty connector catalog.
+  if arguments.get("connector").and_then(Value::as_str).unwrap_or("").trim().is_empty() {
+    return Ok(connector_catalog(&connected_connectors().await?));
+  }
   let studio_account = nonempty(read_tokens()?.knapsack_email)
     .ok_or_else(|| {
       "Reconnect Knapsack Studio in Settings to confirm the account owner.".to_string()
@@ -660,6 +665,17 @@ async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
   .await
 }
 
+fn connector_catalog(connectors: &[Value]) -> Value {
+  json!({ "connectors": connectors.iter()
+    .filter(|connector| !is_gmail_connector(connector))
+    .filter_map(|connector| Some(json!({
+      "id": connector.get("id")?.as_str()?,
+      "name": connector.get("name")?.as_str()?,
+      "account": connector.get("account").and_then(Value::as_str)
+    })))
+    .collect::<Vec<_>>() })
+}
+
 fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Value> {
   let labels = connectors
     .iter()
@@ -703,7 +719,7 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
     }),
     json!({
       "name": LIST_TOOL,
-      "description": "Discover actions for one connector already connected through Knapsack Studio. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials. Slack connectors with ids like slack:<account-id> are separate authorized workspaces; use each relevant account-specific connector for named-workspace or cross-workspace requests instead of relying on the native Slack channel tool.",
+      "description": "First call without connector to fetch the current connected accounts and exact connector IDs. This refresh works even if initial discovery timed out or accounts were connected later. Then pass an exact connector ID to discover its actions. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials. Slack connectors with ids like slack:<account-id> are separate authorized workspaces; use each relevant account-specific connector for named-workspace or cross-workspace requests instead of relying on the native Slack channel tool.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -711,7 +727,7 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
           "query": { "type": "string", "description": "Optional short action search, such as 'list repositories' or 'create issue'. Use this when the first result says requiresQuery." },
           "limit": { "type": "integer", "minimum": 1, "maximum": 10, "description": "Maximum matching exact schemas to return (default 5; response size is also bounded to prevent truncation)." }
         },
-        "required": ["connector"]
+        "required": []
       }
     }),
     json!({
@@ -760,7 +776,7 @@ async fn handle_request(request: Value) -> Option<Value> {
       json!({
         "protocolVersion": "2024-11-05",
         "serverInfo": { "name": "knapsack-studio-mcp", "version": "1" },
-        "capabilities": { "tools": { "listChanged": true } }
+        "capabilities": { "tools": {} }
       }),
     ),
     "tools/list" => {
@@ -837,6 +853,20 @@ mod tests {
     let tools = super::discover_tool_schemas(std::future::pending()).await;
     assert!(tools.iter().any(|tool| tool["name"] == "gmail_read"));
     assert!(tools.iter().any(|tool| tool["name"] == super::LIST_TOOL));
+    let discovery = tools.iter().find(|tool| tool["name"] == super::LIST_TOOL).unwrap();
+    assert_eq!(discovery["inputSchema"]["required"], serde_json::json!([]));
+    assert!(discovery["description"].as_str().unwrap().contains("without connector"));
+  }
+
+  #[test]
+  fn refreshed_catalog_keeps_workspace_ids_without_tokens_or_composio_gmail() {
+    let catalog = super::connector_catalog(&[
+      serde_json::json!({"id":"slack:workspace", "name":"Slack", "access_token":"secret"}),
+      serde_json::json!({"id":"google_gmail_modify", "name":"Gmail"}),
+    ]);
+    assert_eq!(catalog["connectors"].as_array().unwrap().len(), 1);
+    assert_eq!(catalog["connectors"][0]["id"], "slack:workspace");
+    assert!(!catalog.to_string().contains("secret"));
   }
 
   use super::*;
