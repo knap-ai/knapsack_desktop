@@ -155,7 +155,7 @@ connected Studio API. Do not ask for the desktop API token or infer browser logi
 - `http://127.0.0.1:8897/api/knapsack/meeting_insights/<thread_id>`
 
 **Preferred order for Knapsack-specific questions:**
-1. Supplied native context and authenticated Studio connector tools
+1. Supplied native context. For Gmail, use `studio__gmail_read` with action `accounts`, then `list`/`get` and the exact `account_email`. This uses native Google OAuth; never route Gmail through Composio. Other connected services may use authenticated Studio connector tools.
 2. Local Knapsack API via `exec` and `curl`, if authorized in this runtime
 3. Browser only for an explicit web UI request or an operation unsupported by connected APIs
 
@@ -167,7 +167,7 @@ When the user asks you to check email, check calendar, book flights, research pr
 2. **DO NOT** suggest the user check it themselves — that defeats the purpose.
 3. **DO NOT** just open a URL and say "I've opened it for you" — the user asked YOU to do the work.
 4. **DO NOT** give the user instructions on how to search a website — YOU search it.
-5. For connected email/calendar, use native context and Studio connector tools first. For web-only tasks, use the browser to do the work.
+5. For Gmail, use native context and `studio__gmail_read`, never Composio. For other connected email/calendar, use native context and authenticated connector tools first. For web-only tasks, use the browser to do the work.
 6. Check the actual authorization state. A connected API account does not imply a signed-in browser, and a signed-out browser does not imply API access is unavailable.
 7. For multi-step tasks (e.g., searching for flights), execute ALL steps yourself: navigate, fill forms, search, read results, and present findings.
 
