@@ -18,5 +18,7 @@
   {"path":"dist/reply-threading-Bgku_ISs.js","required":["if (!provider) return \"off\"","channelConfig?.replyToMode ?? \"off\""],"forbidden":[]},
   {"path":"dist/runtime-JrxuINJZ.js","required":["DESKTOP_BROWSER_SEARCH_URL","x-knapsack-api-token","KNAPSACK_DESKTOP_API_TOKEN"],"forbidden":[]},
   {"path":"dist/server-context-DxDoSex8.js","required":["`headless:${options.headless}`","openTabInflight"],"forbidden":["function ensureOptionsKey(options) {\n\treturn \"default\";"]},
-  {"path":"dist/server.impl-BCpatfdp.js","required":["startDesktopManagedBrowserControlService","desktop-managed core gateway methods failed to load after listen"],"forbidden":[]}
+  {"path":"dist/server.impl-BCpatfdp.js","required":["startDesktopManagedBrowserControlService","desktop-managed core gateway methods failed to load after listen"],"forbidden":[]},
+  {"path":"dist/knapsack-desktop-readiness.js","required":["export const ensureKnapsackDesktopReady","createDesktopReadiness"],"forbidden":[]},
+  {"path":"dist/openai-transport-stream-Pgx5hpN7.js","required":["await ensureKnapsackDesktopReady(model, (requestInit ?? init)?.signal)"],"forbidden":[]}
 ]
