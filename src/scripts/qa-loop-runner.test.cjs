@@ -169,6 +169,8 @@ test("disabled browser-tool replies fail capability QA instead of passing as ans
     true,
   );
   assert.equal(hasBrokenAgentCapabilityReply("Here is the requested source summary."), false);
+  assert.equal(hasBrokenAgentCapabilityReply('Both calls failed: missing trusted gateway session context.'), true);
+  assert.equal(hasBrokenAgentCapabilityReply('Knapsack tool requires trusted gateway session context'), true);
 });
 
 test("meeting chat retries disabled browser-tool replies through direct chat", () => {

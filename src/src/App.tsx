@@ -1092,6 +1092,26 @@ function App() {
       userName,
     )
 
+  // Handler identities change as feeds and automation state update. Keep the
+  // minute timer tied to the account, otherwise its immediate tick updates
+  // meetings, re-renders App, and starts another immediate tick indefinitely.
+  const clockHandlersRef = useRef({
+    checkMeetingPrep,
+    checkMorningBriefing,
+    checkProactiveCheckin,
+    handleNotificationsScheduleService,
+    handleAutomationsFeedScheduleService,
+    updateMeetingStatuses,
+  })
+  clockHandlersRef.current = {
+    checkMeetingPrep,
+    checkMorningBriefing,
+    checkProactiveCheckin,
+    handleNotificationsScheduleService,
+    handleAutomationsFeedScheduleService,
+    updateMeetingStatuses,
+  }
+
   const setClocks = useCallback(() => {
     if (!userEmail) {
       return
@@ -1102,6 +1122,14 @@ function App() {
     const tick = () => {
       if (tickInFlight) return
       tickInFlight = true
+      const {
+        checkMeetingPrep,
+        checkMorningBriefing,
+        checkProactiveCheckin,
+        handleNotificationsScheduleService,
+        handleAutomationsFeedScheduleService,
+        updateMeetingStatuses,
+      } = clockHandlersRef.current
       const date = new Date()
       const currentTime = (window as any).testTime ? (window as any).testTime : Date.now() / 1000
 
@@ -1138,15 +1166,7 @@ function App() {
     return () => {
       clearInterval(minuteInterval)
     }
-  }, [
-    userEmail,
-    checkMeetingPrep,
-    checkMorningBriefing,
-    checkProactiveCheckin,
-    handleNotificationsScheduleService,
-    handleAutomationsFeedScheduleService,
-    updateMeetingStatuses,
-  ])
+  }, [userEmail])
 
   const periodicSyncRef = useRef({
     fetchConnections,

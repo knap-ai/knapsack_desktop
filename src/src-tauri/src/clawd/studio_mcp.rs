@@ -738,6 +738,18 @@ fn respond_error(id: &Value, code: i64, message: String) -> Value {
   json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
 }
 
+// Catalog availability must not depend on the remote Studio service. Gmail
+// is native and remains usable even when optional connector discovery hangs.
+async fn discover_tool_schemas(
+  discovery: impl std::future::Future<Output = Result<Vec<Value>, String>>,
+) -> Vec<Value> {
+  match tokio::time::timeout(Duration::from_secs(2), discovery).await {
+    Ok(Ok(connectors)) => tool_schemas(&connectors, None),
+    Ok(Err(error)) => tool_schemas(&[], Some(&error)),
+    Err(_) => tool_schemas(&[], Some("Connector discovery timed out; native Gmail remains available")),
+  }
+}
+
 async fn handle_request(request: Value) -> Option<Value> {
   let id = request.get("id").cloned().unwrap_or(Value::Null);
   let method = request.get("method").and_then(Value::as_str).unwrap_or("");
@@ -752,13 +764,10 @@ async fn handle_request(request: Value) -> Option<Value> {
       }),
     ),
     "tools/list" => {
-      let (connectors, discovery_error) = match connected_connectors().await {
-        Ok(connectors) => (connectors, None),
-        Err(error) => (Vec::new(), Some(error)),
-      };
+      let tools = discover_tool_schemas(connected_connectors()).await;
       respond(
         &id,
-        json!({ "tools": tool_schemas(&connectors, discovery_error.as_deref()) }),
+        json!({ "tools": tools }),
       )
     }
     "tools/call" => {
@@ -823,6 +832,13 @@ pub async fn run_stdio_server() {
 
 #[cfg(test)]
 mod tests {
+  #[tokio::test]
+  async fn native_tools_remain_available_when_connector_discovery_stalls() {
+    let tools = super::discover_tool_schemas(std::future::pending()).await;
+    assert!(tools.iter().any(|tool| tool["name"] == "gmail_read"));
+    assert!(tools.iter().any(|tool| tool["name"] == super::LIST_TOOL));
+  }
+
   use super::*;
 
   static TEST_ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));

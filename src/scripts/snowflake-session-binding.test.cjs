@@ -114,11 +114,12 @@ test("identity-sensitive tools are omitted from runtimes without trusted scope",
   assert.equal(isKnapsackIdentitySensitiveTool("snowflake", "snowflake_query"), true);
   assert.equal(isKnapsackIdentitySensitiveTool("studio", "list_connector_tools"), true);
   assert.equal(isKnapsackIdentitySensitiveTool("studio", "call_connector_tool"), true);
+  assert.equal(isKnapsackIdentitySensitiveTool("studio", "gmail_read"), true);
   assert.equal(isKnapsackIdentitySensitiveTool("studio", "other_tool"), false);
   assert.equal(isKnapsackIdentitySensitiveTool("other", "snowflake_query"), false);
 });
 
-for (const toolName of ["list_connector_tools", "call_connector_tool"]) {
+for (const toolName of ["list_connector_tools", "call_connector_tool", "gmail_read"]) {
   test(`Studio ${toolName} is bound to trusted gateway session and scope`, async () => {
     const { bindKnapsackSessionContext } = await loadBinding();
     const bound = bindKnapsackSessionContext({
@@ -133,6 +134,14 @@ for (const toolName of ["list_connector_tools", "call_connector_tool"]) {
     });
     assert.equal(bound._knapsack_session_id, "session-mark");
     assert.equal(bound._knapsack_scope_key, "agent:main:slack:default:direct:u0asedsqp8f");
+  });
+  test(`Studio ${toolName} fails closed without trusted context`, async () => {
+    const { bindKnapsackSessionContext } = await loadBinding();
+    assert.throws(() => bindKnapsackSessionContext({
+      serverName: "studio", toolName,
+      runtime: fakeRuntime({ sessionId: undefined }),
+      input: { _knapsack_session_id: "model-supplied-id" },
+    }), /trusted gateway session context/);
   });
 }
 

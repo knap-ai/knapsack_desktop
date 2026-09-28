@@ -1812,6 +1812,8 @@ function hasBrokenAgentCapabilityReply(reply) {
     /browser .* currently unavailable/i,
     /browser tool .*not enabled for this request/i,
     /unable to perform web searches/i,
+    /missing trusted gateway session context/i,
+    /requires? trusted gateway session context/i,
   ];
   return patterns.some((pattern) => pattern.test(text));
 }
@@ -2551,6 +2553,12 @@ async function runMode(mode, opts = {}) {
         {
           label: "recent-emails",
           prompt: "Summarize my recent emails in 3 bullets using connected Knapsack email data if available.",
+        },
+        {
+          label: "native-gmail-tool",
+          // Unlike the recent-emails shortcut, this exercises the gateway's
+          // trusted-context handoff into the native Gmail MCP tool.
+          prompt: "Call studio__gmail_read with action accounts. If accounts are returned, use action list with max_results 1 for each exact account_email. Report only whether the tool calls succeeded, without email contents. Do not use a browser or Composio. If there are no accounts, report that result.",
         },
         {
           label: "calendar-tomorrow",
