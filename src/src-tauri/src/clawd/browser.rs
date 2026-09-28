@@ -1450,16 +1450,23 @@ pub async fn knapsack_chat_completions_proxy(
   .await
   {
     Ok(resp) => HttpResponse::Ok().json(resp),
-    Err(err) => {
-      let message = err.to_string();
-      if message.contains("session expired") || message.contains("auth failed") {
-        HttpResponse::Unauthorized().json(json!({ "error": { "message": message } }))
-      } else if message.contains("credits remaining") {
-        HttpResponse::PaymentRequired().json(json!({ "error": { "message": message } }))
-      } else {
-        HttpResponse::InternalServerError().json(json!({ "error": { "message": message } }))
-      }
-    }
+    Err(err) => knapsack_completion_error_response(err.to_string()),
+  }
+}
+
+fn knapsack_completion_error_response(message: String) -> HttpResponse {
+  if message.contains("session expired") || message.contains("auth failed") {
+    HttpResponse::Unauthorized().json(json!({ "error": { "message": message } }))
+  } else if message.contains("credits remaining") {
+    HttpResponse::PaymentRequired().json(json!({ "error": { "message": message } }))
+  } else if is_context_window_error(&message.to_lowercase()) {
+    // Context overflow needs compaction, not SDK retries of the same body.
+    HttpResponse::BadRequest().json(json!({ "error": {
+      "message": format!("Context length exceeded: {}", message),
+      "type": "invalid_request_error", "code": "context_length_exceeded"
+    } }))
+  } else {
+    HttpResponse::InternalServerError().json(json!({ "error": { "message": message } }))
   }
 }
 
@@ -2401,6 +2408,7 @@ fn is_context_window_error(error_lower: &str) -> bool {
     "context window",
     "maximum context length",
     "prompt is too long",
+    "input is too long",
     "too many tokens",
     "input tokens",
     "context length",
@@ -8407,6 +8415,20 @@ fn strip_html_tags(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+  #[actix_web::test]
+  async fn bedrock_context_overflow_tells_the_gateway_to_compact_instead_of_retry() {
+    let response = super::knapsack_completion_error_response(
+      "Knapsack inference error (500 Internal Server Error): Input is too long for requested model.".into()
+    );
+    assert_eq!(response.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let bytes = actix_web::body::to_bytes(response.into_body()).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["error"]["code"], "context_length_exceeded");
+    assert!(body["error"]["message"].as_str().unwrap().starts_with("Context length exceeded:"));
+    assert_eq!(super::knapsack_completion_error_response("Knapsack session expired".into()).status(), actix_web::http::StatusCode::UNAUTHORIZED);
+    assert_eq!(super::knapsack_completion_error_response("No Knapsack credits remaining".into()).status(), actix_web::http::StatusCode::PAYMENT_REQUIRED);
+  }
+
   #[tokio::test(flavor = "current_thread")]
   async fn chat_history_waits_only_for_the_same_conversation() {
     let first = super::chat_session_history("qa-history-lock-a", false);
@@ -8816,6 +8838,7 @@ mod tests {
 
   #[test]
   fn context_window_error_detection_matches_user_visible_failures() {
+    assert!(is_context_window_error("input is too long for requested model"));
     assert!(is_context_window_error(
       "message too large for this model".to_string().as_str()
     ));

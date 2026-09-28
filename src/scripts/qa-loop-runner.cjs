@@ -1969,7 +1969,7 @@ async function waitForRecordingIdle(readStatus, wait = sleep, onWait = () => {})
   }
 }
 
-async function createMockMeeting() {
+async function createMockMeeting(request = fetchWithTimeout) {
   const timestamp = Date.now();
   const requestTimeoutMs = 30_000;
   const requestWithRetry = async (name, init) => {
@@ -1979,7 +1979,7 @@ async function createMockMeeting() {
     const attempts = (init.options?.method || "GET") === "GET" ? 3 : 1;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        const response = await fetchWithTimeout(init.url, init.options, requestTimeoutMs);
+        const response = await request(init.url, init.options, requestTimeoutMs);
         return response;
       } catch (error) {
         lastError = error;
@@ -2062,55 +2062,14 @@ async function createMockMeeting() {
     },
   });
   if (!start.ok) {
-    const alreadyRecording =
-      normalizeResult(start.body).toLowerCase().includes("already in progress");
-    if (alreadyRecording) {
-      const stopRecovery = await requestWithRetry("stop_recording", {
-        url: `${API_BASE}/api/knapsack/stop_recording`,
-        options: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ thread_id: threadId, event_id: 0, save_transcript: false }),
-        },
-      });
-      if (stopRecovery.ok) {
-        const retryStart = await requestWithRetry("start_recording", {
-          url: `${API_BASE}/api/knapsack/start_recording`,
-          options: {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              thread_id: threadId,
-              feed_item_id: feedItemId,
-              event_id: 0,
-              save_transcript: false,
-            }),
-          },
-        });
-        if (retryStart.ok) {
-          await sleep(1_200);
-        } else {
-          return {
-            ok: false,
-            detail: `retry start_recording failed (${retryStart.status}) ${normalizeResult(retryStart.body)}`,
-          };
-        }
-      } else {
-        return {
-          ok: false,
-          detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}; cleanup stop failed (${stopRecovery.status}) ${normalizeResult(stopRecovery.body)}`,
-        };
-      }
-    } else {
+    // Another recording may belong to the user. A failed start never gives
+    // this test ownership of it, so do not stop it to retry the QA capture.
     return {
       ok: false,
       detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}`,
     };
-    }
   }
-  if (start.ok) {
-    await sleep(1_200);
-  }
+  await sleep(1_200);
 
   const stop = await requestWithRetry("stop_recording", {
     url: `${API_BASE}/api/knapsack/stop_recording`,
@@ -2789,6 +2748,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  createMockMeeting,
   waitForRecordingIdle,
   runConcurrentFeedSmoke,
   waitForQaRuntimeOwnership,
