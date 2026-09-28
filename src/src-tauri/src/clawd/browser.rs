@@ -1712,8 +1712,21 @@ fn sanitize_email_recipients(value: &str, sender_email: &str) -> String {
   recipients.join(", ")
 }
 
-static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
+type ChatSessionHistory = std::sync::Arc<tokio::sync::Mutex<Vec<chat_agent::OaiMessage>>>;
+
+static CHAT_HISTORY: Lazy<Mutex<HashMap<String, ChatSessionHistory>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn chat_session_history(session_id: &str, qa_smoke: bool) -> ChatSessionHistory {
+  if qa_smoke {
+    return std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+  }
+  CHAT_HISTORY.lock().unwrap().entry(session_id.to_string())
+    .or_insert_with(|| std::sync::Arc::new(tokio::sync::Mutex::new(
+      load_history_from_transcript(session_id, 20)
+    )))
+    .clone()
+}
 
 /// Resolve the gateway JSONL transcript path for a session.
 ///
@@ -5823,22 +5836,19 @@ pub async fn chat(
   } else {
     load_seed_history_from_request(&body, 12)
   };
-  let mut history_guard = CHAT_HISTORY.lock().unwrap();
-  let mut smoke_history: Vec<chat_agent::OaiMessage> = Vec::new();
-  let history = if qa_smoke {
-    &mut smoke_history
-  } else {
-    let history = history_guard.entry(session_id.clone()).or_insert_with(|| {
-      load_history_from_transcript(&session_id, 20)
-    });
+  // Serialize turns within a conversation, never across all conversations.
+  // A std mutex held over provider/tool awaits blocks an Actix worker when
+  // another request arrives, potentially preventing the first from resuming.
+  let session_history = chat_session_history(&session_id, qa_smoke);
+  let mut history = session_history.lock().await;
+  if !qa_smoke {
     // Gateway and direct replies share the visible desktop conversation, but
     // not an in-memory history. Refresh from the bounded UI snapshot on every
     // fallback, including when a previous direct turn already populated it.
     if !seed_history.is_empty() {
       *history = seed_history;
     }
-    history
-  };
+  }
 
   // Memory section — inject persistent notes from previous sessions.
   // The frontend already caps this at 10 entries × 500 chars each (agentMemory.ts).
@@ -8397,6 +8407,27 @@ fn strip_html_tags(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+  #[tokio::test(flavor = "current_thread")]
+  async fn chat_history_waits_only_for_the_same_conversation() {
+    let first = super::chat_session_history("qa-history-lock-a", false);
+    let same = super::chat_session_history("qa-history-lock-a", false);
+    let other = super::chat_session_history("qa-history-lock-b", false);
+    let mut active = first.lock().await;
+    active.clear();
+    active.push(crate::clawd::chat_agent::OaiMessage::User {
+      content: "keep this turn".into(), images: vec![],
+    });
+    let duration = std::time::Duration::from_millis(20);
+    assert!(tokio::time::timeout(duration, same.lock()).await.is_err());
+    assert!(tokio::time::timeout(duration, other.lock()).await.is_ok());
+    let probe = super::chat_session_history("qa-history-lock-a", true);
+    assert!(probe.lock().await.is_empty());
+    drop(active);
+    assert_eq!(same.lock().await.len(), 1);
+    super::CHAT_HISTORY.lock().unwrap().remove("qa-history-lock-a");
+    super::CHAT_HISTORY.lock().unwrap().remove("qa-history-lock-b");
+  }
+
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
     compact_messages_for_provider, fallback_failure_message, filter_top_level_page_tabs,
