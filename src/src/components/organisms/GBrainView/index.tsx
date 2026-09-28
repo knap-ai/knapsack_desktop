@@ -30,6 +30,7 @@ import { KN_SERVER_HOST } from 'src/utils/constants'
 import { invoke } from '@tauri-apps/api/tauri'
 
 import GoalsPanel from './GoalsPanel'
+import FollowThroughPanel from './FollowThroughPanel'
 
 import './style.scss'
 
@@ -1389,6 +1390,7 @@ const GBrainView: React.FC<{
                           ))}
                         </div>
                       )}
+                      <FollowThroughPanel run={run} brainRoot={brainRoot} />
                       <footer>
                         <div>
                           {run.status === 'waiting_for_approval' &&

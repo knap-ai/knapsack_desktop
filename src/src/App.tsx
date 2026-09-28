@@ -1,3 +1,4 @@
+import { useFollowThrough } from 'src/hooks/useFollowThrough'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Navigate, Route, Routes } from 'react-router-dom'
@@ -289,6 +290,10 @@ function App() {
   const auth: IAuth = useAuth()
 
   const [toastrState, setToastrState] = useState<ToastrState>({})
+  useFollowThrough(!LOCAL_QA_SAFE, count => setToastrState({
+    message: <span>{count} commitment follow-up{count === 1 ? '' : 's'} ready for review. Open GBrain → Loops to see the evidence and next action.</span>,
+    alertType: 'info', autoHideDuration: 12000,
+  }))
   const [LLMQueue, setLLMQueue] = useState<LLMQueueProps>({ isProcessing: false, items: [] })
   const [votes, setVotes] = useState<Record<number, number>>({})
   const [, setConnectionsDropdownOpened] = useState(false)

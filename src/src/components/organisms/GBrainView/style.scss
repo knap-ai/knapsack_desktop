@@ -1430,3 +1430,22 @@
     justify-self: start;
   }
 }
+
+.FollowThroughPanel {
+  border-top: 1px solid var(--brain-line);
+  margin-top: 16px;
+  padding-top: 12px;
+  font-size: 13px;
+  h4 { margin: 0; }
+  p { overflow-wrap: anywhere; }
+  button { padding: 7px 10px; margin: 4px 6px 4px 0; border: 1px solid var(--brain-line); border-radius: 6px; background: white; }
+  button:disabled { opacity: .5; }
+  label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+  input, select, textarea { min-width: 0; max-width: 100%; padding: 8px; border: 1px solid var(--brain-line); border-radius: 6px; background: white; }
+  textarea { width: 100%; resize: vertical; box-sizing: border-box; }
+  blockquote { margin: 12px 0; padding: 10px; border-left: 3px solid var(--brain-accent); white-space: pre-wrap; }
+  fieldset { min-width: 0; }
+  [role='alert'] { color: #a32c21; }
+}
+.CommitmentCard { margin-top: 12px; padding: 14px; border-radius: 8px; border: 1px solid var(--brain-line); background: var(--brain-wash); }
+.CommitmentActions { display: flex; flex-wrap: wrap; align-items: end; gap: 6px; }

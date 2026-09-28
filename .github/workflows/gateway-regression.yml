@@ -12,6 +12,10 @@ on:
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
+      - "src/src/hooks/useFollowThrough.ts"
+      - "src/src/api/followThrough.ts"
+      - "src/src/components/organisms/GBrainView/FollowThroughPanel.tsx"
+      - "src/src-tauri/src/llm/use_cases/**"
       - "src/src-tauri/src/audio/**"
       - "src/src-tauri/src/main.rs"
       - "src/src-tauri/src/spotlight.rs"
@@ -33,6 +37,10 @@ on:
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
+      - "src/src/hooks/useFollowThrough.ts"
+      - "src/src/api/followThrough.ts"
+      - "src/src/components/organisms/GBrainView/FollowThroughPanel.tsx"
+      - "src/src-tauri/src/llm/use_cases/**"
       - "src/src-tauri/src/audio/**"
       - "src/src-tauri/src/main.rs"
       - "src/src-tauri/src/spotlight.rs"
@@ -72,6 +80,10 @@ jobs:
       - name: Install bundled plugin runtime deps
         working-directory: src
         run: node scripts/install-bundled-plugin-deps.cjs
+
+      - name: Test commitment follow-through reminders
+        working-directory: src
+        run: node --test scripts/follow-through.test.cjs
 
       - name: Test direct document fetch recovery
         working-directory: src
@@ -141,4 +153,6 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml clawd::follow_through -- --nocapture
           cargo test --manifest-path src-tauri/Cargo.toml audio::audio::tests -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml llm::use_cases::gemini_oauth -- --nocapture
