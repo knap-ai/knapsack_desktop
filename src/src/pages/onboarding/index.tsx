@@ -157,7 +157,9 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     [onboardingIntent, setCurrentSlideOutScreen, setCurrentSlideInScreen],
   )
 
-  const handleWelcomeContinue = async (index: number) => {
+  const handleWelcomeContinue = (index: number) => transitionToNextScreen(index)
+
+  const handlePrivacyContinue = async (index: number) => {
     const latestIntent = onboardingIntent ?? getOnboardingIntent()
     const paidStarter = getPaidStarter(latestIntent)
     if (!paidStarter) {
@@ -168,7 +170,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
     savePaidStarter(paidStarter)
     KNAnalytics.trackEvent('onboarding_paid_fast_path_completed', {
       step: index,
-      screen: 'welcome',
+      screen: 'privacy',
       destination: 'first_task',
       ...getOnboardingAnalyticsProps(latestIntent),
     })
@@ -376,7 +378,7 @@ export const Onboarding = ({ updateProfile }: OnboardingProps) => {
   }
 
   const onMessageScreenContinueClick = (index: number) => {
-    transitionToNextScreen(index)
+    void handlePrivacyContinue(index)
   }
 
   const onMessageScreenHowClick = () => {

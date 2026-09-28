@@ -5828,15 +5828,16 @@ pub async fn chat(
   let history = if qa_smoke {
     &mut smoke_history
   } else {
-    history_guard.entry(session_id.clone()).or_insert_with(|| {
-      let transcript_history = load_history_from_transcript(&session_id, 20);
-      if transcript_history.is_empty() && !seed_history.is_empty() {
-        append_to_transcript(&session_id, &seed_history);
-        seed_history.clone()
-      } else {
-        transcript_history
-      }
-    })
+    let history = history_guard.entry(session_id.clone()).or_insert_with(|| {
+      load_history_from_transcript(&session_id, 20)
+    });
+    // Gateway and direct replies share the visible desktop conversation, but
+    // not an in-memory history. Refresh from the bounded UI snapshot on every
+    // fallback, including when a previous direct turn already populated it.
+    if !seed_history.is_empty() {
+      *history = seed_history;
+    }
+    history
   };
 
   // Memory section — inject persistent notes from previous sessions.

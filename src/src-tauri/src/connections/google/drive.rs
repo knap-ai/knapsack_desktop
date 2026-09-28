@@ -310,7 +310,6 @@ async fn get_drive_file_content(
     let export_result = hub
       .files()
       .export(&id, &export_mime_type)
-      .param("supportsAllDrives", "true")
       .doit()
       .await;
     return match export_result {
@@ -336,7 +335,7 @@ async fn get_drive_file_content(
     .files()
     .get(&id)
     .param("alt", "media")
-    .param("supportsAllDrives", "true")
+    .supports_all_drives(true)
     .doit()
     .await;
   match export_result {
@@ -525,9 +524,9 @@ async fn fetch_drive_page(
     .order_by("createdTime desc")
     .q(query)
     .param("fields", DRIVE_FILE_FIELDS)
-    .param("supportsAllDrives", "true")
-    .param("includeItemsFromAllDrives", "true")
-    .param("corpora", corpora)
+    .supports_all_drives(true)
+    .include_items_from_all_drives(true)
+    .corpora(corpora)
     .page_size(500);
 
   if let Some(token) = page_token {
@@ -851,7 +850,6 @@ async fn create_temp_drive_file(
     let export_result = hub
       .files()
       .export(&id, &export_mime_type)
-      .param("supportsAllDrives", "true")
       .doit()
       .await;
     return match export_result {
@@ -874,7 +872,7 @@ async fn create_temp_drive_file(
     .files()
     .get(&id)
     .param("alt", "media")
-    .param("supportsAllDrives", "true")
+    .supports_all_drives(true)
     .doit()
     .await;
   match export_result {
@@ -920,7 +918,7 @@ async fn fetch_google_drive_files(
     let (_response, file) = hub
       .files()
       .get(&file.id)
-      .param("supportsAllDrives", "true")
+      .supports_all_drives(true)
       .doit()
       .await
       .unwrap();
@@ -976,7 +974,7 @@ async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, 
     .files()
     .get(&file_id)
     .param("fields", "id,name,mimeType")
-    .param("supportsAllDrives", "true")
+    .supports_all_drives(true)
     .doit()
     .await
     .map_err(|e| error::ErrorBadRequest(format!("Failed to fetch Drive file metadata: {:?}", e)))?;
@@ -1111,9 +1109,9 @@ async fn fetch_files_id_shared_between_users(
       .list()
       .q(&query)
       .param("fields", "nextPageToken, files(id, name)")
-      .param("supportsAllDrives", "true")
-      .param("includeItemsFromAllDrives", "true")
-      .param("corpora", "allDrives")
+      .supports_all_drives(true)
+      .include_items_from_all_drives(true)
+      .corpora("allDrives")
       .page_size(100);
 
     if let Some(token) = next_page_token {

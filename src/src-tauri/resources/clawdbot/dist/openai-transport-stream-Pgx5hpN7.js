@@ -1,3 +1,4 @@
+import { ensureKnapsackDesktopReady } from "./knapsack-desktop-readiness.js";
 import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, f as readStringValue } from "./string-coerce-DyL154ka.js";
 import { s as redactSensitiveText } from "./redact-ok5Q8nmw.js";
 import { t as createSubsystemLogger } from "./subsystem-DSPWLoK5.js";
@@ -423,6 +424,7 @@ function buildGuardedModelFetch(model, timeoutMs, options) {
 		const useEnvProxy = !dispatcherPolicy && shouldUseEnvHttpProxyForUrl(url);
 		emitModelTransportDebug(log$1, `[model-fetch] start provider=${model.provider} api=${model.api} model=${model.id} method=${(requestInit ?? init)?.method ?? "GET"} url=${formatModelTransportDebugUrl(url)} timeoutMs=${requestTimeoutMs} proxy=${dispatcherPolicy ? "configured" : useEnvProxy ? "env" : "none"} policy=${policy ? "custom" : "default"}`);
 		try {
+			await ensureKnapsackDesktopReady(model, (requestInit ?? init)?.signal);
 			localServiceLease = await ensureModelProviderLocalService(model, (requestInit ?? init)?.headers, (requestInit ?? init)?.signal);
 			result = await fetchWithSsrFGuard(useEnvProxy ? withTrustedEnvProxyGuardedFetchMode(guardedFetchOptions) : guardedFetchOptions);
 		} catch (error) {

@@ -1,4 +1,9 @@
+import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
+import { GEMINI_MODELS } from 'src/utils/geminiModels'
+import { privacyModeStatus } from 'src/utils/privacyMode'
+import { SLACK_GUIDED_SETUP_PROMPT } from 'src/utils/slackGuidedSetup'
 import './style.scss'
+import { buildChatSeedHistory } from 'src/utils/chatSeedHistory'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
@@ -14,6 +19,7 @@ import WorkspacePicker from '../../molecules/WorkspacePicker'
 import { useChannelStatus } from 'src/hooks/channels/useChannelStatus'
 import type { ChannelStatus } from 'src/api/channels'
 import { checkSignalCli, installSignalCli, signalLink, signalRegister, signalVerify, type SignalCliStatus, getChannelAllowlist, updateChannelAllowlist, getSlackAccounts, disconnectSlackAccount, type SlackAccountSummary } from 'src/api/channels'
+import { shouldPrefetchNativeEmailCalendarContext, nativeCalendarRange, nativeContextRequest, CONNECTED_DATA_GUIDANCE } from 'src/utils/nativeWorkspaceContext'
 import DataFetcher, { getCalendarEvents } from 'src/utils/data_fetch'
 import { INITIAL_BRIEFING_INSTRUCTIONS } from 'src/prompts'
 import { DeveloperModePanel } from 'src/components/organisms/DeveloperModePanel'
@@ -28,12 +34,9 @@ import { DEFAULT_OPENROUTER_MODEL, OPENROUTER_MODELS } from 'src/utils/openRoute
 import {
   DEFAULT_GEMINI_MODEL,
   DEFAULT_GROQ_MODEL,
-  DEFAULT_OPENAI_MODEL,
   DEFAULT_TRUSTEDROUTER_MODEL,
   DEFAULT_XAI_MODEL,
-  GEMINI_MODELS,
   GROQ_MODELS,
-  OPENAI_MODELS,
   TRUSTEDROUTER_MODELS,
   XAI_MODELS,
 } from 'src/utils/providerModels'
@@ -892,56 +895,6 @@ function capInlineChatContext(text: string): string {
   )
 }
 const MAX_AGENT_PERSONA_CONTEXT_CHARS = 6_000
-const SLACK_GUIDED_SETUP_PROMPT = `Please set up the Slack integration for Knapsack for me using the browser.
-
-Goals:
-1. Open the Slack app configuration flow and reuse the existing Knapsack/OpenClaw/Vera app if one already exists. Only create a new app if there is no suitable existing one.
-2. Make sure the app is configured for internal workspace use like Merlin.
-3. Add every required setting so the Slack integration works without extra manual guesswork.
-
-Required Slack settings:
-- App Home:
-  - home_tab_enabled = true
-  - messages_tab_enabled = true
-  - messages_tab_read_only_enabled = false
-- Assistant threads enabled
-- Socket Mode enabled
-- App-level token with scope: connections:write
-- Bot token scopes:
-  - app_mentions:read
-  - assistant:write
-  - channels:history
-  - channels:read
-  - chat:write
-  - commands
-  - emoji:read
-  - files:read
-  - files:write
-  - groups:history
-  - groups:read
-  - im:history
-  - im:read
-  - im:write
-  - mpim:history
-  - mpim:read
-  - mpim:write
-  - pins:read
-  - pins:write
-  - reactions:read
-  - reactions:write
-  - usergroups:read
-  - users:read
-  - users:read.email
-- Optional if available: chat:write.customize
-
-When finished:
-1. Reinstall the Slack app to the workspace if Slack requires it.
-2. Confirm that the app can receive direct messages and that sending messages to the app is not turned off.
-3. Give me the exact xoxb bot token and xapp app-level token I should save in Knapsack, or paste them into the Slack token fields if you can interact with them directly.
-4. If any step requires a human admin click or approval, stop and give me one crisp instruction at a time.
-
-Please drive this in the browser and keep going until Slack is fully configured or you hit a real human-only blocker.`
-
 // Check for freshly onboarded agents and build a personalized intro prompt
 function getOnboardingAgentsPrompt(): { prompt: string; agents: { name: string; emoji: string; personality: string }[] } | null {
   try {
@@ -1122,7 +1075,7 @@ const SLASH_COMMANDS: Record<string, string> = {
  * Returns a formatted context string, or empty string if no data is available.
  * This avoids browser emulation — data is fetched directly via authenticated APIs.
  */
-async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<string> {
+async function fetchEmailCalendarContext(nativeEmailConnected = false, request = ''): Promise<string> {
   const dataFetcher = new DataFetcher()
   const contextParts: string[] = []
 
@@ -1156,21 +1109,20 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<
 
   // Fetch today's calendar events
   try {
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date()
-    todayEnd.setHours(23, 59, 59, 999)
-
+    const range = nativeCalendarRange(request)
     const todayEvents = await getCalendarEvents(
-      Math.floor(todayStart.getTime() / 1000),
-      Math.floor(todayEnd.getTime() / 1000),
+      Math.floor(range.start.getTime() / 1000),
+      Math.floor(range.end.getTime() / 1000) - 1,
     )
+    contextParts.push(`\n## ${range.label}\nRange: ${range.start.toLocaleString()} through ${range.end.toLocaleString()} (exclusive). Time zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`)
+    if (!todayEvents?.length) {
+      contextParts.push('The native calendar query returned no synced events for this range. This does not establish whether remote calendars contain unsynced events; check a connected Calendar API if needed.')
+    }
 
     if (todayEvents?.length) {
-      contextParts.push('\n## Today\'s Calendar\n')
-      for (const event of todayEvents) {
+      for (const event of todayEvents.slice(0, 100)) {
         const startTime = event.start
-          ? dayjs(event.start * 1000).format('h:mm A')
+          ? dayjs(event.start * 1000).format('ddd MMM D, h:mm A')
           : 'TBD'
         const endTime = event.end
           ? dayjs(event.end * 1000).format('h:mm A')
@@ -1187,6 +1139,7 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<
     }
   } catch (err) {
     console.warn('[ClawdChat] Failed to pre-fetch calendar:', err)
+    contextParts.push('The native calendar query failed. Try a connected Calendar API; this is not evidence of a browser authentication problem.')
   }
 
   // Fetch upcoming meetings (next 3)
@@ -1211,31 +1164,6 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false): Promise<
     MAX_NATIVE_PREFETCH_CONTEXT_CHARS,
     'Native email/calendar context trimmed for foreground chat',
   )
-}
-
-function shouldPrefetchNativeEmailCalendarContext(text: string): boolean {
-  const lowerText = text.toLowerCase()
-  const mentionsEmail =
-    lowerText.includes('email') || lowerText.includes('gmail') || lowerText.includes('inbox')
-  const mentionsCalendar =
-    lowerText.includes('calendar') || lowerText.includes('schedule') || lowerText.includes('meeting')
-  const browserSpecific =
-    lowerText.includes('browser')
-    || lowerText.includes('tab')
-    || lowerText.includes('website')
-    || lowerText.includes('gmail.com')
-    || lowerText.includes('calendar.google.com')
-    || lowerText.includes('open ')
-    || lowerText.includes('click ')
-    || lowerText.includes('navigate')
-    // A bounded "recent inbox" fetch is useful for a briefing, but it is
-    // not a substitute for an explicit mailbox search.  Treat search terms,
-    // named senders, and historical requests as browser work so a stale
-    // two-day native cache cannot end the task before the visible Gmail tab
-    // is consulted.
-    || /\b(search|find|look\s*for|from|sender|older|last\s+week|last\s+month)\b/.test(lowerText)
-
-  return (mentionsEmail || mentionsCalendar) && !browserSpecific
 }
 
 // Maps skill names to keywords that indicate the skill would be useful.
@@ -2022,6 +1950,7 @@ interface ClawdChatProps {
   userEmail?: string
   userName?: string
   onBusyChange?: (busy: boolean) => void
+  onInferenceReadyChange?: (engine: { provider: string; model: string } | null) => void
   onProviderPanelOpenChange?: (open: boolean) => void
   onAssistantMessage?: (chatId: string) => void
   onOpenBrowser?: () => void
@@ -2030,6 +1959,8 @@ interface ClawdChatProps {
   openProviderPanel?: number
   /** Pre-fills the chat input field when set. */
   initialInput?: string
+  /** Explicitly authorized setup task; sent once after the configured provider is ready. */
+  setupTask?: string
   /** Re-applies an unchanged prefill when an external action is launched again. */
   initialInputKey?: number
   /** Extra context prepended to model/gateway requests without displaying it as the user's message. */
@@ -2056,7 +1987,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -2813,7 +2744,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     // No valid provider is configured. Paid visitors should land directly on
     // the Knapsack account option so they can sign in and run the starter task
     // without finding or pasting a third-party API key.
-    if (paidStarterData) {
+    if (privacyModeStatus().enabled) {
+      setSelectedProvider('ollama')
+      setOllamaMode('local')
+    } else if (chatId === 'onboarding-slack') {
+      setSelectedProvider('knapsack')
+    } else if (paidStarterData) {
       setSelectedProvider('knapsack')
       if (!paidProviderPromptTrackedRef.current) {
         paidProviderPromptTrackedRef.current = true
@@ -2828,7 +2764,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     // No valid key found, always show prompt
     setShowKeyPrompt(true)
     return false
-  }, [paidStarterData])
+  }, [paidStarterData, chatId])
 
   const handleToneChange = useCallback((toneId: string) => {
     setSelectedTone(toneId)
@@ -4878,6 +4814,35 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     autoTriggeredBriefingRef.current = false
   }, [chatHistoryStorage, welcomeMessages])
 
+  useEffect(() => {
+    const model = {
+      knapsack: selectedKnapsackModel, ollama: selectedOllamaModel,
+      openai: selectedModel, anthropic: selectedAnthropicModel,
+      gemini: selectedGeminiModel, groq: selectedGroqModel, xai: selectedXaiModel,
+      openrouter: selectedOpenRouterModel, trustedrouter: selectedTrustedRouterModel,
+    }[confirmedProvider]
+    onInferenceReadyChange?.(hasCompletedOnboarding && health?.gateway_ok && model
+      ? { provider: confirmedProvider, model } : null)
+  }, [onInferenceReadyChange, hasCompletedOnboarding, health?.gateway_ok, confirmedProvider,
+    selectedKnapsackModel, selectedOllamaModel, selectedModel, selectedAnthropicModel,
+    selectedGeminiModel, selectedGroqModel, selectedXaiModel, selectedOpenRouterModel,
+    selectedTrustedRouterModel])
+
+  const setupTaskSent = useRef(false)
+  useEffect(() => {
+    if (!setupTask) {
+      setupTaskSent.current = false
+      return
+    }
+    if (!active || setupTaskSent.current || !hasCompletedOnboarding || !health?.gateway_ok || busy) return
+    const timer = setTimeout(() => {
+      if (!handleSendWithTextRef.current) return
+      setupTaskSent.current = true
+      void handleSendWithTextRef.current(setupTask)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [active, setupTask, hasCompletedOnboarding, health?.gateway_ok, busy])
+
   // Auto-trigger the promised first task after paid-role onboarding, or the
   // normal briefing for other newly onboarded users. The paid fast path has
   // already been explicitly chosen on the welcome screen, so requiring a
@@ -5640,6 +5605,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         const isSmartPrompt = text === SMART_PROMPT
         const isBuildWebsitePrompt = text === BUILD_WEBSITE_PROMPT
         let actualText = text
+        const nativeRequest = nativeContextRequest(text, msgs)
         let usedNativeEmailCalendarContext = false
 
         // For the build website prompt, inject user info so the AI can auto-populate
@@ -5650,7 +5616,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
         if (isSmartPrompt) {
           try {
-            const context = await fetchEmailCalendarContext(nativeEmailConnected)
+            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
             if (context) {
               actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
               usedNativeEmailCalendarContext = true
@@ -5664,14 +5630,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
           }
         }
 
-        if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(text)) {
+        if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(nativeRequest)) {
           try {
-            const context = await fetchEmailCalendarContext(nativeEmailConnected)
+            const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
             if (context) {
               usedNativeEmailCalendarContext = true
               actualText = `${text}
 
-Use the native Knapsack email/calendar context below first. Only use browser automation if the native context is missing something required to answer accurately.
+${CONNECTED_DATA_GUIDANCE}
 
 ${context}`
             }
@@ -5695,7 +5661,7 @@ ${actualText}`
 
         if (studioConnectionsLoadedRef.current && studioConnectedLabels.length > 0) {
           actualText = `<knapsack_studio_context>
-This trusted account-wide connector inventory is supplied by Knapsack Desktop and applies to every agent chat. Connected now: ${studioConnectedLabels.join(', ')}. Use the Studio connector tools when relevant. Do not claim one of these is disconnected unless a tool call returns an authorization error.
+This trusted account-wide connector inventory is supplied by Knapsack Desktop and applies to every agent chat. Connected now: ${studioConnectedLabels.join(', ')}. ${CONNECTED_DATA_GUIDANCE} Do not claim one of these is disconnected unless a tool call returns an authorization error.
 </knapsack_studio_context>
 
 ${actualText}`
@@ -5744,6 +5710,7 @@ ${actualText}`
           model: selectedModelForProvider,
           text: actualText || 'Please analyze the attached files.',
           sessionId,
+          seedHistory: buildChatSeedHistory(msgs),
           tone: selectedToneAtSend,
           tonePrompt,
           voiceMode: voiceEnabledAtSend, // Signal backend to be more concise for voice output
@@ -5772,8 +5739,8 @@ ${actualText}`
         // Native context is an optimization for ordinary chats, but group
         // rooms must still enter the harness so the backend can run each
         // selected member independently and synthesize their contributions.
-        const requiresHarness = chatId.startsWith('group-')
-        let useDirectChat = usedNativeEmailCalendarContext && !requiresHarness
+        const requiresHarness = chatId.startsWith('group-') || chatId === 'onboarding-slack'
+        let useDirectChat = isSmartPrompt && usedNativeEmailCalendarContext && !requiresHarness
 
         if (!useDirectChat) {
         const agentTimeout = AbortController.prototype ? new AbortController() : null
@@ -5801,6 +5768,7 @@ ${actualText}`
               // mistake context inventory entries for the user's request.
               userText: text,
               sessionId,
+              seedHistory: requestBody.seedHistory,
               noFallback: requiresHarness,
               ...(requiresHarness && agentTeamMembers && agentTeamMembers.length >= 2 && {
                 teamMembers: agentTeamMembers,
@@ -5983,7 +5951,7 @@ ${actualText}`
               )
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
-              saveAgentMemory('knapsack-chat', out.reply)
+              saveAgentMemory(`knapsack-chat:${chatId}`, out.reply)
             } else {
               pushAssistant(
                 appendSupportDiagnosticsAction(
@@ -6689,13 +6657,13 @@ ${actualText}`
             <div className="ClawdBubble ClawdApiKeyBanner">
               <p className="ClawdApiKeyBannerTitle">One more step to get started</p>
               <p className="ClawdApiKeyBannerDesc">
-                Add an API key from Anthropic, OpenAI, Gemini, or another provider to start chatting. Your key is stored locally and never shared.
+                Choose Knapsack AI, connect your own provider, or use a local Ollama model. Privacy Mode requires local Ollama. Provider credentials are saved on this device.
               </p>
               <button
                 className="ClawdApiKeyBannerBtn"
                 onClick={() => { setShowKeyPrompt(true); setShowSkillsPanel(false); setShowChannelsPanel(false) }}
               >
-                Add API Key
+                Set up AI
               </button>
             </div>
           </div>

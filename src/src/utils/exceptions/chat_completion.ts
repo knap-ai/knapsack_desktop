@@ -15,7 +15,7 @@ export class ChatCompletionTooManyRequestsError extends ChatCompletionError {
 // We can change message for server side error here
 export class ChatCompletionServerError extends ChatCompletionError {
   constructor(
-    message: string = 'Some error occurred during chat completion, please edit and save the notes again',
+    message: string = 'The AI request failed. Please retry.',
   ) {
     super(message)
   }
@@ -23,12 +23,19 @@ export class ChatCompletionServerError extends ChatCompletionError {
 
 // We can change message for client side error here
 export class ChatCompletionClientError extends ChatCompletionError {
-  constructor(message: string = 'Internal error, please edit and save the notes again.') {
+  constructor(message: string = 'The AI request could not be completed. Please retry.') {
     super(message)
   }
 }
 
+export class ModelNotConfiguredError extends ChatCompletionError {
+  constructor() {
+    super('Choose a model provider in Settings: sign in to Knapsack or add a provider API key, then retry.')
+  }
+}
+
 export const CHAT_COMPLETION_ERROR_MESSAGES_MAPPING = {
+  MODEL_NOT_CONFIGURED: ModelNotConfiguredError,
   TOO_MANY_REQUESTS: ChatCompletionTooManyRequestsError,
   CHAT_COMPLETION_FAILED: ChatCompletionServerError,
   CHAT_COMPLETION_CLIENT_FAILED: ChatCompletionClientError,

@@ -481,6 +481,8 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
       value
     }
   };
+  let mut value = value;
+  super::connector_compat::normalize_schemas(connector, &mut value);
   Ok(shape_connector_tools(value, query, limit))
 }
 
@@ -597,10 +599,11 @@ async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or_else(|| "name is required".to_string())?;
-  let tool_arguments = arguments
+  let mut tool_arguments = arguments
     .get("arguments")
     .cloned()
     .unwrap_or_else(|| json!({}));
+  super::connector_compat::normalize_arguments(connector, name, &mut tool_arguments)?;
   request_studio(
     reqwest::Method::POST,
     &format!(

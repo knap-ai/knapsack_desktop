@@ -10632,6 +10632,9 @@ pub struct OllamaRuntimeQuery {
 }
 
 fn local_ollama_base_url(tokens: Option<&StoredTokens>) -> String {
+  if crate::privacy_mode::is_enabled() {
+    return OLLAMA_LOCAL_BASE_URL.to_string();
+  }
   tokens
     .and_then(|tokens| tokens.ollama_base_url.as_deref())
     .map(str::trim)
@@ -11188,6 +11191,30 @@ pub async fn ollama_configure(
       return HttpResponse::Forbidden().json(SetApiKeyResponse {
         success: false,
         message,
+      });
+    }
+  }
+
+  // A local Ollama daemon can itself proxy cloud models. Verify the selected
+  // model is installed locally before enabling it under the local-only policy.
+  if payload.enabled && crate::privacy_mode::is_enabled() {
+    let model = payload.model.as_deref().or(tokens.ollama_model.as_deref()).unwrap_or("");
+    let client = reqwest::Client::builder()
+      .timeout(std::time::Duration::from_secs(10))
+      .build().unwrap_or_default();
+    let details = match client.post(format!("{}/api/show", OLLAMA_LOCAL_BASE_URL))
+      .json(&serde_json::json!({ "model": model })).send().await {
+      Ok(response) if response.status().is_success() => response.json::<serde_json::Value>().await.ok(),
+      _ => None,
+    };
+    if !details.as_ref().is_some_and(|details| {
+      details.get("remote_model").and_then(|v| v.as_str()).unwrap_or("").is_empty()
+        && details.get("remote_host").and_then(|v| v.as_str()).unwrap_or("").is_empty()
+        && details.get("model_info").and_then(|v| v.as_object()).is_some_and(|info| !info.is_empty())
+    }) {
+      return HttpResponse::BadRequest().json(SetApiKeyResponse {
+        success: false,
+        message: "Privacy Mode needs an installed local model. Open Ollama and download a local model before selecting it; cloud-backed models are not allowed.".to_string(),
       });
     }
   }

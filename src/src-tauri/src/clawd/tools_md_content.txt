@@ -1,4 +1,23 @@
 # Tools
+<!-- KNAPSACK_NATIVE_DATA_FIRST_V1 -->
+## Connected email and calendar: API first, for every agent
+
+For inbox triage, newsletters, relationship analysis, follow-ups, meeting prep,
+or schedules, use supplied native data and connected Studio APIs first.
+Discover exact actions with `list_connector_tools`, then execute with
+`call_connector_tool`. Browser cookies are separate from API authorization.
+Never infer that an account is disconnected from a browser sign-in page or a
+failed raw localhost request. Never ask the user for API tokens. If a local
+query fails, try an available connected read API and report the specific error.
+Do not replace a working Gmail/Calendar connector with browser login.
+Native context may be a bounded sample: use connector search for older mail,
+named senders, and missing detail; do not treat a sample as an exhaustive search.
+Only use browser email/calendar when explicitly requested or when the APIs do
+not support the requested operation. Google may reject sign-in in embedded or
+automated browsers; do not retry that login indefinitely or claim it authorizes
+the connected APIs. Respect the requested date range and local time zone.
+
+
 <!-- KNAPSACK_TOOLS_VERSION_2 -->
 <!-- KNAPSACK_TOOLS_VERSION_3 -->
 
@@ -127,8 +146,8 @@ When the user asks about **their calendar, meeting prep, connected emails, meeti
 <!-- LOCAL_API_VIA_EXEC -->
 Use the **exec** tool with `curl --max-time 15 -H "x-knapsack-api-token: $KNAPSACK_DESKTOP_API_TOKEN"` on these localhost endpoints.
 Never use `web_fetch` for loopback URLs: its security policy intentionally
-blocks private and localhost addresses. If the local API fails, retry once
-with `curl`, then fall back to the managed browser.
+blocks private and localhost addresses. If the local API fails, use an available
+connected Studio API. Do not ask for the desktop API token or infer browser login is required.
 - `http://127.0.0.1:8897/api/knapsack/calendar/get_events?start_timestamp=<unix>&end_timestamp=<unix>`
 - `http://127.0.0.1:8897/api/knapsack/calendar_event/<id>`
 - `http://127.0.0.1:8897/api/knapsack/search_emails_by_addresses?addresses=email1,email2&top=10`
@@ -136,9 +155,9 @@ with `curl`, then fall back to the managed browser.
 - `http://127.0.0.1:8897/api/knapsack/meeting_insights/<thread_id>`
 
 **Preferred order for Knapsack-specific questions:**
-1. Local Knapsack API via `exec` and `curl`
-2. Browser using the managed `openclaw` profile
-3. Existing-session Chrome only if the task truly depends on the user's current signed-in browser state
+1. Supplied native context and authenticated Studio connector tools
+2. Local Knapsack API via `exec` and `curl`, if authorized in this runtime
+3. Browser only for an explicit web UI request or an operation unsupported by connected APIs
 
 Do NOT default to workspace files like `MEMORY.md` for routine calendar/email questions when these local APIs can answer them directly.
 
@@ -148,16 +167,16 @@ When the user asks you to check email, check calendar, book flights, research pr
 2. **DO NOT** suggest the user check it themselves — that defeats the purpose.
 3. **DO NOT** just open a URL and say "I've opened it for you" — the user asked YOU to do the work.
 4. **DO NOT** give the user instructions on how to search a website — YOU search it.
-5. **IMMEDIATELY** use the `browser` tool to navigate to the relevant website, take a snapshot, read the content, interact with forms, and report the results.
-6. You are authorized by the user to access their accounts. The browser is already logged in.
+5. For connected email/calendar, use native context and Studio connector tools first. For web-only tasks, use the browser to do the work.
+6. Check the actual authorization state. A connected API account does not imply a signed-in browser, and a signed-out browser does not imply API access is unavailable.
 7. For multi-step tasks (e.g., searching for flights), execute ALL steps yourself: navigate, fill forms, search, read results, and present findings.
 
 **Examples of what to do:**
-- "Check my email" → First use the local Knapsack email APIs when the question is about already-synced mail; use the browser only if the needed message is not in local results
+- "Check my email" → First use the local Knapsack email APIs when the question is about already-synced mail; use connected Studio email tools if the needed message is not in local results
 - "What's on my calendar?" → First use `exec` with `curl` on the local Knapsack calendar API, then summarize the upcoming events
 - "Look up the latest news on X" → Use `web_search` to find articles, then `web_fetch` to read them, then summarize the key points
-- "Any important emails?" → Use browser to navigate to Gmail, snapshot, scan for urgent items and summarize
-- "Prepare me for my Caitlin meeting" → Use the local Knapsack calendar API to find the event, then use the local email API with Caitlin's address to gather context before falling back to the browser
+- "Any important emails?" → Query native email context or a connected Gmail/Outlook API and summarize
+- "Prepare me for my Caitlin meeting" → Use the local Knapsack calendar API to find the event, then use the local email API with Caitlin's address to gather context and discover connected Studio tools if more data is needed
 - "Research Y for me" → Use `web_search` to find sources, `web_fetch` to read them, synthesize into a briefing
 - "Find flights on aa.com" → Use browser to navigate to aa.com, fill in the search form, search, read results, and present the options
 - "Book a restaurant" → Use browser to navigate to OpenTable/Resy, search for availability, and present options

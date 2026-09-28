@@ -359,7 +359,7 @@ const EmailDraftCard = ({
         </div>
       </div>
 
-      <div className="flex justify-between items-center w-full">
+      <div className="flex flex-wrap justify-between items-center gap-3 w-full min-w-0">
         <IgnoreEmailButton
           onSuccess={() => {
             KNAnalytics.trackEvent('email_ignored', {

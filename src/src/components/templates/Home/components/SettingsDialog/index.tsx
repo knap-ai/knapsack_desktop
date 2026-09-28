@@ -2207,7 +2207,7 @@ export const SettingsDialog = ({
           <div className="PermissionContent flex flex-col gap-2">
             <div className="flex flex-col gap-2 py-2 border-b border-zinc-100">
               <div className="flex justify-between min-h-[36px] items-center gap-4">
-                <div>
+                <div className="flex min-w-0 flex-col gap-1">
                   <Typography weight={TypographyWeight.medium}>Slack accounts</Typography>
                   <Typography className="text-xs text-gray-500">
                     Read and send messages using each Slack workspace you authorize.

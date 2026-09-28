@@ -1,3 +1,7 @@
 
 src/src-tauri/resources/clawdbot/dist/extensions/*/package-lock.json
 .claude/settings.local.json
+
+# Isolated desktop QA state contains credentials and copied user data
+src/.qa-dev-openclaw-state/
+src/.qa-dev-app/

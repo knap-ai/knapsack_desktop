@@ -347,8 +347,8 @@ fn resolve_provider() -> Result<ResolvedProvider, LLMError> {
     });
   }
 
-  Err(LLMError::ChatCompletionFailed(
-    "No API key configured. Please add your API key in Settings.".into(),
+  Err(LLMError::ProviderNotConfigured(
+    "Choose a model provider in Settings: sign in to Knapsack or add a provider API key, then retry.".into(),
   ))
 }
 

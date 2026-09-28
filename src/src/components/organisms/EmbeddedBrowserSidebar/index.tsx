@@ -21,6 +21,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 import { open } from '@tauri-apps/api/shell'
+import { googleSignInHandoff } from 'src/utils/browserSignIn'
 
 const BACKEND = 'http://127.0.0.1:8897'
 const DEFAULT_BROWSER_URL = 'https://www.google.com'
@@ -161,6 +162,7 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
     () => localStorage.getItem('knapsack.browser.chrome-import-dismissed') === 'true',
   )
 
+  const signInHandoff = googleSignInHandoff(currentUrl)
   const activeTabStorageKey = `knapsack.browser.active-tab.${browserProfile}`
 
   useEffect(() => {
@@ -903,6 +905,18 @@ function EmbeddedBrowserSidebar({ requestedUrl, browserProfile = 'openclaw', onC
             disabled={chromeImportBusy}
           >
             <XMarkIcon />
+          </button>
+        </div>
+      )}
+
+      {signInHandoff && (
+        <div className="EmbeddedBrowserChromeImport" role="status">
+          <div className="EmbeddedBrowserChromeImportCopy">
+            <strong>Google may block sign-in in this browser</strong>
+            <span>For Gmail and Calendar tasks, use your connected accounts in Settings. You can open this website in your default browser; that session stays separate from this panel.</span>
+          </div>
+          <button type="button" className="EmbeddedBrowserChromeImportButton" onClick={() => void open(signInHandoff)}>
+            Open in default browser
           </button>
         </div>
       )}

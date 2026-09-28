@@ -34,3 +34,13 @@ test('macOS dev QA creates a self-contained signed app bundle', () => {
   )
   assert.match(launcher, /if \(signResult\.status !== 0\) \{\s*throw new Error\(/)
 })
+
+
+test('QA disables channel transports unless explicitly opted in', () => {
+  const safe = qaEnv({ KNAPSACK_QA_ENABLE_LIVE_CHANNELS: '0', OPENCLAW_SKIP_CHANNELS: '0', OPENCLAW_DESKTOP_AUTO_START_CHANNELS: '1' })
+  assert.equal(safe.OPENCLAW_SKIP_CHANNELS, '1')
+  assert.equal(safe.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '0')
+  const enabled = qaEnv({ KNAPSACK_QA_ENABLE_LIVE_CHANNELS: '1', OPENCLAW_SKIP_CHANNELS: '0', OPENCLAW_DESKTOP_AUTO_START_CHANNELS: '1' })
+  assert.equal(enabled.OPENCLAW_SKIP_CHANNELS, '0')
+  assert.equal(enabled.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '1')
+})

@@ -88,8 +88,13 @@ impl FeedItem {
     })?;
     let feed_item_iter = stmt.query_map([], |row| FeedItem::build_struct_from_row(row))?;
 
+    // Release the query before enrichment acquires more pooled connections.
+    // Concurrent feed loads must never hold one connection while waiting for another.
+    let feed_items = feed_item_iter.collect::<Vec<_>>();
+    drop(stmt);
+    drop(connection);
     let mut feed_items_complete = Vec::new();
-    for feed_item_result in feed_item_iter {
+    for feed_item_result in feed_items {
       let feed_item = match feed_item_result {
         Ok(item) => item,
         Err(e) => {
@@ -161,6 +166,8 @@ impl FeedItem {
     let feed_item_result = stmt.query_row([id], |row| FeedItem::build_struct_from_row(row));
 
     let feed_item = feed_item_result?;
+    drop(stmt);
+    drop(connection);
     let threads_with_messages = Thread::find_by_feed_item_id(feed_item.id.unwrap())?;
     let automation_run = AutomationRun::find_by_feed_item_id(feed_item.id.unwrap())?;
     let automation = match &automation_run {

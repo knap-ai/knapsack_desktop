@@ -13,6 +13,7 @@ import {
 } from 'src/api/channels'
 
 import styles from './styles.module.scss'
+import SlackGuidedSetup from './SlackGuidedSetup'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -101,6 +102,7 @@ function SlackWorkspaceCard({
   state: SlackState
   onChange: (patch: Partial<SlackState>) => void
 }) {
+  const [guided, setGuided] = useState(false)
   const [botTokenInput, setBotTokenInput] = useState('')
   const [appTokenInput, setAppTokenInput] = useState('')
 
@@ -249,6 +251,28 @@ function SlackWorkspaceCard({
         </div>
       </div>
 
+      {guided && (
+        <SlackGuidedSetup onClose={() => {
+          setGuided(false)
+          getGenericChannelStatus('slack').then(status => {
+            if (status.success && status.configured && status.enabled) {
+              onChange({ phase: 'done', workspaceLabel: status.account || 'Slack workspace connected', errorMessage: '' })
+            }
+          }).catch(() => {})
+        }} />
+      )}
+      {!isDone && (
+        <div className="mt-3 rounded-xl border p-3 space-y-2">
+          <button className="rounded bg-[#913631] text-white px-4 py-2" onClick={() => setGuided(true)}>
+            Set up automatically with Knapsack
+          </button>
+          <p className="text-xs text-gray-600">
+            Sign into Slack in the shared browser, then confirm you are ready. Your selected AI engine
+            will configure the app. Privacy Mode uses your local model; small models may need help
+            with complex setup.
+          </p>
+        </div>
+      )}
       {(isEntering || isConnecting) && (
         <div className="mt-3 space-y-3">
           <div className="bg-gray-50 rounded-xl p-3 space-y-2.5">
@@ -275,7 +299,7 @@ function SlackWorkspaceCard({
             )}
             <div className="space-y-2">
               <input
-                type="text"
+                type="password"
                 placeholder="Bot token (xoxb-...)"
                 value={botTokenInput}
                 onChange={e => setBotTokenInput(e.target.value)}
@@ -289,7 +313,7 @@ function SlackWorkspaceCard({
                 <p className="text-xs text-red-500 font-InterTight">Bot token must start with <code>xoxb-</code>.</p>
               )}
               <input
-                type="text"
+                type="password"
                 placeholder="App token (xapp-...)"
                 value={appTokenInput}
                 onChange={e => setAppTokenInput(e.target.value)}
@@ -406,7 +430,7 @@ function AgentBotCard({
             </button>
           )}
 
-          {(isEntering || isConnecting) && (
+              {(isEntering || isConnecting) && (
             <button
               className="text-xs text-gray-400 hover:text-gray-600 underline font-InterTight"
               onClick={() => { setTokenInput(''); onChange({ phase: 'skipped', errorMessage: '' }) }}
