@@ -226,3 +226,104 @@ pub async fn send_gmail_email(
     Err(format!("Gmail API error ({}): {}", status, error_text))
   }
 }
+
+/// Read-only agent access through the Google accounts connected on this desktop.
+/// This endpoint never sends Gmail requests to Studio or Composio.
+#[derive(Debug, Deserialize)]
+pub struct NativeGmailRead {
+  pub action: String,
+  pub account_email: Option<String>,
+  pub query: Option<String>,
+  pub max_results: Option<u32>,
+  pub page_token: Option<String>,
+  pub message_id: Option<String>,
+}
+
+fn select_native_gmail_account<'a>(
+  accounts: &'a [(String, UserConnection)], requested: Option<&str>,
+) -> Result<&'a (String, UserConnection), String> {
+  if let Some(requested) = requested.filter(|s| !s.trim().is_empty()) {
+    return accounts.iter().find(|(email, _)| email.eq_ignore_ascii_case(requested.trim()))
+      .ok_or_else(|| "That Gmail account is not connected on this desktop. Use action accounts.".into());
+  }
+  if accounts.len() == 1 { return Ok(&accounts[0]); }
+  Err("Choose account_email from action accounts; no account is selected implicitly when multiple Gmail accounts are connected.".into())
+}
+
+async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::Value, String> {
+  use serde_json::{json, Value};
+  if !matches!(params.action.as_str(), "accounts" | "list" | "get") {
+    return Err("Native Gmail supports read-only actions: accounts, list, get.".into());
+  }
+  let home = super::service::clawdbot_home_headless()?;
+  let tokens: Value = serde_json::from_slice(&std::fs::read(home.join("tokens.json"))
+    .map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+  let owner = tokens.get("knapsack_email").and_then(Value::as_str)
+    .filter(|v| !v.is_empty()).ok_or("Sign in to Knapsack to access connected Gmail accounts.")?;
+  let accounts: Vec<_> = UserConnection::find_by_user_email(owner.to_string())
+    .map_err(|e| e.to_string())?.into_iter()
+    .filter(|c| c.connection.as_ref().map(|v| v.scope == GOOGLE_GMAIL_SCOPE).unwrap_or(false))
+    .map(|c| (if c.calendar_account_email.is_empty() { owner.to_string() } else { c.calendar_account_email.clone() }, c))
+    .collect();
+  if params.action == "accounts" {
+    return Ok(json!({"provider":"native_google", "accounts":accounts.iter().map(|(email,_)| email).collect::<Vec<_>>()}));
+  }
+  let (account, connection) = select_native_gmail_account(&accounts, params.account_email.as_deref())?;
+  let message_id = if params.action == "get" {
+    Some(params.message_id.as_deref().filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
+      .ok_or("message_id must be the exact Gmail message ID returned by list.")?)
+  } else { None };
+  let token = refresh_connection_token(owner.to_string(), connection.clone()).await.map_err(|e| e.to_string())?;
+  let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30))
+    .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
+  let url = match message_id {
+    Some(id) => format!("https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"),
+    None => "https://gmail.googleapis.com/gmail/v1/users/me/messages".to_string(),
+  };
+  let mut request = client.get(url).bearer_auth(token);
+  if message_id.is_some() { request = request.query(&[("format", "full")]); }
+  else {
+    request = request.query(&[("maxResults", params.max_results.unwrap_or(10).clamp(1, 20).to_string())]);
+    if let Some(q) = &params.query { request = request.query(&[("q", q)]); }
+    if let Some(page) = &params.page_token { request = request.query(&[("pageToken", page)]); }
+  }
+  let response = request.send().await.map_err(|e| e.to_string())?;
+  let status = response.status();
+  let body: Value = response.json().await.map_err(|e| e.to_string())?;
+  if !status.is_success() {
+    return Err(format!("Native Gmail API returned {status}: {}", body.pointer("/error/message").and_then(Value::as_str).unwrap_or("request failed")));
+  }
+  Ok(json!({"provider":"native_google", "account_email":account, "result":body}))
+}
+
+#[actix_web::post("/api/clawd/gmail/read")]
+pub async fn native_gmail_read(params: web::Json<NativeGmailRead>) -> impl Responder {
+  match native_gmail_read_impl(&params).await {
+    Ok(value) => HttpResponse::Ok().json(value),
+    Err(error) => HttpResponse::BadRequest().json(serde_json::json!({"error":error})),
+  }
+}
+
+#[cfg(test)]
+mod native_gmail_tests {
+  use super::*;
+  fn account(email: &str) -> (String, UserConnection) {
+    (email.into(), UserConnection { id: None, user_id: 1, connection_id: 1,
+      token: String::new(), refresh_token: None, connection: None, last_synced: None,
+      calendar_account_email: email.into() })
+  }
+  #[test]
+  fn native_gmail_requires_an_explicit_account_when_ambiguous() {
+    let accounts = vec![account("a@example.com"), account("b@example.com")];
+    assert!(select_native_gmail_account(&accounts, None).is_err());
+    assert!(select_native_gmail_account(&accounts, Some("stranger@example.com")).is_err());
+    assert_eq!(select_native_gmail_account(&accounts, Some("B@example.com")).unwrap().0, "b@example.com");
+    assert_eq!(select_native_gmail_account(&accounts[..1], None).unwrap().0, "a@example.com");
+    assert!(select_native_gmail_account(&[], None).is_err());
+  }
+  #[tokio::test]
+  async fn native_gmail_refuses_writes_before_accessing_credentials() {
+    let request: NativeGmailRead = serde_json::from_value(serde_json::json!({"action":"send"})).unwrap();
+    assert!(native_gmail_read_impl(&request).await.unwrap_err().contains("read-only"));
+  }
+}

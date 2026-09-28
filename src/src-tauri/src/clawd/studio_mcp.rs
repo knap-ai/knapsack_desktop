@@ -1,4 +1,4 @@
-//! MCP-over-stdio bridge for every Composio connector attached to the
+//! MCP-over-stdio bridge for native Gmail reads and the connectors attached to the
 //! Knapsack Studio account signed into Desktop.
 //!
 //! The Studio bearer and Composio connected-account IDs never enter the
@@ -56,6 +56,7 @@ struct StudioTokens {
   knapsack_access_token: Option<String>,
   knapsack_refresh_token: Option<String>,
   knapsack_email: Option<String>,
+  desktop_api_token: Option<String>,
 }
 
 fn api_base() -> String {
@@ -417,6 +418,47 @@ pub(crate) async fn search_slack_for_meeting_brief(queries: &[String]) -> Result
   Ok(json!({ "results": results }))
 }
 
+
+fn reject_composio_gmail(connector: &str) -> Result<(), String> {
+  if connector.to_ascii_lowercase().contains("gmail") {
+    return Err("Gmail uses the native Google connection. Call gmail_read (studio__gmail_read) with action accounts, list, or get. Do not use Composio for Gmail.".into());
+  }
+  Ok(())
+}
+
+fn is_gmail_connector(connector: &Value) -> bool {
+  ["id", "name"].iter().any(|key| connector.get(key).and_then(Value::as_str)
+    .map(|v| v.to_ascii_lowercase().contains("gmail")).unwrap_or(false))
+}
+
+async fn native_gmail_tool(arguments: &Value) -> Result<Value, String> {
+  authorize_studio_request(arguments).await?;
+  let tokens = read_tokens()?;
+  let owner = nonempty(tokens.knapsack_email).ok_or("Knapsack account is not connected.")?;
+  let scope = arguments.get("_knapsack_scope_key").and_then(Value::as_str).unwrap_or("");
+  if !is_local_desktop_scope(scope) {
+    let (sender, _) = resolve_bound_authorized_session_with_slack_context(
+      arguments.get("_knapsack_session_id").and_then(Value::as_str).unwrap_or(""), scope,
+      arguments.get("_knapsack_slack_account_id").and_then(Value::as_str),
+      arguments.get("_knapsack_slack_user_id").and_then(Value::as_str),
+      arguments.get("_knapsack_slack_workspace_id").and_then(Value::as_str),
+    ).await?;
+    if !sender.eq_ignore_ascii_case(&owner) {
+      return Err("Native Gmail is private to the desktop account owner; this Slack sender cannot access it.".into());
+    }
+  }
+  let token = nonempty(tokens.desktop_api_token).ok_or("Desktop API authentication is unavailable. Open Knapsack and retry.")?;
+  let response = reqwest::Client::builder().timeout(Duration::from_secs(45))
+    .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?
+    .post("http://127.0.0.1:8897/api/clawd/gmail/read")
+    .header(crate::server::auth::DESKTOP_API_TOKEN_HEADER, token)
+    .json(arguments).send().await.map_err(|e| format!("Native Gmail desktop API unavailable: {e}"))?;
+  let status = response.status();
+  let value: Value = response.json().await.map_err(|e| e.to_string())?;
+  if !status.is_success() { return Err(value.get("error").and_then(Value::as_str).unwrap_or("Native Gmail request failed").into()); }
+  Ok(value)
+}
+
 async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
   authorize_studio_request(arguments).await?;
   let studio_account = nonempty(read_tokens()?.knapsack_email)
@@ -430,6 +472,7 @@ async fn list_connector_tools(arguments: &Value) -> Result<Value, String> {
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or_else(|| "connector is required".to_string())?;
+  reject_composio_gmail(connector)?;
   let query = arguments
     .get("query")
     .and_then(Value::as_str)
@@ -593,12 +636,14 @@ async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or_else(|| "connector is required".to_string())?;
+  reject_composio_gmail(connector)?;
   let name = arguments
     .get("name")
     .and_then(Value::as_str)
     .map(str::trim)
     .filter(|value| !value.is_empty())
     .ok_or_else(|| "name is required".to_string())?;
+  reject_composio_gmail(name)?;
   let mut tool_arguments = arguments
     .get("arguments")
     .cloned()
@@ -618,6 +663,7 @@ async fn call_connector_tool(arguments: &Value) -> Result<Value, String> {
 fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Value> {
   let labels = connectors
     .iter()
+    .filter(|connector| !is_gmail_connector(connector))
     .filter_map(|connector| {
       let name = connector.get("name")?.as_str()?;
       let id = connector.get("id")?.as_str()?;
@@ -645,6 +691,16 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
   // would reject a connector added inline until the gateway relisted tools.
   let connector_schema = json!({ "type": "string", "description": description });
   vec![
+    json!({
+      "name": "gmail_read",
+      "description": "Read Gmail using this desktop's native Google OAuth connection, never Composio. Use accounts first, select an exact account_email, then list messages and get individual messages. Read-only; does not mark mail read or send anything.",
+      "inputSchema": {"type":"object", "properties": {
+        "action":{"type":"string", "enum":["accounts","list","get"]},
+        "account_email":{"type":"string"}, "query":{"type":"string","description":"Gmail search query"},
+        "max_results":{"type":"integer","minimum":1,"maximum":20},
+        "page_token":{"type":"string"}, "message_id":{"type":"string"}
+      }, "required":["action"]}
+    }),
     json!({
       "name": LIST_TOOL,
       "description": "Discover actions for one connector already connected through Knapsack Studio. Large connectors return a compact action index first; call again with query to receive matching exact input schemas. Call this before using call_connector_tool. Never ask the user for connector credentials. Slack connectors with ids like slack:<account-id> are separate authorized workspaces; use each relevant account-specific connector for named-workspace or cross-workspace requests instead of relying on the native Slack channel tool.",
@@ -713,6 +769,7 @@ async fn handle_request(request: Value) -> Option<Value> {
         .cloned()
         .unwrap_or_else(|| json!({}));
       let result = match name {
+        "gmail_read" => native_gmail_tool(&arguments).await,
         LIST_TOOL => list_connector_tools(&arguments).await,
         CALL_TOOL => call_connector_tool(&arguments).await,
         _ => Err(format!("Unknown tool: {name}")),
@@ -807,12 +864,23 @@ mod tests {
     let serialized = serde_json::to_string(&tools).unwrap();
     assert!(serialized.contains("slack"));
     assert!(serialized.contains("Slack"));
-    assert!(serialized.contains("google_gmail_modify"));
-    assert!(serialized.contains("mark@knap.ai"));
+    assert!(!serialized.contains("google_gmail_modify"));
+    assert!(serialized.contains("gmail_read"));
+    assert!(!serialized.contains("mark@knap.ai"));
     assert!(serialized.contains("distinct authorized Slack workspace"));
     assert!(serialized.contains("native Slack channel tool"));
-    assert!(!serialized.contains("\"enum\""));
+    assert!(tools.iter().filter(|t| t["name"] != "gmail_read").all(|t| t["inputSchema"]["properties"]["connector"].get("enum").is_none()));
     assert!(!serialized.contains("access_token"));
+  }
+
+  #[test]
+  fn gmail_cannot_fall_through_to_composio_even_with_a_stale_catalog() {
+    for id in ["gmail", "google_gmail_modify", "GMAIL", "google_gmail_modify; account user@example.com"] {
+      assert!(reject_composio_gmail(id).unwrap_err().contains("gmail_read"));
+    }
+    assert!(reject_composio_gmail("slack:workspace").is_ok());
+    let tools = tool_schemas(&[], Some("Studio offline"));
+    assert!(tools.iter().any(|tool| tool["name"] == "gmail_read"));
   }
 
   #[test]
@@ -935,6 +1003,19 @@ mod tests {
     }))
     .await
     .unwrap();
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn native_gmail_is_not_shared_with_other_slack_users_in_the_same_domain() {
+    let _guard = TEST_ENV_LOCK.lock().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let scope = "agent:main:slack:default:direct:uother";
+    seed_studio_owner_and_identity(home.path(), "session-other", "other@bankaya.com.mx", scope);
+    std::env::set_var("OPENCLAW_STATE_DIR", home.path());
+    let error = native_gmail_tool(&json!({
+      "action":"accounts", "_knapsack_session_id":"session-other", "_knapsack_scope_key":scope
+    })).await.unwrap_err();
+    assert!(error.contains("private to the desktop account owner"));
   }
 
   #[tokio::test(flavor = "current_thread")]
