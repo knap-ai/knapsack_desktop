@@ -126,7 +126,7 @@ test('meeting chat handle resizes, toggles, and persists panel height', () => {
 test('inline meeting chat owns the visible recording surface', () => {
   const notes = source('components/organisms/MeetingNotesMode/index.tsx')
   const spotlight = source('../src-tauri/src/spotlight.rs')
-  assert.match(notes, /isMeetingRecording && isMeetingChatOpen\s*\? 'hide_recording_indicator'\s*:\s*'restore_recording_indicator'/)
+  assert.match(notes, /!recordingHandlers\.isAnyRecording \|\| \(isMeetingRecording && isMeetingChatOpen\)\s*\? 'hide_recording_indicator'\s*:\s*'restore_recording_indicator'/)
   assert.match(notes, /recordingHandlers\.isAnyRecording/)
   assert.match(notes, /void invoke\(command\)\.catch\(\(\) => \{\}\)/)
   assert.match(notes, /if \(isAnyRecordingRef\.current\) \{\s*void invoke\('restore_recording_indicator'\)\.catch\(\(\) => \{\}\)/)
