@@ -2,7 +2,8 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const vm = require('node:vm')
-const ts = require('typescript')
+let ts
+try { ts = require('typescript') } catch { ts = require('../src-tauri/resources/clawdbot/node_modules/typescript') }
 const source = fs.readFileSync(require('node:path').join(__dirname, '../src/hooks/useFollowThrough.ts'), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
 const flush = () => new Promise(resolve => setImmediate(resolve))
