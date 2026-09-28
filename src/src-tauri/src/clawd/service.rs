@@ -5949,7 +5949,9 @@ fn harden_state_subtree(root: &Path) {
         return; // never follow symlinks
       }
       if meta.is_dir() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        if meta.permissions().mode() & 0o7777 != 0o700 {
+          let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        }
         let entries = match std::fs::read_dir(path) {
           Ok(e) => e,
           Err(_) => return,
@@ -5958,7 +5960,9 @@ fn harden_state_subtree(root: &Path) {
           walk(&entry.path());
         }
       } else if meta.is_file() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        if meta.permissions().mode() & 0o7777 != 0o600 {
+          let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
       }
     }
     if root.exists() {
@@ -11021,8 +11025,8 @@ fn upsert_knapsack_local_provider_config(
         "name": "Knapsack",
         "input": ["text", "image"],
         "reasoning": true,
-        "contextWindow": 1000000,
-        "maxTokens": 16384,
+        "contextWindow": 200000,
+        "maxTokens": 8192,
         "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
       });
       if *entry != desired {
@@ -11039,8 +11043,8 @@ fn upsert_knapsack_local_provider_config(
       "name": "Knapsack",
       "input": ["text", "image"],
       "reasoning": true,
-      "contextWindow": 1000000,
-      "maxTokens": 16384,
+      "contextWindow": 200000,
+      "maxTokens": 8192,
       "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
     }));
     patched = true;
@@ -18608,6 +18612,21 @@ mod provider_key_tests {
 
 #[cfg(test)]
 mod knapsack_runtime_auth_tests {
+  #[test]
+  fn knapsack_model_limits_match_the_desktop_inference_backend() {
+    let mut config = serde_json::json!({});
+    assert!(super::upsert_knapsack_local_provider_config(&mut config, Some("default")));
+    let model = &mut config["models"]["providers"]["knapsack-local"]["models"][0];
+    assert_eq!(model["contextWindow"], 200000);
+    assert_eq!(model["maxTokens"], 8192);
+    // Existing installations must migrate too, not just newly created configs.
+    model["contextWindow"] = serde_json::json!(1000000);
+    model["maxTokens"] = serde_json::json!(16384);
+    assert!(super::upsert_knapsack_local_provider_config(&mut config, Some("default")));
+    assert_eq!(config["models"]["providers"]["knapsack-local"]["models"][0]["contextWindow"], 200000);
+    assert!(!super::upsert_knapsack_local_provider_config(&mut config, Some("default")));
+  }
+
   use super::{
     configured_channel_ids_from_config, effective_plugin_discovery_allowlist_from_config,
     ensure_api_auth_tokens, ensure_knapsack_channel_runtime_defaults,

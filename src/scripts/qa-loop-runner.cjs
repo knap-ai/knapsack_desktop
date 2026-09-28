@@ -1812,6 +1812,8 @@ function hasBrokenAgentCapabilityReply(reply) {
     /browser .* currently unavailable/i,
     /browser tool .*not enabled for this request/i,
     /unable to perform web searches/i,
+    /missing trusted gateway session context/i,
+    /requires? trusted gateway session context/i,
   ];
   return patterns.some((pattern) => pattern.test(text));
 }
@@ -1832,6 +1834,7 @@ async function runConcurrentFeedSmoke(request = () => httpJsonWithTimeout(
 
 async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
   const startedAt = Date.now();
+  const sessionId = `qa-agent-${label}-${require('node:crypto').randomUUID()}`.replace(/[^A-Za-z0-9._-]/g, "-");
   let res;
   try {
     res = await fetchWithTimeout(`${API_BASE}/api/clawd/agent-chat`, {
@@ -1839,7 +1842,7 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: prompt,
-        sessionId: `qa-agent-${label}`.replace(/[^A-Za-z0-9._-]/g, "-"),
+        sessionId,
         noFallback: true,
       }),
     }, timeoutMs);
@@ -1880,11 +1883,10 @@ async function runAgentCapabilitySmoke({ label, prompt, timeoutMs = 60_000 }) {
     };
   }
 
-  return {
-    label,
-    ok: true,
-    latencyMs: Date.now() - startedAt,
-  };
+  const evidence = label === "native-gmail-tool"
+    ? require('./qa-native-gmail-evidence.cjs').readNativeGmailEvidence(apiAuthStateDir(), sessionId)
+    : { ok: true };
+  return { label, ...evidence, latencyMs: Date.now() - startedAt };
 }
 
 function buildGroupChatQaRequest(sessionId = `qa-group-${Date.now()}`) {
@@ -1952,7 +1954,22 @@ async function runGroupChatSmoke({ timeoutMs = 180_000 } = {}) {
   };
 }
 
-async function createMockMeeting() {
+// A person may use the visible QA app while checks run. Never tear down a
+// capture they started just because an unrelated chat readiness check ended.
+async function waitForRecordingIdle(readStatus, wait = sleep, onWait = () => {}) {
+  let observedCapture = false;
+  for (;;) {
+    let status;
+    try { status = await readStatus(); } catch { status = null; }
+    if (status && !status.isRecording && !status.isStarting && !status.isStopping) return;
+    if (!status && !observedCapture) return; // App never reached its API.
+    if (!observedCapture) onWait();
+    observedCapture = true;
+    await wait(1000);
+  }
+}
+
+async function createMockMeeting(request = fetchWithTimeout) {
   const timestamp = Date.now();
   const requestTimeoutMs = 30_000;
   const requestWithRetry = async (name, init) => {
@@ -1962,7 +1979,7 @@ async function createMockMeeting() {
     const attempts = (init.options?.method || "GET") === "GET" ? 3 : 1;
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        const response = await fetchWithTimeout(init.url, init.options, requestTimeoutMs);
+        const response = await request(init.url, init.options, requestTimeoutMs);
         return response;
       } catch (error) {
         lastError = error;
@@ -2045,55 +2062,14 @@ async function createMockMeeting() {
     },
   });
   if (!start.ok) {
-    const alreadyRecording =
-      normalizeResult(start.body).toLowerCase().includes("already in progress");
-    if (alreadyRecording) {
-      const stopRecovery = await requestWithRetry("stop_recording", {
-        url: `${API_BASE}/api/knapsack/stop_recording`,
-        options: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ thread_id: threadId, event_id: 0, save_transcript: false }),
-        },
-      });
-      if (stopRecovery.ok) {
-        const retryStart = await requestWithRetry("start_recording", {
-          url: `${API_BASE}/api/knapsack/start_recording`,
-          options: {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              thread_id: threadId,
-              feed_item_id: feedItemId,
-              event_id: 0,
-              save_transcript: false,
-            }),
-          },
-        });
-        if (retryStart.ok) {
-          await sleep(1_200);
-        } else {
-          return {
-            ok: false,
-            detail: `retry start_recording failed (${retryStart.status}) ${normalizeResult(retryStart.body)}`,
-          };
-        }
-      } else {
-        return {
-          ok: false,
-          detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}; cleanup stop failed (${stopRecovery.status}) ${normalizeResult(stopRecovery.body)}`,
-        };
-      }
-    } else {
+    // Another recording may belong to the user. A failed start never gives
+    // this test ownership of it, so do not stop it to retry the QA capture.
     return {
       ok: false,
       detail: `start_recording failed (${start.status}) ${normalizeResult(start.body)}`,
     };
-    }
   }
-  if (start.ok) {
-    await sleep(1_200);
-  }
+  await sleep(1_200);
 
   const stop = await requestWithRetry("stop_recording", {
     url: `${API_BASE}/api/knapsack/stop_recording`,
@@ -2361,6 +2337,12 @@ async function runMode(mode, opts = {}) {
 
   const cleanup = async () => {
     if (proc.exitCode === null) {
+      await waitForRecordingIdle(async () => {
+        const result = await httpJsonWithTimeout(`${API_BASE}/api/knapsack/recording_status`, {}, 3000);
+        return result.ok ? result.body : null;
+      }, sleep, () => console.warn("[qa-loop] Recording is active or starting; cleanup will wait until it finishes."));
+    }
+    if (proc.exitCode === null) {
       try {
         if (!proc.killed) {
           proc.kill("SIGTERM");
@@ -2551,6 +2533,12 @@ async function runMode(mode, opts = {}) {
         {
           label: "recent-emails",
           prompt: "Summarize my recent emails in 3 bullets using connected Knapsack email data if available.",
+        },
+        {
+          label: "native-gmail-tool",
+          // Unlike the recent-emails shortcut, this exercises the gateway's
+          // trusted-context handoff into the native Gmail MCP tool.
+          prompt: "Call studio__gmail_read with action accounts. If accounts are returned, use action list with max_results 1 for each exact account_email. Report only whether the tool calls succeeded, without email contents. Do not use a browser or Composio. If there are no accounts, report that result.",
         },
         {
           label: "calendar-tomorrow",
@@ -2760,6 +2748,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  createMockMeeting,
+  waitForRecordingIdle,
   runConcurrentFeedSmoke,
   waitForQaRuntimeOwnership,
   buildGroupChatQaRequest,

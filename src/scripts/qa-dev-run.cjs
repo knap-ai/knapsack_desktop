@@ -1184,7 +1184,10 @@ async function main() {
   } else {
     console.log("[qa-dev-run] preserving existing isolated QA gateway state");
   }
-  seedQaDatabaseFromProd();
+  // Preserve user-created meetings when resuming an isolated QA session.
+  if (!preserveQaState || !fs.existsSync(qaDbPath)) {
+    seedQaDatabaseFromProd();
+  }
   if (!preserveQaState) {
     seedQaProviderTokensFromProd();
   }

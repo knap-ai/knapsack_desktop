@@ -32,6 +32,7 @@ mod memory;
 mod privacy_mode;
 mod privileged_worker;
 mod pty;
+mod qa_launch;
 mod search;
 mod server;
 mod spotlight;
@@ -615,6 +616,7 @@ struct RecordingState {
   pub mic_thread: Arc<StdMutex<Option<TokioJoinHandle<()>>>>,
   pub output_thread: Arc<StdMutex<Option<TokioJoinHandle<()>>>>,
   pub is_recording: Arc<AtomicBool>,
+  pub is_starting: Arc<AtomicBool>,
   pub is_stopping: Arc<AtomicBool>,
   pub thread_id: Arc<StdMutex<Option<u64>>>,
   pub feed_item_id: Arc<StdMutex<Option<u64>>>,
@@ -631,6 +633,7 @@ impl Default for RecordingState {
       mic_thread: Arc::new(StdMutex::new(None)),
       output_thread: Arc::new(StdMutex::new(None)),
       is_recording: Arc::new(AtomicBool::new(false)),
+      is_starting: Arc::new(AtomicBool::new(false)),
       is_stopping: Arc::new(AtomicBool::new(false)),
       thread_id: Arc::new(StdMutex::new(None)),
       feed_item_id: Arc::new(StdMutex::new(None)),
@@ -1773,6 +1776,8 @@ async fn main() {
     clawd::studio_mcp::run_stdio_server().await;
     std::process::exit(0);
   }
+
+  qa_launch::reject_unmanaged_launch();
 
   // Must run before any other setup so the knapsack:// scheme is claimed by
   // this process. Carries the role a visitor picked on the website into

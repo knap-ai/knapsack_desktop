@@ -13,6 +13,7 @@ export interface RecordingContextProps {
   isRecording: (threadId: number) => boolean
   setIsRecording: (threadId: number, isRecording: boolean) => void
   activeRecordingThreadId: number | null
+  startingRecordingThreadId: number | null
   isLoadingNotes: (threadId: number) => boolean
   startRecording: (
     setFeedIsRecording: (isRecording: boolean | undefined) => void,
@@ -70,6 +71,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
   const [activeRecordingThreadId, setActiveRecordingThreadId] = useState<number | null>(null)
   const [isPaused, setIsPaused] = useState(false)
   const isStartingRef = useRef(false)
+  const [startingRecordingThreadId, setStartingRecordingThreadId] = useState<number | null>(null)
 
   const hasSynthesized = useCallback((threadId: number) => {
     return hasSynthesizedState.get(threadId) || false
@@ -116,6 +118,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       return
     }
     isStartingRef.current = true
+    setStartingRecordingThreadId(threadId)
     try {
       // Check macOS permissions before attempting to record.
       // This must succeed or recording is blocked — we never silently proceed
@@ -223,6 +226,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
       throw new Error(err.message || 'Error start recording')
     } finally {
       isStartingRef.current = false
+      setStartingRecordingThreadId(null)
     }
   }, [setIsRecording])
 
@@ -352,6 +356,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     isRecording,
     setIsRecording,
     activeRecordingThreadId,
+    startingRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -360,7 +365,7 @@ export const RecordingProvider: React.FC<RecordingProviderProps> = ({ children }
     isPaused,
     generateNotes,
     hasSynthesized,
-  }), [isRecording, setIsRecording, activeRecordingThreadId, isLoadingNotes, startRecording, stopRecording, isAnyRecording, pauseRecording, isPaused, generateNotes, hasSynthesized])
+  }), [isRecording, setIsRecording, activeRecordingThreadId, startingRecordingThreadId, isLoadingNotes, startRecording, stopRecording, isAnyRecording, pauseRecording, isPaused, generateNotes, hasSynthesized])
 
   return (
     <RecordingContext.Provider value={contextValue}>

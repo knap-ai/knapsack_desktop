@@ -44,3 +44,9 @@ test('QA disables channel transports unless explicitly opted in', () => {
   assert.equal(enabled.OPENCLAW_SKIP_CHANNELS, '0')
   assert.equal(enabled.OPENCLAW_DESKTOP_AUTO_START_CHANNELS, '1')
 })
+
+
+test('preserved QA sessions do not overwrite their meeting database', () => {
+  const launcher = fs.readFileSync(path.join(__dirname, 'qa-dev-run.cjs'), 'utf8')
+  assert.match(launcher, /if \(!preserveQaState \|\| !fs\.existsSync\(qaDbPath\)\) \{\s*seedQaDatabaseFromProd\(\);/)
+})

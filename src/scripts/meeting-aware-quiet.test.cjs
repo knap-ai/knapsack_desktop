@@ -76,7 +76,7 @@ test('users get a cancellable heads-up and existing recording controls remain au
 test('a pre-recording heads-up cannot remain visible after recording begins', () => {
   assert.match(
     app,
-    /if \(!isAnyRecording\) return\s*setMeetingCaptureNotice\(current => current\?\.phase === 'ready' \? null : current\)/,
+    /if \(!isAnyRecording && startingRecordingThreadId === null\) return\s*setMeetingCaptureNotice\(current => current\?\.phase === 'ready' \? null : current\)/,
   )
 })
 

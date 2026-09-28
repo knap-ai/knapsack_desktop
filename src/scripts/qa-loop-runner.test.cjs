@@ -169,6 +169,8 @@ test("disabled browser-tool replies fail capability QA instead of passing as ans
     true,
   );
   assert.equal(hasBrokenAgentCapabilityReply("Here is the requested source summary."), false);
+  assert.equal(hasBrokenAgentCapabilityReply('Both calls failed: missing trusted gateway session context.'), true);
+  assert.equal(hasBrokenAgentCapabilityReply('Knapsack tool requires trusted gateway session context'), true);
 });
 
 test("meeting chat retries disabled browser-tool replies through direct chat", () => {
@@ -302,3 +304,30 @@ test('QA waits for supervised runtime ownership rather than early API readiness'
   assert.equal((await waitForQaRuntimeOwnership({ exitCode: 1 }, [], 100, 1)).ok, false)
   assert.equal((await waitForQaRuntimeOwnership({ exitCode: null }, [], 5, 1)).ok, false)
 })
+
+
+test('QA cleanup waits through user recording startup, capture and finalization', async () => {
+  const { waitForRecordingIdle } = require('./qa-loop-runner.cjs')
+  const states = [{ isStarting: true }, { isRecording: true }, null, { isStopping: true }, { isRecording: false }]
+  let waits = 0, warnings = 0
+  await waitForRecordingIdle(async () => states.shift(), async () => { waits++ }, () => { warnings++ })
+  assert.equal(waits, 4)
+  assert.equal(warnings, 1)
+  assert.equal(states.length, 0)
+})
+
+
+test('mock meeting never stops a recording it could not start', async () => {
+  const { createMockMeeting } = require('./qa-loop-runner.cjs');
+  const calls = [];
+  const result = await createMockMeeting(async (url) => {
+    calls.push(url);
+    if (url.endsWith('/feed_items')) return { ok: true, body: { data: { id: 91 } } };
+    if (url.endsWith('/threads')) return { ok: true, body: { thread: { id: 92 } } };
+    if (url.endsWith('/start_recording')) return { ok: false, status: 409, body: { error: 'Recording already in progress' } };
+    throw new Error('Unexpected mutation: ' + url);
+  });
+  assert.equal(result.ok, false);
+  assert.equal(calls.length, 3);
+  assert.ok(calls.every(url => !url.endsWith('/stop_recording')));
+});

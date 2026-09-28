@@ -6,6 +6,7 @@ import RecordButton, { RecordButtonVariant } from '../RecordButton'
 
 interface RecordPanelProps {
   isRecording: boolean
+  isStarting?: boolean
   onClickJoin: () => void
   onClickPause: () => void
   onClickResume: () => void
@@ -17,6 +18,7 @@ interface RecordPanelProps {
 
 const RecordControlPanel: React.FC<RecordPanelProps> = ({
   isRecording,
+  isStarting = false,
   onClickJoin,
   onClickPause,
   onClickResume,
@@ -27,7 +29,14 @@ const RecordControlPanel: React.FC<RecordPanelProps> = ({
 }) => {
   return (
     <div className="ml-auto rounded-md">
-      {isDisabled ? (
+      {isStarting ? (
+        <RecordButton
+          text="Starting…"
+          onClick={onClickJoin}
+          isDisabled={true}
+          variant={RecordButtonVariant.disabled}
+        />
+      ) : isDisabled ? (
         <Tooltip
           label="Meeting recording in progress"
           component={

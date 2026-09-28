@@ -1450,16 +1450,23 @@ pub async fn knapsack_chat_completions_proxy(
   .await
   {
     Ok(resp) => HttpResponse::Ok().json(resp),
-    Err(err) => {
-      let message = err.to_string();
-      if message.contains("session expired") || message.contains("auth failed") {
-        HttpResponse::Unauthorized().json(json!({ "error": { "message": message } }))
-      } else if message.contains("credits remaining") {
-        HttpResponse::PaymentRequired().json(json!({ "error": { "message": message } }))
-      } else {
-        HttpResponse::InternalServerError().json(json!({ "error": { "message": message } }))
-      }
-    }
+    Err(err) => knapsack_completion_error_response(err.to_string()),
+  }
+}
+
+fn knapsack_completion_error_response(message: String) -> HttpResponse {
+  if message.contains("session expired") || message.contains("auth failed") {
+    HttpResponse::Unauthorized().json(json!({ "error": { "message": message } }))
+  } else if message.contains("credits remaining") {
+    HttpResponse::PaymentRequired().json(json!({ "error": { "message": message } }))
+  } else if is_context_window_error(&message.to_lowercase()) {
+    // Context overflow needs compaction, not SDK retries of the same body.
+    HttpResponse::BadRequest().json(json!({ "error": {
+      "message": format!("Context length exceeded: {}", message),
+      "type": "invalid_request_error", "code": "context_length_exceeded"
+    } }))
+  } else {
+    HttpResponse::InternalServerError().json(json!({ "error": { "message": message } }))
   }
 }
 
@@ -1712,8 +1719,21 @@ fn sanitize_email_recipients(value: &str, sender_email: &str) -> String {
   recipients.join(", ")
 }
 
-static CHAT_HISTORY: Lazy<Mutex<HashMap<String, Vec<chat_agent::OaiMessage>>>> =
+type ChatSessionHistory = std::sync::Arc<tokio::sync::Mutex<Vec<chat_agent::OaiMessage>>>;
+
+static CHAT_HISTORY: Lazy<Mutex<HashMap<String, ChatSessionHistory>>> =
   Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn chat_session_history(session_id: &str, qa_smoke: bool) -> ChatSessionHistory {
+  if qa_smoke {
+    return std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+  }
+  CHAT_HISTORY.lock().unwrap().entry(session_id.to_string())
+    .or_insert_with(|| std::sync::Arc::new(tokio::sync::Mutex::new(
+      load_history_from_transcript(session_id, 20)
+    )))
+    .clone()
+}
 
 /// Resolve the gateway JSONL transcript path for a session.
 ///
@@ -2388,6 +2408,7 @@ fn is_context_window_error(error_lower: &str) -> bool {
     "context window",
     "maximum context length",
     "prompt is too long",
+    "input is too long",
     "too many tokens",
     "input tokens",
     "context length",
@@ -5823,22 +5844,19 @@ pub async fn chat(
   } else {
     load_seed_history_from_request(&body, 12)
   };
-  let mut history_guard = CHAT_HISTORY.lock().unwrap();
-  let mut smoke_history: Vec<chat_agent::OaiMessage> = Vec::new();
-  let history = if qa_smoke {
-    &mut smoke_history
-  } else {
-    let history = history_guard.entry(session_id.clone()).or_insert_with(|| {
-      load_history_from_transcript(&session_id, 20)
-    });
+  // Serialize turns within a conversation, never across all conversations.
+  // A std mutex held over provider/tool awaits blocks an Actix worker when
+  // another request arrives, potentially preventing the first from resuming.
+  let session_history = chat_session_history(&session_id, qa_smoke);
+  let mut history = session_history.lock().await;
+  if !qa_smoke {
     // Gateway and direct replies share the visible desktop conversation, but
     // not an in-memory history. Refresh from the bounded UI snapshot on every
     // fallback, including when a previous direct turn already populated it.
     if !seed_history.is_empty() {
       *history = seed_history;
     }
-    history
-  };
+  }
 
   // Memory section — inject persistent notes from previous sessions.
   // The frontend already caps this at 10 entries × 500 chars each (agentMemory.ts).
@@ -8397,6 +8415,41 @@ fn strip_html_tags(html: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+  #[actix_web::test]
+  async fn bedrock_context_overflow_tells_the_gateway_to_compact_instead_of_retry() {
+    let response = super::knapsack_completion_error_response(
+      "Knapsack inference error (500 Internal Server Error): Input is too long for requested model.".into()
+    );
+    assert_eq!(response.status(), actix_web::http::StatusCode::BAD_REQUEST);
+    let bytes = actix_web::body::to_bytes(response.into_body()).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["error"]["code"], "context_length_exceeded");
+    assert!(body["error"]["message"].as_str().unwrap().starts_with("Context length exceeded:"));
+    assert_eq!(super::knapsack_completion_error_response("Knapsack session expired".into()).status(), actix_web::http::StatusCode::UNAUTHORIZED);
+    assert_eq!(super::knapsack_completion_error_response("No Knapsack credits remaining".into()).status(), actix_web::http::StatusCode::PAYMENT_REQUIRED);
+  }
+
+  #[tokio::test(flavor = "current_thread")]
+  async fn chat_history_waits_only_for_the_same_conversation() {
+    let first = super::chat_session_history("qa-history-lock-a", false);
+    let same = super::chat_session_history("qa-history-lock-a", false);
+    let other = super::chat_session_history("qa-history-lock-b", false);
+    let mut active = first.lock().await;
+    active.clear();
+    active.push(crate::clawd::chat_agent::OaiMessage::User {
+      content: "keep this turn".into(), images: vec![],
+    });
+    let duration = std::time::Duration::from_millis(20);
+    assert!(tokio::time::timeout(duration, same.lock()).await.is_err());
+    assert!(tokio::time::timeout(duration, other.lock()).await.is_ok());
+    let probe = super::chat_session_history("qa-history-lock-a", true);
+    assert!(probe.lock().await.is_empty());
+    drop(active);
+    assert_eq!(same.lock().await.len(), 1);
+    super::CHAT_HISTORY.lock().unwrap().remove("qa-history-lock-a");
+    super::CHAT_HISTORY.lock().unwrap().remove("qa-history-lock-b");
+  }
+
   use super::{
     aggressively_compact_messages_for_provider, build_context_recovery_messages,
     compact_messages_for_provider, fallback_failure_message, filter_top_level_page_tabs,
@@ -8785,6 +8838,7 @@ mod tests {
 
   #[test]
   fn context_window_error_detection_matches_user_visible_failures() {
+    assert!(is_context_window_error("input is too long for requested model"));
     assert!(is_context_window_error(
       "message too large for this model".to_string().as_str()
     ));
