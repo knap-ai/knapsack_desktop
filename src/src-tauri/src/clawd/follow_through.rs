@@ -87,7 +87,7 @@ pub fn kn_follow_through_list(brain_root: String) -> Result<Vec<FollowThrough>, 
   Ok(read(&brain_root)?.items)
 }
 #[tauri::command]
-pub async fn kn_follow_through_extract(brain_root: String, run_id: String) -> Result<Vec<FollowThrough>, String> {
+pub async fn kn_follow_through_extract(app_handle: tauri::AppHandle, brain_root: String, run_id: String) -> Result<Vec<FollowThrough>, String> {
   use crate::llm::{types::{Message, MessageSender}, use_cases::complete::selected_provider_completion};
   let run = loops::kn_loop_list_runs(brain_root.clone(), None)?.into_iter().find(|r| r.id == run_id).ok_or("Loop run not found")?;
   let context = run.context.as_deref().filter(|s| !s.trim().is_empty()).ok_or("This run has no source material")?;
@@ -99,7 +99,7 @@ pub async fn kn_follow_through_extract(brain_root: String, run_id: String) -> Re
       "Never invent owners, dates, recipients or promises. Draft a short follow-up for user review. ",
       "Return [] if no supported commitments exist.").into() },
     Message { sender: MessageSender::User, content: context.chars().take(24_000).collect() },
-  ]).await.map_err(|e| e.to_string())?;
+  ], &super::service::app_clawdbot_home(&app_handle)).await.map_err(|e| e.to_string())?;
   let raw = raw.trim();
   let raw = raw.strip_prefix("```json").or_else(|| raw.strip_prefix("```")).unwrap_or(raw).trim();
   let raw = raw.strip_suffix("```").unwrap_or(raw).trim();
@@ -206,6 +206,13 @@ fn apply_check(item: &mut FollowThrough, revision: u64, checked: u64, result: Re
   }
 }
 
+fn eligible_batch(pending: Vec<FollowThrough>, eligible_runs: &std::collections::HashSet<&str>, checked: u64) -> Vec<FollowThrough> {
+  pending.into_iter().filter(|i|
+    matches!(i.status.as_str(), "tracking" | "attention")
+    && i.next_check_at.unwrap_or(u64::MAX) <= checked
+    && eligible_runs.contains(i.run_id.as_str())).take(100).collect()
+}
+
 #[tauri::command]
 pub async fn kn_follow_through_check(brain_root: String) -> Result<Vec<FollowThrough>, String> {
   let Ok(_checking) = CHECK_LOCK.try_lock() else { return Ok(Vec::new()); };
@@ -213,12 +220,12 @@ pub async fn kn_follow_through_check(brain_root: String) -> Result<Vec<FollowThr
   let runs = loops::kn_loop_list_runs(brain_root.clone(), None)?;
   let mut pending = kn_follow_through_list(brain_root.clone())?;
   pending.sort_by_key(|i| i.next_check_at.unwrap_or(u64::MAX));
-  for snapshot in pending.into_iter().filter(|i| matches!(i.status.as_str(), "tracking" | "attention")).take(100) {
-    if snapshot.next_check_at.unwrap_or(u64::MAX) > now() { continue; }
-    // Pausing a parent loop also suspends observation of its commitments.
-    if !runs.iter().find(|r| r.id == snapshot.run_id).is_some_and(|r|
-      !matches!(r.status, loops::LoopRunStatus::Cancelled | loops::LoopRunStatus::Expired)
-      && definitions.iter().any(|d| d.id == r.loop_id && d.status == loops::LoopDefinitionStatus::Active)) { continue; }
+  // Filter suspended parents before the batch cap so stale records cannot starve active work.
+  let eligible_runs: std::collections::HashSet<&str> = runs.iter().filter(|r|
+    !matches!(r.status, loops::LoopRunStatus::Cancelled | loops::LoopRunStatus::Expired)
+    && definitions.iter().any(|d| d.id == r.loop_id && d.status == loops::LoopDefinitionStatus::Active))
+    .map(|r| r.id.as_str()).collect();
+  for snapshot in eligible_batch(pending, &eligible_runs, now()) {
     let checked = now();
     let result = if let (Some(account), Some(thread_id), Some(sent_id), Some(recipient)) =
       (&snapshot.account, &snapshot.thread_id, &snapshot.sent_id, &snapshot.recipient) {
@@ -302,6 +309,15 @@ mod tests {
     let mut item = tracked();
     apply_check(&mut item, 1, 99, Ok(None)); assert_eq!(item.status, "tracking");
     apply_check(&mut item, 1, 100, Ok(None)); assert_eq!(item.status, "attention");
+  }
+  #[test] fn suspended_parents_cannot_starve_active_commitments() {
+    let mut pending = vec![tracked(); 100];
+    let mut active = tracked(); active.run_id = "active-run".into();
+    pending.push(active);
+    let eligible = std::collections::HashSet::from(["active-run"]);
+    let batch = eligible_batch(pending, &eligible, 101);
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch[0].run_id, "active-run");
   }
   #[test] fn persistence_survives_restart_and_dismissal() {
     let root = std::env::temp_dir().join(format!("knapsack-follow-through-test-{}", uuid::Uuid::new_v4()));

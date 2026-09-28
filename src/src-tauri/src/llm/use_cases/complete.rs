@@ -1058,9 +1058,10 @@ async fn knapsack_completion(
 
 /// Text-only extraction uses the selected provider without tools or cloud fallback.
 /// Missing credentials must not silently change the destination of source material.
-pub async fn selected_provider_completion(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
-  let provider = resolve_provider()?;
+pub async fn selected_provider_completion(messages: Vec<LlmMessage>, oauth_home: &std::path::Path) -> Result<String, LLMError> {
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+  if active == "google-gemini-cli" { return super::gemini_oauth::complete(oauth_home, &messages).await; }
+  let provider = resolve_provider()?;
   if !active.is_empty() && active != provider.name {
     return Err(LLMError::ProviderNotConfigured("The selected AI provider is unavailable. Configure it before extracting commitments.".into()));
   }

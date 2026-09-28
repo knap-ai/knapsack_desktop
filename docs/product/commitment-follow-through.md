@@ -20,9 +20,11 @@ This slice supports desktop reminders and native Gmail reply verification. It do
 
 ## Verification
 
-- Full Rust suite: 374 passed, 1 existing ignored test (serial execution).
-- Nine new Rust tests cover source quotes, delivery identity, reply ordering, automatic responses, persistence, due reminders, failed checks, pause races, and outcome review.
+- Full Rust suite: 378 passed, 1 existing ignored test (serial execution).
+- Thirteen new Rust tests cover source quotes, delivery identity, reply ordering, automatic responses, persistence, due reminders, failed checks, pause races, and outcome review.
 - Five JavaScript tests cover notification deduplication, missing credentials, retries, overlapping checks, disposal, and safe QA mode.
 - TypeScript passes.
 - Browser QA uses the actual panel bundled with synthetic registry data: evidence, draft controls, required date, track and pause.
 - Live Gmail OAuth and the installed production app were not exercised for this feature, to avoid interfering with the parallel production recording investigation.
+
+Gemini OAuth extraction uses the connected Gemini account and the text-only Code Assist API. It refreshes expired credentials through the existing Google auth path, never falls back to a different provider, and requires completed Gemini account setup. Cloud inference remains blocked in Privacy Mode. Suspended parent loops are filtered before the polling batch cap so they cannot starve active commitments.
