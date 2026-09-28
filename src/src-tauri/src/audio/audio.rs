@@ -256,6 +256,11 @@ fn setup_audio_device(
   device_name: &str,
   is_input: bool,
 ) -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
+  // CoreAudio may return a default-device handle even when no input is
+  // connected. Reject that case before asking the invalid handle for a config.
+  if is_input && host.input_devices().map_err(|e| e.to_string())?.next().is_none() {
+    return Err("No microphone is connected. Connect a microphone or select an available input in System Settings > Sound, then try again.".to_string());
+  }
   log::info!(
     "Setting up {} device: {}",
     if is_input { "input" } else { "output" },
@@ -764,7 +769,14 @@ pub async fn stop_recording(
   let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   if !recording_state.is_recording.load(Ordering::Relaxed) {
     log::warn!("[recording] stop_recording called but no recording in progress");
+    if let Some(window) = app_handle.get_window("recording-indicator") {
+      let _ = window.hide();
+    }
     return HttpResponse::BadRequest().body("No recording in progress");
+  }
+
+  if *recording_state.thread_id.lock().unwrap() != Some(data.thread_id) {
+    return HttpResponse::Conflict().body("A different meeting is recording. Open the active meeting to stop it.");
   }
 
   recording_state.is_stopping.store(true, Ordering::Relaxed);
@@ -2078,11 +2090,17 @@ async fn handle_stop_events(
   app_handle: &tauri::AppHandle,
   recording_state: &RecordingState,
 ) -> Result<(), Error> {
+  if !recording_state.capture_is_active() {
+    if let Some(window) = app_handle.get_window("recording-indicator") {
+      let _ = window.hide();
+    }
+    return Ok(());
+  }
   let window = match app_handle.get_window(WINDOW_LABEL) {
     Some(w) => w,
     None => {
       log::warn!("[recording] Main window not found during handle_stop_events");
-      return Ok(());
+      return Err(Error::KSError("The recording window is unavailable. Reopen Knapsack and try Stop again.".into()));
     }
   };
 
@@ -2092,13 +2110,21 @@ async fn handle_stop_events(
   };
 
   let _ = window.emit("open_feed_item", json!({ "threadId": active_thread_id }));
-  sleep(Duration::from_millis(750)).await;
-
-  let _ = window.emit("stop_recording", json!({ "threadId": active_thread_id }));
-  sleep(Duration::from_millis(500)).await;
-
-  focus_window(window);
-  Ok(())
+  focus_window(window.clone());
+  // Navigation and listener registration are asynchronous. Retry until the
+  // backend acknowledges Stop instead of dropping a one-shot UI event.
+  for _ in 0..10 {
+    if !recording_state.capture_is_active() {
+      return Ok(());
+    }
+    let _ = window.emit("stop_recording", json!({ "threadId": active_thread_id }));
+    sleep(Duration::from_millis(500)).await;
+  }
+  if recording_state.capture_is_active() {
+    Err(Error::KSError("The active meeting did not acknowledge Stop. Please try again.".into()))
+  } else {
+    Ok(())
+  }
 }
 
 #[tauri::command]
@@ -2252,6 +2278,27 @@ pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn native_and_http_recording_controls_share_capture_lifecycle() {
+    use std::sync::atomic::Ordering;
+    let native = crate::RecordingState::default();
+    let http = actix_web::web::Data::new(native.clone());
+    assert!(!native.capture_is_active());
+    http.is_recording.store(true, Ordering::Relaxed);
+    http.is_starting.store(true, Ordering::Relaxed);
+    assert!(!native.capture_is_active(), "startup must not show a recording timer");
+    *http.thread_id.lock().unwrap() = Some(42);
+    http.is_starting.store(false, Ordering::Relaxed);
+    assert!(native.capture_is_active());
+    assert_eq!(*native.thread_id.lock().unwrap(), Some(42));
+    let guard = super::begin_recording_finalization(&http);
+    assert!(!native.capture_is_active());
+    assert!(native.is_stopping.load(Ordering::Relaxed));
+    drop(guard);
+    assert!(!native.capture_is_active(), "completed stop must not restore the pill");
+    assert!(!native.is_stopping.load(Ordering::Relaxed));
+  }
+
   #[actix_web::test]
   async fn recording_status_does_not_claim_capture_during_startup() {
     let state = actix_web::web::Data::new(crate::RecordingState::default());

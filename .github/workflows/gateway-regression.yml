@@ -15,7 +15,16 @@ on:
       - "src/src/hooks/useFollowThrough.ts"
       - "src/src/api/followThrough.ts"
       - "src/src/components/organisms/GBrainView/FollowThroughPanel.tsx"
-      - "src/src-tauri/src/llm/use_cases/complete.rs"
+      - "src/src-tauri/src/llm/use_cases/**"
+      - "src/src-tauri/src/audio/**"
+      - "src/src-tauri/src/main.rs"
+      - "src/src-tauri/src/spotlight.rs"
+      - "src/src-tauri/src/server/actix.rs"
+      - "src/src/App.tsx"
+      - "src/src/api/recording.tsx"
+      - "src/src/hooks/feed/useFeed.tsx"
+      - "src/src/components/molecules/RecordingIndicator/**"
+      - "src/src/components/organisms/MeetingNotesMode/**"
       - "src/src-tauri/resources/clawdbot/**"
   push:
     branches: [main, "release/*"]
@@ -31,7 +40,16 @@ on:
       - "src/src/hooks/useFollowThrough.ts"
       - "src/src/api/followThrough.ts"
       - "src/src/components/organisms/GBrainView/FollowThroughPanel.tsx"
-      - "src/src-tauri/src/llm/use_cases/complete.rs"
+      - "src/src-tauri/src/llm/use_cases/**"
+      - "src/src-tauri/src/audio/**"
+      - "src/src-tauri/src/main.rs"
+      - "src/src-tauri/src/spotlight.rs"
+      - "src/src-tauri/src/server/actix.rs"
+      - "src/src/App.tsx"
+      - "src/src/api/recording.tsx"
+      - "src/src/hooks/feed/useFeed.tsx"
+      - "src/src/components/molecules/RecordingIndicator/**"
+      - "src/src/components/organisms/MeetingNotesMode/**"
       - "src/src-tauri/resources/clawdbot/**"
   workflow_dispatch:
 
@@ -78,6 +96,10 @@ jobs:
       - name: Test session permissions and native Gmail QA evidence
         working-directory: src
         run: node --test scripts/session-permission-fence.test.cjs scripts/qa-native-gmail-evidence.test.cjs
+
+      - name: Test recording lifecycle and controls
+        working-directory: src
+        run: node --test scripts/recording-indicator-state.test.cjs scripts/meeting-recording-routing.test.cjs scripts/audio-capture-readiness.test.cjs
 
       - name: Report clawdbot duplicates before prune
         working-directory: src
@@ -132,3 +154,5 @@ jobs:
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
           cargo test --manifest-path src-tauri/Cargo.toml clawd::follow_through -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml audio::audio::tests -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml llm::use_cases::gemini_oauth -- --nocapture

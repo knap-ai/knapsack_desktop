@@ -20,7 +20,7 @@ This slice supports desktop reminders and native Gmail reply verification. It do
 
 ## Verification
 
-- Full Rust suite: 378 passed, 1 existing ignored test (serial execution).
+- Full Rust suite: 379 passed, 1 existing ignored test (serial execution).
 - Thirteen new Rust tests cover source quotes, delivery identity, reply ordering, automatic responses, persistence, due reminders, failed checks, pause races, and outcome review.
 - Five JavaScript tests cover notification deduplication, missing credentials, retries, overlapping checks, disposal, and safe QA mode.
 - TypeScript passes.

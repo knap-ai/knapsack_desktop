@@ -646,6 +646,14 @@ impl Default for RecordingState {
   }
 }
 
+impl RecordingState {
+  fn capture_is_active(&self) -> bool {
+    self.is_recording.load(Ordering::Relaxed)
+      && !self.is_starting.load(Ordering::Relaxed)
+      && !self.is_stopping.load(Ordering::Relaxed)
+  }
+}
+
 #[tauri::command]
 async fn kn_get_search_indexing_status(
   progress_state: State<'_, ProgressState>,
