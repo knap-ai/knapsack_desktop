@@ -80,3 +80,28 @@ test('macOS tap exclusions use Core Audio process objects rather than Unix PIDs'
   assert.match(permission, /current_process_audio_object_id\(\)/)
   assert.doesNotMatch(permission, /numberWithInt: our_pid/)
 })
+
+
+test('recording indicator waits for microphone acknowledgement and transcript persistence', () => {
+  const source = read('src-tauri/src/audio/audio.rs')
+  const start = source.indexOf('pub async fn start_recording(')
+  const end = source.indexOf('struct StopRecordingRequest', start)
+  const recording = source.slice(start, end)
+  const micReady = recording.indexOf('mic_startup_rx.recv()')
+  const transcript = recording.indexOf('transcript.create()')
+  const indicator = recording.indexOf('indicator_window.show()')
+  assert.ok(micReady > 0 && transcript > micReady && indicator > transcript)
+  assert.equal((recording.match(/indicator_window.show\(\)/g) || []).length, 1)
+  const stream = source.slice(source.indexOf('async fn stream_audio('))
+  assert.ok(stream.indexOf('startup_tx.send(Ok(()))') > stream.indexOf('.play()'))
+})
+
+test('pending manual recording has a disabled starting control and clears the ready notice', () => {
+  const context = read('src/components/organisms/MeetingNotesMode/RecordingContext.tsx')
+  const controls = read('src/components/molecules/RecordControlPanel/index.tsx')
+  const app = read('src/App.tsx')
+  assert.match(context, /setStartingRecordingThreadId\(threadId\)/)
+  assert.match(context, /finally \{\s*isStartingRef.current = false\s*setStartingRecordingThreadId\(null\)/)
+  assert.match(controls, /isStarting \? \([\s\S]*?text="Starting…"[\s\S]*?isDisabled=\{true\}/)
+  assert.match(app, /if \(!isAnyRecording && startingRecordingThreadId === null\) return/)
+})

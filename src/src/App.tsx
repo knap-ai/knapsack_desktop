@@ -367,6 +367,7 @@ function App() {
     isRecording,
     setIsRecording,
     activeRecordingThreadId,
+    startingRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -1355,6 +1356,7 @@ function App() {
     isRecording,
     setIsRecording,
     activeRecordingThreadId,
+    startingRecordingThreadId,
     isLoadingNotes,
     startRecording,
     stopRecording,
@@ -1490,9 +1492,9 @@ function App() {
   // begin while a nearby calendar event is still showing its cancellable
   // prompt, so clear that prompt as soon as any recording becomes active.
   useEffect(() => {
-    if (!isAnyRecording) return
+    if (!isAnyRecording && startingRecordingThreadId === null) return
     setMeetingCaptureNotice(current => current?.phase === 'ready' ? null : current)
-  }, [isAnyRecording])
+  }, [isAnyRecording, startingRecordingThreadId])
 
   useEffect(() => {
     if (meetingCaptureNotice?.phase !== 'recording') return

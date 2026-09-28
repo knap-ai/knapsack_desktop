@@ -1624,6 +1624,7 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
                     onClickPause={() => recordingHandlers.pauseRecording()}
                     onClickResume={() => handleRecordClick(false)}
                     isRecording={recordingHandlers.isRecording(thread.id)}
+                    isStarting={recordingHandlers.startingRecordingThreadId === thread.id}
                     isDisabled={disableIsRecording}
                     isSynthesizing={isSynthesizing()}
                     isPaused={recordingHandlers.isPaused}
@@ -1984,6 +1985,7 @@ Be direct, specific, and concise. No filler text.`
                   onClickPause={() => recordingHandlers.pauseRecording()}
                   onClickResume={() => handleRecordClick(false)}
                   isRecording={recordingHandlers.isRecording(thread.id)}
+                    isStarting={recordingHandlers.startingRecordingThreadId === thread.id}
                   isDisabled={disableIsRecording}
                   isSynthesizing={isSynthesizing()}
                   isPaused={recordingHandlers.isPaused}

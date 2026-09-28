@@ -1954,6 +1954,21 @@ async function runGroupChatSmoke({ timeoutMs = 180_000 } = {}) {
   };
 }
 
+// A person may use the visible QA app while checks run. Never tear down a
+// capture they started just because an unrelated chat readiness check ended.
+async function waitForRecordingIdle(readStatus, wait = sleep, onWait = () => {}) {
+  let observedCapture = false;
+  for (;;) {
+    let status;
+    try { status = await readStatus(); } catch { status = null; }
+    if (status && !status.isRecording && !status.isStarting && !status.isStopping) return;
+    if (!status && !observedCapture) return; // App never reached its API.
+    if (!observedCapture) onWait();
+    observedCapture = true;
+    await wait(1000);
+  }
+}
+
 async function createMockMeeting() {
   const timestamp = Date.now();
   const requestTimeoutMs = 30_000;
@@ -2363,6 +2378,12 @@ async function runMode(mode, opts = {}) {
 
   const cleanup = async () => {
     if (proc.exitCode === null) {
+      await waitForRecordingIdle(async () => {
+        const result = await httpJsonWithTimeout(`${API_BASE}/api/knapsack/recording_status`, {}, 3000);
+        return result.ok ? result.body : null;
+      }, sleep, () => console.warn("[qa-loop] Recording is active or starting; cleanup will wait until it finishes."));
+    }
+    if (proc.exitCode === null) {
       try {
         if (!proc.killed) {
           proc.kill("SIGTERM");
@@ -2768,6 +2789,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  waitForRecordingIdle,
   runConcurrentFeedSmoke,
   waitForQaRuntimeOwnership,
   buildGroupChatQaRequest,

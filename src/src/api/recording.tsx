@@ -11,6 +11,7 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 
 export interface RecordingStatus {
   isRecording: boolean
+  isStarting?: boolean
   threadId: number
   feedItemId: number
   success: true

@@ -304,3 +304,14 @@ test('QA waits for supervised runtime ownership rather than early API readiness'
   assert.equal((await waitForQaRuntimeOwnership({ exitCode: 1 }, [], 100, 1)).ok, false)
   assert.equal((await waitForQaRuntimeOwnership({ exitCode: null }, [], 5, 1)).ok, false)
 })
+
+
+test('QA cleanup waits through user recording startup, capture and finalization', async () => {
+  const { waitForRecordingIdle } = require('./qa-loop-runner.cjs')
+  const states = [{ isStarting: true }, { isRecording: true }, null, { isStopping: true }, { isRecording: false }]
+  let waits = 0, warnings = 0
+  await waitForRecordingIdle(async () => states.shift(), async () => { waits++ }, () => { warnings++ })
+  assert.equal(waits, 4)
+  assert.equal(warnings, 1)
+  assert.equal(states.length, 0)
+})

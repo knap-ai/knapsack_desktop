@@ -92,6 +92,8 @@ struct Opt {
 #[serde(rename_all = "camelCase")]
 pub struct RecordStatusResponse {
   pub is_recording: bool,
+  pub is_starting: bool,
+  pub is_stopping: bool,
   pub thread_id: Option<u64>,
   pub feed_item_id: Option<u64>,
   pub success: bool,
@@ -411,16 +413,11 @@ pub async fn start_recording(
     *feed_item_id_guard = Some(data.feed_item_id);
   }
 
+  recording_state.is_starting.store(true, Ordering::Relaxed);
   recording_state.is_recording.store(true, Ordering::Relaxed);
   recording_state.is_paused.store(false, Ordering::Relaxed);
   drop(lifecycle_guard);
   log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
-
-  // Show the floating recording indicator pill
-  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
-    let _ = indicator_window.show();
-    let _ = indicator_window.emit("recording-indicator-show", {});
-  }
 
   let opt = Opt::parse();
   let host = cpal::default_host();
@@ -548,6 +545,9 @@ pub async fn start_recording(
     }
   }
 
+  let (mic_startup_tx, mut mic_startup_rx) = mpsc::unbounded_channel::<Result<(), String>>();
+  let mic_failure_tx = mic_startup_tx.clone();
+  let mic_app_handle = app_handle.clone();
   let mic_thread = handle.spawn_blocking(move || {
     if let Err(e) = tokio::runtime::Runtime::new()
       .unwrap()
@@ -555,10 +555,12 @@ pub async fn start_recording(
         mic_input_config,
         &mic_input_device,
         is_recording_state_mic,
-        app_handle.get_ref(),
+        mic_app_handle.get_ref(),
         data.clone(),
+        mic_startup_tx,
       ))
     {
+      let _ = mic_failure_tx.send(Err(e.clone()));
       knap_log_error(
         "Error in microphone recording".to_string(),
         Some(Error::KSError(e)),
@@ -570,6 +572,30 @@ pub async fn start_recording(
   {
     let mut mic_thread_guard = recording_state.mic_thread.lock().unwrap();
     *mic_thread_guard = Some(mic_thread);
+  }
+
+  let mic_startup_error = match timeout(Duration::from_secs(8), mic_startup_rx.recv()).await {
+    Ok(Some(Ok(()))) => None,
+    Ok(Some(Err(error))) => Some(error),
+    Ok(None) => Some("Microphone stopped before it became ready".to_string()),
+    Err(_) => Some("Microphone did not become ready within 8 seconds".to_string()),
+  };
+  if let Some(error) = mic_startup_error {
+    let finalization_guard = begin_recording_finalization(&recording_state);
+    let mic = recording_state.mic_thread.lock().unwrap().take();
+    let output = recording_state.output_thread.lock().unwrap().take();
+    // Keep a new capture blocked until the hardware workers actually stop,
+    // without making the HTTP error response wait on a stuck audio driver.
+    handle.spawn(async move {
+      let _finalization_guard = finalization_guard;
+      if let Some(mic) = mic { let _ = mic.await; }
+      if let Some(output) = output { let _ = output.await; }
+    });
+    return Ok(HttpResponse::BadRequest().json(json!({
+      "error": format!("Microphone could not start: {}", error),
+      "code": "microphone_start_failed",
+      "status": "error"
+    })));
   }
 
   // If a transcript already exists for this thread (e.g., re-recording), delete it first
@@ -621,6 +647,15 @@ pub async fn start_recording(
     );
   }
 
+  recording_state.is_starting.store(false, Ordering::Relaxed);
+
+  // The timer is a capture acknowledgement, not a startup progress indicator.
+  // Only show it after audio startup and transcript creation have succeeded.
+  if let Some(indicator_window) = app_handle.get_window("recording-indicator") {
+    let _ = indicator_window.show();
+    let _ = indicator_window.emit("recording-indicator-show", {});
+  }
+
   Ok(HttpResponse::Ok().body("Recording started successfully"))
 }
 
@@ -654,6 +689,7 @@ impl Drop for StopFinalizationGuard {
 fn begin_recording_finalization(recording_state: &RecordingState) -> StopFinalizationGuard {
   let _lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
   recording_state.is_stopping.store(true, Ordering::Relaxed);
+  recording_state.is_starting.store(false, Ordering::Relaxed);
   recording_state.is_recording.store(false, Ordering::Relaxed);
   StopFinalizationGuard {
     is_stopping: recording_state.is_stopping.clone(),
@@ -1768,6 +1804,7 @@ async fn stream_audio(
   recording_state: Arc<RecordingState>,
   app_handle: &tauri::AppHandle,
   data: StartRecordingRequest,
+  startup_tx: mpsc::UnboundedSender<Result<(), String>>,
 ) -> Result<(), String> {
   log::debug!("RECORDING MIC AUDIO! -----------------------------------");
 
@@ -1926,6 +1963,7 @@ async fn stream_audio(
   stream
     .play()
     .map_err(|e| format!("Failed to start audio stream: {}", e))?;
+  let _ = startup_tx.send(Ok(()));
   let start_time = Utc::now();
   // A note started after a calendar event has already ended must not stop
   // immediately because of that stale event's timestamp.
@@ -2123,11 +2161,14 @@ fn should_stop_recording(
 
 #[get("/api/knapsack/recording_status")]
 async fn get_recording_status(recording_state: web::Data<RecordingState>) -> impl Responder {
-  let is_recording = recording_state.is_recording.load(Ordering::Relaxed);
+  let is_starting = recording_state.is_starting.load(Ordering::Relaxed);
+  let is_recording = recording_state.is_recording.load(Ordering::Relaxed) && !is_starting;
   let thread_id = recording_state.thread_id.lock().unwrap().clone();
   let feed_item_id = recording_state.feed_item_id.lock().unwrap().clone();
   let response = RecordStatusResponse {
     is_recording,
+    is_starting,
+    is_stopping: recording_state.is_stopping.load(Ordering::Relaxed),
     thread_id,
     feed_item_id,
     success: true,
@@ -2211,6 +2252,31 @@ pub async fn get_meeting_insights(path: web::Path<u64>) -> impl Responder {
 
 #[cfg(test)]
 mod tests {
+  #[actix_web::test]
+  async fn recording_status_does_not_claim_capture_during_startup() {
+    let state = actix_web::web::Data::new(crate::RecordingState::default());
+    let app = actix_web::test::init_service(
+      actix_web::App::new().app_data(state.clone()).service(super::get_recording_status)
+    ).await;
+    state.is_recording.store(true, std::sync::atomic::Ordering::Relaxed);
+    state.is_starting.store(true, std::sync::atomic::Ordering::Relaxed);
+    let request = actix_web::test::TestRequest::get().uri("/api/knapsack/recording_status").to_request();
+    let starting: serde_json::Value = actix_web::test::call_and_read_body_json(&app, request).await;
+    assert_eq!(starting["isRecording"], false);
+    assert_eq!(starting["isStarting"], true);
+
+    state.is_starting.store(false, std::sync::atomic::Ordering::Relaxed);
+    let request = actix_web::test::TestRequest::get().uri("/api/knapsack/recording_status").to_request();
+    let ready: serde_json::Value = actix_web::test::call_and_read_body_json(&app, request).await;
+    assert_eq!(ready["isRecording"], true);
+    assert_eq!(ready["isStarting"], false);
+
+    state.is_starting.store(true, std::sync::atomic::Ordering::Relaxed);
+    drop(super::begin_recording_finalization(&state));
+    assert!(!state.is_starting.load(std::sync::atomic::Ordering::Relaxed));
+    assert!(!state.is_recording.load(std::sync::atomic::Ordering::Relaxed));
+  }
+
   use super::*;
   use tempfile::TempDir;
 
