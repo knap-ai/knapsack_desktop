@@ -1,21 +1,52 @@
 import { useCallback, useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
-import { emit, listen } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { appWindow } from '@tauri-apps/api/window'
+import { isRecordingStatus } from 'src/api/recording'
 
 function RecordingIndicator() {
   const [elapsed, setElapsed] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [isActive, setIsActive] = useState(false)
+  const [stopPending, setStopPending] = useState(false)
+  const [stopError, setStopError] = useState<string | null>(null)
 
   // Listen for recording start/stop events from the main window
   useEffect(() => {
+    let disposed = false
+    let checking = false
+    let captureEpoch = 0
+    const refresh = async () => {
+      if (checking) return
+      checking = true
+      const epoch = captureEpoch
+      try {
+        const status = await isRecordingStatus()
+        if (disposed || epoch !== captureEpoch || !status) return
+        const active = status.isRecording && !status.isStarting && !status.isStopping
+        setIsActive(active)
+        if (!active) await invoke('hide_recording_indicator')
+      } catch {
+        // A transient status failure is not evidence that capture stopped.
+      } finally {
+        checking = false
+      }
+    }
     const unlistenStart = listen('recording-indicator-show', () => {
+      captureEpoch += 1
       setElapsed(0)
+      setStopError(null)
+      void refresh()
     })
     const unlistenStop = listen('recording-indicator-hide', () => {
-      invoke('hide_recording_indicator')
+      setIsActive(false)
+      void invoke('hide_recording_indicator')
     })
+    void refresh()
+    const statusInterval = setInterval(refresh, 1000)
     return () => {
+      disposed = true
+      clearInterval(statusInterval)
       unlistenStart.then(fn => fn())
       unlistenStop.then(fn => fn())
     }
@@ -23,11 +54,12 @@ function RecordingIndicator() {
 
   // Timer that counts up while visible
   useEffect(() => {
+    if (!isActive) return
     const interval = setInterval(() => {
       setElapsed(prev => prev + 1)
     }, 1000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isActive])
 
   const formatElapsed = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -49,15 +81,21 @@ function RecordingIndicator() {
     setIsDragging(false)
   }, [isDragging])
 
-  const handleStop = useCallback((e: React.MouseEvent) => {
+  const handleStop = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
-    invoke('emit_event', {
-      event: 'stop-recording-from-indicator',
-      payload: {},
-    }).catch(() => {
-      emit('stop-recording-from-indicator')
-    })
-  }, [])
+    if (stopPending) return
+    setStopPending(true)
+    setStopError(null)
+    try {
+      // The native command resolves the active thread and opens it before
+      // requesting Stop. A chat/sidebar route need not have a meeting listener.
+      await invoke('emit_stop_events')
+    } catch (error) {
+      setStopError(`Could not stop recording: ${String(error)}`)
+    } finally {
+      setStopPending(false)
+    }
+  }, [stopPending])
 
   return (
     <div
@@ -131,6 +169,7 @@ function RecordingIndicator() {
         {/* Stop button */}
         <button
           onClick={handleStop}
+          disabled={stopPending}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -144,7 +183,7 @@ function RecordingIndicator() {
             flexShrink: 0,
             padding: 0,
           }}
-          title="Stop recording"
+          title={stopError || (stopPending ? 'Opening recording…' : 'Stop recording')}
         >
           <span
             style={{

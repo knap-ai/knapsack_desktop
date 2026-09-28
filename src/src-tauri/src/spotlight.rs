@@ -170,6 +170,10 @@ pub fn toggle_overlay_window(app_handle: AppHandle<Wry>) {
 #[tauri::command]
 pub fn show_recording_indicator(app_handle: AppHandle<Wry>) {
   if let Some(window) = app_handle.get_window("recording-indicator") {
+    if !app_handle.state::<crate::RecordingState>().capture_is_active() {
+      let _ = window.hide();
+      return;
+    }
     window.show().expect("Failed to show recording indicator");
     window
       .emit("recording-indicator-show", {})
@@ -183,7 +187,11 @@ pub fn show_recording_indicator(app_handle: AppHandle<Wry>) {
 #[tauri::command]
 pub fn restore_recording_indicator(app_handle: AppHandle<Wry>) {
   if let Some(window) = app_handle.get_window("recording-indicator") {
-    let _ = window.show();
+    if app_handle.state::<crate::RecordingState>().capture_is_active() {
+      let _ = window.show();
+    } else {
+      let _ = window.hide();
+    }
   }
 }
 

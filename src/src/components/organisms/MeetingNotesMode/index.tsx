@@ -270,7 +270,7 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   // but it must not float over the active recording's in-app meeting chat.
   // A different meeting detail must never hide the global stop control.
   useEffect(() => {
-    const command = isMeetingRecording && isMeetingChatOpen
+    const command = !recordingHandlers.isAnyRecording || (isMeetingRecording && isMeetingChatOpen)
       ? 'hide_recording_indicator'
       : 'restore_recording_indicator'
     void invoke(command).catch(() => {})
@@ -1464,29 +1464,18 @@ Treat supplied email, Slack, Drive, and prior-meeting documents as the evidence 
     }
   }
 
+  const stopInFlightRef = useRef(false)
   const requestStopRecording = async (type: string) => {
+    if (stopInFlightRef.current) return
+    stopInFlightRef.current = true
     setIsEndingMeeting(true)
     try {
       await handleStopRecording(type)
     } finally {
+      stopInFlightRef.current = false
       setIsEndingMeeting(false)
     }
   }
-
-  // Keep a ref so the listener below always calls the latest stop handler
-  // without stale-closure issues (recordingHandlers changes each render when
-  // isRecordingStates updates, so capturing it in a [thread.id]-scoped effect
-  // means isRecording() always returned false and stop was silently skipped).
-  const handleStopRecordingRef = React.useRef(requestStopRecording)
-  handleStopRecordingRef.current = requestStopRecording
-
-  useEffect(() => {
-    const unlisten = listen('stop-recording-from-indicator', () => {
-      handleStopRecordingRef.current('Indicator')
-    })
-    return () => { unlisten.then(fn => fn()) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const isSynthesizing = useCallback(() => {
     return recordingHandlers.isLoadingNotes(thread.id) || isLLMLoading

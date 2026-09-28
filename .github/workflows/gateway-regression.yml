@@ -12,6 +12,15 @@ on:
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
+      - "src/src-tauri/src/audio/**"
+      - "src/src-tauri/src/main.rs"
+      - "src/src-tauri/src/spotlight.rs"
+      - "src/src-tauri/src/server/actix.rs"
+      - "src/src/App.tsx"
+      - "src/src/api/recording.tsx"
+      - "src/src/hooks/feed/useFeed.tsx"
+      - "src/src/components/molecules/RecordingIndicator/**"
+      - "src/src/components/organisms/MeetingNotesMode/**"
       - "src/src-tauri/resources/clawdbot/**"
   push:
     branches: [main, "release/*"]
@@ -24,6 +33,15 @@ on:
       - "src/src-tauri/Cargo.toml"
       - "src/src-tauri/Cargo.lock"
       - "src/src-tauri/src/clawd/**"
+      - "src/src-tauri/src/audio/**"
+      - "src/src-tauri/src/main.rs"
+      - "src/src-tauri/src/spotlight.rs"
+      - "src/src-tauri/src/server/actix.rs"
+      - "src/src/App.tsx"
+      - "src/src/api/recording.tsx"
+      - "src/src/hooks/feed/useFeed.tsx"
+      - "src/src/components/molecules/RecordingIndicator/**"
+      - "src/src/components/organisms/MeetingNotesMode/**"
       - "src/src-tauri/resources/clawdbot/**"
   workflow_dispatch:
 
@@ -66,6 +84,10 @@ jobs:
       - name: Test session permissions and native Gmail QA evidence
         working-directory: src
         run: node --test scripts/session-permission-fence.test.cjs scripts/qa-native-gmail-evidence.test.cjs
+
+      - name: Test recording lifecycle and controls
+        working-directory: src
+        run: node --test scripts/recording-indicator-state.test.cjs scripts/meeting-recording-routing.test.cjs scripts/audio-capture-readiness.test.cjs
 
       - name: Report clawdbot duplicates before prune
         working-directory: src
@@ -117,4 +139,6 @@ jobs:
         env:
           VITE_KN_API_SERVER: https://api.knapsack.ai
           VITE_GOOGLE_CLIENT_ID: "963137762742-tqs7tiv9bkh80t5io8hm5q8e798ab85s.apps.googleusercontent.com"
-        run: cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml clawd::service -- --nocapture
+          cargo test --manifest-path src-tauri/Cargo.toml audio::audio::tests -- --nocapture

@@ -10,6 +10,7 @@ use std::sync::{
 };
 use tokio::runtime::Handle;
 use tokio::sync::{Mutex, RwLock};
+use tauri::Manager;
 
 use actix_web::{get, App, HttpResponse, HttpServer, Responder};
 
@@ -101,7 +102,8 @@ pub async fn start_server<'a>(
 
   let user_info = Data::new(Arc::new(RwLock::new(UserInfo::default())));
 
-  let recording_state = RecordingState::default();
+  // Native recording controls and HTTP capture must share the same state.
+  let recording_state = app_handle.state::<RecordingState>().inner().clone();
 
   // Clawdbot integration config (in-memory for now)
   let clawdbot_cfg: SharedClawdbotConfig =

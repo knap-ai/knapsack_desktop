@@ -176,7 +176,7 @@ export interface IFeed {
   subTab: SubTabChoices
   setSubTab: React.Dispatch<React.SetStateAction<SubTabChoices>>
   setIsRecording: (item: FeedItem, isRecording: boolean | undefined) => void
-  handleClickRecording: () => void
+  handleClickRecording: (threadId?: number | null) => Promise<void>
   getRecordingFeedItemTitle: () => string | undefined
   createNewMeeting: () => Promise<
     | {
@@ -1622,7 +1622,7 @@ export function useFeed(
       feedItem.isRecording = isRecording === undefined ? !feedItem.isRecording : isRecording
       setRecordingFeedItem(feedItem.isRecording ? feedItem : null)
       setFeedContent(prevState => {
-        const updatedFeedItems = prevState[timelineKey].map(item => {
+        const updatedFeedItems = (prevState[timelineKey] || [feedItem]).map(item => {
           if (item.id === feedItem.id) {
             return feedItem
           }
@@ -1638,8 +1638,24 @@ export function useFeed(
     [],
   )
 
-  const handleClickRecording = () => {
-    setSelectedFeedItem(recordingFeedItem)
+  const handleClickRecording = async (threadId?: number | null) => {
+    // Native Stop carries the backend identity. The renderer's cached recording
+    // item may be empty after a reload or a recording started outside this view.
+    const matches = (item: FeedItem) => item.threads?.some(thread => thread.id === threadId)
+    let activeItem = threadId
+      ? Object.values(feedContent).flat().find(matches)
+      : recordingFeedItem
+    if (!activeItem && threadId) {
+      activeItem = (await getFeedItems()).find(matches)
+    }
+    if (!activeItem) throw new Error('The active recording could not be opened.')
+    const item = activeItem
+    const key = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
+    setFeedContent(previous => ({
+      ...previous,
+      [key]: [...(previous[key] || []).filter(entry => entry.id !== item.id), item],
+    }))
+    setSelectedFeedItem(item)
     setSubTab(SubTabChoices.Workspace)
   }
 
