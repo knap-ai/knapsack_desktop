@@ -32,6 +32,7 @@ mod memory;
 mod privacy_mode;
 mod privileged_worker;
 mod pty;
+mod qa_launch;
 mod search;
 mod server;
 mod spotlight;
@@ -1775,6 +1776,8 @@ async fn main() {
     clawd::studio_mcp::run_stdio_server().await;
     std::process::exit(0);
   }
+
+  qa_launch::reject_unmanaged_launch();
 
   // Must run before any other setup so the knapsack:// scheme is claimed by
   // this process. Carries the role a visitor picked on the website into
