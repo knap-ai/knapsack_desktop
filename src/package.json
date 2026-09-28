@@ -37,6 +37,7 @@
     "test:dev-intent": "node --test scripts/dev-intent.test.mjs",
     "test:audio-capture-readiness": "node --test scripts/audio-capture-readiness.test.cjs",
     "test:ollama-cloud": "node --test scripts/ollama-cloud-provider.test.cjs",
+    "test:follow-through": "node --test scripts/follow-through.test.cjs",
     "test:verifiable-loops": "node --test scripts/gbrain-verifiable-loops.test.mjs",
     "preqa:loop": "node scripts/fix-rollup-native.cjs",
     "pretauri": "node scripts/fix-rollup-native.cjs",

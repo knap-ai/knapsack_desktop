@@ -250,9 +250,9 @@ fn select_native_gmail_account<'a>(
   Err("Choose account_email from action accounts; no account is selected implicitly when multiple Gmail accounts are connected.".into())
 }
 
-async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::Value, String> {
+pub(super) async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::Value, String> {
   use serde_json::{json, Value};
-  if !matches!(params.action.as_str(), "accounts" | "list" | "get") {
+  if !matches!(params.action.as_str(), "accounts" | "list" | "get" | "thread") {
     return Err("Native Gmail supports read-only actions: accounts, list, get.".into());
   }
   let home = super::service::clawdbot_home_headless()?;
@@ -269,7 +269,7 @@ async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::
     return Ok(json!({"provider":"native_google", "accounts":accounts.iter().map(|(email,_)| email).collect::<Vec<_>>()}));
   }
   let (account, connection) = select_native_gmail_account(&accounts, params.account_email.as_deref())?;
-  let message_id = if params.action == "get" {
+  let message_id = if matches!(params.action.as_str(), "get" | "thread") {
     Some(params.message_id.as_deref().filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
       .ok_or("message_id must be the exact Gmail message ID returned by list.")?)
   } else { None };
@@ -277,6 +277,7 @@ async fn native_gmail_read_impl(params: &NativeGmailRead) -> Result<serde_json::
   let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30))
     .redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
   let url = match message_id {
+    Some(id) if params.action == "thread" => format!("https://gmail.googleapis.com/gmail/v1/users/me/threads/{id}"),
     Some(id) => format!("https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}"),
     None => "https://gmail.googleapis.com/gmail/v1/users/me/messages".to_string(),
   };
