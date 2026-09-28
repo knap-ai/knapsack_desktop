@@ -5949,7 +5949,9 @@ fn harden_state_subtree(root: &Path) {
         return; // never follow symlinks
       }
       if meta.is_dir() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        if meta.permissions().mode() & 0o7777 != 0o700 {
+          let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        }
         let entries = match std::fs::read_dir(path) {
           Ok(e) => e,
           Err(_) => return,
@@ -5958,7 +5960,9 @@ fn harden_state_subtree(root: &Path) {
           walk(&entry.path());
         }
       } else if meta.is_file() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        if meta.permissions().mode() & 0o7777 != 0o600 {
+          let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
       }
     }
     if root.exists() {

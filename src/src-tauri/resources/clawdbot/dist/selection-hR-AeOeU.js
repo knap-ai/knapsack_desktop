@@ -8108,6 +8108,17 @@ async function sessionFenceAdvanceIsBenign(params) {
 	const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
 	return lines.length > 0 && lines.every(isBenignReleasedPromptAppendLine);
 }
+async function sessionFenceMetadataChangeIsBenign(params) {
+	// Knapsack tightens state-file permissions in the background. chmod changes
+	// ctime without changing the conversation; verify bytes before accepting it.
+	const previous = params.previous;
+	if (!previous?.fingerprint.exists || typeof previous.text !== "string" || !sameSessionFileIdentity(previous.fingerprint, params.current) || previous.fingerprint.size !== params.current.size || previous.fingerprint.mtimeNs !== params.current.mtimeNs) return false;
+	try {
+		return await fs$1.readFile(params.sessionFile, "utf8") === previous.text;
+	} catch {
+		return false;
+	}
+}
 async function sessionFenceRewriteIsBenign(params) {
 	if (!params.previous?.fingerprint.exists || !params.current.exists || !params.previous.text || !sameSessionFileIdentity(params.previous.fingerprint, params.current) || params.current.size > BigInt(MAX_BENIGN_SESSION_FENCE_REWRITE_RESULT_BYTES) || params.current.size > MAX_SAFE_FILE_OFFSET) return false;
 	let currentText;
@@ -8316,11 +8327,15 @@ async function createEmbeddedAttemptSessionLockController(params) {
 		const ownedWrite = ownedSessionFileWrites.get(sessionFileFenceKey);
 		if (ownedWrite && ownedWrite.generation > fenceGeneration && sameSessionFileFingerprint(ownedWrite.fingerprint, current)) {
 			fenceFingerprint = current;
-			fenceSnapshot = { fingerprint: current };
+			fenceSnapshot = await readSessionFileFenceSnapshot(params.lockOptions.sessionFile);
 			fenceGeneration = ownedWrite.generation;
 			return;
 		}
-		if (await sessionFenceAdvanceIsBenign({
+		if (await sessionFenceMetadataChangeIsBenign({
+			sessionFile: params.lockOptions.sessionFile,
+			previous: fenceSnapshot,
+			current
+		}) || await sessionFenceAdvanceIsBenign({
 			sessionFile: params.lockOptions.sessionFile,
 			previous: fenceSnapshot,
 			current
@@ -8382,6 +8397,9 @@ async function createEmbeddedAttemptSessionLockController(params) {
 			if (fenceActive && !takeoverDetected) {
 				fenceFingerprint = readSessionFileFingerprintSync(params.lockOptions.sessionFile);
 				fenceSnapshot = { fingerprint: fenceFingerprint };
+				if (fenceFingerprint.exists && fenceFingerprint.size <= BigInt(MAX_BENIGN_SESSION_FENCE_REWRITE_BYTES)) {
+					try { fenceSnapshot.text = fs.readFileSync(params.lockOptions.sessionFile, "utf8"); } catch {}
+				}
 			}
 		},
 		async reacquireAfterPrompt() {
