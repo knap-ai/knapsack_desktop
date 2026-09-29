@@ -73,5 +73,20 @@ test('Scout accepts a successful Anthropic response without invoking fallback', 
     },
   })
 
-  assert.equal(classification, null)
+	assert.equal(classification, null)
+})
+
+test('Scout falls back when Gemini returns a successful response with zero output', () => {
+  const classification = classifyEmbeddedPiRunResultForModelFallback({
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    result: {
+      meta: {},
+      payloads: [],
+    },
+  })
+
+  assert.equal(classification?.reason, 'format')
+  assert.equal(classification?.code, 'empty_result')
+  assert.match(classification?.message ?? '', /without a visible assistant reply/)
 })
