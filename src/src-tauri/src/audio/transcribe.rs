@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::sync::Notify;
 
-/// A resolved speech-to-text provider (only OpenAI and Groq support Whisper STT).
+/// A resolved speech-to-text provider: Knapsack proxy or a user-supplied key.
 struct SttProvider {
   name: &'static str,
   api_key: String,
@@ -53,7 +53,20 @@ fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
   let groq_key = std::env::var("GROQ_API_KEY")
     .ok()
     .filter(|k| !k.trim().is_empty());
-  configured_stt_providers(&active, openai_key, groq_key)
+  let email = std::env::var("KNAPSACK_USER_EMAIL").ok()
+    .filter(|email| !email.trim().is_empty());
+  select_stt_providers(&active, openai_key, groq_key, email)
+}
+
+fn select_stt_providers(active: &str, openai_key: Option<String>, groq_key: Option<String>, email: Option<String>) -> Result<Vec<SttProvider>, LLMError> {
+  if let Some(email) = email {
+    // Do not bypass backend organization restrictions or billing with a fallback
+    // to a direct vendor key when the connected Knapsack route rejects a request.
+    return Ok(vec![SttProvider { name: "knapsack", api_key: email,
+      base_url: option_env!("VITE_KN_API_SERVER").unwrap_or("https://api.knapsack.ai"),
+      model: "whisper-large-v3-turbo" }]);
+  }
+  configured_stt_providers(active, openai_key, groq_key)
 }
 
 fn configured_stt_providers(active: &str, openai_key: Option<String>, groq_key: Option<String>) -> Result<Vec<SttProvider>, LLMError> {
@@ -79,7 +92,7 @@ fn configured_stt_providers(active: &str, openai_key: Option<String>, groq_key: 
         "whisper-large-v3-turbo",
       );
     }
-    // Anthropic, Gemini, OpenRouter, Knapsack, etc. don't offer STT directly.
+    // Other chat providers need a connected Knapsack account or a speech key.
     _ => {}
   }
 
@@ -109,9 +122,7 @@ fn configured_stt_providers(active: &str, openai_key: Option<String>, groq_key: 
   }
 
   Err(LLMError::ChatCompletionFailed(
-    "No speech-to-text provider available. Speech-to-text requires a Groq or OpenAI API \
-     key (Anthropic and Gemini don't expose a Whisper-compatible endpoint). Groq offers a \
-     free tier — add a key in Settings → AI Provider → Groq."
+    "Sign in to Knapsack to enable transcription, or add a Groq or OpenAI API key in Settings → AI Provider."
       .into(),
   ))
 }
@@ -157,6 +168,9 @@ async fn speech_to_text(
     return Err(LLMError::ChatCompletionFailed("Audio file does not exist".to_string()).into());
   }
 
+  if provider.name == "knapsack" && fs::metadata(audio_file)?.len() > 25 * 1024 * 1024 {
+    return Err(LLMError::ChatCompletionFailed("Audio chunk exceeds the 25 MB transcription limit. Your recording is preserved.".into()).into());
+  }
   let file_bytes = tokio::fs::read(&audio_file)
     .await
     .map_err(|_| LLMError::ChatCompletionFailed("Failed to read audio file".to_string()))?;
@@ -172,6 +186,10 @@ async fn speech_to_text(
     .build()
     .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
 
+  let mut bearer = if provider.name == "knapsack" {
+    crate::llm::use_cases::complete::resolve_knapsack_bearer_token(&provider.api_key).await?
+  } else { provider.api_key.clone() };
+  let mut refreshed = false;
   let max_retries = 3u32;
   let mut last_status = None;
   let mut last_error_message: Option<String> = None;
@@ -193,10 +211,19 @@ async fn speech_to_text(
       form = form.text("temperature", temp.to_string());
     }
 
-    let response = match client
-      .post(provider.base_url)
-      .header("Authorization", format!("Bearer {}", provider.api_key))
-      .multipart(form)
+    // Privacy can be enabled during an in-flight recording or retry delay.
+    if crate::privacy_mode::get_privacy_mode_status().enabled {
+      return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode.".into()).into());
+    }
+    let request = if provider.name == "knapsack" {
+      client.post(format!("{}/audio/transcriptions", provider.base_url.trim_end_matches('/')))
+        .header("Content-Type", "audio/flac")
+        .body(file_bytes.clone())
+    } else {
+      client.post(provider.base_url).multipart(form)
+    };
+    let response = match request
+      .bearer_auth(&bearer)
       .send()
       .await
     {
@@ -222,6 +249,12 @@ async fn speech_to_text(
     };
 
     let status = response.status();
+    if provider.name == "knapsack" && status == reqwest::StatusCode::UNAUTHORIZED && !refreshed {
+      refreshed = true;
+      bearer = crate::clawd::browser::refresh_knapsack_access_token(None).await
+        .ok_or_else(|| LLMError::ChatCompletionFailed("Sign in to Knapsack again to resume transcription. Your audio is preserved.".into()))?;
+      continue;
+    }
 
     if status.is_success() {
       let transcription: TranscriptionResponse = response
@@ -275,7 +308,16 @@ async fn speech_to_text(
       continue;
     }
 
-    last_error_message = Some(status.to_string());
+    last_error_message = Some(if provider.name == "knapsack" {
+      match status.as_u16() {
+        401 => "Sign in to Knapsack again to resume transcription".into(),
+        402 => "Add Knapsack credits to resume transcription".into(),
+        403 => "Your organization does not allow Groq transcription".into(),
+        404 | 503 => "Knapsack transcription is not available yet. Please contact support".into(),
+        413 => "Audio chunk exceeds the transcription upload limit".into(),
+        _ => status.to_string(),
+      }
+    } else { status.to_string() });
 
     break;
   }
@@ -314,7 +356,7 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
 
   for provider in providers.iter() {
     log::info!("[transcribe] Using {} for speech-to-text", provider.name);
-    match speech_to_text(provider, audio_file, Some("en"), Some(0.5)).await {
+    match speech_to_text(provider, audio_file, None, Some(0.0)).await {
       Ok(transcription) => {
         log::debug!(
           "------------------ {} Transcribed text: {}",
@@ -615,7 +657,22 @@ mod tests {
   #[test]
   fn knapsack_chat_without_speech_credentials_reports_missing_transcription() {
     let result = configured_stt_providers("knapsack", None, None);
-    assert!(result.err().unwrap().to_string().contains("speech-to-text"));
+    assert!(result.err().unwrap().to_string().contains("Sign in to Knapsack"));
+  }
+
+  #[test]
+  fn connected_knapsack_transcribes_without_vendor_keys() {
+    let providers = select_stt_providers("knapsack", None, None, Some("test@example.com".into())).unwrap();
+    assert_eq!(providers.len(), 1);
+    assert_eq!(providers[0].name, "knapsack");
+  }
+
+  #[test]
+  fn connected_account_does_not_bypass_proxy_restrictions_with_vendor_fallback() {
+    let providers = select_stt_providers("openai", Some("key".into()), Some("key".into()), Some("test@example.com".into())).unwrap();
+    assert_eq!(providers.len(), 1);
+    assert_eq!(providers[0].name, "knapsack");
+    assert_eq!(select_stt_providers("groq", None, Some("key".into()), None).unwrap()[0].name, "groq");
   }
 
   #[test]

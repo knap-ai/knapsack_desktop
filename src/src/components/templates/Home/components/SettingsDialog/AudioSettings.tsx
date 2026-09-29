@@ -9,6 +9,7 @@ type Devices = {
   defaultOutput: string | null;
   canSelectSpeaker: boolean;
   transcriptionError: string | null;
+  knapsackTranscription: boolean;
 };
 export default function AudioSettings() {
   const [devices, setDevices] = useState<Devices | null>(null);
@@ -153,7 +154,9 @@ export default function AudioSettings() {
           {devices?.transcriptionError
             ? devices.transcriptionError
             : devices
-              ? "Speech-to-text provider configured. A recording still requires a working microphone and permission."
+              ? devices.knapsackTranscription
+                ? "Transcription through Knapsack (powered by Groq). No separate API key needed. Audio is sent through Knapsack to Groq for processing; Knapsack does not retain it on its servers."
+                : "Speech-to-text provider configured. A recording still requires a working microphone and permission."
               : "Checking…"}
         </p>
       </div>

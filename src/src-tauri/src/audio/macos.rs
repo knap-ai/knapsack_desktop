@@ -211,9 +211,9 @@ unsafe extern "C" fn tap_io_proc(
     }
   }
 
-  // Periodic chunk saving (every 150 seconds, same interval as before)
+  // Periodic chunks keep meeting chat and insights up to date
   let now = Instant::now();
-  if now.duration_since(state.last_save) >= Duration::from_secs(150) {
+  if now.duration_since(state.last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL {
     let chunk: Vec<f32> = state.samples.drain(..).collect();
     let counter = state.chunk_counter;
     state.chunk_counter += 1;

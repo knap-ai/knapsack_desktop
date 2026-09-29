@@ -16,3 +16,6 @@ pub mod windows;
 pub mod linux;
 
 pub mod devices;
+
+/// Keep meeting chat and insights current while recording, on every platform.
+pub const TRANSCRIPTION_CHUNK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);

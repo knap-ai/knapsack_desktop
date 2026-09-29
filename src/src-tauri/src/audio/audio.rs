@@ -183,7 +183,7 @@ fn write_audio_data<T, U>(
   super::devices::update_microphone_level(&samples);
   global_samples.extend_from_slice(&samples);
 
-  let should_save = now.duration_since(*last_save) >= Duration::from_secs(150);
+  let should_save = now.duration_since(*last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL;
 
   if should_save {
     let chunk_samples = global_samples.drain(..).collect::<Vec<i32>>();
@@ -800,7 +800,7 @@ pub async fn stop_recording(
     return HttpResponse::InternalServerError().body(err_msg);
   }
 
-  // Periodic 150-second chunks are transcribed on detached worker threads.
+  // Periodic audio chunks are transcribed on detached worker threads.
   // Wait for every registered worker before merging; otherwise Stop can race
   // ahead and generate notes from only the final chunk (usually the meeting's
   // closing remarks).

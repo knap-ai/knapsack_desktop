@@ -92,7 +92,7 @@ impl AudioRecorder {
           samples.extend(chunk);
           let mut last_save = last_save.lock().unwrap();
           let now = Instant::now();
-          if now.duration_since(*last_save).as_secs() >= 150 {
+          if now.duration_since(*last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL {
             let mut counter = chunk_counter.lock().unwrap();
             let chunk_filename = format!("{}_{}.flac", output_path, *counter);
             let transcript_filename = format!("{}.txt", output_path);
