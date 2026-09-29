@@ -59,13 +59,13 @@ function classifyEmbeddedPiRunResultForModelFallback(params) {
 		reason: "format",
 		code: "incomplete_result"
 	};
-	if (!isGpt5ModelId(params.model)) return null;
 	if (payloads.length === 0 && hasDeliberateSilentTerminalReply(params.result)) return null;
 	if (payloads.length === 0) return {
 		message: `${params.provider}/${params.model} ended without a visible assistant reply`,
 		reason: "format",
 		code: "empty_result"
 	};
+	if (!isGpt5ModelId(params.model)) return null;
 	if (payloads.every((payload) => payload.isReasoning === true)) return {
 		message: `${params.provider}/${params.model} ended with reasoning only`,
 		reason: "format",
