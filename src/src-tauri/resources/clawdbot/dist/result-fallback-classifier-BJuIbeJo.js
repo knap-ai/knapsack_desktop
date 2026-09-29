@@ -45,6 +45,7 @@ function classifyEmbeddedPiRunResultForModelFallback(params) {
 		result: params.result
 	});
 	if (harnessClassification) return harnessClassification;
+	if (params.result.meta.error) return null;
 	const payloads = params.result.payloads ?? [];
 	const errorText = payloads.filter((payload) => payload?.isError === true).map((payload) => typeof payload.text === "string" ? payload.text : "").join("\n");
 	const providerErrorText = errorText;
