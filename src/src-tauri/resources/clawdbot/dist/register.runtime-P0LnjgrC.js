@@ -41,6 +41,8 @@ const ANTHROPIC_SONNET_46_MODEL_ID = "claude-sonnet-4-6";
 const ANTHROPIC_SONNET_46_DOT_MODEL_ID = "claude-sonnet-4.6";
 const ANTHROPIC_SONNET_TEMPLATE_MODEL_IDS = ["claude-sonnet-4-5", "claude-sonnet-4.5"];
 const ANTHROPIC_MODERN_MODEL_PREFIXES = [
+	"claude-opus-5-5",
+	"claude-opus-5.5",
 	"claude-opus-4-7",
 	"claude-opus-4.7",
 	"claude-opus-4-6",
@@ -168,6 +170,16 @@ function resolveAnthropic46ForwardCompatModel(params) {
 	});
 }
 function resolveAnthropicForwardCompatModel(ctx) {
+	// The API catalog can advance ahead of the bundled pi-ai registry.
+	if (ctx.modelId.trim() === "claude-opus-5-5" || ctx.modelId.trim() === "claude-opus-5.5") {
+		return cloneFirstTemplateModel({
+			providerId: PROVIDER_ID,
+			modelId: "claude-opus-5-5",
+			templateIds: ["claude-opus-4-7", "claude-opus-4-6"],
+			ctx,
+			patch: { name: "Claude Opus 5.5", contextWindow: 1000000, contextTokens: 1000000, maxTokens: 128000, reasoning: true }
+		});
+	}
 	return resolveAnthropic46ForwardCompatModel({
 		ctx,
 		dashModelId: ANTHROPIC_OPUS_47_MODEL_ID,

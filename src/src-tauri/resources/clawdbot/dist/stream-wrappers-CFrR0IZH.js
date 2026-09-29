@@ -103,11 +103,29 @@ function resolveAnthropicServiceTier(extraParams) {
 	}
 	return normalized;
 }
+// Opus 5.5 requires adaptive thinking, including when a caller requests off.
+// Normalize at the provider boundary so both native and pi-ai transports comply.
+function createAnthropicOpus55ThinkingWrapper(baseStreamFn, thinkingLevel) {
+	const underlying = baseStreamFn ?? streamSimple;
+	return (model, context, options) => {
+		if (model.api !== "anthropic-messages" || !["claude-opus-5-5", "claude-opus-5.5"].includes(model.id)) return underlying(model, context, options);
+		return streamWithPayloadPatch(underlying, model, context, options, (payload) => {
+			const level = thinkingLevel ?? options?.reasoning ?? "medium";
+			const effort = ["off", "minimal", "low"].includes(level) ? "low" : ["medium", "high", "xhigh", "max"].includes(level) ? level : "medium";
+			payload.model = "claude-opus-5-5";
+			payload.thinking = { type: "adaptive" };
+			payload.output_config = { ...payload.output_config, effort };
+			// Temperature and assistant prefill are incompatible with adaptive thinking.
+			delete payload.temperature;
+			stripTrailingAnthropicAssistantPrefillWhenThinking(payload);
+		});
+	};
+}
 function wrapAnthropicProviderStream(ctx) {
 	const anthropicBetas = resolveAnthropicBetas(ctx.extraParams, ctx.modelId);
 	const serviceTier = resolveAnthropicServiceTier(ctx.extraParams);
 	const fastMode = resolveAnthropicFastMode(ctx.extraParams);
-	return composeProviderStreamWrappers(ctx.streamFn, anthropicBetas?.length ? (streamFn) => createAnthropicBetaHeadersWrapper(streamFn, anthropicBetas) : void 0, serviceTier ? (streamFn) => createAnthropicServiceTierWrapper(streamFn, serviceTier) : void 0, fastMode !== void 0 ? (streamFn) => createAnthropicFastModeWrapper(streamFn, fastMode) : void 0, (streamFn) => createAnthropicThinkingPrefillWrapper(streamFn));
+	return composeProviderStreamWrappers(ctx.streamFn, anthropicBetas?.length ? (streamFn) => createAnthropicBetaHeadersWrapper(streamFn, anthropicBetas) : void 0, serviceTier ? (streamFn) => createAnthropicServiceTierWrapper(streamFn, serviceTier) : void 0, fastMode !== void 0 ? (streamFn) => createAnthropicFastModeWrapper(streamFn, fastMode) : void 0, (streamFn) => createAnthropicThinkingPrefillWrapper(streamFn), (streamFn) => createAnthropicOpus55ThinkingWrapper(streamFn, ctx.thinkingLevel));
 }
 const testing = {
 	log,
