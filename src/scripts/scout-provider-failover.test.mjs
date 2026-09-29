@@ -49,18 +49,25 @@ test('Scout falls back when Anthropic returns a workspace-scoping error as an er
   assert.match(classification?.message ?? '', /anthropic-workspace-id/)
 })
 
-test('Scout falls back when a provider error is embedded in run metadata', () => {
+test('Scout preserves intentional terminal errors instead of invoking provider fallback', () => {
   const classification = classifyEmbeddedPiRunResultForModelFallback({
     provider: 'anthropic',
     model: 'claude-sonnet-4-5',
     result: {
-      meta: { error: new Error(anthropicWorkspaceError) },
-      payloads: [],
+      meta: {
+        error: {
+          kind: 'role_ordering',
+          message: '400 messages must alternate roles; send /new',
+        },
+      },
+      payloads: [{
+        text: '400 messages must alternate roles; send /new',
+        isError: true,
+      }],
     },
   })
 
-  assert.equal(classification?.reason, 'format')
-  assert.equal(classification?.code, 'provider_error_result')
+  assert.equal(classification, null)
 })
 
 test('Scout accepts a successful Anthropic response without invoking fallback', () => {
@@ -74,6 +81,19 @@ test('Scout accepts a successful Anthropic response without invoking fallback', 
   })
 
 	assert.equal(classification, null)
+})
+
+test('Scout accepts a successful Gemini response without invoking fallback', () => {
+  const classification = classifyEmbeddedPiRunResultForModelFallback({
+    provider: 'gemini',
+    model: 'gemini-3.8-flash',
+    result: {
+      meta: {},
+      payloads: [{ text: 'Gemini is working.', isError: false }],
+    },
+  })
+
+  assert.equal(classification, null)
 })
 
 test('Scout falls back when Gemini returns a successful response with zero output', () => {
