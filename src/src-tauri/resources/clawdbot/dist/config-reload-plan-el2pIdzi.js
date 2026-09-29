@@ -142,6 +142,12 @@ const BASE_RELOAD_RULES_TAIL = [
 		kind: "none"
 	},
 	{
+		// Channel monitors retain their startup config. Refresh them when the
+		// workspace mount policy changes instead of silently retaining old access.
+		prefix: "agents.defaults.sandbox.workspaceAccess",
+		kind: "restart"
+	},
+	{
 		prefix: "agents",
 		kind: "none"
 	},
