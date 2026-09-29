@@ -97,6 +97,8 @@ pub struct RecordStatusResponse {
   pub thread_id: Option<u64>,
   pub feed_item_id: Option<u64>,
   pub success: bool,
+  pub transcription_error: Option<String>,
+  pub microphone_level: f32,
 }
 
 #[derive(Serialize)]
@@ -178,6 +180,7 @@ fn write_audio_data<T, U>(
     })
     .collect();
 
+  super::devices::update_microphone_level(&samples);
   global_samples.extend_from_slice(&samples);
 
   let should_save = now.duration_since(*last_save) >= Duration::from_secs(150);
@@ -218,39 +221,6 @@ fn write_audio_data<T, U>(
   }
 }
 
-/// On macOS, checks whether a meeting app has opened a non-default microphone
-/// and returns that device if found.  Falls back to the system default input.
-///
-/// This matters when the user has selected an external headset or monitor mic
-/// in their meeting app (Zoom, Teams) without changing the macOS system default.
-/// Must be called BEFORE opening the notetaker's own mic stream.
-#[cfg(target_os = "macos")]
-fn get_best_input_device(host: &cpal::Host) -> Option<cpal::Device> {
-  let default = host.default_input_device();
-  let default_name = default
-    .as_ref()
-    .and_then(|d| d.name().ok())
-    .unwrap_or_default();
-
-  // Find an input device that is already running (used by a meeting app) and
-  // is different from the system default.  When found, prefer it over the
-  // default so Knapsack captures the same mic as the meeting app.
-  let active_names = crate::audio::macos::get_active_input_device_names();
-  if let Some(preferred_name) = active_names.into_iter().find(|n| n != &default_name) {
-    log::info!(
-      "[recording] Preferring actively-used non-default mic: {}",
-      preferred_name
-    );
-    if let Ok(mut devices) = host.input_devices() {
-      if let Some(dev) = devices.find(|d| d.name().map(|n| n == preferred_name).unwrap_or(false)) {
-        return Some(dev);
-      }
-    }
-  }
-
-  default
-}
-
 fn setup_audio_device(
   host: &cpal::Host,
   device_name: &str,
@@ -266,25 +236,10 @@ fn setup_audio_device(
     if is_input { "input" } else { "output" },
     device_name
   );
-  let o_devices_res = host.output_devices();
-  let _o_devices = match o_devices_res {
-    Ok(od) => od,
-    Err(_) => return Err("Error".to_string()),
-  };
-
-  let device = if device_name == "default" {
-    if is_input {
-      #[cfg(target_os = "macos")]
-      {
-        get_best_input_device(host)
-      }
-      #[cfg(not(target_os = "macos"))]
-      {
-        host.default_input_device()
-      }
-    } else {
-      host.default_output_device()
-    }
+  let device = if is_input {
+    Some(super::devices::input_device(if device_name == "default" { None } else { Some(device_name) })?)
+  } else if device_name == "default" {
+    host.default_output_device()
   } else {
     let devices = if is_input {
       host.input_devices()
@@ -303,6 +258,7 @@ fn setup_audio_device(
     )
   })?;
 
+  log::info!("[recording] Selected audio device: {}", device.name().unwrap_or_default());
   let config = if is_input {
     let config = device.default_input_config().map_err(|e| {
       log::error!("Error getting default audio device config: {:?}", e);
@@ -375,6 +331,14 @@ pub async fn start_recording(
     })));
   }
 
+  let mut opt = Opt::parse();
+  if opt.device == "default" {
+    match super::devices::preferences(&app_handle) {
+      Ok(preferences) => opt.device = preferences.microphone.unwrap_or_else(|| "default".into()),
+      Err(error) => return Ok(HttpResponse::InternalServerError().json(json!({ "error": error }))),
+    }
+  }
+
   // Publish recording identity and active state atomically with respect to
   // recording deletion and note saves.
   let lifecycle_guard = RECORDING_LIFECYCLE_LOCK.lock().unwrap();
@@ -424,7 +388,6 @@ pub async fn start_recording(
   drop(lifecycle_guard);
   log::info!("[recording] Recording state set: is_recording=true, is_paused=false");
 
-  let opt = Opt::parse();
   let host = cpal::default_host();
   log::info!(
     "[recording] Audio host: {:?}, device setting: {}",
@@ -441,6 +404,11 @@ pub async fn start_recording(
   let stale_output_txt = transcripts_dir.join(format!("{}.txt", output_filename));
   let _ = std::fs::remove_file(&stale_input_txt);
   let _ = std::fs::remove_file(&stale_output_txt);
+
+  super::transcribe::clear_transcription_error(&format!("{}.txt", input_filename));
+  super::transcribe::clear_transcription_error(&format!("{}.txt", output_filename));
+
+  super::devices::update_microphone_level(&[]);
 
   // Setup input device
   let input_wav_path = knapsack_data_dir.join(&input_filename);
@@ -2197,6 +2165,11 @@ async fn get_recording_status(recording_state: web::Data<RecordingState>) -> imp
     is_stopping: recording_state.is_stopping.load(Ordering::Relaxed),
     thread_id,
     feed_item_id,
+    microphone_level: if is_recording { super::devices::microphone_level() } else { 0.0 },
+    transcription_error: recording_state.input_filename.lock().unwrap().as_ref()
+      .and_then(|name| super::transcribe::transcription_error(&format!("{}.txt", name)))
+      .or_else(|| recording_state.output_filename.lock().unwrap().as_ref()
+        .and_then(|name| super::transcribe::transcription_error(&format!("{}.txt", name)))),
     success: true,
   };
 

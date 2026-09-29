@@ -51,6 +51,7 @@ import { invoke } from '@tauri-apps/api/tauri'
 import { open as openExternalUrl } from '@tauri-apps/api/shell'
 
 import styles from './styles.module.scss'
+import AudioSettings from './AudioSettings'
 
 type SettingsDialogProps = {
   handlePrivacyLinkClick: () => void
@@ -1429,12 +1430,15 @@ export const SettingsDialog = ({
       onClose={handleClose}
       isOpen={isOpen}
       dismissable
-      className="flex items-center justify-center my-[88px] h-[100vh]"
+      className={styles.fullScreenSettings}
     >
       <div
         ref={settingsContainerRef}
-        className="SettingsContainer relative flex flex-col w-[420px] rounded-lg border border-solid border-zinc-200 bg-white flex-col max-h-[calc(100vh-166px)] overflow-auto"
+        className={`SettingsContainer ${styles.settingsBody}`}
       >
+        <header className={styles.settingsHeader}><h1>Settings</h1></header>
+        <AudioSettings />
+        <hr className="border-zinc-200" />
         <div className="NotificationContainer p-6 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Notifications</Typography>
           <div className="NotificationContent flex flex-col gap-6">

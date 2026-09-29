@@ -13,6 +13,8 @@ export interface RecordingStatus {
   isRecording: boolean
   isStarting?: boolean
   isStopping?: boolean
+  transcriptionError?: string | null
+  microphoneLevel?: number
   threadId: number | null
   feedItemId: number | null
   success: true
