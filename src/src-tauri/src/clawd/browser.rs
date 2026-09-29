@@ -32,6 +32,8 @@ const AGENT_CHAT_DIRECT_FALLBACK_TIMEOUT: Duration = Duration::from_secs(30);
 #[derive(Debug, Serialize)]
 struct ScheduledTaskSummary {
   id: String,
+  agent_id: Option<String>,
+  session_key: Option<String>,
   name: String,
   enabled: bool,
   schedule: JsonValue,
@@ -54,6 +56,8 @@ fn scheduled_task_summaries(value: &JsonValue) -> Vec<ScheduledTaskSummary> {
       let id = job.get("id")?.as_str()?.to_string();
       Some(ScheduledTaskSummary {
         id,
+        agent_id: job.get("agentId").and_then(JsonValue::as_str).map(str::to_string),
+        session_key: job.get("sessionKey").and_then(JsonValue::as_str).map(str::to_string),
         name: job
           .get("name")
           .and_then(JsonValue::as_str)
@@ -130,6 +134,8 @@ mod scheduled_task_tests {
   fn summaries_exclude_private_payloads_and_keep_job_status() {
     let tasks = json!({"jobs": [{
       "id": "daily-report",
+      "agentId": "main",
+      "sessionKey": "agent:main:webchat:dm:ui-agent-polly",
       "name": "Daily report",
       "enabled": true,
       "schedule": {"kind": "cron", "expr": "0 8 * * *", "tz": "America/Los_Angeles"},
@@ -141,6 +147,9 @@ mod scheduled_task_tests {
     let summaries = scheduled_task_summaries(&tasks);
     assert_eq!(summaries.len(), 1);
     assert_eq!(summaries[0].id, "daily-report");
+    assert_eq!(summaries[0].agent_id.as_deref(), Some("main"));
+    assert_eq!(summaries[0].session_key.as_deref(), Some("agent:main:webchat:dm:ui-agent-polly"));
+    assert!(!serde_json::to_string(&summaries).unwrap().contains("private report instruction"));
     assert!(summaries[0].enabled);
     assert_eq!(summaries[0].next_run_at_ms, Some(1_800_000_000_000));
     assert_eq!(summaries[0].schedule["kind"], "cron");
