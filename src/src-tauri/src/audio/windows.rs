@@ -111,14 +111,12 @@ impl AudioRecorder {
                 let _transcription_job = transcription_job;
                 let rt = Runtime::new().unwrap();
                 rt.block_on(async {
-                  let permit = semaphore_clone.acquire().await.unwrap();
                   let samples_i32: Vec<i32> = samples_to_save
                     .iter()
                     .map(|&sample| (sample * i16::MAX as f32) as i16 as i32)
                     .collect();
                   save_chunk(samples_i32, chunk_filename.clone(), 1, 44100);
-                  finalize_chunk(chunk_filename, transcript_filename).await;
-                  drop(permit);
+                  super::transcribe::finalize_live_chunk(chunk_filename, transcript_filename, &semaphore_clone).await;
                 });
               });
 

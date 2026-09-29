@@ -203,16 +203,8 @@ fn write_audio_data<T, U>(
         }
       };
       rt.block_on(async {
-        let permit = match semaphore.acquire().await {
-          Ok(p) => p,
-          Err(e) => {
-            log::error!("Failed to acquire semaphore: {}", e);
-            return;
-          }
-        };
         save_chunk(chunk_samples, chunk_filename.clone(), channel, sample_rate);
-        finalize_chunk(chunk_filename, transcript_filename).await;
-        drop(permit);
+        super::transcribe::finalize_live_chunk(chunk_filename, transcript_filename, &semaphore).await;
       });
     });
 
@@ -804,10 +796,9 @@ pub async fn stop_recording(
   // Wait for every registered worker before merging; otherwise Stop can race
   // ahead and generate notes from only the final chunk (usually the meeting's
   // closing remarks).
-  // A single provider can spend up to four 120-second attempts plus retry
-  // backoff, and transcription can fall back to a second provider. Keep the
-  // barrier compatible with that worst-case budget so a slow but valid job is
-  // still finalized instead of becoming permanently unreachable after Stop.
+  // Live chunks now have a five-second admission deadline and twenty-second
+  // total transcription deadline, so provider retries cannot grow an unbounded
+  // queue. Keep the existing conservative barrier for encoder/runtime delays.
   if !wait_for_transcription_jobs(Duration::from_secs(18 * 60)).await {
     let err_msg = "Timed out waiting for all meeting audio chunks to finish transcription";
     log::error!("[recording] {}", err_msg);

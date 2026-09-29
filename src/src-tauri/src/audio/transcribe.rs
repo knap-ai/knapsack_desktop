@@ -413,12 +413,26 @@ pub async fn transcribe_audio(audio_file: &PathBuf, filename: String) -> Result<
   )
 }
 
+/// Bound queue admission as well as the network work. Audio must be saved before
+/// calling this helper, so a saturated provider never loses captured samples.
+pub async fn finalize_live_chunk(audio_filename: String, transcript_filename: String, semaphore: &tokio::sync::Semaphore) {
+  match tokio::time::timeout(Duration::from_secs(5), semaphore.acquire()).await {
+    Ok(Ok(_permit)) => finalize_chunk(audio_filename, transcript_filename).await,
+    _ => {
+      TRANSCRIPTION_ERRORS.lock().unwrap().insert(transcript_filename,
+        "Transcription is behind; audio is saved locally. Check your transcription provider.".into());
+    }
+  }
+}
+
 pub async fn finalize_chunk(audio_filename: String, transcript_filename: String) {
   let home_dir = dirs::home_dir().expect("Couldn't get home_dir for platform.");
   let knapsack_data_dir = home_dir.join(".knapsack");
   let flac_path = knapsack_data_dir.join("audio");
   let audio_path = flac_path.join(&audio_filename);
-  match transcribe_audio(&audio_path, transcript_filename.clone()).await {
+  let result = tokio::time::timeout(Duration::from_secs(20), transcribe_audio(&audio_path, transcript_filename.clone())).await
+    .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()));
+  match result {
     Ok(_) => {
       if let Err(e) = fs::remove_file(&audio_path) {
         log::error!("Failed to delete audio file after transcription: {:?}", e);
@@ -926,6 +940,17 @@ mod tests {
     // Should return Ok with empty string, not an error
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "");
+  }
+
+  #[tokio::test]
+  async fn saturated_transcription_queue_returns_without_deleting_saved_audio() {
+    let semaphore = tokio::sync::Semaphore::new(0);
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let start = tokio::time::Instant::now();
+    finalize_live_chunk(file.path().to_string_lossy().into_owned(), "queue-timeout-test.txt".into(), &semaphore).await;
+    assert!(start.elapsed() < Duration::from_secs(7));
+    assert!(file.path().exists());
+    assert!(TRANSCRIPTION_ERRORS.lock().unwrap().remove("queue-timeout-test.txt").unwrap().contains("audio is saved"));
   }
 
   #[tokio::test]

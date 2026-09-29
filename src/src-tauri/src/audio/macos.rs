@@ -245,14 +245,12 @@ fn save_chunk_async(chunk: Vec<f32>, counter: u32) {
     let _transcription_job = transcription_job;
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-      let permit = semaphore.acquire().await.unwrap();
       let samples_16bit: Vec<i32> = chunk
         .iter()
         .map(|&s| (s * i16::MAX as f32) as i16 as i32)
         .collect();
       save_chunk(samples_16bit, filename.clone(), 1, 48000);
-      finalize_chunk(filename, transcript_filename).await;
-      drop(permit);
+      super::transcribe::finalize_live_chunk(filename, transcript_filename, &semaphore).await;
     });
   });
 }
