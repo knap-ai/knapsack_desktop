@@ -65,6 +65,10 @@ function isClaudeAdaptiveThinkingDefaultModelId(modelId) {
 }
 /** @deprecated Anthropic provider-owned model helper; do not use from third-party plugins. */
 function resolveClaudeThinkingProfile(modelId) {
+	if (["claude-opus-5-5", "claude-opus-5.5"].includes(normalizeOptionalLowercaseString(modelId))) return {
+		levels: [{ id: "low" }, { id: "medium" }, { id: "high" }, { id: "xhigh" }, { id: "adaptive" }, { id: "max" }],
+		defaultLevel: "adaptive"
+	};
 	if (isClaudeOpus47ModelId(modelId)) return {
 		levels: [
 			...BASE_CLAUDE_THINKING_LEVELS,
