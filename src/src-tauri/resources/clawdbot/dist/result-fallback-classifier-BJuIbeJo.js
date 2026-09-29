@@ -1,6 +1,7 @@
 import { a as isGpt5ModelId } from "./gpt5-prompt-overlay-ijXG4a4G.js";
 import { r as isSilentReplyPayloadText } from "./tokens-CFv3Qu_v.js";
 import { d as hasOutboundDeliveryEvidence, f as hasVisibleAgentPayload } from "./subagent-announce-delivery-p160OmJs.js";
+import { t as classifyFailoverReason } from "./errors-DYND-qcd.js";
 //#region src/agents/pi-embedded-runner/result-fallback-classifier.ts
 const EMPTY_TERMINAL_REPLY_RE = /Agent couldn't generate a response/i;
 const PLAN_ONLY_TERMINAL_REPLY_RE = /Agent stopped after repeated plan-only turns/i;
@@ -46,6 +47,13 @@ function classifyEmbeddedPiRunResultForModelFallback(params) {
 	if (harnessClassification) return harnessClassification;
 	const payloads = params.result.payloads ?? [];
 	const errorText = payloads.filter((payload) => payload?.isError === true).map((payload) => typeof payload.text === "string" ? payload.text : "").join("\n");
+	const providerErrorText = [params.result.meta.error?.message, params.result.meta.errorMessage, errorText].filter((text) => typeof text === "string" && text.trim()).join("\n");
+	const providerErrorReason = classifyFailoverReason(providerErrorText, { provider: params.provider });
+	if (providerErrorReason) return {
+		message: providerErrorText,
+		reason: providerErrorReason,
+		code: "provider_error_result"
+	};
 	if (EMPTY_TERMINAL_REPLY_RE.test(errorText)) return {
 		message: `${params.provider}/${params.model} ended with an incomplete terminal response`,
 		reason: "format",
