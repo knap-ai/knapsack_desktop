@@ -1358,10 +1358,13 @@ fn ensure_knapsack_session_isolation(
       sandbox.insert("mode".to_string(), serde_json::json!(expected_mode));
       patched = true;
     }
+    // Slack and other channel sessions edit the managed workspace through
+    // the existing sandbox file tools, including host-scheduled Python scripts.
+    // Keep per-session containers and elevated host execution disabled.
     for (key, expected) in [
       ("backend", "docker"),
       ("scope", "session"),
-      ("workspaceAccess", "none"),
+      ("workspaceAccess", "rw"),
     ] {
       if sandbox.get(key).and_then(|value| value.as_str()) != Some(expected) {
         sandbox.insert(key.to_string(), serde_json::json!(expected));
@@ -12142,7 +12145,7 @@ async fn prepare_gateway_config(
             "mode": session_sandbox_mode,
             "backend": "docker",
             "scope": "session",
-            "workspaceAccess": "none"
+            "workspaceAccess": "rw"
           }
         }
       },
@@ -18961,7 +18964,7 @@ mod knapsack_runtime_auth_tests {
       cfg
         .pointer("/agents/defaults/sandbox/workspaceAccess")
         .and_then(|value| value.as_str()),
-      Some("none")
+      Some("rw")
     );
     assert_eq!(
       cfg
@@ -18969,6 +18972,30 @@ mod knapsack_runtime_auth_tests {
         .and_then(|value| value.as_bool()),
       Some(false)
     );
+  }
+
+  #[test]
+  fn shared_channel_sessions_can_edit_managed_workspace_scripts() {
+    let mut cfg = serde_json::json!({
+      "agents": { "defaults": {
+        "workspace": "/managed/scout-workspace",
+        "sandbox": { "workspaceAccess": "none" }
+      } }
+    });
+    assert!(ensure_knapsack_session_isolation(&mut cfg, true, true));
+    for (pointer, expected) in [
+      ("/agents/defaults/sandbox/workspaceAccess", "rw"),
+      ("/agents/defaults/workspace", "/managed/scout-workspace"),
+      ("/agents/defaults/sandbox/mode", "all"),
+      ("/agents/defaults/sandbox/scope", "session"),
+    ] {
+      assert_eq!(cfg.pointer(pointer).and_then(|value| value.as_str()), Some(expected));
+    }
+    assert_eq!(
+      cfg.pointer("/tools/elevated/enabled").and_then(|value| value.as_bool()),
+      Some(false)
+    );
+    assert!(!ensure_knapsack_session_isolation(&mut cfg, true, true));
   }
 
   #[test]
