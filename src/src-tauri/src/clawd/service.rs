@@ -1024,6 +1024,41 @@ const KNAPSACK_REQUIRED_PLUGINS: &[&str] = &[
   "xai",
 ];
 
+/// Plugin ids supplied by the signed desktop bundle. Keep this distinct from
+/// `KNAPSACK_REQUIRED_PLUGINS`: `brave` is allowed/configured by default but is
+/// not currently shipped as a bundled extension, so a user install must not be
+/// quarantined as a shadow copy.
+const KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS: &[&str] = &[
+  "browser",
+  "telegram",
+  "slack",
+  "whatsapp",
+  "google",
+  "microsoft",
+  "web-readability",
+  "document-extract",
+  "duckduckgo",
+  "exa",
+  "firecrawl",
+  "tavily",
+  "anthropic",
+  "cerebras",
+  "deepseek",
+  "fireworks",
+  "groq",
+  "huggingface",
+  "litellm",
+  "mistral",
+  "moonshot",
+  "ollama",
+  "openai",
+  "openrouter",
+  "qwen",
+  "together",
+  "venice",
+  "xai",
+];
+
 const KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS: &[&str] = &["slack", "telegram", "whatsapp"];
 
 fn configured_channel_ids_from_config(json: &serde_json::Value) -> Vec<String> {
@@ -2371,7 +2406,7 @@ fn remove_object_keys(obj: &mut serde_json::Map<String, serde_json::Value>, keys
   patched
 }
 
-fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
+fn sanitize_bundled_plugin_install_index(clawdbot_home: &Path) -> bool {
   let installs_path = clawdbot_home.join("plugins").join("installs.json");
   let contents = match fs::read_to_string(&installs_path) {
     Ok(contents) => contents,
@@ -2394,7 +2429,7 @@ fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
     .pointer_mut("/installRecords")
     .and_then(|value| value.as_object_mut())
   {
-    patched |= remove_object_keys(records, KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS);
+    patched |= remove_object_keys(records, KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS);
   }
 
   if let Some(plugins) = cfg
@@ -2407,7 +2442,7 @@ fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
         .get("pluginId")
         .and_then(|value| value.as_str())
         .unwrap_or("");
-      !KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.contains(&plugin_id)
+      !KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS.contains(&plugin_id)
     });
     patched |= plugins.len() != before;
   }
@@ -2422,8 +2457,8 @@ fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
   ) {
     Ok(_) => {
       eprintln!(
-        "[clawd/service] Removed stale installed plugin records for bundled channel plugins: {}",
-        KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS.join(", ")
+        "[clawd/service] Removed stale installed plugin records for Knapsack-bundled plugins: {}",
+        KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS.join(", ")
       );
       harden_file_permissions(&installs_path);
       if let Some(parent) = installs_path.parent() {
@@ -2442,7 +2477,7 @@ fn sanitize_bundled_channel_plugin_install_index(clawdbot_home: &Path) -> bool {
   }
 }
 
-fn sanitize_bundled_channel_npm_manifest(clawdbot_home: &Path) -> bool {
+fn sanitize_bundled_plugin_npm_manifest(clawdbot_home: &Path) -> bool {
   let package_path = clawdbot_home.join("npm").join("package.json");
   let contents = match fs::read_to_string(&package_path) {
     Ok(contents) => contents,
@@ -2460,7 +2495,7 @@ fn sanitize_bundled_channel_npm_manifest(clawdbot_home: &Path) -> bool {
     }
   };
 
-  let npm_names: Vec<String> = KNAPSACK_BUNDLED_CHANNEL_PLUGIN_IDS
+  let npm_names: Vec<String> = KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS
     .iter()
     .map(|plugin_id| format!("@openclaw/{}", plugin_id))
     .collect();
@@ -2494,7 +2529,7 @@ fn sanitize_bundled_channel_npm_manifest(clawdbot_home: &Path) -> bool {
   ) {
     Ok(_) => {
       eprintln!(
-        "[clawd/service] Removed stale managed npm dependencies for bundled channel plugins: {}",
+        "[clawd/service] Removed stale managed npm dependencies for Knapsack-bundled plugins: {}",
         npm_names.join(", ")
       );
       harden_file_permissions(&package_path);
@@ -2511,15 +2546,74 @@ fn sanitize_bundled_channel_npm_manifest(clawdbot_home: &Path) -> bool {
   }
 }
 
-/// Prefer Knapsack's signed, bundled channel plugins over stale per-user plugin
-/// installs left behind by older OpenClaw versions. OpenClaw's registry gives a
-/// persisted install record precedence over bundled plugins; if that record
-/// points at an older or partially pruned package, config validation fails
-/// before the gateway binds. This repair is local-state only and does not touch
-/// the signed app bundle or run npm/doctor on the startup path.
-fn sanitize_bundled_channel_plugin_install_state(clawdbot_home: &Path) -> bool {
-  sanitize_bundled_channel_plugin_install_index(clawdbot_home)
-    | sanitize_bundled_channel_npm_manifest(clawdbot_home)
+/// Move per-user copies of Knapsack-bundled plugins out of OpenClaw's discovery
+/// root. Older builds copied compiled plugins from `dist/extensions/<id>` into
+/// `<state>/extensions/<id>`. That changes the directory depth, so imports such
+/// as `../../string-coerce-*.js` resolve outside `dist` and fail at runtime.
+///
+/// Keep the old copy in a quarantine directory for diagnostics instead of
+/// deleting user state. Custom plugins with non-bundled ids stay untouched.
+fn quarantine_bundled_plugin_shadow_dirs(clawdbot_home: &Path) -> bool {
+  let extensions_dir = clawdbot_home.join("extensions");
+  let quarantine_dir = clawdbot_home.join("plugin-quarantine");
+  let mut repaired = false;
+
+  for plugin_id in KNAPSACK_SIGNED_BUNDLED_PLUGIN_IDS {
+    let source = extensions_dir.join(plugin_id);
+    if source.symlink_metadata().is_err() {
+      continue;
+    }
+
+    if let Err(error) = fs::create_dir_all(&quarantine_dir) {
+      eprintln!(
+        "[clawd/service] WARNING: Could not create plugin quarantine directory {}: {}",
+        quarantine_dir.display(),
+        error
+      );
+      break;
+    }
+
+    let timestamp = std::time::SystemTime::now()
+      .duration_since(std::time::UNIX_EPOCH)
+      .map(|duration| duration.as_millis())
+      .unwrap_or(0);
+    let mut destination = quarantine_dir.join(format!("{}-shadow-{}", plugin_id, timestamp));
+    let mut suffix = 0usize;
+    while destination.symlink_metadata().is_ok() {
+      suffix += 1;
+      destination = quarantine_dir.join(format!("{}-shadow-{}-{}", plugin_id, timestamp, suffix));
+    }
+
+    match fs::rename(&source, &destination) {
+      Ok(()) => {
+        eprintln!(
+          "[clawd/service] Quarantined stale per-user copy of bundled plugin {}: {} -> {}",
+          plugin_id,
+          source.display(),
+          destination.display()
+        );
+        repaired = true;
+      }
+      Err(error) => eprintln!(
+        "[clawd/service] WARNING: Could not quarantine stale per-user bundled plugin {} at {}: {}",
+        plugin_id,
+        source.display(),
+        error
+      ),
+    }
+  }
+
+  repaired
+}
+
+/// Prefer Knapsack's signed plugin bundle over stale per-user installs left by
+/// older OpenClaw versions. Provider plugins need the same repair as channel
+/// plugins: a stale Google or Anthropic copy can shadow the signed bundle and
+/// make a valid selected model appear unknown.
+fn sanitize_bundled_plugin_install_state(clawdbot_home: &Path) -> bool {
+  sanitize_bundled_plugin_install_index(clawdbot_home)
+    | sanitize_bundled_plugin_npm_manifest(clawdbot_home)
+    | quarantine_bundled_plugin_shadow_dirs(clawdbot_home)
 }
 
 /// Remove plugin-runtime-deps directories whose version prefix doesn't match
@@ -13033,9 +13127,9 @@ async fn prepare_gateway_config(
     prepare_started.elapsed().as_millis()
   );
 
-  if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
+  if sanitize_bundled_plugin_install_state(&clawdbot_home) {
     eprintln!(
-      "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
+      "[clawd/service] Repaired stale bundled plugin install state before gateway launch"
     );
   }
   eprintln!(
@@ -14925,9 +15019,9 @@ pub async fn set_service_enabled(
         }
       }
 
-      if sanitize_bundled_channel_plugin_install_state(&clawdbot_home) {
+      if sanitize_bundled_plugin_install_state(&clawdbot_home) {
         eprintln!(
-          "[clawd/service] Repaired stale bundled channel plugin install state before gateway launch"
+          "[clawd/service] Repaired stale bundled plugin install state before gateway launch"
         );
       }
 
@@ -17836,13 +17930,22 @@ mod crash_classifier_tests {
   }
 
   #[test]
-  fn bundled_channel_plugin_install_state_prefers_signed_bundle() {
+  fn bundled_plugin_install_state_prefers_signed_bundle() {
     let temp = tempfile::tempdir().unwrap();
     let clawdbot_home = temp.path();
     let plugins_dir = clawdbot_home.join("plugins");
     let npm_dir = clawdbot_home.join("npm");
+    let extensions_dir = clawdbot_home.join("extensions");
     fs::create_dir_all(&plugins_dir).unwrap();
     fs::create_dir_all(&npm_dir).unwrap();
+    fs::create_dir_all(extensions_dir.join("google")).unwrap();
+    fs::create_dir_all(extensions_dir.join("custom")).unwrap();
+    fs::write(
+      extensions_dir.join("google").join("index.js"),
+      "require('../../string-coerce-stale.js');",
+    )
+    .unwrap();
+    fs::write(extensions_dir.join("custom").join("index.js"), "module.exports = {};").unwrap();
     fs::write(
       plugins_dir.join("installs.json"),
       serde_json::to_string_pretty(&serde_json::json!({
@@ -17850,6 +17953,10 @@ mod crash_classifier_tests {
           "slack": {
             "source": "npm",
             "installPath": "/tmp/stale/@openclaw/slack"
+          },
+          "google": {
+            "source": "npm",
+            "installPath": "/tmp/stale/@openclaw/google"
           },
           "custom": {
             "source": "npm",
@@ -17882,6 +17989,7 @@ mod crash_classifier_tests {
         "dependencies": {
           "@openclaw/slack": "2026.5.20",
           "@openclaw/telegram": "2026.5.20",
+          "@openclaw/google": "2026.5.20",
           "left-pad": "1.3.0"
         }
       }))
@@ -17889,12 +17997,13 @@ mod crash_classifier_tests {
     )
     .unwrap();
 
-    assert!(sanitize_bundled_channel_plugin_install_state(clawdbot_home));
+    assert!(sanitize_bundled_plugin_install_state(clawdbot_home));
 
     let installs: serde_json::Value =
       serde_json::from_str(&fs::read_to_string(plugins_dir.join("installs.json")).unwrap())
         .unwrap();
     assert!(installs.pointer("/installRecords/slack").is_none());
+    assert!(installs.pointer("/installRecords/google").is_none());
     assert!(installs.pointer("/installRecords/custom").is_some());
     let plugin_ids = installs
       .pointer("/plugins")
@@ -17913,12 +18022,24 @@ mod crash_classifier_tests {
     assert!(package_json
       .pointer("/dependencies/@openclaw~1telegram")
       .is_none());
+    assert!(package_json
+      .pointer("/dependencies/@openclaw~1google")
+      .is_none());
     assert_eq!(
       package_json
         .pointer("/dependencies/left-pad")
         .and_then(|value| value.as_str()),
       Some("1.3.0")
     );
+    assert!(!extensions_dir.join("google").exists());
+    assert!(extensions_dir.join("custom").is_dir());
+    let quarantined = fs::read_dir(clawdbot_home.join("plugin-quarantine"))
+      .unwrap()
+      .flatten()
+      .map(|entry| entry.file_name().to_string_lossy().to_string())
+      .collect::<Vec<_>>();
+    assert_eq!(quarantined.len(), 1);
+    assert!(quarantined[0].starts_with("google-shadow-"));
   }
 
   #[test]
