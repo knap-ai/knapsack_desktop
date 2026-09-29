@@ -831,3 +831,32 @@ mod tests {
     assert_eq!(CATAP_MUTE_BEHAVIOR_UNMUTED, 0);
   }
 }
+
+/// Change the Mac's playback output, explicitly requested by the Settings selector.
+pub fn set_default_speaker(name: &str) -> Result<(), String> {
+  let address = AudioObjectPropertyAddress {
+    mSelector: kAudioHardwarePropertyDevices,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain,
+  };
+  let mut size = 0u32;
+  unsafe {
+    if AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &address, 0, ptr::null(), &mut size) != 0 {
+      return Err("Unable to list speakers".into());
+    }
+    let mut devices = vec![0 as AudioDeviceID; size as usize / mem::size_of::<AudioDeviceID>()];
+    if AudioObjectGetPropertyData(kAudioObjectSystemObject, &address, 0, ptr::null(), &mut size, devices.as_mut_ptr() as *mut _) != 0 {
+      return Err("Unable to list speakers".into());
+    }
+    let id = devices.into_iter().find(|id| get_device_name(*id).as_deref() == Some(name))
+      .ok_or_else(|| "Speaker is disconnected. Refresh the device list.".to_string())?;
+    let output_address = AudioObjectPropertyAddress {
+      mSelector: coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain,
+    };
+    let status = coreaudio_sys::AudioObjectSetPropertyData(kAudioObjectSystemObject, &output_address, 0, ptr::null(), mem::size_of_val(&id) as u32, &id as *const _ as *const _);
+    if status != 0 { return Err(format!("Unable to select speaker (CoreAudio {})", status)); }
+  }
+  Ok(())
+}

@@ -257,6 +257,24 @@ const MeetingNotesMode: React.FC<MeetingNotesModeProps> = ({
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const initialLoadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [disableIsRecording, setDisableIsRecording] = useState(false)
+  const [microphoneLevel, setMicrophoneLevel] = useState(0)
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      try {
+        const status = await isRecordingStatus()
+        if (!cancelled) {
+          setTranscriptionError(status && status.threadId === thread.id ? status.transcriptionError ?? null : null)
+          setMicrophoneLevel(status && status.threadId === thread.id && status.isRecording ? status.microphoneLevel ?? 0 : 0)
+        }
+      } catch { /* Keep the last known status when the local server is unavailable. */ }
+    }
+    setTranscriptionError(null)
+    void check()
+    const timer = setInterval(check, isMeetingRecording ? 1000 : 5000)
+    return () => { cancelled = true; clearInterval(timer) }
+  }, [thread.id, isMeetingRecording])
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [isEndingMeeting, setIsEndingMeeting] = useState(false)
   const [notesMarkdown, setNotesMarkdown] = useState<string>('')
@@ -2050,6 +2068,17 @@ Be direct, specific, and concise. No filler text.`
         )}
 
         {/* Permission error banner */}
+        {isMeetingRecording && <div className="flex items-center gap-3 text-sm text-zinc-600 my-3">
+          <span>Microphone signal</span><meter min={0} max={1} value={Math.min(1, Math.sqrt(microphoneLevel))} aria-label="Live microphone signal" />
+          <span>{microphoneLevel > 0.001 ? 'Receiving sound' : 'Quiet — check Settings → Audio if speaking'}</span>
+        </div>}
+        {transcriptionError && (
+          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 my-3">
+            <strong>Transcription unavailable — audio is kept on this device</strong>
+            <p>{transcriptionError}</p>
+            <p>Check Settings → Audio &amp; recording. Missing meeting text does not mean the microphone is silent.</p>
+          </div>
+        )}
         {permissionError && !recordingHandlers.isRecording(thread.id) && (
           <div className="notetaker-note__permission-error">
             <div className="notetaker-note__permission-error-icon">

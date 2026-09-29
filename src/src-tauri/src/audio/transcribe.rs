@@ -43,6 +43,9 @@ fn push_unique_provider(
 /// Respects the user's active provider when it supports STT, then appends any
 /// other configured STT providers as fallback candidates.
 fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
+  if crate::privacy_mode::get_privacy_mode_status().enabled {
+    return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode. Audio remains on this device; local meeting transcription is not configured.".into()));
+  }
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY")
     .ok()
@@ -50,10 +53,14 @@ fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
   let groq_key = std::env::var("GROQ_API_KEY")
     .ok()
     .filter(|k| !k.trim().is_empty());
+  configured_stt_providers(&active, openai_key, groq_key)
+}
+
+fn configured_stt_providers(active: &str, openai_key: Option<String>, groq_key: Option<String>) -> Result<Vec<SttProvider>, LLMError> {
   let mut providers = Vec::new();
 
   // If the user's active provider supports STT, prefer it.
-  match active.as_str() {
+  match active {
     "openai" if openai_key.is_some() => {
       push_unique_provider(
         &mut providers,
@@ -107,6 +114,22 @@ fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
      free tier — add a key in Settings → AI Provider → Groq."
       .into(),
   ))
+}
+
+lazy_static! {
+  static ref TRANSCRIPTION_ERRORS: std::sync::Mutex<std::collections::HashMap<String, String>> = std::sync::Mutex::new(std::collections::HashMap::new());
+}
+pub fn clear_transcription_error(filename: &str) {
+  TRANSCRIPTION_ERRORS.lock().unwrap().remove(filename);
+}
+pub fn transcription_error(filename: &str) -> Option<String> {
+  TRANSCRIPTION_ERRORS.lock().unwrap().get(filename).cloned().or_else(transcription_readiness_error)
+}
+pub fn transcription_readiness_error() -> Option<String> {
+  resolve_stt_providers().err().map(|e| match e {
+    LLMError::ChatCompletionFailed(message) => message,
+    other => other.to_string(),
+  })
 }
 
 #[derive(Deserialize, Debug)]
@@ -353,7 +376,7 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
   let knapsack_data_dir = home_dir.join(".knapsack");
   let flac_path = knapsack_data_dir.join("audio");
   let audio_path = flac_path.join(&audio_filename);
-  match transcribe_audio(&audio_path, transcript_filename).await {
+  match transcribe_audio(&audio_path, transcript_filename.clone()).await {
     Ok(_) => {
       if let Err(e) = fs::remove_file(&audio_path) {
         log::error!("Failed to delete audio file after transcription: {:?}", e);
@@ -362,6 +385,7 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
       }
     }
     Err(e) => {
+      TRANSCRIPTION_ERRORS.lock().unwrap().insert(transcript_filename, e.to_string());
       log::error!("Failed to transcribe audio: {:?}", e);
     }
   }
@@ -587,6 +611,29 @@ mod tests {
   use super::*;
   use std::io::Read as IoRead;
   use tempfile::TempDir;
+
+  #[test]
+  fn knapsack_chat_without_speech_credentials_reports_missing_transcription() {
+    let result = configured_stt_providers("knapsack", None, None);
+    assert!(result.err().unwrap().to_string().contains("speech-to-text"));
+  }
+
+  #[test]
+  fn speech_provider_selection_preserves_explicit_preference_and_fallback() {
+    let providers = configured_stt_providers("openai", Some("test-openai".into()), Some("test-groq".into())).unwrap();
+    assert_eq!(providers.iter().map(|p| p.name).collect::<Vec<_>>(), vec!["openai", "groq"]);
+    let providers = configured_stt_providers("knapsack", None, Some("test-groq".into())).unwrap();
+    assert_eq!(providers[0].name, "groq");
+  }
+
+  #[test]
+  fn transcription_failure_remains_visible_until_a_new_recording_clears_it() {
+    let filename = "audio-settings-regression.txt";
+    TRANSCRIPTION_ERRORS.lock().unwrap().insert(filename.into(), "provider unavailable".into());
+    assert_eq!(transcription_error(filename).as_deref(), Some("provider unavailable"));
+    clear_transcription_error(filename);
+    assert!(!TRANSCRIPTION_ERRORS.lock().unwrap().contains_key(filename));
+  }
 
   #[test]
   fn test_merge_transcripts_basic_conversation() {
