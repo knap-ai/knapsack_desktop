@@ -52,12 +52,18 @@ import KNAnalytics from 'src/utils/KNAnalytics'
 import {
   claimActivationAttribution,
   getOnboardingAnalyticsProps,
+  getOnboardingIntent,
   getPrivacyExperimentTrackingId,
   getPrivacyExperimentWeek,
   getSavedPaidStarter,
   markActivationTracked,
+  PRIVACY_EXPERIMENT_ID,
   releaseActivationClaim,
 } from 'src/utils/onboardingIntent'
+import {
+  recordPrivacyPilotEvidence,
+  type PrivacyPilotConnectedDataSource,
+} from 'src/utils/privacyPilotEvidence'
 
 // Prompt action prefix used by the AI to embed executable actions in messages.
 // Format in raw AI text: [Label](knapsack://prompt/Detailed instruction)
@@ -930,6 +936,45 @@ async function trackPaidActivation(inferenceSurface: 'agent_chat' | 'direct_chat
 
 const privacyMetricInFlight = new Set<string>()
 
+function recordLocalPrivacyPilotEvidence(
+  inferenceSurface: 'agent_chat' | 'direct_chat',
+  privacyModeEnabled: boolean,
+  connectedDataSources: PrivacyPilotConnectedDataSource[],
+) {
+  const intent = getOnboardingIntent()
+  const trackingId = getPrivacyExperimentTrackingId(intent)
+  const experimentWeek = getPrivacyExperimentWeek(intent)
+  const props = getOnboardingAnalyticsProps(intent)
+  if (!intent || !trackingId || experimentWeek === null) return
+
+  recordPrivacyPilotEvidence({
+    trackingId,
+    experimentId: PRIVACY_EXPERIMENT_ID,
+    landingVariant: String(props.landing_variant || ''),
+    role: intent.role || '',
+    receivedAt: intent.receivedAt,
+    experimentWeek,
+    inferenceSurface,
+    privacyModeEnabled,
+    gclid: intent.gclid,
+    attrId: intent.attrId,
+    utmSource: intent.utmSource,
+    utmMedium: intent.utmMedium,
+    utmCampaign: intent.utmCampaign,
+    connectedDataSources,
+  })
+}
+
+function privacyPilotConnectedDataSources(
+  usedNativeConnectedData: boolean,
+  attachments: Attachment[],
+): PrivacyPilotConnectedDataSource[] {
+  const sources: PrivacyPilotConnectedDataSource[] = []
+  if (usedNativeConnectedData) sources.push('native_google_email_calendar')
+  if (attachments.some(file => file.content.length > 0)) sources.push('local_file_attachment')
+  return sources
+}
+
 async function trackPrivacyUsageMilestones(
   inferenceSurface: 'agent_chat' | 'direct_chat',
   connectedDataSource?: 'native_google_email_calendar',
@@ -1072,17 +1117,22 @@ const SLASH_COMMANDS: Record<string, string> = {
 
 /**
  * Pre-fetch recent emails and today's calendar events from Knapsack's backend APIs.
- * Returns a formatted context string, or empty string if no data is available.
+ * Returns formatted context plus whether it contains actual connected records.
  * This avoids browser emulation — data is fetched directly via authenticated APIs.
  */
-async function fetchEmailCalendarContext(nativeEmailConnected = false, request = ''): Promise<string> {
+async function fetchEmailCalendarContext(
+  nativeEmailConnected = false,
+  request = '',
+): Promise<{ text: string; hasConnectedData: boolean }> {
   const dataFetcher = new DataFetcher()
   const contextParts: string[] = []
+  let hasConnectedData = false
 
   // Fetch recent emails (last 2 days, up to 15)
   try {
     const emails = await dataFetcher.getRecentGmailMessages(2, 15, nativeEmailConnected)
     if (emails?.length) {
+      hasConnectedData = true
       contextParts.push('## Recent Emails\n')
       for (const email of emails.slice(0, 10)) {
         const dateStr = new Date(email.date * 1000).toLocaleString()
@@ -1120,6 +1170,7 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false, request =
     }
 
     if (todayEvents?.length) {
+      hasConnectedData = true
       for (const event of todayEvents.slice(0, 100)) {
         const startTime = event.start
           ? dayjs(event.start * 1000).format('ddd MMM D, h:mm A')
@@ -1146,6 +1197,7 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false, request =
   try {
     const upcomingMeetings = await dataFetcher.getRecentCalendarEvents()
     if (upcomingMeetings?.length) {
+      hasConnectedData = true
       contextParts.push('\n## Upcoming Meetings\n')
       for (const meeting of upcomingMeetings) {
         const startStr = dayjs(meeting.start).format('ddd MMM D, h:mm A')
@@ -1159,11 +1211,14 @@ async function fetchEmailCalendarContext(nativeEmailConnected = false, request =
     console.warn('[ClawdChat] Failed to pre-fetch upcoming meetings:', err)
   }
 
-  return truncateWithNotice(
-    contextParts.join('\n'),
-    MAX_NATIVE_PREFETCH_CONTEXT_CHARS,
-    'Native email/calendar context trimmed for foreground chat',
-  )
+  return {
+    text: truncateWithNotice(
+      contextParts.join('\n'),
+      MAX_NATIVE_PREFETCH_CONTEXT_CHARS,
+      'Native email/calendar context trimmed for foreground chat',
+    ),
+    hasConnectedData,
+  }
 }
 
 // Maps skill names to keywords that indicate the skill would be useful.
@@ -5176,6 +5231,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         : 'autonomous'
     const selectedToneAtSend = localStorage.getItem(TONE_STORAGE) || 'snarky'
     const voiceEnabledAtSend = localStorage.getItem(VOICE_MODE_STORAGE) === 'true'
+    const privacyModeEnabledAtSend = privacyModeStatus().enabled
 
     // Cancel any pending "Run in Terminal" auto-follow-up since the user
     // (or another trigger) is already sending a message.
@@ -5607,6 +5663,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         let actualText = text
         const nativeRequest = nativeContextRequest(text, msgs)
         let usedNativeEmailCalendarContext = false
+        let usedNativeConnectedData = false
 
         // For the build website prompt, inject user info so the AI can auto-populate
         // the website without asking the user a bunch of questions.
@@ -5617,9 +5674,10 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         if (isSmartPrompt) {
           try {
             const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
-            if (context) {
-              actualText = INITIAL_BRIEFING_INSTRUCTIONS + context
+            if (context.text) {
+              actualText = INITIAL_BRIEFING_INSTRUCTIONS + context.text
               usedNativeEmailCalendarContext = true
+              usedNativeConnectedData = context.hasConnectedData
             } else {
               // No data available — fall back to letting the agent browse
               actualText = `${text}\n\nAfter checking my email and calendar, recommend 5 specific things I should do based on what you find.`
@@ -5633,13 +5691,14 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         if (!isSmartPrompt && shouldPrefetchNativeEmailCalendarContext(nativeRequest)) {
           try {
             const context = await fetchEmailCalendarContext(nativeEmailConnected, nativeRequest)
-            if (context) {
+            if (context.text) {
               usedNativeEmailCalendarContext = true
+              usedNativeConnectedData = context.hasConnectedData
               actualText = `${text}
 
 ${CONNECTED_DATA_GUIDANCE}
 
-${context}`
+${context.text}`
             }
           } catch (err) {
             console.warn('[ClawdChat] Failed to pre-fetch native email/calendar context:', err)
@@ -5843,12 +5902,14 @@ ${actualText}`
                   gateway: agentOut.gateway,
                 })
                 let displayText = rawReply
+                let gatewayErrorReply = false
                 // When the gateway surfaces an error (rate limit, auth, key), enrich the message
                 if (agentOut.gateway) {
                   const lowerReply = displayText.toLowerCase()
                   if (lowerReply.includes('rate limit') || lowerReply.includes('rate_limit') ||
                       lowerReply.includes('spending cap') || lowerReply.includes('no api key found') ||
                       lowerReply.includes('configure auth for this agent')) {
+                    gatewayErrorReply = true
                     displayText = appendSupportDiagnosticsAction(
                       friendlyError(displayText, getActiveModelLabel()),
                     )
@@ -5867,8 +5928,21 @@ ${actualText}`
                       (agentOut.gateway ? 'gateway' : agentOut.model ?? 'direct'),
                   },
                 ])
-                void trackPaidActivation('agent_chat')
-                void trackPrivacyUsageMilestones('agent_chat')
+                if (!gatewayErrorReply) {
+                  void trackPaidActivation('agent_chat')
+                  void trackPrivacyUsageMilestones(
+                    'agent_chat',
+                    usedNativeConnectedData ? 'native_google_email_calendar' : undefined,
+                  )
+                  recordLocalPrivacyPilotEvidence(
+                    'agent_chat',
+                    privacyModeEnabledAtSend,
+                    privacyPilotConnectedDataSources(
+                      usedNativeConnectedData,
+                      currentAttachments,
+                    ),
+                  )
+                }
                 onAssistantMessage?.(chatId)
               }
             } else {
@@ -5944,11 +6018,21 @@ ${actualText}`
                 ...prev,
                 { id: crypto.randomUUID(), role: 'assistant', text: out.reply!, ts: Date.now(), model: out.model },
               ])
-              void trackPaidActivation('direct_chat')
-              void trackPrivacyUsageMilestones(
-                'direct_chat',
-                usedNativeEmailCalendarContext ? 'native_google_email_calendar' : undefined,
-              )
+              if (out.ok === true) {
+                void trackPaidActivation('direct_chat')
+                void trackPrivacyUsageMilestones(
+                  'direct_chat',
+                  usedNativeConnectedData ? 'native_google_email_calendar' : undefined,
+                )
+                recordLocalPrivacyPilotEvidence(
+                  'direct_chat',
+                  privacyModeEnabledAtSend,
+                  privacyPilotConnectedDataSources(
+                    usedNativeConnectedData,
+                    currentAttachments,
+                  ),
+                )
+              }
               onAssistantMessage?.(chatId)
               // Persist a summary so future sessions have cross-session context.
               saveAgentMemory(`knapsack-chat:${chatId}`, out.reply)

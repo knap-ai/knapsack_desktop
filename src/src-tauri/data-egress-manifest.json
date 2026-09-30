@@ -23,6 +23,7 @@
   "notes": [
     "Privacy Mode does not infer a provider's contractual Zero Data Retention status from an API key.",
     "Cloud inference is fail-closed in Privacy Mode until a separately audited deployment attestation is implemented.",
+    "Privacy pilot evidence is stored locally and leaves the computer only when a user explicitly copies and shares it.",
     "User-directed browser navigation is intentionally outside this manifest; it requires an explicit user request."
   ]
 }

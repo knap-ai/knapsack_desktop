@@ -18,7 +18,13 @@ import { KN_API_GET_USER_EMAIL, KN_SERVER_HOST } from 'src/utils/constants'
 import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
+import { getPrivacyExperimentTrackingId } from 'src/utils/onboardingIntent'
 import { privacyModeStatus, setPrivacyMode } from 'src/utils/privacyMode'
+import {
+  formatPrivacyPilotReceipt,
+  readPrivacyPilotReceipt,
+  type PrivacyPilotReceipt,
+} from 'src/utils/privacyPilotEvidence'
 import { setIsFilesEnabled } from 'src/utils/permissions/files'
 import { openAddGoogleWorkspaceScreen } from 'src/utils/permissions/google'
 import {
@@ -790,6 +796,8 @@ export const SettingsDialog = ({
   const [piiModelBusy, setPiiModelBusy] = useState(false)
   const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => privacyModeStatus().enabled)
   const [privacyModeBusy, setPrivacyModeBusy] = useState(false)
+  const [privacyPilotReceipt, setPrivacyPilotReceipt] = useState<PrivacyPilotReceipt | null>(null)
+  const [privacyPilotReceiptMessage, setPrivacyPilotReceiptMessage] = useState('')
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([])
   const [scheduledTasksLoading, setScheduledTasksLoading] = useState(false)
   const [scheduledTasksMessage, setScheduledTasksMessage] = useState('')
@@ -1070,6 +1078,9 @@ export const SettingsDialog = ({
 
   useEffect(() => {
     if (!isOpen) return
+    const trackingId = getPrivacyExperimentTrackingId()
+    setPrivacyPilotReceipt(trackingId ? readPrivacyPilotReceipt(trackingId) : null)
+    setPrivacyPilotReceiptMessage('')
     void invoke<{ enabled: boolean }>('get_privacy_mode_status')
       .then(value => setPrivacyModeEnabled(value.enabled))
       .catch(() => {})
@@ -1587,9 +1598,43 @@ export const SettingsDialog = ({
             {privacyModeEnabled ? 'Privacy Mode is on' : 'Enable Privacy Mode'}
           </InputCheckbox>
           {privacyModeEnabled && (
-            <div className={styles.privacyModelNotice}>
-              Restart Knapsack to stop native crash reporting for this session too.
-            </div>
+            <>
+              <div className={styles.privacyModelNotice}>
+                Restart Knapsack to stop native crash reporting for this session too.
+              </div>
+              <div className={styles.privacyModelDescription}>
+                Privacy pilot evidence stays on this computer. It contains attribution and milestone
+                timestamps, source labels, and active weeks—never prompts, responses, file names,
+                file contents, or account identities.
+              </div>
+              {privacyPilotReceipt ? (
+                <button
+                  className={styles.privacyModelDownloadButton}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        formatPrivacyPilotReceipt(privacyPilotReceipt),
+                      )
+                      setPrivacyPilotReceiptMessage(
+                        'Pilot receipt copied. Nothing is sent until you choose to share it.',
+                      )
+                    } catch {
+                      setPrivacyPilotReceiptMessage('Could not copy the pilot receipt.')
+                    }
+                  }}
+                >
+                  Copy privacy pilot receipt
+                </button>
+              ) : (
+                <div className={styles.privacyModelDescription}>
+                  A receipt appears after a paid Privacy Mode workflow returns its first successful
+                  response.
+                </div>
+              )}
+              {privacyPilotReceiptMessage && (
+                <div className={styles.privacyModelDescription}>{privacyPilotReceiptMessage}</div>
+              )}
+            </>
           )}
         </div>
 
