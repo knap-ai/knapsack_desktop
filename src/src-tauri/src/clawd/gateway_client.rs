@@ -1409,8 +1409,12 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
 /// fallback. Keep the user's selected Groq model for direct use, but prefer
 /// Groq Compound here because it handles the gateway's native tool calls.
 fn groq_tool_fallback_model_from(value: Option<&str>) -> String {
-  let model = value.unwrap_or("compound");
-  normalize_provider_model("groq", model)
+  let model = value.unwrap_or("groq/compound").trim();
+  if model.starts_with("groq/") {
+    model.to_string()
+  } else {
+    format!("groq/{model}")
+  }
 }
 
 fn groq_tool_fallback_model() -> String {
@@ -1740,6 +1744,8 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
   // fallbacks so native tool schemas remain valid; a user's selected Groq
   // model remains their direct primary and is never changed here.
   if primary_provider != "groq" && has_key("GROQ_API_KEY") {
+    // Groq Compound's catalog model ID is itself `groq/compound`, so the
+    // provider-qualified gateway reference is `groq/groq/compound`.
     fallbacks.push(format!("groq/{}", groq_tool_fallback_model()));
   }
 
@@ -3960,11 +3966,12 @@ mod tests {
 
   #[test]
   fn groq_tool_fallback_uses_compound_without_changing_direct_model_ids() {
-    assert_eq!(groq_tool_fallback_model_from(None), "compound");
+    assert_eq!(groq_tool_fallback_model_from(None), "groq/compound");
     assert_eq!(
       groq_tool_fallback_model_from(Some("groq/compound-mini")),
-      "compound-mini"
+      "groq/compound-mini"
     );
+    assert_eq!(groq_tool_fallback_model_from(Some("compound-mini")), "groq/compound-mini");
     assert_eq!(
       normalize_provider_model("groq", "openai/gpt-oss-120b"),
       "openai/gpt-oss-120b"

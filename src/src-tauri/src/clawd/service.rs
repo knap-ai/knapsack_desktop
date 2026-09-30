@@ -18672,7 +18672,7 @@ mod provider_key_tests {
       .unwrap_or_default();
     assert!(fallbacks
       .iter()
-      .any(|value| value.as_str() == Some("groq/compound")));
+      .any(|value| value.as_str() == Some("groq/groq/compound")));
     assert!(!fallbacks
       .iter()
       .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));

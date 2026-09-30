@@ -202,6 +202,8 @@ test('settings group Google capabilities by the actual connected account', () =>
   )
 
   assert.match(settings, /Connected Google accounts/)
+  assert.match(settings, /googlePrimaryEmail && \(/)
+  assert.match(settings, /googleAccounts\.length > 0 \? 'Connected Google accounts' : 'Google accounts'/)
   assert.match(
     settings,
     /Connected Google accounts[\s\S]*?onClick=\{handleAddGoogleWorkspace\}[\s\S]*?Add another/,

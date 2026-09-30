@@ -2324,18 +2324,18 @@ export const SettingsDialog = ({
                 </div>
               ))}
 
-            {googleAccounts.length > 0 && (
+            {googlePrimaryEmail && (
               <div className="flex items-center justify-between mt-1 gap-4">
-                <Typography className="text-xs text-gray-500">Connected Google accounts</Typography>
-                {googlePrimaryEmail && (
-                  <button
-                    type="button"
-                    className={`text-xs cursor-pointer shrink-0 ${styles.link}`}
-                    onClick={handleAddGoogleWorkspace}
-                  >
-                    Add another
-                  </button>
-                )}
+                <Typography className="text-xs text-gray-500">
+                  {googleAccounts.length > 0 ? 'Connected Google accounts' : 'Google accounts'}
+                </Typography>
+                <button
+                  type="button"
+                  className={`text-xs cursor-pointer shrink-0 ${styles.link}`}
+                  onClick={handleAddGoogleWorkspace}
+                >
+                  Add another
+                </button>
               </div>
             )}
             {googleAccounts.map(account => (
