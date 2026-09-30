@@ -41,6 +41,7 @@ pub fn audio_devices(app: tauri::AppHandle) -> Result<serde_json::Value, String>
     "defaultOutput": host.default_output_device().and_then(|d| d.name().ok()),
     "canSelectSpeaker": cfg!(target_os = "macos"),
     "transcriptionError": super::transcribe::transcription_readiness_error(),
+    "knapsackTranscription": std::env::var("KNAPSACK_USER_EMAIL").map(|s| !s.trim().is_empty()).unwrap_or(false),
   }))
 }
 #[tauri::command]

@@ -524,7 +524,7 @@ async fn refresh_knapsack_token() -> Option<String> {
   crate::clawd::browser::refresh_knapsack_access_token(None).await
 }
 
-async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> {
+pub(crate) async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> {
   let email = email.trim();
   if email.is_empty() {
     return Err(LLMError::ChatCompletionFailed(
@@ -535,7 +535,7 @@ async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> 
   let access_token = std::env::var("KNAPSACK_ACCESS_TOKEN")
     .ok()
     .map(|token| token.trim().to_string())
-    .filter(|token| !token.is_empty());
+    .filter(|token| !token.is_empty() && !crate::clawd::browser::knapsack_token_is_expired(token));
   if let Some(token) = access_token {
     return Ok(token);
   }
@@ -556,14 +556,14 @@ async fn resolve_knapsack_bearer_token(email: &str) -> Result<String, LLMError> 
         if let Some(jwt) = token_json
           .get("token")
           .and_then(|t| t.as_str())
-          .filter(|token| !token.trim().is_empty())
+          .filter(|token| !token.trim().is_empty() && !crate::clawd::browser::knapsack_token_is_expired(token))
         {
           return Ok(jwt.to_string());
         }
         if let Some(jwt) = token_json
           .get("access_token")
           .and_then(|t| t.as_str())
-          .filter(|token| !token.trim().is_empty())
+          .filter(|token| !token.trim().is_empty() && !crate::clawd::browser::knapsack_token_is_expired(token))
         {
           return Ok(jwt.to_string());
         }

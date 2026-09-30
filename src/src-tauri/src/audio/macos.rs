@@ -211,9 +211,9 @@ unsafe extern "C" fn tap_io_proc(
     }
   }
 
-  // Periodic chunk saving (every 150 seconds, same interval as before)
+  // Periodic chunks keep meeting chat and insights up to date
   let now = Instant::now();
-  if now.duration_since(state.last_save) >= Duration::from_secs(150) {
+  if now.duration_since(state.last_save) >= super::TRANSCRIPTION_CHUNK_INTERVAL {
     let chunk: Vec<f32> = state.samples.drain(..).collect();
     let counter = state.chunk_counter;
     state.chunk_counter += 1;
@@ -245,14 +245,12 @@ fn save_chunk_async(chunk: Vec<f32>, counter: u32) {
     let _transcription_job = transcription_job;
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
-      let permit = semaphore.acquire().await.unwrap();
       let samples_16bit: Vec<i32> = chunk
         .iter()
         .map(|&s| (s * i16::MAX as f32) as i16 as i32)
         .collect();
       save_chunk(samples_16bit, filename.clone(), 1, 48000);
-      finalize_chunk(filename, transcript_filename).await;
-      drop(permit);
+      super::transcribe::finalize_live_chunk(filename, transcript_filename, &semaphore).await;
     });
   });
 }
