@@ -259,10 +259,18 @@ struct AuthInfo {
 
 struct Pending {
   tx: oneshot::Sender<Result<Value, String>>,
-  /// How many more responses to skip before resolving.
-  /// For two-phase methods like `agent`, the first response is an ack
-  /// and the second is the actual result. Set to 1 to skip one response.
-  remaining_skips: u32,
+  /// Ignore only explicit accepted acknowledgements for agent requests.
+  wait_for_agent_result: bool,
+}
+
+fn is_agent_ack(response: &ResponseFrame) -> bool {
+  response.ok && response.result.as_ref().or(response.data.as_ref()).or(response.payload.as_ref())
+    .and_then(|value| value.get("status")).and_then(Value::as_str) == Some("accepted")
+}
+
+fn has_agent_idempotency_key(params: &Option<Value>) -> bool {
+  params.as_ref().and_then(|p| p.get("idempotencyKey")).and_then(Value::as_str)
+    .map(|key| !key.trim().is_empty()).unwrap_or(false)
 }
 
 #[derive(Default)]
@@ -2516,15 +2524,14 @@ async fn connect_and_handshake(token: &str) -> Result<Arc<GatewayClient>, String
 
       if let Ok(resp) = serde_json::from_str::<ResponseFrame>(&text) {
         let mut pending = client_clone.pending.lock().await;
-        if let Some(mut p) = pending.remove(&resp.id) {
+        if let Some(p) = pending.remove(&resp.id) {
           // Never skip error responses — if the gateway rejects the request
           // (ok=false), resolve immediately so callers see the error instead
           // of waiting for a second response that will never come.
-          if p.remaining_skips > 0 && resp.ok {
+          if p.wait_for_agent_result && is_agent_ack(&resp) {
             // Intermediate success response (e.g. "accepted" ack for
             // two-phase methods like `agent`). Re-insert and wait for
             // the final result.
-            p.remaining_skips -= 1;
             pending.insert(resp.id, p);
           } else {
             // Final response (or error) — resolve the future.
@@ -2993,7 +3000,7 @@ async fn gateway_request_pooled_inner(
       id.clone(),
       Pending {
         tx,
-        remaining_skips: 0,
+        wait_for_agent_result: false,
       },
     );
   }
@@ -3137,7 +3144,19 @@ pub async fn gateway_request_agent(
   token: &str,
   timeout_secs: u64,
 ) -> Result<Value, String> {
-  gateway_request_agent_inner(method, params, token, timeout_secs, true).await
+  let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+  loop {
+    let result = gateway_request_agent_inner(method, params.clone(), token, deadline, true).await?;
+    if result.get("status").and_then(Value::as_str) != Some("in_flight") {
+      return Ok(result);
+    }
+    // A dedupe replay is not subscribed to the original connection's final
+    // response. Poll the same key until its cached terminal result is ready.
+    if !has_agent_idempotency_key(&params) || Instant::now() >= deadline {
+      return Err("Agent recovery timed out waiting for its terminal result".to_string());
+    }
+    tokio::time::sleep(Duration::from_millis(250).min(deadline.saturating_duration_since(Instant::now()))).await;
+  }
 }
 
 /// Execute an agent request and, when the persistent WebSocket drops while the
@@ -3148,9 +3167,12 @@ async fn gateway_request_agent_inner(
   method: &str,
   params: Option<Value>,
   token: &str,
-  timeout_secs: u64,
+  deadline: Instant,
   allow_connection_retry: bool,
 ) -> Result<Value, String> {
+  if Instant::now() >= deadline {
+    return Err("Agent request timed out".to_string());
+  }
   let client = get_or_connect(token).await?;
 
   // Circuit breaker check
@@ -3182,12 +3204,12 @@ async fn gateway_request_agent_inner(
   let (tx, rx) = oneshot::channel();
   {
     let mut pending = client.pending.lock().await;
-    // remaining_skips = 1: skip the first "accepted" ack, resolve on the second (final) response
+    // Cached terminal and in-flight replays each contain only one response.
     pending.insert(
       id.clone(),
       Pending {
         tx,
-        remaining_skips: 1,
+        wait_for_agent_result: true,
       },
     );
   }
@@ -3214,14 +3236,17 @@ async fn gateway_request_agent_inner(
     return Err(e);
   }
 
-  let rpc_result = tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await;
+  let rpc_result = tokio::time::timeout(deadline.saturating_duration_since(Instant::now()), rx).await;
 
   let (out, is_connection_error) = match rpc_result {
     Ok(Ok(Ok(value))) => (Ok(value), false),
-    Ok(Ok(Err(e))) => (Err(e), false), // RPC error — connection is fine
+    Ok(Ok(Err(e))) => {
+      let disconnected = e == "Gateway connection closed";
+      (Err(e), disconnected)
+    },
     Ok(Err(_)) => (Err("Gateway response channel closed".to_string()), true),
     Err(_) => (
-      Err(format!("Agent request timed out after {}s", timeout_secs)),
+      Err("Agent request timed out".to_string()),
       true,
     ),
   };
@@ -3246,7 +3271,7 @@ async fn gateway_request_agent_inner(
   }
 
   drop(permit);
-  if is_connection_error && allow_connection_retry {
+  if is_connection_error && allow_connection_retry && has_agent_idempotency_key(&retry_params) && Instant::now() < deadline {
     let gateway_still_healthy = gateway_ws_handshake_open(token, Duration::from_millis(1500)).await
       || is_gateway_port_open().await;
     if gateway_still_healthy {
@@ -3259,7 +3284,7 @@ async fn gateway_request_agent_inner(
         method,
         retry_params,
         token,
-        timeout_secs,
+        deadline,
         false,
       ))
       .await;
@@ -3760,6 +3785,29 @@ mod tests {
   use serde_json::json;
   use std::io::Write;
   use tempfile::NamedTempFile;
+
+  #[test]
+  fn agent_replay_responses_are_not_discarded_as_acknowledgements() {
+    for field in ["result", "data", "payload"] {
+      for status in ["accepted", "in_flight", "ok", "error"] {
+        let mut frame = json!({"type":"res", "id":"replay", "ok":true});
+        frame[field] = json!({"status":status, "runId":"original-run"});
+        let response: ResponseFrame = serde_json::from_value(frame).unwrap();
+        assert_eq!(is_agent_ack(&response), status == "accepted");
+      }
+    }
+    let rejection: ResponseFrame = serde_json::from_value(json!({
+      "type":"res", "id":"replay", "ok":false, "payload":{"status":"accepted"}
+    })).unwrap();
+    assert!(!is_agent_ack(&rejection));
+  }
+
+  #[test]
+  fn agent_recovery_requires_a_stable_nonempty_idempotency_key() {
+    assert!(!has_agent_idempotency_key(&None));
+    assert!(!has_agent_idempotency_key(&Some(json!({"idempotencyKey":" "}))));
+    assert!(has_agent_idempotency_key(&Some(json!({"idempotencyKey":"original-run"}))));
+  }
 
   // ── model format parsing ────────────────────────────────────────────────
   // Regression: service.rs writes model as {"primary":"..."} (object form).
