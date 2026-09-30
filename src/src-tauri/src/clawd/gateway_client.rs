@@ -3137,6 +3137,20 @@ pub async fn gateway_request_agent(
   token: &str,
   timeout_secs: u64,
 ) -> Result<Value, String> {
+  gateway_request_agent_inner(method, params, token, timeout_secs, true).await
+}
+
+/// Execute an agent request and, when the persistent WebSocket drops while the
+/// gateway is still healthy, reconnect and resume it once. Agent requests use
+/// an idempotency key, so retrying the same params cannot start a duplicate
+/// agent turn.
+async fn gateway_request_agent_inner(
+  method: &str,
+  params: Option<Value>,
+  token: &str,
+  timeout_secs: u64,
+  allow_connection_retry: bool,
+) -> Result<Value, String> {
   let client = get_or_connect(token).await?;
 
   // Circuit breaker check
@@ -3157,6 +3171,7 @@ pub async fn gateway_request_agent(
     .map_err(|_| "Gateway request queue closed".to_string())?;
 
   let id = next_request_id();
+  let retry_params = params.clone();
   let frame = RequestFrame {
     frame_type: "req",
     method: method.to_string(),
@@ -3211,6 +3226,14 @@ pub async fn gateway_request_agent(
     ),
   };
 
+  // A timed-out or closed request will never receive a useful response on
+  // this caller's channel. Remove it before reconnecting so an eventual late
+  // response cannot leave stale state in the shared pending map.
+  if is_connection_error {
+    let mut pending = client.pending.lock().await;
+    pending.remove(&id);
+  }
+
   {
     let mut breaker = client.breaker.lock().await;
     if is_connection_error {
@@ -3223,6 +3246,25 @@ pub async fn gateway_request_agent(
   }
 
   drop(permit);
+  if is_connection_error && allow_connection_retry {
+    let gateway_still_healthy = gateway_ws_handshake_open(token, Duration::from_millis(1500)).await
+      || is_gateway_port_open().await;
+    if gateway_still_healthy {
+      eprintln!(
+        "[gateway_client] {} lost its response channel while the gateway stayed healthy; reconnecting and resuming the idempotent agent request",
+        method
+      );
+      invalidate_client();
+      return Box::pin(gateway_request_agent_inner(
+        method,
+        retry_params,
+        token,
+        timeout_secs,
+        false,
+      ))
+      .await;
+    }
+  }
   out
 }
 
