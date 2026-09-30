@@ -380,13 +380,17 @@ async fn collect_openclaw_subagent_results(
   overall_deadline: tokio::time::Instant,
 ) -> Result<Vec<(String, String)>, String> {
   let deadline = (tokio::time::Instant::now() + OPENCLAW_FOLLOWUP_TIMEOUT).min(overall_deadline);
+  let discovery_deadline = tokio::time::Instant::now() + Duration::from_secs(3);
   let mut delay = Duration::from_millis(250);
 
   loop {
     match gateway_client::sessions_list(None, 500).await {
       Ok(sessions) => {
         let children = new_child_sessions(&sessions, session_key, existing_children);
-        if children.len() >= 2 && children.iter().all(|child| child.1 == "done") {
+        if children.is_empty() && tokio::time::Instant::now() >= discovery_deadline {
+          return Err("OpenClaw returned an empty reply without starting child agents".to_string());
+        }
+        if openclaw_children_complete(&children) {
           let mut contributions = Vec::with_capacity(children.len());
           for (key, _) in children {
             let history = gateway_client::chat_history(&key, None, 100).await?;
@@ -408,6 +412,10 @@ async fn collect_openclaw_subagent_results(
     tokio::time::sleep(delay).await;
     delay = (delay * 2).min(Duration::from_secs(2));
   }
+}
+
+fn openclaw_children_complete(children: &[(String, String)]) -> bool {
+  !children.is_empty() && children.iter().all(|child| child.1 == "done")
 }
 
 fn new_child_sessions(
@@ -1088,6 +1096,14 @@ mod tests {
       session_id: "ui / primary",
       team_members: &[],
     }
+  }
+
+  #[test]
+  fn child_completion_accepts_one_child_but_not_empty_or_running_children() {
+    assert!(!openclaw_children_complete(&[]));
+    assert!(openclaw_children_complete(&[("one".into(), "done".into())]));
+    assert!(!openclaw_children_complete(&[("one".into(), "running".into())]));
+    assert!(!openclaw_children_complete(&[("one".into(), "done".into()), ("two".into(), "running".into())]));
   }
 
   #[test]
