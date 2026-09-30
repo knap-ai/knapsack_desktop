@@ -144,7 +144,7 @@ test('meeting follow-up actions visibly expand and reliably refill Scout', () =>
   assert.match(notes, /initialInputKey=\{meetingChatInputNonce\}/)
   assert.match(chat, /initialValueKey\?: number/)
   assert.match(chat, /\}, \[initialValue, initialValueKey\]\)/)
-  assert.match(chat, /initialValueKey=\{initialInputKey\}/)
+  assert.match(chat, /initialValueKey=\{scheduleDraft\?\.key \?\? initialInputKey\}/)
 })
 
 test('isolated UI QA cannot schedule production automations or start a second gateway', () => {

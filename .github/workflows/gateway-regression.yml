@@ -105,7 +105,7 @@ jobs:
 
       - name: Test recording lifecycle and controls
         working-directory: src
-        run: node --test scripts/recording-indicator-state.test.cjs scripts/meeting-recording-routing.test.cjs scripts/audio-capture-readiness.test.cjs
+        run: node --test scripts/agent-scheduled-runs.test.cjs scripts/recording-indicator-state.test.cjs scripts/meeting-recording-routing.test.cjs scripts/audio-capture-readiness.test.cjs
 
       - name: Report clawdbot duplicates before prune
         working-directory: src

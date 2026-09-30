@@ -1,3 +1,4 @@
+import ScheduledRuns from './ScheduledRuns'
 import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
 import { GEMINI_MODELS } from 'src/utils/geminiModels'
 import { privacyModeStatus } from 'src/utils/privacyMode'
@@ -2029,6 +2030,7 @@ interface ClawdChatProps {
   sessionId?: string
   /** Browser profile owned by this chat's agent. */
   browserProfile?: string
+  scheduledAgentId?: string
   agentName?: string
   agentPersonality?: string
   agentSuggestedPrompts?: string[]
@@ -2042,7 +2044,7 @@ interface ClawdChatProps {
   }>
 }
 
-export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
+export default function ClawdChat({ active = true, showActivityPanel: externalActivityPanel, onToggleActivity, onCloseActivity, userEmail, userName, onBusyChange, onInferenceReadyChange, onProviderPanelOpenChange, onAssistantMessage, onOpenBrowser, nativeEmailConnected = false, openProviderPanel, initialInput, initialInputKey, setupTask, contextPrefix, compact = false, title = 'Knapsack Chat', chatId = 'main', sessionId = 'ui', browserProfile = 'openclaw', scheduledAgentId, agentName, agentPersonality, agentSuggestedPrompts, agentTeamMembers }: ClawdChatProps = {}) {
   const activeRef = useRef(active)
   activeRef.current = active
   const chatHistoryStorage = chatId === 'main' ? CHAT_HISTORY_STORAGE : `${CHAT_HISTORY_STORAGE}:${chatId}`
@@ -2269,6 +2271,8 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
   // Activity panel is now controlled by parent via props
 
   // Skills panel state
+  const [scheduleDraft, setScheduleDraft] = useState<{ text: string; key: number } | null>(null)
+  useEffect(() => { setScheduleDraft(null) }, [initialInput, initialInputKey])
   const [showSkillsPanel, setShowSkillsPanel] = useState(false)
   const [showChannelsPanel, setShowChannelsPanel] = useState(false)
   const [channelBusy, setChannelBusy] = useState<string | null>(null)
@@ -6489,6 +6493,11 @@ ${actualText}`
           >
             Activity
           </button>
+          {!compact && agentName && scheduledAgentId && !agentTeamMembers?.length && <ScheduledRuns
+            agentId={scheduledAgentId}
+            agentName={agentName} active={active}
+            onDraft={text => setScheduleDraft({ text, key: Date.now() })}
+          />}
           <button disabled={busy} onClick={clearHistory} title="Clear chat history and start fresh">
             Clear
           </button>
@@ -7107,8 +7116,8 @@ ${actualText}`
         onStopGeneration={stableStopGeneration}
         replyToMsg={replyToMsg}
         onCancelReply={stableCancelReply}
-        initialValue={initialInput}
-        initialValueKey={initialInputKey}
+        initialValue={scheduleDraft?.text ?? initialInput}
+        initialValueKey={scheduleDraft?.key ?? initialInputKey}
         inputElementRef={chatInputElementRef}
       />
       {voiceSessionOpen && (

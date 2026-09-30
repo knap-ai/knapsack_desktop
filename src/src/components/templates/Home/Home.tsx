@@ -948,6 +948,7 @@ Stay within your role: ${mountedChatAgent.personality}. Your chat history is pri
                             }
                             contextPrefix={mountedContext}
                             browserProfile={mountedBrowserProfile}
+                            scheduledAgentId={mountedChatAgent?.id}
                             agentName={mountedGroup?.name ?? mountedChatAgent?.name}
                             agentTeamMembers={
                               mountedGroup

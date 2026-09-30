@@ -508,15 +508,31 @@ pub async fn cron_add(
   payload: Value,
   token: Option<&str>,
 ) -> Result<Value, String> {
+  cron_add_for_session(name, schedule, payload, None, token).await
+}
+
+fn cron_add_params(name: &str, schedule: Value, payload: Value, session_id: Option<&str>) -> Value {
+  let mut params = serde_json::json!({
+    "name": name, "schedule": schedule, "payload": payload, "enabled": true
+  });
+  // Ownership comes from the originating chat, not model-generated arguments.
+  // Ordinary and legacy callers keep their existing unassigned behavior.
+  if let Some(id) = session_id.filter(|id| id.starts_with("ui-agent-") && id.len() > 9) {
+    params["sessionKey"] = serde_json::json!(format!("agent:main:{}", id));
+  }
+  params
+}
+
+pub async fn cron_add_for_session(
+  name: &str,
+  schedule: Value,
+  payload: Value,
+  session_id: Option<&str>,
+  token: Option<&str>,
+) -> Result<Value, String> {
   let env_token = get_gateway_token();
   let token = token.or(env_token.as_deref());
-  let params = serde_json::json!({
-      "name": name,
-      "schedule": schedule,
-      "payload": payload,
-      "enabled": true
-  });
-  gateway_request("cron.add", Some(params), token).await
+  gateway_request("cron.add", Some(cron_add_params(name, schedule, payload, session_id)), token).await
 }
 
 /// Remove a scheduled job by ID
@@ -556,5 +572,20 @@ mod tests {
     let result = get_channel_status(None).await;
     println!("Status result: {:?}", result);
     assert!(result.is_ok());
+  }
+}
+
+#[cfg(test)]
+mod scheduled_owner_tests {
+  use super::*;
+  #[test]
+  fn teammate_job_preserves_originating_chat_ownership() {
+    let params = cron_add_params("Daily task", serde_json::json!({"kind":"every","everyMs":60000}),
+      serde_json::json!({"kind":"systemEvent","text":"Review my tasks"}), Some("ui-agent-polly"));
+    assert_eq!(params["sessionKey"], "agent:main:ui-agent-polly");
+    assert_eq!(params["payload"]["text"], "Review my tasks");
+    for session in [None, Some("ui"), Some("ui-agent-")] {
+      assert!(cron_add_params("Shared", Value::Null, Value::Null, session).get("sessionKey").is_none());
+    }
   }
 }
