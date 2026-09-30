@@ -517,7 +517,7 @@ async fn resolve_slack_email(
   resolve_slack_email_for_workspace(clawdbot_home, account_id, slack_user_id, None).await
 }
 
-async fn resolve_slack_email_for_workspace(
+pub(crate) async fn resolve_slack_email_for_workspace(
   clawdbot_home: &Path,
   account_id: &str,
   slack_user_id: &str,

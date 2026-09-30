@@ -575,3 +575,13 @@ export interface ChannelDiagnostics {
 /** Run channel diagnostics and auto-repair common issues. */
 export const runChannelDiagnostics = () =>
   get<ChannelDiagnostics>('/api/clawd/channels/diagnostics')
+
+export interface SlackAdminNomination {
+  account_id: string
+  workspace_id: string
+  user_id: string
+  email: string
+}
+export const getSlackAdmins = () => get<{ success: boolean; admins: SlackAdminNomination[] }>('/api/clawd/slack/admins')
+export const nominateSlackAdmin = (nomination: { account_id: string; workspace_id: string; user_id: string | null }) =>
+  post<GenericResponse>('/api/clawd/slack/admins', nomination)

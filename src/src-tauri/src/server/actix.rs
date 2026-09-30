@@ -522,6 +522,8 @@ pub async fn start_server<'a>(
       .service(clawd::channels::generic_channel_disconnect)
       .service(clawd::channels::slack_accounts)
       .service(clawd::channels::slack_account_disconnect)
+      .service(clawd::slack_admin::get_admins)
+      .service(clawd::slack_admin::nominate)
       .service(clawd::channels::channel_allowlist_get)
       .service(clawd::channels::channel_allowlist_update)
       .service(clawd::channels::signal_check_cli)

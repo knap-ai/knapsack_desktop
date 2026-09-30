@@ -708,6 +708,11 @@ fn tool_schemas(connectors: &[Value], discovery_error: Option<&str>) -> Vec<Valu
   let connector_schema = json!({ "type": "string", "description": description });
   vec![
     json!({
+      "name":"slack_allowlist_add",
+      "description":"Add one person to this Slack workspace's DM allow list, only when the current sender explicitly asks to grant access. Restricted to the admin nominated by the desktop owner in Settings. Use an exact Slack member ID. Cannot nominate admins, remove members, or change access policy.",
+      "inputSchema":{"type":"object","properties":{"user_id":{"type":"string"}},"required":["user_id"],"additionalProperties":false}
+    }),
+    json!({
       "name": "gmail_read",
       "description": "Read Gmail using this desktop's native Google OAuth connection, never Composio. Use accounts first, select an exact account_email, then list messages and get individual messages. Read-only; does not mark mail read or send anything.",
       "inputSchema": {"type":"object", "properties": {
@@ -766,6 +771,43 @@ async fn discover_tool_schemas(
   }
 }
 
+pub(crate) fn direct_tool_specs() -> Vec<super::chat_agent::OaiToolSpec> {
+  tool_schemas(&[], None).into_iter().filter(|v| v["name"] != "slack_allowlist_add").map(|v| {
+    super::chat_agent::OaiToolSpec {
+      kind: "function".into(),
+      function: super::chat_agent::OaiToolSpecFn {
+        name: v["name"].as_str().unwrap().into(),
+        description: v["description"].as_str().unwrap().into(),
+        parameters: v["inputSchema"].clone(),
+      },
+    }
+  }).collect()
+}
+
+fn bind_direct_arguments(arguments: &Value, session_id: &str) -> Result<Value, String> {
+  let mut arguments = arguments.as_object().cloned().ok_or("Tool arguments must be an object")?;
+  // This entry point is called only by the authenticated desktop chat handler.
+  // Never retain identity fields produced by the model.
+  arguments.retain(|key, _| !key.starts_with("_knapsack_"));
+  arguments.insert("_knapsack_session_id".into(), json!(session_id));
+  arguments.insert("_knapsack_scope_key".into(), json!(format!("agent:main:knapsack:{session_id}")));
+  Ok(Value::Object(arguments))
+}
+
+pub(crate) async fn call_direct_tool(name: &str, arguments: &Value, session_id: &str) -> Result<Value, String> {
+  let arguments = bind_direct_arguments(arguments, session_id)?;
+  match name {
+    "gmail_read" => native_gmail_tool(&arguments).await,
+    LIST_TOOL => list_connector_tools(&arguments).await,
+    CALL_TOOL => call_connector_tool(&arguments).await,
+    _ => Err("Unknown desktop connector tool".into()),
+  }
+}
+
+pub(crate) fn signed_in_owner() -> Result<String, String> {
+  nonempty(read_tokens()?.knapsack_email).ok_or("Sign in to Knapsack before nominating an admin".into())
+}
+
 async fn handle_request(request: Value) -> Option<Value> {
   let id = request.get("id").cloned().unwrap_or(Value::Null);
   let method = request.get("method").and_then(Value::as_str).unwrap_or("");
@@ -794,6 +836,7 @@ async fn handle_request(request: Value) -> Option<Value> {
         .cloned()
         .unwrap_or_else(|| json!({}));
       let result = match name {
+        "slack_allowlist_add" => super::slack_admin::add_from_chat(&arguments).await,
         "gmail_read" => native_gmail_tool(&arguments).await,
         LIST_TOOL => list_connector_tools(&arguments).await,
         CALL_TOOL => call_connector_tool(&arguments).await,
@@ -848,6 +891,25 @@ pub async fn run_stdio_server() {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn direct_tools_include_connectors_without_admin_privileges() {
+    let tools = super::direct_tool_specs();
+    for name in ["gmail_read", "list_connector_tools", "call_connector_tool"] {
+      assert!(tools.iter().any(|t| t.function.name == name));
+    }
+    assert!(!tools.iter().any(|t| t.function.name == "slack_allowlist_add"));
+    let bound = super::bind_direct_arguments(&serde_json::json!({
+      "connector":"slack:work", "_knapsack_session_id":"forged",
+      "_knapsack_scope_key":"agent:main:slack:channel:other",
+      "_knapsack_slack_user_id":"UOTHER", "_knapsack_slack_workspace_id":"TOTHER"
+    }), "desktop-session").unwrap();
+    assert_eq!(bound["_knapsack_session_id"], "desktop-session");
+    assert_eq!(bound["_knapsack_scope_key"], "agent:main:knapsack:desktop-session");
+    assert!(bound.get("_knapsack_slack_user_id").is_none());
+    assert!(bound.get("_knapsack_slack_workspace_id").is_none());
+    assert_eq!(bound["connector"], "slack:work");
+  }
+
   #[tokio::test]
   async fn native_tools_remain_available_when_connector_discovery_stalls() {
     let tools = super::discover_tool_schemas(std::future::pending()).await;

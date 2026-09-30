@@ -28,3 +28,5 @@ pub mod studio_mcp;
 mod connector_compat;
 
 pub mod follow_through;
+
+pub mod slack_admin;

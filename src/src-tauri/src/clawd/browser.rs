@@ -4139,6 +4139,11 @@ pub async fn chat(
     user_name: &str,
     session_id: &str,
   ) -> anyhow::Result<JsonValue> {
+    if matches!(name, "gmail_read" | "list_connector_tools" | "call_connector_tool") {
+      let arguments: JsonValue = serde_json::from_str(args)?;
+      return super::studio_mcp::call_direct_tool(name, &arguments, session_id).await
+        .map_err(anyhow::Error::msg);
+    }
     let args_map = chat_agent::parse_args_map(args);
     let query = json!({"profile": profile});
 
@@ -6697,12 +6702,19 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
   } else {
     chat_agent::default_tools()
   };
+  if !qa_smoke && !use_compact_local_prompt {
+    tools.extend(super::studio_mcp::direct_tool_specs());
+  }
   if advanced_mode {
     tools.extend(chat_agent::advanced_tools());
     eprintln!(
       "[clawd/chat] Advanced mode enabled — run_command and run_claude_code tools available"
     );
   }
+
+  messages.push(chat_agent::OaiMessage::System {
+    content: "Only tools in this request's supplied tool catalog are available. References to other tools in conversation history or workspace instructions do not make those tools available here. Respond conversationally when no external action is needed; never emit a tool call as plain text or claim to have sent or scheduled something without a successful tool result.".into(),
+  });
 
   // Tool loop - allow up to 75 iterations for complex multi-step tasks
   // Determine model based on provider (reads user's selection from stored config)
@@ -6941,6 +6953,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
   let mut tool_iter = 0u32;
   let mut prompt_compaction_alerted = false;
   let mut local_capability_retry_used = false;
+  let mut serialized_tool_retry_used = false;
   for _ in 0..75 {
     tool_iter += 1;
     // Pace API calls to avoid rate limits (especially Anthropic/Gemini).
@@ -7451,6 +7464,20 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
 
     if choice.message.tool_calls.is_empty() {
       let reply = choice.message.content.clone().unwrap_or_default();
+      if chat_agent::is_serialized_tool_attempt(&reply) {
+        if serialized_tool_retry_used {
+          return HttpResponse::Ok().json(serde_json::json!({
+            "ok": false,
+            "message": "Scout couldn't complete this request because the AI returned an invalid tool response. No action was taken from that response. Please try again shortly."
+          }));
+        }
+        serialized_tool_retry_used = true;
+        messages.push(chat_agent::OaiMessage::System {
+          content: "Your last response was a tool call written as text, not an answer. Use structured tool_calls only for tools in the supplied tool catalog. Never print tool-call JSON as your answer. If a requested tool is unavailable, explain the limitation honestly and help with the user's request using the context already provided. Do not claim an action happened without a successful tool result.".into(),
+        });
+        continue;
+      }
+
       if !local_capability_retry_used
         && (local_file_request_requires_inspection(&full_text)
           || incorrectly_denies_local_file_access(&reply))

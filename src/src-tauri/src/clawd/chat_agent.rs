@@ -1086,6 +1086,19 @@ fn parse_retry_after(text: &str) -> Option<f64> {
   None
 }
 
+/// Recognize a bare serialized tool attempt, without executing untrusted text.
+/// Ordinary prose and arbitrary JSON remain valid assistant answers.
+pub fn is_serialized_tool_attempt(text: &str) -> bool {
+  let text = text.trim();
+  let text = text.strip_prefix("```json").or_else(|| text.strip_prefix("```"))
+    .and_then(|s| s.strip_suffix("```"))
+    .unwrap_or(text).trim();
+  let Ok(value) = serde_json::from_str::<JsonValue>(text) else { return false; };
+  let call = value.get("function").unwrap_or(&value);
+  call.get("name").and_then(JsonValue::as_str).map(|s| !s.is_empty()).unwrap_or(false)
+    && call.get("arguments").map(|a| a.is_object() || a.is_string()).unwrap_or(false)
+}
+
 pub fn parse_oai_chat_resp(text: &str) -> anyhow::Result<OaiChatResp> {
   match serde_json::from_str::<OaiChatResp>(text) {
     Ok(parsed) => Ok(parsed),
@@ -1803,6 +1816,16 @@ pub fn parse_args_map(args: &str) -> HashMap<String, JsonValue> {
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn serialized_tool_attempt_is_not_a_finished_answer() {
+    assert!(super::is_serialized_tool_attempt(r#"{"name":"list_connector_tools","arguments":{"connector_name":"Slack"}}"#));
+    assert!(super::is_serialized_tool_attempt("```json\n{\"name\":\"web_search\",\"arguments\":{}}\n```"));
+    assert!(super::is_serialized_tool_attempt(r#"{"type":"function","function":{"name":"web_search","arguments":"{}"}}"#));
+    assert!(!super::is_serialized_tool_attempt("I can draft that message for you."));
+    assert!(!super::is_serialized_tool_attempt(r#"{"name":"Fran","salary":100}"#));
+    assert!(!super::is_serialized_tool_attempt("Example: {\"name\":\"web_search\",\"arguments\":{}}"));
+  }
+
   use super::*;
 
   #[test]
