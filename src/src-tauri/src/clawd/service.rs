@@ -72,6 +72,7 @@ fn regenerate_macos_plist_with_current_env(plist_path: &std::path::Path) -> bool
     "KNAPSACK_OPENAI_MODEL",
     "KNAPSACK_ANTHROPIC_MODEL",
     "KNAPSACK_GROQ_MODEL",
+    "KNAPSACK_GROQ_TOOL_FALLBACK_MODEL",
     "KNAPSACK_XAI_MODEL",
     "KNAPSACK_OPENROUTER_MODEL",
     "KNAPSACK_TRUSTEDROUTER_MODEL",
@@ -18453,6 +18454,7 @@ mod provider_key_tests {
     "KNAPSACK_GEMINI_MODEL",
     "OLLAMA_HOST",
     "KNAPSACK_GROQ_MODEL",
+    "KNAPSACK_GROQ_TOOL_FALLBACK_MODEL",
     "KNAPSACK_XAI_MODEL",
     "KNAPSACK_OPENROUTER_MODEL",
     "KNAPSACK_TRUSTEDROUTER_MODEL",
@@ -18669,6 +18671,9 @@ mod provider_key_tests {
       .cloned()
       .unwrap_or_default();
     assert!(fallbacks
+      .iter()
+      .any(|value| value.as_str() == Some("groq/compound")));
+    assert!(!fallbacks
       .iter()
       .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
     assert!(fallbacks

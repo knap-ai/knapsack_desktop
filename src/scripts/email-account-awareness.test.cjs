@@ -202,12 +202,17 @@ test('settings group Google capabilities by the actual connected account', () =>
   )
 
   assert.match(settings, /Connected Google accounts/)
+  assert.match(
+    settings,
+    /Connected Google accounts[\s\S]*?onClick=\{handleAddGoogleWorkspace\}[\s\S]*?Add another/,
+  )
   assert.match(settings, /googleAccounts\.map\(account =>/)
   assert.match(settings, /item\.calendarAccountEmail \|\| item\.ownerEmail/)
   assert.doesNotMatch(settings, /return ` via \$\{item\.ownerEmail\}`/)
   assert.match(settings, /liveConnectionStateById/)
   assert.match(settings, /ConnectionStates\.FAILED/)
   assert.match(settings, /Needs reconnect — no new data is being read/)
+  assert.doesNotMatch(settings, /<Typography>Google account<\/Typography>/)
 })
 
 test('meeting briefs recognize every connected account as the signed-in user', () => {

@@ -1405,6 +1405,19 @@ fn normalize_provider_model(provider: &str, model: &str) -> String {
   model.to_string()
 }
 
+/// Resolve the Groq model used only when another provider's request needs a
+/// fallback. Keep the user's selected Groq model for direct use, but prefer
+/// Groq Compound here because it handles the gateway's native tool calls.
+fn groq_tool_fallback_model_from(value: Option<&str>) -> String {
+  let model = value.unwrap_or("compound");
+  normalize_provider_model("groq", model)
+}
+
+fn groq_tool_fallback_model() -> String {
+  let configured = std::env::var("KNAPSACK_GROQ_TOOL_FALLBACK_MODEL").ok();
+  groq_tool_fallback_model_from(configured.as_deref())
+}
+
 fn has_gemini_cli_auth_profile() -> bool {
   let mut candidates = Vec::new();
 
@@ -1723,11 +1736,11 @@ pub fn collect_fallback_models(primary: &str) -> Vec<String> {
     fallbacks.push(format!("anthropic/{}", model));
   }
 
-  // Groq first: fast and a good rate-limit escape hatch.
+  // Groq first: fast and a good rate-limit escape hatch. Use Compound for
+  // fallbacks so native tool schemas remain valid; a user's selected Groq
+  // model remains their direct primary and is never changed here.
   if primary_provider != "groq" && has_key("GROQ_API_KEY") {
-    let model =
-      std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string());
-    fallbacks.push(format!("groq/{}", normalize_provider_model("groq", &model)));
+    fallbacks.push(format!("groq/{}", groq_tool_fallback_model()));
   }
 
   if primary_provider != "xai" && has_key("XAI_API_KEY") {
@@ -3943,6 +3956,19 @@ mod tests {
     );
 
     std::env::remove_var("GOOGLE_API_KEY");
+  }
+
+  #[test]
+  fn groq_tool_fallback_uses_compound_without_changing_direct_model_ids() {
+    assert_eq!(groq_tool_fallback_model_from(None), "compound");
+    assert_eq!(
+      groq_tool_fallback_model_from(Some("groq/compound-mini")),
+      "compound-mini"
+    );
+    assert_eq!(
+      normalize_provider_model("groq", "openai/gpt-oss-120b"),
+      "openai/gpt-oss-120b"
+    );
   }
 
   // ── ensure_browser_config_at: no spurious change when already correct ───
