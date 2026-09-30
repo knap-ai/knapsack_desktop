@@ -2324,10 +2324,19 @@ export const SettingsDialog = ({
                 </div>
               ))}
 
-            {googleAccounts.length > 0 && (
-              <Typography className="text-xs text-gray-500 mt-1">
-                Connected Google accounts
-              </Typography>
+            {googlePrimaryEmail && (
+              <div className="flex items-center justify-between mt-1 gap-4">
+                <Typography className="text-xs text-gray-500">
+                  {googleAccounts.length > 0 ? 'Connected Google accounts' : 'Google accounts'}
+                </Typography>
+                <button
+                  type="button"
+                  className={`text-xs cursor-pointer shrink-0 ${styles.link}`}
+                  onClick={handleAddGoogleWorkspace}
+                >
+                  Add another
+                </button>
+              </div>
             )}
             {googleAccounts.map(account => (
               <div
@@ -2438,24 +2447,6 @@ export const SettingsDialog = ({
         <div className="AddAccountContainer p-6 pt-4 flex flex-col gap-4">
           <Typography weight={TypographyWeight.medium}>Add an account</Typography>
           <div className="PermissionContent flex flex-col gap-2">
-            {googlePrimaryEmail && (
-              <div className="flex flex-col gap-1 py-1">
-                <div className="flex justify-between min-h-[36px] items-center gap-4">
-                  <Typography>Google account</Typography>
-                  <Typography
-                    className={`cursor-pointer shrink-0 ${styles.link}`}
-                    onClick={handleAddGoogleWorkspace}
-                  >
-                    Add another
-                  </Typography>
-                </div>
-                <Typography className="text-xs text-gray-500">
-                  Connect Gmail, Calendar, and Drive together. All connected accounts stay active
-                  simultaneously.
-                </Typography>
-              </div>
-            )}
-
             {/* Standard permissions that aren't multi-account and aren't yet connected */}
             {connectionsKey
               .filter(
