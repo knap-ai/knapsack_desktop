@@ -26,3 +26,18 @@ are configured; Privacy Mode rejects its fallback token-exchange service.
 Privacy deployments should provision direct or self-hosted OAuth credentials
 rather than rely on a Knapsack token-exchange service. Microsoft remains
 user-initiated but has no direct desktop token-exchange path in this release.
+
+## Privacy pilot evidence
+
+For paid privacy-pilot deep links, the desktop can keep a minimal evidence
+receipt in local browser storage while Privacy Mode is enabled. The receipt is
+updated only after a successful assistant response. It records the paid
+attribution ID, experiment variant, successful-inference timestamps, active
+experiment weeks, and bounded connected-data source labels. A local file is
+counted only when its attachment bytes were included in the successful request;
+native Google email/calendar is counted only when fetched context was included.
+
+The receipt never includes prompts, responses, file names, file contents, or
+account identities. It is not sent to Amplitude or any other service. A user can
+review and copy it from Settings and nothing leaves the computer unless the user
+chooses to share that copied receipt.
