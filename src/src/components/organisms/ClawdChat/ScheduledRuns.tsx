@@ -43,7 +43,7 @@ export default function ScheduledRuns({ agentId, agentName, active, onDraft }: {
   const draft = (task?: ScheduledTask) => {
     onDraft(task
       ? `Update scheduled task “${task.name}” (ID: ${task.id}). Show me its current schedule and instructions, then ask what I want to change before applying it.`
-      : `Help me create a scheduled run for ${agentName}. Associate it with my agent session ui-agent-${agentId}. Ask what it should do, when it should run, and where to deliver the result. Show me the proposal before creating it.`)
+      : `Help me create a scheduled run for ${agentName}. Ask what it should do, when it should run, and where to deliver the result. Show me the proposal before creating it.`)
     close()
   }
   const toggle = async (task: ScheduledTask) => {

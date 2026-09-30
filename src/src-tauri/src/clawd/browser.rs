@@ -4137,6 +4137,7 @@ pub async fn chat(
     profile: &str,
     user_email: &str,
     user_name: &str,
+    session_id: &str,
   ) -> anyhow::Result<JsonValue> {
     let args_map = chat_agent::parse_args_map(args);
     let query = json!({"profile": profile});
@@ -4886,7 +4887,7 @@ pub async fn chat(
         "text": message
       });
 
-      match gateway_ws::cron_add(task_name, schedule, payload, None).await {
+      match gateway_ws::cron_add_for_session(task_name, schedule, payload, Some(session_id), None).await {
         Ok(result) => {
           return Ok(
             json!({"ok": true, "message": format!("Scheduled task '{}' created successfully", task_name), "result": result}),
@@ -7534,7 +7535,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
       let name = &tc.function.name;
       let args = &tc.function.arguments;
       eprintln!("[clawd/chat] tool call: {} args={}", name, args);
-      let mut result = match run_tool(name, args, &app_handle, &profile, &user_email, &user_name)
+      let mut result = match run_tool(name, args, &app_handle, &profile, &user_email, &user_name, &session_id)
         .await
       {
         Ok(v) => {
