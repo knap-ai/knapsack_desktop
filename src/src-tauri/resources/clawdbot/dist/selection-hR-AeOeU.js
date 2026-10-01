@@ -1,3 +1,4 @@
+import { withDesktopPrivacy } from "./knapsack-privacy-policy.js";
 import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, f as readStringValue, n as localeLowercasePreservingWhitespace, s as normalizeOptionalLowercaseString } from "./string-coerce-DyL154ka.js";
 import { t as isTruthyEnvValue } from "./env-Dhqok4CP.js";
 import { a as redactSensitiveFieldValueWithConfig, n as isSensitiveFieldKey, r as redactSecrets, u as redactToolPayloadTextWithConfig } from "./redact-ok5Q8nmw.js";
@@ -9554,6 +9555,9 @@ async function resolveEmbeddedAgentApiKey(params) {
 	return params.authStorage ? await params.authStorage.getApiKey(params.provider) : void 0;
 }
 function resolveEmbeddedAgentStreamFn(params) {
+	return withDesktopPrivacy(resolveEmbeddedAgentStreamFnUnchecked(params), () => params.resolvedApiKey);
+}
+function resolveEmbeddedAgentStreamFnUnchecked(params) {
 	if (params.providerStreamFn) return wrapEmbeddedAgentStreamFn(params.providerStreamFn, {
 		runSignal: params.signal,
 		resolvedApiKey: params.resolvedApiKey,

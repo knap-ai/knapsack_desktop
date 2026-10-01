@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/api/shell'
 import { initializePrivacyMode, setPrivacyMode } from 'src/utils/privacyMode'
 import {
   isLocalModelTag,
+  localAiReady,
   LocalHardware,
   readPullProgress,
   recommendLocalModel,
@@ -30,9 +31,11 @@ async function api(path: string, body?: object) {
 export default function PrivacySetup({
   onNext,
   onLearnMore,
+  embedded = false,
 }: {
   onNext: () => void
   onLearnMore: () => void
+  embedded?: boolean
 }) {
   const [enabled, setEnabled] = useState<boolean | null>(null)
   const [hardware, setHardware] = useState<LocalHardware | null>(null)
@@ -50,6 +53,7 @@ export default function PrivacySetup({
       const result = await api('/api/knapsack/ollama/models?cloud=false')
       setModels(result.models.map((item: { name: string }) => item.name).filter(isLocalModelTag))
     } else setModels([])
+    setReady(await localAiReady())
   }
   useEffect(() => {
     initializePrivacyMode().then((status) => setEnabled(status.enabled))
@@ -64,7 +68,7 @@ export default function PrivacySetup({
     setBusy(true)
     setError('')
     try {
-      await setPrivacyMode(value)
+      await setPrivacyMode(value, 'local-only')
       setEnabled(value)
       setReady(false)
     } catch (e: any) {
@@ -87,6 +91,7 @@ export default function PrivacySetup({
       })
       localStorage.setItem('moltbot_active_provider', 'ollama')
       localStorage.setItem('moltbot_ollama_model', selected)
+      window.dispatchEvent(new Event('provider-settings-changed'))
       setReady(true)
     } catch (e: any) {
       setError(e.message || String(e))
@@ -116,10 +121,11 @@ export default function PrivacySetup({
   }
   return (
     <section className="w-full max-w-2xl px-6 py-8 space-y-5 text-zinc-900">
+      {!embedded && <>
       <h1 className="text-3xl font-semibold font-Lora">Choose how your AI runs</h1>
       <p>
         Synced email and calendar data are stored on this device. Cloud AI can receive the context
-        needed to answer your requests. Privacy Mode keeps AI inference local and disables analytics
+        needed to answer your requests. On-device Privacy Mode keeps AI inference local and disables analytics
         and crash reporting.
       </p>
       <label className="flex items-center gap-3 rounded-xl border p-4 font-semibold">
@@ -135,6 +141,7 @@ export default function PrivacySetup({
         Connected services still need internet access. Websites and services you choose to use
         receive those requests.
       </p>
+      </>}
       {enabled && (
         <div className="rounded-xl border bg-white p-4 space-y-3">
           <h2 className="font-semibold">Set up local AI</h2>
@@ -224,7 +231,7 @@ export default function PrivacySetup({
           {error}
         </p>
       )}
-      <div className="flex flex-wrap gap-4 items-center">
+      {!embedded && <div className="flex flex-wrap gap-4 items-center">
         <button
           className="rounded-lg bg-[#913631] text-white px-5 py-3 disabled:opacity-50"
           disabled={busy || enabled === null}
@@ -235,7 +242,7 @@ export default function PrivacySetup({
         <button className="underline text-sm" onClick={onLearnMore}>
           How privacy works
         </button>
-      </div>
+      </div>}
       {enabled && !ready && (
         <p className="text-sm text-zinc-600">
           Privacy Mode is already on. AI tasks will wait until a local model is ready; they will not

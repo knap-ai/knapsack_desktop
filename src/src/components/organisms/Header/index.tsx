@@ -30,7 +30,7 @@ export const Header = ({
         data-tauri-drag-region
         className="flex-1 min-w-0 text-center font-InterTight text-[#B8B7B7] font-bold text-xxs leading-2 truncate px-2"
       >
-        { title ? title : "KNAPSACK IS PRIVATE"}
+        {title}
       </div>
 
       <div data-tauri-drag-region className="flex items-center gap-3 flex-shrink-0">

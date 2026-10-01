@@ -626,8 +626,10 @@ async fn openai_compatible_completion(
     })
     .collect();
 
+  let model = crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &provider.api_key)
+    .map_err(LLMError::ProviderNotConfigured)?;
   let body = serde_json::json!({
-    "model": &provider.model,
+    "model": model,
     "messages": msgs,
   });
 
@@ -828,6 +830,8 @@ async fn anthropic_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
+  crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &provider.api_key)
+    .map_err(LLMError::ProviderNotConfigured)?;
   let client = openai_compatible_client("", "")
     .map_err(|e| LLMError::ChatCompletionFailed(format!("Could not initialize inference connection: {}", e)))?;
 
@@ -955,6 +959,8 @@ async fn knapsack_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
+  crate::privacy_mode::enforce_route(&provider.name, &provider.model, &provider.base_url, &provider.api_key)
+    .map_err(LLMError::ProviderNotConfigured)?;
   let email = &provider.api_key;
   let client = openai_compatible_client("", "")
     .map_err(|e| LLMError::ChatCompletionFailed(format!("Could not initialize inference connection: {}", e)))?;

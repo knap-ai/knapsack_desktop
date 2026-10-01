@@ -1523,6 +1523,22 @@ pub(crate) fn gateway_model_ref_usable(model_ref: &str) -> bool {
 
 pub fn resolve_default_model() -> String {
   if crate::privacy_mode::is_enabled() {
+    if !crate::privacy_mode::is_local_only() {
+      let provider = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+      let candidate = match provider.as_str() {
+        "trustedrouter" => Some(("trustedrouter/zdr".to_string(), "https://api.trustedrouter.com/v1", "TRUSTEDROUTER_API_KEY")),
+        "groq" => Some((std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string()), "https://api.groq.com/openai/v1", "GROQ_API_KEY")),
+        _ => None,
+      };
+      if let Some((model, endpoint, key_name)) = candidate {
+        let key = std::env::var(key_name).unwrap_or_default();
+        if !key.trim().is_empty() {
+          if let Ok(approved) = crate::privacy_mode::enforce_route(&provider, &model, endpoint, &key) {
+            return format!("{}/{}", provider, approved);
+          }
+        }
+      }
+    }
     let model = std::env::var("KNAPSACK_OLLAMA_MODEL").unwrap_or_else(|_| "llama3.1".to_string());
     return format!("ollama/{}", normalize_provider_model("ollama", &model));
   }

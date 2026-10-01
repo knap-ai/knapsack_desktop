@@ -1,3 +1,4 @@
+import { requireStandardPrivacyMode } from "./knapsack-privacy-policy.js";
 import { r as normalizeProviderId } from "./provider-id-zTW9Rdln.js";
 import { a as listRegisteredMemoryEmbeddingProviders, r as getRegisteredMemoryEmbeddingProvider } from "./memory-embedding-providers-816TTVuI.js";
 import { n as resolvePluginCapabilityProvider, r as resolvePluginCapabilityProviders } from "./capability-provider-runtime-BwiWIvn0.js";
@@ -12,7 +13,7 @@ function listMemoryEmbeddingProviders(cfg) {
 		key: "memoryEmbeddingProviders",
 		cfg
 	})) if (!merged.has(adapter.id)) merged.set(adapter.id, adapter);
-	return [...merged.values()];
+	return [...merged.values()].map(privateEmbeddingAdapter);
 }
 function readConfiguredProviderApiId(providerId, cfg) {
 	const providers = cfg?.models?.providers;
@@ -33,7 +34,7 @@ function getMemoryEmbeddingProvider(id, cfg) {
 	const ids = resolveMemoryEmbeddingProviderLookupIds(id, cfg);
 	for (const candidateId of ids) {
 		const registered = getRegisteredMemoryEmbeddingProvider(candidateId);
-		if (registered) return registered.adapter;
+		if (registered) return privateEmbeddingAdapter(registered.adapter);
 	}
 	for (const candidateId of ids) {
 		const provider = resolvePluginCapabilityProvider({
@@ -41,8 +42,26 @@ function getMemoryEmbeddingProvider(id, cfg) {
 			providerId: candidateId,
 			cfg
 		});
-		if (provider) return provider;
+		if (provider) return privateEmbeddingAdapter(provider);
 	}
 }
 //#endregion
 export { listMemoryEmbeddingProviders as n, listRegisteredMemoryEmbeddingProviderAdapters as r, getMemoryEmbeddingProvider as t };
+
+function privateEmbeddingAdapter(adapter) {
+  if (adapter.id === "local") return adapter;
+  return { ...adapter, create: async (...args) => {
+    requireStandardPrivacyMode("remote embeddings");
+    const result = await adapter.create(...args);
+    if (!result?.provider) return result;
+    const provider = result.provider;
+    const guarded = { ...provider };
+    for (const method of ["embedQuery", "embedBatch"]) {
+      if (typeof provider[method] === "function") guarded[method] = (...params) => {
+        requireStandardPrivacyMode("remote embeddings");
+        return provider[method](...params);
+      };
+    }
+    return { ...result, provider: guarded };
+  } };
+}

@@ -1,3 +1,4 @@
+import { withDesktopPrivacy } from "./knapsack-privacy-policy.js";
 import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, i as normalizeFastMode, s as normalizeOptionalLowercaseString } from "./string-coerce-DyL154ka.js";
 import { i as formatErrorMessage } from "./errors-b3ZrCRlt.js";
 import { t as createLazyImportLoader } from "./lazy-promise-Djskx0qC.js";
@@ -1457,7 +1458,7 @@ async function runBtwSideQuestion(params) {
 		});
 		await blockEmitChain;
 	};
-	const stream = await streamWithPayloadPatch(providerStreamFn ?? streamSimple, runtimeModel, {
+	const stream = await streamWithPayloadPatch(withDesktopPrivacy(providerStreamFn ?? streamSimple), runtimeModel, {
 		systemPrompt: buildBtwSystemPrompt(),
 		messages: [...messages, {
 			role: "user",

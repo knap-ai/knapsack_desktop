@@ -93,6 +93,7 @@ impl GroqLlm {
     messages: Vec<Message>,
     stream: bool,
   ) -> anyhow::Result<CompletionOption> {
+    crate::privacy_mode::enforce_route("groq", model, "https://api.groq.com/openai/v1", &self.api_key).map_err(anyhow::Error::msg)?;
     let request = builder::RequestBuilder::new(model.to_string()).with_stream(stream);
 
     let mut client = Groq::new(&self.api_key);
@@ -152,6 +153,7 @@ impl GroqLlm {
       .build()
       .map_err(|e| LLMError::ChatCompletionFailed(format!("Failed to build HTTP client: {}", e)))?;
 
+    crate::privacy_mode::enforce_route("groq", "whisper-large-v3-turbo", "https://api.groq.com/openai/v1/audio/transcriptions", &self.api_key).map_err(LLMError::ProviderNotConfigured)?;
     let response = client
       .post("https://api.groq.com/openai/v1/audio/transcriptions")
       .header("Authorization", format!("Bearer {}", self.api_key))

@@ -1,3 +1,4 @@
+import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
 import '../../../main.css'
 import 'prismjs/themes/prism-tomorrow.css'
 import './Home.scss'
@@ -50,7 +51,6 @@ import WorkspaceView from 'src/components/organisms/WorkspaceView'
 
 import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/api/shell'
-import { invoke } from '@tauri-apps/api/tauri'
 import { getReleaseType } from 'src/api/app_info'
 
 import {
@@ -598,32 +598,7 @@ function Home({
             />
           )
         }
-        middleRightComponent={
-          <button
-            onClick={() => invoke('toggle_overlay_window')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-ks-warm-grey-200 bg-white hover:bg-ks-warm-grey-50 text-ks-warm-grey-600 hover:text-ks-warm-grey-800 transition-colors cursor-pointer"
-            title="Open Quick Chat overlay"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m7 15 5 5 5-5" />
-              <path d="m7 9 5-5 5 5" />
-            </svg>
-            <span className="text-[10px] font-medium">Quick Chat</span>
-            <kbd className="text-[9px] font-mono bg-ks-warm-grey-100 text-ks-warm-grey-500 px-1 py-0.5 rounded border border-ks-warm-grey-200 leading-none">
-              {navigator.platform?.includes('Mac') ? '\u2325Space' : 'Ctrl+Space'}
-            </kbd>
-          </button>
-        }
+        middleRightComponent={<PrivacyModeControl />}
         rightComponent={
           auth.profile ? (
             <>

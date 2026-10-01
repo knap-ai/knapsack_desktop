@@ -1,3 +1,4 @@
+import { requireStandardPrivacyMode } from "../../knapsack-privacy-policy.js";
 import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, s as normalizeOptionalLowercaseString } from "../../string-coerce-DyL154ka.js";
 import { s as redactSensitiveText } from "../../redact-ok5Q8nmw.js";
 import { i as formatErrorMessage } from "../../errors-b3ZrCRlt.js";
@@ -684,6 +685,7 @@ async function maybePreTranscodeForVoiceDelivery(params) {
 	};
 }
 async function synthesizeSpeech(params) {
+	requireStandardPrivacyMode("background media inference");
 	const setup = resolveTtsRequestSetup({
 		text: params.text,
 		cfg: params.cfg,
@@ -798,6 +800,7 @@ async function synthesizeSpeech(params) {
 	return buildTtsFailureResult(errors, attemptedProviders, attempts, persona?.id);
 }
 async function streamSpeech(params) {
+	requireStandardPrivacyMode("background media inference");
 	const setup = resolveTtsRequestSetup({
 		text: params.text,
 		cfg: params.cfg,

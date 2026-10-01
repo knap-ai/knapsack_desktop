@@ -6754,6 +6754,15 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     ollama_base: &str,
     _retry_rate_limits: bool,
   ) -> anyhow::Result<chat_agent::OaiChatResp> {
+    let endpoint = match prov {
+      "ollama" => ollama_base,
+      "groq" => "https://api.groq.com/openai/v1",
+      "trustedrouter" => "https://api.trustedrouter.com/v1",
+      _ => "https://unapproved.invalid",
+    };
+    let private_model = crate::privacy_mode::enforce_route(prov, model, endpoint, key)
+      .map_err(anyhow::Error::msg)?;
+    let model = private_model.as_str();
     match prov {
       "anthropic" => chat_agent::anthropic_chat(key, model, msgs, tls).await,
       "gemini" => chat_agent::gemini_chat(key, model, msgs, tls).await,

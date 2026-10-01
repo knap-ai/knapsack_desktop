@@ -1,3 +1,4 @@
+import { speechCandidates, transcribeWithFallback } from 'src/utils/speechTranscription'
 import SlackAdminSettings from './SlackAdminSettings'
 import ScheduledRuns from './ScheduledRuns'
 import { DEFAULT_OPENAI_MODEL, OPENAI_MODELS } from 'src/utils/openaiModels'
@@ -14,7 +15,7 @@ import remarkGfm from 'remark-gfm'
 import { openBesideApp } from 'src/utils/openBesideApp'
 import { emit, listen as tauriListen } from '@tauri-apps/api/event'
 import { open as shellOpen } from '@tauri-apps/api/shell'
-import { convertFileSrc } from '@tauri-apps/api/tauri'
+import { convertFileSrc, invoke } from '@tauri-apps/api/tauri'
 import dayjs from 'dayjs'
 import { QRCodeSVG } from 'qrcode.react'
 import WorkspacePicker from '../../molecules/WorkspacePicker'
@@ -632,23 +633,7 @@ async function getSpeechToTextAuthCandidates(): Promise<SpeechToTextAuth[]> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const resp = await apiGet<GetApiKeyPayload>('/api/clawd/service/get-api-key', { timeoutMs: 4000 })
-      const candidates: SpeechToTextAuth[] = []
-      if (resp.openai_key) {
-        candidates.push({
-          provider: 'openai',
-          apiKey: resp.openai_key,
-          model: 'whisper-1',
-          endpoint: 'https://api.openai.com/v1/audio/transcriptions',
-        })
-      }
-      if (resp.groq_key) {
-        candidates.push({
-          provider: 'groq',
-          apiKey: resp.groq_key,
-          model: 'whisper-large-v3-turbo',
-          endpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
-        })
-      }
+      const candidates = speechCandidates(resp)
       if (_cachedSpeechToTextAuth) {
         candidates.sort(candidate => candidate.provider === _cachedSpeechToTextAuth?.provider ? -1 : 1)
       }
@@ -3294,12 +3279,24 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
     return () => window.removeEventListener('keydown', onEscape)
   }, [active, closeVoiceSession, voiceSessionOpen])
 
+  useEffect(() => {
+    const stopCloudTranscription = () => {
+      if (privacyModeStatus().enabled) voiceTranscriptionAbortRef.current?.abort()
+    }
+    window.addEventListener('privacy-mode-changed', stopCloudTranscription)
+    return () => window.removeEventListener('privacy-mode-changed', stopCloudTranscription)
+  }, [])
+
   const transcribeAudio = useCallback(async (audioBlob: Blob, extension: string = 'webm') => {
     const transcriptionToken = ++voiceTranscriptionTokenRef.current
     const controller = new AbortController()
     voiceTranscriptionAbortRef.current = controller
     setIsTranscribing(true)
     try {
+      if (privacyModeStatus().inference === 'local-only') {
+        pushAssistantRef.current?.('Voice transcription uses a cloud provider and is disabled in Privacy Mode. You can type your message instead.')
+        return
+      }
       const speechAuthCandidates = await getSpeechToTextAuthCandidates()
       if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (speechAuthCandidates.length === 0) {
@@ -3308,31 +3305,11 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
         return
       }
 
-      let data: { text?: string } | null = null
-      const providerErrors: string[] = []
-      for (const speechAuth of speechAuthCandidates) {
-        console.log('[Voice] Sending transcription request via', speechAuth.provider, 'format:', extension, 'size:', audioBlob.size)
-        const formData = new FormData()
-        formData.append('file', audioBlob, `recording.${extension}`)
-        formData.append('model', speechAuth.model)
-        const res = await fetch(speechAuth.endpoint, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            'Authorization': `Bearer ${speechAuth.apiKey}`,
-          },
-          body: formData,
-        })
-        if (res.ok) {
-          data = await res.json()
-          _cachedSpeechToTextAuth = speechAuth
-          break
-        }
-        const errorText = await res.text().catch(() => '')
-        providerErrors.push(`${speechAuth.provider}: ${errorText || `HTTP ${res.status}`}`)
-      }
-
-      if (!data) throw new Error(providerErrors.join('\n'))
+      const result = await transcribeWithFallback(audioBlob, extension, speechAuthCandidates,
+        controller.signal, () => privacyModeStatus().inference === 'local-only', 20_000,
+        async auth => { await invoke('authorize_private_inference', { provider: auth.provider, model: auth.model, endpoint: auth.endpoint, credential: auth.apiKey }) })
+      const data = { text: result.text }
+      _cachedSpeechToTextAuth = result.auth
       if (voiceTranscriptionTokenRef.current !== transcriptionToken) return
       if (data.text && data.text.trim()) {
         // Auto-send the transcribed text — queues if chat is busy mid-inference
@@ -3344,7 +3321,13 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       if (controller.signal.aborted || voiceTranscriptionTokenRef.current !== transcriptionToken) return
       const raw = e?.message || String(e)
       const lower = raw.toLowerCase()
-      if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
+      if (lower.includes('privacy mode')) {
+        pushAssistantRef.current?.('Cloud transcription is disabled in Privacy Mode. You can type your message instead.')
+      } else if (lower.includes('http 429')) {
+        pushAssistantRef.current?.('Speech providers are busy or at their usage limit. Please try again shortly.')
+      } else if (lower.includes('http 401') || lower.includes('http 403')) {
+        pushAssistantRef.current?.('Speech-to-text could not authenticate. Check your OpenAI or Groq connection in Settings → AI Provider.')
+      } else if (lower.includes('invalid file format') || lower.includes('"seconds":0') || lower.includes('supported formats')) {
         pushAssistantRef.current?.('🎤 I couldn’t hear usable audio in that recording. Please try again and speak for a second or two after the mic turns on.')
       } else if (lower.includes('insufficient_quota') || lower.includes('rate_limit') || lower.includes('billing') || lower.includes('credits')) {
         pushAssistantRef.current?.('🎤 Speech-to-text is temporarily unavailable because the connected providers have no remaining capacity. Check Settings → AI Provider, then try again.')
@@ -3991,6 +3974,12 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
       // Keep the optimistic local selection if backend sync is temporarily unavailable.
     }
   }, [])
+
+  useEffect(() => {
+    const refresh = () => { void syncProviderSelectionFromBackend() }
+    window.addEventListener('provider-settings-changed', refresh)
+    return () => window.removeEventListener('provider-settings-changed', refresh)
+  }, [syncProviderSelectionFromBackend])
 
   // Persisted chats remain mounted so background requests can finish. Refresh
   // the global provider/model selection whenever one becomes active again.
@@ -4710,7 +4699,7 @@ export default function ClawdChat({ active = true, showActivityPanel: externalAc
 
       // Use OpenAI TTS API for better quality
       const storedKey = await getOpenAIKey()
-      if (storedKey && cleanText.length > 0) {
+      if (storedKey && cleanText.length > 0 && !privacyModeStatus().enabled) {
         fetch('https://api.openai.com/v1/audio/speech', {
           method: 'POST',
           headers: {

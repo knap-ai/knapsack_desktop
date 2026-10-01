@@ -1,3 +1,4 @@
+import { authorizeDesktopRequest, readDesktopPrivacyPolicy } from "./knapsack-privacy-policy.js";
 import { ensureKnapsackDesktopReady } from "./knapsack-desktop-readiness.js";
 import { a as normalizeLowercaseStringOrEmpty, c as normalizeOptionalString, f as readStringValue } from "./string-coerce-DyL154ka.js";
 import { s as redactSensitiveText } from "./redact-ok5Q8nmw.js";
@@ -405,6 +406,11 @@ function buildGuardedModelFetch(model, timeoutMs, options) {
 			signal: request.signal,
 			...request.body ? { duplex: "half" } : {}
 		};
+		const desktopPrivacy = readDesktopPrivacyPolicy();
+		if (desktopPrivacy.enabled) {
+			const body = request ? await request.clone().text() : init?.body;
+			authorizeDesktopRequest(model, url, request?.headers ?? init?.headers, body, desktopPrivacy);
+		}
 		const synthesizeJsonAsSse = await requestBodyHasStreamTrue(request, requestInit ?? init);
 		const guardedFetchOptions = {
 			url,

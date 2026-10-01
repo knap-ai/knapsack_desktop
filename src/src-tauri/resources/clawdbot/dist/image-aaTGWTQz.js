@@ -1,3 +1,4 @@
+import { requireStandardPrivacyMode } from "./knapsack-privacy-policy.js";
 import { c as isSecretRef } from "./types.secrets-DwPik3M8.js";
 import { r as normalizeModelRef } from "./model-selection-normalize-CBfQo-Fd.js";
 import { n as ensureOpenClawModelsJson } from "./models-config-DNlTw_QX.js";
@@ -252,6 +253,7 @@ async function withImageDescriptionTimeout(params) {
 	}
 }
 async function describeImagesWithModelInternal(params, options = {}) {
+	requireStandardPrivacyMode("background media inference");
 	const prompt = params.prompt ?? "Describe the image.";
 	const startedAtMs = Date.now();
 	const controller = new AbortController();

@@ -44,3 +44,21 @@ export async function readPullProgress(response: Response, update: (message: str
     reader.releaseLock()
   }
 }
+
+
+export async function localAiReady(): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+  try {
+    const paths = ['/api/clawd/service/api-key-status', '/api/knapsack/ollama/status?cloud=false', '/api/knapsack/ollama/models?cloud=false']
+    const [provider, runtime, catalog] = await Promise.all(paths.map(async path => {
+      const response = await fetch('http://127.0.0.1:8897' + path, { signal: controller.signal })
+      if (!response.ok) throw new Error('Local AI status unavailable')
+      return response.json()
+    }))
+    return provider.ollama_enabled === true && !provider.ollama_cloud_enabled && runtime.running === true
+      && typeof provider.ollama_model === 'string' && isLocalModelTag(provider.ollama_model)
+      && catalog.models?.some((model: { name: string }) => model.name === provider.ollama_model) === true
+  } catch { return false }
+  finally { clearTimeout(timeout) }
+}
