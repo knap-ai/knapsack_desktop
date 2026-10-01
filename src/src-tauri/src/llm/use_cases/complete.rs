@@ -49,7 +49,7 @@ fn openai_compatible_client(
   provider_name: &str,
   base_url: &str,
 ) -> Result<reqwest::Client, reqwest::Error> {
-  let mut builder = reqwest::Client::builder()
+  let mut builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .connect_timeout(std::time::Duration::from_secs(10))
     .timeout(std::time::Duration::from_secs(60));
   if provider_name == "trustedrouter" || base_url.contains("trustedrouter.com") {

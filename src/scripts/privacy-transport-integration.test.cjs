@@ -14,6 +14,7 @@ test('bundled transport enforces changing desktop policy before a real loopback 
   let uploads = 0
   const server = http.createServer((req, res) => {
     uploads++
+    if (req.url === '/redirect') { res.writeHead(307, { Location: '/redirect-target' }); res.end(); return }
     req.resume()
     res.setHeader('Content-Type', 'application/json')
     res.end(JSON.stringify({ choices: [{ message: { content: 'local response' } }] }))
@@ -59,6 +60,9 @@ test('bundled transport enforces changing desktop policy before a real loopback 
     assert.equal(uploads, 2)
     await assert.rejects(send(`${endpoint}/chat/completions`, { ...request, body: JSON.stringify({ model: 'qwen3:cloud' }) }), /Privacy Mode/)
     assert.equal(uploads, 2)
+    await fs.writeFile(config, JSON.stringify({ version: 2, enabled: true, mode: 'local-only' }))
+    await assert.rejects(send(`http://127.0.0.1:${server.address().port}/redirect`, request), /redirect/i)
+    assert.equal(uploads, 3, 'only the approved original endpoint receives the request')
   } finally {
     server.closeAllConnections()
     await new Promise(resolve => server.close(resolve))

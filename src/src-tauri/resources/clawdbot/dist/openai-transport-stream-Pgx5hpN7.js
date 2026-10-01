@@ -423,6 +423,7 @@ function buildGuardedModelFetch(model, timeoutMs, options) {
 			dispatcherPolicy,
 			timeoutMs: requestTimeoutMs,
 			allowCrossOriginUnsafeRedirectReplay: false,
+			...(desktopPrivacy.enabled ? { maxRedirects: 0 } : {}),
 			...policy ? { policy } : {}
 		};
 		let result;

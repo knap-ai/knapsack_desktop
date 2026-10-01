@@ -29,7 +29,7 @@ export async function transcribeWithFallback(
       const body = new FormData()
       body.append('file', audio, `recording.${extension}`)
       body.append('model', auth.model)
-      const response = await fetch(auth.endpoint, { method: 'POST', signal: attempt.signal, headers: { Authorization: `Bearer ${auth.apiKey}` }, body })
+      const response = await fetch(auth.endpoint, { method: 'POST', redirect: 'error', signal: attempt.signal, headers: { Authorization: `Bearer ${auth.apiKey}` }, body })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
       if (typeof data.text !== 'string') throw new Error('Invalid transcription response')

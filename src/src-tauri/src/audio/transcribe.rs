@@ -181,7 +181,7 @@ async fn speech_to_text(
     .unwrap_or("audio.flac")
     .to_string();
 
-  let client = reqwest::Client::builder()
+  let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .timeout(Duration::from_secs(120))
     .build()
     .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
