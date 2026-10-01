@@ -1549,6 +1549,11 @@ fn mobile_presentation_instructions() -> &'static str {
 }
 
 fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> String {
+  build_mobile_chat_request_with_context(thread, text, &build_mobile_gbrain_context(thread_id))
+}
+
+// Keep presentation/policy construction independent of the desktop database.
+fn build_mobile_chat_request_with_context(thread: &Thread, text: &str, workspace_context: &str) -> String {
   let is_meeting_prep = thread
     .title
     .as_deref()
@@ -1578,7 +1583,7 @@ fn build_mobile_chat_request(thread: &Thread, thread_id: u64, text: &str) -> Str
   };
   format!(
     "{}\n\n{}{}{}\n\nYou are replying inside Knapsack's iPhone app. Use the trusted workspace context above first for meetings, calendar, email, notes, chats, and saved knowledge. Do not call a browser merely to retrieve that local workspace context. {}\n\nUser request\n{}",
-    build_mobile_gbrain_context(thread_id),
+    workspace_context,
     mobile_presentation_instructions(),
     meeting_prep_policy,
     email_policy,
@@ -3089,7 +3094,7 @@ pub async fn upload_mobile_recording(
 #[cfg(test)]
 mod tests {
   use super::{
-    build_mobile_chat_request, desktop_chat_detail, desktop_chat_id,
+    build_mobile_chat_request_with_context, desktop_chat_detail, desktop_chat_id,
     desktop_chat_session_allowed, gateway_history_message_text, gateway_reply_from_result,
     mobile_chat_session_key, mobile_seed_history_attachment, mobile_team_history_messages,
     parse_gateway_payload_text, starter_mobile_team_roster,
@@ -3165,7 +3170,11 @@ mod tests {
       prompt_template: None,
     };
 
-    let request = build_mobile_chat_request(&thread, 42, "What is on my calendar?");
+    let request = build_mobile_chat_request_with_context(
+      &thread,
+      "What is on my calendar?",
+      "Knapsack mobile workspace context\nRecent email\n- Gabriel: Planning update",
+    );
     assert!(request.contains("Knapsack on iPhone"));
     assert!(request.contains("Knapsack mobile workspace context"));
     assert!(request.contains("Do not call a browser merely to retrieve that local workspace context"));
@@ -3190,7 +3199,11 @@ mod tests {
       prompt_template: None,
     };
 
-    let request = build_mobile_chat_request(&thread, 44, "Reply to Gabriel");
+    let request = build_mobile_chat_request_with_context(
+      &thread,
+      "Reply to Gabriel",
+      "Knapsack mobile workspace context\nRecent email\n- Gabriel: Planning update",
+    );
     assert!(request.contains("Email conversation mode"));
     assert!(request.contains("draft the complete reply"));
     assert!(request.contains("Never claim an email was sent"));
@@ -3212,7 +3225,11 @@ mod tests {
       prompt_template: None,
     };
 
-    let request = build_mobile_chat_request(&thread, 43, "Prepare me");
+    let request = build_mobile_chat_request_with_context(
+      &thread,
+      "Prepare me",
+      "Knapsack mobile workspace context\nRecent email\n- Gabriel: Planning update",
+    );
     assert!(request.contains("Meeting prep mode"));
     assert!(request.contains("Do not call the browser or any other tool"));
     assert!(!request.contains("use any tool that is available"));

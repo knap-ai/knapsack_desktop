@@ -5928,7 +5928,7 @@ mod reconnect_retry_tests {
       .unwrap_or_default();
     assert!(fallbacks
       .iter()
-      .any(|value| value.as_str() == Some("groq/openai/gpt-oss-120b")));
+      .any(|value| value.as_str() == Some("groq/groq/compound")));
     assert!(fallbacks
       .iter()
       .any(|value| value.as_str() == Some("google/gemini-3.8-flash")));
