@@ -66,3 +66,14 @@ test('voice policy rejects OpenAI before upload and permits only authorized Groq
     assert.deepEqual(uploads, ['https://api.groq.com/openai/v1/audio/transcriptions'])
   } finally { global.fetch = original }
 })
+
+test('every voice provider is permitted by the packaged app connection policies', async () => {
+  const { speechCandidates } = await load('speechTranscription')
+  const config = JSON.parse(await fs.readFile(`${__dirname}/../src-tauri/tauri.conf.json`, 'utf8'))
+  const connect = config.tauri.security.csp.split(';').find(d => d.trim().startsWith('connect-src ')).trim().split(/\s+/).slice(1)
+  for (const candidate of speechCandidates({ openai_key: 'test', groq_key: 'test' })) {
+    const origin = new URL(candidate.endpoint).origin
+    assert.ok(connect.includes(origin), `${origin} must be allowed by packaged CSP`)
+    assert.ok(config.tauri.allowlist.http.scope.includes(`${origin}/**`), `${origin} must be allowed by native HTTP scope`)
+  }
+})
