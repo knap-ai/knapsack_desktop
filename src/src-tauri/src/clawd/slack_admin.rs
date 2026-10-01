@@ -143,13 +143,72 @@ fn addition_patch(config: &Value, account: &str, target: &str) -> Result<Value, 
   let account_config = accounts.and_then(|a| a.get(account));
   if account_config.is_none() && account != "default" { return Err("Slack account is not configured".into()); }
   let effective = account_config.unwrap_or(slack);
-  let policy = effective.get("dmPolicy").or_else(|| slack.get("dmPolicy")).and_then(Value::as_str).unwrap_or("pairing");
+  let (policy, mut allowed) = effective_allowlist(slack, effective);
   if policy != "allowlist" { return Err("Set this Slack account to allow-list mode in Settings first".into()); }
-  let mut allowed = effective.get("allowFrom").or_else(|| slack.get("allowFrom")).and_then(Value::as_array).cloned().unwrap_or_default();
   if allowed.iter().any(|v| v.as_str() == Some("*")) { return Err("Remove wildcard access in Settings first".into()); }
   if !allowed.iter().any(|v| v.as_str() == Some(target)) { allowed.push(json!(target)); }
   // Always scope the override to one account; never broaden other workspaces.
   Ok(json!({"channels":{"slack":{"accounts":{account:{"allowFrom":allowed}}}}}))
+}
+
+fn effective_allowlist(slack: &Value, account: &Value) -> (String, Vec<Value>) {
+  let policy = account.get("dmPolicy").or_else(|| account.pointer("/dm/policy"))
+    .or_else(|| slack.get("dmPolicy")).or_else(|| slack.pointer("/dm/policy"))
+    .and_then(Value::as_str).unwrap_or("pairing").to_string();
+  let members = account.get("allowFrom").or_else(|| account.pointer("/dm/allowFrom"))
+    .or_else(|| slack.get("allowFrom")).or_else(|| slack.pointer("/dm/allowFrom"))
+    .and_then(Value::as_array).cloned().unwrap_or_default();
+  (policy, members)
+}
+
+#[derive(Deserialize)]
+pub struct MemberRequest { account_id: String, user_id: Option<String> }
+
+fn account_members(config: &Value, account: &str) -> Result<(String, Vec<Value>), String> {
+  let slack = &config["channels"]["slack"];
+  let selected = slack.get("accounts").and_then(|a| a.get(account));
+  if selected.is_none() && account != "default" { return Err("Slack account is not configured".into()); }
+  Ok(effective_allowlist(slack, selected.unwrap_or(slack)))
+}
+
+// Owner-only Settings operations, never registered as chat tools. Read the same
+// effective account list that delegated additions update, so every grant is revocable.
+#[get("/api/clawd/slack/admins/members")]
+pub async fn get_members(query: web::Query<MemberRequest>) -> HttpResponse {
+  let result = async {
+    studio_mcp::signed_in_owner()?;
+    let snapshot = gateway_client::config_get(None).await?;
+    let (policy, members) = account_members(&snapshot["config"], &query.account_id)?;
+    Ok::<_, String>(json!({"success":true,"dmPolicy":policy,"allowFrom":members}))
+  }.await;
+  match result {
+    Ok(value) => HttpResponse::Ok().json(value),
+    Err(error) => HttpResponse::BadRequest().json(json!({"success":false,"message":error})),
+  }
+}
+
+fn removal_patch(config: &Value, account: &str, user: &str) -> Result<Value, String> {
+  let (_, mut members) = account_members(config, account)?;
+  members.retain(|value| value.as_str() != Some(user));
+  Ok(json!({"channels":{"slack":{"accounts":{account:{"allowFrom":members}}}}}))
+}
+
+#[post("/api/clawd/slack/admins/members/remove")]
+pub async fn remove_member(body: web::Json<MemberRequest>) -> HttpResponse {
+  let result = async {
+    let _lock = AdminLock::acquire()?;
+    studio_mcp::signed_in_owner()?;
+    let user = body.user_id.as_deref().filter(|s| !s.is_empty()).ok_or("Choose a member to remove")?;
+    let snapshot = gateway_client::config_get(None).await?;
+    let patch = removal_patch(&snapshot["config"], &body.account_id, user)?;
+    let hash = snapshot["hash"].as_str().ok_or("Missing config revision")?;
+    gateway_client::config_patch(&patch.to_string(), hash, None).await?;
+    Ok::<_, String>(())
+  }.await;
+  match result {
+    Ok(()) => HttpResponse::Ok().json(json!({"success":true})),
+    Err(error) => HttpResponse::BadRequest().json(json!({"success":false,"message":error})),
+  }
 }
 
 #[cfg(test)]
@@ -175,4 +234,21 @@ mod tests {
     assert!(!valid_id("*", &['U','W']));
     assert!(!valid_id("Fran", &['U','W']));
   }
+  #[test]
+  fn owner_can_read_and_revoke_delegated_members_without_affecting_other_accounts() {
+    let mut config = json!({"channels":{"slack":{"dmPolicy":"allowlist","allowFrom":["U1"],"accounts":{"work":{},"other":{"allowFrom":["U9"]}}}}});
+    let added = addition_patch(&config, "work", "U2").unwrap();
+    config["channels"]["slack"]["accounts"]["work"] = added["channels"]["slack"]["accounts"]["work"].clone();
+    assert_eq!(account_members(&config, "work").unwrap().1, vec![json!("U1"),json!("U2")]);
+    let removed = removal_patch(&config, "work", "U2").unwrap();
+    assert_eq!(removed["channels"]["slack"]["accounts"]["work"]["allowFrom"], json!(["U1"]));
+    assert!(removed["channels"]["slack"]["accounts"].get("other").is_none());
+  }
+  #[test]
+  fn legacy_members_are_preserved_and_account_overrides_win() {
+    let config = json!({"channels":{"slack":{"dm":{"policy":"allowlist","allowFrom":["U1"]},"accounts":{"work":{},"closed":{"dm":{"policy":"disabled","allowFrom":["U9"]}}}}}});
+    assert_eq!(addition_patch(&config,"work","U2").unwrap()["channels"]["slack"]["accounts"]["work"]["allowFrom"],json!(["U1","U2"]));
+    assert!(addition_patch(&config,"closed","U2").is_err());
+  }
+
 }

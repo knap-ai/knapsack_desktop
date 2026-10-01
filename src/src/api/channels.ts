@@ -585,3 +585,6 @@ export interface SlackAdminNomination {
 export const getSlackAdmins = () => get<{ success: boolean; admins: SlackAdminNomination[] }>('/api/clawd/slack/admins')
 export const nominateSlackAdmin = (nomination: { account_id: string; workspace_id: string; user_id: string | null }) =>
   post<GenericResponse>('/api/clawd/slack/admins', nomination)
+
+export const getSlackAccountMembers = (account: string) => get<AllowlistResponse>(`/api/clawd/slack/admins/members?account_id=${encodeURIComponent(account)}`)
+export const removeSlackAccountMember = (account_id: string, user_id: string) => post<GenericResponse>('/api/clawd/slack/admins/members/remove', { account_id, user_id })
