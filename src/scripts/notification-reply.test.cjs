@@ -1,0 +1,21 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const fs = require('node:fs/promises')
+const { transform } = require('esbuild')
+
+test('notification acceptance carries its exact offer independently of stale chat history', async () => {
+  const source = await fs.readFile(`${__dirname}/../src/utils/notificationReply.ts`, 'utf8')
+  const { code } = await transform(source, { loader: 'ts', format: 'esm' })
+  const { notificationAcceptance } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+  const offer = 'You have a 1:1 with Mark Mau in 45 minutes. Want me to pull up your notes or suggest an agenda?'
+  const reply = notificationAcceptance(offer)
+  assert.ok(reply.includes(JSON.stringify(offer)))
+  assert.match(reply, /only to the offer above, not to older requests or account monitoring/)
+  assert.match(reply, /give me the result now/)
+  assert.match(reply, /without a successful tool result/)
+  assert.ok(notificationAcceptance('Review "today\'s agenda"\nwith me?').includes(JSON.stringify('Review "today\'s agenda"\nwith me?')))
+  const app = await fs.readFile(`${__dirname}/../src/App.tsx`, 'utf8')
+  const handler = app.slice(app.indexOf('heartbeat_view_handler:'), app.indexOf('background_insight_notification_handler:'))
+  assert.match(handler, /detail: notificationAcceptance\(message\)/)
+  assert.doesNotMatch(handler, /detail: 'yes'/)
+})
