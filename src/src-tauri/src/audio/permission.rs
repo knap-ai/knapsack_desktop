@@ -324,29 +324,22 @@ pub async fn check_audio_permissions() -> Result<serde_json::Value, String> {
 
 #[cfg(target_os = "macos")]
 fn check_microphone_permission_macos() -> bool {
-  use std::process::Command;
-  // Use AppleScript to query AVFoundation's authorization status for audio.
-  // AVAuthorizationStatus: 0=notDetermined, 1=restricted, 2=denied, 3=authorized
-  let result = Command::new("osascript")
-        .arg("-e")
-        .arg(
-            r#"use framework "AVFoundation"
-set status to current application's AVCaptureDevice's authorizationStatusForMediaType:(current application's AVMediaTypeAudio)
-return status as integer"#,
-        )
-        .output();
-
-  match result {
-    Ok(output) => {
-      let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-      // 3 = AVAuthorizationStatusAuthorized
-      stdout == "3"
-    }
-    Err(e) => {
-      log::warn!("Failed to check microphone permission: {}", e);
-      false
-    }
+  // Query this process's TCC status directly. Spawning osascript both checks
+  // another process's identity and misreports spawn/FD failures as denial.
+  use objc2::runtime::AnyClass;
+  use objc2::msg_send;
+  use objc2_foundation::NSString;
+  #[link(name = "AVFoundation", kind = "framework")]
+  extern "C" {
+    static AVMediaTypeAudio: &'static NSString;
   }
+  let device = match AnyClass::get("AVCaptureDevice") {
+    Some(device) => device,
+    None => { log::error!("AVCaptureDevice unavailable"); return false; }
+  };
+  let status: isize = unsafe { msg_send![device, authorizationStatusForMediaType: AVMediaTypeAudio] };
+  status == 3
+
 }
 
 /// Public helper for other modules (e.g. audio.rs) to gate the speaker-output
@@ -407,24 +400,11 @@ fn check_system_audio_permission_macos() -> bool {
 /// Check if the current macOS version is >= 14.2 (required for Core Audio Taps).
 #[cfg(target_os = "macos")]
 fn check_macos_version_sufficient() -> bool {
-  use std::process::Command;
-  // sw_vers -productVersion returns e.g. "14.5" or "13.6.1"
-  let output = match Command::new("sw_vers").arg("-productVersion").output() {
-    Ok(o) => o,
-    Err(e) => {
-      log::warn!("Failed to run sw_vers: {}", e);
-      return true; // assume sufficient if we can't determine
-    }
-  };
-  let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-  let parts: Vec<u32> = version_str
-    .split('.')
-    .filter_map(|p| p.parse().ok())
-    .collect();
-  let major = parts.first().copied().unwrap_or(0);
-  let minor = parts.get(1).copied().unwrap_or(0);
-  // Require macOS 14.2+
-  major > 14 || (major == 14 && minor >= 2)
+  use objc2_foundation::{NSOperatingSystemVersion, NSProcessInfo};
+  unsafe { NSProcessInfo::processInfo().isOperatingSystemAtLeastVersion(NSOperatingSystemVersion {
+    majorVersion: 14, minorVersion: 2, patchVersion: 0,
+  }) }
+
 }
 
 /// Helper to get the app's bundle ID, with fallback to the known production ID.
@@ -581,5 +561,42 @@ fn check_system_audio_via_tap_probe() -> bool {
       status
     );
     false
+  }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod resource_tests {
+  #[test]
+  fn microphone_status_survives_descriptor_exhaustion() {
+    const CHILD: &str = "KNAPSACK_PERMISSION_FD_TEST_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+      let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "audio::permission::resource_tests::microphone_status_survives_descriptor_exhaustion", "--test-threads=1"])
+        .env(CHILD, "1").status().unwrap();
+      assert!(status.success());
+      return;
+    }
+    // Only the disposable test subprocess lowers its limit. Neither probe
+    // requests access or changes TCC. Warm the frameworks before exhausting FDs.
+    let microphone = super::check_microphone_permission_macos();
+    let os_supported = super::check_macos_version_sufficient();
+    unsafe {
+      let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+      assert_eq!(libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit), 0);
+      limit.rlim_cur = limit.rlim_cur.min(128);
+      assert_eq!(libc::setrlimit(libc::RLIMIT_NOFILE, &limit), 0);
+    }
+    let mut files = Vec::new();
+    loop {
+      match std::fs::File::open("/dev/null") {
+        Ok(file) => files.push(file),
+        Err(error) => { assert_eq!(error.raw_os_error(), Some(libc::EMFILE)); break; }
+      }
+    }
+    let mic_under_pressure = super::check_microphone_permission_macos();
+    let os_under_pressure = super::check_macos_version_sufficient();
+    drop(files);
+    assert_eq!(mic_under_pressure, microphone);
+    assert_eq!(os_under_pressure, os_supported);
   }
 }

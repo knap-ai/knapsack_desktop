@@ -101,7 +101,7 @@ optional = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"
-objc2-foundation = "0.2.2"
+objc2-foundation = { version = "0.2.2", features = ["NSString", "NSProcessInfo"] }
 core-foundation = "0.10.0"
 core-media = "0.5.1"
 core-video = "0.4.3"

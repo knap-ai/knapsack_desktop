@@ -49,7 +49,9 @@ fn openai_compatible_client(
   provider_name: &str,
   base_url: &str,
 ) -> Result<reqwest::Client, reqwest::Error> {
-  let mut builder = reqwest::Client::builder();
+  let mut builder = reqwest::Client::builder()
+    .connect_timeout(std::time::Duration::from_secs(10))
+    .timeout(std::time::Duration::from_secs(60));
   if provider_name == "trustedrouter" || base_url.contains("trustedrouter.com") {
     // TrustedRouter has been intermittently failing ALPN negotiation on some
     // macOS builds with reqwest's default transport. Force HTTP/1.1 there.
@@ -540,7 +542,8 @@ pub(crate) async fn resolve_knapsack_bearer_token(email: &str) -> Result<String,
     return Ok(token);
   }
 
-  let client = reqwest::Client::new();
+  let client = openai_compatible_client("", "")
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Could not initialize inference connection: {}", e)))?;
   let token_url = format!(
     "http://127.0.0.1:8897/api/knapsack/connections/refresh_token_api/{}",
     email
@@ -825,7 +828,8 @@ async fn anthropic_completion(
   provider: &ResolvedProvider,
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
-  let client = reqwest::Client::new();
+  let client = openai_compatible_client("", "")
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Could not initialize inference connection: {}", e)))?;
 
   // Anthropic requires system message separate from messages array
   let mut system_text = String::new();
@@ -952,7 +956,8 @@ async fn knapsack_completion(
   messages: &[LlmMessage],
 ) -> Result<String, LLMError> {
   let email = &provider.api_key;
-  let client = reqwest::Client::new();
+  let client = openai_compatible_client("", "")
+    .map_err(|e| LLMError::ChatCompletionFailed(format!("Could not initialize inference connection: {}", e)))?;
   let mut token = resolve_knapsack_bearer_token(email).await?;
 
   let conversation: Vec<serde_json::Value> = messages
@@ -1078,6 +1083,12 @@ pub async fn selected_provider_completion(messages: Vec<LlmMessage>, oauth_home:
 
 /// Complete using the best available provider. Falls back through providers on failure.
 pub async fn multi_provider_completion(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
+  tokio::time::timeout(std::time::Duration::from_secs(90), multi_provider_completion_inner(messages))
+    .await
+    .map_err(|_| LLMError::ChatCompletionFailed("Inference timed out. Please check your connection and try again.".into()))?
+}
+
+async fn multi_provider_completion_inner(messages: Vec<LlmMessage>) -> Result<String, LLMError> {
   let mut provider = resolve_provider()?;
 
   // Extract the last user message for task complexity classification

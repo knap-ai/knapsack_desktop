@@ -14,7 +14,6 @@ use serde_json::json;
 use std::fs::create_dir_all;
 use std::fs::read_to_string;
 use std::sync::{Arc, Mutex};
-use tokio::runtime::Runtime;
 
 use tauri::{CustomMenuItem, Manager, Window, WindowBuilder, WindowUrl};
 
@@ -195,7 +194,7 @@ fn write_audio_data<T, U>(
     let transcription_job = begin_transcription_job();
     std::thread::spawn(move || {
       let _transcription_job = transcription_job;
-      let rt = match Runtime::new() {
+      let rt = match crate::utils::runtime::background_runtime() {
         Ok(rt) => rt,
         Err(e) => {
           log::error!("Failed to create tokio runtime: {}", e);
@@ -438,7 +437,7 @@ pub async fn start_recording(
     let (startup_tx, mut startup_rx) = mpsc::unbounded_channel::<Result<(), String>>();
     let failure_tx = startup_tx.clone();
     let output_thread = handle.spawn_blocking(move || {
-      let result = tokio::runtime::Runtime::new()
+      let result = crate::utils::runtime::background_runtime()
         .unwrap()
         .block_on(record_speaker_output(
           is_recording_output,
@@ -514,7 +513,7 @@ pub async fn start_recording(
   let mic_failure_tx = mic_startup_tx.clone();
   let mic_app_handle = app_handle.clone();
   let mic_thread = handle.spawn_blocking(move || {
-    if let Err(e) = tokio::runtime::Runtime::new()
+    if let Err(e) = crate::utils::runtime::background_runtime()
       .unwrap()
       .block_on(stream_audio(
         mic_input_config,

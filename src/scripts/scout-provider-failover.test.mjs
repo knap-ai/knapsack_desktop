@@ -110,3 +110,28 @@ test('Scout falls back when Gemini returns a successful response with zero outpu
   assert.equal(classification?.code, 'empty_result')
   assert.match(classification?.message ?? '', /without a visible assistant reply/)
 })
+
+const modelRefSource = fs.readFileSync(new URL('../src-tauri/resources/clawdbot/dist/model-ref-shared-BkjJfDrJ.js', import.meta.url), 'utf8');
+const modelRefFunctions = ['isGroqCompoundModel', 'modelKey', 'normalizeBuiltInProviderModelId', 'parseStaticModelRef']
+  .map(name => modelRefSource.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n}`))?.[0]);
+assert.ok(modelRefFunctions.every(Boolean));
+const modelRefs = new Function(`
+  const normalizeLowercaseStringOrEmpty = value => value.toLowerCase();
+  const normalizeProviderId = value => value.toLowerCase();
+  const normalizeGooglePreviewModelId = value => value;
+  const normalizeStaticProviderModelId = (provider, model) => normalizeBuiltInProviderModelId(provider, model);
+  ${modelRefFunctions.join('\n')}
+  return { modelKey, parseStaticModelRef };
+`)();
+
+test('Groq Compound fallback keeps its catalog ID through gateway key round trips', () => {
+  for (const id of ['groq/compound', 'groq/compound-mini']) {
+    const key = modelRefs.modelKey('groq', id);
+    assert.equal(key, `groq/${id}`);
+    assert.deepEqual(modelRefs.parseStaticModelRef(key, 'openai'), {provider: 'groq', model: id});
+    // Recover older collapsed keys already persisted in gateway sessions.
+    assert.deepEqual(modelRefs.parseStaticModelRef(id, 'openai'), {provider: 'groq', model: id});
+  }
+  assert.equal(modelRefs.modelKey('groq', 'openai/gpt-oss-120b'), 'groq/openai/gpt-oss-120b');
+  assert.equal(modelRefs.modelKey('openai', 'gpt-5'), 'openai/gpt-5');
+});

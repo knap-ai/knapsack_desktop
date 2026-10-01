@@ -437,7 +437,7 @@ fn setup_handler(
   // app-local config and key propagation.
   let auto_enable_handle = app.handle();
   std::thread::spawn(move || {
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = crate::utils::runtime::background_runtime().unwrap();
     rt.block_on(async {
       clawd::service::auto_enable_if_needed(&auto_enable_handle).await;
       // Keeps Rust aware of live Slack sessions so the Snowflake MCP tool
@@ -512,7 +512,7 @@ fn setup_handler(
   });
 
   // Start the heartbeat background loop
-  std::thread::spawn(move || match tokio::runtime::Runtime::new() {
+  std::thread::spawn(move || match crate::utils::runtime::background_runtime() {
     Ok(runtime) => {
       runtime.block_on(heartbeat::engine::start_heartbeat_loop(
         heartbeat_app_handle,
@@ -527,7 +527,7 @@ fn setup_handler(
   // Start the library curator background loop. Auto-populates the user's
   // Library with People + Project collections from synced data sources.
   std::thread::spawn(|| {
-    tokio::runtime::Runtime::new()
+    crate::utils::runtime::background_runtime()
       .unwrap()
       .block_on(library_curator::run_curator_forever());
   });
@@ -537,7 +537,7 @@ fn setup_handler(
   // at ~590 MB with no per-user telemetry to identify whether the
   // condition is widespread.
   std::thread::spawn(|| {
-    tokio::runtime::Runtime::new()
+    crate::utils::runtime::background_runtime()
       .unwrap()
       .block_on(utils::memory_monitor::start_memory_monitor_loop());
   });
@@ -1769,8 +1769,12 @@ fn update_tray_title(app: AppHandle, title: String) {
   }
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+  utils::runtime::prepare_file_limit();
+  utils::runtime::background_runtime().expect("desktop runtime").block_on(run_app());
+}
+
+async fn run_app() {
   // Hidden entrypoint: OpenClaw spawns this same binary as an MCP-over-stdio
   // subprocess (see `ensure_knapsack_snowflake_mcp_server` in
   // clawd/service.rs, which points `mcp.servers.snowflake.command` at

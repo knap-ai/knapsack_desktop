@@ -239,7 +239,7 @@ pub async fn start_server<'a>(
       .service(clawd::managed_agents::managed_agent_channel_run)
   });
 
-  let mobile_server_handle = match mobile_server.bind(("0.0.0.0", mobile_port)) {
+  let mobile_server_handle = match mobile_server.workers(1).bind(("0.0.0.0", mobile_port)) {
     Ok(server) => {
       log::info!("Starting mobile LAN server on 0.0.0.0:{mobile_port}");
       let server = server.run();
@@ -606,6 +606,7 @@ pub async fn start_server<'a>(
   // localhost to either IPv4 or IPv6, so listen on both loopback addresses.
   // Binding only 127.0.0.1 makes a successful consent silently fail whenever
   // the browser selects ::1 for the callback.
+  .workers(2)
   .bind(("127.0.0.1", port))
   .map_err(|e| {
     eprintln!(

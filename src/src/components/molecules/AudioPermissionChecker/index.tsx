@@ -30,6 +30,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const [isInitializing, setIsInitializing] = useState(true);
   const [systemAudioAttempts, setSystemAudioAttempts] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
+  const [permissionError, setPermissionError] = useState('');
 
   // Meeting chat notice opt-in state
   const [showChatNoticeStep, setShowChatNoticeStep] = useState(false);
@@ -88,22 +89,15 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
   const requestMicrophoneAccess = async () => {
     setIsCheckingMic(true);
     try {
-      try {
-        await invoke<{ success: boolean }>('open_microphone_settings');
-      } catch (err) {
-        logError(new Error('Failed to open Mic settings'), {
-          additionalInfo: '',
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
+      setPermissionError('');
+      const result = await invoke<{ success: boolean; error?: string }>('open_microphone_settings');
+      if (!result.success) throw new Error(result.error || 'Could not open microphone settings');
 
-      // Try browser getUserMedia to trigger the OS permission prompt
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-      } catch {
-        // getUserMedia may fail, but the user might still grant via System Settings
-      }
+      // Settings opens immediately. Do not block the button on a WebKit media
+      // permission promise: it can remain pending indefinitely.
+      navigator.mediaDevices?.getUserMedia({ audio: true })
+        .then(stream => stream.getTracks().forEach(track => track.stop()))
+        .catch(() => { /* System Settings and the OS poll handle denial. */ });
 
       // Re-check the actual OS permission status
       const permissions = await checkRealPermissions();
@@ -117,6 +111,8 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
       if (permissions.all_granted) {
         handleAudioPermissionsReady();
       }
+    } catch (error) {
+      setPermissionError(error instanceof Error ? error.message : 'Could not open microphone settings. Open System Settings > Privacy & Security > Microphone.');
     } finally {
       setIsCheckingMic(false);
     }
@@ -449,6 +445,7 @@ const AudioPermissionChecker: React.FC<AudioPermissionCheckerProps> = ({
                 {isCheckingMic ? 'Checking...' : 'Enable microphone access'}
               </button>
             )}
+            {permissionError && <p role="alert" className="text-red-700 text-sm mt-3">{permissionError}</p>}
 
             {/* System audio permission — required to capture other participants */}
             {systemAudioPermission ? (
