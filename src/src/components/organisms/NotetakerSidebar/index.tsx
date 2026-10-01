@@ -998,9 +998,16 @@ function NotetakerSidebar({
                                     className="notetaker-sidebar__start-now-btn"
                                     onClick={async e => {
                                       e.stopPropagation()
-                                      await feed.startCalendarMeeting(item)
-                                      onMeetingSelect?.()
-                                      onTabChange(TabChoices.Meeting, 'meetings')
+                                      try {
+                                        const started = await feed.startCalendarMeeting(item)
+                                        if (!started) return
+                                        onMeetingSelect?.()
+                                        onTabChange(TabChoices.Meeting, 'meetings')
+                                      } catch (error) {
+                                        // The feed reports the actionable error; stay on
+                                        // the current view instead of opening empty notes.
+                                        console.error('Could not start calendar meeting', error)
+                                      }
                                     }}
                                   >
                                     Start now
