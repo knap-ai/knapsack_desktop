@@ -7,6 +7,9 @@ import { privacyModeStatus } from 'src/utils/privacyMode'
 import { SLACK_GUIDED_SETUP_PROMPT } from 'src/utils/slackGuidedSetup'
 import './style.scss'
 import { buildChatSeedHistory } from 'src/utils/chatSeedHistory'
+import { linkedDriveUrls, readLinkedDriveContext } from 'src/utils/nativeDriveContext'
+import { getGoogleDriveFileText } from 'src/api/data_source'
+import { getConnections, getGoogleDriveConnections } from 'src/api/connections'
 
 import { useEffect, useMemo, useState, useCallback, memo, useRef, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
@@ -5697,6 +5700,32 @@ ${context.text}`
             }
           } catch (err) {
             console.warn('[ClawdChat] Failed to pre-fetch native email/calendar context:', err)
+          }
+        }
+
+        const driveUrls = linkedDriveUrls(text, msgs)
+        if (driveUrls.length) {
+          const driveController = new AbortController()
+          const cancelDrive = () => driveController.abort()
+          controller.signal.addEventListener('abort', cancelDrive, { once: true })
+          if (controller.signal.aborted) cancelDrive()
+          const driveTimer = setTimeout(cancelDrive, 15_000)
+          try {
+            const connections = await getConnections(userEmail || '', { includeAllUsers: true, signal: driveController.signal })
+            const driveContext = await readLinkedDriveContext(driveUrls, async url => {
+              for (const connection of getGoogleDriveConnections(connections)) {
+                const file = await getGoogleDriveFileText(url, [connection.ownerEmail || userEmail || ''], driveController.signal, connection.calendarAccountEmail)
+                if (file?.content.trim()) return file
+              }
+              return undefined
+            })
+            actualText += `\n\n${driveContext}`
+          } catch {
+            if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError')
+            actualText += '\n\nThe native Drive read did not complete. Try an available connected Drive read tool; do not infer that Google Slides is unreadable from a browser snapshot.'
+          } finally {
+            clearTimeout(driveTimer)
+            controller.signal.removeEventListener('abort', cancelDrive)
           }
         }
 

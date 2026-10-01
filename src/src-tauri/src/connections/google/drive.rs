@@ -53,6 +53,7 @@ pub struct FetchGoogleDriveParams {
 pub struct FetchGoogleDriveFileTextParams {
   email: String,
   id_or_url: String,
+  account_email: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -957,10 +958,13 @@ async fn fetch_google_drive_file_text(req: HttpRequest) -> Result<HttpResponse, 
   let file_id = resolve_google_drive_file_id(&params.id_or_url)
     .ok_or_else(|| error::ErrorBadRequest("Could not extract a Google Drive file id"))?;
 
-  let user_connection = UserConnection::find_by_user_email_and_scope(
-    params.email.clone(),
-    String::from(GOOGLE_DRIVE_SCOPE),
-  )
+  let user_connection = if let Some(account_email) = &params.account_email {
+    UserConnection::find_by_user_email_scope_and_calendar_account(
+      params.email.clone(), String::from(GOOGLE_DRIVE_SCOPE), account_email.clone(),
+    )
+  } else {
+    UserConnection::find_by_user_email_and_scope(params.email.clone(), String::from(GOOGLE_DRIVE_SCOPE))
+  }
   .map_err(|e| error::ErrorBadRequest(format!("Drive connection not found: {:?}", e)))?;
 
   let access_token = refresh_connection_token(params.email.clone(), user_connection.clone())
