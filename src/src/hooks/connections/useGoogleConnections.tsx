@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { googleReconnectRequired } from 'src/utils/googleSyncAuth'
 
 import {
   Connection,
@@ -14,7 +15,7 @@ import {
 } from 'src/api/connections'
 
 // Track auth failures across syncs so we only trigger reconnect after
-// multiple consecutive 400 errors, not a single transient one.
+// confirmed invalid-refresh-token errors, never generic HTTP failures.
 const AUTH_FAILURE_THRESHOLD = 2
 
 export const useGoogleConnections = (
@@ -26,8 +27,7 @@ export const useGoogleConnections = (
   const handleSyncError = useCallback(
     (error: unknown, connectionKey: string) => {
       console.error(error)
-      const err = error as Error
-      if (err.message.includes('400')) {
+      if (googleReconnectRequired(error)) {
         const count = (authFailureCounts.current[connectionKey] || 0) + 1
         authFailureCounts.current[connectionKey] = count
 
@@ -38,6 +38,7 @@ export const useGoogleConnections = (
         }
         return
       }
+      authFailureCounts.current[connectionKey] = 0
       setConnectionState?.(connectionKey, ConnectionStates.FAILED)
     },
     [setConnectionState, removeConnection],

@@ -93,6 +93,12 @@ impl GroqLlm {
     messages: Vec<Message>,
     stream: bool,
   ) -> anyhow::Result<CompletionOption> {
+    crate::privacy_mode::enforce_route("groq", model, "https://api.groq.com/openai/v1", &self.api_key).map_err(anyhow::Error::msg)?;
+    // This legacy SDK does not expose redirect controls. Private chat uses
+    // the guarded OpenAI-compatible transport instead.
+    if crate::privacy_mode::is_enabled() {
+      anyhow::bail!("Privacy Mode requires the guarded desktop chat route");
+    }
     let request = builder::RequestBuilder::new(model.to_string()).with_stream(stream);
 
     let mut client = Groq::new(&self.api_key);
@@ -147,11 +153,12 @@ impl GroqLlm {
       form = form.text("temperature", temp.to_string());
     }
 
-    let client = reqwest::Client::builder()
+    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
       .timeout(std::time::Duration::from_secs(60))
       .build()
       .map_err(|e| LLMError::ChatCompletionFailed(format!("Failed to build HTTP client: {}", e)))?;
 
+    crate::privacy_mode::enforce_route("groq", "whisper-large-v3-turbo", "https://api.groq.com/openai/v1/audio/transcriptions", &self.api_key).map_err(LLMError::ProviderNotConfigured)?;
     let response = client
       .post("https://api.groq.com/openai/v1/audio/transcriptions")
       .header("Authorization", format!("Bearer {}", self.api_key))

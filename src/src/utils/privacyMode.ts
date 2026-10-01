@@ -7,7 +7,9 @@ import KNAnalytics from './KNAnalytics'
 export type PrivacyModeStatus = {
   enabled: boolean
   policy_version: number
-  inference: 'local-only' | 'normal'
+  inference: 'local-only' | 'zero-retention' | 'normal'
+  selected_mode?: 'local-only' | 'zero-retention'
+  groq_zdr_confirmed?: boolean
   telemetry: 'disabled' | 'normal'
   manifest_sha256: string
 }
@@ -31,12 +33,14 @@ export async function initializePrivacyMode(): Promise<PrivacyModeStatus> {
   }
   KNAnalytics.setPrivacyMode(status.enabled)
   if (status.enabled) Sentry.close()
+  window.dispatchEvent(new Event('privacy-mode-changed'))
   return status
 }
 
-export async function setPrivacyMode(enabled: boolean): Promise<PrivacyModeStatus> {
-  status = await invoke<PrivacyModeStatus>('set_privacy_mode', { enabled })
+export async function setPrivacyMode(enabled: boolean, mode?: 'local-only' | 'zero-retention', confirmGroqZdr?: boolean): Promise<PrivacyModeStatus> {
+  status = await invoke<PrivacyModeStatus>('set_privacy_mode', { enabled, mode, confirmGroqZdr })
   KNAnalytics.setPrivacyMode(status.enabled)
   if (status.enabled) Sentry.close()
+  window.dispatchEvent(new Event('privacy-mode-changed'))
   return status
 }

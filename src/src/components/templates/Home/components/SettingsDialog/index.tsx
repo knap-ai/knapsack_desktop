@@ -19,7 +19,8 @@ import { logError } from 'src/utils/errorHandling'
 import { BaseException } from 'src/utils/exceptions/base'
 import KNAnalytics from 'src/utils/KNAnalytics'
 import { getPrivacyExperimentTrackingId } from 'src/utils/onboardingIntent'
-import { privacyModeStatus, setPrivacyMode } from 'src/utils/privacyMode'
+import PrivacyModeControl from 'src/components/organisms/PrivacyModeControl'
+import { privacyModeStatus } from 'src/utils/privacyMode'
 import {
   formatPrivacyPilotReceipt,
   readPrivacyPilotReceipt,
@@ -795,7 +796,11 @@ export const SettingsDialog = ({
   const [piiModelStatus, setPiiModelStatus] = useState<PiiModelStatus | null>(null)
   const [piiModelBusy, setPiiModelBusy] = useState(false)
   const [privacyModeEnabled, setPrivacyModeEnabled] = useState(() => privacyModeStatus().enabled)
-  const [privacyModeBusy, setPrivacyModeBusy] = useState(false)
+  useEffect(() => {
+    const update = () => setPrivacyModeEnabled(privacyModeStatus().enabled)
+    window.addEventListener('privacy-mode-changed', update)
+    return () => window.removeEventListener('privacy-mode-changed', update)
+  }, [])
   const [privacyPilotReceipt, setPrivacyPilotReceipt] = useState<PrivacyPilotReceipt | null>(null)
   const [privacyPilotReceiptMessage, setPrivacyPilotReceiptMessage] = useState('')
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([])
@@ -1579,24 +1584,10 @@ export const SettingsDialog = ({
         <div className="p-6 flex flex-col gap-2">
           <Typography weight={TypographyWeight.medium}>Privacy Mode</Typography>
           <div className={styles.privacyModelDescription}>
-            Keep inference on this computer with local Ollama. Analytics and crash reporting are
-            disabled. Cloud providers, including Cloud Ollama, are blocked until you turn this off.
+            Choose eligible zero-retention cloud routes or keep inference on this computer with Ollama.
+            Analytics are disabled in both privacy modes.
           </div>
-          <InputCheckbox
-            checked={privacyModeEnabled}
-            onClick={async () => {
-              if (privacyModeBusy) return
-              setPrivacyModeBusy(true)
-              try {
-                const next = await setPrivacyMode(!privacyModeEnabled)
-                setPrivacyModeEnabled(next.enabled)
-              } finally {
-                setPrivacyModeBusy(false)
-              }
-            }}
-          >
-            {privacyModeEnabled ? 'Privacy Mode is on' : 'Enable Privacy Mode'}
-          </InputCheckbox>
+          <PrivacyModeControl />
           {privacyModeEnabled && (
             <>
               <div className={styles.privacyModelNotice}>

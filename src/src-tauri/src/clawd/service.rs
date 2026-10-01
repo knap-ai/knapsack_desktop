@@ -6239,6 +6239,12 @@ pub async fn get_mobile_pairing_token(app_handle: tauri::AppHandle) -> Result<St
 /// Load saved LLM API keys from tokens.json and set them as environment
 /// variables so they are available to the actix server (llm_complete, transcribe, etc.)
 /// from the moment the process starts — not just after clawdbot service enable.
+pub(crate) fn groq_privacy_fingerprint(app_handle: &tauri::AppHandle) -> Result<String, String> {
+  let tokens = load_or_create_tokens(app_handle)?;
+  let key = tokens.groq_api_key.filter(|key| !key.trim().is_empty()).ok_or("Connect Groq in AI Provider settings first")?;
+  Ok(crate::privacy_mode::routes::credential_fingerprint(&key))
+}
+
 pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
   let mut tokens = match load_or_create_tokens(app_handle) {
     Ok(t) => t,
@@ -6250,7 +6256,7 @@ pub fn propagate_llm_keys_to_env(app_handle: &tauri::AppHandle) {
       return;
     }
   };
-  if crate::privacy_mode::is_enabled() {
+  if crate::privacy_mode::is_local_only() {
     crate::privacy_mode::apply_local_inference_env();
     return;
   }

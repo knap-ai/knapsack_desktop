@@ -663,7 +663,7 @@ pub async fn openai_compatible_chat(
   // Use a longer timeout for local providers (Ollama) which may need more time
   let is_local = is_local_ollama_endpoint(base_url);
   let timeout_secs = if is_local { 300 } else { 60 };
-  let mut client_builder = reqwest::Client::builder().timeout(Duration::from_secs(timeout_secs));
+  let mut client_builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(timeout_secs));
   if base_url.contains("trustedrouter.com") {
     // TrustedRouter has been intermittently failing ALPN negotiation on some
     // macOS builds with reqwest's default transport. Force HTTP/1.1 there.
@@ -869,7 +869,7 @@ pub async fn ollama_native_chat(
 ) -> anyhow::Result<OaiChatResp> {
   let is_local = is_local_ollama_endpoint(base_url);
   let timeout_secs = if is_local { 300 } else { 60 };
-  let client = reqwest::Client::builder()
+  let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .timeout(Duration::from_secs(timeout_secs))
     .build()?;
 
@@ -1300,7 +1300,7 @@ pub async fn anthropic_chat(
   messages: Vec<OaiMessage>,
   tools: Vec<OaiToolSpec>,
 ) -> anyhow::Result<OaiChatResp> {
-  let client = reqwest::Client::builder()
+  let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .timeout(Duration::from_secs(90))
     .build()?;
 
@@ -1583,7 +1583,7 @@ pub async fn gemini_chat_with_retries(
   tools: Vec<OaiToolSpec>,
   max_retries: usize,
 ) -> anyhow::Result<OaiChatResp> {
-  let client = reqwest::Client::builder()
+  let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .timeout(Duration::from_secs(90))
     .build()?;
 

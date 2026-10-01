@@ -1,3 +1,4 @@
+import { withDesktopPrivacy } from "./knapsack-privacy-policy.js";
 import { a as normalizeLowercaseStringOrEmpty } from "./string-coerce-DyL154ka.js";
 import { j as resolveProviderStreamFn } from "./provider-runtime-D8jQEgmu.js";
 import { t as MALFORMED_STREAMING_FRAGMENT_ERROR_MESSAGE } from "./assistant-error-format-CuUvHfKt.js";
@@ -1146,8 +1147,9 @@ function registerProviderStreamForModel(params) {
 		env: params.env
 	});
 	if (!streamFn) return;
-	ensureCustomApiRegistered(params.model.api, streamFn);
-	return streamFn;
+	const guardedStream = withDesktopPrivacy(streamFn, getEnvApiKey);
+	ensureCustomApiRegistered(params.model.api, guardedStream);
+	return guardedStream;
 }
 //#endregion
 export { ensureCustomApiRegistered as a, prepareTransportAwareSimpleModel as i, buildTransportAwareSimpleStreamFn as n, createBoundaryAwareStreamFnForModel as r, registerProviderStreamForModel as t };

@@ -2200,6 +2200,7 @@ async fn run_app() {
       privacy_mode::get_privacy_mode_status,
       privacy_mode::get_local_model_hardware,
       privacy_mode::set_privacy_mode,
+      privacy_mode::authorize_private_inference,
       kn_set_keep_awake,
       kn_prepare_updater_temp_dir,
       kn_send_composed_email,

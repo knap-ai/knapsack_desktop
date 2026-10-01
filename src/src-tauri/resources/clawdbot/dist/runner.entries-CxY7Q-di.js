@@ -1,3 +1,4 @@
+import { requireStandardPrivacyMode } from "./knapsack-privacy-policy.js";
 import { a as normalizeLowercaseStringOrEmpty } from "./string-coerce-DyL154ka.js";
 import { E as pathExists, r as writeExternalFileWithinRoot } from "./fs-safe-CV86zY9G.js";
 import { n as resolvePreferredOpenClawTmpDir } from "./tmp-openclaw-dir-C60hWKdY.js";
@@ -382,6 +383,7 @@ function assertMinAudioSize(params) {
 	throw new MediaUnderstandingSkipError("tooSmall", `Audio attachment ${params.attachmentIndex + 1} is too small (${params.size} bytes, minimum ${MIN_AUDIO_FILE_BYTES})`);
 }
 async function runProviderEntry(params) {
+	requireStandardPrivacyMode("background media inference");
 	const { entry, capability, cfg } = params;
 	const providerIdRaw = entry.provider?.trim();
 	if (!providerIdRaw) throw new Error(`Provider entry missing provider for ${capability}`);

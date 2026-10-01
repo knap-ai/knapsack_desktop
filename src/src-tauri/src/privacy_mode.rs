@@ -1,30 +1,41 @@
-//! Enforced, local Privacy Mode policy.
-//!
-//! This policy intentionally lives outside the agent/gateway configuration.
-//! A model can suggest a provider, but it cannot change this file or relax the
-//! checks performed by the desktop process before it starts or reconfigures a
-//! gateway.
+#[path = "privacy_routes.rs"]
+pub mod routes;
+
+// Enforced, local Privacy Mode policy.
+//
+// This policy intentionally lives outside the agent/gateway configuration.
+// A model can suggest a provider, but it cannot change this file or relax the
+// checks performed by the desktop process before it starts or reconfigures a
+// gateway.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::io::Write;
+use std::sync::Mutex;
+static POLICY_WRITE_LOCK: Mutex<()> = Mutex::new(());
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use routes::InferencePrivacy;
 
-const POLICY_VERSION: u8 = 1;
+const POLICY_VERSION: u8 = 2;
 const MANIFEST: &str = include_str!("../data-egress-manifest.json");
-static ENABLED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct PrivacyModeConfig {
   version: u8,
   enabled: bool,
+  #[serde(default)]
+  mode: InferencePrivacy,
+  #[serde(default)]
+  groq_zdr_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PrivacyModeStatus {
   pub enabled: bool,
   pub policy_version: u8,
+  pub selected_mode: InferencePrivacy,
+  pub groq_zdr_confirmed: bool,
   pub inference: &'static str,
   pub telemetry: &'static str,
   pub manifest_sha256: String,
@@ -61,26 +72,42 @@ fn read_config() -> PrivacyModeConfig {
       .unwrap_or(PrivacyModeConfig {
         version: POLICY_VERSION,
         enabled: true,
+        mode: InferencePrivacy::LocalOnly,
+        groq_zdr_fingerprint: None,
       }),
     Ok(_) => PrivacyModeConfig {
       version: POLICY_VERSION,
       enabled: false,
+      mode: InferencePrivacy::LocalOnly,
+      groq_zdr_fingerprint: None,
     },
     // Without a known private location, fail closed rather than risk egress.
     Err(_) => PrivacyModeConfig {
       version: POLICY_VERSION,
       enabled: true,
+      mode: InferencePrivacy::LocalOnly,
+      groq_zdr_fingerprint: None,
     },
   };
-  ENABLED.store(config.enabled, Ordering::Release);
   config
 }
 
-pub fn is_enabled() -> bool {
-  if ENABLED.load(Ordering::Acquire) {
-    return true;
-  }
-  read_config().enabled
+pub fn is_enabled() -> bool { read_config().enabled }
+
+pub fn is_local_only() -> bool {
+  let config = read_config();
+  config.enabled && config.mode == InferencePrivacy::LocalOnly
+}
+
+pub fn enforce_route(provider: &str, model: &str, endpoint: &str, credential: &str) -> Result<String, String> {
+  let config = read_config();
+  if !config.enabled { return Ok(model.to_string()); }
+  routes::route_model(config.mode, provider, model, endpoint, credential, config.groq_zdr_fingerprint.as_deref())
+}
+
+#[tauri::command]
+pub fn authorize_private_inference(provider: String, model: String, endpoint: String, credential: String) -> Result<String, String> {
+  enforce_route(&provider, &model, &endpoint, &credential)
 }
 
 fn manifest_sha256() -> String {
@@ -88,13 +115,14 @@ fn manifest_sha256() -> String {
 }
 
 pub fn status() -> PrivacyModeStatus {
+  let config = read_config();
   PrivacyModeStatus {
-    enabled: is_enabled(),
+    enabled: config.enabled,
     policy_version: POLICY_VERSION,
-    // Cloud ZDR is deliberately not inferred from an API key. A future
-    // deployment can add a signed attestation, but this release fails closed.
-    inference: if is_enabled() { "local-only" } else { "normal" },
-    telemetry: if is_enabled() { "disabled" } else { "normal" },
+    selected_mode: config.mode,
+    groq_zdr_confirmed: config.groq_zdr_fingerprint.is_some(),
+    inference: if !config.enabled { "normal" } else if config.mode == InferencePrivacy::LocalOnly { "local-only" } else { "zero-retention" },
+    telemetry: if config.enabled { "disabled" } else { "normal" },
     manifest_sha256: manifest_sha256(),
   }
 }
@@ -102,9 +130,8 @@ pub fn status() -> PrivacyModeStatus {
 /// Privacy Mode permits only a loopback Ollama endpoint. Cloud Ollama and all
 /// other providers are outbound inference and therefore fail closed.
 pub fn validate_inference(provider: &str, ollama_base_url: Option<&str>) -> Result<(), String> {
-  if !is_enabled() {
-    return Ok(());
-  }
+  if !is_enabled() { return Ok(()); }
+  if !is_local_only() && matches!(provider, "groq" | "trustedrouter") { return Ok(()); }
   if !provider.eq_ignore_ascii_case("ollama") {
     return Err("Privacy Mode allows local inference only. Select a local Ollama model or turn off Privacy Mode yourself in Settings.".to_string());
   }
@@ -129,7 +156,7 @@ pub fn validate_inference(provider: &str, ollama_base_url: Option<&str>) -> Resu
 }
 
 pub fn apply_local_inference_env() {
-  if is_enabled() {
+  if is_local_only() {
     for key in [
       "OPENAI_API_KEY",
       "ANTHROPIC_API_KEY",
@@ -159,23 +186,44 @@ pub fn get_privacy_mode_status() -> PrivacyModeStatus {
 /// This is a Tauri IPC command, not a localhost HTTP endpoint. The agent's
 /// gateway has no capability for Tauri IPC and cannot relax the policy.
 #[tauri::command]
-pub fn set_privacy_mode(enabled: bool) -> Result<PrivacyModeStatus, String> {
+pub fn set_privacy_mode(app_handle: tauri::AppHandle, enabled: bool, mode: Option<InferencePrivacy>, confirm_groq_zdr: Option<bool>) -> Result<PrivacyModeStatus, String> {
+  let _guard = POLICY_WRITE_LOCK.lock().map_err(|_| "Privacy settings are busy")?;
   let path = config_path()?;
   if let Some(parent) = path.parent() {
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     harden_directory(parent);
   }
-  let config = PrivacyModeConfig {
-    version: POLICY_VERSION,
-    enabled,
+  let previous = read_config();
+  let groq_zdr_fingerprint = match confirm_groq_zdr {
+    Some(true) => Some(crate::clawd::service::groq_privacy_fingerprint(&app_handle)?),
+    Some(false) => None,
+    None => previous.groq_zdr_fingerprint,
   };
-  fs::write(
-    &path,
-    serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?,
-  )
-  .map_err(|e| format!("Could not save Privacy Mode: {e}"))?;
+  let config = PrivacyModeConfig {
+    version: POLICY_VERSION, enabled,
+    mode: mode.unwrap_or(previous.mode), groq_zdr_fingerprint,
+  };
+  let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+  let saved = (|| -> Result<(), String> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)] {
+      use std::os::unix::fs::OpenOptionsExt;
+      options.mode(0o600);
+    }
+    let mut file = options.open(&temporary).map_err(|e| e.to_string())?;
+    file.write_all(&serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    drop(file);
+    fs::rename(&temporary, &path).map_err(|e| e.to_string())?;
+    Ok(())
+  })();
+  if let Err(error) = saved {
+    let _ = fs::remove_file(&temporary);
+    return Err(format!("Could not save Privacy Mode: {error}"));
+  }
   harden(&path);
-  ENABLED.store(enabled, Ordering::Release);
+  crate::clawd::service::propagate_llm_keys_to_env(&app_handle);
   if enabled {
     apply_local_inference_env();
   }
@@ -187,15 +235,10 @@ mod tests {
   use super::*;
 
   #[test]
-  fn local_ollama_is_the_only_provider_when_enabled() {
-    ENABLED.store(true, Ordering::Release);
-    assert!(validate_inference("ollama", Some("http://127.0.0.1:11434")).is_ok());
-    assert!(validate_inference("ollama", Some("https://api.ollama.com")).is_err());
-    assert!(validate_inference("openai", None).is_err());
-    assert!(validate_inference("ollama", Some("http://localhost.evil.test:11434")).is_err());
-    assert!(validate_inference("ollama", Some("http://127.0.0.1@evil.test:11434")).is_err());
-    assert!(validate_inference("ollama", Some("http://[::1]:11434")).is_ok());
-    ENABLED.store(false, Ordering::Release);
+  fn legacy_privacy_selection_remains_local_only() {
+    let legacy: PrivacyModeConfig = serde_json::from_str(r#"{"version":1,"enabled":true}"#).unwrap();
+    assert_eq!(legacy.mode, InferencePrivacy::LocalOnly);
+    assert!(legacy.groq_zdr_fingerprint.is_none());
   }
 
   #[test]

@@ -43,7 +43,7 @@ fn push_unique_provider(
 /// Respects the user's active provider when it supports STT, then appends any
 /// other configured STT providers as fallback candidates.
 fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
-  if crate::privacy_mode::get_privacy_mode_status().enabled {
+  if crate::privacy_mode::is_local_only() {
     return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode. Audio remains on this device; local meeting transcription is not configured.".into()));
   }
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
@@ -181,7 +181,7 @@ async fn speech_to_text(
     .unwrap_or("audio.flac")
     .to_string();
 
-  let client = reqwest::Client::builder()
+  let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
     .timeout(Duration::from_secs(120))
     .build()
     .map_err(|e| LLMError::ChatCompletionFailed(e.to_string()))?;
@@ -212,9 +212,11 @@ async fn speech_to_text(
     }
 
     // Privacy can be enabled during an in-flight recording or retry delay.
-    if crate::privacy_mode::get_privacy_mode_status().enabled {
+    if crate::privacy_mode::is_local_only() {
       return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode.".into()).into());
     }
+    crate::privacy_mode::enforce_route(provider.name, provider.model, provider.base_url, &provider.api_key)
+      .map_err(|message| LLMError::ChatCompletionFailed(message))?;
     let request = if provider.name == "knapsack" {
       client.post(format!("{}/audio/transcriptions", provider.base_url.trim_end_matches('/')))
         .header("Content-Type", "audio/flac")

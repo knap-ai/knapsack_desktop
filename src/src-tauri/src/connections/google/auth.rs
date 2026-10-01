@@ -185,7 +185,10 @@ async fn refresh_token_locally(
 /// Refresh access token via knap.ai backend.
 async fn refresh_token_via_backend(email: String, refresh_token: String) -> Result<String, Error> {
   let api_server: &'static str = env!("VITE_KN_API_SERVER", "Missing VITE_KN_API_SERVER env var");
-  let client = reqwest::Client::new();
+  let client = reqwest::Client::builder()
+    .connect_timeout(Duration::from_secs(10))
+    .timeout(Duration::from_secs(20))
+    .build()?;
 
   let access_token_api = get_api_access_token(&email.clone(), None)
     .await
@@ -215,7 +218,7 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
         .headers(headers)
         .send()
         .await
-        .map_err(|e| Error::KSError(format!("Network error: {}", e)))?;
+        .map_err(|e| Error::KSError(format!("Network error: {}", e.without_url())))?;
 
       if resp.status().is_server_error() {
         log::warn!(
@@ -225,6 +228,16 @@ async fn refresh_token_via_backend(email: String, refresh_token: String) -> Resu
         return Err(Error::KSError(format!("Server error: {}", resp.status())));
       }
 
+      if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.json::<serde_json::Value>().await.unwrap_or_default();
+        if body.get("error").and_then(serde_json::Value::as_str) == Some("invalid_grant")
+          || body.pointer("/error/code").and_then(serde_json::Value::as_str) == Some("invalid_grant")
+        {
+          return Err(Error::KSError("Invalid refresh token".to_string()));
+        }
+        return Err(Error::KSError(format!("Google token refresh service returned {}", status)));
+      }
       resp
         .json::<GoogleRefreshTokenResponse>()
         .await
@@ -860,8 +873,7 @@ pub async fn refresh_connection_token(
     Err(err) => {
       let err_str = err.to_string();
       let is_invalid_refresh_token = err_str.contains("Invalid refresh token")
-        || err_str.contains("401 Unauthorized")
-        || err_str.contains("400 Bad Request");
+        || err_str.contains("invalid_grant");
 
       if is_invalid_refresh_token {
         let _ = user_connection.clone().delete();
