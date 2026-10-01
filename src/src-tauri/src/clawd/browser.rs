@@ -1317,11 +1317,15 @@ async fn call_knapsack_chat_completion(
   msgs: Vec<chat_agent::OaiMessage>,
   tls: Vec<chat_agent::OaiToolSpec>,
 ) -> anyhow::Result<chat_agent::OaiChatResp> {
+  let endpoint = knapsack_base_url();
+  crate::privacy_mode::enforce_route("knapsack", model, &endpoint, "")
+    .map_err(anyhow::Error::msg)?;
   let email = knapsack_user_email(app_handle).ok_or_else(|| {
     anyhow::anyhow!("Knapsack account is not connected. Sign in to Knapsack in Settings.")
   })?;
   let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(120))
+    .redirect(reqwest::redirect::Policy::none())
     .build()?;
   let jwt = knapsack_bearer_token(app_handle, &email)
     .await
@@ -1381,10 +1385,12 @@ async fn call_knapsack_chat_completion(
     body["tools"] = serde_json::to_value(&tls)?;
   }
 
+  crate::privacy_mode::enforce_route("knapsack", model, &endpoint, &jwt)
+    .map_err(anyhow::Error::msg)?;
   let resp = client
     .post(format!(
       "{}/chat/completions",
-      knapsack_base_url().trim_end_matches('/')
+      endpoint.trim_end_matches('/')
     ))
     .header("Authorization", format!("Bearer {}", jwt))
     .header("Content-Type", "application/json")
@@ -6754,8 +6760,10 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
     ollama_base: &str,
     _retry_rate_limits: bool,
   ) -> anyhow::Result<chat_agent::OaiChatResp> {
+    let knapsack_endpoint = knapsack_base_url();
     let endpoint = match prov {
       "ollama" => ollama_base,
+      "knapsack" => &knapsack_endpoint,
       "groq" => "https://api.groq.com/openai/v1",
       "trustedrouter" => "https://api.trustedrouter.com/v1",
       _ => "https://unapproved.invalid",
@@ -6791,6 +6799,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         })?;
         let client = reqwest::Client::builder()
           .timeout(std::time::Duration::from_secs(120))
+          .redirect(reqwest::redirect::Policy::none())
           .build()?;
         let jwt = knapsack_bearer_token(app_handle, &email)
           .await
@@ -6849,8 +6858,9 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
         }
         let request_url = format!(
           "{}/chat/completions",
-          knapsack_base_url().trim_end_matches('/')
+          knapsack_endpoint.trim_end_matches('/')
         );
+        crate::privacy_mode::enforce_route("knapsack", model, &request_url, &jwt).map_err(anyhow::Error::msg)?;
         let mut resp = client
           .post(format!("{}", request_url))
           .header("Authorization", format!("Bearer {}", jwt))
@@ -6860,10 +6870,11 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           .await?;
         if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
           if let Some(refreshed_jwt) = refresh_knapsack_access_token(Some(app_handle)).await {
+            crate::privacy_mode::enforce_route("knapsack", model, &request_url, &refreshed_jwt).map_err(anyhow::Error::msg)?;
             resp = client
               .post(format!(
                 "{}/chat/completions",
-                knapsack_base_url().trim_end_matches('/')
+                knapsack_endpoint.trim_end_matches('/')
               ))
               .header("Authorization", format!("Bearer {}", refreshed_jwt))
               .header("Content-Type", "application/json")
@@ -6877,6 +6888,7 @@ These links are rendered as red clickable buttons in the UI, appearing **below**
           let text = resp.text().await.unwrap_or_default();
           if status == reqwest::StatusCode::UNAUTHORIZED {
             if let Some(new_token) = refresh_knapsack_access_token(Some(app_handle)).await {
+              crate::privacy_mode::enforce_route("knapsack", model, &request_url, &new_token).map_err(anyhow::Error::msg)?;
               let retry_resp = client
                 .post(&request_url)
                 .header("Authorization", format!("Bearer {}", new_token))

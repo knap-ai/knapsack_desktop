@@ -22,7 +22,13 @@ export function authorizeDesktopModel(model, apiKey, policy = readDesktopPrivacy
   try { url = new URL(model.baseUrl); } catch { return reject(); }
   if (url.username || url.password) return reject();
   if (model.provider === "ollama" && url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) && !String(model.id).split(/[:/]/).some(part => part.toLowerCase() === "cloud")) return model;
+  // This exact desktop proxy rechecks the production cloud route before upload.
+  if (policy.mode === "zero-retention" && model.provider === "knapsack-local"
+      && url.origin === "http://127.0.0.1:8897"
+      && ["/api/clawd/knapsack/v1", "/api/clawd/knapsack/v1/", "/api/clawd/knapsack/v1/chat/completions"].includes(url.pathname)
+      && !url.search && !url.hash) return model;
   if (policy.mode !== "zero-retention" || url.protocol !== "https:" || (url.port && url.port !== "443")) return reject();
+  if (model.provider === "knapsack" && url.hostname === "api.knapsack.ai") return model;
   if (model.provider === "trustedrouter" && url.hostname === "api.trustedrouter.com") {
     // Keep the payload and provider model selection consistent. Selection must
     // use the hard-floor alias; never silently send an ordinary auto route.

@@ -674,6 +674,8 @@ async fn openai_compatible_completion(
   }
 
   for attempt in 0..max_retries {
+    crate::privacy_mode::enforce_route(&provider.name, &model, &url, &provider.api_key)
+      .map_err(LLMError::ProviderNotConfigured)?;
     let auth_header = format!("Bearer {}", &provider.api_key);
     let resp = match client
       .post(&url)
@@ -757,6 +759,8 @@ async fn openai_compatible_completion(
         if let Some(new_token) = refresh_knapsack_token().await {
           // Update body with new bearer and retry (loop continues with attempt=1)
           // Re-issue the request directly with the new token so we don't wait for next loop
+          crate::privacy_mode::enforce_route(&provider.name, &model, &url, &new_token)
+            .map_err(LLMError::ProviderNotConfigured)?;
           let retry_resp = match client
             .post(&url)
             .header("Authorization", format!("Bearer {}", new_token))

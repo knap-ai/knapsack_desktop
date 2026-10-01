@@ -1525,6 +1525,9 @@ pub fn resolve_default_model() -> String {
   if crate::privacy_mode::is_enabled() {
     if !crate::privacy_mode::is_local_only() {
       let provider = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
+      if provider == "knapsack" && gateway_model_ref_usable("knapsack-local/default") {
+        return "knapsack-local/default".to_string();
+      }
       let candidate = match provider.as_str() {
         "trustedrouter" => Some(("trustedrouter/zdr".to_string(), "https://api.trustedrouter.com/v1", "TRUSTEDROUTER_API_KEY")),
         "groq" => Some((std::env::var("KNAPSACK_GROQ_MODEL").unwrap_or_else(|_| "openai/gpt-oss-120b".to_string()), "https://api.groq.com/openai/v1", "GROQ_API_KEY")),

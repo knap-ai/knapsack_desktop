@@ -24,20 +24,20 @@ export default function PrivacyModeControl() {
     catch (e) { setError(String(e)); throw e }
     finally { setBusy(false) }
   }
-  const useCloud = async (provider: 'trustedrouter' | 'groq') => {
+  const useCloud = async (provider: 'trustedrouter' | 'groq' | 'knapsack') => {
     setBusy(true); setError('')
     try {
       const connections = await fetch('http://127.0.0.1:8897/api/clawd/service/api-key-status').then(response => {
         if (!response.ok) throw new Error('Could not check connected providers. Try again.')
         return response.json()
       })
-      if (!connections[provider === 'groq' ? 'has_groq_key' : 'has_trustedrouter_key']) {
+      if (!connections[provider === 'knapsack' ? 'has_knapsack' : provider === 'groq' ? 'has_groq_key' : 'has_trustedrouter_key']) {
         throw new Error('Connect this provider in AI Provider settings first, then return here.')
       }
       await setPrivacyMode(true, 'zero-retention', provider === 'groq' ? groqConfirmed : undefined)
       const response = await fetch('http://127.0.0.1:8897/api/clawd/service/set-api-key', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, key: '', model: provider === 'trustedrouter' ? 'trustedrouter/zdr' : 'openai/gpt-oss-120b' }),
+        body: JSON.stringify({ provider, key: '', model: provider === 'knapsack' ? 'auto' : provider === 'trustedrouter' ? 'trustedrouter/zdr' : 'openai/gpt-oss-120b' }),
       })
       const result = await response.json()
       if (!response.ok || !result.success) throw new Error('Connect this provider in AI Provider settings first, then return here.')
@@ -69,7 +69,8 @@ export default function PrivacyModeControl() {
           <label className="flex gap-2 text-sm"><input type="checkbox" checked={groqConfirmed} onChange={e => setGroqConfirmed(e.target.checked)} />I enabled ZDR for inference and speech in the Groq organization associated with my connected key.</label>
           <button disabled={busy || !groqConfirmed} className="rounded border px-3 py-2" onClick={() => void useCloud('groq')}>Confirm and use Groq GPT-OSS</button>
           <p className="text-sm">This is your confirmation, not an automatic account verification. Changing the API key requires confirmation again. Groq hosted-tool models are excluded.</p>
-          <p className="text-sm">Knapsack cloud: zero-retention eligibility has not yet been verified. It is unavailable in this mode.</p>
+          <button disabled={busy} className="rounded border px-3 py-2" onClick={() => void useCloud('knapsack')}>Use Knapsack</button>
+          <p className="text-sm">Knapsack provides end-to-end zero-retention inference through your signed-in account.</p>
         </div>}
         {status.enabled && mode === 'local-only' && <PrivacySetup embedded onNext={() => setSetup(false)} onLearnMore={() => {}} />}
         <details className="text-sm text-zinc-600 space-y-2">

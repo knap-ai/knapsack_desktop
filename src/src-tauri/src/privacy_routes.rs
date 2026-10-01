@@ -57,7 +57,8 @@ pub fn route_model(
       Ok(model.to_string())
     }
     ("groq", _) => Err("Enable ZDR in Groq Data Controls and confirm it for this connection".into()),
-    ("knapsack", _) | ("knapsack-local", _) => Err("Knapsack zero-retention routing has not been verified for this connection".into()),
+    // Knapsack owner confirms end-to-end ZDR for the production service.
+    ("knapsack", Some("api.knapsack.ai")) => Ok(model.to_string()),
     _ => Err("This route is not eligible for zero-retention mode. Choose an eligible private cloud route or local Ollama.".into()),
   }
 }
@@ -89,9 +90,18 @@ mod tests {
     assert!(route_model(InferencePrivacy::ZeroRetention,"groq","groq/compound","https://api.groq.com/openai/v1","key-one",Some(&fingerprint)).is_err());
   }
   #[test]
-  fn ordinary_cloud_and_unverified_knapsack_routes_fail_closed() {
-    for provider in ["openai", "anthropic", "knapsack", "knapsack-local"] {
+  fn ordinary_cloud_routes_fail_closed() {
+    for provider in ["openai", "anthropic", "knapsack-local"] {
       assert!(route_model(InferencePrivacy::ZeroRetention,provider,"auto","https://api.knapsack.ai","test",None).is_err());
     }
   }
+  #[test]
+  fn knapsack_zdr_is_production_only_and_never_local_only() {
+    assert!(route_model(InferencePrivacy::ZeroRetention,"knapsack","auto","https://api.knapsack.ai/chat/completions","",None).is_ok());
+    for endpoint in ["http://api.knapsack.ai", "https://api.knapsack.ai.evil.test", "https://api.knapsack.ai:8443", "https://user@api.knapsack.ai"] {
+      assert!(route_model(InferencePrivacy::ZeroRetention,"knapsack","auto",endpoint,"",None).is_err());
+    }
+    assert!(route_model(InferencePrivacy::LocalOnly,"knapsack","auto","https://api.knapsack.ai","",None).is_err());
+  }
+
 }

@@ -131,7 +131,7 @@ pub fn status() -> PrivacyModeStatus {
 /// other providers are outbound inference and therefore fail closed.
 pub fn validate_inference(provider: &str, ollama_base_url: Option<&str>) -> Result<(), String> {
   if !is_enabled() { return Ok(()); }
-  if !is_local_only() && matches!(provider, "groq" | "trustedrouter") { return Ok(()); }
+  if !is_local_only() && matches!(provider, "groq" | "trustedrouter" | "knapsack") { return Ok(()); }
   if !provider.eq_ignore_ascii_case("ollama") {
     return Err("Privacy Mode allows local inference only. Select a local Ollama model or turn off Privacy Mode yourself in Settings.".to_string());
   }
