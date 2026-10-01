@@ -1,4 +1,5 @@
 import { useFollowThrough } from 'src/hooks/useFollowThrough'
+import { notificationAcceptance } from 'src/utils/notificationReply'
 import { ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Navigate, Route, Routes } from 'react-router-dom'
@@ -1774,10 +1775,10 @@ function App() {
         // Show the notification message as an assistant message in chat
         window.dispatchEvent(new CustomEvent('clawd-push-assistant', { detail: message }))
         lastHeartbeatMessageRef.current = null
-        // Auto-send "yes" as a user prompt to trigger the AI to take action
-        // (heartbeat messages are phrased as questions like "Want me to help you...?")
+        // Carry the offer in the request itself: injected assistant messages
+        // may not yet be in the model's session or React history snapshot.
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: 'yes' }))
+          window.dispatchEvent(new CustomEvent('clawd-send-user', { detail: notificationAcceptance(message) }))
         }, 500)
       }
     },
