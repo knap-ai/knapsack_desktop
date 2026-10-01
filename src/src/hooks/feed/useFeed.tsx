@@ -1858,13 +1858,45 @@ export function useFeed(
     })()
 
     if (item.id != null) {
-      const thread = item.threads?.[0]
-      if (!thread) return
+      // Calendar feed entries can already exist with only a prep thread (or
+      // no threads). Recording must open a notes thread, never the first thread.
+      let thread = item.threads?.find(t => t.threadType === ThreadType.MEETING_NOTES)
+      if (!thread) {
+        const created = await createThread(
+          item.timestamp.getTime(), true, item.id, 'Meeting Notes',
+          item.getTitle(), ThreadType.MEETING_NOTES,
+        ).catch(error => {
+          logError(new Error('Could not create calendar meeting notes'), { error })
+          return undefined
+        })
+        if (!created) {
+          handleErrorContact('Could not open meeting notes. Please try Start now again.')
+          throw new Error('Could not create meeting notes thread')
+        }
+        thread = {
+          id: created.id, date: created.timestamp ? new Date(created.timestamp) : undefined,
+          hideFollowUp: true, messages: [], isLoading: false,
+          title: created.title, subtitle: created.subtitle, threadType: created.threadType,
+        } as IThread
+      }
+      const recordingItem = new FeedItem({
+        ...item,
+        threads: [...(item.threads || []).filter(t => t.id !== thread!.id), thread],
+      })
       const timelineKey = KNDateUtils.timelineKeyFromTimestamp(item.timestamp)
-      await selectFeedItem(timelineKey, item.id)
+      setFeedContent(previous => ({
+        ...previous,
+        [timelineKey]: KNDateUtils.sortByTimestamp([
+          ...(previous[timelineKey] || []).filter(existing => existing.id !== item.id), recordingItem,
+        ]),
+      }))
+      // Select the hydrated item directly; a previous render's feed snapshot
+      // may not contain it or the newly created notes thread yet.
+      setSelectedFeedItem(recordingItem)
+      setSubTab(SubTabChoices.Workspace)
       try {
         await startRecord(thread.id, item.id, runtimeEventId, saveTranscript)
-        setIsRecording(item)
+        setIsRecording(recordingItem, true)
       } catch (recordErr: any) {
         logError(new Error('Failed to start recording for calendar meeting'), {
           additionalInfo: recordErr.message || String(recordErr),
@@ -1894,7 +1926,7 @@ export function useFeed(
           parseNumericEventId(meeting.id),
           saveTranscript,
         )
-        setIsRecording(feedItem)
+        setIsRecording(feedItem, true)
       } catch (recordErr: any) {
         logError(new Error('Failed to start recording for calendar meeting'), {
           additionalInfo: recordErr.message || String(recordErr),

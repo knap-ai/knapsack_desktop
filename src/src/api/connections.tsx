@@ -237,7 +237,7 @@ export function getGoogleConnectionKeysFromScopes(scopes: string[]): ConnectionK
 
 export async function getConnections(
   email: string,
-  options?: { includeAllUsers?: boolean },
+  options?: { includeAllUsers?: boolean; signal?: AbortSignal },
 ): Promise<Record<string, Connection>> {
   const query = new URLSearchParams({ email })
   if (options?.includeAllUsers) {
@@ -246,6 +246,7 @@ export async function getConnections(
 
   const response = await fetch(`${KN_API_CONNECTIONS}?${query.toString()}`, {
     method: 'GET',
+    signal: options?.signal,
     headers: {
       'Content-Type': 'application/json',
     },

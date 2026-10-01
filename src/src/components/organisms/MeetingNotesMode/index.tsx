@@ -2074,9 +2074,9 @@ Be direct, specific, and concise. No filler text.`
         </div>}
         {transcriptionError && (
           <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 my-3">
-            <strong>Transcription unavailable — audio is kept on this device</strong>
+            <strong>Transcription needs attention</strong>
             <p>{transcriptionError}</p>
-            <p>Check Settings → Audio &amp; recording. Missing meeting text does not mean the microphone is silent.</p>
+            <p>Untranscribed audio is saved on this device. This notice clears when transcription resumes.</p>
           </div>
         )}
         {permissionError && !recordingHandlers.isRecording(thread.id) && (

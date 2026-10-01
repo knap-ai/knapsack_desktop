@@ -69,11 +69,15 @@ export type GoogleDriveFileText = {
 export async function getGoogleDriveFileText(
   idOrUrl: string,
   accountEmails: string[],
+  signal?: AbortSignal,
+  accountEmail?: string,
 ): Promise<GoogleDriveFileText | undefined> {
   for (const email of Array.from(new Set(accountEmails.filter(Boolean)))) {
     const query = new URLSearchParams({ email, id_or_url: idOrUrl })
+    if (accountEmail) query.set('account_email', accountEmail)
     try {
-      const response = await fetch(`${KN_API_GOOGLE_DRIVE_FILE_TEXT}?${query.toString()}`)
+      signal?.throwIfAborted()
+      const response = await fetch(`${KN_API_GOOGLE_DRIVE_FILE_TEXT}?${query.toString()}`, { signal })
       if (!response.ok) continue
       const data = await response.json()
       if (data?.success && typeof data.content === 'string') {
@@ -84,6 +88,7 @@ export async function getGoogleDriveFileText(
         }
       }
     } catch {
+      signal?.throwIfAborted()
       // Try the next connected account. A shared link may belong to any one of them.
     }
   }

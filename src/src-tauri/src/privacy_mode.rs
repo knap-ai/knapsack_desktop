@@ -41,10 +41,23 @@ pub struct PrivacyModeStatus {
   pub manifest_sha256: String,
 }
 
+#[cfg(not(test))]
 fn config_path() -> Result<PathBuf, String> {
   dirs::home_dir()
     .map(|home| home.join(".knapsack").join("privacy-mode.json"))
     .ok_or_else(|| "Could not determine the home directory for Privacy Mode".to_string())
+}
+
+// Unit tests must never read or modify the owner's saved privacy choice.
+// Per-thread paths also keep policy-changing tests independent.
+#[cfg(test)]
+fn config_path() -> Result<PathBuf, String> {
+  thread_local! {
+    static TEST_POLICY: PathBuf = std::env::temp_dir()
+      .join(format!("knapsack-test-policy-{}", uuid::Uuid::new_v4()))
+      .join("privacy-mode.json");
+  }
+  TEST_POLICY.with(|path| Ok(path.clone()))
 }
 
 fn harden(path: &PathBuf) {
@@ -131,7 +144,7 @@ pub fn status() -> PrivacyModeStatus {
 /// other providers are outbound inference and therefore fail closed.
 pub fn validate_inference(provider: &str, ollama_base_url: Option<&str>) -> Result<(), String> {
   if !is_enabled() { return Ok(()); }
-  if !is_local_only() && matches!(provider, "groq" | "trustedrouter") { return Ok(()); }
+  if !is_local_only() && matches!(provider, "groq" | "trustedrouter" | "knapsack") { return Ok(()); }
   if !provider.eq_ignore_ascii_case("ollama") {
     return Err("Privacy Mode allows local inference only. Select a local Ollama model or turn off Privacy Mode yourself in Settings.".to_string());
   }
@@ -239,6 +252,21 @@ mod tests {
     let legacy: PrivacyModeConfig = serde_json::from_str(r#"{"version":1,"enabled":true}"#).unwrap();
     assert_eq!(legacy.mode, InferencePrivacy::LocalOnly);
     assert!(legacy.groq_zdr_fingerprint.is_none());
+  }
+
+  #[test]
+  fn persisted_policy_rechecks_knapsack_and_preserves_legacy_local_only() {
+    let path = config_path().unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, r#"{"version":2,"enabled":true,"mode":"zero-retention"}"#).unwrap();
+    assert!(validate_inference("knapsack", None).is_ok());
+    assert!(enforce_route("knapsack", "auto", "https://api.knapsack.ai", "").is_ok());
+    fs::write(&path, r#"{"version":1,"enabled":true}"#).unwrap();
+    assert!(validate_inference("knapsack", None).is_err());
+    assert!(enforce_route("knapsack", "auto", "https://api.knapsack.ai", "").is_err());
+    fs::write(&path, "{broken").unwrap();
+    assert!(enforce_route("knapsack", "auto", "https://api.knapsack.ai", "").is_err());
+    fs::remove_dir_all(path.parent().unwrap()).unwrap();
   }
 
   #[test]

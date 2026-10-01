@@ -21,6 +21,8 @@ struct SttProvider {
   model: &'static str,
 }
 
+const LOCAL_ONLY_TRANSCRIPTION_ERROR: &str = "On-device-only Privacy Mode blocks cloud transcription, and local meeting transcription is not configured. To transcribe with Knapsack, choose Zero-retention cloud in the Privacy control, then Use Knapsack. Untranscribed audio stays on this device.";
+
 fn push_unique_provider(
   providers: &mut Vec<SttProvider>,
   name: &'static str,
@@ -44,7 +46,7 @@ fn push_unique_provider(
 /// other configured STT providers as fallback candidates.
 fn resolve_stt_providers() -> Result<Vec<SttProvider>, LLMError> {
   if crate::privacy_mode::is_local_only() {
-    return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode. Audio remains on this device; local meeting transcription is not configured.".into()));
+    return Err(LLMError::ChatCompletionFailed(LOCAL_ONLY_TRANSCRIPTION_ERROR.into()));
   }
   let active = std::env::var("KNAPSACK_ACTIVE_PROVIDER").unwrap_or_default();
   let openai_key = std::env::var("OPENAI_API_KEY")
@@ -133,6 +135,20 @@ lazy_static! {
 pub fn clear_transcription_error(filename: &str) {
   TRANSCRIPTION_ERRORS.lock().unwrap().remove(filename);
 }
+
+fn record_transcription_result(filename: &str, result: &Result<(), Error>) {
+  let mut errors = TRANSCRIPTION_ERRORS.lock().unwrap();
+  match result {
+    Ok(()) => { errors.remove(filename); }
+    Err(error) => {
+      let message = match error {
+        Error::LLMError(LLMError::ChatCompletionFailed(message)) => message.clone(),
+        other => other.to_string(),
+      };
+      errors.insert(filename.to_string(), message);
+    }
+  }
+}
 pub fn transcription_error(filename: &str) -> Option<String> {
   TRANSCRIPTION_ERRORS.lock().unwrap().get(filename).cloned().or_else(transcription_readiness_error)
 }
@@ -213,7 +229,7 @@ async fn speech_to_text(
 
     // Privacy can be enabled during an in-flight recording or retry delay.
     if crate::privacy_mode::is_local_only() {
-      return Err(LLMError::ChatCompletionFailed("Cloud transcription is disabled in Privacy Mode.".into()).into());
+      return Err(LLMError::ChatCompletionFailed(LOCAL_ONLY_TRANSCRIPTION_ERROR.into()).into());
     }
     crate::privacy_mode::enforce_route(provider.name, provider.model, provider.base_url, &provider.api_key)
       .map_err(|message| LLMError::ChatCompletionFailed(message))?;
@@ -434,6 +450,9 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
   let audio_path = flac_path.join(&audio_filename);
   let result = tokio::time::timeout(Duration::from_secs(20), transcribe_audio(&audio_path, transcript_filename.clone())).await
     .unwrap_or_else(|_| Err(LLMError::ChatCompletionFailed("Transcription timed out; audio is saved locally. Check your connection or transcription provider.".into()).into()));
+  // Only clear a previous failure once this stream has transcribed and saved
+  // a chunk successfully. Microphone activity alone is not recovery evidence.
+  record_transcription_result(&transcript_filename, &result);
   match result {
     Ok(_) => {
       if let Err(e) = fs::remove_file(&audio_path) {
@@ -443,7 +462,6 @@ pub async fn finalize_chunk(audio_filename: String, transcript_filename: String)
       }
     }
     Err(e) => {
-      TRANSCRIPTION_ERRORS.lock().unwrap().insert(transcript_filename, e.to_string());
       log::error!("Failed to transcribe audio: {:?}", e);
     }
   }
@@ -700,12 +718,20 @@ mod tests {
   }
 
   #[test]
-  fn transcription_failure_remains_visible_until_a_new_recording_clears_it() {
-    let filename = "audio-settings-regression.txt";
-    TRANSCRIPTION_ERRORS.lock().unwrap().insert(filename.into(), "provider unavailable".into());
+  fn successful_transcription_clears_only_the_recovered_stream_error() {
+    let filename = "audio-settings-recovery-input.txt";
+    let other_stream = "audio-settings-recovery-output.txt";
+    let failure = Err(LLMError::ChatCompletionFailed("provider unavailable".into()).into());
+    record_transcription_result(filename, &failure);
+    record_transcription_result(other_stream, &failure);
+    assert_eq!(transcription_error(filename).as_deref(), Some("provider unavailable"));
+    record_transcription_result(filename, &Ok(()));
+    assert!(!TRANSCRIPTION_ERRORS.lock().unwrap().contains_key(filename));
+    assert_eq!(transcription_error(other_stream).as_deref(), Some("provider unavailable"));
+    record_transcription_result(filename, &failure);
     assert_eq!(transcription_error(filename).as_deref(), Some("provider unavailable"));
     clear_transcription_error(filename);
-    assert!(!TRANSCRIPTION_ERRORS.lock().unwrap().contains_key(filename));
+    clear_transcription_error(other_stream);
   }
 
   #[test]

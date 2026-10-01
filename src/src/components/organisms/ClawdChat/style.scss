@@ -783,6 +783,8 @@
 
 .ClawdMsg {
   display: flex;
+  min-width: 0;
+  flex-shrink: 0;
   margin-bottom: 10px;
 }
 
@@ -1006,9 +1008,13 @@
 }
 
 .ClawdBubble {
-  max-width: 720px;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: min(720px, 100%);
   word-wrap: break-word;
-  overflow-wrap: break-word;
+  // Include long links in intrinsic sizing so right-aligned bubbles stay in
+  // the chat viewport, including the narrower meeting sheet.
+  overflow-wrap: anywhere;
   overflow: visible;
   font-size: 14px;
   line-height: 1.5;

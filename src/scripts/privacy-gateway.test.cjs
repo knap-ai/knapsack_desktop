@@ -49,3 +49,20 @@ test('transport checks actual URL, credentials and payload after model transform
   assert.throws(() => check(model, 'https://api.groq.com', { authorization: 'Bearer test-key' }, JSON.stringify({ model: 'groq/compound' }), cloud), /Privacy Mode/)
   assert.throws(() => check({ provider: 'trustedrouter' }, 'https://api.trustedrouter.com/v1/chat/completions', {}, JSON.stringify({ model: 'auto' }), cloud), /Privacy Mode/)
 })
+
+test('Knapsack ZDR allows only production cloud and the exact desktop proxy', async () => {
+  const { authorizeDesktopModel: allow, authorizeDesktopRequest: check } = await policy()
+  const cloud = { enabled: true, mode: 'zero-retention' }
+  const model = { provider: 'knapsack-local', id: 'default', baseUrl: 'http://127.0.0.1:8897/api/clawd/knapsack/v1' }
+  assert.equal(allow(model, '', cloud), model)
+  check(model, `${model.baseUrl}/chat/completions`, {}, JSON.stringify({ model: 'auto' }), cloud)
+  for (const baseUrl of ['http://127.0.0.1:8898/api/clawd/knapsack/v1', 'http://localhost:8897/api/clawd/knapsack/v1', 'http://127.0.0.1:8897/other', 'http://127.0.0.1:8897/api/clawd/knapsack/v1?target=evil']) {
+    assert.throws(() => allow({ ...model, baseUrl }, '', cloud), /Privacy Mode/)
+  }
+  assert.throws(() => allow(model, '', { enabled: true, mode: 'local-only' }), /Privacy Mode/)
+  const direct = { provider: 'knapsack', id: 'auto', baseUrl: 'https://api.knapsack.ai' }
+  assert.equal(allow(direct, '', cloud), direct)
+  for (const baseUrl of ['http://api.knapsack.ai', 'https://api.knapsack.ai.evil.test', 'https://api.knapsack.ai:8443']) {
+    assert.throws(() => allow({ ...direct, baseUrl }, '', cloud), /Privacy Mode/)
+  }
+})
